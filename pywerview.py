@@ -16,23 +16,49 @@ import json
 
 def powerview_arg_parse(cmd):
     parser = argparse.ArgumentParser()
-    parser.add_argument('module', action='store')
-    parser.add_argument('-identity', action='store',default='*')
+    subparsers = parser.add_subparsers(dest='module')
+    #parser.add_argument('module', action='store')
     #parser.add_argument('identity', nargs='?', action='store',default='*')
-    parser.add_argument('-properties', action='store', default='*')
+
+    #domain
+    get_domain_parser = subparsers.add_parser('get-domain')
+    get_domain_parser.add_argument('-identity', action='store',default='*')
+    get_domain_parser.add_argument('-properties', action='store', default='*')
 
     #group
-    parser.add_argument('-member', '-members', action='store')
+    get_domaingroup_parser = subparsers.add_parser('get-domaingroup')
+    get_domaingroup_parser.add_argument('-identity', action='store',default='*')
+    get_domaingroup_parser.add_argument('-properties', action='store', default='*')
+    get_domaingroup_parser.add_argument('-member', '-members', action='store')
 
     #user
-    parser.add_argument('-spn', action='store_true', default=False)
+    get_domainuser_parser = subparsers.add_parser('get-domainuser')
+    get_domainuser_parser.add_argument('-identity', action='store',default='*')
+    get_domainuser_parser.add_argument('-properties', action='store', default='*')
+    get_domainuser_parser.add_argument('-spn', action='store_true', default=False)
+    get_domainuser_parser.add_argument('-admincount', action='store_true', default=False)
+    get_domainuser_parser.add_argument('-preauthnotrequired', action='store_true', default=False)
+    get_domainuser_parser.add_argument('-trustedtoauth', action='store_true', default=False)
+    get_domainuser_parser.add_argument('-allowdelegation', action='store_true', default=False)
 
     #computers
-    parser.add_argument('-unconstrained', action='store_true', default=False)
-    parser.add_argument('-trustedtoauth', action='store_true', default=False)
-    parser.add_argument('-preauthnotrequired', action='store_true', default=False)
+    get_domaincomputer_parser = subparsers.add_parser('get-domaincomputer')
+    get_domaincomputer_parser.add_argument('-identity', action='store',default='*')
+    get_domaincomputer_parser.add_argument('-properties', action='store', default='*')
+    get_domaincomputer_parser.add_argument('-unconstrained', action='store_true', default=False)
+    get_domaincomputer_parser.add_argument('-trustedtoauth', action='store_true', default=False)
     
+    #gpo
+    get_domaingpo_parser = subparsers.add_parser('get-domaingpo')
+    get_domaingpo_parser.add_argument('-identity', action='store',default='*')
+    get_domaingpo_parser.add_argument('-properties', action='store', default='*')
+   
+    #trust
+    get_domaintrust_parser = subparsers.add_parser('get-domaintrust')
+    get_domaintrust_parser.add_argument('-identity', action='store',default='*')
+    get_domaintrust_parser.add_argument('-properties', action='store', default='*')
     args = parser.parse_args(cmd)
+
     return args
 
 def arg_parse():
@@ -73,8 +99,8 @@ def main(args):
         readline.set_completer_delims(' \t\n;')
         readline.parse_and_bind("tab: complete")
         readline.set_completer(comp.complete)
-        cmd = input(f'{bcolors.OKBLUE}PywerView> {bcolors.ENDC}')
-        cmd = cmd.lower()
+        cmd = input(f'{bcolors.OKBLUE}PV> {bcolors.ENDC}')
+        cmd = f'{cmd.lower()}'
         
         pv_args = powerview_arg_parse(cmd.split())
         properties = pv_args.properties.split(',')
@@ -110,5 +136,8 @@ def main(args):
             print(e)
 
 if __name__ == "__main__":
-    args = arg_parse()
-    main(args)
+    try:
+        args = arg_parse()
+        main(args)
+    except KeyboardInterrupt:
+        sys.exit(1)

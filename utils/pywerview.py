@@ -9,6 +9,12 @@ class PywerView:
     def get_domainuser(self, args, properties='*'):
         if args.preauthnotrequired:
             ldap_filter = f'(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304)(sAMAccountName={args.identity}))'
+        elif args.admincount:
+            ldap_filter = f'(&(samAccountType=805396368)(adminCount=1)(sAMAccountName={args.identity}))'
+        elif args.allowdelegation:
+            ldap_filter = f'(&(samAccountType=805306368)!(userAccountControl:1.2.840.113556.1.4.803:=1048574)(sAMAccountName={args.identity}))'
+        elif args.trustedtoauth:
+            ldap_filter = f'(&(samAccountType=805306368)(msds-allowedtodelegateto=*)(sAMAccountName={args.identity}))'
         elif args.spn:
             ldap_filter = f'(&(samAccountType=805306368)(servicePrincipalName=*)(sAMAccountName={args.identity}))'
         else:
