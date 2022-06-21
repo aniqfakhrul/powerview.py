@@ -2,7 +2,13 @@ import os
 import re
 import readline
 
-COMMANDS = ['Get-Domain', 'Get-DomainUser', 'Get-DomainComputer', 'Get-DomainGroup', 'Get-Forest','Get-DomainGPO','Get-DomainController','get-domain', 'get-domainuser', 'get-domaincomputer', 'get-domaingroup', 'get-forest', 'get-domaingpo', 'get-domaincontroller']
+COMMANDS = ['Get-Domain', 'Get-DomainUser', 'Get-DomainComputer', 'Get-DomainGroup',
+'Get-Forest','Get-DomainGPO','Get-DomainController','get-domain', 'get-domainuser',
+'get-domaincomputer', 'get-domaingroup', 'get-forest', 'get-domaingpo', 'get-domaincontroller',
+'-Identity', '-Properties', '-identity',
+'-properties','-Unconstrained','-unconstrained','-TrustedToAuth','-trustedtoauth','-SPN', '-spn',
+'-AdminCount', '-admincount', '-PreAuthNotRequired', '-preauthnotrequired', '-AllowDelegation',
+'-allowdelegation', '-Select', '-select']
 RE_SPACE = re.compile('.*\s+$', re.M)
 
 class Completer(object):
@@ -46,13 +52,13 @@ class Completer(object):
         buffer = readline.get_line_buffer()
         line = readline.get_line_buffer().split()
         # show all commands
-        if not line:
-            return [c + ' ' for c in COMMANDS][state]
+        #if not line:
+        #    return [c + ' ' for c in COMMANDS][state]
         # account for last argument ending in a space
         if RE_SPACE.match(buffer):
             line.append('')
         # resolve command to the implementation function
-        cmd = line[0].strip()
+        cmd = line[-1].strip()
         if cmd in COMMANDS:
             impl = getattr(self, 'complete_%s' % cmd)
             args = line[1:]

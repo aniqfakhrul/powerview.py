@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 from pywerview.pywerview import PywerView
 from pywerview.utils.helpers import *
+from pywerview.utils.native import *
 from pywerview.utils.completer import Completer
 from pywerview.utils.colors import bcolors
-
 
 from impacket import version
 from impacket.examples import logger
@@ -13,6 +13,7 @@ import sys
 import ldap3
 import argparse
 import readline
+import logging
 import json
 
 def powerview_arg_parse(cmd):
@@ -25,28 +26,25 @@ def powerview_arg_parse(cmd):
     get_domain_parser = subparsers.add_parser('get-domain')
     get_domain_parser.add_argument('-identity', action='store',default='*')
     get_domain_parser.add_argument('-properties', action='store', default='*')
-    get_domain_parser.add_argument('-raw', action='store_true', default=False)
-    get_domain_parser.add_argument('-fl','-formatlist', action='store_true', default=False)
+    get_domain_parser.add_argument('-select', action='store')
 
     #group
     get_domaingroup_parser = subparsers.add_parser('get-domaingroup')
     get_domaingroup_parser.add_argument('-identity', action='store',default='*')
     get_domaingroup_parser.add_argument('-properties', action='store', default='*')
     get_domaingroup_parser.add_argument('-member', '-members', action='store')
-    get_domaingroup_parser.add_argument('-raw', action='store_true', default=False)
-    get_domaingroup_parser.add_argument('-fl','-formatlist', action='store_true', default=False)
+    get_domaingroup_parser.add_argument('-select', action='store')
 
     #user
     get_domainuser_parser = subparsers.add_parser('get-domainuser')
     get_domainuser_parser.add_argument('-identity', action='store',default='*')
-    get_domainuser_parser.add_argument('-properties', action='store')
+    get_domainuser_parser.add_argument('-properties', action='store',default='*')
     get_domainuser_parser.add_argument('-spn', action='store_true', default=False)
     get_domainuser_parser.add_argument('-admincount', action='store_true', default=False)
     get_domainuser_parser.add_argument('-preauthnotrequired', action='store_true', default=False)
     get_domainuser_parser.add_argument('-trustedtoauth', action='store_true', default=False)
     get_domainuser_parser.add_argument('-allowdelegation', action='store_true', default=False)
-    get_domainuser_parser.add_argument('-raw', action='store_true', default=False)
-    get_domainuser_parser.add_argument('-fl','-formatlist', action='store_true', default=False)
+    get_domainuser_parser.add_argument('-select', action='store')
 
     #computers
     get_domaincomputer_parser = subparsers.add_parser('get-domaincomputer')
@@ -54,22 +52,19 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-properties', action='store', default='*')
     get_domaincomputer_parser.add_argument('-unconstrained', action='store_true', default=False)
     get_domaincomputer_parser.add_argument('-trustedtoauth', action='store_true', default=False)
-    get_domaincomputer_parser.add_argument('-raw', action='store_true', default=False)
-    get_domaincomputer_parser.add_argument('-fl','-formatlist', action='store_true', default=False)
+    get_domaincomputer_parser.add_argument('-select', action='store')
     
     #gpo
     get_domaingpo_parser = subparsers.add_parser('get-domaingpo')
     get_domaingpo_parser.add_argument('-identity', action='store',default='*')
     get_domaingpo_parser.add_argument('-properties', action='store', default='*')
-    get_domaingpo_parser.add_argument('-raw', action='store', default=False)
-    get_domaingpo_parser.add_argument('-fl','-formatlist', action='store_true', default=False)
+    get_domaingpo_parser.add_argument('-select', action='store')
    
     #trust
     get_domaintrust_parser = subparsers.add_parser('get-domaintrust')
     get_domaintrust_parser.add_argument('-identity', action='store',default='*')
     get_domaintrust_parser.add_argument('-properties', action='store', default='*')
-    get_domaintrust_parser.add_argument('-raw', action='store_true', default=False)
-    get_domaintrust_parser.add_argument('-fl','-formatlist', action='store_true', default=False)
+    get_domaintrust_parser.add_argument('-select', action='store')
 
     args = parser.parse_args(cmd)
 
@@ -95,7 +90,11 @@ def arg_parse():
     return args
 
 def main():
-    domain, username, password, lmhash, nthash = parse_identity(arg_parse())
+    # logger properties
+    logging.getLogger().setLevel(logging.INFO)
+
+    args = arg_parse()
+    domain, username, password, lmhash, nthash = parse_identity(args)
     
     ldap_server, ldap_session = init_ldap_session(args, domain, username, password, lmhash, nthash)
 
@@ -114,83 +113,66 @@ def main():
         readline.parse_and_bind("tab: complete")
         readline.set_completer(comp.complete)
         cmd = input(f'{bcolors.OKBLUE}PV> {bcolors.ENDC}')
-        cmd = f'{cmd.lower()}'
         
-        pv_args = powerview_arg_parse(cmd.split())
+        if cmd:
+            cmd = f'{cmd.lower()}'
 
-        if pv_args.properties:
-            properties = pv_args.properties.split(',')
-
-        try:
-            if pv_args.module.lower() == 'get-domain':
-                if pv_args.properties:
-                    entries = pywerview.get_domain(pv_args, properties)
-                else:
-                    entries = pywerview.get_domain(pv_args)
-            elif pv_args.module.lower() == 'get-domainuser':
-                if pv_args.properties:
-                    entries = pywerview.get_domainuser(pv_args, properties)
-                else:
-                    entries = pywerview.get_domainuser(pv_args)
-            elif pv_args.module.lower() == 'get-domaincomputer':
-                if pv_args.properties:
-                    entries = pywerview.get_domaincomputer(pv_args, properties)
-                else:
-                    entries = pywerview.get_domaincomputer(pv_args)
-            elif pv_args.module.lower() == 'get-domaingroup':
-                if pv_args.properties:
-                    entries = pywerview.get_domaingroup(pv_args, properties)
-                else:
-                    entries = pywerview.get_domaingroup(pv_args)
-            elif pv_args.module.lower() == 'get-domaincontroller':
-                if pv_args.properties:
-                    entries = pywerview.get_domaincontroller(pv_args, properties)
-                else:
-                    entries = pywerview.get_domaincontroller(pv_args)
-            elif pv_args.module.lower() == 'get-domaingpo':
-                if pv_args.properties:
-                    entries = pywerview.get_domaingpo(pv_args, properties)
-                else: 
-                    entries = pywerview.get_domaingpo(pv_args)
-            elif pv_args.module.lower() == 'get-domaintrust':
-                if pv_args.properties:
-                    entries = pywerview.get_domaintrust(pv_args, properties)
-                else:
-                    entries = pywerview.get_domaintrust(pv_args)
-            elif pv_args.module.lower() == 'add-domaingroupmember':
-                # in development
-                print(None)
-                #pywerview.add_domaingroupmember(pv_args, identity)
-            elif cmd == 'exit':
-                sys.exit(1)
-            
-            if entries:
-                if pv_args.raw:
-                    for entry in entries:
-                        entry = json.loads(entry.entry_to_json())
-                        for attr,value in entry['attributes'].items():
-                            print(f'{"".join(value)}')
-                elif pv_args.fl:
-                    print("TBD")
-                else:
-                    newline= '\n'
-                    for entry in entries:
-                        entry = json.loads(entry.entry_to_json())
-                        for attr,value in entry['attributes'].items():
-                            try:
-                                print(f"{attr.ljust(40)}: {f'{newline.ljust(43)}'.join(value)}")
-                            except:
-                                pass
-                        print()
+            if cmd == 'clear':
+                clear_screen()
             else:
-                print(f'No results')
+                pv_args = powerview_arg_parse(cmd.split())
+                properties = pv_args.properties.split(',')
+                identity = pv_args.identity
+
+                try:
+                    if pv_args.module.lower() == 'get-domain':
+                        entries = pywerview.get_domain(pv_args, properties, identity)
+                    elif pv_args.module.lower() == 'get-domainuser':
+                        entries = pywerview.get_domainuser(pv_args, properties, identity)
+                    elif pv_args.module.lower() == 'get-domaincomputer':
+                        entries = pywerview.get_domaincomputer(pv_args, properties, identity)
+                    elif pv_args.module.lower() == 'get-domaingroup':
+                        entries = pywerview.get_domaingroup(pv_args, properties, identity)
+                    elif pv_args.module.lower() == 'get-domaincontroller':
+                        entries = pywerview.get_domaincontroller(pv_args, properties, identity)
+                    elif pv_args.module.lower() == 'get-domaingpo':
+                        entries = pywerview.get_domaingpo(pv_args, properties, identity)
+                    elif pv_args.module.lower() == 'get-domaintrust':
+                        entries = pywerview.get_domaintrust(pv_args, properties, identity)
+                    elif pv_args.module.lower() == 'add-domaingroupmember':
+                        # in development
+                        print(None)
+                        #pywerview.add_domaingroupmember(pv_args, identity)
+                    elif cmd == 'exit':
+                        sys.exit(1)
+                    
+                    if entries:
+                        if pv_args.select is not None:
+                            select_attribute = pv_args.select.split(",")
+                            if len(select_attribute) == 1:
+                                for entry in entries:
+                                    entry = json.loads(entry.entry_to_json())
+                                    for key in list(entry["attributes"].keys()):
+                                        for attr in select_attribute:
+                                            if attr in key.lower():
+                                                print(''.join(entry['attributes'][key]))
+                            else:
+                                logging.error(f'{bcolors.FAIL}-select flag can only accept one attribute{bcolors.ENDC}')
+                        else:
+                            newline= '\n'
+                            for entry in entries:
+                                entry = json.loads(entry.entry_to_json())
+                                for attr,value in entry['attributes'].items():
+                                    if value:
+                                        try:
+                                            print(f"{attr.ljust(40)}: {f'{newline.ljust(43)}'.join(value)}")
+                                        except:
+                                            pass
+                                print()
+                    else:
+                        logging.info(f'No results')
+                except ldap3.core.exceptions.LDAPBindError as e:
+                    print(e)
+                except ldap3.core.exceptions.LDAPAttributeError as e:
+                    print(e)
             
-            """ 
-            if entries:
-                for entry in entries:
-                    print(f'{entry.entry_to_ldif()}')
-            """
-        except ldap3.core.exceptions.LDAPBindError as e:
-            print(e)
-        except ldap3.core.exceptions.LDAPAttributeError as e:
-            print(e)
