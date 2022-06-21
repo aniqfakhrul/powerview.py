@@ -53,13 +53,13 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-unconstrained', action='store_true', default=False)
     get_domaincomputer_parser.add_argument('-trustedtoauth', action='store_true', default=False)
     get_domaincomputer_parser.add_argument('-select', action='store')
-    
+
     #gpo
     get_domaingpo_parser = subparsers.add_parser('get-domaingpo')
     get_domaingpo_parser.add_argument('-identity', action='store',default='*')
     get_domaingpo_parser.add_argument('-properties', action='store', default='*')
     get_domaingpo_parser.add_argument('-select', action='store')
-   
+
     #trust
     get_domaintrust_parser = subparsers.add_parser('get-domaintrust')
     get_domaintrust_parser.add_argument('-identity', action='store',default='*')
@@ -99,7 +99,7 @@ def main():
 
     args = arg_parse()
     domain, username, password, lmhash, nthash = parse_identity(args)
-    
+
     ldap_server, ldap_session = init_ldap_session(args, domain, username, password, lmhash, nthash)
 
     cnf = ldapdomaindump.domainDumpConfig()
@@ -117,7 +117,7 @@ def main():
         readline.parse_and_bind("tab: complete")
         readline.set_completer(comp.complete)
         cmd = input(f'{bcolors.OKBLUE}PV> {bcolors.ENDC}')
-        
+
         if cmd:
             cmd = f'{cmd.lower()}'
 
@@ -156,29 +156,47 @@ def main():
                     sys.exit(1)
                 elif cmd == 'clear':
                     clear_screen()
-                
+
                 if entries:
                     if pv_args.select is not None:
                         select_attribute = pv_args.select.split(",")
                         if len(select_attribute) == 1:
+                            print(f"{bcolors.UNDERLINE}{pv_args.select.lower()}{bcolors.ENDC}")
+                            print()
                             for entry in entries:
                                 entry = json.loads(entry.entry_to_json())
                                 for key in list(entry["attributes"].keys()):
-                                    for attr in select_attribute:
-                                        if attr in key.lower():
-                                            print(''.join(entry['attributes'][key]))
+                                    if (pv_args.select.lower() == key.lower()):
+                                        # Check dictionary in a list
+                                        for i in entry['attributes'][key]:
+                                            if (isinstance(i,dict)) and ("encoded" in i.keys()):
+                                                value = i["encoded"]
+                                            else:
+                                                value = str(i)
+                                        print(value)
+                                        # print(''.join(entry['attributes'][key]))
                         else:
                             logging.error(f'{bcolors.FAIL}-select flag can only accept one attribute{bcolors.ENDC}')
                     else:
                         newline= '\n'
                         for entry in entries:
+                            #print(entry.entry_to_ldif())
                             entry = json.loads(entry.entry_to_json())
+                            # print(entry)
                             for attr,value in entry['attributes'].items():
-                                if value:
-                                    try:
-                                        print(f"{attr.ljust(40)}: {f'{newline.ljust(43)}'.join(value)}")
-                                    except:
-                                        pass
+                                # Check dictionary in a list
+                                for i in value:
+                                    if (isinstance(i,dict)) and ("encoded" in i.keys()):
+                                        value = i["encoded"]
+                                    else:
+                                        value = str(i)
+                                # Snip
+                                value = snipping(value)
+                                if isinstance(value,list):
+                                    if len(value) != 0:
+                                        print(value)
+                                else:
+                                    print(f"{attr.ljust(43)}: {value}")
                             print()
                 else:
                     logging.info(f'No results')
@@ -186,4 +204,3 @@ def main():
                 print(e)
             except ldap3.core.exceptions.LDAPAttributeError as e:
                 print(e)
-            
