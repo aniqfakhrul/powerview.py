@@ -224,7 +224,7 @@ def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='
 
 def init_ldap_connection(target, no_tls, args, domain, username, password, lmhash, nthash):
     user = '%s\\%s' % (domain, username)
-    if no_tls:
+    if not no_tls:
         use_ssl = False
         port = 389
     else:
