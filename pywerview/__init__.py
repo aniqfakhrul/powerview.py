@@ -66,8 +66,12 @@ def powerview_arg_parse(cmd):
     get_domaintrust_parser.add_argument('-properties', action='store', default='*')
     get_domaintrust_parser.add_argument('-select', action='store')
 
-    args = parser.parse_args(cmd)
+    # add operations
+    add_domaingroupmember_parser = subparsers.add_parser('add-domaingroupmember')
+    add_domaingroupmember_parser.add_argument('-identity',const=None)
+    add_domaingroupmember_parser.add_argument('-members', const=None)
 
+    args = parser.parse_args(cmd)
     return args
 
 def arg_parse():
@@ -117,62 +121,69 @@ def main():
         if cmd:
             cmd = f'{cmd.lower()}'
 
-            if cmd == 'clear':
-                clear_screen()
-            else:
-                pv_args = powerview_arg_parse(cmd.split())
-                properties = pv_args.properties.split(',')
+            pv_args = powerview_arg_parse(cmd.split())
+            try:
+                if pv_args.properties:
+                    properties = pv_args.properties.split(',')
                 identity = pv_args.identity
+            except:
+                pass
 
-                try:
-                    if pv_args.module.lower() == 'get-domain':
-                        entries = pywerview.get_domain(pv_args, properties, identity)
-                    elif pv_args.module.lower() == 'get-domainuser':
-                        entries = pywerview.get_domainuser(pv_args, properties, identity)
-                    elif pv_args.module.lower() == 'get-domaincomputer':
-                        entries = pywerview.get_domaincomputer(pv_args, properties, identity)
-                    elif pv_args.module.lower() == 'get-domaingroup':
-                        entries = pywerview.get_domaingroup(pv_args, properties, identity)
-                    elif pv_args.module.lower() == 'get-domaincontroller':
-                        entries = pywerview.get_domaincontroller(pv_args, properties, identity)
-                    elif pv_args.module.lower() == 'get-domaingpo':
-                        entries = pywerview.get_domaingpo(pv_args, properties, identity)
-                    elif pv_args.module.lower() == 'get-domaintrust':
-                        entries = pywerview.get_domaintrust(pv_args, properties, identity)
-                    elif pv_args.module.lower() == 'add-domaingroupmember':
-                        # in development
-                        print(None)
-                        #pywerview.add_domaingroupmember(pv_args, identity)
-                    elif cmd == 'exit':
-                        sys.exit(1)
-                    
-                    if entries:
-                        if pv_args.select is not None:
-                            select_attribute = pv_args.select.split(",")
-                            if len(select_attribute) == 1:
-                                for entry in entries:
-                                    entry = json.loads(entry.entry_to_json())
-                                    for key in list(entry["attributes"].keys()):
-                                        for attr in select_attribute:
-                                            if attr in key.lower():
-                                                print(''.join(entry['attributes'][key]))
-                            else:
-                                logging.error(f'{bcolors.FAIL}-select flag can only accept one attribute{bcolors.ENDC}')
-                        else:
-                            newline= '\n'
+            try:
+                entries = None
+
+                if pv_args.module.lower() == 'get-domain':
+                    entries = pywerview.get_domain(pv_args, properties, identity)
+                elif pv_args.module.lower() == 'get-domainuser':
+                    entries = pywerview.get_domainuser(pv_args, properties, identity)
+                elif pv_args.module.lower() == 'get-domaincomputer':
+                    entries = pywerview.get_domaincomputer(pv_args, properties, identity)
+                elif pv_args.module.lower() == 'get-domaingroup':
+                    entries = pywerview.get_domaingroup(pv_args, properties, identity)
+                elif pv_args.module.lower() == 'get-domaincontroller':
+                    entries = pywerview.get_domaincontroller(pv_args, properties, identity)
+                elif pv_args.module.lower() == 'get-domaingpo':
+                    entries = pywerview.get_domaingpo(pv_args, properties, identity)
+                elif pv_args.module.lower() == 'get-domaintrust':
+                    entries = pywerview.get_domaintrust(pv_args, properties, identity)
+                elif pv_args.module.lower() == 'add-domaingroupmember':
+                    if pv_args.identity is not None and pv_args.members is not None:
+                        if pywerview.add_domaingroupmember(pv_args):
+                            logging.info(f'User {pv_args.members} successfully added to {pv_args.identity}')
+                    else:
+                        logging.error('-Identity and -Members flag required')
+                elif cmd == 'exit':
+                    sys.exit(1)
+                elif cmd == 'clear':
+                    clear_screen()
+                
+                if entries:
+                    if pv_args.select is not None:
+                        select_attribute = pv_args.select.split(",")
+                        if len(select_attribute) == 1:
                             for entry in entries:
                                 entry = json.loads(entry.entry_to_json())
-                                for attr,value in entry['attributes'].items():
-                                    if value:
-                                        try:
-                                            print(f"{attr.ljust(40)}: {f'{newline.ljust(43)}'.join(value)}")
-                                        except:
-                                            pass
-                                print()
+                                for key in list(entry["attributes"].keys()):
+                                    for attr in select_attribute:
+                                        if attr in key.lower():
+                                            print(''.join(entry['attributes'][key]))
+                        else:
+                            logging.error(f'{bcolors.FAIL}-select flag can only accept one attribute{bcolors.ENDC}')
                     else:
-                        logging.info(f'No results')
-                except ldap3.core.exceptions.LDAPBindError as e:
-                    print(e)
-                except ldap3.core.exceptions.LDAPAttributeError as e:
-                    print(e)
+                        newline= '\n'
+                        for entry in entries:
+                            entry = json.loads(entry.entry_to_json())
+                            for attr,value in entry['attributes'].items():
+                                if value:
+                                    try:
+                                        print(f"{attr.ljust(40)}: {f'{newline.ljust(43)}'.join(value)}")
+                                    except:
+                                        pass
+                            print()
+                else:
+                    logging.info(f'No results')
+            except ldap3.core.exceptions.LDAPBindError as e:
+                print(e)
+            except ldap3.core.exceptions.LDAPAttributeError as e:
+                print(e)
             
