@@ -6,7 +6,8 @@ class PywerView:
         self.ldap_session = ldap_session
         self.root_dn = root_dn
 
-    def get_domainuser(self, args, properties='*'):
+    def get_domainuser(self, args,
+    properties=['cn','name','sAMAccountName','distinguishedName','mail','description','lastLogoff','lastLogon','memberof','objectSid','userPrincipalName']):
         if args.preauthnotrequired:
             ldap_filter = f'(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304)(sAMAccountName={args.identity}))'
         elif args.admincount:
