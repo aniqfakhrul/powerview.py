@@ -20,6 +20,8 @@ class PywerView:
                 ldap_filter = f'(&(samAccountType=805306368)(msds-allowedtodelegateto=*)(sAMAccountName={identity}))'
             elif args.spn:
                 ldap_filter = f'(&(samAccountType=805306368)(servicePrincipalName=*)(sAMAccountName={identity}))'
+            else:
+                ldap_filter = f'(&(samAccountType=805306368)(sAMAccountName={identity}))'
         else:
             ldap_filter = f'(&(samAccountType=805306368)(sAMAccountName={identity}))'
 
