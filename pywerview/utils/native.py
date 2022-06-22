@@ -17,8 +17,7 @@ def formatter(pv_args, entries):
                         for i in entry['attributes'][key]:
                             if (isinstance(i,dict)) and ("encoded" in i.keys()):
                                 value = i["encoded"]
-                            else:
-                                value = str(i)
+                            value = str(i)
                         print(value)
         else:
             logging.error(f'{bcolors.FAIL}-select flag can only accept one attribute{bcolors.ENDC}')

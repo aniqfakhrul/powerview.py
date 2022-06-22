@@ -15,6 +15,8 @@ import argparse
 import readline
 import logging
 import json
+import random
+import string
 import shlex
 
 def powerview_arg_parse(cmd):
@@ -61,6 +63,12 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-trustedtoauth', action='store_true', default=False)
     get_domaincomputer_parser.add_argument('-select', action='store')
 
+    #domain controller
+    get_domaincontroller_parser = subparsers.add_parser('get-domaincontroller')
+    get_domaincontroller_parser.add_argument('-identity',action='store',default='*')
+    get_domaincontroller_parser.add_argument('-properties',action='store',default='*')
+    get_domaincontroller_parser.add_argument('-select',action='store')
+
     #gpo
     get_domaingpo_parser = subparsers.add_parser('get-domaingpo')
     get_domaingpo_parser.add_argument('-identity', action='store',default='*')
@@ -75,8 +83,13 @@ def powerview_arg_parse(cmd):
 
     # add operations
     add_domaingroupmember_parser = subparsers.add_parser('add-domaingroupmember')
-    add_domaingroupmember_parser.add_argument('-identity',const=None)
-    add_domaingroupmember_parser.add_argument('-members', const=None)
+    add_domaingroupmember_parser.add_argument('-identity', action='store', const=None)
+    add_domaingroupmember_parser.add_argument('-members', action='store', const=None)
+
+    # add domain computers
+    add_domaincomputer_parser = subparsers.add_parser('add-domaincomputer')
+    add_domaincomputer_parser.add_argument('-computername',action='store', const=None)
+    add_domaincomputer_parser.add_argument('-computerpass',action='store', const=None)
 
     # set domain object properties
     set_domainobject_parser = subparsers.add_parser('set-domainobject')
@@ -173,6 +186,14 @@ def main():
                             logging.info('Object modified successfully')
                     else:
                         logging.error('-Identity and [-Clear][-Set] flags required')
+                elif pv_args.module.lower() == 'add-domaincomputer':
+                    if pv_args.computername is not None:
+                        if pv_args.computerpass is None:
+                            pv_args.computerpass = ''.join(random.choice(list(string.ascii_letters + string.digits + "!@#$%^&*()")) for _ in range(12))
+                        print(f"Dah masuk {pv_args.computername} : {pv_args.computerpass}")
+                        pywerview.add_domaincomputer(username, password, domain, pv_args.computername, pv_args.computerpass, args)
+                    else:
+                        logging.error(f'-ComputerName and -ComputerPass are required')
                 elif cmd == 'exit':
                     sys.exit(1)
                 elif cmd == 'clear':

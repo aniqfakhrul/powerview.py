@@ -2,6 +2,9 @@
 from impacket.examples.ntlmrelayx.attacks.ldapattack import LDAPAttack
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 
+from pywerview.modules.addcomputer import AddComputerSAMR
+from pywerview.utils.helpers import *
+
 import ldap3 
 import logging
 import re
@@ -48,13 +51,13 @@ class PywerView:
     def get_domaincomputer(self, args=None, properties='*', identity='*'):
         if args:
             if args.unconstrained:
-                ldap_filter = f'(&(samAccountType=805306369)(userAccountControl:1.2.840.113556.1.4.803:=524288)(cn={identity}))'
+                ldap_filter = f'(&(samAccountType=805306369)(userAccountControl:1.2.840.113556.1.4.803:=524288)(name={identity}))'
             elif args.trustedtoauth:
-                ldap_filter = f'(&(samAccountType=805306369)(msds-allowedtodelegateto=*)(cn={identity}))'
+                ldap_filter = f'(&(samAccountType=805306369)(msds-allowedtodelegateto=*)(name={identity}))'
             else:
-                ldap_filter = f'(&(samAccountType=805306369)(cn={identity}))'
+                ldap_filter = f'(&(samAccountType=805306369)(name={identity}))'
         else:
-            ldap_filter = f'(&(samAccountType=805306369)(cn={identity}))'
+            ldap_filter = f'(&(samAccountType=805306369)(name={identity}))'
 
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
@@ -98,8 +101,47 @@ class PywerView:
         la.aclAttack(targetidentity, self.domain_dumper)
         return True
 
-    def add_domaincomputer(self):
-        return True
+    def add_domaincomputer(self, username, password, domain, computer_name, computer_pass, args):
+        if computer_name[-1] != '$':
+            computer_name += '$'
+
+        dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, args)
+        if len(dcinfo)== 0:
+            logging.error("Cannot get domain info")
+            exit()
+        c_key = 0
+        dcs = list(dcinfo.keys())
+        if len(dcs) > 1:
+            logging.info('We have more than one target, Pls choices the hostname of the -dc-ip you input.')
+            cnt = 0
+            for name in dcs:
+                logging.info(f"{cnt}: {name}")
+                cnt += 1
+            while True:
+                try:
+                    c_key = int(input(">>> Your choice: "))
+                    if c_key in range(len(dcs)):
+                        break
+                except Exception:
+                    pass
+        dc_host = dcs[c_key].lower()
+
+        setattr(args, "dc_host", dc_host)
+
+        # Creating Machine Account
+        addmachineaccount = AddComputerSAMR(
+            username, 
+            password, 
+            domain,
+            args,
+            computer_name,
+            computer_pass)
+        addmachineaccount.run()
+
+        if self.get_domainobject(identity=computer_name)[0].entry_dn:
+            return True
+        else:
+            return False
 
     def set_domainobject(self,identity, args=None):
         targetobject = self.get_domainobject(identity=identity)
