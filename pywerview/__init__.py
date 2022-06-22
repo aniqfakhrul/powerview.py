@@ -180,7 +180,8 @@ def main():
 
                 if entries:
                     formatter(pv_args, entries)
-
+            except ldap3.core.exceptions.LDAPBindError as e:
+                print(e)
             except ldap3.core.exceptions.LDAPBindError as e:
                 print(e)
             except ldap3.core.exceptions.LDAPAttributeError as e:

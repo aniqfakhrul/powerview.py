@@ -3,14 +3,15 @@ import re
 import readline
 
 COMMANDS = ['Get-Domain','Get-DomainObject', 'get-domainobject', 'Set-DomainObject',
-'set-domainobject', 'Get-DomainUser', 'Get-DomainComputer', 'Get-DomainGroup',
+'set-domainobject', 'Get-DomainUser', 'Get-DomainComputer',
+'Get-DomainGroup','Add-DomainComputer','add-domaincomputer',
 'Get-Forest','Get-DomainGPO','Get-DomainController','get-domain', 'get-domainuser',
 'get-domaincomputer', 'get-domaingroup', 'get-forest', 'get-domaingpo',
 'get-domaincontroller','Add-DomainGroupMember','add-domaingroupmember',
 '-Identity', '-Properties', '-identity',
 '-properties','-Unconstrained','-unconstrained','-TrustedToAuth','-trustedtoauth','-SPN', '-spn',
 '-AdminCount', '-admincount', '-PreAuthNotRequired', '-preauthnotrequired', '-AllowDelegation',
-'-allowdelegation', '-Select', '-select']
+'-allowdelegation', '-Select', '-select', '-Members', '-members', '-Set', '-set', '-Clear','-clear']
 RE_SPACE = re.compile('.*\s+$', re.M)
 
 class Completer(object):

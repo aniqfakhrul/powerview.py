@@ -48,13 +48,13 @@ class PywerView:
     def get_domaincomputer(self, args=None, properties='*', identity='*'):
         if args:
             if args.unconstrained:
-                ldap_filter = f'(&(samAccountType=805306369)(userAccountControl:1.2.840.113556.1.4.803:=524288)(sAMAccountName={identity}))'
+                ldap_filter = f'(&(samAccountType=805306369)(userAccountControl:1.2.840.113556.1.4.803:=524288)(cn={identity}))'
             elif args.trustedtoauth:
-                ldap_filter = f'(&(samAccountType=805306369)(msds-allowedtodelegateto=*)(sAMAccountName={identity}))'
+                ldap_filter = f'(&(samAccountType=805306369)(msds-allowedtodelegateto=*)(cn={identity}))'
             else:
-                ldap_filter = f'(&(samAccountType=805306369)(sAMAccountName={identity}))'
+                ldap_filter = f'(&(samAccountType=805306369)(cn={identity}))'
         else:
-            ldap_filter = f'(&(samAccountType=805306369)(sAMAccountName={identity}))'
+            ldap_filter = f'(&(samAccountType=805306369)(cn={identity}))'
 
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
@@ -96,6 +96,9 @@ class PywerView:
         logging.info('Initializing LDAPAttack()')
         la = LDAPAttack(c, self.ldap_session, principalidentity.replace('\\', '/'))
         la.aclAttack(targetidentity, self.domain_dumper)
+        return True
+
+    def add_domaincomputer(self):
         return True
 
     def set_domainobject(self,identity, args=None):
