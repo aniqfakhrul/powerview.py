@@ -167,8 +167,9 @@ def main():
                     else:
                         logging.error('-Identity and -Members flags required')
                 elif pv_args.module.lower() == 'set-domainobject':
-                    if pv_args.identity is not None:
-                        pywerview.set_domainobject(pv_args.identity, pv_args)
+                    if pv_args.identity is not None and (not pv_args.clear or pv_args.clear or pv_args.set):
+                        if pywerview.set_domainobject(pv_args.identity, pv_args):
+                            logging.info('Object modified successfully')
                     else:
                         logging.error('-Identity and [-Clear][-Set] flags required')
                 elif cmd == 'exit':
