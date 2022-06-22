@@ -148,7 +148,7 @@ def main():
                     entries = pywerview.get_domaintrust(pv_args, properties, identity)
                 elif pv_args.module.lower() == 'add-domaingroupmember':
                     if pv_args.identity is not None and pv_args.members is not None:
-                        if pywerview.add_domaingroupmember(pv_args):
+                        if pywerview.add_domaingroupmember(pv_args.identity, pv_args.members, pv_args):
                             logging.info(f'User {pv_args.members} successfully added to {pv_args.identity}')
                     else:
                         logging.error('-Identity and -Members flag required')
@@ -158,48 +158,8 @@ def main():
                     clear_screen()
 
                 if entries:
-                    if pv_args.select is not None:
-                        select_attribute = pv_args.select.split(",")
-                        if len(select_attribute) == 1:
-                            print(f"{bcolors.UNDERLINE}{pv_args.select.lower()}{bcolors.ENDC}")
-                            print()
-                            for entry in entries:
-                                entry = json.loads(entry.entry_to_json())
-                                for key in list(entry["attributes"].keys()):
-                                    if (pv_args.select.lower() == key.lower()):
-                                        # Check dictionary in a list
-                                        for i in entry['attributes'][key]:
-                                            if (isinstance(i,dict)) and ("encoded" in i.keys()):
-                                                value = i["encoded"]
-                                            else:
-                                                value = str(i)
-                                        print(value)
-                                        # print(''.join(entry['attributes'][key]))
-                        else:
-                            logging.error(f'{bcolors.FAIL}-select flag can only accept one attribute{bcolors.ENDC}')
-                    else:
-                        newline= '\n'
-                        for entry in entries:
-                            #print(entry.entry_to_ldif())
-                            entry = json.loads(entry.entry_to_json())
-                            # print(entry)
-                            for attr,value in entry['attributes'].items():
-                                # Check dictionary in a list
-                                for i in value:
-                                    if (isinstance(i,dict)) and ("encoded" in i.keys()):
-                                        value = i["encoded"]
-                                    else:
-                                        value = str(i)
-                                # Snip
-                                value = snipping(value)
-                                if isinstance(value,list):
-                                    if len(value) != 0:
-                                        print(value)
-                                else:
-                                    print(f"{attr.ljust(43)}: {value}")
-                            print()
-                else:
-                    logging.info(f'No results')
+                    formatter(pv_args, entries)
+
             except ldap3.core.exceptions.LDAPBindError as e:
                 print(e)
             except ldap3.core.exceptions.LDAPAttributeError as e:

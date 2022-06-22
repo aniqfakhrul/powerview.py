@@ -4,7 +4,8 @@ import readline
 
 COMMANDS = ['Get-Domain', 'Get-DomainUser', 'Get-DomainComputer', 'Get-DomainGroup',
 'Get-Forest','Get-DomainGPO','Get-DomainController','get-domain', 'get-domainuser',
-'get-domaincomputer', 'get-domaingroup', 'get-forest', 'get-domaingpo', 'get-domaincontroller',
+'get-domaincomputer', 'get-domaingroup', 'get-forest', 'get-domaingpo',
+'get-domaincontroller','Add-DomainGroupMember','add-domaingroupmember',
 '-Identity', '-Properties', '-identity',
 '-properties','-Unconstrained','-unconstrained','-TrustedToAuth','-trustedtoauth','-SPN', '-spn',
 '-AdminCount', '-admincount', '-PreAuthNotRequired', '-preauthnotrequired', '-AllowDelegation',

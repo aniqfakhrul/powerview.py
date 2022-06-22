@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import ldap3 
 
 class PywerView:
     
@@ -13,7 +14,7 @@ class PywerView:
             if args.preauthnotrequired:
                 ldap_filter = f'(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304)(sAMAccountName={identity}))'
             elif args.admincount:
-                ldap_filter = f'(&(samAccountType=805396368)(adminCount=1)(sAMAccountName={identity}))'
+                ldap_filter = f'(&(samAccountType=805396368)(sAMAccountName={identity}))'
             elif args.allowdelegation:
                 ldap_filter = f'(&(samAccountType=805306368)!(userAccountControl:1.2.840.113556.1.4.803:=1048574)(sAMAccountName={identity}))'
             elif args.trustedtoauth:
@@ -34,13 +35,16 @@ class PywerView:
         return self.ldap_session.entries
 
     def get_domaincomputer(self, args=None, properties='*', identity='*'):
-        if args.unconstrained:
-            ldap_filter = f'(&(samAccountType=805306369)(userAccountControl:1.2.840.113556.1.4.803:=524288)(sAMAccountName={identity}))'
-        elif args.trustedtoauth:
-            ldap_filter = f'(&(samAccountType=805306369)(msds-allowedtodelegateto=*)(sAMAccountName={identity}))'
+        if args:
+            if args.unconstrained:
+                ldap_filter = f'(&(samAccountType=805306369)(userAccountControl:1.2.840.113556.1.4.803:=524288)(sAMAccountName={identity}))'
+            elif args.trustedtoauth:
+                ldap_filter = f'(&(samAccountType=805306369)(msds-allowedtodelegateto=*)(sAMAccountName={identity}))'
+            else:
+                ldap_filter = f'(&(samAccountType=805306369)(sAMAccountName={identity}))'
         else:
             ldap_filter = f'(&(samAccountType=805306369)(sAMAccountName={identity}))'
-        
+
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
     
@@ -64,9 +68,12 @@ class PywerView:
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
     
-    def add_domaingroupmember(self, args=None):
-        entry = self.get_domaingroup(identity=args.identity,properties='distinguishedName')
-        entry_dn = entry[0].entry_dn
-        return True
-
-        self.ldap_session.modify(identity_dn, {'member':[ldap3.MODIFY, [args.members]]})
+    def add_domaingroupmember(self, identity, members, args=None):
+        group_entry = self.get_domaingroup(identity=identity,properties='distinguishedName')
+        user_entry = self.get_domainuser(identity=members,properties='distinguishedName')
+        targetobject = group_entry[0]
+        userobject = user_entry[0]
+        succeeded = self.ldap_session.modify(targetobject.entry_dn,{'member': [(ldap3.MODIFY_ADD, [userobject.entry_dn])]})
+        if not succeeded: 
+            print(self.ldap_session.result['message'])
+        return succeeded
