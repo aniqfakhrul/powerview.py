@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
+from impacket.examples.ntlmrelayx.attacks.ldapattack import LDAPAttack
+from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
+
 import ldap3 
 import logging
 
 class PywerView:
     
-    def __init__(self,ldap_session,root_dn):
+    def __init__(self,ldap_session,root_dn, domain_dumper=None):
         self.ldap_session = ldap_session
         self.root_dn = root_dn
+        self.domain_dumper = domain_dumper
 
     def get_domainuser(self, args=None,
     properties=['cn','name','sAMAccountName','distinguishedName','mail','description','lastLogoff','lastLogon','memberof','objectSid','userPrincipalName'],
@@ -15,7 +19,7 @@ class PywerView:
             if args.preauthnotrequired:
                 ldap_filter = f'(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304)(sAMAccountName={identity}))'
             elif args.admincount:
-                ldap_filter = f'(&(samAccountType=805396368)(sAMAccountName={identity}))'
+                ldap_filter = f'(&(samAccountType=805306368)(admincount=1)(sAMAccountName={identity}))'
             elif args.allowdelegation:
                 ldap_filter = f'(&(samAccountType=805306368)!(userAccountControl:1.2.840.113556.1.4.803:=1048574)(sAMAccountName={identity}))'
             elif args.trustedtoauth:
@@ -84,6 +88,16 @@ class PywerView:
             print(self.ldap_session.result['message'])
         return succeeded
 
+    def add_domainobjectacl(self, targetidentity, principalidentity, rights, args=None):
+        c = NTLMRelayxConfig()
+        c.addcomputer = 'idk lol'
+        c.target = options.dc
+
+        logging.info('Initializing LDAPAttack()')
+        la = LDAPAttack(c, self.ldap_session, principalidentity.replace('\\', '/'))
+        la.aclAttack(targetidentity, self.domain_dumper)
+        return True
+
     def set_domainobject(self,identity, args=None):
         targetobject = self.get_domainobject(identity=identity)
         if len(targetobject) > 1:
@@ -103,3 +117,4 @@ class PywerView:
             print(self.ldap_session.result['message'])
         
         return succeeded
+

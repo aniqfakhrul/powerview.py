@@ -121,7 +121,7 @@ def main():
     root_dn = domain_dumper.getRoot()
     fqdn = ".".join(root_dn.replace("DC=","").split(","))
 
-    pywerview = PywerView(ldap_session, root_dn)
+    pywerview = PywerView(ldap_session, root_dn, domain_dumper)
 
     while True:
         comp = Completer()
