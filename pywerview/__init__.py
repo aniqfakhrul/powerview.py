@@ -15,6 +15,7 @@ import argparse
 import readline
 import logging
 import json
+import shlex
 
 def powerview_arg_parse(cmd):
     parser = argparse.ArgumentParser()
@@ -133,7 +134,7 @@ def main():
         if cmd:
             cmd = f'{cmd.lower()}'
 
-            pv_args = powerview_arg_parse(cmd.split())
+            pv_args = powerview_arg_parse(shlex.split(cmd))
             try:
                 if pv_args.properties:
                     properties = pv_args.properties.split(',')
