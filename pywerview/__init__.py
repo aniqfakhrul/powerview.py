@@ -82,7 +82,7 @@ def powerview_arg_parse(cmd):
     set_domainobject_parser = subparsers.add_parser('set-domainobject')
     set_domainobject_parser.add_argument('-identity',const=None)
     set_domainobject_parser.add_argument('-set',const=None)
-    set_domainobject_parser.add_argument('-clear',action='store_true',default=False)
+    set_domainobject_parser.add_argument('-clear',action='store', const=None)
     
     args = parser.parse_args(cmd)
     return args

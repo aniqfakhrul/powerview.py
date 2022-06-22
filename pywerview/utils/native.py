@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from os import system, name
 import json
+from pywerview.utils.colors import bcolors
 
 def formatter(pv_args, entries):
     if pv_args.select is not None:

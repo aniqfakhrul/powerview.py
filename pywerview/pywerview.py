@@ -4,6 +4,7 @@ from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 
 import ldap3 
 import logging
+import re
 
 class PywerView:
     
@@ -90,8 +91,7 @@ class PywerView:
 
     def add_domainobjectacl(self, targetidentity, principalidentity, rights, args=None):
         c = NTLMRelayxConfig()
-        c.addcomputer = 'idk lol'
-        c.target = options.dc
+        c.target = 'range.net'
 
         logging.info('Initializing LDAPAttack()')
         la = LDAPAttack(c, self.ldap_session, principalidentity.replace('\\', '/'))
@@ -103,18 +103,27 @@ class PywerView:
         if len(targetobject) > 1:
             logging.error('More than one object found')
             return False
-
+            
         if args.clear:
             logging.info('Printing object before clearing')
             logging.info(f'Found target object {targetobject[0].entry_dn}')
-            succeeded = self.ldap_session.modify(targetobject[0].entry_dn, {'servicePrincipalName': [(ldap3.MODIFY_REPLACE,[])]})
-        else:
+            succeeded = self.ldap_session.modify(targetobject[0].entry_dn, {args.clear: [(ldap3.MODIFY_REPLACE,[])]})
+        elif args.set:
+            attrs = self.parse_object(args.set)
             logging.info('Printing object before modifying')
             logging.info(f'Found target object {targetobject[0].entry_dn}')
-            succeeded = self.ldap_session.modify(targetobject[0].entry_dn, {'servicePrincipalName': [(ldap3.MODIFY_REPLACE,[args.set])]})
+            succeeded = self.ldap_session.modify(targetobject[0].entry_dn, {attrs['attr']:[(ldap3.MODIFY_REPLACE,[attrs['val']])]})
 
         if not succeeded:
-            print(self.ldap_session.result['message'])
+            logging.error(self.ldap_session.result['message'])
         
         return succeeded
 
+    def parse_object(self,obj):
+        attrs = dict()
+        regex = r'\{(.*?)\}'
+        res = re.search(regex,obj)
+        dd = res.group(1).replace("'","").replace('"','').split("=")
+        attrs['attr'] = dd[0]
+        attrs['val'] = dd[1]
+        return attrs
