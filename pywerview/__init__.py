@@ -28,6 +28,12 @@ def powerview_arg_parse(cmd):
     get_domain_parser.add_argument('-properties', action='store', default='*')
     get_domain_parser.add_argument('-select', action='store')
 
+    #domainobject
+    get_domainobject_parser = subparsers.add_parser('get-domainobject')
+    get_domainobject_parser.add_argument('-identity', action='store',default='*')
+    get_domainobject_parser.add_argument('-properties', action='store', default='*')
+    get_domainobject_parser.add_argument('-select', action='store')
+    
     #group
     get_domaingroup_parser = subparsers.add_parser('get-domaingroup')
     get_domaingroup_parser.add_argument('-identity', action='store',default='*')
@@ -71,6 +77,12 @@ def powerview_arg_parse(cmd):
     add_domaingroupmember_parser.add_argument('-identity',const=None)
     add_domaingroupmember_parser.add_argument('-members', const=None)
 
+    # set domain object properties
+    set_domainobject_parser = subparsers.add_parser('set-domainobject')
+    set_domainobject_parser.add_argument('-identity',const=None)
+    set_domainobject_parser.add_argument('-set',const=None)
+    set_domainobject_parser.add_argument('-clear',action='store_true',default=False)
+    
     args = parser.parse_args(cmd)
     return args
 
@@ -134,6 +146,8 @@ def main():
 
                 if pv_args.module.lower() == 'get-domain':
                     entries = pywerview.get_domain(pv_args, properties, identity)
+                elif pv_args.module.lower() == 'get-domainobject':
+                    entries = pywerview.get_domainobject(pv_args, properties, identity)
                 elif pv_args.module.lower() == 'get-domainuser':
                     entries = pywerview.get_domainuser(pv_args, properties, identity)
                 elif pv_args.module.lower() == 'get-domaincomputer':
@@ -151,7 +165,12 @@ def main():
                         if pywerview.add_domaingroupmember(pv_args.identity, pv_args.members, pv_args):
                             logging.info(f'User {pv_args.members} successfully added to {pv_args.identity}')
                     else:
-                        logging.error('-Identity and -Members flag required')
+                        logging.error('-Identity and -Members flags required')
+                elif pv_args.module.lower() == 'set-domainobject':
+                    if pv_args.identity is not None:
+                        pywerview.set_domainobject(pv_args.identity, pv_args)
+                    else:
+                        logging.error('-Identity and [-Clear][-Set] flags required')
                 elif cmd == 'exit':
                     sys.exit(1)
                 elif cmd == 'clear':

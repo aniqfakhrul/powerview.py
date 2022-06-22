@@ -2,7 +2,8 @@ import os
 import re
 import readline
 
-COMMANDS = ['Get-Domain', 'Get-DomainUser', 'Get-DomainComputer', 'Get-DomainGroup',
+COMMANDS = ['Get-Domain','Get-DomainObject', 'get-domainobject', 'Set-DomainObject',
+'set-domainobject', 'Get-DomainUser', 'Get-DomainComputer', 'Get-DomainGroup',
 'Get-Forest','Get-DomainGPO','Get-DomainController','get-domain', 'get-domainuser',
 'get-domaincomputer', 'get-domaingroup', 'get-forest', 'get-domaingpo',
 'get-domaincontroller','Add-DomainGroupMember','add-domaingroupmember',

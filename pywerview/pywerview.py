@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import ldap3 
+import logging
 
 class PywerView:
     
@@ -31,6 +32,11 @@ class PywerView:
 
     def get_domaincontroller(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=8192)'
+        self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
+        return self.ldap_session.entries
+
+    def get_domainobject(self, args=None, properties='*', identity='*'):
+        ldap_filter = f'(&(|(|(samAccountName={identity})(name={identity})(displayname={identity}))))'
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
@@ -76,4 +82,24 @@ class PywerView:
         succeeded = self.ldap_session.modify(targetobject.entry_dn,{'member': [(ldap3.MODIFY_ADD, [userobject.entry_dn])]})
         if not succeeded: 
             print(self.ldap_session.result['message'])
+        return succeeded
+
+    def set_domainobject(self,identity, args=None):
+        targetobject = self.get_domainobject(identity=identity)
+        if len(targetobject) > 1:
+            logging.error('More than one object found')
+            return False
+
+        if args.clear:
+            logging.info('Printing object before clearing')
+            logging.info(f'Found target object {targetobject[0].entry_dn}')
+            succeeded = self.ldap_session.modify(targetobject[0].entry_dn, {'servicePrincipalName': [(ldap3.MODIFY_REPLACE,[])]})
+        else:
+            logging.info('Printing object before modifying')
+            logging.info(f'Found target object {targetobject[0].entry_dn}')
+            succeeded = self.ldap_session.modify(targetobject[0].entry_dn, {'servicePrincipalName': [(ldap3.MODIFY_REPLACE,[args.set])]})
+
+        if not succeeded:
+            print(self.ldap_session.result['message'])
+        
         return succeeded
