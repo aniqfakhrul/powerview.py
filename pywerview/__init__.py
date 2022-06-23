@@ -86,17 +86,24 @@ def powerview_arg_parse(cmd):
     add_domaingroupmember_parser.add_argument('-identity', action='store', const=None)
     add_domaingroupmember_parser.add_argument('-members', action='store', const=None)
 
-    # add domain computers
+    # add domain computer
     add_domaincomputer_parser = subparsers.add_parser('add-domaincomputer')
     add_domaincomputer_parser.add_argument('-computername',action='store', const=None)
     add_domaincomputer_parser.add_argument('-computerpass',action='store', const=None)
+
+    # remove domain computer
+    remove_domaincomputer_parser = subparsers.add_parser('remove-domaincomputer')
+    remove_domaincomputer_parser.add_argument('-computername',action='store', const=None)
 
     # set domain object properties
     set_domainobject_parser = subparsers.add_parser('set-domainobject')
     set_domainobject_parser.add_argument('-identity',const=None)
     set_domainobject_parser.add_argument('-set',const=None)
     set_domainobject_parser.add_argument('-clear',action='store', const=None)
-    
+
+    subparsers.add_parser('exit')
+    subparsers.add_parser('clear')
+
     args = parser.parse_args(cmd)
     return args
 
@@ -194,9 +201,14 @@ def main():
                         pywerview.add_domaincomputer(username, password, domain, pv_args.computername, pv_args.computerpass, args)
                     else:
                         logging.error(f'-ComputerName and -ComputerPass are required')
-                elif cmd == 'exit':
+                elif pv_args.module.lower() == 'remove-domaincomputer':
+                    if pv_args.computername is not None:
+                        pywerview.remove_domaincomputer(username,password,domain,pv_args.computername,args)
+                    else:
+                        logging.error(f'-ComputerName is required')
+                elif pv_args.module.lower() == 'exit':
                     sys.exit(1)
-                elif cmd == 'clear':
+                elif pv_args.module.lower() == 'clear':
                     clear_screen()
 
                 if entries:

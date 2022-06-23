@@ -4,7 +4,8 @@ import readline
 
 COMMANDS = ['Get-Domain','Get-DomainObject', 'get-domainobject', 'Set-DomainObject',
 'set-domainobject', 'Get-DomainUser', 'Get-DomainComputer',
-'Get-DomainGroup','Add-DomainComputer','add-domaincomputer','-ComputerName','-ComputerPass',
+'Get-DomainGroup','Add-DomainComputer','add-domaincomputer','Remove-DomainComputer',
+'remove-domaincomputer','-ComputerName','-ComputerPass',
 'Get-Forest','Get-DomainGPO','Get-DomainController','get-domain', 'get-domainuser',
 'get-domaincomputer', 'get-domaingroup', 'get-forest', 'get-domaingpo',
 'get-domaincontroller','Add-DomainGroupMember','add-domaingroupmember',
@@ -12,6 +13,8 @@ COMMANDS = ['Get-Domain','Get-DomainObject', 'get-domainobject', 'Set-DomainObje
 '-properties','-Unconstrained','-unconstrained','-TrustedToAuth','-trustedtoauth','-SPN', '-spn',
 '-AdminCount', '-admincount', '-PreAuthNotRequired', '-preauthnotrequired', '-AllowDelegation',
 '-allowdelegation', '-Select', '-select', '-Members', '-members', '-Set', '-set', '-Clear','-clear']
+ADD_COMPUTER = ['-ComputerName', '-ComputerPass']
+
 RE_SPACE = re.compile('.*\s+$', re.M)
 
 class Completer(object):
@@ -60,6 +63,7 @@ class Completer(object):
         # account for last argument ending in a space
         if RE_SPACE.match(buffer):
             line.append('')
+        
         # resolve command to the implementation function
         cmd = line[-1].strip()
         if cmd in COMMANDS:

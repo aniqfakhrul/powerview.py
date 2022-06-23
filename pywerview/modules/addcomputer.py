@@ -35,7 +35,7 @@ class AddComputerSAMR:
         self.__port = None
         self.__domainNetbios = None
         self.__noAdd = False
-        self.__delete = False
+        self.__delete = cmdLineOptions.delete
         self.__targetIp = cmdLineOptions.dc_ip
 
         if self.__targetIp is not None:
@@ -228,8 +228,7 @@ class AddComputerSAMR:
                 samr.hSamrCloseHandle(dce, servHandle)
             dce.disconnect()
 
-    def run(self,delete=False):
-        self.__delete = delete
+    def run(self):
         self.run_samr()
 
 

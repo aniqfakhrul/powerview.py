@@ -27,7 +27,7 @@ class PywerView:
             elif args.allowdelegation:
                 ldap_filter = f'(&(samAccountType=805306368)!(userAccountControl:1.2.840.113556.1.4.803:=1048574)(sAMAccountName={identity}))'
             elif args.trustedtoauth:
-                ldap_filter = f'(&(samAccountType=805306368)(msds-allowedtodelegateto=*)(sAMAccountName={identity}))'
+                ldap_filter = f'(&(samAccountType=805306368)(|(samAccountName={identity}))(msds-allowedtodelegateto=*))'
             elif args.spn:
                 ldap_filter = f'(&(samAccountType=805306368)(servicePrincipalName=*)(sAMAccountName={identity}))'
             else:
@@ -53,7 +53,7 @@ class PywerView:
             if args.unconstrained:
                 ldap_filter = f'(&(samAccountType=805306369)(userAccountControl:1.2.840.113556.1.4.803:=524288)(name={identity}))'
             elif args.trustedtoauth:
-                ldap_filter = f'(&(samAccountType=805306369)(msds-allowedtodelegateto=*)(name={identity}))'
+                ldap_filter = f'(&(samAccountType=805306369)(|(name={identity}))(msds-allowedtodelegateto=*))'
             else:
                 ldap_filter = f'(&(samAccountType=805306369)(name={identity}))'
         else:
@@ -63,7 +63,7 @@ class PywerView:
         return self.ldap_session.entries
     
     def get_domaingroup(self, args=None, properties='*', identity='*'):
-        ldap_filter = f'(&(objectCategory=group)(name={identity}))'
+        ldap_filter = f'(&(objectCategory=group)(|(|(samAccountName={identity})(name={identity}))))'
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
     
@@ -101,6 +101,49 @@ class PywerView:
         la.aclAttack(targetidentity, self.domain_dumper)
         return True
 
+    def remove_domaincomputer(self,username,password,domain,computer_name,args):
+        if computer_name[-1] != '$':
+            computer_name += '$'
+
+        dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, args)
+        if len(dcinfo)== 0:
+            logging.error("Cannot get domain info")
+            exit()
+        c_key = 0
+        dcs = list(dcinfo.keys())
+        if len(dcs) > 1:
+            logging.info('We have more than one target, Pls choices the hostname of the -dc-ip you input.')
+            cnt = 0
+            for name in dcs:
+                logging.info(f"{cnt}: {name}")
+                cnt += 1
+            while True:
+                try:
+                    c_key = int(input(">>> Your choice: "))
+                    if c_key in range(len(dcs)):
+                        break
+                except Exception:
+                    pass
+        dc_host = dcs[c_key].lower()
+
+        setattr(args, "dc_host", dc_host)
+        setattr(args, "delete", True)
+
+        # Creating Machine Account
+        addmachineaccount = AddComputerSAMR(
+            username, 
+            password, 
+            domain,
+            args,
+            computer_name)
+        addmachineaccount.run()
+
+        if len(self.get_domainobject(identity=computer_name)) == 0:
+            return True
+        else:
+            return False
+        
+
     def add_domaincomputer(self, username, password, domain, computer_name, computer_pass, args):
         if computer_name[-1] != '$':
             computer_name += '$'
@@ -127,6 +170,7 @@ class PywerView:
         dc_host = dcs[c_key].lower()
 
         setattr(args, "dc_host", dc_host)
+        setattr(args, "delete", False)
 
         # Creating Machine Account
         addmachineaccount = AddComputerSAMR(
