@@ -5,20 +5,18 @@ from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from pywerview.modules.addcomputer import AddComputerSAMR
 from pywerview.utils.helpers import *
 
-import ldap3 
+import ldap3
 import logging
 import re
 
 class PywerView:
-    
+
     def __init__(self,ldap_session,root_dn, domain_dumper=None):
         self.ldap_session = ldap_session
         self.root_dn = root_dn
         self.domain_dumper = domain_dumper
 
-    def get_domainuser(self, args=None,
-    properties=['cn','name','sAMAccountName','distinguishedName','mail','description','lastLogoff','lastLogon','memberof','objectSid','userPrincipalName'],
-    identity='*'):
+    def get_domainuser(self, args=None, properties=['cn','name','sAMAccountName','distinguishedName','mail','description','lastLogoff','lastLogon','memberof','objectSid','userPrincipalName'], identity='*'):
         if args:
             if args.preauthnotrequired:
                 ldap_filter = f'(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304)(sAMAccountName={identity}))'
@@ -61,34 +59,34 @@ class PywerView:
 
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
-    
+
     def get_domaingroup(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(&(objectCategory=group)(|(|(samAccountName={identity})(name={identity}))))'
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
-    
+
     def get_domaingpo(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(&(objectCategory=groupPolicyContainer)(cn={identity}))'
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
-    
+
     def get_domaintrust(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(objectClass=trustedDomain)'
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
-    
+
     def get_domain(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(objectClass=domain)'
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
-    
+
     def add_domaingroupmember(self, identity, members, args=None):
         group_entry = self.get_domaingroup(identity=identity,properties='distinguishedName')
         user_entry = self.get_domainuser(identity=members,properties='distinguishedName')
         targetobject = group_entry[0]
         userobject = user_entry[0]
         succeeded = self.ldap_session.modify(targetobject.entry_dn,{'member': [(ldap3.MODIFY_ADD, [userobject.entry_dn])]})
-        if not succeeded: 
+        if not succeeded:
             print(self.ldap_session.result['message'])
         return succeeded
 
@@ -131,8 +129,8 @@ class PywerView:
 
         # Creating Machine Account
         addmachineaccount = AddComputerSAMR(
-            username, 
-            password, 
+            username,
+            password,
             domain,
             args,
             computer_name)
@@ -142,7 +140,7 @@ class PywerView:
             return True
         else:
             return False
-        
+
 
     def add_domaincomputer(self, username, password, domain, computer_name, computer_pass, args):
         if computer_name[-1] != '$':
@@ -174,8 +172,8 @@ class PywerView:
 
         # Creating Machine Account
         addmachineaccount = AddComputerSAMR(
-            username, 
-            password, 
+            username,
+            password,
             domain,
             args,
             computer_name,
@@ -192,7 +190,7 @@ class PywerView:
         if len(targetobject) > 1:
             logging.error('More than one object found')
             return False
-            
+
         if args.clear:
             logging.info('Printing object before clearing')
             logging.info(f'Found target object {targetobject[0].entry_dn}')
@@ -205,7 +203,7 @@ class PywerView:
 
         if not succeeded:
             logging.error(self.ldap_session.result['message'])
-        
+
         return succeeded
 
     def parse_object(self,obj):

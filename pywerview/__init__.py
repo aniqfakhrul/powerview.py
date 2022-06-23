@@ -26,80 +26,80 @@ def powerview_arg_parse(cmd):
     #parser.add_argument('identity', nargs='?', action='store',default='*')
 
     #domain
-    get_domain_parser = subparsers.add_parser('get-domain')
-    get_domain_parser.add_argument('-identity', action='store',default='*')
-    get_domain_parser.add_argument('-properties', action='store', default='*')
-    get_domain_parser.add_argument('-select', action='store')
+    get_domain_parser = subparsers.add_parser('Get-Domain')
+    get_domain_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
+    get_domain_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
+    get_domain_parser.add_argument('-select', '-Select', action='store', dest='select')
 
     #domainobject
-    get_domainobject_parser = subparsers.add_parser('get-domainobject')
-    get_domainobject_parser.add_argument('-identity', action='store',default='*')
-    get_domainobject_parser.add_argument('-properties', action='store', default='*')
-    get_domainobject_parser.add_argument('-select', action='store')
-    
+    get_domainobject_parser = subparsers.add_parser('Get-DomainObject')
+    get_domainobject_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
+    get_domainobject_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
+    get_domainobject_parser.add_argument('-select', '-Select', action='store', dest='select')
+
     #group
-    get_domaingroup_parser = subparsers.add_parser('get-domaingroup')
-    get_domaingroup_parser.add_argument('-identity', action='store',default='*')
-    get_domaingroup_parser.add_argument('-properties', action='store', default='*')
-    get_domaingroup_parser.add_argument('-member', '-members', action='store')
-    get_domaingroup_parser.add_argument('-select', action='store')
+    get_domaingroup_parser = subparsers.add_parser('Get-DomainGroup')
+    get_domaingroup_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
+    get_domaingroup_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
+    get_domaingroup_parser.add_argument('-members', '-Members', action='store', dest='members')
+    get_domaingroup_parser.add_argument('-select', '-Select', action='store', dest='select')
 
     #user
-    get_domainuser_parser = subparsers.add_parser('get-domainuser')
-    get_domainuser_parser.add_argument('-identity', action='store',default='*')
-    get_domainuser_parser.add_argument('-properties', action='store',default='*')
-    get_domainuser_parser.add_argument('-spn', action='store_true', default=False)
-    get_domainuser_parser.add_argument('-admincount', action='store_true', default=False)
-    get_domainuser_parser.add_argument('-preauthnotrequired', action='store_true', default=False)
-    get_domainuser_parser.add_argument('-trustedtoauth', action='store_true', default=False)
-    get_domainuser_parser.add_argument('-allowdelegation', action='store_true', default=False)
-    get_domainuser_parser.add_argument('-select', action='store')
+    get_domainuser_parser = subparsers.add_parser('Get-DomainUser')
+    get_domainuser_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
+    get_domainuser_parser.add_argument('-properties', '-Properties', action='store',default='*', dest='properties')
+    get_domainuser_parser.add_argument('-spn', '-SPN', action='store_true', default=False, dest='spn')
+    get_domainuser_parser.add_argument('-admincount', '-AdminCount', action='store_true', default=False, dest='admincount')
+    get_domainuser_parser.add_argument('-preauthnotrequired', '-PreAuthNotRequired', action='store_true', default=False, dest='preauthnotrequired')
+    get_domainuser_parser.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
+    get_domainuser_parser.add_argument('-allowdelegation', '-AllowDelegation', action='store_true', default=False, dest='allowdelegation')
+    get_domainuser_parser.add_argument('-select', '-Select', action='store', dest='select')
 
     #computers
-    get_domaincomputer_parser = subparsers.add_parser('get-domaincomputer')
-    get_domaincomputer_parser.add_argument('-identity', action='store',default='*')
-    get_domaincomputer_parser.add_argument('-properties', action='store', default='*')
-    get_domaincomputer_parser.add_argument('-unconstrained', action='store_true', default=False)
-    get_domaincomputer_parser.add_argument('-trustedtoauth', action='store_true', default=False)
-    get_domaincomputer_parser.add_argument('-select', action='store')
+    get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer')
+    get_domaincomputer_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
+    get_domaincomputer_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
+    get_domaincomputer_parser.add_argument('-unconstrained', '-unconstrained', action='store_true', default=False, dest='unconstrained')
+    get_domaincomputer_parser.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
+    get_domaincomputer_parser.add_argument('-select', '-Select', action='store', dest='select')
 
     #domain controller
-    get_domaincontroller_parser = subparsers.add_parser('get-domaincontroller')
-    get_domaincontroller_parser.add_argument('-identity',action='store',default='*')
-    get_domaincontroller_parser.add_argument('-properties',action='store',default='*')
-    get_domaincontroller_parser.add_argument('-select',action='store')
+    get_domaincontroller_parser = subparsers.add_parser('Get-DomainController')
+    get_domaincontroller_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
+    get_domaincontroller_parser.add_argument('-properties', '-Properties',action='store',default='*', dest='properties')
+    get_domaincontroller_parser.add_argument('-select', '-Select',action='store', dest='select')
 
     #gpo
-    get_domaingpo_parser = subparsers.add_parser('get-domaingpo')
-    get_domaingpo_parser.add_argument('-identity', action='store',default='*')
-    get_domaingpo_parser.add_argument('-properties', action='store', default='*')
-    get_domaingpo_parser.add_argument('-select', action='store')
+    get_domaingpo_parser = subparsers.add_parser('Get-DomainGPO')
+    get_domaingpo_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
+    get_domaingpo_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
+    get_domaingpo_parser.add_argument('-select', '-Select', action='store', dest='select')
 
     #trust
-    get_domaintrust_parser = subparsers.add_parser('get-domaintrust')
-    get_domaintrust_parser.add_argument('-identity', action='store',default='*')
-    get_domaintrust_parser.add_argument('-properties', action='store', default='*')
-    get_domaintrust_parser.add_argument('-select', action='store')
+    get_domaintrust_parser = subparsers.add_parser('Get-DomainTrust')
+    get_domaintrust_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
+    get_domaintrust_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
+    get_domaintrust_parser.add_argument('-select', '-Select', action='store', dest='select')
 
     # add operations
-    add_domaingroupmember_parser = subparsers.add_parser('add-domaingroupmember')
-    add_domaingroupmember_parser.add_argument('-identity', action='store', const=None)
-    add_domaingroupmember_parser.add_argument('-members', action='store', const=None)
+    add_domaingroupmember_parser = subparsers.add_parser('Add-DomainGroupMember')
+    add_domaingroupmember_parser.add_argument('-identity', '-Identity', action='store', const=None, dest='identity')
+    add_domaingroupmember_parser.add_argument('-members', '-Members', action='store', const=None, dest='members')
 
     # add domain computer
-    add_domaincomputer_parser = subparsers.add_parser('add-domaincomputer')
-    add_domaincomputer_parser.add_argument('-computername',action='store', const=None)
-    add_domaincomputer_parser.add_argument('-computerpass',action='store', const=None)
+    add_domaincomputer_parser = subparsers.add_parser('Add-DomainComputer')
+    add_domaincomputer_parser.add_argument('-computername', '-ComputerName', action='store', const=None, dest='computername')
+    add_domaincomputer_parser.add_argument('-computerpass', '-ComputerPass', action='store', const=None, dest='computerpass')
 
     # remove domain computer
-    remove_domaincomputer_parser = subparsers.add_parser('remove-domaincomputer')
-    remove_domaincomputer_parser.add_argument('-computername',action='store', const=None)
+    remove_domaincomputer_parser = subparsers.add_parser('Remove-DomainComputer')
+    remove_domaincomputer_parser.add_argument('-computername', '-ComputerName',action='store', const=None, dest='computername')
 
     # set domain object properties
-    set_domainobject_parser = subparsers.add_parser('set-domainobject')
-    set_domainobject_parser.add_argument('-identity',const=None)
-    set_domainobject_parser.add_argument('-set',const=None)
-    set_domainobject_parser.add_argument('-clear',action='store', const=None)
+    set_domainobject_parser = subparsers.add_parser('Set-DomainObject')
+    set_domainobject_parser.add_argument('-identity', '-Identity',const=None, dest='identity')
+    set_domainobject_parser.add_argument('-set', '-Set',const=None, dest='set')
+    set_domainobject_parser.add_argument('-clear', '-Clear',action='store', const=None, dest='clear')
 
     subparsers.add_parser('exit')
     subparsers.add_parser('clear')
@@ -152,9 +152,9 @@ def main():
         cmd = input(f'{bcolors.OKBLUE}PV> {bcolors.ENDC}')
 
         if cmd:
-            cmd = f'{cmd.lower()}'
-
+            # cmd = f'{cmd.lower()}'
             pv_args = powerview_arg_parse(shlex.split(cmd))
+
             try:
                 if pv_args.properties:
                     properties = pv_args.properties.split(',')
@@ -165,50 +165,49 @@ def main():
             try:
                 entries = None
 
-                if pv_args.module.lower() == 'get-domain':
+                if pv_args.module.casefold() == 'get-domain':
                     entries = pywerview.get_domain(pv_args, properties, identity)
-                elif pv_args.module.lower() == 'get-domainobject':
+                elif pv_args.module.casefold() == 'get-domainobject':
                     entries = pywerview.get_domainobject(pv_args, properties, identity)
-                elif pv_args.module.lower() == 'get-domainuser':
+                elif pv_args.module.casefold() == 'get-domainuser':
                     entries = pywerview.get_domainuser(pv_args, properties, identity)
-                elif pv_args.module.lower() == 'get-domaincomputer':
+                elif pv_args.module.casefold() == 'get-domaincomputer':
                     entries = pywerview.get_domaincomputer(pv_args, properties, identity)
-                elif pv_args.module.lower() == 'get-domaingroup':
+                elif pv_args.module.casefold() == 'get-domaingroup':
                     entries = pywerview.get_domaingroup(pv_args, properties, identity)
-                elif pv_args.module.lower() == 'get-domaincontroller':
+                elif pv_args.module.casefold() == 'get-domaincontroller':
                     entries = pywerview.get_domaincontroller(pv_args, properties, identity)
-                elif pv_args.module.lower() == 'get-domaingpo':
+                elif pv_args.module.casefold() == 'get-domaingpo':
                     entries = pywerview.get_domaingpo(pv_args, properties, identity)
-                elif pv_args.module.lower() == 'get-domaintrust':
+                elif pv_args.module.casefold() == 'get-domaintrust':
                     entries = pywerview.get_domaintrust(pv_args, properties, identity)
-                elif pv_args.module.lower() == 'add-domaingroupmember':
+                elif pv_args.module.casefold() == 'add-domaingroupmember':
                     if pv_args.identity is not None and pv_args.members is not None:
                         if pywerview.add_domaingroupmember(pv_args.identity, pv_args.members, pv_args):
                             logging.info(f'User {pv_args.members} successfully added to {pv_args.identity}')
                     else:
                         logging.error('-Identity and -Members flags required')
-                elif pv_args.module.lower() == 'set-domainobject':
+                elif pv_args.module.casefold() == 'set-domainobject':
                     if pv_args.identity is not None and (pv_args.clear or pv_args.set):
                         if pywerview.set_domainobject(pv_args.identity, pv_args):
                             logging.info('Object modified successfully')
                     else:
                         logging.error('-Identity and [-Clear][-Set] flags required')
-                elif pv_args.module.lower() == 'add-domaincomputer':
+                elif pv_args.module.casefold() == 'add-domaincomputer':
                     if pv_args.computername is not None:
                         if pv_args.computerpass is None:
                             pv_args.computerpass = ''.join(random.choice(list(string.ascii_letters + string.digits + "!@#$%^&*()")) for _ in range(12))
-                        print(f"Dah masuk {pv_args.computername} : {pv_args.computerpass}")
                         pywerview.add_domaincomputer(username, password, domain, pv_args.computername, pv_args.computerpass, args)
                     else:
                         logging.error(f'-ComputerName and -ComputerPass are required')
-                elif pv_args.module.lower() == 'remove-domaincomputer':
+                elif pv_args.module.casefold() == 'remove-domaincomputer':
                     if pv_args.computername is not None:
                         pywerview.remove_domaincomputer(username,password,domain,pv_args.computername,args)
                     else:
                         logging.error(f'-ComputerName is required')
-                elif pv_args.module.lower() == 'exit':
+                elif pv_args.module.casefold() == 'exit':
                     sys.exit(1)
-                elif pv_args.module.lower() == 'clear':
+                elif pv_args.module.casefold() == 'clear':
                     clear_screen()
 
                 if entries:
