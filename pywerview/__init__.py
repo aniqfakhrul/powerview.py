@@ -59,7 +59,7 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer')
     get_domaincomputer_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domaincomputer_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
-    get_domaincomputer_parser.add_argument('-unconstrained', '-unconstrained', action='store_true', default=False, dest='unconstrained')
+    get_domaincomputer_parser.add_argument('-unconstrained', '-Unconstrained', action='store_true', default=False, dest='unconstrained')
     get_domaincomputer_parser.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
     get_domaincomputer_parser.add_argument('-select', '-Select', action='store', dest='select')
 
@@ -212,8 +212,6 @@ def main():
 
                 if entries:
                     formatter(pv_args, entries)
-            except ldap3.core.exceptions.LDAPBindError as e:
-                print(e)
             except ldap3.core.exceptions.LDAPBindError as e:
                 print(e)
             except ldap3.core.exceptions.LDAPAttributeError as e:
