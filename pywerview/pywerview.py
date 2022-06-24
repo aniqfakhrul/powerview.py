@@ -2,7 +2,7 @@
 from impacket.examples.ntlmrelayx.attacks.ldapattack import LDAPAttack
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 
-from pywerview.modules.addcomputer import AddComputerSAMR
+from pywerview.modules.addcomputer import ADDCOMPUTER
 from pywerview.utils.helpers import *
 
 import ldap3
@@ -130,15 +130,20 @@ class PywerView:
                     pass
         dc_host = dcs[c_key].lower()
 
-        setattr(args, "dc_host", dc_host)
-        setattr(args, "delete", True)
+        setattr(self.args, "dc_host", dc_host)
+        setattr(self.args, "delete", True)
+
+        if self.args.use_ldaps:
+            setattr(self.args, "method", "LDAPS")
+        else:
+            setattr(self.args, "method", "SAMR")
 
         # Creating Machine Account
-        addmachineaccount = AddComputerSAMR(
+        addmachineaccount = ADDCOMPUTER(
             username,
             password,
             domain,
-            args,
+            self.args,
             computer_name)
         addmachineaccount.run()
 
@@ -173,18 +178,25 @@ class PywerView:
                     pass
         dc_host = dcs[c_key].lower()
 
-        setattr(args, "dc_host", dc_host)
-        setattr(args, "delete", False)
+        setattr(self.args, "dc_host", dc_host)
+        setattr(self.args, "delete", False)
+
+        if self.args.use_ldaps:
+            setattr(self.args, "method", "LDAPS")
+        else:
+            setattr(self.args, "method", "SAMR")
+            
 
         # Creating Machine Account
-        addmachineaccount = AddComputerSAMR(
+        addmachineaccount = ADDCOMPUTER(
             username,
             password,
             domain,
-            args,
+            self.args,
             computer_name,
             computer_pass)
         addmachineaccount.run()
+
 
         if self.get_domainobject(identity=computer_name)[0].entry_dn:
             return True
