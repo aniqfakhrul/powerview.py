@@ -11,10 +11,16 @@ import re
 
 class PywerView:
 
-    def __init__(self,ldap_session,root_dn, domain_dumper=None):
+    def __init__(self,ldap_server, ldap_session, args):
+        self.ldap_server = ldap_server
         self.ldap_session = ldap_session
-        self.root_dn = root_dn
-        self.domain_dumper = domain_dumper
+        self.args = args
+
+        cnf = ldapdomaindump.domainDumpConfig()
+        cnf.basepath = None
+        self.domain_dumper = ldapdomaindump.domainDumper(self.ldap_server, self.ldap_session, cnf)
+        self.root_dn = self.domain_dumper.getRoot()
+        self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
 
     def get_domainuser(self, args=None, properties=['cn','name','sAMAccountName','distinguishedName','mail','description','lastLogoff','lastLogon','memberof','objectSid','userPrincipalName'], identity='*'):
         if args:
@@ -142,11 +148,11 @@ class PywerView:
             return False
 
 
-    def add_domaincomputer(self, username, password, domain, computer_name, computer_pass, args):
+    def add_domaincomputer(self, username, password, domain, computer_name, computer_pass):
         if computer_name[-1] != '$':
             computer_name += '$'
 
-        dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, args)
+        dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, self.args)
         if len(dcinfo)== 0:
             logging.error("Cannot get domain info")
             exit()

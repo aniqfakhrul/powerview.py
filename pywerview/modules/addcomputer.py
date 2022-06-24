@@ -73,8 +73,6 @@ class AddComputerSAMR:
         if self.__domainNetbios is None:
             self.__domainNetbios = self.__domain
 
-
-
     def run_samr(self):
         if self.__targetIp is not None:
             stringBinding = epm.hept_map(self.__targetIp, samr.MSRPC_UUID_SAMR, protocol = 'ncacn_np')
