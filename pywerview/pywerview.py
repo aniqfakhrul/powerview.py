@@ -117,11 +117,11 @@ class PywerView:
         la.aclAttack(targetidentity, self.domain_dumper)
         return True
 
-    def remove_domaincomputer(self,username,password,domain,computer_name,args):
+    def remove_domaincomputer(self,computer_name):
         if computer_name[-1] != '$':
             computer_name += '$'
 
-        dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, args)
+        dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, self.args)
         if len(dcinfo)== 0:
             logging.error("Cannot get domain info")
             exit()
@@ -152,9 +152,9 @@ class PywerView:
 
         # Creating Machine Account
         addmachineaccount = ADDCOMPUTER(
-            username,
-            password,
-            domain,
+            self.args.username,
+            self.args.password,
+            self.args.domain,
             self.args,
             computer_name)
         addmachineaccount.run()
@@ -165,7 +165,7 @@ class PywerView:
             return False
 
 
-    def add_domaincomputer(self, username, password, domain, computer_name, computer_pass):
+    def add_domaincomputer(self, computer_name, computer_pass):
         if computer_name[-1] != '$':
             computer_name += '$'
 
@@ -201,9 +201,9 @@ class PywerView:
 
         # Creating Machine Account
         addmachineaccount = ADDCOMPUTER(
-            username,
-            password,
-            domain,
+            self.args.username,
+            self.args.password,
+            self.args.domain,
             self.args,
             computer_name,
             computer_pass)
@@ -235,6 +235,13 @@ class PywerView:
             logging.error(self.ldap_session.result['message'])
 
         return succeeded
+
+    def get_shares(self, args):
+        conn = SMBConnection(args.computer, args.computer, sess_port=445)
+        conn.login(self.args.username,self.args.password,self.args.domain,self.args.lmhash,self.args.nthash)
+        shares = conn.listShares()
+        for i in range(len(shares)):
+            print(shares[i]['shi1_netname'][:-1])
 
     def parse_object(self,obj):
         attrs = dict()

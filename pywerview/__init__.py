@@ -82,6 +82,11 @@ def powerview_arg_parse(cmd):
     get_domainou_parser.add_argument('-select', '-Select', action='store', default='*', dest='select')
     get_domainou_parser.add_argument('-gplink', '-GPLink', action='store', const=None, dest='gplink')
 
+    # shares
+    get_shares_parser = subparsers.add_parser('Get-Shares', exit_on_error=False)
+    get_shares_parser.add_argument('-computer','-Computer', action='store', const=None, dest='computer')
+    get_shares_parser.add_argument('-computername','-Computername', action='store', const=None, dest='computername')
+
     #trust
     get_domaintrust_parser = subparsers.add_parser('Get-DomainTrust', exit_on_error=False)
     get_domaintrust_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
@@ -149,6 +154,11 @@ def main():
 
     args = arg_parse()
     domain, username, password, lmhash, nthash = parse_identity(args)
+    setattr(args,'domain',domain)
+    setattr(args,'username',username)
+    setattr(args,'password',password)
+    setattr(args,'lmhash',lmhash)
+    setattr(args,'nthash', nthash)
 
     try:
         ldap_server, ldap_session = init_ldap_session(args, domain, username, password, lmhash, nthash)
@@ -193,6 +203,8 @@ def main():
                             entries = pywerview.get_domainou(pv_args, properties, identity)
                         elif pv_args.module.casefold() == 'get-domaintrust':
                             entries = pywerview.get_domaintrust(pv_args, properties, identity)
+                        elif pv_args.module.casefold() == 'get-shares':
+                            entries = pywerview.get_shares(pv_args)
                         elif pv_args.module.casefold() == 'add-domaingroupmember':
                             if pv_args.identity is not None and pv_args.members is not None:
                                 if pywerview.add_domaingroupmember(pv_args.identity, pv_args.members, pv_args):
@@ -209,12 +221,12 @@ def main():
                             if pv_args.computername is not None:
                                 if pv_args.computerpass is None:
                                     pv_args.computerpass = ''.join(random.choice(list(string.ascii_letters + string.digits + "!@#$%^&*()")) for _ in range(12))
-                                pywerview.add_domaincomputer(username, password, domain, pv_args.computername, pv_args.computerpass)
+                                pywerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
                             else:
                                 logging.error(f'-ComputerName and -ComputerPass are required')
                         elif pv_args.module.casefold() == 'remove-domaincomputer':
                             if pv_args.computername is not None:
-                                pywerview.remove_domaincomputer(username,password,domain,pv_args.computername,args)
+                                pywerview.remove_domaincomputer(pv_args.computername)
                             else:
                                 logging.error(f'-ComputerName is required')
                         elif pv_args.module.casefold() == 'exit':

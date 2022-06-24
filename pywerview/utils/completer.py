@@ -9,6 +9,7 @@ COMMANDS = {
     'Get-DomainGroup':['-Identity','-Properties','-Select'],
     'Get-DomainTrust':['-Properties','-Select'],
     'Get-DomainUser':['-Identity','-Properties','-Select','-PreAuthNotRequired','-AdminCount','-TrustedToAuth','-SPN'],
+    'Get-Shares':['-Computer','-ComputerName'],
     'Get-DomainObject':['-Identity','-Properties','-Select'],
     'Get-DomainComputer':['-Identity','-Properties','-Select','-Unconstrained','-TrustedToAuth', '-LAPS'],
     'Add-DomainComputer':['-ComputerName','-ComputerPass'],
