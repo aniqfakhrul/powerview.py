@@ -213,7 +213,6 @@ def main():
                                 formatter.print_select(entries)
                         else:
                             formatter.print(entries)
-                        #formatter(pv_args, entries)
                         
                 except ldap3.core.exceptions.LDAPAttributeError as e:
                     print(e)
