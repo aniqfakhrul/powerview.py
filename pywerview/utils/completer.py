@@ -5,11 +5,12 @@ import readline
 COMMANDS = {
     'Get-Domain':['-Identity','-Properties','-Select'],
     'Get-DomainGPO':['-Identity','-Properties','-Select'],
+    'Get-DomainOU':['-Identity','-Properties','-Select','-GPLink'],
     'Get-DomainGroup':['-Identity','-Properties','-Select'],
     'Get-DomainTrust':['-Properties','-Select'],
     'Get-DomainUser':['-Identity','-Properties','-Select','-PreAuthNotRequired','-AdminCount','-TrustedToAuth','-SPN'],
     'Get-DomainObject':['-Identity','-Properties','-Select'],
-    'Get-DomainComputer':['-Identity','-Properties','-Select','-Unconstrained','-TrustedToAuth'],
+    'Get-DomainComputer':['-Identity','-Properties','-Select','-Unconstrained','-TrustedToAuth', '-LAPS'],
     'Add-DomainComputer':['-ComputerName','-ComputerPass'],
     'Add-DomainGroupMember':['-Identity','-Members'],
     'Set-DomainObject':['-Identity','-Clear','-Set'],

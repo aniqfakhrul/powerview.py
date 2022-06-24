@@ -58,6 +58,8 @@ class PywerView:
                 ldap_filter = f'(&(samAccountType=805306369)(userAccountControl:1.2.840.113556.1.4.803:=524288)(name={identity}))'
             elif args.trustedtoauth:
                 ldap_filter = f'(&(samAccountType=805306369)(|(name={identity}))(msds-allowedtodelegateto=*))'
+            elif args.laps:
+                ldap_filter = f'(&(objectCategory=computer)(ms-MCS-AdmPwd=*)(sAMAccountName={identity}))'
             else:
                 ldap_filter = f'(&(samAccountType=805306369)(name={identity}))'
         else:
@@ -76,6 +78,16 @@ class PywerView:
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
+    def get_domainou(self, args=None, properties='*', identity='*'):
+        if args.gplink is None:
+            ldap_filter = f'(&(objectCategory=organizationalUnit)(|(name={identity})))'
+        else:
+            print("masuk bawah")
+            ldap_filter = f'(&(objectCategory=organizationalUnit)(|(name={identity}))(gplink={args.gplink}))'
+        
+        self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
+        return self.ldap_session.entries
+    
     def get_domaintrust(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(objectClass=trustedDomain)'
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
