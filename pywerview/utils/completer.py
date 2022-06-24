@@ -2,13 +2,22 @@ import os
 import re
 import readline
 
-COMMANDS = ['Get-Domain', 'Get-DomainUser', 'Get-DomainComputer', 'Get-DomainGroup',
-'Get-Forest','Get-DomainGPO','Get-DomainController','get-domain', 'get-domainuser',
-'get-domaincomputer', 'get-domaingroup', 'get-forest', 'get-domaingpo', 'get-domaincontroller',
-'-Identity', '-Properties', '-identity',
-'-properties','-Unconstrained','-unconstrained','-TrustedToAuth','-trustedtoauth','-SPN', '-spn',
-'-AdminCount', '-admincount', '-PreAuthNotRequired', '-preauthnotrequired', '-AllowDelegation',
-'-allowdelegation', '-Select', '-select']
+COMMANDS = {
+    'Get-Domain':['-Identity','-Properties','-Select'],
+    'Get-DomainGPO':['-Identity','-Properties','-Select'],
+    'Get-DomainOU':['-Identity','-Properties','-Select','-GPLink'],
+    'Get-DomainGroup':['-Identity','-Properties','-Select'],
+    'Get-DomainTrust':['-Properties','-Select'],
+    'Get-DomainUser':['-Identity','-Properties','-Select','-PreAuthNotRequired','-AdminCount','-TrustedToAuth','-SPN'],
+    'Get-Shares':['-Computer','-ComputerName'],
+    'Get-DomainObject':['-Identity','-Properties','-Select'],
+    'Get-DomainComputer':['-Identity','-Properties','-Select','-Unconstrained','-TrustedToAuth', '-LAPS'],
+    'Add-DomainComputer':['-ComputerName','-ComputerPass'],
+    'Add-DomainGroupMember':['-Identity','-Members'],
+    'Set-DomainObject':['-Identity','-Clear','-Set'],
+    'Remove-DomainComputer':['-ComputerName'],
+}
+
 RE_SPACE = re.compile('.*\s+$', re.M)
 
 class Completer(object):
@@ -52,18 +61,21 @@ class Completer(object):
         buffer = readline.get_line_buffer()
         line = readline.get_line_buffer().split()
         # show all commands
-        #if not line:
-        #    return [c + ' ' for c in COMMANDS][state]
+        if not line:
+           return [c + ' ' for c in list(COMMANDS.keys())][state]
         # account for last argument ending in a space
         if RE_SPACE.match(buffer):
             line.append('')
+
         # resolve command to the implementation function
-        cmd = line[-1].strip()
-        if cmd in COMMANDS:
-            impl = getattr(self, 'complete_%s' % cmd)
-            args = line[1:]
-            if args:
-                return (impl(args) + [None])[state]
-            return [cmd + ' '][state]
-        results = [c + ' ' for c in COMMANDS if c.startswith(cmd)] + [None]
+        cmd = line[0].strip()
+        results = [c + ' ' for c in list(COMMANDS.keys()) if c.casefold().startswith(cmd.casefold())] + [None]
+
+        if len(line) > 1:
+            for c in list(COMMANDS.keys()):
+                if cmd.casefold() == c.casefold():
+                    args = line[-1].strip()
+                    results = [c + ' ' for c in COMMANDS[c] if c.casefold().startswith(args.casefold())] + [None]
+                    return results[state]
+
         return results[state]
