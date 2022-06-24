@@ -3,7 +3,7 @@ from pywerview.pywerview import PywerView
 from pywerview.utils.helpers import *
 from pywerview.utils.native import *
 from pywerview.utils.formatter import FORMATTER
-from pywerview.utils.completer import Completer
+from pywerview.utils.completer import Completer, COMMANDS
 from pywerview.utils.colors import bcolors
 
 from impacket import version
@@ -115,6 +115,11 @@ def powerview_arg_parse(cmd):
         args = parser.parse_args(cmd)
         return args
     except argparse.ArgumentError as e:
+        for i in list(COMMANDS.keys()):
+            if cmd[0].casefold() == i.casefold():
+                cmd[0] = i
+                return parser.parse_args(cmd)
+        
         logging.error(e)
         return None
         

@@ -72,7 +72,7 @@ class Completer(object):
 
         if len(line) > 1:
             for c in list(COMMANDS.keys()):
-                if cmd == c:
+                if cmd.casefold() == c.casefold():
                     args = line[-1].strip()
                     results = [c + ' ' for c in COMMANDS[c] if c.casefold().startswith(args.casefold())] + [None]
                     return results[state]
