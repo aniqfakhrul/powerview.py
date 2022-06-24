@@ -2,6 +2,8 @@
 from pywerview.utils.colors import bcolors
 
 import json
+import re
+import logging
 
 class FORMATTER:
     def __init__(self, pv_args):
@@ -19,7 +21,7 @@ class FORMATTER:
                         value = i["encoded"]
                     if isinstance(i,int):
                         value = str(i)
-                
+
                 value = beautify(value)
                 if isinstance(value,list):
                     if len(value) != 0:
@@ -45,7 +47,7 @@ class FORMATTER:
                         print(value)
         else:
             logging.error(f'{bcolors.FAIL}-select flag can only accept one attribute{bcolors.ENDC}')
-        
+
     def print(self,entries):
         for entry in entries:
             entry = json.loads(entry.entry_to_json())
@@ -56,7 +58,7 @@ class FORMATTER:
                         value = i["encoded"]
                     if isinstance(i,int):
                         value = str(i)
-                
+
                 value = beautify(value)
                 if isinstance(value,list):
                     if len(value) != 0:
@@ -64,6 +66,53 @@ class FORMATTER:
                 else:
                     print(f"{attr.ljust(38)}: {value}")
             print()
+
+    def alter_entries(self,entries,cond):
+        temp_alter_entries = []
+        left,operator,right = cond.split()
+        if (operator in "contains") or (operator in "match"):
+            for entry in entries:
+                temp_entry = json.loads(entry.entry_to_json())
+                for c in list(temp_entry['attributes'].keys()):
+                    if c.casefold() == left.casefold():
+                        left = c
+                        break
+                try:
+                    if right.casefold() in temp_entry['attributes'][left][0].casefold():
+                        temp_alter_entries.append(entry)
+                except KeyError:
+                    return None
+
+        elif (operator in "equal") or (operator == "="):
+            for entry in entries:
+                temp_entry = json.loads(entry.entry_to_json())
+                for c in list(temp_entry['attributes'].keys()):
+                    if c.casefold() == left.casefold():
+                        left = c
+                        break
+                try:
+                    if right.casefold() == temp_entry['attributes'][left][0].casefold():
+                        temp_alter_entries.append(entry)
+                except KeyError:
+                    return None
+        elif (operator.lower() == "not") or (operator.lower() == "!="):
+            for entry in entries:
+                temp_entry = json.loads(entry.entry_to_json())
+                for c in list(temp_entry['attributes'].keys()):
+                    if c.casefold() == left.casefold():
+                        left = c
+                        break
+                try:
+                    if not (len(temp_entry['attributes'][left][0].casefold()) == 0) and (right.casefold() == "null"):
+                        temp_alter_entries.append(entry)
+                    elif temp_entry['attributes'][left][0].casefold() != right.casefold():
+                        temp_alter_entries.append(entry)
+                except KeyError:
+                    return None
+        else:
+            logging.error(f'Invalid operator')
+
+        return temp_alter_entries
 
 def beautify(strs):
     if not isinstance(strs,list):

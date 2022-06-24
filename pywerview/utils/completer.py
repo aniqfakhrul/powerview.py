@@ -3,15 +3,15 @@ import re
 import readline
 
 COMMANDS = {
-    'Get-Domain':['-Identity','-Properties','-Select'],
-    'Get-DomainGPO':['-Identity','-Properties','-Select'],
-    'Get-DomainOU':['-Identity','-Properties','-Select','-GPLink'],
-    'Get-DomainGroup':['-Identity','-Properties','-Select'],
-    'Get-DomainTrust':['-Properties','-Select'],
-    'Get-DomainUser':['-Identity','-Properties','-Select','-PreAuthNotRequired','-AdminCount','-TrustedToAuth','-SPN'],
+    'Get-Domain':['-Identity','-Properties','-Select', '-Where'],
+    'Get-DomainGPO':['-Identity','-Properties','-Select', '-Where'],
+    'Get-DomainOU':['-Identity','-Properties','-Select','-GPLink', '-Where'],
+    'Get-DomainGroup':['-Identity','-Properties','-Select', '-Where'],
+    'Get-DomainTrust':['-Properties','-Select', '-Where'],
+    'Get-DomainUser':['-Identity','-Properties','-Select','-PreAuthNotRequired','-AdminCount','-TrustedToAuth','-SPN', '-Where'],
     'Get-Shares':['-Computer','-ComputerName'],
-    'Get-DomainObject':['-Identity','-Properties','-Select'],
-    'Get-DomainComputer':['-Identity','-Properties','-Select','-Unconstrained','-TrustedToAuth', '-LAPS'],
+    'Get-DomainObject':['-Identity','-Properties','-Select', '-Where'],
+    'Get-DomainComputer':['-Identity','-Properties','-Select','-Unconstrained','-TrustedToAuth', '-LAPS', '-Where'],
     'Add-DomainComputer':['-ComputerName','-ComputerPass'],
     'Add-DomainGroupMember':['-Identity','-Members'],
     'Set-DomainObject':['-Identity','-Clear','-Set'],

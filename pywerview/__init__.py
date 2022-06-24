@@ -29,12 +29,14 @@ def powerview_arg_parse(cmd):
     get_domain_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domain_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
     get_domain_parser.add_argument('-select', '-Select', action='store', dest='select')
+    get_domain_parser.add_argument('-where', '-Where', action='store', dest='where')
 
     #domainobject
     get_domainobject_parser = subparsers.add_parser('Get-DomainObject', exit_on_error=False)
     get_domainobject_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domainobject_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
     get_domainobject_parser.add_argument('-select', '-Select', action='store', dest='select')
+    get_domainobject_parser.add_argument('-where', '-Where', action='store', dest='where')
 
     #group
     get_domaingroup_parser = subparsers.add_parser('Get-DomainGroup', exit_on_error=False)
@@ -42,6 +44,7 @@ def powerview_arg_parse(cmd):
     get_domaingroup_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
     get_domaingroup_parser.add_argument('-members', '-Members', action='store', dest='members')
     get_domaingroup_parser.add_argument('-select', '-Select', action='store', dest='select')
+    get_domaingroup_parser.add_argument('-where', '-Where', action='store', dest='where')
 
     #user
     get_domainuser_parser = subparsers.add_parser('Get-DomainUser', exit_on_error=False)
@@ -53,6 +56,7 @@ def powerview_arg_parse(cmd):
     get_domainuser_parser.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
     get_domainuser_parser.add_argument('-allowdelegation', '-AllowDelegation', action='store_true', default=False, dest='allowdelegation')
     get_domainuser_parser.add_argument('-select', '-Select', action='store', dest='select')
+    get_domainuser_parser.add_argument('-where', '-Where', action='store', dest='where')
 
     #computers
     get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer', exit_on_error=False)
@@ -62,18 +66,21 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
     get_domaincomputer_parser.add_argument('-laps', '-LAPS', action='store_true', default=False, dest='laps')
     get_domaincomputer_parser.add_argument('-select', '-Select', action='store', dest='select')
+    get_domaincomputer_parser.add_argument('-where', '-Where', action='store', dest='where')
 
     #domain controller
     get_domaincontroller_parser = subparsers.add_parser('Get-DomainController', exit_on_error=False)
     get_domaincontroller_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domaincontroller_parser.add_argument('-properties', '-Properties',action='store',default='*', dest='properties')
     get_domaincontroller_parser.add_argument('-select', '-Select',action='store', dest='select')
+    get_domaincontroller_parser.add_argument('-where', '-Where', action='store', dest='where')
 
     #gpo
     get_domaingpo_parser = subparsers.add_parser('Get-DomainGPO', exit_on_error=False)
     get_domaingpo_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domaingpo_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
     get_domaingpo_parser.add_argument('-select', '-Select', action='store', dest='select')
+    get_domaingpo_parser.add_argument('-where', '-Where', action='store', dest='where')
 
     # OU
     get_domainou_parser = subparsers.add_parser('Get-DomainOU', exit_on_error=False)
@@ -81,6 +88,7 @@ def powerview_arg_parse(cmd):
     get_domainou_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
     get_domainou_parser.add_argument('-select', '-Select', action='store', default='*', dest='select')
     get_domainou_parser.add_argument('-gplink', '-GPLink', action='store', const=None, dest='gplink')
+    get_domainou_parser.add_argument('-where', '-Where', action='store', dest='where')
 
     # shares
     get_shares_parser = subparsers.add_parser('Get-Shares', exit_on_error=False)
@@ -92,6 +100,7 @@ def powerview_arg_parse(cmd):
     get_domaintrust_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domaintrust_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
     get_domaintrust_parser.add_argument('-select', '-Select', action='store', dest='select')
+    get_domaintrust_parser.add_argument('-where', '-Where', action='store', dest='where')
 
     # add operations
     add_domaingroupmember_parser = subparsers.add_parser('Add-DomainGroupMember', exit_on_error=False)
@@ -124,10 +133,10 @@ def powerview_arg_parse(cmd):
             if cmd[0].casefold() == i.casefold():
                 cmd[0] = i
                 return parser.parse_args(cmd)
-        
+
         logging.error(e)
         return None
-        
+
 
 def arg_parse():
     parser = argparse.ArgumentParser(description = "Python alternative to SharpSploit's PowerView script")
@@ -236,14 +245,20 @@ def main():
 
                         if entries:
                             formatter = FORMATTER(pv_args)
-                            if pv_args.select is not None:
-                                if pv_args.select.isdecimal():
-                                    formatter.print_index(entries)
-                                else:
-                                    formatter.print_select(entries)
+                            if pv_args.where is not None:
+                                # Alter entries
+                                entries = formatter.alter_entries(entries,pv_args.where)
+                            if entries is None:
+                                logging.error(f'Key not available')
                             else:
-                                formatter.print(entries)
-                            
+                                if pv_args.select is not None:
+                                    if pv_args.select.isdecimal():
+                                        formatter.print_index(entries)
+                                    else:
+                                        formatter.print_select(entries)
+                                else:
+                                    formatter.print(entries)
+
                     except ldap3.core.exceptions.LDAPAttributeError as e:
                         print(e)
     except ldap3.core.exceptions.LDAPBindError as e:
