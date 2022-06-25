@@ -5,9 +5,12 @@ import traceback
 import ldap3
 import ssl
 import ldapdomaindump
+import ipaddress
+import dns.resolver
 from binascii import unhexlify
 import os
 import json
+import logging
 from impacket import version
 from impacket.examples import logger, utils
 from dns import resolver
@@ -22,6 +25,25 @@ from impacket.examples.utils import parse_credentials
 from impacket.krb5.kerberosv5 import getKerberosTGT
 from impacket.krb5 import constants
 from impacket.krb5.types import Principal
+
+def is_ipaddress(address):
+    try:
+        ip = ipaddress.ip_address(address)
+        return True
+    except ValueError:
+        return False
+
+def resolve_domain(domain, server):
+    answer = None
+    try:
+        resolver = dns.resolver.Resolver(configure=False)
+        resolver.nameservers = [server]
+        answers = resolver.query(domain, 'A')
+        for i in answers:
+            answer = i.to_text()
+    except dns.resolver.NoNameservers:
+        logging.info(f'Records not found')
+    return answer
 
 def get_machine_name(args, domain):
     if args.dc_ip is not None:

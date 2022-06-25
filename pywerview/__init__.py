@@ -5,6 +5,7 @@ from pywerview.utils.native import *
 from pywerview.utils.formatter import FORMATTER
 from pywerview.utils.completer import Completer, COMMANDS
 from pywerview.utils.colors import bcolors
+from pywerview.utils.connections import CONNECTION
 
 from impacket import version
 from impacket.examples import logger
@@ -93,7 +94,7 @@ def powerview_arg_parse(cmd):
     # shares
     get_shares_parser = subparsers.add_parser('Get-Shares', exit_on_error=False)
     get_shares_parser.add_argument('-computer','-Computer', action='store', const=None, dest='computer')
-    get_shares_parser.add_argument('-computername','-Computername', action='store', const=None, dest='computername')
+    get_shares_parser.add_argument('-computername','-ComputerName', action='store', const=None, dest='computername')
 
     #trust
     get_domaintrust_parser = subparsers.add_parser('Get-DomainTrust', exit_on_error=False)
@@ -148,6 +149,7 @@ def arg_parse():
     auth.add_argument("-k", "--kerberos", dest="use_kerberos", action="store_true", help='Use Kerberos authentication. Grabs credentials from .ccache file (KRB5CCNAME) based on target parameters. If valid credentials cannot be found, it will use the ones specified in the command line')
     auth.add_argument('--aes-key', dest="auth_aes_key", action="store", metavar = "hex key", help='AES key to use for Kerberos Authentication \'(128 or 256 bits)\'')
     auth.add_argument("--dc-ip", action='store', metavar='IP address', help='IP Address of the domain controller or KDC (Key Distribution Center) for Kerberos. If omitted it will use the domain part (FQDN) specified in the identity parameter')
+    auth.add_argument('--no-pass', action="store_true", help="don't ask for password (useful for -k)")
 
     args = parser.parse_args()
 
@@ -170,9 +172,9 @@ def main():
     setattr(args,'nthash', nthash)
 
     try:
-        ldap_server, ldap_session = init_ldap_session(args, domain, username, password, lmhash, nthash)
+        conn = CONNECTION(args)
 
-        pywerview = PywerView(ldap_server, ldap_session, args)
+        pywerview = PywerView(conn, args)
 
         while True:
             comp = Completer()
@@ -213,7 +215,10 @@ def main():
                         elif pv_args.module.casefold() == 'get-domaintrust':
                             entries = pywerview.get_domaintrust(pv_args, properties, identity)
                         elif pv_args.module.casefold() == 'get-shares':
-                            entries = pywerview.get_shares(pv_args)
+                            if pv_args.computer is not None or pv_args.computername is not None:
+                                entries = pywerview.get_shares(pv_args)
+                            else:
+                                logging.error('-Computer or -ComputerName is required')
                         elif pv_args.module.casefold() == 'add-domaingroupmember':
                             if pv_args.identity is not None and pv_args.members is not None:
                                 if pywerview.add_domaingroupmember(pv_args.identity, pv_args.members, pv_args):

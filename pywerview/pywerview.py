@@ -11,10 +11,17 @@ import re
 
 class PywerView:
 
-    def __init__(self,ldap_server, ldap_session, args):
-        self.ldap_server = ldap_server
-        self.ldap_session = ldap_session
+    def __init__(self, conn, args):
+        self.conn = conn
         self.args = args
+        self.username = args.username
+        self.password = args.password
+        self.domain = args.domain
+        self.lmhash = args.lmhash
+        self.nthash = args.nthash
+        self.dc_ip = args.dc_ip
+
+        self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
 
         cnf = ldapdomaindump.domainDumpConfig()
         cnf.basepath = None
@@ -201,9 +208,9 @@ class PywerView:
 
         # Creating Machine Account
         addmachineaccount = ADDCOMPUTER(
-            self.args.username,
-            self.args.password,
-            self.args.domain,
+            self.username,
+            self.password,
+            self.domain,
             self.args,
             computer_name,
             computer_pass)
@@ -237,11 +244,39 @@ class PywerView:
         return succeeded
 
     def get_shares(self, args):
-        conn = SMBConnection(args.computer, args.computer, sess_port=445)
-        conn.login(self.args.username,self.args.password,self.args.domain,self.args.lmhash,self.args.nthash)
-        shares = conn.listShares()
+        if args.computer:
+            if is_ipaddress(args.computer):
+                host = args.computer
+            else:
+                host = resolve_domain(args.computer, self.dc_ip)
+        elif args.computername:
+            if is_ipaddress(args.computername):
+                host = args.computername
+            else:
+                host = resolve_domain(args.computername, self.dc_ip)
+        else:
+            logging.error(f'-Computer or -ComputerName is required')
+            return
+
+        if not host:
+            return
+        
+        client = self.conn.init_smb_session(host)
+        
+        if not client:
+            return
+
+        shares = client.listShares()
+        share_infos = []
+       
         for i in range(len(shares)):
-            print(shares[i]['shi1_netname'][:-1])
+            share_name = shares[i]['shi1_netname'][:-1]
+            share_remark = shares[i]['shi1_remark'][:-1]
+            share_info = {'name': share_name, 'remark': share_remark}
+            share_infos.append(share_info)
+
+            print(f'{share_info["name"].ljust(15)}{share_info["remark"].ljust(25)}{host}')
+        print()
 
     def parse_object(self,obj):
         attrs = dict()
