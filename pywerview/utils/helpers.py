@@ -244,45 +244,6 @@ def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='
 
     return True
 
-def init_ldap_connection(target, no_tls, args, domain, username, password, lmhash, nthash):
-    user = '%s\\%s' % (domain, username)
-    if not no_tls:
-        use_ssl = False
-        port = 389
-    else:
-        use_ssl = True
-        port = 636
-    ldap_server = ldap3.Server(target, get_info=ldap3.ALL, port=port, use_ssl=use_ssl)
-    if args.use_kerberos:
-        ldap_session = ldap3.Connection(ldap_server)
-        ldap_session.bind()
-        ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, args.auth_aes_key, kdcHost=args.dc_ip,useCache=args.no_pass)
-    elif args.hashes is not None:
-        ldap_session = ldap3.Connection(ldap_server, user=user, password=lmhash + ":" + nthash, authentication=ldap3.NTLM, auto_bind=True)
-    else:
-        ldap_session = ldap3.Connection(ldap_server, user=user, password=password, authentication=ldap3.NTLM, auto_bind=True)
-
-    return ldap_server, ldap_session
-
-
-def init_ldap_session(args, domain, username, password, lmhash, nthash):
-    if args.use_kerberos:
-        target = get_machine_name(args, domain)
-    else:
-        if args.dc_ip is not None:
-            target = args.dc_ip
-        else:
-            target = domain
-
-    if args.use_ldaps is True:
-        try:
-            return init_ldap_connection(target, ssl.PROTOCOL_TLSv1_2, args, domain, username, password, lmhash, nthash)
-        except ldap3.core.exceptions.LDAPSocketOpenError:
-            return init_ldap_connection(target, ssl.PROTOCOL_TLSv1, args, domain, username, password, lmhash, nthash)
-    else:
-        return init_ldap_connection(target, None, args, domain, username, password, lmhash, nthash)
-
-
 def get_user_info(samname, ldap_session, domain_dumper):
     ldap_session.search(domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars(samname), 
             attributes=['objectSid','ms-DS-MachineAccountQuota'])

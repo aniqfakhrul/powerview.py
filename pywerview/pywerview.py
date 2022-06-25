@@ -269,13 +269,15 @@ class PywerView:
         shares = client.listShares()
         share_infos = []
        
+        print(f'{"Name".ljust(15)}{"Remark".ljust(25)}ComputerName')
+        print(f'{"----".ljust(15)}{"-------".ljust(25)}------------')
         for i in range(len(shares)):
             share_name = shares[i]['shi1_netname'][:-1]
             share_remark = shares[i]['shi1_remark'][:-1]
             share_info = {'name': share_name, 'remark': share_remark}
             share_infos.append(share_info)
 
-            print(f'{share_info["name"].ljust(15)}{share_info["remark"].ljust(25)}{host}')
+            print(f'{share_info["name"].ljust(15)}{share_info["remark"].ljust(25)}{args.computer if args.computer else args.computername}')
         print()
 
     def parse_object(self,obj):
