@@ -14,6 +14,7 @@ COMMANDS = {
     'Get-DomainComputer':['-Identity','-Properties','-Select','-Unconstrained','-TrustedToAuth', '-LAPS', '-Where'],
     'Add-DomainComputer':['-ComputerName','-ComputerPass'],
     'Add-DomainGroupMember':['-Identity','-Members'],
+    'Add-DomainObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights'],
     'Set-DomainObject':['-Identity','-Clear','-Set'],
     'Remove-DomainComputer':['-ComputerName'],
 }

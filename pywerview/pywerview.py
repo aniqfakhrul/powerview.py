@@ -115,14 +115,22 @@ class PywerView:
             print(self.ldap_session.result['message'])
         return succeeded
 
-    def add_domainobjectacl(self, targetidentity, principalidentity, rights, args=None):
+    def add_domainobjectacl(self, args):
         c = NTLMRelayxConfig()
-        c.target = 'range.net'
+        c.addcomputer = 'idk lol'
+        c.target = self.dc_ip
 
-        logging.info('Initializing LDAPAttack()')
-        la = LDAPAttack(c, self.ldap_session, principalidentity.replace('\\', '/'))
-        la.aclAttack(targetidentity, self.domain_dumper)
-        return True
+        logging.info(f'Adding {args.rights} privilege to {args.targetidentity}')
+        entries = self.get_domainobject(identity=args.targetidentity)
+        if len(entries) == 0:
+            logging.error('Target object not found in domain')
+            return
+        
+        identity_dn = entries[0].entry_dn
+        logging.info(f'Found target dn {identity_dn}')
+        
+        la = LDAPAttack(c, self.ldap_session, f'{self.domain}/{args.principalidentity}')
+        la.aclAttack(identity_dn, self.domain_dumper)
 
     def remove_domaincomputer(self,computer_name):
         if computer_name[-1] != '$':
