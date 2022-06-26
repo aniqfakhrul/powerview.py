@@ -1,6 +1,7 @@
 import os
 import re
 import readline
+import shlex
 
 COMMANDS = {
     'Get-Domain':['-Identity','-Properties','-Select', '-Where'],
@@ -76,7 +77,7 @@ class Completer(object):
     def complete(self, text, state):
         "Generic readline completion entry point."
         buffer = readline.get_line_buffer()
-        line = readline.get_line_buffer().split()
+        line = shlex.split(readline.get_line_buffer())
         # show all commands
         if not line:
            return [c + ' ' for c in list(COMMANDS.keys())][state]
@@ -92,7 +93,6 @@ class Completer(object):
             for c in list(COMMANDS.keys()):
                 if cmd.casefold() == c.casefold():
                     args = line[-1].strip()
-                    results = [c + ' ' for c in COMMANDS[c] if c.casefold().startswith(args.casefold())] + [None]
+                    results = [c + ' ' for c in COMMANDS[c] if c.casefold().startswith(args.casefold()) and c not in line] + [None]
                     return results[state]
-
         return results[state]
