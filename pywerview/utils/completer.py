@@ -29,6 +29,8 @@ COMMANDS = {
     'Add-GroupMember':['-Identity','-Members'],
     'Add-DomainObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights'],
     'Add-ObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights'],
+    'Remove-DomainObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights'],
+    'Remove-ObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights'],
     'Set-DomainObject':['-Identity','-Clear','-Set'],
     'Set-Object':['-Identity','-Clear','-Set'],
 }

@@ -120,6 +120,8 @@ class PywerView:
         c.addcomputer = 'idk lol'
         c.target = self.dc_ip
 
+        setattr(args, "delete", False)
+
         entries = self.get_domainobject(identity=args.principalidentity)
         if len(entries) == 0:
             logging.error('Target object not found in domain')
@@ -131,6 +133,26 @@ class PywerView:
         logging.info(f'Adding {args.rights} privilege to {args.targetidentity}')
         la = LDAPAttack(c, self.ldap_session, f'{self.domain}/{args.principalidentity}', args)
         la.aclAttack(identity_dn, self.domain_dumper)
+
+    def remove_domainobjectacl(self, args):
+        c = NTLMRelayxConfig()
+        c.addcomputer = 'idk lol'
+        c.target = self.dc_ip
+        
+        setattr(args, "delete", True)
+
+        entries = self.get_domainobject(identity=args.principalidentity)
+        if len(entries) == 0:
+            logging.error('Target object not found in domain')
+            return
+        
+        identity_dn = entries[0].entry_dn
+        logging.info(f'Found target dn {identity_dn}')
+        
+        logging.info(f'Adding {args.rights} privilege to {args.targetidentity}')
+        la = LDAPAttack(c, self.ldap_session, f'{self.domain}/{args.principalidentity}', args)
+        la.aclAttack(identity_dn, self.domain_dumper)
+        
 
     def remove_domaincomputer(self,computer_name):
         if computer_name[-1] != '$':
