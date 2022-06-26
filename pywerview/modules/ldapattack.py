@@ -431,7 +431,7 @@ class LDAPAttack(ProtocolAttack):
 
     def aclAttack(self, userDn, domainDumper):
         rights = {
-                'dcsync':['1131f6aa-9c07-11d1-f79f-00c04fc2dcd2','1131f6ad-9c07-11d1-f79f-00c04fc2dcd2','89e95b76-444d-4c62-991a-0facbeda640c'],
+                'dcsync':['1131f6aa-9c07-11d1-f79f-00c04fc2dcd2','1131f6ad-9c07-11d1-f79f-00c04fc2dcd2'],
                 'resetpassword':['00299570-246d-11d0-a768-00aa006e0529'],
                 'writemembers':['bf9679c0-0de6-11d0-a285-00aa003049e2']
             }

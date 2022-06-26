@@ -107,7 +107,7 @@ class PywerView:
 
     def add_domaingroupmember(self, identity, members, args=None):
         group_entry = self.get_domaingroup(identity=identity,properties='distinguishedName')
-        user_entry = self.get_domainuser(identity=members,properties='distinguishedName')
+        user_entry = self.get_domainobject(identity=members,properties='distinguishedName')
         targetobject = group_entry[0]
         userobject = user_entry[0]
         succeeded = self.ldap_session.modify(targetobject.entry_dn,{'member': [(ldap3.MODIFY_ADD, [userobject.entry_dn])]})
