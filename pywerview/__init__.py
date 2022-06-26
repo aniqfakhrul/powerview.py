@@ -112,7 +112,7 @@ def powerview_arg_parse(cmd):
     add_domainobjectacl_parser = subparsers.add_parser('Add-DomainObjectAcl', exit_on_error=False)
     add_domainobjectacl_parser.add_argument('-targetidentity','-TargetIdentity', action='store', const=None, dest='targetidentity')
     add_domainobjectacl_parser.add_argument('-principalidentity','-PrincipalIdentity', action='store', const=None, dest='principalidentity')
-    add_domainobjectacl_parser.add_argument('-rights','-Rights', action='store', const=None, dest='rights', choices=['all', 'dcsync'], type = str.lower)
+    add_domainobjectacl_parser.add_argument('-rights','-Rights', action='store', const=None, dest='rights', choices=['all', 'dcsync', 'writemembers'], type = str.lower)
 
     # add domain computer
     add_domaincomputer_parser = subparsers.add_parser('Add-DomainComputer', exit_on_error=False)
