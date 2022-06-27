@@ -59,6 +59,11 @@ class PywerView:
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
     
+    def get_domainobjectacl(self, args=None, properties='*', identity='*'):
+        ldap_filter = f'(&(|(|(samAccountName={identity})(name={identity})(displayname={identity}))))'
+        self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
+        return self.ldap_session.entries
+    
     def get_domaincomputer(self, args=None, properties='*', identity='*'):
         if args:
             if args.unconstrained:

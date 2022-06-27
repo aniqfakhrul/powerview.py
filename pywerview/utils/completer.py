@@ -20,6 +20,8 @@ COMMANDS = {
     'Get-NetShares':['-Computer','-ComputerName'],
     'Get-DomainObject':['-Identity','-Properties','-Select', '-Where'],
     'Get-ADObject':['-Identity','-Properties','-Select', '-Where'],
+    'Get-DomainObjectAcl':['-Identity','-Properties','-Select', '-Where'],
+    'Get-ObjectAcl':['-Identity','-Properties','-Select', '-Where'],
     'Get-DomainComputer':['-Identity','-Properties','-Select','-Unconstrained','-TrustedToAuth', '-LAPS', '-Where'],
     'Get-NetComputer':['-Identity','-Properties','-Select','-Unconstrained','-TrustedToAuth', '-LAPS', '-Where'],
     'Add-DomainComputer':['-ComputerName','-ComputerPass'],
