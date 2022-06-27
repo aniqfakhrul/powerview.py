@@ -196,106 +196,110 @@ def main():
         pywerview = PywerView(conn, args)
 
         while True:
-            comp = Completer()
-            readline.set_completer_delims(' \t\n;')
-            readline.parse_and_bind("tab: complete")
-            readline.set_completer(comp.complete)
-            cmd = input(f'{bcolors.OKBLUE}PV> {bcolors.ENDC}')
+            try:
+                comp = Completer()
+                readline.set_completer_delims(' \t\n;')
+                readline.parse_and_bind("tab: complete")
+                readline.set_completer(comp.complete)
+                
+                cmd = input(f'{bcolors.OKBLUE}PV> {bcolors.ENDC}')
 
-            if cmd:
-                pv_args = powerview_arg_parse(shlex.split(cmd))
-                if pv_args is not None:
-                    try:
-                        if pv_args.properties:
-                            properties = pv_args.properties.split(',')
-                        identity = pv_args.identity
-                    except:
-                        pass
+                if cmd:
+                    pv_args = powerview_arg_parse(shlex.split(cmd))
+                    if pv_args is not None:
+                        try:
+                            if pv_args.properties:
+                                properties = pv_args.properties.split(',')
+                            identity = pv_args.identity
+                        except:
+                            pass
 
-                    try:
-                        entries = None
+                        try:
+                            entries = None
 
-                        if pv_args.module.casefold() == 'get-domain' or pv_args.module.casefold() == 'get-netdomain':
-                            entries = pywerview.get_domain(pv_args, properties, identity)
-                        elif pv_args.module.casefold() == 'get-domainobject' or pv_args.module.casefold() == 'get-adobject':
-                            entries = pywerview.get_domainobject(pv_args, properties, identity)
-                        elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
-                            entries = pywerview.get_domainobjectacl(pv_args)
-                        elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
-                            entries = pywerview.get_domainuser(pv_args, properties, identity)
-                        elif pv_args.module.casefold() == 'get-domaincomputer' or pv_args.module.casefold() == 'get-netcomputer':
-                            entries = pywerview.get_domaincomputer(pv_args, properties, identity)
-                        elif pv_args.module.casefold() == 'get-domaingroup' or pv_args.module.casefold() == 'get-netgroup':
-                            entries = pywerview.get_domaingroup(pv_args, properties, identity)
-                        elif pv_args.module.casefold() == 'get-domaincontroller' or pv_args.module.casefold() == 'get-netdomaincontroller':
-                            entries = pywerview.get_domaincontroller(pv_args, properties, identity)
-                        elif pv_args.module.casefold() == 'get-domaingpo' or pv_args.module.casefold() == 'get-netgpo':
-                            entries = pywerview.get_domaingpo(pv_args, properties, identity)
-                        elif pv_args.module.casefold() == 'get-domainou' or pv_args.module.casefold() == 'get-netou':
-                            entries = pywerview.get_domainou(pv_args, properties, identity)
-                        elif pv_args.module.casefold() == 'get-domaintrust' or pv_args.module.casefold() == 'get-nettrust':
-                            entries = pywerview.get_domaintrust(pv_args, properties, identity)
-                        elif pv_args.module.casefold() == 'get-shares' or pv_args.module.casefold() == 'get-netshares':
-                            if pv_args.computer is not None or pv_args.computername is not None:
-                                pywerview.get_shares(pv_args)
-                            else:
-                                logging.error('-Computer or -ComputerName is required')
-                        elif pv_args.module.casefold() == 'add-domainobjectacl' or pv_args.module.casefold() == 'add-objectacl':
-                            if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
-                                pywerview.add_domainobjectacl(pv_args)
-                            else:
-                                logging.error('-TargetIdentity , -PrincipalIdentity and -Rights flags are required')
-                        elif pv_args.module.casefold() == 'remove-domainobjectacl' or pv_args.module.casefold() == 'remove-objectacl':
-                            if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
-                                pywerview.remove_domainobjectacl(pv_args)
-                            else:
-                                logging.error('-TargetIdentity , -PrincipalIdentity and -Rights flags are required')
-                        elif pv_args.module.casefold() == 'add-domaingroupmember' or pv_args.module.casefold() == 'get-groupmember':
-                            if pv_args.identity is not None and pv_args.members is not None:
-                                if pywerview.add_domaingroupmember(pv_args.identity, pv_args.members, pv_args):
-                                    logging.info(f'User {pv_args.members} successfully added to {pv_args.identity}')
-                            else:
-                                logging.error('-Identity and -Members flags required')
-                        elif pv_args.module.casefold() == 'set-domainobject' or pv_args.module.casefold() == 'set-adobject':
-                            if pv_args.identity is not None and (pv_args.clear or pv_args.set):
-                                if pywerview.set_domainobject(pv_args.identity, pv_args):
-                                    logging.info('Object modified successfully')
-                            else:
-                                logging.error('-Identity and [-Clear][-Set] flags required')
-                        elif pv_args.module.casefold() == 'add-domaincomputer' or pv_args.module.casefold() == 'add-adcomputer':
-                            if pv_args.computername is not None:
-                                if pv_args.computerpass is None:
-                                    pv_args.computerpass = ''.join(random.choice(list(string.ascii_letters + string.digits + "!@#$%^&*()")) for _ in range(12))
-                                pywerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
-                            else:
-                                logging.error(f'-ComputerName and -ComputerPass are required')
-                        elif pv_args.module.casefold() == 'remove-domaincomputer' or pv_args.module.casefold() == 'remove-adcomputer':
-                            if pv_args.computername is not None:
-                                pywerview.remove_domaincomputer(pv_args.computername)
-                            else:
-                                logging.error(f'-ComputerName is required')
-                        elif pv_args.module.casefold() == 'exit':
-                            sys.exit(1)
-                        elif pv_args.module.casefold() == 'clear':
-                            clear_screen()
-
-                        if entries:
-                            formatter = FORMATTER(pv_args)
-                            if pv_args.where is not None:
-                                # Alter entries
-                                entries = formatter.alter_entries(entries,pv_args.where)
-                            if entries is None:
-                                logging.error(f'Key not available')
-                            else:
-                                if pv_args.select is not None:
-                                    if pv_args.select.isdecimal():
-                                        formatter.print_index(entries)
-                                    else:
-                                        formatter.print_select(entries)
+                            if pv_args.module.casefold() == 'get-domain' or pv_args.module.casefold() == 'get-netdomain':
+                                entries = pywerview.get_domain(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domainobject' or pv_args.module.casefold() == 'get-adobject':
+                                entries = pywerview.get_domainobject(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
+                                entries = pywerview.get_domainobjectacl(pv_args)
+                            elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
+                                entries = pywerview.get_domainuser(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domaincomputer' or pv_args.module.casefold() == 'get-netcomputer':
+                                entries = pywerview.get_domaincomputer(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domaingroup' or pv_args.module.casefold() == 'get-netgroup':
+                                entries = pywerview.get_domaingroup(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domaincontroller' or pv_args.module.casefold() == 'get-netdomaincontroller':
+                                entries = pywerview.get_domaincontroller(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domaingpo' or pv_args.module.casefold() == 'get-netgpo':
+                                entries = pywerview.get_domaingpo(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domainou' or pv_args.module.casefold() == 'get-netou':
+                                entries = pywerview.get_domainou(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domaintrust' or pv_args.module.casefold() == 'get-nettrust':
+                                entries = pywerview.get_domaintrust(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-shares' or pv_args.module.casefold() == 'get-netshares':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    pywerview.get_shares(pv_args)
                                 else:
-                                    formatter.print(entries)
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'add-domainobjectacl' or pv_args.module.casefold() == 'add-objectacl':
+                                if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
+                                    pywerview.add_domainobjectacl(pv_args)
+                                else:
+                                    logging.error('-TargetIdentity , -PrincipalIdentity and -Rights flags are required')
+                            elif pv_args.module.casefold() == 'remove-domainobjectacl' or pv_args.module.casefold() == 'remove-objectacl':
+                                if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
+                                    pywerview.remove_domainobjectacl(pv_args)
+                                else:
+                                    logging.error('-TargetIdentity , -PrincipalIdentity and -Rights flags are required')
+                            elif pv_args.module.casefold() == 'add-domaingroupmember' or pv_args.module.casefold() == 'get-groupmember':
+                                if pv_args.identity is not None and pv_args.members is not None:
+                                    if pywerview.add_domaingroupmember(pv_args.identity, pv_args.members, pv_args):
+                                        logging.info(f'User {pv_args.members} successfully added to {pv_args.identity}')
+                                else:
+                                    logging.error('-Identity and -Members flags required')
+                            elif pv_args.module.casefold() == 'set-domainobject' or pv_args.module.casefold() == 'set-adobject':
+                                if pv_args.identity is not None and (pv_args.clear or pv_args.set):
+                                    if pywerview.set_domainobject(pv_args.identity, pv_args):
+                                        logging.info('Object modified successfully')
+                                else:
+                                    logging.error('-Identity and [-Clear][-Set] flags required')
+                            elif pv_args.module.casefold() == 'add-domaincomputer' or pv_args.module.casefold() == 'add-adcomputer':
+                                if pv_args.computername is not None:
+                                    if pv_args.computerpass is None:
+                                        pv_args.computerpass = ''.join(random.choice(list(string.ascii_letters + string.digits + "!@#$%^&*()")) for _ in range(12))
+                                    pywerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
+                                else:
+                                    logging.error(f'-ComputerName and -ComputerPass are required')
+                            elif pv_args.module.casefold() == 'remove-domaincomputer' or pv_args.module.casefold() == 'remove-adcomputer':
+                                if pv_args.computername is not None:
+                                    pywerview.remove_domaincomputer(pv_args.computername)
+                                else:
+                                    logging.error(f'-ComputerName is required')
+                            elif pv_args.module.casefold() == 'exit':
+                                sys.exit(1)
+                            elif pv_args.module.casefold() == 'clear':
+                                clear_screen()
 
-                    except ldap3.core.exceptions.LDAPAttributeError as e:
-                        print(e)
+                            if entries:
+                                formatter = FORMATTER(pv_args)
+                                if pv_args.where is not None:
+                                    # Alter entries
+                                    entries = formatter.alter_entries(entries,pv_args.where)
+                                if entries is None:
+                                    logging.error(f'Key not available')
+                                else:
+                                    if pv_args.select is not None:
+                                        if pv_args.select.isdecimal():
+                                            formatter.print_index(entries)
+                                        else:
+                                            formatter.print_select(entries)
+                                    else:
+                                        formatter.print(entries)
+
+                        except ldap3.core.exceptions.LDAPAttributeError as e:
+                            print(e)
+            except KeyboardInterrupt:
+                print()
     except ldap3.core.exceptions.LDAPBindError as e:
         print(e)
