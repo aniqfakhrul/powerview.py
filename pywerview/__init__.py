@@ -42,7 +42,6 @@ def powerview_arg_parse(cmd):
     #domainobjectacl
     get_domainobjectacl_parser = subparsers.add_parser('Get-DomainObjectAcl', aliases=['Get-ObjectAcl'] ,exit_on_error=False)
     get_domainobjectacl_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
-    get_domainobjectacl_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
     get_domainobjectacl_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domainobjectacl_parser.add_argument('-where', '-Where', action='store', dest='where')
 
@@ -221,7 +220,7 @@ def main():
                         elif pv_args.module.casefold() == 'get-domainobject' or pv_args.module.casefold() == 'get-adobject':
                             entries = pywerview.get_domainobject(pv_args, properties, identity)
                         elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
-                            entries = pywerview.get_domainobjectacl(pv_args, properties, identity)
+                            entries = pywerview.get_domainobjectacl(pv_args)
                         elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
                             entries = pywerview.get_domainuser(pv_args, properties, identity)
                         elif pv_args.module.casefold() == 'get-domaincomputer' or pv_args.module.casefold() == 'get-netcomputer':

@@ -1226,17 +1226,22 @@ class ACLEnum:
         self.root_dn = root_dn
 
     def read_dacl(self):
+        parsed_dacl = []
         for entry in self.entries:
+            dacl_dict = {}
             secDescData = entry['ntSecurityDescriptor'].raw_values[0]
             secDesc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDescData)
-            parsed_dacl = self.parseDACL(secDesc['Dacl'])
-            print(parsed_dacl)
+            dacl = self.parseDACL(secDesc['Dacl'],entry.entry_dn)
+            dacl_dict['attributes'] = dacl
+            parsed_dacl.append(dacl_dict)
+        return parsed_dacl
 
-    def parseDACL(self, dacl):
+    def parseDACL(self, dacl, entry_dn):
         parsed_dacl = []
         LOG.info("Parsing DACL")
         for ace in dacl['Data']:
             parsed_ace = self.parseACE(ace)
+            parsed_ace['distinguishedName'] = entry_dn
             parsed_dacl.append(parsed_ace)
         return parsed_dacl
 

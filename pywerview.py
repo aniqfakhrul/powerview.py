@@ -1,3 +1,6 @@
 import pywerview
 
-pywerview.main()
+try:
+    pywerview.main()
+except KeyboardInterrupt:
+    pass

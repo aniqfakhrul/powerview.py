@@ -55,21 +55,27 @@ class FORMATTER:
         for entry in entries:
             if isinstance(entry,ldap3.abstract.entry.Entry):
                 entry = json.loads(entry.entry_to_json())
-            for attr,value in entry['attributes'].items():
-                # Check dictionary in a list
-                for i in value:
-                    if (isinstance(i,dict)) and ("encoded" in i.keys()):
-                        value = i["encoded"]
-                    if isinstance(i,int):
-                        value = str(i)
+            if isinstance(entry['attributes'],dict):
+                for attr,value in entry['attributes'].items():
+                    # Check dictionary in a list
+                    for i in value:
+                        if (isinstance(i,dict)) and ("encoded" in i.keys()):
+                            value = i["encoded"]
+                        if isinstance(i,int):
+                            value = str(i)
 
-                value = beautify(value)
-                if isinstance(value,list):
-                    if len(value) != 0:
-                        print(f"{attr.ljust(38)}: {f'{self.__newline.ljust(41)}'.join(value)}")
-                else:
-                    print(f"{attr.ljust(38)}: {value}")
-            print()
+                    value = beautify(value)
+                    if isinstance(value,list):
+                        if len(value) != 0:
+                            print(f"{attr.ljust(38)}: {f'{self.__newline.ljust(41)}'.join(value)}")
+                    else:
+                        print(f"{attr.ljust(38)}: {value}")
+                print()
+            elif isinstance(entry['attributes'],list):
+                for ace in entry['attributes']:
+                    for k, v in ace.items():
+                        print(f'{k.ljust(30)}: {v}')
+                    print()
 
     def alter_entries(self,entries,cond):
         temp_alter_entries = []

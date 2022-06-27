@@ -60,14 +60,19 @@ class PywerView:
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
     
-    def get_domainobjectacl(self, args=None, properties='*', identity='*'):
-        entries = self.get_domainobject(identity='jsparrow',properties=['sAMAccountName', 'nTSecurityDescriptor'])
+    def get_domainobjectacl(self, args=None):
+        if args.identity:
+            entries = self.get_domainobject(identity=args.identity,properties=['sAMAccountName', 'nTSecurityDescriptor','distinguishedName'])
+        else:
+            entries = self.get_domainobject(identity=args.identity,properties=['sAMAccountName', 'nTSecurityDescriptor','distinguishedName'])
         enum = ACLEnum(entries, self.ldap_session, self.root_dn)
-        enum.read_dacl()
-        # format has to be like this
-        # lol = [{'attributes':{'test1':'test2','hehe':'hehe2'}}]
-        return None
-        #return self.ldap_session.entries
+        entries_dacl = enum.read_dacl()
+        #for entry in entries_dacl:
+        #    for ace in entry['attributes']:
+        #        for k,v in ace.items():
+        #            print(k,":",v)
+        #        print()
+        return entries_dacl
     
     def get_domaincomputer(self, args=None, properties='*', identity='*'):
         if args:
