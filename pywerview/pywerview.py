@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
+from impacket.ldap import ldaptypes
 
-from pywerview.modules.ldapattack import LDAPAttack
+from pywerview.modules.ldapattack import LDAPAttack, ACLEnum
 from pywerview.modules.addcomputer import ADDCOMPUTER
 from pywerview.utils.helpers import *
 
@@ -60,9 +61,13 @@ class PywerView:
         return self.ldap_session.entries
     
     def get_domainobjectacl(self, args=None, properties='*', identity='*'):
-        ldap_filter = f'(&(|(|(samAccountName={identity})(name={identity})(displayname={identity}))))'
-        self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        return self.ldap_session.entries
+        entries = self.get_domainobject(identity='jsparrow',properties=['sAMAccountName', 'nTSecurityDescriptor'])
+        enum = ACLEnum(entries, self.ldap_session, self.root_dn)
+        enum.read_dacl()
+        # format has to be like this
+        # lol = [{'attributes':{'test1':'test2','hehe':'hehe2'}}]
+        return None
+        #return self.ldap_session.entries
     
     def get_domaincomputer(self, args=None, properties='*', identity='*'):
         if args:

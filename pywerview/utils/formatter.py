@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pywerview.utils.colors import bcolors
 
+import ldap3
 import json
 import re
 import logging
@@ -13,7 +14,8 @@ class FORMATTER:
     def print_index(self, entries):
         i = int(self.args.select)
         for entry in entries[0:i]:
-            entry = json.loads(entry.entry_to_json())
+            if isinstance(entry,ldap3.abstract.entry.Entry):
+                entry = json.loads(entry.entry_to_json())
             for attr,value in entry['attributes'].items():
                 # Check dictionary in a list
                 for i in value:
@@ -36,7 +38,8 @@ class FORMATTER:
             print(f"{bcolors.UNDERLINE}{self.args.select.lower()}{bcolors.ENDC}")
             print()
             for entry in entries:
-                entry = json.loads(entry.entry_to_json())
+                if isinstance(entry,ldap3.abstract.entry.Entry):
+                    entry = json.loads(entry.entry_to_json())
                 for key in list(entry["attributes"].keys()):
                     if (self.args.select.lower() == key.lower()):
                         # Check dictionary in a list
@@ -50,7 +53,8 @@ class FORMATTER:
 
     def print(self,entries):
         for entry in entries:
-            entry = json.loads(entry.entry_to_json())
+            if isinstance(entry,ldap3.abstract.entry.Entry):
+                entry = json.loads(entry.entry_to_json())
             for attr,value in entry['attributes'].items():
                 # Check dictionary in a list
                 for i in value:
