@@ -31,21 +31,20 @@ class PywerView:
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
 
     def get_domainuser(self, args=None, properties=['cn','name','sAMAccountName','distinguishedName','mail','description','lastLogoff','lastLogon','memberof','objectSid','userPrincipalName'], identity='*'):
-        if args:
-            if args.preauthnotrequired:
-                ldap_filter = f'(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304)(sAMAccountName={identity}))'
-            elif args.admincount:
-                ldap_filter = f'(&(samAccountType=805306368)(admincount=1)(sAMAccountName={identity}))'
-            elif args.allowdelegation:
-                ldap_filter = f'(&(samAccountType=805306368)!(userAccountControl:1.2.840.113556.1.4.803:=1048574)(sAMAccountName={identity}))'
-            elif args.trustedtoauth:
-                ldap_filter = f'(&(samAccountType=805306368)(|(samAccountName={identity}))(msds-allowedtodelegateto=*))'
-            elif args.spn:
-                ldap_filter = f'(&(samAccountType=805306368)(servicePrincipalName=*)(sAMAccountName={identity}))'
-            else:
-                ldap_filter = f'(&(samAccountType=805306368)(sAMAccountName={identity}))'
-        else:
-            ldap_filter = f'(&(samAccountType=805306368)(sAMAccountName={identity}))'
+        ldap_filter = ""
+
+        if args.preauthnotrequired:
+            ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=4194304)'
+        elif args.admincount:
+            ldap_filter = f'(admincount=1)'
+        elif args.allowdelegation:
+            ldap_filter = f'!(userAccountControl:1.2.840.113556.1.4.803:=1048574)'
+        elif args.trustedtoauth:
+            ldap_filter = f'(msds-allowedtodelegateto=*)'
+        elif args.spn:
+            ldap_filter = f'(servicePrincipalName=*)'
+
+        ldap_filter = f'(&(samAccountType=805306368)(|(sAMAccountName={identity})){ldap_filter})'
 
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
@@ -59,7 +58,7 @@ class PywerView:
         ldap_filter = f'(&(|(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity}))))'
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
-    
+
     def get_domainobjectacl(self, args=None):
         if args.identity:
             entries = self.get_domainobject(identity=args.identity,properties=['sAMAccountName','nTSecurityDescriptor','distinguishedName','objectSid'])
@@ -73,19 +72,18 @@ class PywerView:
         #            print(k,":",v)
         #        print()
         return entries_dacl
-    
+
     def get_domaincomputer(self, args=None, properties='*', identity='*'):
-        if args:
-            if args.unconstrained:
-                ldap_filter = f'(&(samAccountType=805306369)(userAccountControl:1.2.840.113556.1.4.803:=524288)(name={identity}))'
-            elif args.trustedtoauth:
-                ldap_filter = f'(&(samAccountType=805306369)(|(name={identity}))(msds-allowedtodelegateto=*))'
-            elif args.laps:
-                ldap_filter = f'(&(objectCategory=computer)(ms-MCS-AdmPwd=*)(sAMAccountName={identity}))'
-            else:
-                ldap_filter = f'(&(samAccountType=805306369)(name={identity}))'
-        else:
-            ldap_filter = f'(&(samAccountType=805306369)(name={identity}))'
+        ldap_filter = ""
+
+        if args.unconstrained:
+            ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
+        elif args.trustedtoauth:
+            ldap_filter = f'(msds-allowedtodelegateto=*)'
+        elif args.laps:
+            ldap_filter = f'(ms-MCS-AdmPwd=*)'
+
+        ldap_filter = f'(&(samAccountType=805306369)(|(name={identity})){ldap_filter})'
 
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
