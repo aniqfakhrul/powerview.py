@@ -1237,6 +1237,7 @@ class ACLEnum:
         self.objectsid = ''
         self.__resolveguids = args.resolveguids
         self.__targetidentity = args.identity
+        self.__principalidentity = args.security_identifier
 
     def read_dacl(self):
         parsed_dacl = []
@@ -1258,10 +1259,14 @@ class ACLEnum:
         LOG.debug("Parsing DACL")
         for ace in dacl['Data']:
             parsed_ace = self.parseACE(ace)
-            parsed_dacl.append(parsed_ace)
+            if parsed_ace:
+                parsed_dacl.append(parsed_ace)
         return parsed_dacl
 
     def parseACE(self, ace):
+        if self.__principalidentity and self.__principalidentity != ace["Ace"]["Sid"].formatCanonical():
+            return
+
         if ace['TypeName'] in [ "ACCESS_ALLOWED_ACE", "ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_ACE", "ACCESS_DENIED_OBJECT_ACE" ]:
             parsed_ace = {}
             parsed_ace['ObjectDN'] = self.objectdn
@@ -1339,7 +1344,7 @@ class ACLEnum:
                 samname = self.ldap_session.entries[0]['samaccountname']
                 return samname
             except IndexError:
-                logging.debug('SID not found in LDAP: %s' % sid)
+                LOG.debug('SID not found in LDAP: %s' % sid)
                 return ""
 
     def parsePerms(self, fsr):

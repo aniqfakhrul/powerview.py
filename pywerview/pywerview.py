@@ -64,10 +64,18 @@ class PywerView:
         return self.ldap_session.entries
 
     def get_domainobjectacl(self, args=None):
-        if args.identity:
-            entries = self.get_domainobject(identity=args.identity,properties=['sAMAccountName','nTSecurityDescriptor','distinguishedName','objectSid'])
-        else:
-            entries = self.get_domainobject(identity=args.identity,properties=['sAMAccountName','nTSecurityDescriptor','distinguishedName','objectSid'])
+        if args.security_identifier:
+            principalsid_entry = self.get_domainobject(identity=args.security_identifier,properties=['objectSid'])
+            if not principalsid_entry:
+                logging.error(f'Principal Target {args.security_identifier} not found in domain')
+                return
+            args.security_identifier = principalsid_entry[0]['objectSid'].values[0]
+
+        entries = self.get_domainobject(identity=f'{args.identity if args.identity else "*"}',properties=['sAMAccountName','nTSecurityDescriptor','distinguishedName','objectSid'])
+        if not entries:
+            logging.error(f'Identity not found in domain')
+            return
+
         enum = ACLEnum(entries, self.ldap_session, self.root_dn, args)
         entries_dacl = enum.read_dacl()
         return entries_dacl
