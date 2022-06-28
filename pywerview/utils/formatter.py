@@ -24,18 +24,17 @@ class FORMATTER:
                         if isinstance(i,int):
                             value = str(i)
 
-                    value = beautify(value)
+                    value = beautify(value,get_max_len(list(entry['attributes'].keys()))+2)
                     if isinstance(value,list):
                         if len(value) != 0:
-                            print(f"{attr.ljust(38)}: {f'{self.__newline.ljust(41)}'.join(value)}")
+                            print(f"{attr.ljust(get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}")
                     else:
-                        print(f"{attr.ljust(38)}: {value}")
+                        print(f"{attr.ljust(get_max_len(list(entry['attributes'].keys())))}: {value}")
                 print()
             elif isinstance(entry['attributes'],list):
                 for ace in entry['attributes'][0:i]:
                     for attr, value in ace.items():
-                        value = beautify(value)
-                        print(f"{attr.ljust(38)}: {value}")
+                        print(f"{attr.ljust(28)}: {value}")
                     print()
 
     def print_select(self,entries):
@@ -46,15 +45,21 @@ class FORMATTER:
                 for key in list(entry["attributes"].keys()):
                     for attr in select_attributes:
                         if (attr.casefold() == key.casefold()):
+                            value = ""
                             # Check dictionary in a list
                             for i in entry['attributes'][key]:
                                 if (isinstance(i,dict)) and ("encoded" in i.keys()):
                                     value = i["encoded"]
-                                value = str(i)
+                                else:
+                                    if len(select_attributes) == 1:
+                                        value += str(i)+"\n"
+                                    else:
+                                        value += str(i)+"\n"+''.ljust(get_max_len(select_attributes)+2)
+                            value = value.strip()
                             if len(select_attributes) == 1:
                                 print(value)
                             else:
-                                print(f"{attr.ljust(25)}: {value}")
+                                print(f"{key.ljust(get_max_len(select_attributes))}: {value}")
                 if len(select_attributes) != 1:
                     print()
             elif isinstance(entry['attributes'], list):
@@ -65,7 +70,7 @@ class FORMATTER:
                                 if len(select_attributes) == 1:
                                     print(ace[key])
                                 else:
-                                    print(f"{key.ljust(25)}: {ace[key]}")
+                                    print(f"{key.ljust(28)}: {ace[key]}")
                     if len(select_attributes) != 1:
                         print()
 
@@ -81,17 +86,17 @@ class FORMATTER:
                         if isinstance(i,int):
                             value = str(i)
 
-                    value = beautify(value)
+                    value = beautify(value,get_max_len(list(entry['attributes'].keys()))+2)
                     if isinstance(value,list):
                         if len(value) != 0:
-                            print(f"{attr.ljust(38)}: {f'{self.__newline.ljust(41)}'.join(value)}")
+                            print(f"{attr.ljust(get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}")
                     else:
-                        print(f"{attr.ljust(38)}: {value}")
+                        print(f"{attr.ljust(get_max_len(list(entry['attributes'].keys())))}: {value}")
                 print()
             elif isinstance(entry['attributes'],list):
                 for ace in entry['attributes']:
                     for k, v in ace.items():
-                        print(f'{k.ljust(30)}: {v}')
+                        print(f'{k.ljust(28)}: {v}')
                     print()
 
     def alter_entries(self,entries,cond):
@@ -140,18 +145,21 @@ class FORMATTER:
             logging.error(f'Invalid operator')
 
         return temp_alter_entries
+    
+def get_max_len(lst):
+    return len(max(lst,key=len)) + 5
 
-def beautify(strs):
+def beautify(strs,lens):
     if not isinstance(strs,list):
         temp = ""
         if len(strs) > 100:
             index = 100
             for i in range(0,len(strs),100):
                 temp += f"{str(strs[i:index])}\n"
-                temp += ''.ljust(40)
+                temp += ''.ljust(lens)
                 index+=100
         else:
-            temp = f"{str(strs).ljust(40)}"
+            temp = f"{str(strs).ljust(lens)}"
 
         return temp.strip()
     else:
