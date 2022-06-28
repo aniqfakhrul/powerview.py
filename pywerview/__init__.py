@@ -42,6 +42,7 @@ def powerview_arg_parse(cmd):
     #domainobjectacl
     get_domainobjectacl_parser = subparsers.add_parser('Get-DomainObjectAcl', aliases=['Get-ObjectAcl'] ,exit_on_error=False)
     get_domainobjectacl_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
+    get_domainobjectacl_parser.add_argument('-resolveguids', '-ResolveGUIDs', action='store_true',default=False, dest='resolveguids')
     get_domainobjectacl_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domainobjectacl_parser.add_argument('-where', '-Where', action='store', dest='where')
 
@@ -132,8 +133,7 @@ def powerview_arg_parse(cmd):
     add_domaincomputer_parser.add_argument('-computerpass', '-ComputerPass', action='store', const=None, dest='computerpass')
 
     # remove domain computer
-    remove_domaincomputer_parser = subparsers.add_parser('Remove-DomainComputer',
-    aliases=['Remove-ADComputer'], exit_on_error=False)
+    remove_domaincomputer_parser = subparsers.add_parser('Remove-DomainComputer', aliases=['Remove-ADComputer'], exit_on_error=False)
     remove_domaincomputer_parser.add_argument('-computername', '-ComputerName',action='store', const=None, dest='computername')
 
     # set domain object properties

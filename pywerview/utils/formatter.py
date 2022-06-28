@@ -31,25 +31,43 @@ class FORMATTER:
                     else:
                         print(f"{attr.ljust(38)}: {value}")
                 print()
+            elif isinstance(entry['attributes'],list):
+                for ace in entry['attributes'][0:i]:
+                    for attr, value in ace.items():
+                        value = beautify(value)
+                        print(f"{attr.ljust(38)}: {value}")
+                    print()
 
     def print_select(self,entries):
-        select_attribute = self.args.select.split(",")
-        if len(select_attribute) == 1:
-            print(f"{bcolors.UNDERLINE}{self.args.select.lower()}{bcolors.ENDC}")
-            print()
-            for entry in entries:
-                if isinstance(entry,ldap3.abstract.entry.Entry):
-                    entry = json.loads(entry.entry_to_json())
-                    for key in list(entry["attributes"].keys()):
-                        if (self.args.select.lower() == key.lower()):
+        select_attributes = self.args.select.split(",")
+        for entry in entries:
+            if isinstance(entry,ldap3.abstract.entry.Entry):
+                entry = json.loads(entry.entry_to_json())
+                for key in list(entry["attributes"].keys()):
+                    for attr in select_attributes:
+                        if (attr.casefold() == key.casefold()):
                             # Check dictionary in a list
                             for i in entry['attributes'][key]:
                                 if (isinstance(i,dict)) and ("encoded" in i.keys()):
                                     value = i["encoded"]
                                 value = str(i)
-                            print(value)
-        else:
-            logging.error(f'{bcolors.FAIL}-select flag can only accept one attribute{bcolors.ENDC}')
+                            if len(select_attributes) == 1:
+                                print(value)
+                            else:
+                                print(f"{attr.ljust(25)}: {value}")
+                if len(select_attributes) != 1:
+                    print()
+            elif isinstance(entry['attributes'], list):
+                for ace in entry['attributes']:
+                    for key in list(ace.keys()):
+                        for attr in select_attributes:
+                            if attr.casefold() == key.casefold():
+                                if len(select_attributes) == 1:
+                                    print(ace[key])
+                                else:
+                                    print(f"{key.ljust(25)}: {ace[key]}")
+                    if len(select_attributes) != 1:
+                        print()
 
     def print(self,entries):
         for entry in entries:

@@ -592,7 +592,7 @@ class LDAPAttack(ProtocolAttack):
 
         LOG.info('Querying domain security descriptor')
         self.client.search(domainDumper.root, f'(&(objectClass=*)(distinguishedName={self.args.targetidentity}))', attributes=['SAMAccountName','nTSecurityDescriptor'], controls=controls)
-        
+
         if len(self.client.entries) == 0:
             LOG.error(f'{self.args.targetidentity} not found in domain. Ensure to use valid object distinguishedName property')
             return
@@ -1229,12 +1229,14 @@ def can_add_member(ace):
     return writeprivs and userprivs
 
 class ACLEnum:
-    def __init__(self, entries, ldap_session, root_dn):
+    def __init__(self, entries, ldap_session, root_dn, args=None):
         self.entries = entries
         self.ldap_session = ldap_session
         self.root_dn = root_dn
         self.objectdn = ''
         self.objectsid = ''
+        self.__resolveguids = args.resolveguids
+        self.__targetidentity = args.identity
 
     def read_dacl(self):
         parsed_dacl = []
@@ -1253,7 +1255,7 @@ class ACLEnum:
 
     def parseDACL(self, dacl):
         parsed_dacl = []
-        LOG.info("Parsing DACL")
+        LOG.debug("Parsing DACL")
         for ace in dacl['Data']:
             parsed_ace = self.parseACE(ace)
             parsed_dacl.append(parsed_ace)
@@ -1291,17 +1293,23 @@ class ACLEnum:
                 # Extracts the ObjectType GUID values
                 if ace['Ace']['ObjectTypeLen'] != 0:
                     obj_type = bin_to_string(ace['Ace']['ObjectType']).lower()
-                    try:
-                        parsed_ace['ObjectAceType'] = "%s (%s)" % (OBJECTTYPE_GUID_MAP[obj_type], obj_type)
-                    except KeyError:
-                        parsed_ace['ObjectAceType'] = "UNKNOWN (%s)" % obj_type
+                    if self.__resolveguids:
+                        try:
+                            parsed_ace['ObjectAceType'] = "%s (%s)" % (OBJECTTYPE_GUID_MAP[obj_type], obj_type)
+                        except KeyError:
+                            parsed_ace['ObjectAceType'] = "UNKNOWN (%s)" % obj_type
+                    else:
+                        parsed_ace['ObjectAceType'] = "%s" % obj_type
                 # Extracts the InheritedObjectType GUID values
                 if ace['Ace']['InheritedObjectTypeLen'] != 0:
                     inh_obj_type = bin_to_string(ace['Ace']['InheritedObjectType']).lower()
-                    try:
-                        parsed_ace['InheritanceType'] = "%s (%s)" % (OBJECTTYPE_GUID_MAP[inh_obj_type], inh_obj_type)
-                    except KeyError:
-                        parsed_ace['InheritanceType'] = "UNKNOWN (%s)" % inh_obj_type
+                    if self.__resolveguids:
+                        try:
+                            parsed_ace['InheritanceType'] = "%s (%s)" % (OBJECTTYPE_GUID_MAP[inh_obj_type], inh_obj_type)
+                        except KeyError:
+                            parsed_ace['InheritanceType'] = "UNKNOWN (%s)" % inh_obj_type
+                    else:
+                        parsed_ace['InheritanceType'] = "%s" % inh_obj_type
                 else:
                     parsed_ace['InheritanceType'] = "None"
                 # Extract the Trustee SID (the object that has the right over the DACL bearer)
