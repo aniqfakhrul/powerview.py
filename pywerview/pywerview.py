@@ -56,13 +56,13 @@ class PywerView:
         return self.ldap_session.entries
 
     def get_domainobject(self, args=None, properties='*', identity='*'):
-        ldap_filter = f'(&(|(|(samAccountName={identity})(name={identity})(displayname={identity}))))'
+        ldap_filter = f'(&(|(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity}))))'
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
     
     def get_domainobjectacl(self, args=None):
         if args.identity:
-            entries = self.get_domainobject(identity=args.identity,properties=['sAMAccountName', 'nTSecurityDescriptor','distinguishedName'])
+            entries = self.get_domainobject(identity=args.identity,properties=['sAMAccountName','nTSecurityDescriptor','distinguishedName','objectSid'])
         else:
             entries = self.get_domainobject(identity=args.identity,properties=['sAMAccountName', 'nTSecurityDescriptor','distinguishedName'])
         enum = ACLEnum(entries, self.ldap_session, self.root_dn)

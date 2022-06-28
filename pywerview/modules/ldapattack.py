@@ -1224,6 +1224,8 @@ class ACLEnum:
         self.entries = entries
         self.ldap_session = ldap_session
         self.root_dn = root_dn
+        self.objectdn = ''
+        self.objectsid = ''
 
     def read_dacl(self):
         parsed_dacl = []
@@ -1231,31 +1233,38 @@ class ACLEnum:
             dacl_dict = {}
             secDescData = entry['ntSecurityDescriptor'].raw_values[0]
             secDesc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDescData)
-            dacl = self.parseDACL(secDesc['Dacl'],entry.entry_dn)
+
+            # TODO: Implement bloodhound dacl and ace parsing method, more reliable
+            self.objectdn = entry.entry_dn
+            self.objectsid = entry['objectSid'].value
+            dacl = self.parseDACL(secDesc['Dacl'])
             dacl_dict['attributes'] = dacl
             parsed_dacl.append(dacl_dict)
         return parsed_dacl
 
-    def parseDACL(self, dacl, entry_dn):
+    def parseDACL(self, dacl):
         parsed_dacl = []
         LOG.info("Parsing DACL")
         for ace in dacl['Data']:
             parsed_ace = self.parseACE(ace)
-            parsed_ace['distinguishedName'] = entry_dn
             parsed_dacl.append(parsed_ace)
         return parsed_dacl
 
     def parseACE(self, ace):
         if ace['TypeName'] in [ "ACCESS_ALLOWED_ACE", "ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_ACE", "ACCESS_DENIED_OBJECT_ACE" ]:
             parsed_ace = {}
-            parsed_ace['ACE Type'] = ace['TypeName']
+            parsed_ace['ObjectDN'] = self.objectdn
+            parsed_ace['ObjectSID'] = self.objectsid
+            parsed_ace['ACEType'] = ace['TypeName']
             _ace_flags = []
             for FLAG in ACE_FLAGS:
                 if ace.hasFlag(FLAG.value):
                     _ace_flags.append(FLAG.name)
-            parsed_ace['ACE flags'] = ", ".join(_ace_flags) or "None"
+            parsed_ace['ACEFlags'] = ", ".join(_ace_flags) or "None"
             if ace['TypeName'] in [ "ACCESS_ALLOWED_ACE", "ACCESS_DENIED_ACE" ]:
-                parsed_ace['Access mask'] = "%s (0x%x)" % (", ".join(self.parsePerms(ace['Ace']['Mask']['Mask'])), ace['Ace']['Mask']['Mask'])
+                parsed_ace['ActiveDirectoryRights'] = ",".join(self.parsePerms(ace["Ace"]["Mask"]["Mask"]))
+                parsed_ace['Access mask'] = "0x%x" % (ace['Ace']['Mask']['Mask'])
+                parsed_ace['InheritanceType'] = "None"
                 parsed_ace['SecurityIdentifier'] = "%s (%s)" % (self.resolveSID(ace['Ace']['Sid'].formatCanonical()) or "UNKNOWN", ace['Ace']['Sid'].formatCanonical())
             elif ace['TypeName'] in [ "ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_OBJECT_ACE" ]:
                 # Extracts the mask values. These values will indicate the ObjectType purpose
@@ -1269,33 +1278,35 @@ class ACLEnum:
                 for FLAG in OBJECT_ACE_FLAGS:
                     if ace['Ace'].hasFlag(FLAG.value):
                         _object_flags.append(FLAG.name)
-                parsed_ace['Flags'] = ", ".join(_object_flags) or "None"
+                parsed_ace['ObjectAceFlags'] = ", ".join(_object_flags) or "None"
                 # Extracts the ObjectType GUID values
                 if ace['Ace']['ObjectTypeLen'] != 0:
                     obj_type = bin_to_string(ace['Ace']['ObjectType']).lower()
                     try:
-                        parsed_ace['Object type (GUID)'] = "%s (%s)" % (OBJECTTYPE_GUID_MAP[obj_type], obj_type)
+                        parsed_ace['ObjectAceType'] = "%s (%s)" % (OBJECTTYPE_GUID_MAP[obj_type], obj_type)
                     except KeyError:
-                        parsed_ace['Object type (GUID)'] = "UNKNOWN (%s)" % obj_type
+                        parsed_ace['ObjectAceType'] = "UNKNOWN (%s)" % obj_type
                 # Extracts the InheritedObjectType GUID values
                 if ace['Ace']['InheritedObjectTypeLen'] != 0:
                     inh_obj_type = bin_to_string(ace['Ace']['InheritedObjectType']).lower()
                     try:
-                        parsed_ace['Inherited type (GUID)'] = "%s (%s)" % (OBJECTTYPE_GUID_MAP[inh_obj_type], inh_obj_type)
+                        parsed_ace['InheritanceType'] = "%s (%s)" % (OBJECTTYPE_GUID_MAP[inh_obj_type], inh_obj_type)
                     except KeyError:
-                        parsed_ace['Inherited type (GUID)'] = "UNKNOWN (%s)" % inh_obj_type
+                        parsed_ace['InheritanceType'] = "UNKNOWN (%s)" % inh_obj_type
+                else:
+                    parsed_ace['InheritanceType'] = "None"
                 # Extract the Trustee SID (the object that has the right over the DACL bearer)
                 parsed_ace['SecurityIdentifier'] = "%s (%s)" % (self.resolveSID(ace['Ace']['Sid'].formatCanonical()) or "UNKNOWN", ace['Ace']['Sid'].formatCanonical())
         else:
             # If the ACE is not an access allowed
             LOG.debug("ACE Type (%s) unsupported for parsing yet, feel free to contribute" % ace['TypeName'])
             parsed_ace = {}
-            parsed_ace['ACE type'] = ace['TypeName']
+            parsed_ace['ACEType'] = ace['TypeName']
             _ace_flags = []
             for FLAG in ACE_FLAGS:
                 if ace.hasFlag(FLAG.value):
                     _ace_flags.append(FLAG.name)
-            parsed_ace['ACE flags'] = ", ".join(_ace_flags) or "None"
+            parsed_ace['ACEFlags'] = ", ".join(_ace_flags) or "None"
             parsed_ace['DEBUG'] = "ACE type not supported for parsing by dacleditor.py, feel free to contribute"
         return parsed_ace
 

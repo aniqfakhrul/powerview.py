@@ -16,21 +16,21 @@ class FORMATTER:
         for entry in entries[0:i]:
             if isinstance(entry,ldap3.abstract.entry.Entry):
                 entry = json.loads(entry.entry_to_json())
-            for attr,value in entry['attributes'].items():
-                # Check dictionary in a list
-                for i in value:
-                    if (isinstance(i,dict)) and ("encoded" in i.keys()):
-                        value = i["encoded"]
-                    if isinstance(i,int):
-                        value = str(i)
+                for attr,value in entry['attributes'].items():
+                    # Check dictionary in a list
+                    for i in value:
+                        if (isinstance(i,dict)) and ("encoded" in i.keys()):
+                            value = i["encoded"]
+                        if isinstance(i,int):
+                            value = str(i)
 
-                value = beautify(value)
-                if isinstance(value,list):
-                    if len(value) != 0:
-                        print(f"{attr.ljust(38)}: {f'{self.__newline.ljust(41)}'.join(value)}")
-                else:
-                    print(f"{attr.ljust(38)}: {value}")
-            print()
+                    value = beautify(value)
+                    if isinstance(value,list):
+                        if len(value) != 0:
+                            print(f"{attr.ljust(38)}: {f'{self.__newline.ljust(41)}'.join(value)}")
+                    else:
+                        print(f"{attr.ljust(38)}: {value}")
+                print()
 
     def print_select(self,entries):
         select_attribute = self.args.select.split(",")
@@ -40,14 +40,14 @@ class FORMATTER:
             for entry in entries:
                 if isinstance(entry,ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
-                for key in list(entry["attributes"].keys()):
-                    if (self.args.select.lower() == key.lower()):
-                        # Check dictionary in a list
-                        for i in entry['attributes'][key]:
-                            if (isinstance(i,dict)) and ("encoded" in i.keys()):
-                                value = i["encoded"]
-                            value = str(i)
-                        print(value)
+                    for key in list(entry["attributes"].keys()):
+                        if (self.args.select.lower() == key.lower()):
+                            # Check dictionary in a list
+                            for i in entry['attributes'][key]:
+                                if (isinstance(i,dict)) and ("encoded" in i.keys()):
+                                    value = i["encoded"]
+                                value = str(i)
+                            print(value)
         else:
             logging.error(f'{bcolors.FAIL}-select flag can only accept one attribute{bcolors.ENDC}')
 
@@ -55,7 +55,6 @@ class FORMATTER:
         for entry in entries:
             if isinstance(entry,ldap3.abstract.entry.Entry):
                 entry = json.loads(entry.entry_to_json())
-            if isinstance(entry['attributes'],dict):
                 for attr,value in entry['attributes'].items():
                     # Check dictionary in a list
                     for i in value:
