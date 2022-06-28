@@ -46,16 +46,20 @@ class PywerView:
 
         ldap_filter = f'(&(samAccountType=805306368)(|(sAMAccountName={identity})){ldap_filter})'
 
+        logging.debug(f'LDAP search filter: {ldap_filter}')
+
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
     def get_domaincontroller(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=8192)'
+        logging.debug(f'LDAP search filter: {ldap_filter}')
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
     def get_domainobject(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(&(|(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity}))))'
+        logging.debug(f'LDAP search filter: {ldap_filter}')
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
@@ -85,36 +89,44 @@ class PywerView:
 
         ldap_filter = f'(&(samAccountType=805306369)(|(name={identity})){ldap_filter})'
 
+        logging.debug(f'LDAP search filter: {ldap_filter}')
+
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
     def get_domaingroup(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(&(objectCategory=group)(|(|(samAccountName={identity})(name={identity}))))'
+        logging.debug(f'LDAP search filter: {ldap_filter}')
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
     def get_domaingpo(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(&(objectCategory=groupPolicyContainer)(cn={identity}))'
+        logging.debug(f'LDAP search filter: {ldap_filter}')
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
     def get_domainou(self, args=None, properties='*', identity='*'):
-        if args.gplink is None:
-            ldap_filter = f'(&(objectCategory=organizationalUnit)(|(name={identity})))'
-        else:
-            print("masuk bawah")
-            ldap_filter = f'(&(objectCategory=organizationalUnit)(|(name={identity}))(gplink={args.gplink}))'
-        
+        ldap_filter = ""
+        if args.gplink:
+            ldap_filter += f'(gplink={args.gplink})'
+
+        ldap_filter = f'(&(objectCategory=organizationalUnit)(|(name={identity})){ldap_filter})'
+
+        logging.debug(f'LDAP search filter: {ldap_filter}')
+
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
-    
+
     def get_domaintrust(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(objectClass=trustedDomain)'
+        logging.debug(f'LDAP search filter: {ldap_filter}')
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
     def get_domain(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(objectClass=domain)'
+        logging.debug(f'LDAP search filter: {ldap_filter}')
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
@@ -139,10 +151,10 @@ class PywerView:
         if len(entries) == 0:
             logging.error('Target object not found in domain')
             return
-        
+
         identity_dn = entries[0].entry_dn
         logging.info(f'Found target dn {identity_dn}')
-        
+
         logging.info(f'Adding {args.rights} privilege to {args.targetidentity}')
         la = LDAPAttack(c, self.ldap_session, f'{self.domain}/{args.principalidentity}', args)
         la.aclAttack(identity_dn, self.domain_dumper)
@@ -151,21 +163,21 @@ class PywerView:
         c = NTLMRelayxConfig()
         c.addcomputer = 'idk lol'
         c.target = self.dc_ip
-        
+
         setattr(args, "delete", True)
 
         entries = self.get_domainobject(identity=args.principalidentity)
         if len(entries) == 0:
             logging.error('Target object not found in domain')
             return
-        
+
         identity_dn = entries[0].entry_dn
         logging.info(f'Found target dn {identity_dn}')
-        
+
         logging.info(f'Adding {args.rights} privilege to {args.targetidentity}')
         la = LDAPAttack(c, self.ldap_session, f'{self.domain}/{args.principalidentity}', args)
         la.aclAttack(identity_dn, self.domain_dumper)
-        
+
 
     def remove_domaincomputer(self,computer_name):
         if computer_name[-1] != '$':
@@ -247,7 +259,6 @@ class PywerView:
             setattr(self.args, "method", "LDAPS")
         else:
             setattr(self.args, "method", "SAMR")
-            
 
         # Creating Machine Account
         addmachineaccount = ADDCOMPUTER(
@@ -258,7 +269,6 @@ class PywerView:
             computer_name,
             computer_pass)
         addmachineaccount.run()
-
 
         if self.get_domainobject(identity=computer_name)[0].entry_dn:
             return True
@@ -303,15 +313,15 @@ class PywerView:
 
         if not host:
             return
-        
+
         client = self.conn.init_smb_session(host)
-        
+
         if not client:
             return
 
         shares = client.listShares()
         share_infos = []
-       
+
         print(f'{"Name".ljust(15)}{"Remark".ljust(25)}ComputerName')
         print(f'{"----".ljust(15)}{"-------".ljust(25)}------------')
         for i in range(len(shares)):

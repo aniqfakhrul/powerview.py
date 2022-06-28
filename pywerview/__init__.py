@@ -119,7 +119,7 @@ def powerview_arg_parse(cmd):
     add_domainobjectacl_parser.add_argument('-targetidentity','-TargetIdentity', action='store', const=None, dest='targetidentity')
     add_domainobjectacl_parser.add_argument('-principalidentity','-PrincipalIdentity', action='store', const=None, dest='principalidentity')
     add_domainobjectacl_parser.add_argument('-rights','-Rights', action='store', const=None, dest='rights', choices=['all', 'dcsync', 'writemembers'], type = str.lower)
-    
+
     # remove domain object acl
     remove_domainobjectacl_parser = subparsers.add_parser('Remove-DomainObjectAcl', aliases=['Remove-ObjectAcl'], exit_on_error=False)
     remove_domainobjectacl_parser.add_argument('-targetidentity','-TargetIdentity', action='store', const=None, dest='targetidentity')
@@ -162,6 +162,7 @@ def arg_parse():
     parser = argparse.ArgumentParser(description = "Python alternative to SharpSploit's PowerView script")
     parser.add_argument('account', action='store', metavar='[domain/]username[:password]', help='Account used to authenticate to DC.')
     parser.add_argument('--use-ldaps', dest='use_ldaps', action='store_true', help='Use LDAPS instead of LDAP')
+    parser.add_argument('--debug', dest='debug', action='store_true', help='Enable debug output')
 
     auth = parser.add_argument_group('authentication')
     auth.add_argument('-H','--hashes', action="store", metavar = "LMHASH:NTHASH", help='NTLM hashes, format is LMHASH:NTHASH')
@@ -175,6 +176,13 @@ def arg_parse():
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
+
+    if args.debug is True:
+        logging.getLogger().setLevel(logging.DEBUG)
+        # Print the Library's installation path
+        logging.debug(version.getInstallationPath())
+    else:
+        logging.getLogger().setLevel(logging.INFO)
 
     return args
 
