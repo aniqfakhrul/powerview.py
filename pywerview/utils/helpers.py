@@ -40,8 +40,10 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
         basequery = f'_ldap._tcp.pdc._msdcs.{domain}'
         dnsresolver = resolver.Resolver(configure=False)
         dnsresolver.nameservers = [nameserver]
+        dnsresolver.lifetime = float(3)
 
         q = dnsresolver.query(basequery, 'SRV', tcp=dns_tcp)
+
 
         if str(q.qname).lower().startswith('_ldap._tcp.pdc._msdcs'):
             ad_domain = str(q.qname).lower()[len(basequery):].strip('.')
