@@ -142,6 +142,12 @@ class PywerView:
     def add_domaingroupmember(self, identity, members, args=None):
         group_entry = self.get_domaingroup(identity=identity,properties='distinguishedName')
         user_entry = self.get_domainobject(identity=members,properties='distinguishedName')
+        if len(group_entry) == 0:
+            logging.error(f'Group {identity} not found in domain')
+            return
+        if len(user_entry) == 0:
+            logging.error(f'User {members} not found in domain')
+            return
         targetobject = group_entry[0]
         userobject = user_entry[0]
         succeeded = self.ldap_session.modify(targetobject.entry_dn,{'member': [(ldap3.MODIFY_ADD, [userobject.entry_dn])]})
@@ -301,6 +307,8 @@ class PywerView:
 
         if not succeeded:
             logging.error(self.ldap_session.result['message'])
+        else:
+            logging.info('Success! modified attribute for target object')
 
         return succeeded
 

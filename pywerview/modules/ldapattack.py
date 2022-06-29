@@ -1244,7 +1244,7 @@ class ACLEnum:
         for entry in self.entries:
             dacl_dict = {}
             if len(entry['ntSecurityDescriptor'].raw_values) == 0:
-                LOG.error('Error parsing dacl')
+                LOG.error(f'ntSecurityDescriptor attribute not found for {entry.entry_dn}')
                 break
             secDescData = entry['ntSecurityDescriptor'].raw_values[0]
             secDesc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDescData)
