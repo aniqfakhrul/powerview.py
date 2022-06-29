@@ -59,12 +59,22 @@ class PywerView:
         return self.ldap_session.entries
 
     def get_domainobject(self, args=None, properties='*', identity='*'):
-        ldap_filter = f'(&(|(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity}))))'
+        ldap_filter = f'(&(|(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity}))))'
         logging.debug(f'LDAP search filter: {ldap_filter}')
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
     def get_domainobjectacl(self, args=None):
+        #enumerate available guids
+        guids_dict = {}
+        self.ldap_session.search(f"CN=Extended-Rights,CN=Configuration,{self.root_dn}", "(rightsGuid=*)",attributes=['displayName','rightsGuid'])
+        for entry in self.ldap_session.entries:
+            guids_dict[entry['rightsGuid'].values[0]] = entry['displayName'].values[0]
+        #self.ldap_session.search(f"CN=Schema,CN=Configuration,{self.root_dn}", "(schemaIdGuid=*)",attributes=['name','schemaIdGuid'])
+        #for entry in self.ldap_session.entries:
+        #    guids_dict[entry['schemaIdGuid'].values[0]] = entry['name'].values[0]
+        setattr(args,"guids_map_dict",guids_dict)
+
         if args.security_identifier:
             principalsid_entry = self.get_domainobject(identity=args.security_identifier,properties=['objectSid'])
             if not principalsid_entry:

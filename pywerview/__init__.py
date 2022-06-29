@@ -242,7 +242,7 @@ def main():
                     pv_args = powerview_arg_parse(shlex.split(cmd))
                     if pv_args is not None:
                         try:
-                            if pv_args.server:
+                            if pv_args.server and pv_args.server != args.domain:
                                 foreign_dc_address = get_principal_dc_address(pv_args.server,args.dc_ip)
                                 if foreign_dc_address:
                                     conn = CONNECTION(args,foreign_dc_address)

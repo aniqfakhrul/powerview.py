@@ -98,144 +98,6 @@ class MSDS_MANAGEDPASSWORD_BLOB(Structure):
         self['QueryPasswordInterval'] = self.rawData[self['QueryPasswordIntervalOffset']:][:self['UnchangedPasswordIntervalOffset']-self['QueryPasswordIntervalOffset']]
         self['UnchangedPasswordInterval'] = self.rawData[self['UnchangedPasswordIntervalOffset']:]
 
-# Universal SIDs
-WELL_KNOWN_SIDS = {
-    'S-1-0': 'Null Authority',
-    'S-1-0-0': 'Nobody',
-    'S-1-1': 'World Authority',
-    'S-1-1-0': 'Everyone',
-    'S-1-2': 'Local Authority',
-    'S-1-2-0': 'Local',
-    'S-1-2-1': 'Console Logon',
-    'S-1-3': 'Creator Authority',
-    'S-1-3-0': 'Creator Owner',
-    'S-1-3-1': 'Creator Group',
-    'S-1-3-2': 'Creator Owner Server',
-    'S-1-3-3': 'Creator Group Server',
-    'S-1-3-4': 'Owner Rights',
-    'S-1-5-80-0': 'All Services',
-    'S-1-4': 'Non-unique Authority',
-    'S-1-5': 'NT Authority',
-    'S-1-5-1': 'Dialup',
-    'S-1-5-2': 'Network',
-    'S-1-5-3': 'Batch',
-    'S-1-5-4': 'Interactive',
-    'S-1-5-6': 'Service',
-    'S-1-5-7': 'Anonymous',
-    'S-1-5-8': 'Proxy',
-    'S-1-5-9': 'Enterprise Domain Controllers',
-    'S-1-5-10': 'Principal Self',
-    'S-1-5-11': 'Authenticated Users',
-    'S-1-5-12': 'Restricted Code',
-    'S-1-5-13': 'Terminal Server Users',
-    'S-1-5-14': 'Remote Interactive Logon',
-    'S-1-5-15': 'This Organization',
-    'S-1-5-17': 'This Organization',
-    'S-1-5-18': 'Local System',
-    'S-1-5-19': 'NT Authority',
-    'S-1-5-20': 'NT Authority',
-    'S-1-5-32-544': 'Administrators',
-    'S-1-5-32-545': 'Users',
-    'S-1-5-32-546': 'Guests',
-    'S-1-5-32-547': 'Power Users',
-    'S-1-5-32-548': 'Account Operators',
-    'S-1-5-32-549': 'Server Operators',
-    'S-1-5-32-550': 'Print Operators',
-    'S-1-5-32-551': 'Backup Operators',
-    'S-1-5-32-552': 'Replicators',
-    'S-1-5-64-10': 'NTLM Authentication',
-    'S-1-5-64-14': 'SChannel Authentication',
-    'S-1-5-64-21': 'Digest Authority',
-    'S-1-5-80': 'NT Service',
-    'S-1-5-83-0': 'NT VIRTUAL MACHINE\Virtual Machines',
-    'S-1-16-0': 'Untrusted Mandatory Level',
-    'S-1-16-4096': 'Low Mandatory Level',
-    'S-1-16-8192': 'Medium Mandatory Level',
-    'S-1-16-8448': 'Medium Plus Mandatory Level',
-    'S-1-16-12288': 'High Mandatory Level',
-    'S-1-16-16384': 'System Mandatory Level',
-    'S-1-16-20480': 'Protected Process Mandatory Level',
-    'S-1-16-28672': 'Secure Process Mandatory Level',
-    'S-1-5-32-554': 'BUILTIN\Pre-Windows 2000 Compatible Access',
-    'S-1-5-32-555': 'BUILTIN\Remote Desktop Users',
-    'S-1-5-32-557': 'BUILTIN\Incoming Forest Trust Builders',
-    'S-1-5-32-556': 'BUILTIN\\Network Configuration Operators',
-    'S-1-5-32-558': 'BUILTIN\Performance Monitor Users',
-    'S-1-5-32-559': 'BUILTIN\Performance Log Users',
-    'S-1-5-32-560': 'BUILTIN\Windows Authorization Access Group',
-    'S-1-5-32-561': 'BUILTIN\Terminal Server License Servers',
-    'S-1-5-32-562': 'BUILTIN\Distributed COM Users',
-    'S-1-5-32-569': 'BUILTIN\Cryptographic Operators',
-    'S-1-5-32-573': 'BUILTIN\Event Log Readers',
-    'S-1-5-32-574': 'BUILTIN\Certificate Service DCOM Access',
-    'S-1-5-32-575': 'BUILTIN\RDS Remote Access Servers',
-    'S-1-5-32-576': 'BUILTIN\RDS Endpoint Servers',
-    'S-1-5-32-577': 'BUILTIN\RDS Management Servers',
-    'S-1-5-32-578': 'BUILTIN\Hyper-V Administrators',
-    'S-1-5-32-579': 'BUILTIN\Access Control Assistance Operators',
-    'S-1-5-32-580': 'BUILTIN\Remote Management Users',
-}
-
-class ACE_FLAGS(Enum):
-    CONTAINER_INHERIT_ACE = ACE.CONTAINER_INHERIT_ACE
-    FAILED_ACCESS_ACE_FLAG = ACE.FAILED_ACCESS_ACE_FLAG
-    INHERIT_ONLY_ACE = ACE.INHERIT_ONLY_ACE
-    INHERITED_ACE = ACE.INHERITED_ACE
-    NO_PROPAGATE_INHERIT_ACE = ACE.NO_PROPAGATE_INHERIT_ACE
-    OBJECT_INHERIT_ACE = ACE.OBJECT_INHERIT_ACE
-    SUCCESSFUL_ACCESS_ACE_FLAG = ACE.SUCCESSFUL_ACCESS_ACE_FLAG
-
-class OBJECT_ACE_FLAGS(Enum):
-    ACE_OBJECT_TYPE_PRESENT = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT
-    ACE_INHERITED_OBJECT_TYPE_PRESENT = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ACE_INHERITED_OBJECT_TYPE_PRESENT
-
-class ACCESS_MASK(Enum):
-    # Generic Rights
-    GenericRead = 0x80000000 # ADS_RIGHT_GENERIC_READ
-    GenericWrite = 0x40000000 # ADS_RIGHT_GENERIC_WRITE
-    GenericExecute = 0x20000000 # ADS_RIGHT_GENERIC_EXECUTE
-    GenericAll = 0x10000000 # ADS_RIGHT_GENERIC_ALL
-
-    # Maximum Allowed access type
-    MaximumAllowed = 0x02000000
-
-    # Access System Acl access type
-    AccessSystemSecurity = 0x01000000 # ADS_RIGHT_ACCESS_SYSTEM_SECURITY
-
-    # Standard access types
-    Synchronize = 0x00100000 # ADS_RIGHT_SYNCHRONIZE
-    WriteOwner = 0x00080000 # ADS_RIGHT_WRITE_OWNER
-    WriteDACL = 0x00040000 # ADS_RIGHT_WRITE_DAC
-    ReadControl = 0x00020000 # ADS_RIGHT_READ_CONTROL
-    Delete = 0x00010000 # ADS_RIGHT_DELETE
-
-    # Specific rights
-    AllExtendedRights = 0x00000100 # ADS_RIGHT_DS_CONTROL_ACCESS
-    ListObject = 0x00000080 # ADS_RIGHT_DS_LIST_OBJECT
-    DeleteTree = 0x00000040 # ADS_RIGHT_DS_DELETE_TREE
-    WriteProperties = 0x00000020 # ADS_RIGHT_DS_WRITE_PROP
-    ReadProperties = 0x00000010 # ADS_RIGHT_DS_READ_PROP
-    Self = 0x00000008 # ADS_RIGHT_DS_SELF
-    ListChildObjects = 0x00000004 # ADS_RIGHT_ACTRL_DS_LIST
-    DeleteChild = 0x00000002 # ADS_RIGHT_DS_DELETE_CHILD
-    CreateChild = 0x00000001 # ADS_RIGHT_DS_CREATE_CHILD
-
-class SIMPLE_PERMISSIONS(Enum):
-    FullControl = 0xf01ff
-    Modify = 0x0301bf
-    ReadAndExecute = 0x0200a9
-    ReadAndWrite = 0x02019f
-    Read = 0x20094
-    Write = 0x200bc
-
-class ALLOWED_OBJECT_ACE_MASK_FLAGS(Enum):
-    ControlAccess = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_CONTROL_ACCESS
-    CreateChild = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_CREATE_CHILD
-    DeleteChild = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_DELETE_CHILD
-    ReadProperty = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_READ_PROP
-    WriteProperty = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_WRITE_PROP
-    Self = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_SELF
-
 class LDAPAttack(ProtocolAttack):
     """
     This is the default LDAP attack. It checks the privileges of the relayed account
@@ -1228,6 +1090,144 @@ def can_add_member(ace):
     userprivs = bin_to_string(ace['Ace']['ObjectType']).lower() == 'bf9679c0-0de6-11d0-a285-00aa003049e2'
     return writeprivs and userprivs
 
+# Universal SIDs
+WELL_KNOWN_SIDS = {
+    'S-1-0': 'Null Authority',
+    'S-1-0-0': 'Nobody',
+    'S-1-1': 'World Authority',
+    'S-1-1-0': 'Everyone',
+    'S-1-2': 'Local Authority',
+    'S-1-2-0': 'Local',
+    'S-1-2-1': 'Console Logon',
+    'S-1-3': 'Creator Authority',
+    'S-1-3-0': 'Creator Owner',
+    'S-1-3-1': 'Creator Group',
+    'S-1-3-2': 'Creator Owner Server',
+    'S-1-3-3': 'Creator Group Server',
+    'S-1-3-4': 'Owner Rights',
+    'S-1-5-80-0': 'All Services',
+    'S-1-4': 'Non-unique Authority',
+    'S-1-5': 'NT Authority',
+    'S-1-5-1': 'Dialup',
+    'S-1-5-2': 'Network',
+    'S-1-5-3': 'Batch',
+    'S-1-5-4': 'Interactive',
+    'S-1-5-6': 'Service',
+    'S-1-5-7': 'Anonymous',
+    'S-1-5-8': 'Proxy',
+    'S-1-5-9': 'Enterprise Domain Controllers',
+    'S-1-5-10': 'Principal Self',
+    'S-1-5-11': 'Authenticated Users',
+    'S-1-5-12': 'Restricted Code',
+    'S-1-5-13': 'Terminal Server Users',
+    'S-1-5-14': 'Remote Interactive Logon',
+    'S-1-5-15': 'This Organization',
+    'S-1-5-17': 'This Organization',
+    'S-1-5-18': 'Local System',
+    'S-1-5-19': 'NT Authority',
+    'S-1-5-20': 'NT Authority',
+    'S-1-5-32-544': 'Administrators',
+    'S-1-5-32-545': 'Users',
+    'S-1-5-32-546': 'Guests',
+    'S-1-5-32-547': 'Power Users',
+    'S-1-5-32-548': 'Account Operators',
+    'S-1-5-32-549': 'Server Operators',
+    'S-1-5-32-550': 'Print Operators',
+    'S-1-5-32-551': 'Backup Operators',
+    'S-1-5-32-552': 'Replicators',
+    'S-1-5-64-10': 'NTLM Authentication',
+    'S-1-5-64-14': 'SChannel Authentication',
+    'S-1-5-64-21': 'Digest Authority',
+    'S-1-5-80': 'NT Service',
+    'S-1-5-83-0': 'NT VIRTUAL MACHINE\Virtual Machines',
+    'S-1-16-0': 'Untrusted Mandatory Level',
+    'S-1-16-4096': 'Low Mandatory Level',
+    'S-1-16-8192': 'Medium Mandatory Level',
+    'S-1-16-8448': 'Medium Plus Mandatory Level',
+    'S-1-16-12288': 'High Mandatory Level',
+    'S-1-16-16384': 'System Mandatory Level',
+    'S-1-16-20480': 'Protected Process Mandatory Level',
+    'S-1-16-28672': 'Secure Process Mandatory Level',
+    'S-1-5-32-554': 'BUILTIN\Pre-Windows 2000 Compatible Access',
+    'S-1-5-32-555': 'BUILTIN\Remote Desktop Users',
+    'S-1-5-32-557': 'BUILTIN\Incoming Forest Trust Builders',
+    'S-1-5-32-556': 'BUILTIN\\Network Configuration Operators',
+    'S-1-5-32-558': 'BUILTIN\Performance Monitor Users',
+    'S-1-5-32-559': 'BUILTIN\Performance Log Users',
+    'S-1-5-32-560': 'BUILTIN\Windows Authorization Access Group',
+    'S-1-5-32-561': 'BUILTIN\Terminal Server License Servers',
+    'S-1-5-32-562': 'BUILTIN\Distributed COM Users',
+    'S-1-5-32-569': 'BUILTIN\Cryptographic Operators',
+    'S-1-5-32-573': 'BUILTIN\Event Log Readers',
+    'S-1-5-32-574': 'BUILTIN\Certificate Service DCOM Access',
+    'S-1-5-32-575': 'BUILTIN\RDS Remote Access Servers',
+    'S-1-5-32-576': 'BUILTIN\RDS Endpoint Servers',
+    'S-1-5-32-577': 'BUILTIN\RDS Management Servers',
+    'S-1-5-32-578': 'BUILTIN\Hyper-V Administrators',
+    'S-1-5-32-579': 'BUILTIN\Access Control Assistance Operators',
+    'S-1-5-32-580': 'BUILTIN\Remote Management Users',
+}
+
+class ACE_FLAGS(Enum):
+    CONTAINER_INHERIT_ACE = ACE.CONTAINER_INHERIT_ACE
+    FAILED_ACCESS_ACE_FLAG = ACE.FAILED_ACCESS_ACE_FLAG
+    INHERIT_ONLY_ACE = ACE.INHERIT_ONLY_ACE
+    INHERITED_ACE = ACE.INHERITED_ACE
+    NO_PROPAGATE_INHERIT_ACE = ACE.NO_PROPAGATE_INHERIT_ACE
+    OBJECT_INHERIT_ACE = ACE.OBJECT_INHERIT_ACE
+    SUCCESSFUL_ACCESS_ACE_FLAG = ACE.SUCCESSFUL_ACCESS_ACE_FLAG
+
+class OBJECT_ACE_FLAGS(Enum):
+    ACE_OBJECT_TYPE_PRESENT = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT
+    ACE_INHERITED_OBJECT_TYPE_PRESENT = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ACE_INHERITED_OBJECT_TYPE_PRESENT
+
+class ACCESS_MASK(Enum):
+    # Generic Rights
+    GenericRead = 0x80000000 # ADS_RIGHT_GENERIC_READ
+    GenericWrite = 0x40000000 # ADS_RIGHT_GENERIC_WRITE
+    GenericExecute = 0x20000000 # ADS_RIGHT_GENERIC_EXECUTE
+    GenericAll = 0x10000000 # ADS_RIGHT_GENERIC_ALL
+
+    # Maximum Allowed access type
+    MaximumAllowed = 0x02000000
+
+    # Access System Acl access type
+    AccessSystemSecurity = 0x01000000 # ADS_RIGHT_ACCESS_SYSTEM_SECURITY
+
+    # Standard access types
+    Synchronize = 0x00100000 # ADS_RIGHT_SYNCHRONIZE
+    WriteOwner = 0x00080000 # ADS_RIGHT_WRITE_OWNER
+    WriteDACL = 0x00040000 # ADS_RIGHT_WRITE_DAC
+    ReadControl = 0x00020000 # ADS_RIGHT_READ_CONTROL
+    Delete = 0x00010000 # ADS_RIGHT_DELETE
+
+    # Specific rights
+    AllExtendedRights = 0x00000100 # ADS_RIGHT_DS_CONTROL_ACCESS
+    ListObject = 0x00000080 # ADS_RIGHT_DS_LIST_OBJECT
+    DeleteTree = 0x00000040 # ADS_RIGHT_DS_DELETE_TREE
+    WriteProperties = 0x00000020 # ADS_RIGHT_DS_WRITE_PROP
+    ReadProperties = 0x00000010 # ADS_RIGHT_DS_READ_PROP
+    Self = 0x00000008 # ADS_RIGHT_DS_SELF
+    ListChildObjects = 0x00000004 # ADS_RIGHT_ACTRL_DS_LIST
+    DeleteChild = 0x00000002 # ADS_RIGHT_DS_DELETE_CHILD
+    CreateChild = 0x00000001 # ADS_RIGHT_DS_CREATE_CHILD
+
+class SIMPLE_PERMISSIONS(Enum):
+    FullControl = 0xf01ff
+    Modify = 0x0301bf
+    ReadAndExecute = 0x0200a9
+    ReadAndWrite = 0x02019f
+    Read = 0x20094
+    Write = 0x200bc
+
+class ALLOWED_OBJECT_ACE_MASK_FLAGS(Enum):
+    ControlAccess = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_CONTROL_ACCESS
+    CreateChild = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_CREATE_CHILD
+    DeleteChild = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_DELETE_CHILD
+    ReadProperty = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_READ_PROP
+    WriteProperty = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_WRITE_PROP
+    Self = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_SELF
+
 class ACLEnum:
     def __init__(self, entries, ldap_session, root_dn, args=None):
         self.entries = entries
@@ -1238,6 +1238,7 @@ class ACLEnum:
         self.__resolveguids = args.resolveguids
         self.__targetidentity = args.identity
         self.__principalidentity = args.security_identifier
+        self.__guids_map_dict = args.guids_map_dict
 
     def read_dacl(self):
         parsed_dacl = []
@@ -1305,7 +1306,10 @@ class ACLEnum:
                         try:
                             parsed_ace['ObjectAceType'] = "%s (%s)" % (OBJECTTYPE_GUID_MAP[obj_type], obj_type)
                         except KeyError:
-                            parsed_ace['ObjectAceType'] = "UNKNOWN (%s)" % obj_type
+                            try:
+                                parsed_ace['ObjectAceType'] = "%s (%s)" % (self.__guids_map_dict[obj_type], obj_type)
+                            except KeyError:
+                                parsed_ace['ObjectAceType'] = "UNKNOWN (%s)" % obj_type
                     else:
                         parsed_ace['ObjectAceType'] = "%s" % obj_type
                 # Extracts the InheritedObjectType GUID values
