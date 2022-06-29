@@ -109,7 +109,6 @@ class PywerView:
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
-    def get_domainou(self, args=None, properties='*', identity='*'):
         ldap_filter = ""
         if args.gplink:
             ldap_filter += f'(gplink={args.gplink})'
@@ -131,6 +130,13 @@ class PywerView:
         ldap_filter = f'(objectClass=domain)'
         logging.debug(f'LDAP search filter: {ldap_filter}')
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
+        return self.ldap_session.entries
+
+    def get_domainca(self, args=None, properties='*'):
+        ldap_filter = f"(objectclass=certificationAuthority)"
+        ca_search_base = f"CN=Certification Authorities,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
+        logging.debug(f'LDAP base {ca_search_base} with filter {ldap_filter}')
+        self.ldap_session.search(ca_search_base,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
     def add_domaingroupmember(self, identity, members, args=None):
