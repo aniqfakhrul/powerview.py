@@ -245,8 +245,8 @@ def main():
                             if pv_args.server and pv_args.server != args.domain:
                                 foreign_dc_address = get_principal_dc_address(pv_args.server,args.dc_ip)
                                 if foreign_dc_address:
-                                    conn = CONNECTION(args,foreign_dc_address)
                                     setattr(args,'dc_ip', foreign_dc_address)
+                                    conn = CONNECTION(args)
                                     temp_pywerview = PywerView(conn, args)
                                 else:
                                     logging.error(f'Domain {pv_args.server} not found')
