@@ -1243,6 +1243,9 @@ class ACLEnum:
         parsed_dacl = []
         for entry in self.entries:
             dacl_dict = {}
+            if len(entry['ntSecurityDescriptor'].raw_values) == 0:
+                LOG.error('Error parsing dacl')
+                break
             secDescData = entry['ntSecurityDescriptor'].raw_values[0]
             secDesc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDescData)
 

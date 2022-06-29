@@ -73,6 +73,7 @@ class PywerView:
             args.security_identifier = principalsid_entry[0]['objectSid'].values[0]
 
         entries = self.get_domainobject(identity=f'{args.identity if args.identity else "*"}',properties=['sAMAccountName','nTSecurityDescriptor','distinguishedName','objectSid'])
+
         if not entries:
             logging.error(f'Identity not found in domain')
             return
@@ -182,7 +183,7 @@ class PywerView:
         identity_dn = entries[0].entry_dn
         logging.info(f'Found target dn {identity_dn}')
 
-        logging.info(f'Adding {args.rights} privilege to {args.targetidentity}')
+        logging.info(f'Restoring {args.rights} privilege on {args.targetidentity}')
         la = LDAPAttack(c, self.ldap_session, f'{self.domain}/{args.principalidentity}', args)
         la.aclAttack(identity_dn, self.domain_dumper)
 
@@ -238,7 +239,6 @@ class PywerView:
     def add_domaincomputer(self, computer_name, computer_pass):
         if computer_name[-1] != '$':
             computer_name += '$'
-
         dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, self.args)
         if len(dcinfo)== 0:
             logging.error("Cannot get domain info")
@@ -309,12 +309,12 @@ class PywerView:
             if is_ipaddress(args.computer):
                 host = args.computer
             else:
-                host = resolve_domain(args.computer, self.dc_ip)
+                host = host2ip(args.computer, self.dc_ip, 3, True)
         elif args.computername:
             if is_ipaddress(args.computername):
                 host = args.computername
             else:
-                host = resolve_domain(args.computername, self.dc_ip)
+                host = host2ip(args.computername, self.dc_ip, 3, True)
         else:
             logging.error(f'-Computer or -ComputerName is required')
             return

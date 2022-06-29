@@ -5,10 +5,11 @@ import ldap3
 import logging
 
 class CONNECTION:
-    def __init__(self, args):
+    def __init__(self, args, server=None):
         self.username = args.username
         self.password = args.password
         self.domain = args.domain
+        self.server = server
         self.lmhash = args.lmhash
         self.nthash = args.nthash
         self.use_kerberos = args.use_kerberos
@@ -22,10 +23,10 @@ class CONNECTION:
         if self.use_kerberos:
             target = get_machine_name(self.args, self.domain)
         else:
-            if self.dc_ip is not None:
-                target = self.dc_ip
+            if self.server is not None:
+                target = self.server
             else:
-                target = domain
+                target = self.dc_ip
 
         if self.use_ldaps is True:
             try:

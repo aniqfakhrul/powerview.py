@@ -33,12 +33,35 @@ def is_ipaddress(address):
     except ValueError:
         return False
 
-def resolve_domain(domain, server):
+def get_principal_dc_address(domain, nameserver, dns_tcp=True):
+    answer = None
+    logging.debug('Querying domain controller information from DNS')
+    try:
+        basequery = f'_ldap._tcp.pdc._msdcs.{domain}'
+        dnsresolver = resolver.Resolver(configure=False)
+        dnsresolver.nameservers = [nameserver]
+
+        q = dnsresolver.query(basequery, 'SRV', tcp=dns_tcp)
+
+        if str(q.qname).lower().startswith('_ldap._tcp.pdc._msdcs'):
+            ad_domain = str(q.qname).lower()[len(basequery):].strip('.')
+            logging.debug('Found AD domain: %s' % ad_domain)
+
+        #print(q.response.additional[0].items['address'])
+        for r in q:
+            dc = str(r.target).rstrip('.')
+        #resolve ip for principal dc
+        answer = resolve_domain(dc, nameserver)
+    except resolver.NXDOMAIN as e:
+        logging.debug(str(e))
+    return answer
+
+def resolve_domain(domain, nameserver):
     answer = None
     try:
         resolver = dns.resolver.Resolver(configure=False)
-        resolver.nameservers = [server]
-        answers = resolver.query(domain, 'A')
+        resolver.nameservers = [nameserver]
+        answers = resolver.query(domain, 'A', tcp=True)
         for i in answers:
             answer = i.to_text()
     except dns.resolver.NoNameservers:
