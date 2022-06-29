@@ -356,7 +356,7 @@ class PywerView:
             share_info = {'name': share_name, 'remark': share_remark}
             share_infos.append(share_info)
 
-            print(f'{share_info["name"].ljust(15)}{share_info["remark"].ljust(25)}{args.computer if args.computer else args.computername}')
+            print(f'{share_info["name"].ljust(15)}{share_info["remark"].ljust(25)}{host}')
         print()
 
     def parse_object(self,obj):
