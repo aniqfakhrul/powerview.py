@@ -3,6 +3,7 @@ from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 
 from pywerview.modules.ldapattack import LDAPAttack, ACLEnum
+from pywerview.modules.ca import CAEnum
 from pywerview.modules.addcomputer import ADDCOMPUTER
 from pywerview.utils.helpers import *
 
@@ -133,11 +134,9 @@ class PywerView:
         return self.ldap_session.entries
 
     def get_domainca(self, args=None, properties='*'):
-        ldap_filter = f"(objectclass=certificationAuthority)"
-        ca_search_base = f"CN=Certification Authorities,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
-        logging.debug(f'LDAP base {ca_search_base} with filter {ldap_filter}')
-        self.ldap_session.search(ca_search_base,ldap_filter,attributes=properties)
-        return self.ldap_session.entries
+        ca_fetch = CAEnum(self.ldap_session, self.root_dn)
+        entries = ca_fetch.fetch_enrollment_services(properties)
+        return entries
 
     def add_domaingroupmember(self, identity, members, args=None):
         group_entry = self.get_domaingroup(identity=identity,properties='distinguishedName')

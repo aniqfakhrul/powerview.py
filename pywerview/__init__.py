@@ -100,10 +100,10 @@ def powerview_arg_parse(cmd):
     get_domainou_parser.add_argument('-where', '-Where', action='store', dest='where')
 
     # Find CAs
-    get_domainou_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-NetCA'], exit_on_error=False)
-    get_domainou_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
-    get_domainou_parser.add_argument('-select', '-Select', action='store', dest='select')
-    get_domainou_parser.add_argument('-where', '-Where', action='store', dest='where')
+    get_domainca_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-NetCA'], exit_on_error=False)
+    get_domainca_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
+    get_domainca_parser.add_argument('-select', '-Select', action='store', dest='select')
+    get_domainca_parser.add_argument('-where', '-Where', action='store', dest='where')
 
     # shares
     get_shares_parser = subparsers.add_parser('Get-Shares', aliases=['Get-NetShares'], exit_on_error=False)
@@ -318,7 +318,7 @@ def main():
                             print(e)
             except KeyboardInterrupt:
                 print()
-            #except Exception as e:
-            #    logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
         print(e)
