@@ -181,10 +181,16 @@ def powerview_arg_parse(cmd):
 
     # set domain object properties
     set_domainobject_parser = subparsers.add_parser('Set-DomainObject', aliases=['Set-ADObject'], exit_on_error=False)
-    set_domainobject_parser.add_argument('-identity', '-Identity',const=None, dest='identity')
-    set_domainobject_parser.add_argument('-set', '-Set',const=None, dest='set')
-    set_domainobject_parser.add_argument('-clear', '-Clear',action='store', const=None, dest='clear')
+    set_domainobject_parser.add_argument('-identity', '-Identity', action='store', dest='identity')
+    set_domainobject_parser.add_argument('-set', '-Set', dest='set')
+    set_domainobject_parser.add_argument('-clear', '-Clear',action='store', dest='clear')
     set_domainobject_parser.add_argument('-domain', '-Domain', action='store', dest='server')
+
+    # set domain object properties
+    set_domainuserpassword_parser = subparsers.add_parser('Set-DomainUserPassword', exit_on_error=False)
+    set_domainuserpassword_parser.add_argument('-identity', '-Identity', action='store', dest='identity')
+    set_domainuserpassword_parser.add_argument('-accountpassword', '-AccountPassword', action='store', dest='accountpassword')
+    set_domainuserpassword_parser.add_argument('-domain', '-Domain', action='store', dest='server')
 
     subparsers.add_parser('exit', exit_on_error=False)
     subparsers.add_parser('clear', exit_on_error=False)
@@ -382,17 +388,29 @@ def main():
                                 else:
                                     logging.error('-Identity and -Members flags required')
                             elif pv_args.module.casefold() == 'set-domainobject' or pv_args.module.casefold() == 'set-adobject':
-                                if pv_args.identity is not None and (pv_args.clear or pv_args.set):
+                                if pv_args.identity and (pv_args.clear or pv_args.set):
                                     succeed = False
                                     if temp_pywerview:
-                                        temp_pywerview.set_domainobject(pv_args.identity, pv_args)
+                                        succeed = temp_pywerview.set_domainobject(pv_args.identity, pv_args)
                                     else:
-                                        pywerview.set_domainobject(pv_args.identity, pv_args)
+                                        suceed = pywerview.set_domainobject(pv_args.identity, pv_args)
 
                                     if succeed:
                                         logging.info('Object modified successfully')
                                 else:
                                     logging.error('-Identity and [-Clear][-Set] flags required')
+                            elif pv_args.module.casefold() == 'set-domainuserpassword':
+                                if pv_args.identity and pv_args.accountpassword:
+                                    succeed = False
+                                    if temp_pywerview:
+                                        succeed = temp_pywerview.set_domainuserpassword(pv_args.identity, pv_args.accountpassword, pv_args)
+                                    else:
+                                        succeed = pywerview.set_domainuserpassword(pv_args.identity, pv_args.accountpassword, pv_args)
+
+                                    if succeed:
+                                        logging.info(f'Password changed for {pv_args.identity}')
+                                else:
+                                    logging.error('-Identity and -AccountPassword flags are required')
                             elif pv_args.module.casefold() == 'add-domaincomputer' or pv_args.module.casefold() == 'add-adcomputer':
                                 if pv_args.computername is not None:
                                     if pv_args.computerpass is None:

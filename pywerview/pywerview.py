@@ -9,6 +9,7 @@ from pywerview.utils.helpers import *
 
 import ldap3
 from ldap3.protocol.microsoft import security_descriptor_control
+from ldap3.extend.microsoft import addMembersToGroups, modifyPassword, removeMembersFromGroups
 import logging
 import re
 
@@ -413,6 +414,21 @@ class PywerView:
             return True
         else:
             return False
+
+    def set_domainuserpassword(self, identity, accountpassword, args=None):
+        entries = self.get_domainobject(identity=identity, properties=['distinguishedName'])
+        if len(entries) == 0:
+            logging.error(f'No objects found in domain')
+            return
+        elif len(entries) > 1:
+            logging.error(f'Multiple objects found in domain. Use specific identifier')
+            return
+        logging.info(f'Principal {entries[0].entry_dn} found in domain')
+        if self.use_ldaps:
+            modifyPassword.ad_modify_password(self.ldap_session, entries[0].entry_dn, accountpassword, old_password=None)
+        else:
+            print("tak ldaps")
+        return True
 
     def set_domainobject(self,identity, args=None):
         targetobject = self.get_domainobject(identity=identity)
