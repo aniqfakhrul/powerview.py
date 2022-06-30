@@ -206,9 +206,6 @@ def arg_parse():
 
     args = parser.parse_args()
 
-    if args.use_kerberos == False and args.auth_aes_key is None and args.auth_hashes is None and args.auth_password is None and args.auth_username is None:
-        parser.error("need to set credentials")
-
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
@@ -426,7 +423,6 @@ def main():
 
                             temp_pywerview = None
                             setattr(args,'dc_ip', args.dc_ip)
-
                         except ldap3.core.exceptions.LDAPAttributeError as e:
                             print(e)
             except KeyboardInterrupt:
