@@ -30,6 +30,8 @@ COMMANDS = {
     'Get-NetComputer':['-Identity','-Properties','-Domain','-Select','-Unconstrained','-TrustedToAuth', '-LAPS', '-Where'],
     'Add-DomainComputer':['-ComputerName','-ComputerPass','-Domain'],
     'Add-ADComputer':['-ComputerName','-ComputerPass','-Domain'],
+    'Add-DomainUser':['-UserName','-UserPass','-Domain'],
+    'Add-ADUser':['-UserName','-UserPass','-Domain'],
     'Remove-DomainComputer':['-ComputerName','-Domain'],
     'Remove-ADComputer':['-ComputerName','-Domain'],
     'Add-DomainGroupMember':['-Identity','-Members','-Domain'],

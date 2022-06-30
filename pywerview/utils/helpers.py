@@ -56,6 +56,8 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
         answer = resolve_domain(dc, nameserver)
     except resolver.NXDOMAIN as e:
         logging.debug(str(e))
+    except:
+        logging.debug('Error retreiving principal DC')
     return answer
 
 def resolve_domain(domain, nameserver):

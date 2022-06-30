@@ -107,7 +107,7 @@ def powerview_arg_parse(cmd):
     get_domainou_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
     get_domainou_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domainou_parser.add_argument('-select', '-Select', action='store', dest='select')
-    get_domainou_parser.add_argument('-gplink', '-GPLink', action='store', const=None, dest='gplink')
+    get_domainou_parser.add_argument('-gplink', '-GPLink', action='store', dest='gplink')
     get_domainou_parser.add_argument('-where', '-Where', action='store', dest='where')
 
     # Find CAs
@@ -147,7 +147,7 @@ def powerview_arg_parse(cmd):
     add_domainobjectacl_parser = subparsers.add_parser('Add-DomainObjectAcl', aliases=['Add-ObjectAcl'], exit_on_error=False)
     add_domainobjectacl_parser.add_argument('-targetidentity','-TargetIdentity', action='store', const=None, dest='targetidentity')
     add_domainobjectacl_parser.add_argument('-principalidentity','-PrincipalIdentity', action='store', const=None, dest='principalidentity')
-    add_domainobjectacl_parser.add_argument('-rights','-Rights', action='store', const=None, dest='rights', choices=['all', 'dcsync', 'writemembers','resetpassword'], type = str.lower)
+    add_domainobjectacl_parser.add_argument('-rights','-Rights', action='store', const=None, dest='rights', choices=['all', 'dcsync', 'writemembers','resetpassword','rbcd','shadowcred'], type = str.lower)
     add_domainobjectacl_parser.add_argument('-domain', '-Domain', action='store', dest='server')
 
     # remove domain object acl
@@ -162,6 +162,12 @@ def powerview_arg_parse(cmd):
     add_domaincomputer_parser.add_argument('-computername', '-ComputerName', action='store', const=None, dest='computername')
     add_domaincomputer_parser.add_argument('-computerpass', '-ComputerPass', action='store', const=None, dest='computerpass')
     add_domaincomputer_parser.add_argument('-domain', '-Domain', action='store', dest='server')
+
+    # add domain user
+    add_domainuser_parser = subparsers.add_parser('Add-DomainUser', aliases=['Add-ADUser'], exit_on_error=False)
+    add_domainuser_parser.add_argument('-username', '-UserName', action='store', default=None, const=None, dest='username')
+    add_domainuser_parser.add_argument('-userpass', '-UserPass', action='store', default=None, const=None, dest='userpass')
+    add_domainuser_parser.add_argument('-domain', '-Domain', action='store', dest='server')
 
     # remove domain computer
     remove_domaincomputer_parser = subparsers.add_parser('Remove-DomainComputer', aliases=['Remove-ADComputer'], exit_on_error=False)
@@ -392,6 +398,11 @@ def main():
                                         pywerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
                                 else:
                                     logging.error(f'-ComputerName and -ComputerPass are required')
+                            elif pv_args.module.casefold() == 'add-domainuser' or pv_args.module.casefold() == 'add-aduser':
+                                if temp_pywerview:
+                                    temp_pywerview.add_domainuser(pv_args.username, pv_args.userpass)
+                                else:
+                                    pywerview.add_domainuser(pv_args.username, pv_args.userpass)
                             elif pv_args.module.casefold() == 'remove-domaincomputer' or pv_args.module.casefold() == 'remove-adcomputer':
                                 if pv_args.computername is not None:
                                     if temp_pywerview:
@@ -427,7 +438,7 @@ def main():
                             print(e)
             except KeyboardInterrupt:
                 print()
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
         print(e)

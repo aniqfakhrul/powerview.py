@@ -3,6 +3,7 @@ from impacket.smbconnection import SMBConnection, SessionError
 
 from pywerview.utils.helpers import get_machine_name, ldap3_kerberos_login
 
+import ssl
 import ldap3
 import logging
 
@@ -32,9 +33,9 @@ class CONNECTION:
 
         if self.use_ldaps is True:
             try:
-                return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1_2, self.args, self.domain, self.username, self.password, self.lmhash, self.nthash)
+                return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1_2, self.domain, self.username, self.password, self.lmhash, self.nthash)
             except ldap3.core.exceptions.LDAPSocketOpenError:
-                return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1, self.args, self.domain, self.username, self.password, self.lmhash, self.nthash)
+                return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1, self.domain, self.username, self.password, self.lmhash, self.nthash)
         else:
             return self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
 

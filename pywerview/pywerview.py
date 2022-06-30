@@ -2,7 +2,7 @@
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 
-from pywerview.modules.ldapattack import LDAPAttack, ACLEnum
+from pywerview.modules.ldapattack import LDAPAttack, ACLEnum, addUser
 from pywerview.modules.ca import CAEnum
 from pywerview.modules.addcomputer import ADDCOMPUTER
 from pywerview.utils.helpers import *
@@ -21,6 +21,7 @@ class PywerView:
         self.domain = args.domain
         self.lmhash = args.lmhash
         self.nthash = args.nthash
+        self.use_ldaps = args.use_ldaps
         self.dc_ip = args.dc_ip
 
         self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
@@ -60,6 +61,15 @@ class PywerView:
 
     def get_domainobject(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(&(|(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity}))))'
+        logging.debug(f'LDAP search filter: {ldap_filter}')
+        self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
+        return self.ldap_session.entries
+
+    def get_domainou(self, args=None, properties='*', identity='*'):
+        ldap_filter = ""
+        if args.gplink:
+            ldap_filter += f"(gplink=*{args.gplink}*)"
+        ldap_filter = f'(&(objectCategory=organizationalUnit)(|(name={identity})){ldap_filter})'
         logging.debug(f'LDAP search filter: {ldap_filter}')
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
@@ -181,6 +191,18 @@ class PywerView:
             print(self.ldap_session.result['message'])
         return succeeded
 
+    def add_domainuser(self, username, userpass):
+        if not self.use_ldaps:
+            logging.error('Adding a user account to the domain requires TLS but ldap:// scheme provided. Switching target to LDAPS via StartTLS')
+            return
+
+        parent_dn_entries = self.get_domainobject(identity="Users")
+        if len(parent_dn_entries) == 0:
+            logging.error('Users parent DN not found in domain')
+            return
+        addUser(parent = parent_dn_entries[0].entry_dn, client = self.ldap_session, root_dn = self.root_dn, newUser=username, newPassword=userpass)
+        return None
+
     def add_domainobjectacl(self, args):
         c = NTLMRelayxConfig()
         c.addcomputer = 'idk lol'
@@ -188,17 +210,39 @@ class PywerView:
 
         setattr(args, "delete", False)
 
-        entries = self.get_domainobject(identity=args.principalidentity)
-        if len(entries) == 0:
-            logging.error('Target object not found in domain')
-            return
+        if '\\' not in args.principalidentity or '/' not in args.principalidentity:
+            username = f'{self.domain}/{args.principalidentity}'
+        else:
+            username = args.principalidentity
 
-        identity_dn = entries[0].entry_dn
-        logging.info(f'Found target dn {identity_dn}')
+        principal_entries = self.get_domainobject(identity=args.principalidentity)
+        if len(principal_entries) == 0:
+            logging.error('Principal Identity object not found in domain')
+            return
+        principalidentity_dn = principal_entries[0].entry_dn
+        principalidentity_sid = principal_entries[0]['ObjectSid'].values[0]
+        setattr(args,'principalidentity_dn', principalidentity_dn)
+        setattr(args,'principalidentity_sid', principalidentity_sid)
+        logging.info(f'Found principal identity dn {principalidentity_dn}')
+
+        target_entries = self.get_domainobject(identity=args.targetidentity)
+        if len(target_entries) == 0:
+            logging.error('Target Identity object not found in domain')
+            return
+        targetidentity_dn = target_entries[0].entry_dn
+        targetidentity_sid = target_entries[0]['ObjectSid'].values[0]
+        setattr(args,'targetidentity_dn', targetidentity_dn)
+        setattr(args,'targetidentity_sid', targetidentity_sid)
+        logging.info(f'Found target identity dn {targetidentity_dn}')
 
         logging.info(f'Adding {args.rights} privilege to {args.targetidentity}')
-        la = LDAPAttack(c, self.ldap_session, f'{self.domain}/{args.principalidentity}', args)
-        la.aclAttack(identity_dn, self.domain_dumper)
+        la = LDAPAttack(config=c, LDAPClient=self.ldap_session, username=username, root_dn=self.root_dn, args=args)
+        if args.rights in ['all','dcsync','writemembers','resetpassword']:
+            la.aclAttack()
+        elif args.rights in ['rbcd']:
+            la.delegateAttack()
+        elif args.rights in ['shadowcred']:
+            la.shadowCredentialsAttack()
 
     def remove_domainobjectacl(self, args):
         c = NTLMRelayxConfig()
@@ -207,17 +251,38 @@ class PywerView:
 
         setattr(args, "delete", True)
 
+        if '\\' not in args.principalidentity or '/' not in args.principalidentity:
+            username = f'{self.domain}/{args.principalidentity}'
+        else:
+            username = args.principalidentity
+
+        principal_entries = self.get_domainobject(identity=args.principalidentity)
+        if len(principal_entries) == 0:
+            logging.error('Principal Identity object not found in domain')
+            return
+        principalidentity_dn = principal_entries[0].entry_dn
+        principalidentity_sid = principal_entries[0]['ObjectSid'].values[0]
+        setattr(args,'principalidentity_dn', principalidentity_dn)
+        setattr(args,'principalidentity_sid', principalidentity_sid)
+        logging.info(f'Found principal identity dn {principalidentity_dn}')
+
+        target_entries = self.get_domainobject(identity=args.targetidentity)
+        if len(target_entries) == 0:
+            logging.error('Target Identity object not found in domain')
+            return
+        targetidentity_dn = target_entries[0].entry_dn
+        targetidentity_sid = target_entries[0]['ObjectSid'].values[0]
+        setattr(args,'targetidentity_dn', targetidentity_dn)
+        setattr(args,'targetidentity_sid', targetidentity_sid)
+        logging.info(f'Found target identity dn {targetidentity_dn}')
         entries = self.get_domainobject(identity=args.principalidentity)
         if len(entries) == 0:
             logging.error('Target object not found in domain')
             return
 
-        identity_dn = entries[0].entry_dn
-        logging.info(f'Found target dn {identity_dn}')
-
         logging.info(f'Restoring {args.rights} privilege on {args.targetidentity}')
-        la = LDAPAttack(c, self.ldap_session, f'{self.domain}/{args.principalidentity}', args)
-        la.aclAttack(identity_dn, self.domain_dumper)
+        la = LDAPAttack(config=c, LDAPClient=self.ldap_session, username=username, root_dn=self.root_dn, args=args)
+        la.aclAttack()
 
 
     def remove_domaincomputer(self,computer_name):
