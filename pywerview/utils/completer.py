@@ -32,6 +32,8 @@ COMMANDS = {
     'Add-ADComputer':['-ComputerName','-ComputerPass','-Domain'],
     'Add-DomainUser':['-UserName','-UserPass','-Domain'],
     'Add-ADUser':['-UserName','-UserPass','-Domain'],
+    'Remove-DomainUser':['-Identity','-Domain'],
+    'Remove-ADUser':['-Identity','-Domain'],
     'Remove-DomainComputer':['-ComputerName','-Domain'],
     'Remove-ADComputer':['-ComputerName','-Domain'],
     'Add-DomainGroupMember':['-Identity','-Members','-Domain'],

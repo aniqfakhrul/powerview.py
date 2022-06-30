@@ -169,6 +169,11 @@ def powerview_arg_parse(cmd):
     add_domainuser_parser.add_argument('-userpass', '-UserPass', action='store', default=None, const=None, dest='userpass')
     add_domainuser_parser.add_argument('-domain', '-Domain', action='store', dest='server')
 
+    # remove domain user
+    remove_domainuser_parser = subparsers.add_parser('Remove-DomainUser', aliases=['Remove-ADUser'], exit_on_error=False)
+    remove_domainuser_parser.add_argument('-identity', '-Identity', action='store', dest='identity')
+    remove_domainuser_parser.add_argument('-domain', '-Domain', action='store', dest='server')
+
     # remove domain computer
     remove_domaincomputer_parser = subparsers.add_parser('Remove-DomainComputer', aliases=['Remove-ADComputer'], exit_on_error=False)
     remove_domaincomputer_parser.add_argument('-computername', '-ComputerName',action='store', const=None, dest='computername')
@@ -403,6 +408,14 @@ def main():
                                     temp_pywerview.add_domainuser(pv_args.username, pv_args.userpass)
                                 else:
                                     pywerview.add_domainuser(pv_args.username, pv_args.userpass)
+                            elif pv_args.module.casefold() == 'remove-domainuser' or pv_args.module.casefold() == 'remove-aduser':
+                                if pv_args.identity:
+                                    if temp_pywerview:
+                                        temp_pywerview.remove_domainuser(pv_args.identity)
+                                    else:
+                                        pywerview.remove_domainuser(pv_args.identity)
+                                else:
+                                    logging.error(f'-Identity is required')
                             elif pv_args.module.casefold() == 'remove-domaincomputer' or pv_args.module.casefold() == 'remove-adcomputer':
                                 if pv_args.computername is not None:
                                     if temp_pywerview:
@@ -438,7 +451,7 @@ def main():
                             print(e)
             except KeyboardInterrupt:
                 print()
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
         print(e)

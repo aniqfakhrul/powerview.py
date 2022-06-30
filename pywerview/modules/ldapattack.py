@@ -1021,58 +1021,75 @@ def can_add_member(ace):
         return writeprivs
     userprivs = bin_to_string(ace['Ace']['ObjectType']).lower() == 'bf9679c0-0de6-11d0-a285-00aa003049e2'
     return writeprivs and userprivs
+class ADUser:
+    def __init__(self, client, root_dn, parent=None):
+        if parent:
+            self.__parent = parent
+        self.__client = client
+        self.__root_dn = root_dn
 
-def addUser(parent, client, root_dn, newUser=None, newPassword=None):
-    """
-    Add a new user. Parent is preferably CN=Users,DC=Domain,DC=local, but can
-    also be an OU or other container where we have write privileges
-    """
-    if not client.tls_started and not client.server.ssl:
-        LOG.info('Adding a user account to the domain requires TLS but ldap:// scheme provided. Switching target to LDAPS via StartTLS')
-        try:
-            if not client.start_tls():
-                LOG.error('StartTLS failed')
-                return False
-        except ldap3.core.exceptions.LDAPStartTLSError as e:
-                LOG.error(str(e))
-                return False
+    def removeUser(self, user_dn):
+        if not user_dn:
+            LOG.error('User distinguishedName is required')
+            return
 
-    # Random password
-    if not newPassword:
-        newPassword = ''.join(random.choice(string.ascii_letters + string.digits + '.,;:!$-_+/*(){}#@<>^') for _ in range(15))
-
-    # Random username
-    if not newUser:
-        newUser = ''.join(random.choice(string.ascii_letters) for _ in range(10))
-
-    newUserDn = 'CN=%s,%s' % (newUser, parent)
-    ucd = {
-        'objectCategory': 'CN=Person,CN=Schema,CN=Configuration,%s' % root_dn,
-        'distinguishedName': newUserDn,
-        'cn': newUser,
-        'sn': newUser,
-        'givenName': newUser,
-        'displayName': newUser,
-        'name': newUser,
-        'userAccountControl': 512,
-        'accountExpires': '0',
-        'sAMAccountName': newUser,
-        'unicodePwd': '"{}"'.format(newPassword).encode('utf-16-le')
-    }
-    LOG.info('Attempting to create user in: %s', parent)
-    res = client.add(newUserDn, ['top', 'person', 'organizationalPerson', 'user'], ucd)
-    if not res:
-        # Adding users requires LDAPS
-        if client.result['result'] == RESULT_UNWILLING_TO_PERFORM and not self.client.server.ssl:
-            LOG.error('Failed to add a new user. The server denied the operation. Try relaying to LDAP with TLS enabled (ldaps) or escalating an existing user.')
+        if self.__client.delete(user_dn):
+            LOG.info(f'Successfully removed {user_dn} from domain')
+            return True
         else:
-            LOG.error('Failed to add a new user: %s' % str(self.client.result))
-        return False
-    else:
-        LOG.info('Adding new user with username: %s and password: %s result: OK' % (newUser, newPassword))
+            return False
 
-        # Return the DN
-        return newUserDn
+    def addUser(self, newUser=None, newPassword=None):
+        """
+        Add a new user. Parent is preferably CN=Users,DC=Domain,DC=local, but can
+        also be an OU or other container where we have write privileges
+        """
+        if not self.__client.tls_started and not self.__client.server.ssl:
+            LOG.info('Adding a user account to the domain requires TLS but ldap:// scheme provided. Switching target to LDAPS via StartTLS')
+            try:
+                if not self.__client.start_tls():
+                    LOG.error('StartTLS failed')
+                    return False
+            except ldap3.core.exceptions.LDAPStartTLSError as e:
+                    LOG.error(str(e))
+                    return False
+
+        # Random password
+        if not newPassword:
+            newPassword = ''.join(random.choice(string.ascii_letters + string.digits + '.,;:!$-_+/*(){}#@<>^') for _ in range(15))
+
+        # Random username
+        if not newUser:
+            newUser = ''.join(random.choice(string.ascii_letters) for _ in range(10))
+
+        newUserDn = 'CN=%s,%s' % (newUser, self.__parent)
+        ucd = {
+            'objectCategory': 'CN=Person,CN=Schema,CN=Configuration,%s' % self.__root_dn,
+            'distinguishedName': newUserDn,
+            'cn': newUser,
+            'sn': newUser,
+            'givenName': newUser,
+            'displayName': newUser,
+            'name': newUser,
+            'userAccountControl': 512,
+            'accountExpires': '0',
+            'sAMAccountName': newUser,
+            'unicodePwd': '"{}"'.format(newPassword).encode('utf-16-le')
+        }
+        LOG.info('Attempting to create user in: %s', self.__parent)
+        res = self.__client.add(newUserDn, ['top', 'person', 'organizationalPerson', 'user'], ucd)
+        if not res:
+            # Adding users requires LDAPS
+            if self.__client.result['result'] == RESULT_UNWILLING_TO_PERFORM and not self.__client.server.ssl:
+                LOG.error('Failed to add a new user. The server denied the operation. Try relaying to LDAP with TLS enabled (ldaps) or escalating an existing user.')
+            else:
+                LOG.error('Failed to add a new user: %s' % str(self.__client.result))
+            return False
+        else:
+            LOG.info('Adding new user with username: %s and password: %s result: OK' % (newUser, newPassword))
+
+            # Return the DN
+            return newUserDn
 
 
 # Universal SIDs

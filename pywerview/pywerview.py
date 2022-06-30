@@ -2,7 +2,7 @@
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 
-from pywerview.modules.ldapattack import LDAPAttack, ACLEnum, addUser
+from pywerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser
 from pywerview.modules.ca import CAEnum
 from pywerview.modules.addcomputer import ADDCOMPUTER
 from pywerview.utils.helpers import *
@@ -34,17 +34,18 @@ class PywerView:
 
     def get_domainuser(self, args=None, properties=['cn','name','sAMAccountName','distinguishedName','mail','description','lastLogoff','lastLogon','memberof','objectSid','userPrincipalName'], identity='*'):
         ldap_filter = ""
-
-        if args.preauthnotrequired:
-            ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=4194304)'
-        elif args.admincount:
-            ldap_filter = f'(admincount=1)'
-        elif args.allowdelegation:
-            ldap_filter = f'!(userAccountControl:1.2.840.113556.1.4.803:=1048574)'
-        elif args.trustedtoauth:
-            ldap_filter = f'(msds-allowedtodelegateto=*)'
-        elif args.spn:
-            ldap_filter = f'(servicePrincipalName=*)'
+        
+        if args:
+            if args.preauthnotrequired:
+                ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=4194304)'
+            elif args.admincount:
+                ldap_filter = f'(admincount=1)'
+            elif args.allowdelegation:
+                ldap_filter = f'!(userAccountControl:1.2.840.113556.1.4.803:=1048574)'
+            elif args.trustedtoauth:
+                ldap_filter = f'(msds-allowedtodelegateto=*)'
+            elif args.spn:
+                ldap_filter = f'(servicePrincipalName=*)'
 
         ldap_filter = f'(&(samAccountType=805306368)(|(sAMAccountName={identity})){ldap_filter})'
 
@@ -105,12 +106,13 @@ class PywerView:
     def get_domaincomputer(self, args=None, properties='*', identity='*'):
         ldap_filter = ""
 
-        if args.unconstrained:
-            ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
-        elif args.trustedtoauth:
-            ldap_filter = f'(msds-allowedtodelegateto=*)'
-        elif args.laps:
-            ldap_filter = f'(ms-MCS-AdmPwd=*)'
+        if args:
+            if args.unconstrained:
+                ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
+            elif args.trustedtoauth:
+                ldap_filter = f'(msds-allowedtodelegateto=*)'
+            elif args.laps:
+                ldap_filter = f'(ms-MCS-AdmPwd=*)'
 
         ldap_filter = f'(&(samAccountType=805306369)(|(name={identity})){ldap_filter})'
 
@@ -191,6 +193,18 @@ class PywerView:
             print(self.ldap_session.result['message'])
         return succeeded
 
+    def remove_domainuser(self, identity):
+        if not identity:
+            logging.error('Identity is required')
+            return
+        entries = self.get_domainuser(identity=identity)
+        if len(entries) == 0:
+            logging.error('Identity not found in domain')
+            return
+        identity_dn = entries[0].entry_dn
+        au = ADUser(self.ldap_session, self.root_dn)
+        au.removeUser(identity_dn)
+
     def add_domainuser(self, username, userpass):
         if not self.use_ldaps:
             logging.error('Adding a user account to the domain requires TLS but ldap:// scheme provided. Switching target to LDAPS via StartTLS')
@@ -200,8 +214,11 @@ class PywerView:
         if len(parent_dn_entries) == 0:
             logging.error('Users parent DN not found in domain')
             return
-        addUser(parent = parent_dn_entries[0].entry_dn, client = self.ldap_session, root_dn = self.root_dn, newUser=username, newPassword=userpass)
-        return None
+        au = ADUser(self.ldap_session, self.root_dn, parent = parent_dn_entries[0].entry_dn)
+        if au.addUser(username, userpass):
+            return True
+        else:
+            return False
 
     def add_domainobjectacl(self, args):
         c = NTLMRelayxConfig()
