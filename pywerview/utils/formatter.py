@@ -102,6 +102,9 @@ class FORMATTER:
     def alter_entries(self,entries,cond):
         temp_alter_entries = []
         left,operator,right = cond.split()
+        left = left.strip()
+        operator = operator.strip()
+        right = right.strip()
         if (operator in "contains") or (operator in "match"):
             for entry in entries:
                 temp_entry = json.loads(entry.entry_to_json())

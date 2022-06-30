@@ -327,6 +327,8 @@ class PywerView:
             succeeded = self.ldap_session.modify(targetobject[0].entry_dn, {args.clear: [(ldap3.MODIFY_REPLACE,[])]})
         elif args.set:
             attrs = self.parse_object(args.set)
+            if not attrs:
+                return
             logging.info('Printing object before modifying')
             logging.info(f'Found target object {targetobject[0].entry_dn}')
             succeeded = self.ldap_session.modify(targetobject[0].entry_dn, {attrs['attr']:[(ldap3.MODIFY_REPLACE,[attrs['val']])]})
@@ -376,10 +378,16 @@ class PywerView:
         print()
 
     def parse_object(self,obj):
+        if '{' not in obj and '}' not in obj:
+            logging.error('Error format retrieve, (e.g. {dnsHostName=temppc.contoso.local})')
+            return None
         attrs = dict()
-        regex = r'\{(.*?)\}'
+        try:
+            regex = r'\{(.*?)\}'
+        except:
+            raise Exception('Error regex parsing')
         res = re.search(regex,obj)
         dd = res.group(1).replace("'","").replace('"','').split("=")
-        attrs['attr'] = dd[0]
-        attrs['val'] = dd[1]
+        attrs['attr'] = dd[0].strip()
+        attrs['val'] = dd[1].strip()
         return attrs
