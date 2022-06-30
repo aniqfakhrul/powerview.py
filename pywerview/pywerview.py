@@ -8,6 +8,7 @@ from pywerview.modules.addcomputer import ADDCOMPUTER
 from pywerview.utils.helpers import *
 
 import ldap3
+from ldap3.protocol.microsoft import security_descriptor_control
 import logging
 import re
 
@@ -93,7 +94,22 @@ class PywerView:
                 return
             args.security_identifier = principalsid_entry[0]['objectSid'].values[0]
 
-        entries = self.get_domainobject(identity=f'{args.identity if args.identity else "*"}',properties=['sAMAccountName','nTSecurityDescriptor','distinguishedName','objectSid'])
+        if args.identity:
+            identity = args.identity
+            identity_entries = self.get_domainobject(identity=identity,properties=['objectSid','distinguishedName'])
+            if len(identity_entries) == 0:
+                logging.error(f'Identity {args.identity} not found in domain')
+                return
+            elif len(identity_entries) > 1:
+                logging.error(f'Multiple identities found. Use exact match')
+                return
+            logging.debug(f'Target identity found in domain {identity_entries[0]["distinguishedName"].values[0]}')
+            identity = identity_entries[0]['objectSid'].values[0]
+        else:
+            identity = "*"
+
+        self.ldap_session.search(self.root_dn, '(objectSid=%s)' % escape_filter_chars(identity), attributes=['nTSecurityDescriptor','sAMAccountName','distinguishedName','objectSid'], controls=security_descriptor_control(sdflags=0x04))
+        entries = self.ldap_session.entries
 
         if not entries:
             logging.error(f'Identity not found in domain')

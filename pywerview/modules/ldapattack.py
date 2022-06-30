@@ -385,7 +385,7 @@ class LDAPAttack(ProtocolAttack):
         alreadyEscalated = True
 
         LOG.info('Querying domain security descriptor')
-        self.client.search(self.rootDN, f'(&(objectClass=*)(distinguishedName={self.targetidentity_dn}))', attributes=['SAMAccountName','nTSecurityDescriptor'], controls=controls)
+        self.client.search(self.rootDN, f'(distinguishedName={self.targetidentity_dn})', attributes=['SAMAccountName','nTSecurityDescriptor'], controls=controls)
 
         if len(self.client.entries) == 0:
             LOG.error(f'{self.args.targetidentity} not found in domain. Ensure to use valid object distinguishedName property')
