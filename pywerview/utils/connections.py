@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from impacket.smbconnection import SMBConnection, SessionError
 
+from pywerview.utils.helpers import get_machine_name, ldap3_kerberos_login
+
 import ldap3
 import logging
 
@@ -15,6 +17,7 @@ class CONNECTION:
         self.dc_ip = args.dc_ip
         self.use_ldaps = args.use_ldaps
         self.hashes = args.hashes
+        self.auth_aes_key = args.auth_aes_key
         self.no_pass = args.no_pass
         self.args = args
 
