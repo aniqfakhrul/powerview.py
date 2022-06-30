@@ -34,6 +34,8 @@ COMMANDS = {
     'Remove-ADComputer':['-ComputerName','-Domain'],
     'Add-DomainGroupMember':['-Identity','-Members','-Domain'],
     'Add-GroupMember':['-Identity','-Members','-Domain'],
+    'Remove-DomainGroupMember':['-Identity','-Members','-Domain'],
+    'Remove-GroupMember':['-Identity','-Members','-Domain'],
     'Add-DomainObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain'],
     'Add-ObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain'],
     'Remove-DomainObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain'],

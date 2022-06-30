@@ -64,24 +64,26 @@ def powerview_arg_parse(cmd):
     get_domainuser_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domainuser_parser.add_argument('-properties', '-Properties', action='store',default='*', dest='properties')
     get_domainuser_parser.add_argument('-domain', '-Domain', action='store', dest='server')
-    get_domainuser_parser.add_argument('-spn', '-SPN', action='store_true', default=False, dest='spn')
-    get_domainuser_parser.add_argument('-admincount', '-AdminCount', action='store_true', default=False, dest='admincount')
-    get_domainuser_parser.add_argument('-preauthnotrequired', '-PreAuthNotRequired', action='store_true', default=False, dest='preauthnotrequired')
-    get_domainuser_parser.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
-    get_domainuser_parser.add_argument('-allowdelegation', '-AllowDelegation', action='store_true', default=False, dest='allowdelegation')
     get_domainuser_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domainuser_parser.add_argument('-where', '-Where', action='store', dest='where')
+    group_user = get_domainuser_parser.add_mutually_exclusive_group(required=False)
+    group_user.add_argument('-spn', '-SPN', action='store_true', default=False, dest='spn')
+    group_user.add_argument('-admincount', '-AdminCount', action='store_true', default=False, dest='admincount')
+    group_user.add_argument('-preauthnotrequired', '-PreAuthNotRequired', action='store_true', default=False, dest='preauthnotrequired')
+    group_user.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
+    group_user.add_argument('-allowdelegation', '-AllowDelegation', action='store_true', default=False, dest='allowdelegation')
 
     #computers
     get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer', aliases=['Get-NetComputer'],exit_on_error=False)
     get_domaincomputer_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domaincomputer_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
     get_domaincomputer_parser.add_argument('-domain', '-Domain', action='store', dest='server')
-    get_domaincomputer_parser.add_argument('-unconstrained', '-Unconstrained', action='store_true', default=False, dest='unconstrained')
-    get_domaincomputer_parser.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
-    get_domaincomputer_parser.add_argument('-laps', '-LAPS', action='store_true', default=False, dest='laps')
     get_domaincomputer_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domaincomputer_parser.add_argument('-where', '-Where', action='store', dest='where')
+    group_computer = get_domaincomputer_parser.add_mutually_exclusive_group(required=False)
+    group_computer.add_argument('-unconstrained', '-Unconstrained', action='store_true', default=False, dest='unconstrained')
+    group_computer.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
+    group_computer.add_argument('-laps', '-LAPS', action='store_true', default=False, dest='laps')
 
     #domain controller
     get_domaincontroller_parser = subparsers.add_parser('Get-DomainController', aliases=['NetDomainController '], exit_on_error=False)
@@ -129,11 +131,17 @@ def powerview_arg_parse(cmd):
     get_domaintrust_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domaintrust_parser.add_argument('-where', '-Where', action='store', dest='where')
 
-    # add operations
+    # add domain group members
     add_domaingroupmember_parser = subparsers.add_parser('Add-DomainGroupMember',aliases=['Add-GroupMember'], exit_on_error=False)
     add_domaingroupmember_parser.add_argument('-identity', '-Identity', action='store', const=None, dest='identity')
     add_domaingroupmember_parser.add_argument('-members', '-Members', action='store', const=None, dest='members')
     add_domaingroupmember_parser.add_argument('-domain', '-Domain', action='store', dest='server')
+
+    # remove domain group members
+    remove_domaingroupmember_parser = subparsers.add_parser('Remove-DomainGroupMember',aliases=['Remove-GroupMember'], exit_on_error=False)
+    remove_domaingroupmember_parser.add_argument('-identity', '-Identity', action='store', const=None, dest='identity')
+    remove_domaingroupmember_parser.add_argument('-members', '-Members', action='store', const=None, dest='members')
+    remove_domaingroupmember_parser.add_argument('-domain', '-Domain', action='store', dest='server')
 
     # add domain object acl
     add_domainobjectacl_parser = subparsers.add_parser('Add-DomainObjectAcl', aliases=['Add-ObjectAcl'], exit_on_error=False)
@@ -338,7 +346,7 @@ def main():
                                         pywerview.remove_domainobjectacl(pv_args)
                                 else:
                                     logging.error('-TargetIdentity , -PrincipalIdentity and -Rights flags are required')
-                            elif pv_args.module.casefold() == 'add-domaingroupmember' or pv_args.module.casefold() == 'get-groupmember':
+                            elif pv_args.module.casefold() == 'add-domaingroupmember' or pv_args.module.casefold() == 'add-groupmember':
                                 if pv_args.identity is not None and pv_args.members is not None:
                                     suceed = False
                                     if temp_pywerview:
@@ -348,6 +356,18 @@ def main():
 
                                     if succeed:
                                         logging.info(f'User {pv_args.members} successfully added to {pv_args.identity}')
+                                else:
+                                    logging.error('-Identity and -Members flags required')
+                            elif pv_args.module.casefold() == 'remove-domaingroupmember' or pv_args.module.casefold() == 'remove-groupmember':
+                                if pv_args.identity is not None and pv_args.members is not None:
+                                    suceed = False
+                                    if temp_pywerview:
+                                        succeed = temp_pywerview.remove_domaingroupmember(pv_args.identity, pv_args.members, pv_args)
+                                    else:
+                                        succeed =  pywerview.remove_domaingroupmember(pv_args.identity, pv_args.members, pv_args)
+
+                                    if succeed:
+                                        logging.info(f'User {pv_args.members} successfully removed from {pv_args.identity}')
                                 else:
                                     logging.error('-Identity and -Members flags required')
                             elif pv_args.module.casefold() == 'set-domainobject' or pv_args.module.casefold() == 'set-adobject':
