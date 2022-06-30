@@ -1029,9 +1029,13 @@ def addUser(parent, client, root_dn, newUser=None, newPassword=None):
     """
     if not client.tls_started and not client.server.ssl:
         LOG.info('Adding a user account to the domain requires TLS but ldap:// scheme provided. Switching target to LDAPS via StartTLS')
-        if not self.client.start_tls():
-            LOG.error('StartTLS failed')
-            return False
+        try:
+            if not client.start_tls():
+                LOG.error('StartTLS failed')
+                return False
+        except ldap3.core.exceptions.LDAPStartTLSError as e:
+                LOG.error(str(e))
+                return False
 
     # Random password
     if not newPassword:

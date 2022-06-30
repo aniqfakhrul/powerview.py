@@ -35,7 +35,11 @@ class CONNECTION:
             try:
                 return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1_2, self.domain, self.username, self.password, self.lmhash, self.nthash)
             except ldap3.core.exceptions.LDAPSocketOpenError:
-                return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1, self.domain, self.username, self.password, self.lmhash, self.nthash)
+                try:
+                    return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1, self.domain, self.username, self.password, self.lmhash, self.nthash)
+                except:
+                    logging.error('Error bind to LDAPS, falling back to LDAP')
+                    return self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
         else:
             return self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
 
