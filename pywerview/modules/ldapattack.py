@@ -1244,6 +1244,7 @@ class ACLEnum:
 
     def read_dacl(self):
         parsed_dacl = []
+        LOG.debug("Parsing DACL")
         for entry in self.entries:
             dacl_dict = {}
             if len(entry['ntSecurityDescriptor'].raw_values) == 0:
@@ -1262,7 +1263,6 @@ class ACLEnum:
 
     def parseDACL(self, dacl):
         parsed_dacl = []
-        LOG.debug("Parsing DACL")
         for ace in dacl['Data']:
             parsed_ace = self.parseACE(ace)
             if parsed_ace:

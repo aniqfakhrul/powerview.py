@@ -43,7 +43,7 @@ def powerview_arg_parse(cmd):
 
     #domainobjectacl
     get_domainobjectacl_parser = subparsers.add_parser('Get-DomainObjectAcl', aliases=['Get-ObjectAcl'] ,exit_on_error=False)
-    get_domainobjectacl_parser.add_argument('-identity', '-Identity', action='store', default='*', dest='identity')
+    get_domainobjectacl_parser.add_argument('-identity', '-Identity', action='store', dest='identity')
     get_domainobjectacl_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domainobjectacl_parser.add_argument('-securityidentifier', '-SecurityIdentifier', action='store', dest='security_identifier')
     get_domainobjectacl_parser.add_argument('-resolveguids', '-ResolveGUIDs', action='store_true',default=False, dest='resolveguids')
