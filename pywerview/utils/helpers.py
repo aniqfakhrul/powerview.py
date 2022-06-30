@@ -20,6 +20,7 @@ from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
 from impacket.spnego import SPNEGO_NegTokenInit, TypesMech
 from impacket import version
+from impacket.dcerpc.v5 import samr, dtypes
 from impacket.examples import logger
 from impacket.examples.utils import parse_credentials
 from impacket.krb5.kerberosv5 import getKerberosTGT
@@ -343,6 +344,26 @@ def del_added_computer(ldap_session, domain_dumper, domainComputer):
     else:
         logging.critical('Delete computer {} Failed! Maybe the current user does not have permission.'.format(domainComputer))
 
+def cryptPassword(session_key, password):
+    try:
+        from Cryptodome.Cipher import ARC4
+    except Exception:
+        LOG.error("Warning: You don't have any crypto installed. You need pycryptodomex")
+        LOG.error("See https://pypi.org/project/pycryptodomex/")
+
+    sam_user_pass = samr.SAMPR_USER_PASSWORD()
+    encoded_pass = password.encode('utf-16le')
+    plen = len(encoded_pass)
+    sam_user_pass['Buffer'] = b'A' * (512 - plen) + encoded_pass
+    sam_user_pass['Length'] = plen
+    pwdBuff = sam_user_pass.getData()
+
+    rc4 = ARC4.new(session_key)
+    encBuf = rc4.encrypt(pwdBuff)
+
+    sam_user_pass_enc = samr.SAMPR_ENCRYPTED_USER_PASSWORD()
+    sam_user_pass_enc['Buffer'] = encBuf
+    return sam_user_pass_enc
 
 class GETTGT:
     def __init__(self, target, password, domain, options):

@@ -1021,6 +1021,7 @@ def can_add_member(ace):
         return writeprivs
     userprivs = bin_to_string(ace['Ace']['ObjectType']).lower() == 'bf9679c0-0de6-11d0-a285-00aa003049e2'
     return writeprivs and userprivs
+
 class ADUser:
     def __init__(self, client, root_dn, parent=None):
         if parent:
@@ -1090,7 +1091,6 @@ class ADUser:
 
             # Return the DN
             return newUserDn
-
 
 # Universal SIDs
 WELL_KNOWN_SIDS = {

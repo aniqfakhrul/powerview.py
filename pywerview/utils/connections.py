@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from impacket.smbconnection import SMBConnection, SessionError
+from impacket.dcerpc.v5 import samr, epm, transport, rpcrt
 
 from pywerview.utils.helpers import get_machine_name, ldap3_kerberos_login
 
@@ -21,6 +22,9 @@ class CONNECTION:
         self.auth_aes_key = args.auth_aes_key
         self.no_pass = args.no_pass
         self.args = args
+        self.targetIp = args.dc_ip
+
+        self.samr = None
 
     def init_ldap_session(self):
         if self.use_kerberos:
@@ -71,3 +75,22 @@ class CONNECTION:
         except OSError as e:
             logging.error(e)
             return None
+
+    def init_samr_session(self):
+        if not self.samr:
+            self.samr = self.connectSamr()
+        return self.samr
+
+    def connectSamr(self):
+        rpctransport = transport.SMBTransport(self.dc_ip, filename=r'\samr')
+
+        if self.nthash:
+            rpctransport.set_credentials(self.username, self.password, self.domain, lmhash=self.lmhash, nthash=self.nthash)
+        else:
+            rpctransport.set_credentials(self.username, self.password, self.domain)
+
+        dce = rpctransport.get_dce_rpc()
+        dce.set_auth_level(rpcrt.RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+        dce.connect()
+        dce.bind(samr.MSRPC_UUID_SAMR)
+        return dce

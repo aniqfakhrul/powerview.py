@@ -6,6 +6,7 @@ from pywerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser
 from pywerview.modules.ca import CAEnum
 from pywerview.modules.addcomputer import ADDCOMPUTER
 from pywerview.utils.helpers import *
+from pywerview.utils.connections import CONNECTION
 
 import ldap3
 from ldap3.protocol.microsoft import security_descriptor_control
@@ -416,19 +417,45 @@ class PywerView:
             return False
 
     def set_domainuserpassword(self, identity, accountpassword, args=None):
-        entries = self.get_domainobject(identity=identity, properties=['distinguishedName'])
+        entries = self.get_domainuser(identity=identity, properties=['distinguishedName','sAMAccountName'])
         if len(entries) == 0:
-            logging.error(f'No objects found in domain')
+            logging.error(f'No principal object found in domain')
             return
         elif len(entries) > 1:
-            logging.error(f'Multiple objects found in domain. Use specific identifier')
+            logging.error(f'Multiple principal objects found in domain. Use specific identifier')
             return
         logging.info(f'Principal {entries[0].entry_dn} found in domain')
         if self.use_ldaps:
-            modifyPassword.ad_modify_password(self.ldap_session, entries[0].entry_dn, accountpassword, old_password=None)
+            succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0].entry_dn, accountpassword, old_password=None)
+            if succeed:
+                logging.info(f'Password has been successfully changed for user {entries[0]["sAMAccountName"].values[0]}')
+                return True
+            else:
+                logging.error(f'Failed to change password for {entries[0]["sAMAccountName"].values[0]}')
+                return False
         else:
-            print("tak ldaps")
-        return True
+            try:
+                self.samr_conn = CONNECTION(self.args)
+                dce = self.samr_conn.init_samr_session()
+
+                server_handle = samr.hSamrConnect(dce, self.dc_ip + '\x00')['ServerHandle']
+                domainSID = samr.hSamrLookupDomainInSamServer(dce, server_handle, self.domain)['DomainId']
+                domain_handle = samr.hSamrOpenDomain(dce, server_handle, domainId=domainSID)['DomainHandle']
+                userRID = samr.hSamrLookupNamesInDomain(dce, domain_handle, (entries[0]['sAMAccountName'].values[0],))['RelativeIds']['Element'][0]
+                opened_user = samr.hSamrOpenUser(dce, domain_handle, userId=userRID)
+
+                req = samr.SamrSetInformationUser2()
+                req['UserHandle'] = opened_user['UserHandle']
+                req['UserInformationClass'] = samr.USER_INFORMATION_CLASS.UserInternal5Information
+                req['Buffer'] = samr.SAMPR_USER_INFO_BUFFER()
+                req['Buffer']['tag'] = samr.USER_INFORMATION_CLASS.UserInternal5Information
+                req['Buffer']['Internal5']['UserPassword'] = cryptPassword(b'SystemLibraryDTC', accountpassword)
+                req['Buffer']['Internal5']['PasswordExpired'] = 0
+
+                resp = dce.request(req)
+                return True
+            except:
+                return False
 
     def set_domainobject(self,identity, args=None):
         targetobject = self.get_domainobject(identity=identity)
