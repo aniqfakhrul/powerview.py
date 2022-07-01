@@ -97,7 +97,6 @@ class GetUserSPNs:
         # We can't set the KDC to a custom IP when requesting things cross-domain
         # because then the KDC host will be used for both
         # the initial and the referral ticket, which breaks stuff.
-        print(user_domain, target_domain)
         if user_domain != target_domain and self.__kdcHost:
             logging.warning('DC ip will be ignored because of cross-domain targeting.')
             self.__kdcHost = None

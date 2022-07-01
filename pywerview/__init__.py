@@ -311,6 +311,7 @@ def main():
                                 else:
                                     entries = pywerview.get_domainobject(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
+                                properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domainobjectacl(pv_args)

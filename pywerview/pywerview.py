@@ -17,7 +17,7 @@ import re
 
 class PywerView:
 
-    def __init__(self, conn, args):
+    def __init__(self, conn, args, target_server=None):
         self.conn = conn
         self.args = args
         self.username = args.username
