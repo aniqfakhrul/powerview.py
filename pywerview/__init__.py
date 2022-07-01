@@ -469,7 +469,7 @@ def main():
                             print(e)
             except KeyboardInterrupt:
                 print()
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
         print(e)

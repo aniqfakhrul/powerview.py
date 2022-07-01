@@ -101,49 +101,98 @@ class FORMATTER:
 
     def alter_entries(self,entries,cond):
         temp_alter_entries = []
-        left,operator,right = cond.split()
-        left = left.strip()
-        operator = operator.strip()
-        right = right.strip()
+        try:
+            left,right = re.split(' con | cont | conta | contai | contain | contains | eq | equ | equa | equal | match | mat | matc | not | = | != ', cond, flags=re.IGNORECASE)
+            operator = re.search(' con | cont | conta | contai | contain | contains | eq | equ | equa | equal | match | mat | matc | not | = | != ', cond, re.IGNORECASE).group(0)
+            left = left.strip()
+            operator = operator.strip()
+            right = right.strip()
+        except:
+            logging.error('Where argument format error. (e.g. "samaccountname contains admin")')
         if (operator in "contains") or (operator in "match"):
             for entry in entries:
-                temp_entry = json.loads(entry.entry_to_json())
-                for c in list(temp_entry['attributes'].keys()):
-                    if c.casefold() == left.casefold():
-                        left = c
-                        break
-                try:
-                    if right.casefold() in temp_entry['attributes'][left][0].casefold():
-                        temp_alter_entries.append(entry)
-                except KeyError:
-                    return None
+                if isinstance(entry,ldap3.abstract.entry.Entry):
+                    temp_entry = json.loads(entry.entry_to_json())
+                    for c in list(temp_entry['attributes'].keys()):
+                        if c.casefold() == left.casefold():
+                            left = c
+                            break
+                    try:
+                        if right.casefold() in temp_entry['attributes'][left][0].casefold():
+                            temp_alter_entries.append(entry)
+                    except KeyError:
+                        return None
+                elif isinstance(entry['attributes'],list):
+                    temp_aces = []
+                    for ace in entry['attributes']:
+                        for c in list(ace.keys()):
+                            if c.casefold() == left.casefold():
+                                left = c
+                                break
+                        try:
+                            if right.casefold() in ace[left].casefold():
+                                temp_aces.append(ace)
+                        except KeyError:
+                            pass
+                    entry['attributes'] = temp_aces
+                    temp_alter_entries.append(entry)
 
         elif (operator in "equal") or (operator == "="):
             for entry in entries:
-                temp_entry = json.loads(entry.entry_to_json())
-                for c in list(temp_entry['attributes'].keys()):
-                    if c.casefold() == left.casefold():
-                        left = c
-                        break
-                try:
-                    if right.casefold() == temp_entry['attributes'][left][0].casefold():
-                        temp_alter_entries.append(entry)
-                except KeyError:
-                    return None
+                if isinstance(entry,ldap3.abstract.entry.Entry):
+                    temp_entry = json.loads(entry.entry_to_json())
+                    for c in list(temp_entry['attributes'].keys()):
+                        if c.casefold() == left.casefold():
+                            left = c
+                            break
+                    try:
+                        if right.casefold() == temp_entry['attributes'][left][0].casefold():
+                            temp_alter_entries.append(entry)
+                    except KeyError:
+                        pass
+                elif isinstance(entry['attributes'],list):
+                    temp_aces = []
+                    for ace in entry['attributes']:
+                        for c in list(ace.keys()):
+                            if c.casefold() == left.casefold():
+                                left = c
+                                break
+                        try:
+                            if right.casefold() == ace[left].casefold():
+                                temp_aces.append(ace)
+                        except KeyError:
+                            pass
+                    entry['attributes'] = temp_aces
+                    temp_alter_entries.append(entry)
         elif (operator.lower() == "not") or (operator.lower() == "!="):
             for entry in entries:
-                temp_entry = json.loads(entry.entry_to_json())
-                for c in list(temp_entry['attributes'].keys()):
-                    if c.casefold() == left.casefold():
-                        left = c
-                        break
-                try:
-                    if not (len(temp_entry['attributes'][left][0].casefold()) == 0) and (right.casefold() == "null"):
-                        temp_alter_entries.append(entry)
-                    elif temp_entry['attributes'][left][0].casefold() != right.casefold():
-                        temp_alter_entries.append(entry)
-                except KeyError:
-                    return None
+                if isinstance(entry,ldap3.abstract.entry.Entry):
+                    temp_entry = json.loads(entry.entry_to_json())
+                    for c in list(temp_entry['attributes'].keys()):
+                        if c.casefold() == left.casefold():
+                            left = c
+                            break
+                    try:
+                        if not (len(temp_entry['attributes'][left][0].casefold()) == 0) and (right.casefold() == "null"):
+                            temp_alter_entries.append(entry)
+                        elif temp_entry['attributes'][left][0].casefold() != right.casefold():
+                            temp_alter_entries.append(entry)
+                    except KeyError:
+                        pass
+                elif isinstance(entry['attributes'],list):
+                    temp_aces = []
+                    for ace in entry['attributes']:
+                        for c in list(ace.keys()):
+                            if c.casefold() == left.casefold():
+                                left = c
+                                break
+                        try:
+                            if right.casefold() != ace[left].casefold():
+                                temp_aces.append(ace)
+                        except KeyError:
+                            pass
+                    entry['attributes'] = temp_aces
+                    temp_alter_entries.append(entry)
         else:
             logging.error(f'Invalid operator')
 
