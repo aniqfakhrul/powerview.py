@@ -129,6 +129,14 @@ def powerview_arg_parse(cmd):
     get_shares_parser.add_argument('-computername','-ComputerName', action='store', const=None, dest='computername')
     get_shares_parser.add_argument('-domain', '-Domain', action='store', dest='server')
 
+    # invoke kerberoast
+    invoke_kerberoast_parser = subparsers.add_parser('Invoke-Kerberoast', exit_on_error=False)
+    invoke_kerberoast_parser.add_argument('-identity','-Identity', action='store', dest='identity')
+    invoke_kerberoast_parser.add_argument('-ldapfilter','-LDAPFilter', action='store', dest='ldapfilter')
+    invoke_kerberoast_parser.add_argument('-domain', '-Domain', action='store', dest='server')
+    invoke_kerberoast_parser.add_argument('-select', '-Select', action='store', dest='select')
+    invoke_kerberoast_parser.add_argument('-where', '-Where', action='store', dest='where')
+
     #trust
     get_domaintrust_parser = subparsers.add_parser('Get-DomainTrust', aliases=['Get-NetTrust'], exit_on_error=False)
     get_domaintrust_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
@@ -253,6 +261,7 @@ def main():
     setattr(args,'password',password)
     setattr(args,'lmhash',lmhash)
     setattr(args,'nthash', nthash)
+    setattr(args,'init_dc_ip', args.dc_ip)
 
     try:
         conn = CONNECTION(args)
@@ -281,7 +290,7 @@ def main():
                                 conn = CONNECTION(args)
                                 temp_pywerview = PywerView(conn, args)
                             else:
-                                logging.error(f'Domain {pv_args.server} not found')
+                                logging.error(f'Domain {pv_args.server} not found or not up')
                                 continue
 
                         try:
@@ -302,7 +311,6 @@ def main():
                                 else:
                                     entries = pywerview.get_domainobject(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
-                                properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domainobjectacl(pv_args)
@@ -369,6 +377,11 @@ def main():
                                     pywerview.get_shares(pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'invoke-kerberoast':
+                                if temp_pywerview:
+                                    entries = temp_pywerview.invoke_kerberoast(pv_args)
+                                else:
+                                    entries = pywerview.invoke_kerberoast(pv_args)
                             elif pv_args.module.casefold() == 'add-domainobjectacl' or pv_args.module.casefold() == 'add-objectacl':
                                 if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
                                     if temp_pywerview:
@@ -486,7 +499,7 @@ def main():
                                         formatter.print(entries)
 
                             temp_pywerview = None
-                            setattr(args,'dc_ip', args.dc_ip)
+                            setattr(args,'dc_ip', args.init_dc_ip)
                         except ldap3.core.exceptions.LDAPAttributeError as e:
                             print(e)
             except KeyboardInterrupt:

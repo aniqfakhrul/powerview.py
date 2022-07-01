@@ -22,6 +22,7 @@ COMMANDS = {
     'Get-NetUser':['-Identity','-Properties','-LDAPFilter','-Domain','-Select','-PreAuthNotRequired','-AdminCount','-TrustedToAuth','-SPN', '-Where'],
     'Get-Shares':['-Computer','-ComputerName','-Domain'],
     'Get-NetShares':['-Computer','-ComputerName','-Domain'],
+    'Invoke-Kerberoast':['-Identity','-LDAPFilter','-Domain'],
     'Get-DomainObject':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where'],
     'Get-ADObject':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where'],
     'Get-DomainObjectAcl':['-Identity','-Domain','-SecurityIdentifier','-ResolveGUIDs','-Select', '-Where'],

