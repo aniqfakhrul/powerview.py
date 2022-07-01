@@ -102,13 +102,14 @@ class FORMATTER:
     def alter_entries(self,entries,cond):
         temp_alter_entries = []
         try:
-            left,right = re.split(' con | cont | conta | contai | contain | contains | eq | equ | equa | equal | match | mat | matc | not | = | != ', cond, flags=re.IGNORECASE)
-            operator = re.search(' con | cont | conta | contai | contain | contains | eq | equ | equa | equal | match | mat | matc | not | = | != ', cond, re.IGNORECASE).group(0)
-            left = left.strip()
-            operator = operator.strip()
-            right = right.strip()
+            left,right = re.split(' con | cont | conta | contai | contain | contains | eq | equ | equa | equal | match | mat | matc | not | != |!=| = |=', cond, flags=re.IGNORECASE)
+            operator = re.search(' con | cont | conta | contai | contain | contains | eq | equ | equa | equal | match | mat | matc | not | != |!=| = |=', cond, re.IGNORECASE).group(0)
+            left = left.strip("'").strip('"').strip()
+            operator = operator.strip("'").strip('"').strip()
+            right = right.strip("'").strip('"').strip()
         except:
             logging.error('Where argument format error. (e.g. "samaccountname contains admin")')
+            return
         if (operator in "contains") or (operator in "match"):
             for entry in entries:
                 if isinstance(entry,ldap3.abstract.entry.Entry):

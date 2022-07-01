@@ -24,6 +24,7 @@ import shlex
 def powerview_arg_parse(cmd):
     parser = argparse.ArgumentParser(exit_on_error=False)
     subparsers = parser.add_subparsers(dest='module')
+    parser.add_argument('-domain', '-Domain', action='store', dest='server')
 
     #domain
     get_domain_parser = subparsers.add_parser('Get-Domain', aliases=['Get-NetDomain'], exit_on_error=False)
@@ -37,6 +38,7 @@ def powerview_arg_parse(cmd):
     get_domainobject_parser = subparsers.add_parser('Get-DomainObject', aliases=['Get-ADObject'] ,exit_on_error=False)
     get_domainobject_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domainobject_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
+    get_domainobject_parser.add_argument('-ldapfilter', '-LDAPFilter', action='store', dest='ldapfilter')
     get_domainobject_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domainobject_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domainobject_parser.add_argument('-where', '-Where', action='store', dest='where')
@@ -54,6 +56,8 @@ def powerview_arg_parse(cmd):
     get_domaingroup_parser = subparsers.add_parser('Get-DomainGroup', aliases=['Get-NetGroup'], exit_on_error=False)
     get_domaingroup_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domaingroup_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
+    get_domaingroup_parser.add_argument('-ldapfilter', '-LDAPFilter', action='store', dest='ldapfilter')
+    get_domaingroup_parser.add_argument('-admincount', '-AdminCount', action='store_true', default=False, dest='admincount')
     get_domaingroup_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domaingroup_parser.add_argument('-members', '-Members', action='store', dest='members')
     get_domaingroup_parser.add_argument('-select', '-Select', action='store', dest='select')
@@ -63,27 +67,27 @@ def powerview_arg_parse(cmd):
     get_domainuser_parser = subparsers.add_parser('Get-DomainUser', aliases=['Get-NetUser'], exit_on_error=False)
     get_domainuser_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domainuser_parser.add_argument('-properties', '-Properties', action='store',default='*', dest='properties')
+    get_domainuser_parser.add_argument('-ldapfilter', '-LDAPFilter', action='store', dest='ldapfilter')
     get_domainuser_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domainuser_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domainuser_parser.add_argument('-where', '-Where', action='store', dest='where')
-    group_user = get_domainuser_parser.add_mutually_exclusive_group(required=False)
-    group_user.add_argument('-spn', '-SPN', action='store_true', default=False, dest='spn')
-    group_user.add_argument('-admincount', '-AdminCount', action='store_true', default=False, dest='admincount')
-    group_user.add_argument('-preauthnotrequired', '-PreAuthNotRequired', action='store_true', default=False, dest='preauthnotrequired')
-    group_user.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
-    group_user.add_argument('-allowdelegation', '-AllowDelegation', action='store_true', default=False, dest='allowdelegation')
+    get_domainuser_parser.add_argument('-spn', '-SPN', action='store_true', default=False, dest='spn')
+    get_domainuser_parser.add_argument('-admincount', '-AdminCount', action='store_true', default=False, dest='admincount')
+    get_domainuser_parser.add_argument('-preauthnotrequired', '-PreAuthNotRequired', action='store_true', default=False, dest='preauthnotrequired')
+    get_domainuser_parser.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
+    get_domainuser_parser.add_argument('-allowdelegation', '-AllowDelegation', action='store_true', default=False, dest='allowdelegation')
 
     #computers
     get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer', aliases=['Get-NetComputer'],exit_on_error=False)
     get_domaincomputer_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domaincomputer_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
+    get_domaincomputer_parser.add_argument('-ldapfilter', '-LDAPFilter', action='store', dest='ldapfilter')
     get_domaincomputer_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domaincomputer_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domaincomputer_parser.add_argument('-where', '-Where', action='store', dest='where')
-    group_computer = get_domaincomputer_parser.add_mutually_exclusive_group(required=False)
-    group_computer.add_argument('-unconstrained', '-Unconstrained', action='store_true', default=False, dest='unconstrained')
-    group_computer.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
-    group_computer.add_argument('-laps', '-LAPS', action='store_true', default=False, dest='laps')
+    get_domaincomputer_parser.add_argument('-unconstrained', '-Unconstrained', action='store_true', default=False, dest='unconstrained')
+    get_domaincomputer_parser.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
+    get_domaincomputer_parser.add_argument('-laps', '-LAPS', action='store_true', default=False, dest='laps')
 
     #domain controller
     get_domaincontroller_parser = subparsers.add_parser('Get-DomainController', aliases=['NetDomainController '], exit_on_error=False)
@@ -97,6 +101,7 @@ def powerview_arg_parse(cmd):
     get_domaingpo_parser = subparsers.add_parser('Get-DomainGPO', aliases=['Get-NetGPO'], exit_on_error=False)
     get_domaingpo_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domaingpo_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
+    get_domaingpo_parser.add_argument('-ldapfilter', '-LDAPFilter', action='store', dest='ldapfilter')
     get_domaingpo_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domaingpo_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domaingpo_parser.add_argument('-where', '-Where', action='store', dest='where')
@@ -105,6 +110,7 @@ def powerview_arg_parse(cmd):
     get_domainou_parser = subparsers.add_parser('Get-DomainOU', aliases=['Get-NetOU'], exit_on_error=False)
     get_domainou_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domainou_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
+    get_domainou_parser.add_argument('-ldapfilter', '-LDAPFilter', action='store', dest='ldapfilter')
     get_domainou_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domainou_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domainou_parser.add_argument('-gplink', '-GPLink', action='store', dest='gplink')
@@ -265,79 +271,95 @@ def main():
 
                 if cmd:
                     pv_args = powerview_arg_parse(shlex.split(cmd))
+
                     if pv_args is not None:
-                        try:
-                            if pv_args.server and pv_args.server != args.domain:
-                                foreign_dc_address = get_principal_dc_address(pv_args.server,args.dc_ip)
-                                if foreign_dc_address:
-                                    setattr(args,'dc_ip', foreign_dc_address)
-                                    conn = CONNECTION(args)
-                                    temp_pywerview = PywerView(conn, args)
-                                else:
-                                    logging.error(f'Domain {pv_args.server} not found')
-                                    continue
 
-                            if pv_args.properties:
-                                properties = pv_args.properties.split(',')
-
-                            identity = pv_args.identity
-                        except:
-                            pass
+                        if pv_args.server and pv_args.server != args.domain:
+                            foreign_dc_address = get_principal_dc_address(pv_args.server,args.dc_ip)
+                            if foreign_dc_address:
+                                setattr(args,'dc_ip', foreign_dc_address)
+                                conn = CONNECTION(args)
+                                temp_pywerview = PywerView(conn, args)
+                            else:
+                                logging.error(f'Domain {pv_args.server} not found')
+                                continue
 
                         try:
                             entries = None
 
                             if pv_args.module.casefold() == 'get-domain' or pv_args.module.casefold() == 'get-netdomain':
+                                properties = pv_args.properties.replace(" ","").split(',')
+                                identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domain(pv_args, properties, identity)
                                 else:
                                     entries = pywerview.get_domain(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainobject' or pv_args.module.casefold() == 'get-adobject':
+                                properties = pv_args.properties.replace(" ","").split(',')
+                                identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domainobject(pv_args, properties, identity)
                                 else:
                                     entries = pywerview.get_domainobject(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
+                                properties = pv_args.properties.replace(" ","").split(',')
+                                identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domainobjectacl(pv_args)
                                 else:
                                     entries = pywerview.get_domainobjectacl(pv_args)
                             elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
+                                properties = pv_args.properties.replace(" ","").split(',')
+                                identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domainuser(pv_args, properties, identity)
                                 else:
                                     entries = pywerview.get_domainuser(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaincomputer' or pv_args.module.casefold() == 'get-netcomputer':
+                                properties = pv_args.properties.replace(" ","").split(',')
+                                identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domaincomputer(pv_args, properties, identity)
                                 else:
                                     entries = pywerview.get_domaincomputer(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaingroup' or pv_args.module.casefold() == 'get-netgroup':
+                                properties = pv_args.properties.replace(" ","").split(',')
+                                identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domaingroup(pv_args, properties, identity)
                                 else:
                                     entries = pywerview.get_domaingroup(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaincontroller' or pv_args.module.casefold() == 'get-netdomaincontroller':
+                                properties = pv_args.properties.replace(" ","").split(',')
+                                identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domaincontroller(pv_args, properties, identity)
                                 else:
                                     entries = pywerview.get_domaincontroller(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaingpo' or pv_args.module.casefold() == 'get-netgpo':
+                                properties = pv_args.properties.replace(" ","").split(',')
+                                identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domaingpo(pv_args, properties, identity)
                                 else:
                                     entries = pywerview.get_domaingpo(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainou' or pv_args.module.casefold() == 'get-netou':
+                                properties = pv_args.properties.replace(" ","").split(',')
+                                identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domainou(pv_args, properties, identity)
                                 else:
                                     entries = pywerview.get_domainou(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-netca':
+                                properties = pv_args.properties.replace(" ","").split(',')
+                                identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domainca(pv_args, properties)
                                 else:
                                     entries = pywerview.get_domainca(pv_args, properties)
                             elif pv_args.module.casefold() == 'get-domaintrust' or pv_args.module.casefold() == 'get-nettrust':
+                                properties = pv_args.properties.replace(" ","").split(',')
+                                identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domaintrust(pv_args, properties, identity)
                                 else:

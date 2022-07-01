@@ -37,20 +37,24 @@ class PywerView:
 
     def get_domainuser(self, args=None, properties=['cn','name','sAMAccountName','distinguishedName','mail','description','lastLogoff','lastLogon','memberof','objectSid','userPrincipalName'], identity='*'):
         ldap_filter = ""
-        
+        identity_filter = f"(|(sAMAccountName={identity}))"
+
         if args:
             if args.preauthnotrequired:
-                ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=4194304)'
-            elif args.admincount:
-                ldap_filter = f'(admincount=1)'
-            elif args.allowdelegation:
-                ldap_filter = f'!(userAccountControl:1.2.840.113556.1.4.803:=1048574)'
-            elif args.trustedtoauth:
-                ldap_filter = f'(msds-allowedtodelegateto=*)'
-            elif args.spn:
-                ldap_filter = f'(servicePrincipalName=*)'
+                ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=4194304)'
+            if args.admincount:
+                ldap_filter += f'(admincount=1)'
+            if args.allowdelegation:
+                ldap_filter += f'!(userAccountControl:1.2.840.113556.1.4.803:=1048574)'
+            if args.trustedtoauth:
+                ldap_filter += f'(msds-allowedtodelegateto=*)'
+            if args.spn:
+                ldap_filter += f'(servicePrincipalName=*)'
+            if args.ldapfilter:
+                logging.debug(f'[Get-DomainUser] Using additional LDAP filter: {args.ldapfilter}')
+                ldap_filter += f'{args.ldapfilter}'
 
-        ldap_filter = f'(&(samAccountType=805306368)(|(sAMAccountName={identity})){ldap_filter})'
+        ldap_filter = f'(&(samAccountType=805306368){identity_filter}{ldap_filter})'
 
         logging.debug(f'LDAP search filter: {ldap_filter}')
 
@@ -64,7 +68,12 @@ class PywerView:
         return self.ldap_session.entries
 
     def get_domainobject(self, args=None, properties='*', identity='*'):
-        ldap_filter = f'(&(|(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity}))))'
+        identity_fiter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
+        ldap_filter = f"(|{identity_filter})"
+        if args.ldapfilter:
+            logging.debug(f'[Get-DomainObject] Using additional LDAP filter: {args.ldapfilter}')
+            ldap_filter += f"{args.ldap_filter}"
+        ldap_fiter = f"(&{ldap_filter})"
         logging.debug(f'LDAP search filter: {ldap_filter}')
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
@@ -73,6 +82,10 @@ class PywerView:
         ldap_filter = ""
         if args.gplink:
             ldap_filter += f"(gplink=*{args.gplink}*)"
+        if args.ldapfilter:
+            logging.debug(f'[Get-DomainOU] Using additional LDAP filter: {args.ldapfilter}')
+            ldap_filter += f"{args.ldapfilter}"
+
         ldap_filter = f'(&(objectCategory=organizationalUnit)(|(name={identity})){ldap_filter})'
         logging.debug(f'LDAP search filter: {ldap_filter}')
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
@@ -94,6 +107,9 @@ class PywerView:
             if not principalsid_entry:
                 logging.error(f'Principal {args.security_identifier} not found in domain')
                 return
+            elif len(principalsid_entry) > 1:
+                logging.error(f'[SecurityIdentifier] Multiple identities found. Use exact match')
+                return
             args.security_identifier = principalsid_entry[0]['objectSid'].values[0]
 
         if args.identity:
@@ -103,7 +119,7 @@ class PywerView:
                 logging.error(f'Identity {args.identity} not found in domain')
                 return
             elif len(identity_entries) > 1:
-                logging.error(f'Multiple identities found. Use exact match')
+                logging.error(f'[Identity] Multiple identities found. Use exact match')
                 return
             logging.debug(f'Target identity found in domain {identity_entries[0]["distinguishedName"].values[0]}')
             identity = identity_entries[0]['objectSid'].values[0]
@@ -124,16 +140,20 @@ class PywerView:
 
     def get_domaincomputer(self, args=None, properties='*', identity='*'):
         ldap_filter = ""
+        identity_filter = f"(|(name={identity})(sAMAccountName={identity}))"
 
         if args:
             if args.unconstrained:
-                ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
-            elif args.trustedtoauth:
-                ldap_filter = f'(msds-allowedtodelegateto=*)'
-            elif args.laps:
-                ldap_filter = f'(ms-MCS-AdmPwd=*)'
+                ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
+            if args.trustedtoauth:
+                ldap_filter += f'(msds-allowedtodelegateto=*)'
+            if args.laps:
+                ldap_filter += f'(ms-MCS-AdmPwd=*)'
+            if args.ldapfilter:
+                logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
+                ldap_filter += f"{args.ldapfilter}"
 
-        ldap_filter = f'(&(samAccountType=805306369)(|(name={identity})){ldap_filter})'
+        ldap_filter = f'(&(samAccountType=805306369){identity_filter}{ldap_filter})'
 
         logging.debug(f'LDAP search filter: {ldap_filter}')
 
@@ -141,25 +161,31 @@ class PywerView:
         return self.ldap_session.entries
 
     def get_domaingroup(self, args=None, properties='*', identity='*'):
-        ldap_filter = f'(&(objectCategory=group)(|(|(samAccountName={identity})(name={identity}))))'
+        ldap_filter = ""
+        identity_filter = f"(|(|(samAccountName={identity})(name={identity})))"
+        
+        if args:
+            if args.admincount:
+                ldap_filter += f"(admincount=1)"
+            if args.ldapfilter:
+                logging.debug(f'[Get-DomainGroup] Using additional LDAP filter: {args.ldapfilter}')
+                ldap_filter += f"{args.ldapfilter}"
+
+        ldap_filter = f'(&(objectCategory=group){identity_filter}{ldap_filter})'
         logging.debug(f'LDAP search filter: {ldap_filter}')
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
     def get_domaingpo(self, args=None, properties='*', identity='*'):
-        ldap_filter = f'(&(objectCategory=groupPolicyContainer)(cn={identity}))'
-        logging.debug(f'LDAP search filter: {ldap_filter}')
-        self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        return self.ldap_session.entries
-
         ldap_filter = ""
-        if args.gplink:
-            ldap_filter += f'(gplink={args.gplink})'
+        identity_filter = f"(cn={identity})"
+        if args:
+            if args.ldapfilter:
+                logging.debug(f'[Get-DomainGPO] Using additional LDAP filter: {args.ldapfilter}')
+                ldap_filter += f"{args.ldapfilter}"
 
-        ldap_filter = f'(&(objectCategory=organizationalUnit)(|(name={identity})){ldap_filter})'
-
+        ldap_filter = f'(&(objectCategory=groupPolicyContainer){identity_filter}{ldap_filter})'
         logging.debug(f'LDAP search filter: {ldap_filter}')
-
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
