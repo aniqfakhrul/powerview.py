@@ -115,8 +115,8 @@ class PywerView:
                 return
             args.security_identifier = principalsid_entry[0]['objectSid'].values[0]
 
-        if args.identity:
-            identity = args.identity
+        identity = args.identity
+        if identity != "*":
             identity_entries = self.get_domainobject(identity=identity,properties=['objectSid','distinguishedName'])
             if len(identity_entries) == 0:
                 logging.error(f'Identity {args.identity} not found in domain')
@@ -127,7 +127,6 @@ class PywerView:
             logging.debug(f'Target identity found in domain {identity_entries[0]["distinguishedName"].values[0]}')
             identity = identity_entries[0]['objectSid'].values[0]
         else:
-            identity = "*"
             logging.info('Recursing all domain object. This might take a while')
 
         self.ldap_session.search(self.root_dn, f'(objectSid={identity})', attributes=['nTSecurityDescriptor','sAMAccountName','distinguishedName','objectSid'], controls=security_descriptor_control(sdflags=0x04))

@@ -33,6 +33,7 @@ def powerview_arg_parse(cmd):
     get_domain_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domain_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domain_parser.add_argument('-where', '-Where', action='store', dest='where')
+    get_domain_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #domainobject
     get_domainobject_parser = subparsers.add_parser('Get-DomainObject', aliases=['Get-ADObject'] ,exit_on_error=False)
@@ -42,15 +43,17 @@ def powerview_arg_parse(cmd):
     get_domainobject_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domainobject_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domainobject_parser.add_argument('-where', '-Where', action='store', dest='where')
+    get_domainobject_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #domainobjectacl
     get_domainobjectacl_parser = subparsers.add_parser('Get-DomainObjectAcl', aliases=['Get-ObjectAcl'] ,exit_on_error=False)
-    get_domainobjectacl_parser.add_argument('-identity', '-Identity', action='store', dest='identity')
+    get_domainobjectacl_parser.add_argument('-identity', '-Identity', action='store', default='*', dest='identity')
     get_domainobjectacl_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domainobjectacl_parser.add_argument('-securityidentifier', '-SecurityIdentifier', action='store', dest='security_identifier')
     get_domainobjectacl_parser.add_argument('-resolveguids', '-ResolveGUIDs', action='store_true',default=False, dest='resolveguids')
     get_domainobjectacl_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domainobjectacl_parser.add_argument('-where', '-Where', action='store', dest='where')
+    get_domainobjectacl_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #group
     get_domaingroup_parser = subparsers.add_parser('Get-DomainGroup', aliases=['Get-NetGroup'], exit_on_error=False)
@@ -62,6 +65,7 @@ def powerview_arg_parse(cmd):
     get_domaingroup_parser.add_argument('-members', '-Members', action='store', dest='members')
     get_domaingroup_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domaingroup_parser.add_argument('-where', '-Where', action='store', dest='where')
+    get_domaingroup_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #user
     get_domainuser_parser = subparsers.add_parser('Get-DomainUser', aliases=['Get-NetUser'], exit_on_error=False)
@@ -76,6 +80,7 @@ def powerview_arg_parse(cmd):
     get_domainuser_parser.add_argument('-preauthnotrequired', '-PreAuthNotRequired', action='store_true', default=False, dest='preauthnotrequired')
     get_domainuser_parser.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
     get_domainuser_parser.add_argument('-allowdelegation', '-AllowDelegation', action='store_true', default=False, dest='allowdelegation')
+    get_domainuser_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #computers
     get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer', aliases=['Get-NetComputer'],exit_on_error=False)
@@ -88,6 +93,7 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-unconstrained', '-Unconstrained', action='store_true', default=False, dest='unconstrained')
     get_domaincomputer_parser.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
     get_domaincomputer_parser.add_argument('-laps', '-LAPS', action='store_true', default=False, dest='laps')
+    get_domaincomputer_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #domain controller
     get_domaincontroller_parser = subparsers.add_parser('Get-DomainController', aliases=['NetDomainController '], exit_on_error=False)
@@ -96,6 +102,7 @@ def powerview_arg_parse(cmd):
     get_domaincontroller_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domaincontroller_parser.add_argument('-select', '-Select',action='store', dest='select')
     get_domaincontroller_parser.add_argument('-where', '-Where', action='store', dest='where')
+    get_domaincontroller_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #gpo
     get_domaingpo_parser = subparsers.add_parser('Get-DomainGPO', aliases=['Get-NetGPO'], exit_on_error=False)
@@ -105,6 +112,7 @@ def powerview_arg_parse(cmd):
     get_domaingpo_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domaingpo_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domaingpo_parser.add_argument('-where', '-Where', action='store', dest='where')
+    get_domaingpo_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # OU
     get_domainou_parser = subparsers.add_parser('Get-DomainOU', aliases=['Get-NetOU'], exit_on_error=False)
@@ -115,6 +123,7 @@ def powerview_arg_parse(cmd):
     get_domainou_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domainou_parser.add_argument('-gplink', '-GPLink', action='store', dest='gplink')
     get_domainou_parser.add_argument('-where', '-Where', action='store', dest='where')
+    get_domainou_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # Find CAs
     get_domainca_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-NetCA'], exit_on_error=False)
@@ -122,6 +131,7 @@ def powerview_arg_parse(cmd):
     get_domainca_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domainca_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domainca_parser.add_argument('-where', '-Where', action='store', dest='where')
+    get_domainca_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # shares
     get_shares_parser = subparsers.add_parser('Get-Shares', aliases=['Get-NetShares'], exit_on_error=False)
@@ -136,6 +146,7 @@ def powerview_arg_parse(cmd):
     invoke_kerberoast_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     invoke_kerberoast_parser.add_argument('-select', '-Select', action='store', dest='select')
     invoke_kerberoast_parser.add_argument('-where', '-Where', action='store', dest='where')
+    invoke_kerberoast_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #trust
     get_domaintrust_parser = subparsers.add_parser('Get-DomainTrust', aliases=['Get-NetTrust'], exit_on_error=False)
@@ -144,6 +155,7 @@ def powerview_arg_parse(cmd):
     get_domaintrust_parser.add_argument('-domain', '-Domain', action='store', dest='server')
     get_domaintrust_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domaintrust_parser.add_argument('-where', '-Where', action='store', dest='where')
+    get_domaintrust_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # add domain group members
     add_domaingroupmember_parser = subparsers.add_parser('Add-DomainGroupMember',aliases=['Add-GroupMember'], exit_on_error=False)
