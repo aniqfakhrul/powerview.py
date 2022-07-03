@@ -106,9 +106,7 @@ class FORMATTER:
         temp_alter_entries = []
         try:
             left,right = re.split(' con | cont | conta | contai | contain | contains | eq | equ | equa | equal | match | mat | matc | not | != |!=| = |=C|=D', cond, flags=re.IGNORECASE)
-            print(left,right)
             operator = re.search(' con | cont | conta | contai | contain | contains | eq | equ | equa | equal | match | mat | matc | not | != |!=| = |=C|=D', cond, re.IGNORECASE).group(0)
-            print(operator)
             left = left.strip("'").strip('"').strip()
             operator = operator.strip("'").strip('"').strip()
             right = right.strip("'").strip('"').strip()
