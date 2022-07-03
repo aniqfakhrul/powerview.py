@@ -14,8 +14,9 @@ class FORMATTER:
     def print_index(self, entries):
         i = int(self.args.select)
         for entry in entries[0:i]:
-            if isinstance(entry,ldap3.abstract.entry.Entry):
-                entry = json.loads(entry.entry_to_json())
+            if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry, dict):
+                if isinstance(entry, ldap3.abstract.entry.Entry):
+                    entry = json.loads(entry.entry_to_json())
                 for attr,value in entry['attributes'].items():
                     # Check dictionary in a list
                     for i in value:
@@ -40,8 +41,9 @@ class FORMATTER:
     def print_select(self,entries):
         select_attributes = self.args.select.split(",")
         for entry in entries:
-            if isinstance(entry,ldap3.abstract.entry.Entry):
-                entry = json.loads(entry.entry_to_json())
+            if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry, dict):
+                if isinstance(entry, ldap3.abstract.entry.Entry):
+                    entry = json.loads(entry.entry_to_json())
                 for key in list(entry["attributes"].keys()):
                     for attr in select_attributes:
                         if (attr.casefold() == key.casefold()):
@@ -76,8 +78,9 @@ class FORMATTER:
 
     def print(self,entries):
         for entry in entries:
-            if isinstance(entry,ldap3.abstract.entry.Entry):
-                entry = json.loads(entry.entry_to_json())
+            if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry, dict):
+                if isinstance(entry, ldap3.abstract.entry.Entry):
+                    entry = json.loads(entry.entry_to_json())
                 for attr,value in entry['attributes'].items():
                     # Check dictionary in a list
                     for i in value:
@@ -112,8 +115,9 @@ class FORMATTER:
             return
         if (operator in "contains") or (operator in "match"):
             for entry in entries:
-                if isinstance(entry,ldap3.abstract.entry.Entry):
-                    temp_entry = json.loads(entry.entry_to_json())
+                if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry, dict):
+                    if isinstance(entry, ldap3.abstract.entry.Entry):
+                        temp_entry = json.loads(entry.entry_to_json())
                     for c in list(temp_entry['attributes'].keys()):
                         if c.casefold() == left.casefold():
                             left = c
@@ -140,8 +144,9 @@ class FORMATTER:
 
         elif (operator in "equal") or (operator == "="):
             for entry in entries:
-                if isinstance(entry,ldap3.abstract.entry.Entry):
-                    temp_entry = json.loads(entry.entry_to_json())
+                if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry, dict):
+                    if isinstance(entry, ldap3.abstract.entry.Entry):
+                        temp_entry = json.loads(entry.entry_to_json())
                     for c in list(temp_entry['attributes'].keys()):
                         if c.casefold() == left.casefold():
                             left = c
@@ -167,8 +172,9 @@ class FORMATTER:
                     temp_alter_entries.append(entry)
         elif (operator.lower() == "not") or (operator.lower() == "!="):
             for entry in entries:
-                if isinstance(entry,ldap3.abstract.entry.Entry):
-                    temp_entry = json.loads(entry.entry_to_json())
+                if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry, dict):
+                    if isinstance(entry, ldap3.abstract.entry.Entry):
+                        temp_entry = json.loads(entry.entry_to_json())
                     for c in list(temp_entry['attributes'].keys()):
                         if c.casefold() == left.casefold():
                             left = c
@@ -198,7 +204,7 @@ class FORMATTER:
             logging.error(f'Invalid operator')
 
         return temp_alter_entries
-    
+
 def get_max_len(lst):
     return len(max(lst,key=len)) + 5
 

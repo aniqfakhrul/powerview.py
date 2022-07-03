@@ -526,10 +526,10 @@ class PywerView:
         if args.server:
             target_domain = args.server
         userspn = GetUserSPNs(self.username, self.password, self.domain, target_domain, self.args, identity=args.identity)
-        userspn.run(entries)
+        entries_out = userspn.run(entries)
 
         # properly formatted for output
-        return False
+        return entries_out
 
     def get_shares(self, args):
         if args.computer:

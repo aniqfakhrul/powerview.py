@@ -210,7 +210,10 @@ def powerview_arg_parse(cmd):
     subparsers.add_parser('clear', exit_on_error=False)
 
     try:
-        args = parser.parse_args(cmd)
+        args, unknown = parser.parse_known_args(cmd)
+        if unknown:
+            logging.error(f"Unrecognized argument: {' '.join(unknown)}")
+            return None
         return args
     except argparse.ArgumentError as e:
         for i in list(COMMANDS.keys()):
@@ -311,7 +314,6 @@ def main():
                                 else:
                                     entries = pywerview.get_domainobject(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
-                                properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domainobjectacl(pv_args)
