@@ -203,6 +203,12 @@ class PywerView:
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
+    def get_domaindnszone(self, args=None, properties='*'):
+        ldap_filter = "(objectClass=dnsZone)"
+        search_base = f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
+        self.ldap_session.search(search_base, ldap_filter, attributes=properties)
+        return self.ldap_session.entries
+
     def get_domainca(self, args=None, properties='*'):
         ca_fetch = CAEnum(self.ldap_session, self.root_dn)
         entries = ca_fetch.fetch_enrollment_services(properties)

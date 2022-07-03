@@ -125,6 +125,14 @@ def powerview_arg_parse(cmd):
     get_domainou_parser.add_argument('-where', '-Where', action='store', dest='where')
     get_domainou_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
+    # Find DNS Zone
+    get_domaindns_parser = subparsers.add_parser('Get-DomainDNSZone', exit_on_error=False)
+    get_domaindns_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
+    get_domaindns_parser.add_argument('-domain', '-Domain', action='store', dest='server')
+    get_domaindns_parser.add_argument('-select', '-Select', action='store', dest='select')
+    get_domaindns_parser.add_argument('-where', '-Where', action='store', dest='where')
+    get_domaindns_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
+
     # Find CAs
     get_domainca_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-NetCA'], exit_on_error=False)
     get_domainca_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
@@ -296,8 +304,7 @@ def main():
                 if cmd:
                     pv_args = powerview_arg_parse(shlex.split(cmd))
 
-                    if pv_args is not None:
-
+                    if pv_args:
                         if pv_args.server and pv_args.server != args.domain:
                             foreign_dc_address = get_principal_dc_address(pv_args.server,args.dc_ip)
                             if foreign_dc_address:
@@ -373,9 +380,14 @@ def main():
                                     entries = temp_pywerview.get_domainou(pv_args, properties, identity)
                                 else:
                                     entries = pywerview.get_domainou(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domaindnszone':
+                                properties = pv_args.properties.replace(" ","").split(',')
+                                if temp_pywerview:
+                                    entries = temp_pywerview.get_domaindnszone(pv_args, properties)
+                                else:
+                                    entries = pywerview.get_domaindnszone(pv_args, properties)
                             elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-netca':
                                 properties = pv_args.properties.replace(" ","").split(',')
-                                identity = pv_args.identity.strip()
                                 if temp_pywerview:
                                     entries = temp_pywerview.get_domainca(pv_args, properties)
                                 else:

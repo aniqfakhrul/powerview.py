@@ -8,6 +8,7 @@ COMMANDS = {
     'Get-NetDomain':['-Identity','-Properties','-Domain','-Select', '-Where', '-NoWrap'],
     'Get-DomainController':['-Identity','-Properties','-Domain','-Select', '-Where', '-NoWrap'],
     'Get-NetDomainController':['-Identity','-Properties','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-DomainDNSZone':['-Properties','-Domain','-Select','-Where', '-NoWrap'],
     'Get-DomainCA':['-Properties','-Domain','-Select','-Where', '-NoWrap'],
     'Get-NetCA':['-Properties','-Domain','-Select', '-Where', '-NoWrap'],
     'Get-DomainGPO':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-NoWrap'],
