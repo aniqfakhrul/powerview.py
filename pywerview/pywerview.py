@@ -38,7 +38,7 @@ class PywerView:
 
     def get_domainuser(self, args=None, properties=['cn','name','sAMAccountName','distinguishedName','mail','description','lastLogoff','lastLogon','memberof','objectSid','userPrincipalName'], identity='*'):
         ldap_filter = ""
-        identity_filter = f"(|(sAMAccountName={identity}))"
+        identity_filter = f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
 
         if args:
             if args.preauthnotrequired:
