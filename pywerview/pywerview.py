@@ -142,7 +142,7 @@ class PywerView:
 
     def get_domaincomputer(self, args=None, properties='*', identity='*'):
         ldap_filter = ""
-        identity_filter = f"(|(name={identity})(sAMAccountName={identity}))"
+        identity_filter = f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
 
         if args:
             if args.unconstrained:
