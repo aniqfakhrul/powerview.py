@@ -127,7 +127,7 @@ class PywerView:
             logging.debug(f'Target identity found in domain {identity_entries[0]["distinguishedName"].values[0]}')
             identity = identity_entries[0]['objectSid'].values[0]
         else:
-            logging.info('Recursing all domain object. This might take a while')
+            logging.info('Recursing all domain objects. This might take a while')
 
         self.ldap_session.search(self.root_dn, f'(objectSid={identity})', attributes=['nTSecurityDescriptor','sAMAccountName','distinguishedName','objectSid'], controls=security_descriptor_control(sdflags=0x04))
         entries = self.ldap_session.entries
@@ -305,13 +305,14 @@ class PywerView:
             'S-1-5-32-579' : 'BUILTIN\\AccessControlAssistanceOperators',
             'S-1-5-32-580' : 'BUILTIN\\AccessControlAssistanceOperators',
         }
+        domain_name = self.get_domain()[0]['name'].values[0]
         identity = switcher_sid.get(objectsid)
         if identity:
-            identity = f"{self.domain}\\{identity}"
+            identity = f"{domain_name}\\{identity}"
         else:
             self.ldap_session.search(self.root_dn,ldap_filter,attributes=['sAMAccountName'])
             if len(self.ldap_session.entries) != 0:
-                identity = f"{self.domain}\\{self.ldap_session.entries[0]['sAMAccountName'].values[0]}"
+                identity = f"{domain_name}\\{self.ldap_session.entries[0]['sAMAccountName'].values[0]}"
             else:
                 logging.info("No objects found")
                 return
