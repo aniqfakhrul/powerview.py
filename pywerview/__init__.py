@@ -165,6 +165,11 @@ def powerview_arg_parse(cmd):
     get_domaintrust_parser.add_argument('-where', '-Where', action='store', dest='where')
     get_domaintrust_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
+    # convert from sid
+    convertfrom_sid_parser = subparsers.add_parser('ConvertFrom-SID' ,exit_on_error=False)
+    convertfrom_sid_parser.add_argument('-objectsid','-ObjectSID', action='store', dest='objectsid')
+    convertfrom_sid_parser.add_argument('-domain', '-Domain', action='store', dest='server')
+
     # add domain group members
     add_domaingroupmember_parser = subparsers.add_parser('Add-DomainGroupMember',aliases=['Add-GroupMember'], exit_on_error=False)
     add_domaingroupmember_parser.add_argument('-identity', '-Identity', action='store', const=None, dest='identity')
@@ -399,6 +404,15 @@ def main():
                                     entries = temp_pywerview.get_domaintrust(pv_args, properties, identity)
                                 else:
                                     entries = pywerview.get_domaintrust(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'convertfrom-sid':
+                                if pv_args.objectsid:
+                                    objectsid = pv_args.objectsid.strip()
+                                    if temp_pywerview:
+                                        entries = temp_pywerview.convertfrom_sid(objectsid=objectsid)
+                                    else:
+                                        entries = pywerview.convertfrom_sid(objectsid=objectsid)
+                                else:
+                                    logging.error("-ObjectSID flag is required")
                             elif pv_args.module.casefold() == 'get-shares' or pv_args.module.casefold() == 'get-netshares':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     pywerview.get_shares(pv_args)

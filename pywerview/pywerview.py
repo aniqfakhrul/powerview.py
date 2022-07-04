@@ -222,13 +222,100 @@ class PywerView:
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         new_entries = []
         for entry in self.ldap_session.entries:
-            for index in range(len(entry['trustDirection'].values)):
-                entry['trustDirection'].values[index] = switcher_trustDirection.get(entry['trustDirection'].values[index])
-            for index in range(len(entry['trustType'].values)):
-                entry['trustType'].values[index] = switcher_trusttype.get(entry['trustType'].values[index])
-            for index in range(len(entry['trustAttributes'].values)):
-                entry['trustAttributes'].values[index] = switcher_trustAttributes.get(entry['trustAttributes'].values[index])
+            try:
+                for index in range(len(entry['trustDirection'].values)):
+                    entry['trustDirection'].values[index] = switcher_trustDirection.get(entry['trustDirection'].values[index])
+            except:
+                pass
+            try:
+                for index in range(len(entry['trustType'].values)):
+                    entry['trustType'].values[index] = switcher_trusttype.get(entry['trustType'].values[index])
+            except:
+                pass
+            try:
+                for index in range(len(entry['trustAttributes'].values)):
+                    entry['trustAttributes'].values[index] = switcher_trustAttributes.get(entry['trustAttributes'].values[index])
+            except:
+                pass
         return self.ldap_session.entries
+
+    def convertfrom_sid(self, objectsid, args=None):
+        ldap_filter = f"(|(|(objectSid={objectsid})))"
+        logging.debug(f"LDAP search filter: {ldap_filter}")
+        switcher_sid = {
+            'S-1-0' : 'NullAuthority',
+            'S-1-0-0' : 'Nobody',
+            'S-1-1' : 'WorldAuthority',
+            'S-1-1-0' : 'Everyone',
+            'S-1-2' : 'LocalAuthority',
+            'S-1-2-0' : 'Local',
+            'S-1-2-1' : 'ConsoleLogon',
+            'S-1-3' : 'CreatorAuthority',
+            'S-1-3-0' : 'CreatorOwner',
+            'S-1-3-1' : 'CreatorGroup',
+            'S-1-3-2' : 'CreatorOwnerServer',
+            'S-1-3-3' : 'CreatorGroupServer',
+            'S-1-3-4' : 'OwnerRights',
+            'S-1-4' : 'Non-uniqueAuthority',
+            'S-1-5' : 'NTAuthority',
+            'S-1-5-1' : 'Dialup',
+            'S-1-5-2' : 'Network',
+            'S-1-5-3' : 'Batch',
+            'S-1-5-4' : 'Interactive',
+            'S-1-5-6' : 'Service',
+            'S-1-5-7' : 'Anonymous',
+            'S-1-5-8' : 'Proxy',
+            'S-1-5-9' : 'EnterpriseDomainControllers',
+            'S-1-5-10' : 'PrincipalSelf',
+            'S-1-5-11' : 'AuthenticatedUsers',
+            'S-1-5-12' : 'RestrictedCode',
+            'S-1-5-13' : 'TerminalServerUsers',
+            'S-1-5-14' : 'RemoteInteractiveLogon',
+            'S-1-5-15' : 'ThisOrganization',
+            'S-1-5-17' : 'ThisOrganization',
+            'S-1-5-18' : 'LocalSystem',
+            'S-1-5-19' : 'NTAuthority',
+            'S-1-5-20' : 'NTAuthority',
+            'S-1-5-80-0' : 'AllServices',
+            'S-1-5-32-544' : 'BUILTIN\\Administrators',
+            'S-1-5-32-545' : 'BUILTIN\\Users',
+            'S-1-5-32-546' : 'BUILTIN\\Guests',
+            'S-1-5-32-547' : 'BUILTIN\\PowerUsers',
+            'S-1-5-32-548' : 'BUILTIN\\AccountOperators',
+            'S-1-5-32-549' : 'BUILTIN\\ServerOperators',
+            'S-1-5-32-550' : 'BUILTIN\\PrintOperators',
+            'S-1-5-32-551' : 'BUILTIN\\BackupOperators',
+            'S-1-5-32-552' : 'BUILTIN\\Replicators',
+            'S-1-5-32-554' : 'BUILTIN\\Pre-Windows2000CompatibleAccess',
+            'S-1-5-32-555' : 'BUILTIN\\RemoteDesktopUsers',
+            'S-1-5-32-556' : 'BUILTIN\\NetworkConfigurationOperators',
+            'S-1-5-32-557' : 'BUILTIN\\IncomingForestTrustBuilders',
+            'S-1-5-32-558' : 'BUILTIN\\PerformanceMonitorUsers',
+            'S-1-5-32-559' : 'BUILTIN\\PerformanceLogUsers',
+            'S-1-5-32-560' : 'BUILTIN\\WindowsAuthorizationAccessGroup',
+            'S-1-5-32-561' : 'BUILTIN\\TerminalServerLicenseServers',
+            'S-1-5-32-562' : 'BUILTIN\\DistributedCOMUsers',
+            'S-1-5-32-569' : 'BUILTIN\\CryptographicOperators',
+            'S-1-5-32-573' : 'BUILTIN\\EventLogReaders',
+            'S-1-5-32-574' : 'BUILTIN\\CertificateServiceDCOMAccess',
+            'S-1-5-32-575' : 'BUILTIN\\RDSRemoteAccessServers',
+            'S-1-5-32-576' : 'BUILTIN\\RDSEndpointServers',
+            'S-1-5-32-577' : 'BUILTIN\\RDSManagementServers',
+            'S-1-5-32-578' : 'BUILTIN\\Hyper-VAdministrators',
+            'S-1-5-32-579' : 'BUILTIN\\AccessControlAssistanceOperators',
+            'S-1-5-32-580' : 'BUILTIN\\AccessControlAssistanceOperators',
+        }
+        identity = switcher_sid.get(objectsid)
+        if identity:
+            identity = f"{self.domain}\\{identity}"
+        else:
+            self.ldap_session.search(self.root_dn,ldap_filter,attributes=['sAMAccountName'])
+            if len(self.ldap_session.entries) != 0:
+                identity = f"{self.domain}\\{self.ldap_session.entries[0]['sAMAccountName'].values[0]}"
+            else:
+                logging.info("No objects found")
+                return
+            print(identity)
 
     def get_domain(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(objectClass=domain)'
@@ -383,7 +470,6 @@ class PywerView:
         la = LDAPAttack(config=c, LDAPClient=self.ldap_session, username=username, root_dn=self.root_dn, args=args)
         la.aclAttack()
 
-
     def remove_domaincomputer(self,computer_name):
         if computer_name[-1] != '$':
             computer_name += '$'
@@ -430,7 +516,6 @@ class PywerView:
             return True
         else:
             return False
-
 
     def add_domaincomputer(self, computer_name, computer_pass):
         if computer_name[-1] != '$':

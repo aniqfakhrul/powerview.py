@@ -6,6 +6,7 @@ import shlex
 COMMANDS = {
     'Get-Domain':['-Identity','-Properties','-Domain','-Select', '-Where', '-NoWrap'],
     'Get-NetDomain':['-Identity','-Properties','-Domain','-Select', '-Where', '-NoWrap'],
+    'ConvertFrom-SID':['-ObjectSID','-Domain'],
     'Get-DomainController':['-Identity','-Properties','-Domain','-Select', '-Where', '-NoWrap'],
     'Get-NetDomainController':['-Identity','-Properties','-Domain','-Select', '-Where', '-NoWrap'],
     'Get-DomainDNSZone':['-Properties','-Domain','-Select','-Where', '-NoWrap'],
