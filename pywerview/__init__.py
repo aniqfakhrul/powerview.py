@@ -528,10 +528,12 @@ def main():
                             temp_pywerview = None
                             setattr(args,'dc_ip', args.init_dc_ip)
                         except ldap3.core.exceptions.LDAPAttributeError as e:
-                            print(e)
+                            logging.error(str(e))
+                        except ldap3.core.exceptions.LDAPSocketSendError as e:
+                            logging.error(str(e))
             except KeyboardInterrupt:
                 print()
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
         print(e)

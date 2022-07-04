@@ -165,7 +165,7 @@ class PywerView:
     def get_domaingroup(self, args=None, properties='*', identity='*'):
         ldap_filter = ""
         identity_filter = f"(|(|(samAccountName={identity})(name={identity})))"
-        
+
         if args:
             if args.admincount:
                 ldap_filter += f"(admincount=1)"
@@ -194,8 +194,45 @@ class PywerView:
     def get_domaintrust(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(objectClass=trustedDomain)'
         logging.debug(f'LDAP search filter: {ldap_filter}')
+        switcher_trustDirection = {
+            0: "Disabled",
+            1: "Inbound",
+            2: "Outbound",
+            3: "Bidirectional",
+        }
+        switcher_trusttype = {
+            1: "WINDOWS_NON_ACTIVE_DIRECTORY",
+            2: "WINDOWS_ACTIVE_DIRECTORY",
+            3: "MIT",
+        }
+        switcher_trustAttributes = {
+            1 : "NON_TRANSITIVE",
+            2 : "UPLEVEL_ONLY",
+            4 : "QUARANTINED_DOMAIN",
+            8 : "FOREST_TRANSITIVE",
+            16 : "CROSS_ORGANIZATION",
+            32 : "WITHIN_FOREST",
+            64 : "TREAT_AS_EXTERNAL",
+            128 : "USES_RC4_ENCRYPTION",
+            512 : "CROSS_ORGANIZATION_NO_TGT_DELEGATION",
+            2048 : "CROSS_ORGANIZATION_ENABLE_TGT_DELEGATION",
+            1024 : "PIM_TRUST",
+
+        }
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
+        new_entries = []
+        for entry in self.ldap_session.entries:
+            #entry = json.loads(entry.entry_to_json())
+            for index in range(len(entry['trustDirection'].values)):
+                entry['trustDirection'].values[index] = switcher_trustDirection.get(entry['trustDirection'].values[index])
+            for index in range(len(entry['trustType'].values)):
+                entry['trustType'].values[index] = switcher_trusttype.get(entry['trustType'].values[index])
+            for index in range(len(entry['trustAttributes'].values)):
+                entry['trustAttributes'].values[index] = switcher_trustAttributes.get(entry['trustAttributes'].values[index])
         return self.ldap_session.entries
+        #return None
+
+        #return self.ldap_session.entries
 
     def get_domain(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(objectClass=domain)'
