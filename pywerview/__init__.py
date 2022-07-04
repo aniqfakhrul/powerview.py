@@ -241,7 +241,7 @@ def powerview_arg_parse(cmd):
                 cmd[0] = i
                 return parser.parse_args(cmd)
 
-        logging.error(e)
+        logging.error(str(e).split("(")[0])
         return None
 
 
@@ -531,6 +531,7 @@ def main():
                             logging.error(str(e))
                         except ldap3.core.exceptions.LDAPSocketSendError as e:
                             logging.error(str(e))
+                            sys.exit(0)
             except KeyboardInterrupt:
                 print()
             #except Exception as e:

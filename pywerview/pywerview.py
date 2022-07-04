@@ -222,7 +222,6 @@ class PywerView:
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         new_entries = []
         for entry in self.ldap_session.entries:
-            #entry = json.loads(entry.entry_to_json())
             for index in range(len(entry['trustDirection'].values)):
                 entry['trustDirection'].values[index] = switcher_trustDirection.get(entry['trustDirection'].values[index])
             for index in range(len(entry['trustType'].values)):
@@ -230,9 +229,6 @@ class PywerView:
             for index in range(len(entry['trustAttributes'].values)):
                 entry['trustAttributes'].values[index] = switcher_trustAttributes.get(entry['trustAttributes'].values[index])
         return self.ldap_session.entries
-        #return None
-
-        #return self.ldap_session.entries
 
     def get_domain(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(objectClass=domain)'
@@ -296,10 +292,6 @@ class PywerView:
         au.removeUser(identity_dn)
 
     def add_domainuser(self, username, userpass):
-        if not self.use_ldaps:
-            logging.error('Adding a user account to the domain requires TLS but ldap:// scheme provided. Switching target to LDAPS via StartTLS')
-            return
-
         parent_dn_entries = self.get_domainobject(identity="Users")
         if len(parent_dn_entries) == 0:
             logging.error('Users parent DN not found in domain')
