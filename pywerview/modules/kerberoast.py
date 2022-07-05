@@ -286,7 +286,7 @@ class GetUserSPNs:
                                                'servicePrincipalName': SPN,
                                                'Hash': sess_key
                                                }
-                        entries_out.append(entry_out)
+                        entries_out.append(entry_out.copy())
                     except Exception as e:
                         logging.debug("Exception:", exc_info=True)
                         logging.error('Principal: %s - %s' % (downLevelLogonName, str(e)))
