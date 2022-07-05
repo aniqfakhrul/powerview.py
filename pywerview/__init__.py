@@ -317,7 +317,7 @@ def main():
                                 conn = CONNECTION(args)
                                 temp_pywerview = PywerView(conn, args)
                             else:
-                                logging.error(f'Domain {pv_args.server} not found or not up')
+                                logging.error(f'Domain {pv_args.server} not found or probably not alive')
                                 continue
 
                         try:

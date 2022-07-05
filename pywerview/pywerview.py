@@ -305,7 +305,7 @@ class PywerView:
             'S-1-5-32-579' : 'BUILTIN\\AccessControlAssistanceOperators',
             'S-1-5-32-580' : 'BUILTIN\\AccessControlAssistanceOperators',
         }
-        domain_name = self.get_domain()[0]['name'].values[0]
+        domain_name = self.get_domain()[0]['name'].values[0].upper()
         identity = switcher_sid.get(objectsid)
         if identity:
             identity = f"{domain_name}\\{identity}"
