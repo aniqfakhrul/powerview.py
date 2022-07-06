@@ -590,31 +590,6 @@ class PywerView:
 
         available_pipes = []
         pipes = [ 'netlogon', 'lsarpc', 'samr', 'browser', 'spoolss', 'atsvc', 'DAV RPC SERVICE', 'epmapper', 'eventlog', 'InitShutdown', 'keysvc', 'lsass', 'LSM_API_service', 'ntsvcs', 'plugplay', 'protected_storage', 'router', 'SapiServerPipeS-1-5-5-0-70123', 'scerpc', 'srvsvc', 'tapsrv', 'trkwks', 'W32TIME_ALT', 'wkssvc','PIPE_EVENTROOT\CIMV2SCM EVENT PROVIDER', 'db2remotecmd']
-        binding_params = {
-            'spoolss': {
-                'stringBinding': f'ncacn_np:%s[\PIPE\spoolss]' % host,
-            },
-            'lsarpc': {
-                'stringBinding': r'ncacn_np:%s[\PIPE\lsarpc]' % host,
-                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
-            },
-            'efsr': {
-                'stringBinding': r'ncacn_np:%s[\PIPE\efsrpc]' % host,
-                'MSRPC_UUID_EFSR': ('df1941c5-fe89-4e79-bf10-463657acf44d', '1.0')
-            },
-            'samr': {
-                'stringBinding': r'ncacn_np:%s[\PIPE\samr]' % host,
-                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
-            },
-            'lsass': {
-                'stringBinding': r'ncacn_np:%s[\PIPE\lsass]' % host,
-                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
-            },
-            'netlogon': {
-                'stringBinding': r'ncacn_np:%s[\PIPE\netlogon]' % host,
-                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
-            },
-        }
         self.rpc_conn = CONNECTION(self.args)
         for pipe in pipes:
             # TODO: Return entries
