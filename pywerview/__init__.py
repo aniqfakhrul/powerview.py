@@ -25,6 +25,9 @@ def powerview_arg_parse(cmd):
     parser = argparse.ArgumentParser(exit_on_error=False)
     subparsers = parser.add_subparsers(dest='module')
     parser.add_argument('-domain', '-Domain', action='store', dest='server')
+    parser.add_argument('-where', '-Where', action='store', dest='where')
+    parser.add_argument('-select', '-Select', action='store', dest='select')
+    parser.add_argument('-nowrap', '-NoWrap', action='store', dest='nowrap')
 
     #domain
     get_domain_parser = subparsers.add_parser('Get-Domain', aliases=['Get-NetDomain'], exit_on_error=False)
@@ -143,6 +146,7 @@ def powerview_arg_parse(cmd):
 
     # get named pipes
     get_namedpipes_parser = subparsers.add_parser('Get-NamedPipes', exit_on_error=False)
+    get_namedpipes_parser.add_argument('-name', '-Name', action='store', dest='name')
     get_namedpipes_group = get_namedpipes_parser.add_mutually_exclusive_group()
     get_namedpipes_group.add_argument('-computer','-Computer', action='store', const=None, dest='computer')
     get_namedpipes_group.add_argument('-computername','-ComputerName', action='store', const=None, dest='computername')
@@ -423,12 +427,18 @@ def main():
                                     logging.error("-ObjectSID flag is required")
                             elif pv_args.module.casefold() == 'get-namedpipes':
                                 if pv_args.computer is not None or pv_args.computername is not None:
-                                    pywerview.get_namedpipes(pv_args)
+                                    if temp_pywerview:
+                                        entries = temp_pywerview.get_namedpipes(pv_args)
+                                    else:
+                                        entries = pywerview.get_namedpipes(pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'get-shares' or pv_args.module.casefold() == 'get-netshares':
                                 if pv_args.computer is not None or pv_args.computername is not None:
-                                    pywerview.get_shares(pv_args)
+                                    if temp_pywerview:
+                                        temp_pywerview.get_shares(pv_args)
+                                    else:
+                                        pywerview.get_shares(pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'invoke-kerberoast':

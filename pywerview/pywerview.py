@@ -585,17 +585,65 @@ class PywerView:
             return
 
         if not host:
-            logging.error('Host not found or not alive')
+            logging.error('Host not found')
             return
 
         available_pipes = []
-        pipes = [ 'netlogon', 'lsarpc', 'samr', 'browser', 'spoolss', 'atsvc', 'DAV RPC SERVICE', 'epmapper', 'eventlog', 'InitShutdown', 'keysvc', 'lsass', 'LSM_API_service', 'ntsvcs', 'plugplay', 'protected_storage', 'router', 'SapiServerPipeS-1-5-5-0-70123', 'scerpc', 'srvsvc', 'tapsrv', 'trkwks', 'W32TIME_ALT', 'wkssvc','PIPE_EVENTROOT\CIMV2SCM EVENT PROVIDER', 'db2remotecmd']
+        binding_params = {
+            'lsarpc': {
+                'stringBinding': r'ncacn_np:%s[\PIPE\lsarpc]' % host,
+                'protocol': 'MS-RPRN',
+                'description': 'Print System Remote Protocol',
+                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
+            },
+            'efsr': {
+                'stringBinding': r'ncacn_np:%s[\PIPE\efsrpc]' % host,
+                'protocol': 'MS-RPRN',
+                'description': 'Print System Remote Protocol',
+                'MSRPC_UUID_EFSR': ('df1941c5-fe89-4e79-bf10-463657acf44d', '1.0')
+            },
+            'samr': {
+                'stringBinding': r'ncacn_np:%s[\PIPE\samr]' % host,
+                'protocol': 'MS-SAMR',
+                'description': 'Print System Remote Protocol',
+                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
+            },
+            'lsass': {
+                'stringBinding': r'ncacn_np:%s[\PIPE\lsass]' % host,
+                'protocol': 'MS-RPRN',
+                'description': 'Print System Remote Protocol',
+                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
+            },
+            'netlogon': {
+                'stringBinding': r'ncacn_np:%s[\PIPE\netlogon]' % host,
+                'protocol': 'MS-RPRN',
+                'description': 'Print System Remote Protocol',
+                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
+            },
+            'spoolss': {
+                'stringBinding': r'ncacn_np:%s[\PIPE\spoolss]' % host,
+                'protocol': 'MS-RPRN',
+                'description': 'Print System Remote Protocol',
+                'MSRPC-UUID-RPRN': ('12345678-1234-ABCD-EF00-0123456789AB', '1.0')
+            }
+        }
         self.rpc_conn = CONNECTION(self.args)
-        for pipe in pipes:
-            # TODO: Return entries
-            pipe_attr = {}
-            if self.rpc_conn.connectRPCTransport(host, rf'ncacn_np:{host}[\PIPE\{pipe}]'):
-                logging.info(f"Found named pipe: {pipe}")
+        if args.name:
+            pipe = args.name
+            if self.rpc_conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
+                #logging.info(f"Found named pipe: {args.name}")
+                pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description']}}
+                available_pipes.append(pipe_attr)
+        else:
+            pipes = [ 'netdfs','netlogon', 'lsarpc', 'samr', 'browser', 'spoolss', 'atsvc', 'DAV RPC SERVICE', 'epmapper', 'eventlog', 'InitShutdown', 'keysvc', 'lsass', 'LSM_API_service', 'ntsvcs', 'plugplay', 'protected_storage', 'router', 'SapiServerPipeS-1-5-5-0-70123', 'scerpc', 'srvsvc', 'tapsrv', 'trkwks', 'W32TIME_ALT', 'wkssvc','PIPE_EVENTROOT\CIMV2SCM EVENT PROVIDER', 'db2remotecmd']
+            for pipe in binding_params.keys():
+                # TODO: Return entries
+                pipe_attr = {}
+                if self.rpc_conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
+                    # logging.info(f"Found named pipe: {pipe}")
+                    pipe_attr['attributes'] = {'Name':pipe, 'Protocol': binding_params[pipe]['protocol'], 'Description':binding_params[pipe]['description']}
+                    available_pipes.append(pipe_attr.copy())
+        return available_pipes
 
     def set_domainuserpassword(self, identity, accountpassword, args=None):
         entries = self.get_domainuser(identity=identity, properties=['distinguishedName','sAMAccountName'])
