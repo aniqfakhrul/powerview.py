@@ -141,10 +141,18 @@ def powerview_arg_parse(cmd):
     get_domainca_parser.add_argument('-where', '-Where', action='store', dest='where')
     get_domainca_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
+    # get named pipes
+    get_namedpipes_parser = subparsers.add_parser('Get-NamedPipes', exit_on_error=False)
+    get_namedpipes_group = get_namedpipes_parser.add_mutually_exclusive_group()
+    get_namedpipes_group.add_argument('-computer','-Computer', action='store', const=None, dest='computer')
+    get_namedpipes_group.add_argument('-computername','-ComputerName', action='store', const=None, dest='computername')
+    get_namedpipes_parser.add_argument('-domain', '-Domain', action='store', dest='server')
+
     # shares
     get_shares_parser = subparsers.add_parser('Get-Shares', aliases=['Get-NetShares'], exit_on_error=False)
-    get_shares_parser.add_argument('-computer','-Computer', action='store', const=None, dest='computer')
-    get_shares_parser.add_argument('-computername','-ComputerName', action='store', const=None, dest='computername')
+    get_shares_group = get_shares_parser.add_mutually_exclusive_group()
+    get_shares_group.add_argument('-computer','-Computer', action='store', const=None, dest='computer')
+    get_shares_group.add_argument('-computername','-ComputerName', action='store', const=None, dest='computername')
     get_shares_parser.add_argument('-domain', '-Domain', action='store', dest='server')
 
     # invoke kerberoast
@@ -312,7 +320,7 @@ def main():
                     if pv_args:
                         if pv_args.server and pv_args.server != args.domain:
                             foreign_dc_address = get_principal_dc_address(pv_args.server,args.dc_ip)
-                            if foreign_dc_address:
+                            if foreign_dc_address is not None:
                                 setattr(args,'dc_ip', foreign_dc_address)
                                 conn = CONNECTION(args)
                                 temp_pywerview = PywerView(conn, args)
@@ -413,6 +421,11 @@ def main():
                                         entries = pywerview.convertfrom_sid(objectsid=objectsid)
                                 else:
                                     logging.error("-ObjectSID flag is required")
+                            elif pv_args.module.casefold() == 'get-namedpipes':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    pywerview.get_namedpipes(pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'get-shares' or pv_args.module.casefold() == 'get-netshares':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     pywerview.get_shares(pv_args)

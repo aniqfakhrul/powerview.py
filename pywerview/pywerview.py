@@ -310,13 +310,16 @@ class PywerView:
         if identity:
             identity = f"{domain_name}\\{identity}"
         else:
-            self.ldap_session.search(self.root_dn,ldap_filter,attributes=['sAMAccountName'])
+            self.ldap_session.search(self.root_dn,ldap_filter,attributes=['sAMAccountName','name'])
             if len(self.ldap_session.entries) != 0:
-                identity = f"{domain_name}\\{self.ldap_session.entries[0]['sAMAccountName'].values[0]}"
+                try:
+                    identity = f"{domain_name}\\{self.ldap_session.entries[0]['sAMAccountName'].values[0]}"
+                except IndexError:
+                    identity = f"{domain_name}\\{self.ldap_session.entries[0]['name'].value}"
             else:
                 logging.info("No objects found")
                 return
-            print(identity)
+        print(identity)
 
     def get_domain(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(objectClass=domain)'
@@ -565,6 +568,60 @@ class PywerView:
         else:
             return False
 
+    def get_namedpipes(self, args=None):
+        host = ""
+        if args.computer:
+            if is_ipaddress(args.computer):
+                host = args.computer
+            else:
+                host = host2ip(args.computer, self.dc_ip, 3, True)
+        elif args.computername:
+            if is_ipaddress(args.computername):
+                host = args.computername
+            else:
+                host = host2ip(args.computername, self.dc_ip, 3, True)
+        else:
+            logging.error(f'Host is required')
+            return
+
+        if not host:
+            logging.error('Host not found or not alive')
+            return
+
+        available_pipes = []
+        pipes = [ 'netlogon', 'lsarpc', 'samr', 'browser', 'spoolss', 'atsvc', 'DAV RPC SERVICE', 'epmapper', 'eventlog', 'InitShutdown', 'keysvc', 'lsass', 'LSM_API_service', 'ntsvcs', 'plugplay', 'protected_storage', 'router', 'SapiServerPipeS-1-5-5-0-70123', 'scerpc', 'srvsvc', 'tapsrv', 'trkwks', 'W32TIME_ALT', 'wkssvc','PIPE_EVENTROOT\CIMV2SCM EVENT PROVIDER', 'db2remotecmd']
+        binding_params = {
+            'spoolss': {
+                'stringBinding': f'ncacn_np:%s[\PIPE\spoolss]' % host,
+            },
+            'lsarpc': {
+                'stringBinding': r'ncacn_np:%s[\PIPE\lsarpc]' % host,
+                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
+            },
+            'efsr': {
+                'stringBinding': r'ncacn_np:%s[\PIPE\efsrpc]' % host,
+                'MSRPC_UUID_EFSR': ('df1941c5-fe89-4e79-bf10-463657acf44d', '1.0')
+            },
+            'samr': {
+                'stringBinding': r'ncacn_np:%s[\PIPE\samr]' % host,
+                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
+            },
+            'lsass': {
+                'stringBinding': r'ncacn_np:%s[\PIPE\lsass]' % host,
+                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
+            },
+            'netlogon': {
+                'stringBinding': r'ncacn_np:%s[\PIPE\netlogon]' % host,
+                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
+            },
+        }
+        self.rpc_conn = CONNECTION(self.args)
+        for pipe in pipes:
+            # TODO: Return entries
+            pipe_attr = {}
+            if self.rpc_conn.connectRPCTransport(host, rf'ncacn_np:{host}[\PIPE\{pipe}]'):
+                logging.info(f"Found named pipe: {pipe}")
+
     def set_domainuserpassword(self, identity, accountpassword, args=None):
         entries = self.get_domainuser(identity=identity, properties=['distinguishedName','sAMAccountName'])
         if len(entries) == 0:
@@ -663,7 +720,7 @@ class PywerView:
             else:
                 host = host2ip(args.computername, self.dc_ip, 3, True)
         else:
-            logging.error(f'-Computer or -ComputerName is required')
+            logging.error(f'Host is required')
             return
 
         if not host:

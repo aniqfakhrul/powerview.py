@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from impacket.smbconnection import SMBConnection, SessionError
-from impacket.dcerpc.v5 import samr, epm, transport, rpcrt
+from impacket.dcerpc.v5 import samr, epm, transport, rpcrt, rprn
+from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY
 
 from pywerview.utils.helpers import get_machine_name, ldap3_kerberos_login
 
@@ -73,7 +74,10 @@ class CONNECTION:
             conn.login(self.username,self.password,self.domain, self.lmhash, self.nthash)
             return conn
         except OSError as e:
-            logging.error(e)
+            logging.error(str(e))
+            return None
+        except SessionError as e:
+            logging.error(str(e))
             return None
 
     def init_samr_session(self):
@@ -89,8 +93,38 @@ class CONNECTION:
         else:
             rpctransport.set_credentials(self.username, self.password, self.domain)
 
+        if self.use_kerberos:
+            rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.dc_ip)
+
         dce = rpctransport.get_dce_rpc()
         dce.set_auth_level(rpcrt.RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
         dce.connect()
         dce.bind(samr.MSRPC_UUID_SAMR)
         return dce
+
+    # stole from PetitPotam.py
+    def connectRPCTransport(self, host, stringBindings):
+        rpctransport = transport.DCERPCTransportFactory(stringBindings)
+        #rpctransport.set_dport(445)
+
+        if hasattr(rpctransport, 'set_credentials'):
+            rpctransport.set_credentials(self.username, self.password, self.domain, self.lmhash, self.nthash)
+
+        if self.use_kerberos:
+            rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.dc_ip)
+
+        if host:
+            rpctransport.setRemoteHost(host)
+
+        dce = rpctransport.get_dce_rpc()
+        dce.set_auth_type(RPC_C_AUTHN_WINNT)
+        dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+
+        logging.debug("Connecting to %s" % stringBindings)
+
+        try:
+            dce.connect()
+            return dce
+        except Exception as e:
+            return None
+

@@ -22,6 +22,7 @@ COMMANDS = {
     'Get-NetTrust':['-Properties','-Domain','-Select', '-Where', '-NoWrap'],
     'Get-DomainUser':['-Identity','-Properties','-LDAPFilter','-Domain','-Select','-PreAuthNotRequired','-AdminCount','-TrustedToAuth','-SPN', '-Where', '-NoWrap'],
     'Get-NetUser':['-Identity','-Properties','-LDAPFilter','-Domain','-Select','-PreAuthNotRequired','-AdminCount','-TrustedToAuth','-SPN', '-Where', '-NoWrap'],
+    'Get-NamedPipes':['-Computer','-ComputerName','-Domain', '-NoWrap'],
     'Get-Shares':['-Computer','-ComputerName','-Domain', '-NoWrap'],
     'Get-NetShares':['-Computer','-ComputerName','-Domain'],
     'Invoke-Kerberoast':['-Identity','-LDAPFilter','-Domain', '-NoWrap'],

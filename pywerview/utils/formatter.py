@@ -101,6 +101,8 @@ class FORMATTER:
                     for k, v in ace.items():
                         print(f'{k.ljust(28)}: {v}')
                     print()
+            elif isinstance(entry, str):
+                print(entry)
 
     def alter_entries(self,entries,cond):
         temp_alter_entries = []
