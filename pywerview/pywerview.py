@@ -629,11 +629,15 @@ class PywerView:
         }
         self.rpc_conn = CONNECTION(self.args)
         if args.name:
-            pipe = args.name
-            if self.rpc_conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
-                #logging.info(f"Found named pipe: {args.name}")
-                pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description']}}
-                available_pipes.append(pipe_attr)
+            if args.name in list(binding_params.keys()):
+                pipe = args.name
+                if self.rpc_conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
+                    #logging.info(f"Found named pipe: {args.name}")
+                    pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description']}}
+                    available_pipes.append(pipe_attr)
+            else:
+                logging.error(f"Invalid pipe name")
+                return
         else:
             pipes = [ 'netdfs','netlogon', 'lsarpc', 'samr', 'browser', 'spoolss', 'atsvc', 'DAV RPC SERVICE', 'epmapper', 'eventlog', 'InitShutdown', 'keysvc', 'lsass', 'LSM_API_service', 'ntsvcs', 'plugplay', 'protected_storage', 'router', 'SapiServerPipeS-1-5-5-0-70123', 'scerpc', 'srvsvc', 'tapsrv', 'trkwks', 'W32TIME_ALT', 'wkssvc','PIPE_EVENTROOT\CIMV2SCM EVENT PROVIDER', 'db2remotecmd']
             for pipe in binding_params.keys():
