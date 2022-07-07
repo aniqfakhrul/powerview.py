@@ -128,11 +128,11 @@ class PywerView:
                 logging.error(f'[Identity] Multiple identities found. Use exact match')
                 return
             logging.debug(f'Target identity found in domain {identity_entries[0]["distinguishedName"].values[0]}')
-            identity = identity_entries[0]['distinguishedName'].values[0]
+            identity = identity_entries[0]['objectSid'].values[0]
         else:
             logging.info('Recursing all domain objects. This might take a while')
 
-        self.ldap_session.search(self.root_dn, f'(distinguishedName={identity})', attributes=['nTSecurityDescriptor','sAMAccountName','distinguishedName','objectSid'], controls=security_descriptor_control(sdflags=0x04))
+        self.ldap_session.search(self.root_dn, f'(objectSid={identity})', attributes=['nTSecurityDescriptor','sAMAccountName','distinguishedName','objectSid'], controls=security_descriptor_control(sdflags=0x04))
         entries = self.ldap_session.entries
 
         if not entries:
