@@ -71,7 +71,12 @@ class CONNECTION:
     def init_smb_session(self, host):
         try:
             conn = SMBConnection(host, host, sess_port=445, timeout=15)
-            conn.login(self.username,self.password,self.domain, self.lmhash, self.nthash)
+            # TODO: support smb kerberos authentication
+            if self.use_kerberos:
+                conn.kerberosLogin(self.username,self.password,self.domain, self.lmhash, self.nthash, self.auth_aes_key, self.dc_host, self.TGT, self.TGS)
+                # havent support kerberos authentication yet
+            else:
+                conn.login(self.username,self.password,self.domain, self.lmhash, self.nthash)
             return conn
         except OSError as e:
             logging.error(str(e))
@@ -103,14 +108,14 @@ class CONNECTION:
         return dce
 
     # stole from PetitPotam.py
-    def connectRPCTransport(self, host, stringBindings):
+    def connectRPCTransport(self, host, stringBindings, auth=True):
         rpctransport = transport.DCERPCTransportFactory(stringBindings)
         #rpctransport.set_dport(445)
 
-        if hasattr(rpctransport, 'set_credentials'):
+        if hasattr(rpctransport, 'set_credentials') and auth:
             rpctransport.set_credentials(self.username, self.password, self.domain, self.lmhash, self.nthash)
 
-        if self.use_kerberos:
+        if self.use_kerberos and auth:
             rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.dc_ip)
 
         if host:

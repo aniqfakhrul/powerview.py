@@ -25,6 +25,7 @@ COMMANDS = {
     'Get-NamedPipes':['-Name','-Computer','-ComputerName','-Domain', '-NoWrap'],
     'Get-Shares':['-Computer','-ComputerName','-Domain', '-NoWrap'],
     'Get-NetShares':['-Computer','-ComputerName','-Domain'],
+    'Find-LocalAdminAccess':['-Computer','-ComputerName','-Domain'],
     'Invoke-Kerberoast':['-Identity','-LDAPFilter','-Domain', '-NoWrap'],
     'Get-DomainObject':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-NoWrap'],
     'Get-ADObject':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-NoWrap'],

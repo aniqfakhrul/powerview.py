@@ -159,6 +159,12 @@ def powerview_arg_parse(cmd):
     get_shares_group.add_argument('-computername','-ComputerName', action='store', const=None, dest='computername')
     get_shares_parser.add_argument('-domain', '-Domain', action='store', dest='server')
 
+    # shares
+    find_localadminaccess_parser = subparsers.add_parser('Find-LocalAdminAccess', exit_on_error=False)
+    find_localadminaccess_parser.add_argument('-computer','-Computer', action='store', dest='computer')
+    find_localadminaccess_parser.add_argument('-computername','-ComputerName', action='store', dest='computername')
+    find_localadminaccess_parser.add_argument('-domain', '-Domain', action='store', dest='server')
+
     # invoke kerberoast
     invoke_kerberoast_parser = subparsers.add_parser('Invoke-Kerberoast', exit_on_error=False)
     invoke_kerberoast_parser.add_argument('-identity','-Identity', action='store', dest='identity')
@@ -441,6 +447,11 @@ def main():
                                         pywerview.get_shares(pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'find-localadminaccess':
+                                if temp_pywerview:
+                                    entries = temp_pywerview.find_localadminaccess(pv_args)
+                                else:
+                                    entries = pywerview.find_localadminaccess(pv_args)
                             elif pv_args.module.casefold() == 'invoke-kerberoast':
                                 if temp_pywerview:
                                     entries = temp_pywerview.invoke_kerberoast(pv_args)

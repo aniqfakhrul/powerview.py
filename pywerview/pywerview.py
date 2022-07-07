@@ -593,47 +593,59 @@ class PywerView:
             'lsarpc': {
                 'stringBinding': r'ncacn_np:%s[\PIPE\lsarpc]' % host,
                 'protocol': 'MS-RPRN',
-                'description': 'Print System Remote Protocol',
-                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
+                'description': 'N/A',
             },
             'efsr': {
                 'stringBinding': r'ncacn_np:%s[\PIPE\efsrpc]' % host,
                 'protocol': 'MS-RPRN',
-                'description': 'Print System Remote Protocol',
-                'MSRPC_UUID_EFSR': ('df1941c5-fe89-4e79-bf10-463657acf44d', '1.0')
+                'description': 'N/A',
             },
             'samr': {
                 'stringBinding': r'ncacn_np:%s[\PIPE\samr]' % host,
                 'protocol': 'MS-SAMR',
-                'description': 'Print System Remote Protocol',
-                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
+                'description': 'N/A',
             },
             'lsass': {
                 'stringBinding': r'ncacn_np:%s[\PIPE\lsass]' % host,
                 'protocol': 'MS-RPRN',
-                'description': 'Print System Remote Protocol',
-                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
+                'description': 'N/A',
             },
             'netlogon': {
                 'stringBinding': r'ncacn_np:%s[\PIPE\netlogon]' % host,
                 'protocol': 'MS-RPRN',
-                'description': 'Print System Remote Protocol',
-                'MSRPC_UUID_EFSR': ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')
+                'description': 'N/A',
             },
             'spoolss': {
                 'stringBinding': r'ncacn_np:%s[\PIPE\spoolss]' % host,
                 'protocol': 'MS-RPRN',
                 'description': 'Print System Remote Protocol',
-                'MSRPC-UUID-RPRN': ('12345678-1234-ABCD-EF00-0123456789AB', '1.0')
-            }
+            },
+            'DAV RPC SERVICE': {
+                'stringBinding': r'ncacn_np:%s[\PIPE\DAV RPC SERVICE]' % host,
+                'protocol': 'WebClient',
+                'description': 'WebDAV WebClient Service',
+            },
+            'netdfs': {
+                'stringBinding': r'ncacn_np:%s[\PIPE\netdfs]' % host,
+                'protocol': 'MS-DFSNM',
+                'description': 'N/A',
+            },
+            'atsvc': {
+                'stringBinding': r'ncacn_np:%s[\PIPE\atsvc]' % host,
+                'protocol': 'ATSvc',
+                'description': 'Microsoft AT-Scheduler Service',
+            },
         }
         self.rpc_conn = CONNECTION(self.args)
         if args.name:
             if args.name in list(binding_params.keys()):
                 pipe = args.name
-                if self.rpc_conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
+                if self.rpc_conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False):
                     #logging.info(f"Found named pipe: {args.name}")
-                    pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description']}}
+                    pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':'No'}}
+                    available_pipes.append(pipe_attr)
+                elif self.rpc_conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
+                    pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':'Yes'}}
                     available_pipes.append(pipe_attr)
             else:
                 logging.error(f"Invalid pipe name")
@@ -643,9 +655,12 @@ class PywerView:
             for pipe in binding_params.keys():
                 # TODO: Return entries
                 pipe_attr = {}
-                if self.rpc_conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
+                if self.rpc_conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False):
                     # logging.info(f"Found named pipe: {pipe}")
-                    pipe_attr['attributes'] = {'Name':pipe, 'Protocol': binding_params[pipe]['protocol'], 'Description':binding_params[pipe]['description']}
+                    pipe_attr['attributes'] = {'Name':pipe, 'Protocol': binding_params[pipe]['protocol'], 'Description':binding_params[pipe]['description'], 'Authenticated': 'No'}
+                    available_pipes.append(pipe_attr.copy())
+                elif self.rpc_conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
+                    pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':'Yes'}}
                     available_pipes.append(pipe_attr.copy())
         return available_pipes
 
@@ -734,6 +749,53 @@ class PywerView:
 
         # properly formatted for output
         return entries_out
+
+    def find_localadminaccess(self, args):
+        # TODO: Support keberos auth
+        host_entries = []
+        hosts = {}
+
+        if is_ipaddress(args.computer) or is_ipaddress(args.computername) and self.use_kerberos:
+            logging.error('FQDN must be used for kerberos authentication')
+            return
+
+        if args.computer:
+            if is_ipaddress(args.computer):
+                hosts['address'] = args.computer
+            else:
+                hosts['address'] = host2ip(args.computer, self.dc_ip, 3, True)
+                hosts['hostname'] = args.computer
+            host_entries.append(hosts)
+        elif args.computername:
+            if is_ipaddress(args.computername):
+                hosts['address'] = args.computername
+            else:
+                hosts['address'] = host2ip(args.computername, self.dc_ip, 3, True)
+                hosts['hostname'] = args.computername
+            host_entries.append(hosts)
+        else:
+            entries = self.get_domaincomputer(properties=['dnsHostName'])
+
+            for entry in entries:
+                try:
+                    hosts['address'] = host2ip(entry['dnsHostName'].values[0], self.dc_ip, 3, True)
+                    hosts['hostname'] = entry['dnsHostname'].values[0]
+                    host_entries.append(hosts.copy())
+                except IndexError:
+                    pass
+
+        local_admin_pcs = []
+        for ent in host_entries:
+            pc_attr = {}
+            smbconn = self.conn.init_smb_session(ent['address'])
+            try:
+                smbconn.connectTree("C$")
+                pc_attr['attributes'] = {'Name': ent['address'], 'Hostname': ent['hostname']}
+                local_admin_pcs.append(pc_attr.copy())
+            except:
+                pass
+
+        return local_admin_pcs
 
     def get_shares(self, args):
         if args.computer:
