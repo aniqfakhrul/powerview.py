@@ -30,6 +30,8 @@ class PywerView:
         self.use_kerberos = args.use_kerberos
 
         self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
+        if not self.ldap_session.tls_started and not self.ldap_session.server.ssl:
+            self.use_ldaps = False
 
         cnf = ldapdomaindump.domainDumpConfig()
         cnf.basepath = None
@@ -549,7 +551,7 @@ class PywerView:
         setattr(self.args, "dc_host", dc_host)
         setattr(self.args, "delete", False)
 
-        if self.args.use_ldaps:
+        if self.use_ldaps:
             setattr(self.args, "method", "LDAPS")
         else:
             setattr(self.args, "method", "SAMR")
@@ -637,15 +639,15 @@ class PywerView:
                 'description': 'Microsoft AT-Scheduler Service',
             },
         }
-        self.rpc_conn = CONNECTION(self.args)
+        #self.rpc_conn = CONNECTION(self.args)
         if args.name:
             if args.name in list(binding_params.keys()):
                 pipe = args.name
-                if self.rpc_conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False):
+                if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False):
                     #logging.info(f"Found named pipe: {args.name}")
                     pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':'No'}}
                     available_pipes.append(pipe_attr)
-                elif self.rpc_conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
+                elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
                     pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':'Yes'}}
                     available_pipes.append(pipe_attr)
             else:
@@ -656,11 +658,11 @@ class PywerView:
             for pipe in binding_params.keys():
                 # TODO: Return entries
                 pipe_attr = {}
-                if self.rpc_conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False):
+                if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False):
                     # logging.info(f"Found named pipe: {pipe}")
                     pipe_attr['attributes'] = {'Name':pipe, 'Protocol': binding_params[pipe]['protocol'], 'Description':binding_params[pipe]['description'], 'Authenticated': 'No'}
                     available_pipes.append(pipe_attr.copy())
-                elif self.rpc_conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
+                elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
                     pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':'Yes'}}
                     available_pipes.append(pipe_attr.copy())
         return available_pipes
@@ -684,8 +686,12 @@ class PywerView:
                 return False
         else:
             try:
-                self.samr_conn = CONNECTION(self.args)
-                dce = self.samr_conn.init_samr_session()
+                #self.samr_conn = CONNECTION(self.args)
+                #dce = self.samr_conn.init_samr_session()
+                dce = self.conn.init_samr_session()
+                if not dce:
+                    logging.error('Error binding with SAMR')
+                    return
 
                 server_handle = samr.hSamrConnect(dce, self.dc_ip + '\x00')['ServerHandle']
                 domainSID = samr.hSamrLookupDomainInSamServer(dce, server_handle, self.domain)['DomainId']

@@ -32,13 +32,16 @@ class CONNECTION:
 
     def init_ldap_session(self):
         if self.use_kerberos:
-            target = get_machine_name(self.args, self.domain)
+            target = get_machine_name(self.args, self.domain) + f".{self.domain}"
+            self.kdcHost = target
+            #target = get_machine_name(self.args, self.domain)
         else:
             if self.dc_ip is not None:
                 target = self.dc_ip
             else:
                 target = self.domain
 
+        logging.debug(f"Connecting to {target}")
         if self.use_ldaps is True:
             try:
                 return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1_2, self.domain, self.username, self.password, self.lmhash, self.nthash)
@@ -47,6 +50,7 @@ class CONNECTION:
                     return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1, self.domain, self.username, self.password, self.lmhash, self.nthash)
                 except:
                     logging.error('Error bind to LDAPS, falling back to LDAP')
+                    self.use_ldaps = False
                     return self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
         else:
             return self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
@@ -59,6 +63,7 @@ class CONNECTION:
         else:
             use_ssl = True
             port = 636
+        # TODO: fix target when using kerberos
         ldap_server = ldap3.Server(target, get_info=ldap3.ALL, port=port, use_ssl=use_ssl)
         if self.use_kerberos:
             ldap_session = ldap3.Connection(ldap_server)
@@ -137,24 +142,30 @@ class CONNECTION:
             self.samr = self.connectSamr()
         return self.samr
 
+    # TODO: FIX kerberos auth
     def connectSamr(self):
         rpctransport = transport.SMBTransport(self.dc_ip, filename=r'\samr')
 
-        if self.nthash:
-            rpctransport.set_credentials(self.username, self.password, self.domain, lmhash=self.lmhash, nthash=self.nthash)
-        else:
-            rpctransport.set_credentials(self.username, self.password, self.domain)
+        #if self.nthash:
+        if hasattr(rpctransport, 'set_credentials'):
+            rpctransport.set_credentials(self.username, self.password, self.domain, lmhash=self.lmhash, nthash=self.nthash, aesKey=self.auth_aes_key)
+        #else:
+        #    rpctransport.set_credentials(self.username, self.password, self.domain)
 
         if self.use_kerberos:
-            rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.dc_ip)
+            rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.kdcHost)
 
-        dce = rpctransport.get_dce_rpc()
-        dce.set_auth_level(rpcrt.RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
-        dce.connect()
-        dce.bind(samr.MSRPC_UUID_SAMR)
-        return dce
+        try:
+            dce = rpctransport.get_dce_rpc()
+            dce.set_auth_level(rpcrt.RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+            dce.connect()
+            dce.bind(samr.MSRPC_UUID_SAMR)
+            return dce
+        except:
+            return None
 
     # stole from PetitPotam.py
+    # TODO: FIX kerberos auth
     def connectRPCTransport(self, host, stringBindings, auth=True):
         rpctransport = transport.DCERPCTransportFactory(stringBindings)
         #rpctransport.set_dport(445)
