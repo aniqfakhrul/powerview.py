@@ -329,6 +329,10 @@ def main():
 
                     if pv_args:
                         if pv_args.server and pv_args.server != args.domain:
+                            if args.use_kerberos:
+                                logging.error("Kerberos authentication doesn't support cross-domain targetting")
+                                continue
+                            logging.warning(f"Cross-domain targetting might be unstable and slow depending on the network stability")
                             foreign_dc_address = get_principal_dc_address(pv_args.server,args.dc_ip)
                             if foreign_dc_address is not None:
                                 setattr(args,'dc_ip', foreign_dc_address)

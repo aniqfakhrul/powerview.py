@@ -85,7 +85,8 @@ def get_machine_name(args, domain):
             raise Exception('Error while anonymous logging into %s' % domain)
     else:
         s.logoff()
-    return s.getServerName()
+    #return s.getServerName()
+    return "%s.%s" % (s.getServerName(), s.getServerDNSDomainName())
 
 
 def parse_identity(args):

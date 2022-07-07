@@ -32,7 +32,7 @@ class CONNECTION:
 
     def init_ldap_session(self):
         if self.use_kerberos:
-            target = get_machine_name(self.args, self.domain) + f".{self.domain}"
+            target = get_machine_name(self.args, self.domain)
             self.kdcHost = target
             #target = get_machine_name(self.args, self.domain)
         else:
@@ -66,9 +66,9 @@ class CONNECTION:
         # TODO: fix target when using kerberos
         ldap_server = ldap3.Server(target, get_info=ldap3.ALL, port=port, use_ssl=use_ssl)
         if self.use_kerberos:
-            ldap_session = ldap3.Connection(ldap_server)
+            ldap_session = ldap3.Connection(ldap_server, auto_referrals=False)
             ldap_session.bind()
-            ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, self.auth_aes_key, kdcHost=self.dc_ip,useCache=self.no_pass)
+            ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, self.auth_aes_key, kdcHost=self.kdcHost,useCache=self.no_pass)
         elif self.hashes is not None:
             ldap_session = ldap3.Connection(ldap_server, user=user, password=lmhash + ":" + nthash, authentication=ldap3.NTLM, auto_bind=True)
         else:

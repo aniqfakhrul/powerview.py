@@ -1276,7 +1276,7 @@ class ACLEnum:
         if ace['TypeName'] in [ "ACCESS_ALLOWED_ACE", "ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_ACE", "ACCESS_DENIED_OBJECT_ACE" ]:
             parsed_ace = {}
             parsed_ace['ObjectDN'] = self.objectdn
-            parsed_ace['ObjectSID'] = self.objectsid
+            parsed_ace['ObjectSID'] = format_sid(self.objectsid)
             parsed_ace['ACEType'] = ace['TypeName']
             _ace_flags = []
             for FLAG in ACE_FLAGS:
