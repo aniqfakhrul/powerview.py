@@ -1249,7 +1249,7 @@ class ACLEnum:
             dacl_dict = {}
             if len(entry['ntSecurityDescriptor'].raw_values) == 0:
                 LOG.error(f'ntSecurityDescriptor attribute not found for {entry.entry_dn}')
-                break
+                continue
             secDescData = entry['ntSecurityDescriptor'].raw_values[0]
             secDesc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDescData)
 

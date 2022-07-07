@@ -76,10 +76,10 @@ class CONNECTION:
 
         return ldap_server, ldap_session
 
-    def init_smb_session(self, host):
+    def init_smb_session(self, host, timeout=10):
         try:
-            conn = SMBConnection(host, host, sess_port=445, timeout=15)
-            # TODO: support smb kerberos authentication
+            logging.debug("Default timeout is set to 15. Expect a delay")
+            conn = SMBConnection(host, host, sess_port=445, timeout=timeout)
             if self.use_kerberos:
                 # only import if used
                 import os
@@ -131,10 +131,13 @@ class CONNECTION:
                 conn.login(self.username,self.password,self.domain, self.lmhash, self.nthash)
             return conn
         except OSError as e:
-            logging.error(str(e))
+            logging.debug(str(e))
             return None
         except SessionError as e:
-            logging.error(str(e))
+            logging.debug(str(e))
+            return None
+        except AssertionError as e:
+            logging.debug(str(e))
             return None
 
     def init_samr_session(self):
