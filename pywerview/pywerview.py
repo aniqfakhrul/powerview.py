@@ -27,6 +27,7 @@ class PywerView:
         self.nthash = args.nthash
         self.use_ldaps = args.use_ldaps
         self.dc_ip = args.dc_ip
+        self.use_kerberos = args.use_kerberos
 
         self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
 
@@ -751,7 +752,6 @@ class PywerView:
         return entries_out
 
     def find_localadminaccess(self, args):
-        # TODO: Support keberos auth
         host_entries = []
         hosts = {}
 
@@ -787,7 +787,12 @@ class PywerView:
         local_admin_pcs = []
         for ent in host_entries:
             pc_attr = {}
-            smbconn = self.conn.init_smb_session(ent['address'])
+
+            if self.use_kerberos:
+                smbconn = self.conn.init_smb_session(ent['hostname'])
+            else:
+                smbconn = self.conn.init_smb_session(ent['address'])
+
             try:
                 smbconn.connectTree("C$")
                 pc_attr['attributes'] = {'Name': ent['address'], 'Hostname': ent['hostname']}
@@ -798,24 +803,34 @@ class PywerView:
         return local_admin_pcs
 
     def get_shares(self, args):
-        if args.computer:
-            if is_ipaddress(args.computer):
-                host = args.computer
-            else:
-                host = host2ip(args.computer, self.dc_ip, 3, True)
-        elif args.computername:
-            if is_ipaddress(args.computername):
-                host = args.computername
-            else:
-                host = host2ip(args.computername, self.dc_ip, 3, True)
-        else:
-            logging.error(f'Host is required')
+        if is_ipaddress(args.computer) or is_ipaddress(args.computername) and self.use_kerberos:
+            logging.error('FQDN must be used for kerberos authentication')
             return
+
+        if self.use_kerberos:
+            host = args.computer if args.computer else args.computername
+        else:
+            if args.computer:
+                if is_ipaddress(args.computer):
+                    host = args.computer
+                else:
+                    host = host2ip(args.computer, self.dc_ip, 3, True)
+            elif args.computername:
+                if is_ipaddress(args.computername):
+                    host = args.computername
+                else:
+                    host = host2ip(args.computername, self.dc_ip, 3, True)
+            else:
+                logging.error(f'Host is required')
+                return
 
         if not host:
             return
 
-        client = self.conn.init_smb_session(host)
+        if self.use_kerberos:
+            client = self.conn.init_smb_session(host)
+        else:
+            client = self.conn.init_smb_session(host)
 
         if not client:
             return
