@@ -8,12 +8,79 @@ from pywerview.modules.addcomputer import ADDCOMPUTER
 from pywerview.modules.kerberoast import GetUserSPNs
 from pywerview.utils.helpers import *
 from pywerview.utils.connections import CONNECTION
+from pywerview.utils.colors import bcolors
 
+import chardet
+from io import BytesIO
 import ldap3
 from ldap3.protocol.microsoft import security_descriptor_control
 from ldap3.extend.microsoft import addMembersToGroups, modifyPassword, removeMembersFromGroups
 import logging
 import re
+
+switcher_sid = {
+        'S-1-0' : 'NullAuthority',
+        'S-1-0-0' : 'Nobody',
+        'S-1-1' : 'WorldAuthority',
+        'S-1-1-0' : 'Everyone',
+        'S-1-2' : 'LocalAuthority',
+        'S-1-2-0' : 'Local',
+        'S-1-2-1' : 'ConsoleLogon',
+        'S-1-3' : 'CreatorAuthority',
+        'S-1-3-0' : 'CreatorOwner',
+        'S-1-3-1' : 'CreatorGroup',
+        'S-1-3-2' : 'CreatorOwnerServer',
+        'S-1-3-3' : 'CreatorGroupServer',
+        'S-1-3-4' : 'OwnerRights',
+        'S-1-4' : 'Non-uniqueAuthority',
+        'S-1-5' : 'NTAuthority',
+        'S-1-5-1' : 'Dialup',
+        'S-1-5-2' : 'Network',
+        'S-1-5-3' : 'Batch',
+        'S-1-5-4' : 'Interactive',
+        'S-1-5-6' : 'Service',
+        'S-1-5-7' : 'Anonymous',
+        'S-1-5-8' : 'Proxy',
+        'S-1-5-9' : 'EnterpriseDomainControllers',
+        'S-1-5-10' : 'PrincipalSelf',
+        'S-1-5-11' : 'AuthenticatedUsers',
+        'S-1-5-12' : 'RestrictedCode',
+        'S-1-5-13' : 'TerminalServerUsers',
+        'S-1-5-14' : 'RemoteInteractiveLogon',
+        'S-1-5-15' : 'ThisOrganization',
+        'S-1-5-17' : 'ThisOrganization',
+        'S-1-5-18' : 'LocalSystem',
+        'S-1-5-19' : 'NTAuthority',
+        'S-1-5-20' : 'NTAuthority',
+        'S-1-5-80-0' : 'AllServices',
+        'S-1-5-32-544' : 'BUILTIN\\Administrators',
+        'S-1-5-32-545' : 'BUILTIN\\Users',
+        'S-1-5-32-546' : 'BUILTIN\\Guests',
+        'S-1-5-32-547' : 'BUILTIN\\PowerUsers',
+        'S-1-5-32-548' : 'BUILTIN\\AccountOperators',
+        'S-1-5-32-549' : 'BUILTIN\\ServerOperators',
+        'S-1-5-32-550' : 'BUILTIN\\PrintOperators',
+        'S-1-5-32-551' : 'BUILTIN\\BackupOperators',
+        'S-1-5-32-552' : 'BUILTIN\\Replicators',
+        'S-1-5-32-554' : 'BUILTIN\\Pre-Windows2000CompatibleAccess',
+        'S-1-5-32-555' : 'BUILTIN\\RemoteDesktopUsers',
+        'S-1-5-32-556' : 'BUILTIN\\NetworkConfigurationOperators',
+        'S-1-5-32-557' : 'BUILTIN\\IncomingForestTrustBuilders',
+        'S-1-5-32-558' : 'BUILTIN\\PerformanceMonitorUsers',
+        'S-1-5-32-559' : 'BUILTIN\\PerformanceLogUsers',
+        'S-1-5-32-560' : 'BUILTIN\\WindowsAuthorizationAccessGroup',
+        'S-1-5-32-561' : 'BUILTIN\\TerminalServerLicenseServers',
+        'S-1-5-32-562' : 'BUILTIN\\DistributedCOMUsers',
+        'S-1-5-32-569' : 'BUILTIN\\CryptographicOperators',
+        'S-1-5-32-573' : 'BUILTIN\\EventLogReaders',
+        'S-1-5-32-574' : 'BUILTIN\\CertificateServiceDCOMAccess',
+        'S-1-5-32-575' : 'BUILTIN\\RDSRemoteAccessServers',
+        'S-1-5-32-576' : 'BUILTIN\\RDSEndpointServers',
+        'S-1-5-32-577' : 'BUILTIN\\RDSManagementServers',
+        'S-1-5-32-578' : 'BUILTIN\\Hyper-VAdministrators',
+        'S-1-5-32-579' : 'BUILTIN\\AccessControlAssistanceOperators',
+        'S-1-5-32-580' : 'BUILTIN\\AccessControlAssistanceOperators',
+    }
 
 class PywerView:
 
@@ -194,6 +261,54 @@ class PywerView:
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
 
+    def get_domaingpolocalgroup(self, args=None, identity='*'):
+        new_entries = []
+        entries = self.get_domaingpo(identity=identity)
+        if len(entries) == 0:
+            logging.error("No GPO object found")
+            return
+        for entry in entries:
+            new_dict = {}
+            try:
+                gpcfilesyspath = f"{entry['gPCFileSysPath'].values[0]}\MACHINE\Microsoft\Windows NT\SecEdit\GptTmpl.inf"
+                if self.use_kerberos:
+                    conn = self.conn.init_smb_session(self.kdcHost)
+                else:
+                    conn = self.conn.init_smb_session(self.dc_ip)
+                share = 'sysvol'
+                filepath = ''.join(gpcfilesyspath.lower().split(share)[1:])
+
+                fh = BytesIO()
+                try:
+                    conn.getFile(share, filepath, fh.write)
+                except:
+                    pass
+                output = fh.getvalue()
+                encoding = chardet.detect(output)["encoding"]
+                error_msg = "[-] Output cannot be correctly decoded, are you sure the text is readable ?"
+                if encoding:
+                    data_content = output.decode(encoding)
+                    found, infobject = parse_inicontent(filecontent=data_content)
+                    if found:
+                        #for i in infobject: # i = dict
+                        #    new_dict['attributes'] = {'GPODisplayName': entry['displayName'].values[0],'GroupSID':i['sid'],'GroupMemberOf': i['memberof'], 'GroupMembers': i['memberof']}
+
+                        if len(infobject) == 2:
+                            new_dict['attributes'] = {'GPODisplayName': entry['displayName'].values[0], 'GPOName': entry['name'].values[0], 'GPOPath': entry['gPCFileSysPath'].values[0], 'GroupName': self.convertfrom_sid(infobject[0]['sids']),'GroupSID':infobject[0]['sids'],'GroupMemberOf': f"{infobject[0]['memberof']}" if infobject[0]['memberof'] else "{}", 'GroupMembers': f"{infobject[1]['members']}" if infobject[1]['members'] else "{}"}
+                            new_entries.append(new_dict.copy())
+                        else:
+                            for i in range(0,len(infobject),2):
+                                new_dict['attributes'] = {'GPODisplayName': entry['displayName'].values[0], 'GPOName': entry['name'].values[0], 'GPOPath': entry['gPCFileSysPath'].values[0], 'GroupName':self.convertfrom_sid(infobject[0]['sids']) ,'GroupSID':infobject[i]['sids'],'GroupMemberOf': f"{infobject[i]['memberof']}" if infobject[i]['memberof'] else "{}", 'GroupMembers': f"{infobject[i+1]['members']}" if infobject[i+1]['members'] else "{}"}
+                                new_entries.append(new_dict.copy())
+                    fh.close()
+                else:
+                    fh.close()
+                    continue
+
+            except ldap3.core.exceptions.LDAPKeyError as e:
+                pass
+        return new_entries
+
     def get_domaintrust(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(objectClass=trustedDomain)'
         logging.debug(f'LDAP search filter: {ldap_filter}')
@@ -242,72 +357,9 @@ class PywerView:
                 pass
         return self.ldap_session.entries
 
-    def convertfrom_sid(self, objectsid, args=None):
+    def convertfrom_sid(self, objectsid, args=None, output=False):
         ldap_filter = f"(|(|(objectSid={objectsid})))"
         logging.debug(f"LDAP search filter: {ldap_filter}")
-        switcher_sid = {
-            'S-1-0' : 'NullAuthority',
-            'S-1-0-0' : 'Nobody',
-            'S-1-1' : 'WorldAuthority',
-            'S-1-1-0' : 'Everyone',
-            'S-1-2' : 'LocalAuthority',
-            'S-1-2-0' : 'Local',
-            'S-1-2-1' : 'ConsoleLogon',
-            'S-1-3' : 'CreatorAuthority',
-            'S-1-3-0' : 'CreatorOwner',
-            'S-1-3-1' : 'CreatorGroup',
-            'S-1-3-2' : 'CreatorOwnerServer',
-            'S-1-3-3' : 'CreatorGroupServer',
-            'S-1-3-4' : 'OwnerRights',
-            'S-1-4' : 'Non-uniqueAuthority',
-            'S-1-5' : 'NTAuthority',
-            'S-1-5-1' : 'Dialup',
-            'S-1-5-2' : 'Network',
-            'S-1-5-3' : 'Batch',
-            'S-1-5-4' : 'Interactive',
-            'S-1-5-6' : 'Service',
-            'S-1-5-7' : 'Anonymous',
-            'S-1-5-8' : 'Proxy',
-            'S-1-5-9' : 'EnterpriseDomainControllers',
-            'S-1-5-10' : 'PrincipalSelf',
-            'S-1-5-11' : 'AuthenticatedUsers',
-            'S-1-5-12' : 'RestrictedCode',
-            'S-1-5-13' : 'TerminalServerUsers',
-            'S-1-5-14' : 'RemoteInteractiveLogon',
-            'S-1-5-15' : 'ThisOrganization',
-            'S-1-5-17' : 'ThisOrganization',
-            'S-1-5-18' : 'LocalSystem',
-            'S-1-5-19' : 'NTAuthority',
-            'S-1-5-20' : 'NTAuthority',
-            'S-1-5-80-0' : 'AllServices',
-            'S-1-5-32-544' : 'BUILTIN\\Administrators',
-            'S-1-5-32-545' : 'BUILTIN\\Users',
-            'S-1-5-32-546' : 'BUILTIN\\Guests',
-            'S-1-5-32-547' : 'BUILTIN\\PowerUsers',
-            'S-1-5-32-548' : 'BUILTIN\\AccountOperators',
-            'S-1-5-32-549' : 'BUILTIN\\ServerOperators',
-            'S-1-5-32-550' : 'BUILTIN\\PrintOperators',
-            'S-1-5-32-551' : 'BUILTIN\\BackupOperators',
-            'S-1-5-32-552' : 'BUILTIN\\Replicators',
-            'S-1-5-32-554' : 'BUILTIN\\Pre-Windows2000CompatibleAccess',
-            'S-1-5-32-555' : 'BUILTIN\\RemoteDesktopUsers',
-            'S-1-5-32-556' : 'BUILTIN\\NetworkConfigurationOperators',
-            'S-1-5-32-557' : 'BUILTIN\\IncomingForestTrustBuilders',
-            'S-1-5-32-558' : 'BUILTIN\\PerformanceMonitorUsers',
-            'S-1-5-32-559' : 'BUILTIN\\PerformanceLogUsers',
-            'S-1-5-32-560' : 'BUILTIN\\WindowsAuthorizationAccessGroup',
-            'S-1-5-32-561' : 'BUILTIN\\TerminalServerLicenseServers',
-            'S-1-5-32-562' : 'BUILTIN\\DistributedCOMUsers',
-            'S-1-5-32-569' : 'BUILTIN\\CryptographicOperators',
-            'S-1-5-32-573' : 'BUILTIN\\EventLogReaders',
-            'S-1-5-32-574' : 'BUILTIN\\CertificateServiceDCOMAccess',
-            'S-1-5-32-575' : 'BUILTIN\\RDSRemoteAccessServers',
-            'S-1-5-32-576' : 'BUILTIN\\RDSEndpointServers',
-            'S-1-5-32-577' : 'BUILTIN\\RDSManagementServers',
-            'S-1-5-32-578' : 'BUILTIN\\Hyper-VAdministrators',
-            'S-1-5-32-579' : 'BUILTIN\\AccessControlAssistanceOperators',
-            'S-1-5-32-580' : 'BUILTIN\\AccessControlAssistanceOperators',
-        }
         domain_name = self.get_domain()[0]['name'].values[0].upper()
         identity = switcher_sid.get(objectsid)
         if identity:
@@ -322,7 +374,9 @@ class PywerView:
             else:
                 logging.info("No objects found")
                 return
-        print(identity)
+        if output:
+            print(identity)
+        return identity
 
     def get_domain(self, args=None, properties='*', identity='*'):
         ldap_filter = f'(objectClass=domain)'
@@ -595,28 +649,28 @@ class PywerView:
         binding_params = {
             'lsarpc': {
                 'stringBinding': r'ncacn_np:%s[\PIPE\lsarpc]' % host,
-                'protocol': 'MS-RPRN',
-                'description': 'N/A',
+                'protocol': 'MS-EFSRPC',
+                'description': 'Encrypting File System Remote (EFSRPC) Protocol',
             },
             'efsr': {
                 'stringBinding': r'ncacn_np:%s[\PIPE\efsrpc]' % host,
-                'protocol': 'MS-RPRN',
-                'description': 'N/A',
+                'protocol': 'MS-EFSR',
+                'description': 'Encrypting File System Remote (EFSRPC) Protocol',
             },
             'samr': {
                 'stringBinding': r'ncacn_np:%s[\PIPE\samr]' % host,
                 'protocol': 'MS-SAMR',
-                'description': 'N/A',
+                'description': 'Security Account Manager (SAM)',
             },
             'lsass': {
                 'stringBinding': r'ncacn_np:%s[\PIPE\lsass]' % host,
-                'protocol': 'MS-RPRN',
+                'protocol': 'N/A',
                 'description': 'N/A',
             },
             'netlogon': {
                 'stringBinding': r'ncacn_np:%s[\PIPE\netlogon]' % host,
-                'protocol': 'MS-RPRN',
-                'description': 'N/A',
+                'protocol': 'MS-NRPC',
+                'description': 'Netlogon Remote Protocol',
             },
             'spoolss': {
                 'stringBinding': r'ncacn_np:%s[\PIPE\spoolss]' % host,
@@ -631,7 +685,7 @@ class PywerView:
             'netdfs': {
                 'stringBinding': r'ncacn_np:%s[\PIPE\netdfs]' % host,
                 'protocol': 'MS-DFSNM',
-                'description': 'N/A',
+                'description': 'Distributed File System (DFS)',
             },
             'atsvc': {
                 'stringBinding': r'ncacn_np:%s[\PIPE\atsvc]' % host,
@@ -645,10 +699,10 @@ class PywerView:
                 pipe = args.name
                 if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False):
                     #logging.info(f"Found named pipe: {args.name}")
-                    pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':'No'}}
+                    pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':f'{bcolors.WARNING}No{bcolors.ENDC}'}}
                     available_pipes.append(pipe_attr)
                 elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
-                    pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':'Yes'}}
+                    pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'}}
                     available_pipes.append(pipe_attr)
             else:
                 logging.error(f"Invalid pipe name")
@@ -660,10 +714,10 @@ class PywerView:
                 pipe_attr = {}
                 if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False):
                     # logging.info(f"Found named pipe: {pipe}")
-                    pipe_attr['attributes'] = {'Name':pipe, 'Protocol': binding_params[pipe]['protocol'], 'Description':binding_params[pipe]['description'], 'Authenticated': 'No'}
+                    pipe_attr['attributes'] = {'Name':pipe, 'Protocol': binding_params[pipe]['protocol'], 'Description':binding_params[pipe]['description'], 'Authenticated': f'{bcolors.WARNING}No{bcolors.ENDC}'}
                     available_pipes.append(pipe_attr.copy())
                 elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
-                    pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':'Yes'}}
+                    pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'}}
                     available_pipes.append(pipe_attr.copy())
         return available_pipes
 

@@ -117,6 +117,15 @@ def powerview_arg_parse(cmd):
     get_domaingpo_parser.add_argument('-where', '-Where', action='store', dest='where')
     get_domaingpo_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
+    #gpo local group / restricted groups
+    get_domaingpolocalgroup_parser = subparsers.add_parser('Get-DomainGPOLocalGroup', aliases=['Get-GPOLocalGroup'], exit_on_error=False)
+    get_domaingpolocalgroup_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
+    get_domaingpolocalgroup_parser.add_argument('-ldapfilter', '-LDAPFilter', action='store', dest='ldapfilter')
+    get_domaingpolocalgroup_parser.add_argument('-domain', '-Domain', action='store', dest='server')
+    get_domaingpolocalgroup_parser.add_argument('-select', '-Select', action='store', dest='select')
+    get_domaingpolocalgroup_parser.add_argument('-where', '-Where', action='store', dest='where')
+    get_domaingpolocalgroup_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
+
     # OU
     get_domainou_parser = subparsers.add_parser('Get-DomainOU', aliases=['Get-NetOU'], exit_on_error=False)
     get_domainou_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
@@ -400,6 +409,12 @@ def main():
                                     entries = temp_pywerview.get_domaingpo(pv_args, properties, identity)
                                 else:
                                     entries = pywerview.get_domaingpo(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domaingpolocalgroup' or pv_args.module.casefold() == 'get-gpolocalgroup':
+                                identity = pv_args.identity.strip()
+                                if temp_pywerview:
+                                    entries = temp_pywerview.get_domaingpolocalgroup(pv_args, identity)
+                                else:
+                                    entries = pywerview.get_domaingpolocalgroup(pv_args, identity)
                             elif pv_args.module.casefold() == 'get-domainou' or pv_args.module.casefold() == 'get-netou':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
@@ -430,9 +445,9 @@ def main():
                                 if pv_args.objectsid:
                                     objectsid = pv_args.objectsid.strip()
                                     if temp_pywerview:
-                                        entries = temp_pywerview.convertfrom_sid(objectsid=objectsid)
+                                        temp_pywerview.convertfrom_sid(objectsid=objectsid, output=True)
                                     else:
-                                        entries = pywerview.convertfrom_sid(objectsid=objectsid)
+                                        pywerview.convertfrom_sid(objectsid=objectsid, output=True)
                                 else:
                                     logging.error("-ObjectSID flag is required")
                             elif pv_args.module.casefold() == 'get-namedpipes':

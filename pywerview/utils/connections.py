@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from impacket.smbconnection import SMBConnection, SessionError
+from impacket.smb3structs import FILE_READ_DATA, FILE_WRITE_DATA
 from impacket.dcerpc.v5 import samr, epm, transport, rpcrt, rprn
 from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY
 
@@ -193,4 +194,3 @@ class CONNECTION:
             return dce
         except Exception as e:
             return None
-

@@ -15,6 +15,7 @@ from impacket import version
 from impacket.examples import logger, utils
 from dns import resolver
 from ldap3.utils.conv import escape_filter_chars
+import re
 
 from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
@@ -26,6 +27,29 @@ from impacket.examples.utils import parse_credentials
 from impacket.krb5.kerberosv5 import getKerberosTGT
 from impacket.krb5 import constants
 from impacket.krb5.types import Principal
+
+import configparser
+
+def parse_inicontent(filecontent=None, filepath=None):
+    infobject = []
+    infdict = {}
+    config = configparser.ConfigParser(allow_no_value=True)
+    config.read_string(filecontent)
+    if "Group Membership" in list(config.keys()):
+        for left, right in config['Group Membership'].items():
+            if "memberof" in left: 
+                infdict['sids'] = left.replace("*","").replace("__memberof","")
+                infdict['members'] = ""
+                infdict['memberof'] = right.replace("*","")
+            elif "members" in left:
+                infdict['sids'] = left.replace("*","").replace("__members","")
+                infdict['members'] = right.replace("*","")
+                infdict['memberof'] = ""
+            #infdict = {'sid':left.replace("*","").replace("__memberof",""), 'memberof': right.replace("*","").replace("__members","")}
+            infobject.append(infdict.copy())
+        return True, infobject
+    return False, infobject
+    #return sections, comments, keys
 
 def is_ipaddress(address):
     try:

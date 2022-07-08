@@ -14,6 +14,8 @@ COMMANDS = {
     'Get-NetCA':['-Properties','-Domain','-Select', '-Where', '-NoWrap'],
     'Get-DomainGPO':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-NoWrap'],
     'Get-NetGPO':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-DomainGPOLocalGroup':['-Identity','-LDAPFilter','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-GPOLocalGroup':['-Identity','-LDAPFilter','-Domain','-Select', '-Where', '-NoWrap'],
     'Get-DomainOU':['-Identity','-Properties','-LDAPFilter','-Domain','-Select','-GPLink', '-Where', '-NoWrap'],
     'Get-NetOU':['-Identity','-Properties','-LDAPFilter','-Domain','-Select','-GPLink', '-Where', '-NoWrap'],
     'Get-DomainGroup':['-Identity','-Properties','-LDAPFilter','-AdminCount','-Domain','-Select', '-Where', '-NoWrap'],
