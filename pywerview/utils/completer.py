@@ -1,6 +1,6 @@
 import os
 import re
-import readline
+import gnureadline as readline
 import shlex
 
 COMMANDS = {

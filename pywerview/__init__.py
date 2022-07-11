@@ -14,7 +14,7 @@ from impacket.examples.utils import parse_credentials
 import sys
 import ldap3
 import argparse
-import readline
+import gnureadline as readline
 import logging
 import json
 import random
