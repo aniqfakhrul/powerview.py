@@ -11,15 +11,19 @@ from impacket import version
 from impacket.examples import logger
 from impacket.examples.utils import parse_credentials
 
-import sys
 import ldap3
 import argparse
-import gnureadline as readline
 import logging
 import json
 import random
 import string
 import shlex
+import sys
+from sys import platform
+if platform == "linux" or platform == "linux2":
+    import gnureadline as readline
+else:
+    import readline
 
 def powerview_arg_parse(cmd):
     parser = argparse.ArgumentParser(exit_on_error=False)

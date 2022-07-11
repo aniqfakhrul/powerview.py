@@ -1,7 +1,11 @@
 import os
 import re
-import gnureadline as readline
 import shlex
+from sys import platform
+if platform == "linux" or platform == "linux2":
+    import gnureadline as readline
+else:
+    import readline
 
 COMMANDS = {
     'Get-Domain':['-Identity','-Properties','-Domain','-Select', '-Where', '-NoWrap'],
