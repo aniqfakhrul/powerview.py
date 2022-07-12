@@ -181,8 +181,7 @@ class CONNECTION:
         if hasattr(rpctransport, 'set_credentials') and auth:
             rpctransport.set_credentials(self.username, self.password, self.domain, self.lmhash, self.nthash)
 
-        if self.use_kerberos and auth:
-            rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.dc_ip)
+        rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.kdcHost)
 
         if host:
             rpctransport.setRemoteHost(host)
