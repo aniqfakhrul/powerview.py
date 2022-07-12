@@ -256,11 +256,10 @@ def powerview_arg_parse(cmd):
     set_domainobject_parser.add_argument('-clear', '-Clear',action='store', dest='clear')
     set_domainobject_parser.add_argument('-domain', '-Domain', action='store', dest='server')
 
-    # set domain user password
+    # set domain object properties
     set_domainuserpassword_parser = subparsers.add_parser('Set-DomainUserPassword', exit_on_error=False)
     set_domainuserpassword_parser.add_argument('-identity', '-Identity', action='store', dest='identity')
-    set_domainuserpassword_parser.add_argument('-oldpassword', '-OldPassword', action='store', dest='oldpassword')
-    set_domainuserpassword_parser.add_argument('-newpassword', '-NewPassword', action='store', dest='newpassword')
+    set_domainuserpassword_parser.add_argument('-accountpassword', '-AccountPassword', action='store', dest='accountpassword')
     set_domainuserpassword_parser.add_argument('-domain', '-Domain', action='store', dest='server')
 
     subparsers.add_parser('exit', exit_on_error=False)
@@ -534,17 +533,19 @@ def main():
                                 else:
                                     logging.error('-Identity and [-Clear][-Set] flags required')
                             elif pv_args.module.casefold() == 'set-domainuserpassword':
-                                if pv_args.identity and pv_args.newpassword:
+                                if pv_args.identity and pv_args.accountpassword:
                                     succeed = False
                                     if temp_pywerview:
-                                        succeed = temp_pywerview.set_domainuserpassword(pv_args.identity, pv_args.oldpassword, pv_args.newpassword, pv_args)
+                                        succeed = temp_pywerview.set_domainuserpassword(pv_args.identity, pv_args.accountpassword, pv_args)
                                     else:
-                                        succeed = pywerview.set_domainuserpassword(pv_args.identity, pv_args.oldpassword, pv_args.newpassword, pv_args)
+                                        succeed = pywerview.set_domainuserpassword(pv_args.identity, pv_args.accountpassword, pv_args)
 
                                     if succeed:
                                         logging.info(f'Password changed for {pv_args.identity}')
+                                    else:
+                                        logging.error(f'Failed password change attempt for {pv_args.identity}')
                                 else:
-                                    logging.error('-Identity and -New-Password flags are required')
+                                    logging.error('-Identity and -AccountPassword flags are required')
                             elif pv_args.module.casefold() == 'add-domaincomputer' or pv_args.module.casefold() == 'add-adcomputer':
                                 if pv_args.computername is not None:
                                     if pv_args.computerpass is None:

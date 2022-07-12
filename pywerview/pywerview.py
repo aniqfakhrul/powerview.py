@@ -721,7 +721,7 @@ class PywerView:
                     available_pipes.append(pipe_attr.copy())
         return available_pipes
 
-    def set_domainuserpassword(self, identity, oldpassword, newpassword, args=None):
+    def set_domainuserpassword(self, identity, accountpassword, args=None):
         entries = self.get_domainuser(identity=identity, properties=['distinguishedName','sAMAccountName'])
         if len(entries) == 0:
             logging.error(f'No principal object found in domain')
@@ -731,19 +731,14 @@ class PywerView:
             return
         logging.info(f'Principal {entries[0].entry_dn} found in domain')
         if self.use_ldaps:
-            succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0].entry_dn, newpassword, old_password=oldpassword)
+            succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0].entry_dn, accountpassword, old_password=None)
             if succeed:
                 logging.info(f'Password has been successfully changed for user {entries[0]["sAMAccountName"].values[0]}')
                 return True
             else:
-                logging.error(self.ldap_session.result['message'])
                 logging.error(f'Failed to change password for {entries[0]["sAMAccountName"].values[0]}')
                 return False
         else:
-            # TODO: Remove THIS
-            if args.oldpassword:
-                logging.info('Changing password through samr hasnt been supported yet, use ldaps if needed')
-                return
             try:
                 #self.samr_conn = CONNECTION(self.args)
                 #dce = self.samr_conn.init_samr_session()
@@ -763,7 +758,7 @@ class PywerView:
                 req['UserInformationClass'] = samr.USER_INFORMATION_CLASS.UserInternal5Information
                 req['Buffer'] = samr.SAMPR_USER_INFO_BUFFER()
                 req['Buffer']['tag'] = samr.USER_INFORMATION_CLASS.UserInternal5Information
-                req['Buffer']['Internal5']['UserPassword'] = cryptPassword(b'SystemLibraryDTC', newpassword)
+                req['Buffer']['Internal5']['UserPassword'] = cryptPassword(b'SystemLibraryDTC', accountpassword)
                 req['Buffer']['Internal5']['PasswordExpired'] = 0
 
                 resp = dce.request(req)
