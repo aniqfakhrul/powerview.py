@@ -57,7 +57,7 @@ COMMANDS = {
     'Remove-ObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain'],
     'Set-DomainObject':['-Identity','-Clear','-Set','-Domain'],
     'Set-Object':['-Identity','-Clear','-Set','-Domain'],
-    'Set-DomainUserPassword':['-Identity','-AccountPassword','-Domain'],
+    'Set-DomainUserPassword':['-Identity','-OldPassword','-NewPassword','-Domain'],
 }
 
 RE_SPACE = re.compile('.*\s+$', re.M)

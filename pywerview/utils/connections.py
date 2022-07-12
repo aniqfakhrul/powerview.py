@@ -156,8 +156,7 @@ class CONNECTION:
         #else:
         #    rpctransport.set_credentials(self.username, self.password, self.domain)
 
-        if self.use_kerberos:
-            rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.kdcHost)
+        rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.kdcHost)
 
         try:
             dce = rpctransport.get_dce_rpc()
@@ -170,7 +169,12 @@ class CONNECTION:
 
     # stole from PetitPotam.py
     # TODO: FIX kerberos auth
-    def connectRPCTransport(self, host, stringBindings, auth=True):
+    def connectRPCTransport(self, host=None, stringBindings=None, auth=True):
+        if not stringBindings:
+            stringBindings = epm.hept_map(host, samr.MSRPC_UUID_SAMR, protocol = 'ncacn_ip_tcp')
+        if not host:
+            host = self.dc_ip
+
         rpctransport = transport.DCERPCTransportFactory(stringBindings)
         #rpctransport.set_dport(445)
 
