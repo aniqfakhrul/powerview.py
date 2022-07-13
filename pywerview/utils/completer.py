@@ -1,21 +1,63 @@
 import os
 import re
-import readline
+import shlex
+from sys import platform
+if platform == "linux" or platform == "linux2":
+    import gnureadline as readline
+else:
+    import readline
 
 COMMANDS = {
-    'Get-Domain':['-Identity','-Properties','-Select'],
-    'Get-DomainGPO':['-Identity','-Properties','-Select'],
-    'Get-DomainOU':['-Identity','-Properties','-Select','-GPLink'],
-    'Get-DomainGroup':['-Identity','-Properties','-Select'],
-    'Get-DomainTrust':['-Properties','-Select'],
-    'Get-DomainUser':['-Identity','-Properties','-Select','-PreAuthNotRequired','-AdminCount','-TrustedToAuth','-SPN'],
-    'Get-Shares':['-Computer','-ComputerName'],
-    'Get-DomainObject':['-Identity','-Properties','-Select'],
-    'Get-DomainComputer':['-Identity','-Properties','-Select','-Unconstrained','-TrustedToAuth', '-LAPS'],
-    'Add-DomainComputer':['-ComputerName','-ComputerPass'],
-    'Add-DomainGroupMember':['-Identity','-Members'],
-    'Set-DomainObject':['-Identity','-Clear','-Set'],
-    'Remove-DomainComputer':['-ComputerName'],
+    'Get-Domain':['-Identity','-Properties','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-NetDomain':['-Identity','-Properties','-Domain','-Select', '-Where', '-NoWrap'],
+    'ConvertFrom-SID':['-ObjectSID','-Domain'],
+    'Get-DomainController':['-Identity','-Properties','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-NetDomainController':['-Identity','-Properties','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-DomainDNSZone':['-Properties','-Domain','-Select','-Where', '-NoWrap'],
+    'Get-DomainCA':['-Properties','-Domain','-Select','-Where', '-NoWrap'],
+    'Get-NetCA':['-Properties','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-DomainGPO':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-NetGPO':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-DomainGPOLocalGroup':['-Identity','-LDAPFilter','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-GPOLocalGroup':['-Identity','-LDAPFilter','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-DomainOU':['-Identity','-Properties','-LDAPFilter','-Domain','-Select','-GPLink', '-Where', '-NoWrap'],
+    'Get-NetOU':['-Identity','-Properties','-LDAPFilter','-Domain','-Select','-GPLink', '-Where', '-NoWrap'],
+    'Get-DomainGroup':['-Identity','-Properties','-LDAPFilter','-AdminCount','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-NetGroup':['-Identity','-Properties','-LDAPFilter','-AdminCount','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-DomainTrust':['-Properties','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-NetTrust':['-Properties','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-DomainUser':['-Identity','-Properties','-LDAPFilter','-Domain','-Select','-PreAuthNotRequired','-AdminCount','-TrustedToAuth','-SPN', '-Where', '-NoWrap'],
+    'Get-NetUser':['-Identity','-Properties','-LDAPFilter','-Domain','-Select','-PreAuthNotRequired','-AdminCount','-TrustedToAuth','-SPN', '-Where', '-NoWrap'],
+    'Get-NamedPipes':['-Name','-Computer','-ComputerName','-Domain', '-NoWrap'],
+    'Get-Shares':['-Computer','-ComputerName','-Domain', '-NoWrap'],
+    'Get-NetShares':['-Computer','-ComputerName','-Domain'],
+    'Find-LocalAdminAccess':['-Computer','-ComputerName','-Domain'],
+    'Invoke-Kerberoast':['-Identity','-LDAPFilter','-Domain', '-NoWrap'],
+    'Get-DomainObject':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-ADObject':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-NoWrap'],
+    'Get-DomainObjectAcl':['-Identity','-Domain','-SecurityIdentifier','-ResolveGUIDs','-Select', '-Where', '-NoWrap'],
+    'Get-ObjectAcl':['-Identity','-Domain','-ResolveGUIDs','-SecurityIdentifier','-Select', '-Where', '-NoWrap'],
+    'Get-DomainComputer':['-Identity','-Properties','-LDAPFilter','-Domain','-Select','-Unconstrained','-TrustedToAuth', '-LAPS', '-Where', '-NoWrap'],
+    'Get-NetComputer':['-Identity','-Properties','-LDAPFilter','-Domain','-Select','-Unconstrained','-TrustedToAuth', '-LAPS', '-Where', '-NoWrap'],
+    'Add-DomainComputer':['-ComputerName','-ComputerPass','-Domain'],
+    'Add-ADComputer':['-ComputerName','-ComputerPass','-Domain'],
+    'Add-DomainUser':['-UserName','-UserPass','-Domain'],
+    'Add-ADUser':['-UserName','-UserPass','-Domain'],
+    'Remove-DomainUser':['-Identity','-Domain'],
+    'Remove-ADUser':['-Identity','-Domain'],
+    'Remove-DomainComputer':['-ComputerName','-Domain'],
+    'Remove-ADComputer':['-ComputerName','-Domain'],
+    'Add-DomainGroupMember':['-Identity','-Members','-Domain'],
+    'Add-GroupMember':['-Identity','-Members','-Domain'],
+    'Remove-DomainGroupMember':['-Identity','-Members','-Domain'],
+    'Remove-GroupMember':['-Identity','-Members','-Domain'],
+    'Add-DomainObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain'],
+    'Add-ObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain'],
+    'Remove-DomainObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain'],
+    'Remove-ObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain'],
+    'Set-DomainObject':['-Identity','-Clear','-Set','-Domain'],
+    'Set-Object':['-Identity','-Clear','-Set','-Domain'],
+    'Set-DomainUserPassword':['-Identity','-AccountPassword','-Domain'],
 }
 
 RE_SPACE = re.compile('.*\s+$', re.M)
@@ -59,7 +101,7 @@ class Completer(object):
     def complete(self, text, state):
         "Generic readline completion entry point."
         buffer = readline.get_line_buffer()
-        line = readline.get_line_buffer().split()
+        line = shlex.split(readline.get_line_buffer())
         # show all commands
         if not line:
            return [c + ' ' for c in list(COMMANDS.keys())][state]
@@ -75,7 +117,6 @@ class Completer(object):
             for c in list(COMMANDS.keys()):
                 if cmd.casefold() == c.casefold():
                     args = line[-1].strip()
-                    results = [c + ' ' for c in COMMANDS[c] if c.casefold().startswith(args.casefold())] + [None]
+                    results = [c + ' ' for c in COMMANDS[c] if c.casefold().startswith(args.casefold()) and c not in line] + [None]
                     return results[state]
-
         return results[state]

@@ -5,23 +5,97 @@ import traceback
 import ldap3
 import ssl
 import ldapdomaindump
+import ipaddress
+import dns.resolver
 from binascii import unhexlify
 import os
 import json
+import logging
 from impacket import version
 from impacket.examples import logger, utils
 from dns import resolver
 from ldap3.utils.conv import escape_filter_chars
+import re
 
 from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
 from impacket.spnego import SPNEGO_NegTokenInit, TypesMech
 from impacket import version
+from impacket.dcerpc.v5 import samr, dtypes
 from impacket.examples import logger
 from impacket.examples.utils import parse_credentials
 from impacket.krb5.kerberosv5 import getKerberosTGT
 from impacket.krb5 import constants
 from impacket.krb5.types import Principal
+
+import configparser
+
+def parse_inicontent(filecontent=None, filepath=None):
+    infobject = []
+    infdict = {}
+    config = configparser.ConfigParser(allow_no_value=True)
+    config.read_string(filecontent)
+    if "Group Membership" in list(config.keys()):
+        for left, right in config['Group Membership'].items():
+            if "memberof" in left: 
+                infdict['sids'] = left.replace("*","").replace("__memberof","")
+                infdict['members'] = ""
+                infdict['memberof'] = right.replace("*","")
+            elif "members" in left:
+                infdict['sids'] = left.replace("*","").replace("__members","")
+                infdict['members'] = right.replace("*","")
+                infdict['memberof'] = ""
+            #infdict = {'sid':left.replace("*","").replace("__memberof",""), 'memberof': right.replace("*","").replace("__members","")}
+            infobject.append(infdict.copy())
+        return True, infobject
+    return False, infobject
+    #return sections, comments, keys
+
+def is_ipaddress(address):
+    try:
+        ip = ipaddress.ip_address(address)
+        return True
+    except ValueError:
+        return False
+
+def get_principal_dc_address(domain, nameserver, dns_tcp=True):
+    answer = None
+    logging.debug('Querying domain controller information from DNS')
+    try:
+        basequery = f'_ldap._tcp.pdc._msdcs.{domain}'
+        dnsresolver = resolver.Resolver(configure=False)
+        dnsresolver.nameservers = [nameserver]
+        dnsresolver.lifetime = float(3)
+
+        q = dnsresolver.query(basequery, 'SRV', tcp=dns_tcp)
+
+
+        if str(q.qname).lower().startswith('_ldap._tcp.pdc._msdcs'):
+            ad_domain = str(q.qname).lower()[len(basequery):].strip('.')
+            logging.debug('Found AD domain: %s' % ad_domain)
+
+        #print(q.response.additional[0].items['address'])
+        for r in q:
+            dc = str(r.target).rstrip('.')
+        #resolve ip for principal dc
+        answer = resolve_domain(dc, nameserver)
+    except resolver.NXDOMAIN as e:
+        logging.debug(str(e))
+    except:
+        logging.debug('Error retreiving principal DC')
+    return answer
+
+def resolve_domain(domain, nameserver):
+    answer = None
+    try:
+        resolver = dns.resolver.Resolver(configure=False)
+        resolver.nameservers = [nameserver]
+        answers = resolver.query(domain, 'A', tcp=True)
+        for i in answers:
+            answer = i.to_text()
+    except dns.resolver.NoNameservers:
+        logging.info(f'Records not found')
+    return answer
 
 def get_machine_name(args, domain):
     if args.dc_ip is not None:
@@ -35,7 +109,8 @@ def get_machine_name(args, domain):
             raise Exception('Error while anonymous logging into %s' % domain)
     else:
         s.logoff()
-    return s.getServerName()
+    #return s.getServerName()
+    return "%s.%s" % (s.getServerName(), s.getServerDNSDomainName())
 
 
 def parse_identity(args):
@@ -222,45 +297,6 @@ def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='
 
     return True
 
-def init_ldap_connection(target, no_tls, args, domain, username, password, lmhash, nthash):
-    user = '%s\\%s' % (domain, username)
-    if not no_tls:
-        use_ssl = False
-        port = 389
-    else:
-        use_ssl = True
-        port = 636
-    ldap_server = ldap3.Server(target, get_info=ldap3.ALL, port=port, use_ssl=use_ssl)
-    if args.use_kerberos:
-        ldap_session = ldap3.Connection(ldap_server)
-        ldap_session.bind()
-        ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, args.auth_aes_key, kdcHost=args.dc_ip,useCache=args.no_pass)
-    elif args.hashes is not None:
-        ldap_session = ldap3.Connection(ldap_server, user=user, password=lmhash + ":" + nthash, authentication=ldap3.NTLM, auto_bind=True)
-    else:
-        ldap_session = ldap3.Connection(ldap_server, user=user, password=password, authentication=ldap3.NTLM, auto_bind=True)
-
-    return ldap_server, ldap_session
-
-
-def init_ldap_session(args, domain, username, password, lmhash, nthash):
-    if args.use_kerberos:
-        target = get_machine_name(args, domain)
-    else:
-        if args.dc_ip is not None:
-            target = args.dc_ip
-        else:
-            target = domain
-
-    if args.use_ldaps is True:
-        try:
-            return init_ldap_connection(target, ssl.PROTOCOL_TLSv1_2, args, domain, username, password, lmhash, nthash)
-        except ldap3.core.exceptions.LDAPSocketOpenError:
-            return init_ldap_connection(target, ssl.PROTOCOL_TLSv1, args, domain, username, password, lmhash, nthash)
-    else:
-        return init_ldap_connection(target, None, args, domain, username, password, lmhash, nthash)
-
-
 def get_user_info(samname, ldap_session, domain_dumper):
     ldap_session.search(domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars(samname), 
             attributes=['objectSid','ms-DS-MachineAccountQuota'])
@@ -333,6 +369,26 @@ def del_added_computer(ldap_session, domain_dumper, domainComputer):
     else:
         logging.critical('Delete computer {} Failed! Maybe the current user does not have permission.'.format(domainComputer))
 
+def cryptPassword(session_key, password):
+    try:
+        from Cryptodome.Cipher import ARC4
+    except Exception:
+        LOG.error("Warning: You don't have any crypto installed. You need pycryptodomex")
+        LOG.error("See https://pypi.org/project/pycryptodomex/")
+
+    sam_user_pass = samr.SAMPR_USER_PASSWORD()
+    encoded_pass = password.encode('utf-16le')
+    plen = len(encoded_pass)
+    sam_user_pass['Buffer'] = b'A' * (512 - plen) + encoded_pass
+    sam_user_pass['Length'] = plen
+    pwdBuff = sam_user_pass.getData()
+
+    rc4 = ARC4.new(session_key)
+    encBuf = rc4.encrypt(pwdBuff)
+
+    sam_user_pass_enc = samr.SAMPR_ENCRYPTED_USER_PASSWORD()
+    sam_user_pass_enc['Buffer'] = encBuf
+    return sam_user_pass_enc
 
 class GETTGT:
     def __init__(self, target, password, domain, options):
