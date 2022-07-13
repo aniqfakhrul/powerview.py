@@ -120,7 +120,7 @@ class LDAPAttack(ProtocolAttack):
             self.principalidentity_dn = args.principalidentity_dn
             self.principalidentity_sid = args.principalidentity_sid
             self.targetidentity_dn = args.targetidentity_dn
-            self.principalidentity_sid = args.targetidentity_sid
+            self.targetidentity_sid = args.targetidentity_sid
             self.args = args
 
         self.rootDN = root_dn
@@ -1075,7 +1075,7 @@ class ADUser:
             'userAccountControl': 512,
             'accountExpires': '0',
             'sAMAccountName': newUser,
-            'unicodePwd': '"{}"'.format(newPassword).encode('utf-16-le')
+            'unicodePwd': '"{}"'.format(newPassword).encode('utf-16-le'),
         }
         LOG.info('Attempting to create user in: %s', self.__parent)
         res = self.__client.add(newUserDn, ['top', 'person', 'organizationalPerson', 'user'], ucd)
@@ -1084,7 +1084,7 @@ class ADUser:
             if self.__client.result['result'] == RESULT_UNWILLING_TO_PERFORM and not self.__client.server.ssl:
                 LOG.error('Failed to add a new user. The server denied the operation. Try relaying to LDAP with TLS enabled (ldaps) or escalating an existing user.')
             else:
-                LOG.error('Failed to add a new user: %s' % str(self.__client.result))
+                LOG.error('Failed to add a new user: %s' % str(self.__client.result['message']))
             return False
         else:
             LOG.info('Adding new user with username: %s and password: %s result: OK' % (newUser, newPassword))

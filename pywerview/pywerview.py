@@ -462,22 +462,22 @@ class PywerView:
         else:
             username = args.principalidentity
 
-        principal_entries = self.get_domainobject(identity=args.principalidentity)
+        principal_entries = self.get_domainobject(identity=args.principalidentity, properties=['objectSid'])
         if len(principal_entries) == 0:
             logging.error('Principal Identity object not found in domain')
             return
         principalidentity_dn = principal_entries[0].entry_dn
-        principalidentity_sid = principal_entries[0]['ObjectSid'].values[0]
+        principalidentity_sid = principal_entries[0]['objectSid'].values[0]
         setattr(args,'principalidentity_dn', principalidentity_dn)
         setattr(args,'principalidentity_sid', principalidentity_sid)
         logging.info(f'Found principal identity dn {principalidentity_dn}')
 
-        target_entries = self.get_domainobject(identity=args.targetidentity)
+        target_entries = self.get_domainobject(identity=args.targetidentity, properties=['objectSid'])
         if len(target_entries) == 0:
             logging.error('Target Identity object not found in domain')
             return
         targetidentity_dn = target_entries[0].entry_dn
-        targetidentity_sid = target_entries[0]['ObjectSid'].values[0]
+        targetidentity_sid = target_entries[0]['objectSid'].values[0]
         setattr(args,'targetidentity_dn', targetidentity_dn)
         setattr(args,'targetidentity_sid', targetidentity_sid)
         logging.info(f'Found target identity dn {targetidentity_dn}')
@@ -779,6 +779,7 @@ class PywerView:
         elif args.set:
             attrs = self.parse_object(args.set)
             if not attrs:
+                logging.error("Parsing -Set value failed")
                 return
             logging.info('Printing object before modifying')
             logging.info(f'Found target object {targetobject[0].entry_dn}')

@@ -1,19 +1,24 @@
 #!/usr/bin/env python3
 from pywerview.utils.colors import bcolors
 
+from ldap3.protocol.formatters.formatters import format_sid
+
 import ldap3
 import json
 import re
 import logging
 
 class FORMATTER:
-    def __init__(self, pv_args):
+    def __init__(self, pv_args, use_kerberos=False):
         self.__newline = '\n'
         self.args = pv_args
+        self.use_kerberos = use_kerberos
 
     def print_index(self, entries):
         i = int(self.args.select)
         for entry in entries[0:i]:
+            if self.use_kerberos:
+                entry['ObjectSID'].values[0] = format_sid(entry['ObjectSID'].values[0])
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -41,12 +46,14 @@ class FORMATTER:
     def print_select(self,entries):
         select_attributes = self.args.select.split(",")
         for entry in entries:
+            if self.use_kerberos:
+                entry['ObjectSID'].values[0] = format_sid(entry['ObjectSID'].values[0])
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
                 for key in list(entry["attributes"].keys()):
                     for attr in select_attributes:
-                        if (attr.casefold() == key.casefold()):
+                        if (str(attr).casefold() == str(key).casefold()):
                             value = ""
                             # Check dictionary in a list
                             for i in entry['attributes'][key]:
@@ -68,7 +75,7 @@ class FORMATTER:
                 for ace in entry['attributes']:
                     for key in list(ace.keys()):
                         for attr in select_attributes:
-                            if attr.casefold() == key.casefold():
+                            if str(attr).casefold() == str(key).casefold():
                                 if len(select_attributes) == 1:
                                     print(ace[key])
                                 else:
@@ -78,6 +85,8 @@ class FORMATTER:
 
     def print(self,entries):
         for entry in entries:
+            if self.use_kerberos:
+                entry['ObjectSID'].values[0] = format_sid(entry['ObjectSID'].values[0])
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -121,11 +130,11 @@ class FORMATTER:
                     if isinstance(entry, ldap3.abstract.entry.Entry):
                         temp_entry = json.loads(entry.entry_to_json())
                     for c in list(temp_entry['attributes'].keys()):
-                        if c.casefold() == left.casefold():
+                        if str(c).casefold() == str(left).casefold():
                             left = c
                             break
                     try:
-                        if right.casefold() in temp_entry['attributes'][left][0].casefold():
+                        if str(right).casefold() in str(temp_entry['attributes'][left][0]).casefold():
                             temp_alter_entries.append(entry)
                     except KeyError:
                         return None
@@ -133,11 +142,11 @@ class FORMATTER:
                     temp_aces = []
                     for ace in entry['attributes']:
                         for c in list(ace.keys()):
-                            if c.casefold() == left.casefold():
+                            if str(c).casefold() == str(left).casefold():
                                 left = c
                                 break
                         try:
-                            if right.casefold() in ace[left].casefold():
+                            if str(right).casefold() in str(ace[left]).casefold():
                                 temp_aces.append(ace)
                         except KeyError:
                             pass
@@ -150,11 +159,11 @@ class FORMATTER:
                     if isinstance(entry, ldap3.abstract.entry.Entry):
                         temp_entry = json.loads(entry.entry_to_json())
                     for c in list(temp_entry['attributes'].keys()):
-                        if c.casefold() == left.casefold():
+                        if str(c).casefold() == str(left).casefold():
                             left = c
                             break
                     try:
-                        if right.casefold() == temp_entry['attributes'][left][0].casefold():
+                        if str(right).casefold() == str(temp_entry['attributes'][left][0]).casefold():
                             temp_alter_entries.append(entry)
                     except KeyError:
                         pass
@@ -162,11 +171,11 @@ class FORMATTER:
                     temp_aces = []
                     for ace in entry['attributes']:
                         for c in list(ace.keys()):
-                            if c.casefold() == left.casefold():
+                            if str(c).casefold() == str(left).casefold():
                                 left = c
                                 break
                         try:
-                            if right.casefold() == ace[left].casefold():
+                            if str(right).casefold() == str(ace[left]).casefold():
                                 temp_aces.append(ace)
                         except KeyError:
                             pass
@@ -178,13 +187,13 @@ class FORMATTER:
                     if isinstance(entry, ldap3.abstract.entry.Entry):
                         temp_entry = json.loads(entry.entry_to_json())
                     for c in list(temp_entry['attributes'].keys()):
-                        if c.casefold() == left.casefold():
+                        if str(c).casefold() == str(left).casefold():
                             left = c
                             break
                     try:
-                        if not (len(temp_entry['attributes'][left][0].casefold()) == 0) and (right.casefold() == "null"):
+                        if not (len(str(temp_entry['attributes'][left][0]).casefold()) == 0) and (str(right).casefold() == "null"):
                             temp_alter_entries.append(entry)
-                        elif temp_entry['attributes'][left][0].casefold() != right.casefold():
+                        elif str(temp_entry['attributes'][left][0]).casefold() != str(right).casefold():
                             temp_alter_entries.append(entry)
                     except KeyError:
                         pass
@@ -192,11 +201,11 @@ class FORMATTER:
                     temp_aces = []
                     for ace in entry['attributes']:
                         for c in list(ace.keys()):
-                            if c.casefold() == left.casefold():
+                            if str(c).casefold() == str(left).casefold():
                                 left = c
                                 break
                         try:
-                            if right.casefold() != ace[left].casefold():
+                            if str(right).casefold() != str(ace[left]).casefold():
                                 temp_aces.append(ace)
                         except KeyError:
                             pass

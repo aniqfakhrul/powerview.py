@@ -583,7 +583,7 @@ def main():
                                 clear_screen()
 
                             if entries:
-                                formatter = FORMATTER(pv_args)
+                                formatter = FORMATTER(pv_args, args.use_kerberos)
                                 if pv_args.where is not None:
                                     # Alter entries
                                     entries = formatter.alter_entries(entries,pv_args.where)
@@ -607,7 +607,7 @@ def main():
                             sys.exit(0)
             except KeyboardInterrupt:
                 print()
-            #except Exception as e:
-            #    logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
         print(e)
