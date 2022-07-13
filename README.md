@@ -23,7 +23,7 @@ _Note that some of the kerberos functions are still not functioning well just ye
 ```
 python3 pywerview.py range.net/lowpriv:Password123 --dc-ip 192.168.86.192 [--use-ldaps]
 ```
-![./img/usage.png](usage)
+![usage](./img/usage.png)
 
 ## Module available (so far?)
 | Module | Alias |
