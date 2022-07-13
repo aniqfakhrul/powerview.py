@@ -6,16 +6,24 @@ This repository has nothing related to the existing [PywerView](https://github.c
 This is still in **beta** mode as bugs are likely to occur during execution. Please submit issue if you encounter any issues with the tool.
 
 ## What is PywerView?
-PywerView is an alternative for the awesome original [PowerView](https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1) script. Most of the modules used in PowerView are available in this project ( some of the flags are changed ). The insteresting feature of this tool is we implemented an interactive mini-console for PywerView to make you feel like home when using PowerView in PowerShell.
+PywerView is an alternative for the awesome original [PowerView](https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1) script. Most of the modules used in PowerView are available in this project ( some of the flags are changed ). 
+
+## Interesting Features
+* Embeded user session
+* Mini PywerView console to make you feel like home when using PowerView in Powershell
+* Auto-completer, so no more memorizing commands
+* Cross-Domain interactions (might or might not work)
+_Maybe more?_
 
 ## Why not just stick with the ps1 script?
-As most of yall know, PowerView.ps1 is highly likely to get detected by Defender or AV vendors once downloaded onto the PC. An offensive tool to get detected by AV is a red flag during engagement. Maybe some of you thinking, why not just bypass AMSI and import the script undetected? Well, some of the big companies normally have EDR installed on most endpoints and EDRs are normally hook amsi patching and also most likely would get detected during AMSI patching. So, PywerView FTW!
+As most of yall know, _PowerView.ps1_ is highly likely to get detected by Defender or AV vendors once downloaded onto the PC. An offensive tool to get detected by AV is a red flag during engagement. Maybe some of you thinking, why not just bypass AMSI and import the script undetected? Well, some of the big companies normally have EDR installed on most endpoints and EDRs are normally hook amsi patching and also most likely would get detected during AMSI patching. So, PywerView FTW!
 
 ## Usage
 _Note that some of the kerberos functions are still not functioning well just yet_
 ```
 python3 pywerview.py range.net/lowpriv:Password123 --dc-ip 192.168.86.192 [--use-ldaps]
 ```
+![usage](./img/usage.png)
 
 ## Module available (so far?)
 | Module | Alias |
