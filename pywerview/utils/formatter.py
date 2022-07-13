@@ -18,7 +18,10 @@ class FORMATTER:
         i = int(self.args.select)
         for entry in entries[0:i]:
             if self.use_kerberos:
-                entry['ObjectSID'].values[0] = format_sid(entry['ObjectSID'].values[0])
+                try:
+                    entry['ObjectSID'].values[0] = format_sid(entry['ObjectSID'].values[0])
+                except KeyError:
+                    pass
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -47,7 +50,10 @@ class FORMATTER:
         select_attributes = self.args.select.split(",")
         for entry in entries:
             if self.use_kerberos:
-                entry['ObjectSID'].values[0] = format_sid(entry['ObjectSID'].values[0])
+                try:
+                    entry['ObjectSID'].values[0] = format_sid(entry['ObjectSID'].values[0])
+                except KeyError:
+                    pass
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -86,7 +92,10 @@ class FORMATTER:
     def print(self,entries):
         for entry in entries:
             if self.use_kerberos:
-                entry['ObjectSID'].values[0] = format_sid(entry['ObjectSID'].values[0])
+                try:
+                    entry['ObjectSID'].values[0] = format_sid(entry['ObjectSID'].values[0])
+                except KeyError:
+                    pass
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
