@@ -1,4 +1,4 @@
-# PywerView
+# PywerView [beta]
 
 ## Disclaimer
 This repository has nothing related to the existing [PywerView](https://github.com/the-useless-one/pywerview) project that is already publicly available. This is only meant for my personal learning purpose and would like to share the efforts with everyone interested. This project will be supported by the collaborators from time to time, so don't worry.
