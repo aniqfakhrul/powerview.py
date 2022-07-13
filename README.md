@@ -61,3 +61,9 @@ python3 pywerview.py range.net/lowpriv:Password123 --dc-ip 192.168.86.192 [--use
   * setShadowCredentials
   * setGenericAll
   * setOwner
+
+### Credits
+* https://github.com/SecureAuthCorp/impacket
+* https://github.com/CravateRouge/bloodyAD
+* https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1
+* https://github.com/ShutdownRepo/impacket/
