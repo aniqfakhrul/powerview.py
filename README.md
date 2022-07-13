@@ -26,35 +26,35 @@ python3 pywerview.py range.net/lowpriv:Password123 --dc-ip 192.168.86.192 [--use
 ![usage](https://cdn.discordapp.com/attachments/867691675563982878/996623323196833873/Screenshot_2022-07-13_103827.png)
 
 ## Module available (so far?)
-| Module | Alias |
-| ------ | ----- |
-|Get-Domain|Get-NetDomain|
-| Get-DomainController | Get-NetDomainController |
-| Get-DomainDNSZone    |                         |
-| Get-DomainCA         | Get-NetCA               |
-|Get-DomainGPO|Get-NetGPO|
-|Get-DomainGPOLocalGroup|Get-GPOLocalGroup|
-|Get-DomainOU|Get-NetOU|
-|Get-DomainTrust|Get-NetTrust|
-|Get-DomainUser|Get-NetUser|
-|Get-NamedPipes||
-|Get-Shares|Get-NetShares|
-|Get-DomainComputer|Get-NetComputer|
-|Get-DomainObject|Get-ADObject|
-|Get-DomainObectAcl|Get-ObjectAcl|
-|Add-DomainObectAcl|Add-ObjectAcl|
-|Remove-DomainObjectAcl|Remove-ObjectAcl|
-|Add-DomainGroupMember|Add-GroupMember|
-|Remove-DomainGroupmember|Remove-GroupMember|
-|Add-DomainComputer|Add-ADComputer|
-|Remove-DomainComputer|Remove-ADComputer|
-|Add-DomainUser|Add-ADUser|
-|Remove-DomainUser|Remove-ADUser|
-|Set-DomainObject|Set-Object|
-|Set-DomainUserPassword||
-|Find-LocalAdminAccess||
-|Invoke-Kerberoast||
-|ConvertFrom-SID||
+| Module | Alias | Description |
+| ------ | ----- | ---- |
+|Get-Domain|Get-NetDomain||
+| Get-DomainController | Get-NetDomainController ||
+| Get-DomainDNSZone    |                         ||
+| Get-DomainCA         | Get-NetCA               ||
+|Get-DomainGPO|Get-NetGPO||
+|Get-DomainGPOLocalGroup|Get-GPOLocalGroup||
+|Get-DomainOU|Get-NetOU||
+|Get-DomainTrust|Get-NetTrust||
+|Get-DomainUser|Get-NetUser||
+|Get-NamedPipes|||
+|Get-Shares|Get-NetShares||
+|Get-DomainComputer|Get-NetComputer||
+|Get-DomainObject|Get-ADObject||
+|Get-DomainObectAcl|Get-ObjectAcl||
+|Add-DomainObectAcl|Add-ObjectAcl|Supported rights so far are All, DCsync, RBCD, ShadowCred, WriteMembers|
+|Remove-DomainObjectAcl|Remove-ObjectAcl||
+|Add-DomainGroupMember|Add-GroupMember||
+|Remove-DomainGroupmember|Remove-GroupMember||
+|Add-DomainComputer|Add-ADComputer||
+|Remove-DomainComputer|Remove-ADComputer||
+|Add-DomainUser|Add-ADUser||
+|Remove-DomainUser|Remove-ADUser||
+|Set-DomainObject|Set-Object||
+|Set-DomainUserPassword|||
+|Find-LocalAdminAccess|||
+|Invoke-Kerberoast|||
+|ConvertFrom-SID|||
 
 ### To-Do
 * Added more delegation rights to Add-ObjectAcl
