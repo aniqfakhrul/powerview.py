@@ -49,6 +49,8 @@ class PywerView:
         if args:
             if args.preauthnotrequired:
                 ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=4194304)'
+            if args.passnotrequired:
+                ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=32)'
             if args.admincount:
                 ldap_filter += f'(admincount=1)'
             if args.allowdelegation:

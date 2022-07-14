@@ -93,6 +93,7 @@ def powerview_arg_parse(cmd):
     get_domainuser_parser.add_argument('-where', '-Where', action='store', dest='where')
     get_domainuser_parser.add_argument('-spn', '-SPN', action='store_true', default=False, dest='spn')
     get_domainuser_parser.add_argument('-admincount', '-AdminCount', action='store_true', default=False, dest='admincount')
+    get_domainuser_parser.add_argument('-passnotrequired', '-PassNotRequired', action='store_true', default=False, dest='passnotrequired')
     get_domainuser_parser.add_argument('-preauthnotrequired', '-PreAuthNotRequired', action='store_true', default=False, dest='preauthnotrequired')
     get_domainuser_parser.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
     get_domainuser_parser.add_argument('-allowdelegation', '-AllowDelegation', action='store_true', default=False, dest='allowdelegation')
