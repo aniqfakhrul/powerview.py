@@ -929,10 +929,11 @@ class PywerView:
         attrs = dict()
         try:
             regex = r'\{(.*?)\}'
+            res = re.search(regex,obj)
+            dd = res.group(1).replace("'","").replace('"','').split("=")
+            attrs['attr'] = dd[0].strip()
+            attrs['val'] = dd[1].strip()
+            return attrs
         except:
             raise Exception('Error regex parsing')
-        res = re.search(regex,obj)
-        dd = res.group(1).replace("'","").replace('"','').split("=")
-        attrs['attr'] = dd[0].strip()
-        attrs['val'] = dd[1].strip()
-        return attrs
+            return None
