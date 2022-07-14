@@ -67,12 +67,21 @@ def powerview_arg_parse(cmd):
     get_domaingroup_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
     get_domaingroup_parser.add_argument('-properties', '-Properties', action='store', default='*', dest='properties')
     get_domaingroup_parser.add_argument('-ldapfilter', '-LDAPFilter', action='store', dest='ldapfilter')
+    get_domaingroup_parser.add_argument('-memberidentity', '-MemberIdentity', action='store', dest='memberidentity')
     get_domaingroup_parser.add_argument('-admincount', '-AdminCount', action='store_true', default=False, dest='admincount')
     get_domaingroup_parser.add_argument('-domain', '-Domain', action='store', dest='server')
-    get_domaingroup_parser.add_argument('-members', '-Members', action='store', dest='members')
     get_domaingroup_parser.add_argument('-select', '-Select', action='store', dest='select')
     get_domaingroup_parser.add_argument('-where', '-Where', action='store', dest='where')
     get_domaingroup_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
+
+    #groupmember
+    get_domaingroupmember_parser = subparsers.add_parser('Get-DomainGroupMember', aliases=['Get-NetGroupMember'], exit_on_error=False)
+    get_domaingroupmember_parser.add_argument('-identity', '-Identity', action='store',default='*', dest='identity')
+    get_domaingroupmember_parser.add_argument('-ldapfilter', '-LDAPFilter', action='store', dest='ldapfilter')
+    get_domaingroupmember_parser.add_argument('-domain', '-Domain', action='store', dest='server')
+    get_domaingroupmember_parser.add_argument('-select', '-Select', action='store', dest='select')
+    get_domaingroupmember_parser.add_argument('-where', '-Where', action='store', dest='where')
+    get_domaingroupmember_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #user
     get_domainuser_parser = subparsers.add_parser('Get-DomainUser', aliases=['Get-NetUser'], exit_on_error=False)
@@ -399,6 +408,12 @@ def main():
                                     entries = temp_pywerview.get_domaingroup(pv_args, properties, identity)
                                 else:
                                     entries = pywerview.get_domaingroup(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domaingroupmember' or pv_args.module.casefold() == 'get-netgroupmember':
+                                identity = pv_args.identity.strip()
+                                if temp_pywerview:
+                                    entries = temp_pywerview.get_domaingroupmember(pv_args, identity)
+                                else:
+                                    entries = pywerview.get_domaingroupmember(pv_args, identity)
                             elif pv_args.module.casefold() == 'get-domaincontroller' or pv_args.module.casefold() == 'get-netdomaincontroller':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()

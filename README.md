@@ -37,6 +37,8 @@ python3 pywerview.py range.net/lowpriv:Password123 --dc-ip 192.168.86.192 [--use
 |Get-DomainOU|Get-NetOU||
 |Get-DomainTrust|Get-NetTrust||
 |Get-DomainUser|Get-NetUser||
+|Get-DomainGroup|Get-NetGroup||
+|Get-DomainGroupMember|Get-NetGroupMember||
 |Get-NamedPipes|||
 |Get-Shares|Get-NetShares||
 |Get-DomainComputer|Get-NetComputer||

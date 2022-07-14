@@ -61,7 +61,9 @@ class PywerView:
                 logging.debug(f'[Get-DomainUser] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f'{args.ldapfilter}'
 
-        ldap_filter = f'(&(samAccountType=805306368){identity_filter}{ldap_filter})'
+        # previous ldap filter, need to changed to filter based on objectClass instead because i couldn't get the trust account
+        #ldap_filter = f'(&(samAccountType=805306368){identity_filter}{ldap_filter})'
+        ldap_filter = f'(&(objectCategory=person)(objectClass=user){identity_filter}{ldap_filter})'
 
         logging.debug(f'LDAP search filter: {ldap_filter}')
 
@@ -161,7 +163,9 @@ class PywerView:
                 logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f"{args.ldapfilter}"
 
-        ldap_filter = f'(&(samAccountType=805306369){identity_filter}{ldap_filter})'
+        # also need to change this to filter from objectClass instead
+        #ldap_filter = f'(&(samAccountType=805306369){identity_filter}{ldap_filter})'
+        ldap_filter = f'(&(objectClass=computer){identity_filter}{ldap_filter})'
 
         logging.debug(f'LDAP search filter: {ldap_filter}')
 
@@ -170,19 +174,59 @@ class PywerView:
 
     def get_domaingroup(self, args=None, properties='*', identity='*'):
         ldap_filter = ""
-        identity_filter = f"(|(|(samAccountName={identity})(name={identity})))"
-
+        identity_filter = f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
         if args:
             if args.admincount:
                 ldap_filter += f"(admincount=1)"
             if args.ldapfilter:
-                logging.debug(f'[Get-DomainGroup] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f"{args.ldapfilter}"
+                logging.debug(f'[Get-DomainGroup] Using additional LDAP filter: {args.ldapfilter}')
+            if args.memberidentity:
+                entries = self.get_domainobject(identity=args.memberidentity)
+                if len(entries) == 0:
+                    logging.info("Member identity not found")
+                    return
+                memberidentity_dn = entries[0]['distinguishedName'].values[0]
+                ldap_filter += f"(member={memberidentity_dn})"
+                logging.debug(f'[Get-DomainGroup] Filter is based on member property {ldap_filter}')
 
         ldap_filter = f'(&(objectCategory=group){identity_filter}{ldap_filter})'
         logging.debug(f'LDAP search filter: {ldap_filter}')
         self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         return self.ldap_session.entries
+
+    def get_domaingroupmember(self, args=None, identity='*'):
+        # get the identity group information
+        entries = self.get_domaingroup(identity=identity)
+        if len(entries) == 0:
+            logging.info("No group found")
+            return
+        elif len(entries) > 1:
+            logging.info("Multiple group found. Probably try searching with distinguishedName")
+            return
+
+        group_identity_sam = entries[0]['sAMAccountName'].values[0]
+        group_identity_dn = entries[0]['distinguishedName'].values[0]
+
+        ldap_filter = f"(&(samAccountType=805306368)(memberof:1.2.840.113556.1.4.1941:={group_identity_dn}))"
+        self.ldap_session.search(self.root_dn, ldap_filter, attributes='*')
+
+        # create a new entry structure
+        new_entries = []
+        for entry in self.ldap_session.entries:
+            attr = {}
+            member_infos = {}
+            member_infos['GroupDomainName'] = group_identity_sam
+            member_infos['GroupDistinguishedName'] = group_identity_dn
+            member_infos['MemberDomain'] = entry['userPrincipalName'].values[0].split("@")[-1]
+            member_infos['MemberName'] = entry['sAMAccountName'].values[0]
+            member_infos['MemberDistinguishedName'] = entry['distinguishedName'].values[0]
+            member_infos['MemberSID'] = entry['objectSid'].values[0]
+
+            attr['attributes'] = member_infos
+            new_entries.append(attr.copy())
+
+        return new_entries
 
     def get_domaingpo(self, args=None, properties='*', identity='*'):
         ldap_filter = ""
