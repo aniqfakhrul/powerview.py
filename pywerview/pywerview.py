@@ -48,17 +48,32 @@ class PywerView:
 
         if args:
             if args.preauthnotrequired:
+                logging.debug("[Get-DomainUser] Searching for user accounts that do not require kerberos preauthenticate")
                 ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=4194304)'
             if args.passnotrequired:
+                logging.debug("[Get-DomainUser] Searching for user accounts that have PASSWD_NOTREQD set")
                 ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=32)'
             if args.admincount:
+                logging.debug('[Get-DomainUser] Searching for adminCount=1')
                 ldap_filter += f'(admincount=1)'
             if args.allowdelegation:
-                ldap_filter += f'!(userAccountControl:1.2.840.113556.1.4.803:=1048574)'
+                logging.debug('[Get-DomainUser] Searching for users who can be delegated')
+                ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=1048574))'
+            if args.disallowdelegation:
+                logging.debug('[Get-DomainUser] Searching for users who are sensitive and not trusted for delegation')
+                ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=1048576)'
             if args.trustedtoauth:
+                logging.debug('[Get-DomainUser] Searching for users that are trusted to authenticate for other principals')
                 ldap_filter += f'(msds-allowedtodelegateto=*)'
+            if args.rbcd:
+                logging.debug('[Get-DomainUser] Searching for users that are configured to allow resource-based constrained delegation')
+                ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
             if args.spn:
+                logging.debug("[Get-DomainUser] Searching for users that have SPN attribute set")
                 ldap_filter += f'(servicePrincipalName=*)'
+            if args.unconstrained:
+                logging.debug("[Get-DomainUser] Searching for users configured for unconstrained delegation")
+                ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
             if args.ldapfilter:
                 logging.debug(f'[Get-DomainUser] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f'{args.ldapfilter}'
@@ -156,11 +171,26 @@ class PywerView:
 
         if args:
             if args.unconstrained:
+                logging.debug("[Get-DomainComputer] Searching for computers with for unconstrained delegation")
                 ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
             if args.trustedtoauth:
+                logging.debug("[Get-DomainComputer] Searching for computers that are trusted to authenticate for other principals")
                 ldap_filter += f'(msds-allowedtodelegateto=*)'
             if args.laps:
+                logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
                 ldap_filter += f'(ms-MCS-AdmPwd=*)'
+            if args.rbcd:
+                logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
+                ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
+            if args.printers:
+                logging.debug("[Get-DomainComputer] Searching for printers")
+                ldap_filter += f'(objectCategory=printQueue)'
+            if args.spn:
+                logging.debug(f"[Get-DomainComputer] Searching for computers with SPN attribute: {args.spn}")
+                ldap_filter += f'(servicePrincipalName={args.spn})'
+            if args.excludedcs:
+                logging.debug("[Get-DomainComputer] Excluding domain controllers")
+                ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=8192))'
             if args.ldapfilter:
                 logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f"{args.ldapfilter}"
