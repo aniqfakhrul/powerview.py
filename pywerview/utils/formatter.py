@@ -17,11 +17,6 @@ class FORMATTER:
     def print_index(self, entries):
         i = int(self.args.select)
         for entry in entries[0:i]:
-            if self.use_kerberos:
-                try:
-                    entry['ObjectSID'].values[0] = format_sid(entry['ObjectSID'].values[0])
-                except KeyError:
-                    pass
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -49,11 +44,6 @@ class FORMATTER:
     def print_select(self,entries):
         select_attributes = self.args.select.split(",")
         for entry in entries:
-            if self.use_kerberos:
-                try:
-                    entry['ObjectSID'].values[0] = format_sid(entry['ObjectSID'].values[0])
-                except KeyError:
-                    pass
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -91,11 +81,7 @@ class FORMATTER:
 
     def print(self,entries):
         for entry in entries:
-            if self.use_kerberos:
-                try:
-                    entry['ObjectSID'].values[0] = format_sid(entry['ObjectSID'].values[0])
-                except KeyError:
-                    pass
+            entry = self.fix_sid_formatting(entry)
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -224,6 +210,17 @@ class FORMATTER:
             logging.error(f'Invalid operator')
 
         return temp_alter_entries
+
+    def fix_sid_formatting(self,entry):
+        try:
+            entry['ObjectSID'].values[0] = format_sid(entry['ObjectSID'].values[0])
+        except KeyError:
+            pass
+        try:
+            entry['mS-DS-CreatorSID'].values[0] = format_sid(entry['mS-DS-CreatorSID'].values[0])
+        except KeyError:
+            pass
+        return entry
 
     def get_max_len(self, lst):
         return len(max(lst,key=len)) + 5

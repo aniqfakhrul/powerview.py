@@ -93,9 +93,13 @@ def powerview_arg_parse(cmd):
     get_domainuser_parser.add_argument('-where', '-Where', action='store', dest='where')
     get_domainuser_parser.add_argument('-spn', '-SPN', action='store_true', default=False, dest='spn')
     get_domainuser_parser.add_argument('-admincount', '-AdminCount', action='store_true', default=False, dest='admincount')
+    get_domainuser_parser.add_argument('-passnotrequired', '-PassNotRequired', action='store_true', default=False, dest='passnotrequired')
+    get_domainuser_parser.add_argument('-rbcd', '-RBCD', action='store_true', default=False, dest='rbcd')
     get_domainuser_parser.add_argument('-preauthnotrequired', '-PreAuthNotRequired', action='store_true', default=False, dest='preauthnotrequired')
     get_domainuser_parser.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
     get_domainuser_parser.add_argument('-allowdelegation', '-AllowDelegation', action='store_true', default=False, dest='allowdelegation')
+    get_domainuser_parser.add_argument('-disallowdelegation', '-DisallowDelegation', action='store_true', default=False, dest='disallowdelegation')
+    get_domainuser_parser.add_argument('-unconstrained', '-Unconstrained', action='store_true', default=False, dest='unconstrained')
     get_domainuser_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #computers
@@ -109,6 +113,10 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-unconstrained', '-Unconstrained', action='store_true', default=False, dest='unconstrained')
     get_domaincomputer_parser.add_argument('-trustedtoauth', '-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
     get_domaincomputer_parser.add_argument('-laps', '-LAPS', action='store_true', default=False, dest='laps')
+    get_domaincomputer_parser.add_argument('-rbcd', '-RBCD', action='store_true', default=False, dest='rbcd')
+    get_domaincomputer_parser.add_argument('-spn', '-SPN', action='store', dest='spn')
+    get_domaincomputer_parser.add_argument('-printers', '-Printers', action='store_true', default=False, dest='printers')
+    get_domaincomputer_parser.add_argument('-excludedcs', '-ExcludeDCs', action='store_true', default=False, dest='excludedcs')
     get_domaincomputer_parser.add_argument('-nowrap', '-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #domain controller
@@ -622,7 +630,7 @@ def main():
                             sys.exit(0)
             except KeyboardInterrupt:
                 print()
-            #except Exception as e:
-            #    logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
         print(e)
