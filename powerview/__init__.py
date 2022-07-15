@@ -285,6 +285,13 @@ def powerview_arg_parse(cmd):
     try:
         args, unknown = parser.parse_known_args(cmd)
         if unknown:
+            print(unknown)
+            #for unk in unknown:
+            #    for i in list(COMMANDS.values()):
+            #        if unk.casefold() == i.casefold():
+            #            cmd = [c.replace(unk, i) for c in cmd]
+            #            break
+            #print(cmd)
             logging.error(f"Unrecognized argument: {' '.join(unknown)}")
             return None
         return args
@@ -302,7 +309,7 @@ def arg_parse():
     parser = argparse.ArgumentParser(description = "Python alternative to SharpSploit's PowerView script")
     parser.add_argument('account', action='store', metavar='[domain/]username[:password]', help='Account used to authenticate to DC.')
     parser.add_argument('--use-ldaps', dest='use_ldaps', action='store_true', help='Use LDAPS instead of LDAP')
-    parser.add_argument('--ldap-port', dest='ldap_port', action='store', help='Use custom port for ldap, gc:// for instance (Default: 389)', type=int)
+    parser.add_argument('--ldap-port', dest='ldap_port', action='store', help='Use custom port for ldap, gc:// port for instance (Default: 389)', type=int)
     parser.add_argument('--debug', dest='debug', action='store_true', help='Enable debug output')
 
     auth = parser.add_argument_group('authentication')
@@ -631,7 +638,7 @@ def main():
                             sys.exit(0)
             except KeyboardInterrupt:
                 print()
-            except Exception as e:
-                logging.error(str(e))
+#            except Exception as e:
+#                logging.error(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
         print(e)

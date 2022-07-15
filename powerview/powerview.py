@@ -2,7 +2,7 @@
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 
-from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser, switcher_sid
+from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser, WELL_KNOWN_SIDS
 from powerview.modules.ca import CAEnum
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
@@ -373,7 +373,7 @@ class PowerView:
         ldap_filter = f"(|(|(objectSid={objectsid})))"
         logging.debug(f"LDAP search filter: {ldap_filter}")
         domain_name = self.get_domain()[0]['name'].values[0].upper()
-        identity = switcher_sid.get(objectsid)
+        identity = WELL_KNOWN_SIDS.get(objectsid)
         if identity:
             identity = f"{domain_name}\\{identity}"
         else:
