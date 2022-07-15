@@ -4,7 +4,7 @@ from impacket.smb3structs import FILE_READ_DATA, FILE_WRITE_DATA
 from impacket.dcerpc.v5 import samr, epm, transport, rpcrt, rprn
 from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY
 
-from pywerview.utils.helpers import get_machine_name, ldap3_kerberos_login
+from powerview.utils.helpers import get_machine_name, ldap3_kerberos_login
 
 import ssl
 import ldap3
@@ -20,6 +20,8 @@ class CONNECTION:
         self.use_kerberos = args.use_kerberos
         self.dc_ip = args.dc_ip
         self.use_ldaps = args.use_ldaps
+        self.use_gc = args.use_gc
+        self.use_gc_ldaps = args.use_gc_ldaps
         self.hashes = args.hashes
         self.auth_aes_key = args.auth_aes_key
         self.no_pass = args.no_pass
@@ -43,27 +45,41 @@ class CONNECTION:
                 target = self.domain
 
         logging.debug(f"Connecting to {target}")
-        if self.use_ldaps is True:
+        if self.use_ldaps is True or self.use_gc_ldaps is True:
             try:
                 return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1_2, self.domain, self.username, self.password, self.lmhash, self.nthash)
             except ldap3.core.exceptions.LDAPSocketOpenError:
                 try:
                     return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1, self.domain, self.username, self.password, self.lmhash, self.nthash)
                 except:
-                    logging.error('Error bind to LDAPS, falling back to LDAP')
-                    self.use_ldaps = False
+                    if self.use_ldaps:
+                        logging.error('Error bind to LDAPS, falling back to LDAP')
+                        self.use_ldaps = False
+                    elif self.use_gc_ldaps:
+                        self.use_gc = True
+                        self.use_gc_ldaps = False
                     return self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
         else:
             return self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
 
-    def init_ldap_connection(self, target, no_tls, domain, username, password, lmhash, nthash):
+    def init_ldap_connection(self, target, tls, domain, username, password, lmhash, nthash):
         user = '%s\\%s' % (domain, username)
-        if not no_tls:
-            use_ssl = False
-            port = 389
+
+        if tls:
+            if self.use_ldaps:
+                use_ssl = True
+                port = 636
+            elif self.use_gc_ldaps:
+                use_ssl = True
+                port = 3269
         else:
-            use_ssl = True
-            port = 636
+            if self.use_gc:
+                use_ssl = False
+                port = 3268
+            else:
+                use_ssl = False
+                port = 389
+
         # TODO: fix target when using kerberos
         ldap_server = ldap3.Server(target, get_info=ldap3.ALL, port=port, use_ssl=use_ssl)
         if self.use_kerberos:

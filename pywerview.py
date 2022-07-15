@@ -1,3 +1,0 @@
-import pywerview
-
-pywerview.main()

@@ -2,13 +2,13 @@
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 
-from pywerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser, switcher_sid
-from pywerview.modules.ca import CAEnum
-from pywerview.modules.addcomputer import ADDCOMPUTER
-from pywerview.modules.kerberoast import GetUserSPNs
-from pywerview.utils.helpers import *
-from pywerview.utils.connections import CONNECTION
-from pywerview.utils.colors import bcolors
+from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser, WELL_KNOWN_SIDS
+from powerview.modules.ca import CAEnum
+from powerview.modules.addcomputer import ADDCOMPUTER
+from powerview.modules.kerberoast import GetUserSPNs
+from powerview.utils.helpers import *
+from powerview.utils.connections import CONNECTION
+from powerview.utils.colors import bcolors
 
 import chardet
 from io import BytesIO
@@ -18,7 +18,7 @@ from ldap3.extend.microsoft import addMembersToGroups, modifyPassword, removeMem
 import logging
 import re
 
-class PywerView:
+class PowerView:
 
     def __init__(self, conn, args, target_server=None):
         self.conn = conn
@@ -373,7 +373,7 @@ class PywerView:
         ldap_filter = f"(|(|(objectSid={objectsid})))"
         logging.debug(f"LDAP search filter: {ldap_filter}")
         domain_name = self.get_domain()[0]['name'].values[0].upper()
-        identity = switcher_sid.get(objectsid)
+        identity = WELL_KNOWN_SIDS.get(objectsid)
         if identity:
             identity = f"{domain_name}\\{identity}"
         else:

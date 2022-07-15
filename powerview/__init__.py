@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-from pywerview.pywerview import PywerView
-from pywerview.utils.helpers import *
-from pywerview.utils.native import *
-from pywerview.utils.formatter import FORMATTER
-from pywerview.utils.completer import Completer, COMMANDS
-from pywerview.utils.colors import bcolors
-from pywerview.utils.connections import CONNECTION
+from powerview.powerview import PowerView
+from powerview.utils.helpers import *
+from powerview.utils.native import *
+from powerview.utils.formatter import FORMATTER
+from powerview.utils.completer import Completer, COMMANDS
+from powerview.utils.colors import bcolors
+from powerview.utils.connections import CONNECTION
 
 from impacket import version
 from impacket.examples import logger
@@ -285,8 +285,15 @@ def powerview_arg_parse(cmd):
     try:
         args, unknown = parser.parse_known_args(cmd)
         if unknown:
-            logging.error(f"Unrecognized argument: {' '.join(unknown)}")
-            return None
+            for unk in unknown:
+                if unk[0] == "-":
+                    if unk.casefold() in [ item.casefold() for item in COMMANDS[cmd[0]] ] :
+                        indexs = [item.lower() for item in COMMANDS[cmd[0]]].index(unk.lower())
+                        cmd = [c.replace(unk,COMMANDS[cmd[0]][indexs]) for c in cmd]
+                    else:
+                        logging.error(f"Unrecognized argument: {unk}")
+                        return None
+            return parser.parse_args(cmd)
         return args
     except argparse.ArgumentError as e:
         for i in list(COMMANDS.keys()):
@@ -301,7 +308,10 @@ def powerview_arg_parse(cmd):
 def arg_parse():
     parser = argparse.ArgumentParser(description = "Python alternative to SharpSploit's PowerView script")
     parser.add_argument('account', action='store', metavar='[domain/]username[:password]', help='Account used to authenticate to DC.')
-    parser.add_argument('--use-ldaps', dest='use_ldaps', action='store_true', help='Use LDAPS instead of LDAP')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--use-ldaps', dest='use_ldaps', action='store_true', help='Use LDAPS instead of LDAP')
+    group.add_argument('--use-gc', dest='use_gc', action='store_true', help='Use GlobalCatalog (GC) protocol')
+    group.add_argument('--use-gc-ldaps', dest='use_gc_ldaps', action='store_true', help='Use GlobalCatalog (GC) protocol for LDAPS')
     parser.add_argument('--debug', dest='debug', action='store_true', help='Enable debug output')
 
     auth = parser.add_argument_group('authentication')
@@ -342,8 +352,8 @@ def main():
     try:
         conn = CONNECTION(args)
 
-        pywerview = PywerView(conn, args)
-        temp_pywerview = None
+        powerview = PowerView(conn, args)
+        temp_powerview = None
 
         while True:
             try:
@@ -367,7 +377,7 @@ def main():
                             if foreign_dc_address is not None:
                                 setattr(args,'dc_ip', foreign_dc_address)
                                 conn = CONNECTION(args)
-                                temp_pywerview = PywerView(conn, args)
+                                temp_powerview = PywerView(conn, args)
                             else:
                                 logging.error(f'Domain {pv_args.server} not found or probably not alive')
                                 continue
@@ -378,154 +388,154 @@ def main():
                             if pv_args.module.casefold() == 'get-domain' or pv_args.module.casefold() == 'get-netdomain':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
-                                if temp_pywerview:
-                                    entries = temp_pywerview.get_domain(pv_args, properties, identity)
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domain(pv_args, properties, identity)
                                 else:
-                                    entries = pywerview.get_domain(pv_args, properties, identity)
+                                    entries = powerview.get_domain(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainobject' or pv_args.module.casefold() == 'get-adobject':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
-                                if temp_pywerview:
-                                    entries = temp_pywerview.get_domainobject(pv_args, properties, identity)
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domainobject(pv_args, properties, identity)
                                 else:
-                                    entries = pywerview.get_domainobject(pv_args, properties, identity)
+                                    entries = powerview.get_domainobject(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
                                 identity = pv_args.identity.strip()
-                                if temp_pywerview:
-                                    entries = temp_pywerview.get_domainobjectacl(pv_args)
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domainobjectacl(pv_args)
                                 else:
-                                    entries = pywerview.get_domainobjectacl(pv_args)
+                                    entries = powerview.get_domainobjectacl(pv_args)
                             elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
-                                if temp_pywerview:
-                                    entries = temp_pywerview.get_domainuser(pv_args, properties, identity)
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domainuser(pv_args, properties, identity)
                                 else:
-                                    entries = pywerview.get_domainuser(pv_args, properties, identity)
+                                    entries = powerview.get_domainuser(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaincomputer' or pv_args.module.casefold() == 'get-netcomputer':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
-                                if temp_pywerview:
-                                    entries = temp_pywerview.get_domaincomputer(pv_args, properties, identity)
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaincomputer(pv_args, properties, identity)
                                 else:
-                                    entries = pywerview.get_domaincomputer(pv_args, properties, identity)
+                                    entries = powerview.get_domaincomputer(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaingroup' or pv_args.module.casefold() == 'get-netgroup':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
-                                if temp_pywerview:
-                                    entries = temp_pywerview.get_domaingroup(pv_args, properties, identity)
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaingroup(pv_args, properties, identity)
                                 else:
-                                    entries = pywerview.get_domaingroup(pv_args, properties, identity)
+                                    entries = powerview.get_domaingroup(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaingroupmember' or pv_args.module.casefold() == 'get-netgroupmember':
                                 identity = pv_args.identity.strip()
-                                if temp_pywerview:
-                                    entries = temp_pywerview.get_domaingroupmember(pv_args, identity)
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaingroupmember(pv_args, identity)
                                 else:
-                                    entries = pywerview.get_domaingroupmember(pv_args, identity)
+                                    entries = powerview.get_domaingroupmember(pv_args, identity)
                             elif pv_args.module.casefold() == 'get-domaincontroller' or pv_args.module.casefold() == 'get-netdomaincontroller':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
-                                if temp_pywerview:
-                                    entries = temp_pywerview.get_domaincontroller(pv_args, properties, identity)
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaincontroller(pv_args, properties, identity)
                                 else:
-                                    entries = pywerview.get_domaincontroller(pv_args, properties, identity)
+                                    entries = powerview.get_domaincontroller(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaingpo' or pv_args.module.casefold() == 'get-netgpo':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
-                                if temp_pywerview:
-                                    entries = temp_pywerview.get_domaingpo(pv_args, properties, identity)
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaingpo(pv_args, properties, identity)
                                 else:
-                                    entries = pywerview.get_domaingpo(pv_args, properties, identity)
+                                    entries = powerview.get_domaingpo(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaingpolocalgroup' or pv_args.module.casefold() == 'get-gpolocalgroup':
                                 identity = pv_args.identity.strip()
-                                if temp_pywerview:
-                                    entries = temp_pywerview.get_domaingpolocalgroup(pv_args, identity)
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaingpolocalgroup(pv_args, identity)
                                 else:
-                                    entries = pywerview.get_domaingpolocalgroup(pv_args, identity)
+                                    entries = powerview.get_domaingpolocalgroup(pv_args, identity)
                             elif pv_args.module.casefold() == 'get-domainou' or pv_args.module.casefold() == 'get-netou':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
-                                if temp_pywerview:
-                                    entries = temp_pywerview.get_domainou(pv_args, properties, identity)
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domainou(pv_args, properties, identity)
                                 else:
-                                    entries = pywerview.get_domainou(pv_args, properties, identity)
+                                    entries = powerview.get_domainou(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaindnszone':
                                 properties = pv_args.properties.replace(" ","").split(',')
-                                if temp_pywerview:
-                                    entries = temp_pywerview.get_domaindnszone(pv_args, properties)
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaindnszone(pv_args, properties)
                                 else:
-                                    entries = pywerview.get_domaindnszone(pv_args, properties)
+                                    entries = powerview.get_domaindnszone(pv_args, properties)
                             elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-netca':
                                 properties = pv_args.properties.replace(" ","").split(',')
-                                if temp_pywerview:
-                                    entries = temp_pywerview.get_domainca(pv_args, properties)
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domainca(pv_args, properties)
                                 else:
-                                    entries = pywerview.get_domainca(pv_args, properties)
+                                    entries = powerview.get_domainca(pv_args, properties)
                             elif pv_args.module.casefold() == 'get-domaintrust' or pv_args.module.casefold() == 'get-nettrust':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
-                                if temp_pywerview:
-                                    entries = temp_pywerview.get_domaintrust(pv_args, properties, identity)
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaintrust(pv_args, properties, identity)
                                 else:
-                                    entries = pywerview.get_domaintrust(pv_args, properties, identity)
+                                    entries = powerview.get_domaintrust(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'convertfrom-sid':
                                 if pv_args.objectsid:
                                     objectsid = pv_args.objectsid.strip()
-                                    if temp_pywerview:
-                                        temp_pywerview.convertfrom_sid(objectsid=objectsid, output=True)
+                                    if temp_powerview:
+                                        temp_powerview.convertfrom_sid(objectsid=objectsid, output=True)
                                     else:
-                                        pywerview.convertfrom_sid(objectsid=objectsid, output=True)
+                                        powerview.convertfrom_sid(objectsid=objectsid, output=True)
                                 else:
                                     logging.error("-ObjectSID flag is required")
                             elif pv_args.module.casefold() == 'get-namedpipes':
                                 if pv_args.computer is not None or pv_args.computername is not None:
-                                    if temp_pywerview:
-                                        entries = temp_pywerview.get_namedpipes(pv_args)
+                                    if temp_powerview:
+                                        entries = temp_powerview.get_namedpipes(pv_args)
                                     else:
-                                        entries = pywerview.get_namedpipes(pv_args)
+                                        entries = powerview.get_namedpipes(pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'get-shares' or pv_args.module.casefold() == 'get-netshares':
                                 if pv_args.computer is not None or pv_args.computername is not None:
-                                    if temp_pywerview:
-                                        temp_pywerview.get_shares(pv_args)
+                                    if temp_powerview:
+                                        temp_powerview.get_shares(pv_args)
                                     else:
-                                        pywerview.get_shares(pv_args)
+                                        powerview.get_shares(pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'find-localadminaccess':
-                                if temp_pywerview:
-                                    entries = temp_pywerview.find_localadminaccess(pv_args)
+                                if temp_powerview:
+                                    entries = temp_powerview.find_localadminaccess(pv_args)
                                 else:
-                                    entries = pywerview.find_localadminaccess(pv_args)
+                                    entries = powerview.find_localadminaccess(pv_args)
                             elif pv_args.module.casefold() == 'invoke-kerberoast':
-                                if temp_pywerview:
-                                    entries = temp_pywerview.invoke_kerberoast(pv_args)
+                                if temp_powerview:
+                                    entries = temp_powerview.invoke_kerberoast(pv_args)
                                 else:
-                                    entries = pywerview.invoke_kerberoast(pv_args)
+                                    entries = powerview.invoke_kerberoast(pv_args)
                             elif pv_args.module.casefold() == 'add-domainobjectacl' or pv_args.module.casefold() == 'add-objectacl':
                                 if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
-                                    if temp_pywerview:
-                                        temp_pywerview.add_domainobjectacl(pv_args)
+                                    if temp_powerview:
+                                        temp_powerview.add_domainobjectacl(pv_args)
                                     else:
-                                        pywerview.add_domainobjectacl(pv_args)
+                                        powerview.add_domainobjectacl(pv_args)
                                 else:
                                     logging.error('-TargetIdentity , -PrincipalIdentity and -Rights flags are required')
                             elif pv_args.module.casefold() == 'remove-domainobjectacl' or pv_args.module.casefold() == 'remove-objectacl':
                                 if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
-                                    if temp_pywerview:
-                                        temp_pywerview.remove_domainobjectacl(pv_args)
+                                    if temp_powerview:
+                                        temp_powerview.remove_domainobjectacl(pv_args)
                                     else:
-                                        pywerview.remove_domainobjectacl(pv_args)
+                                        powerview.remove_domainobjectacl(pv_args)
                                 else:
                                     logging.error('-TargetIdentity , -PrincipalIdentity and -Rights flags are required')
                             elif pv_args.module.casefold() == 'add-domaingroupmember' or pv_args.module.casefold() == 'add-groupmember':
                                 if pv_args.identity is not None and pv_args.members is not None:
                                     suceed = False
-                                    if temp_pywerview:
-                                        succeed = temp_pywerview.add_domaingroupmember(pv_args.identity, pv_args.members, pv_args)
+                                    if temp_powerview:
+                                        succeed = temp_powerview.add_domaingroupmember(pv_args.identity, pv_args.members, pv_args)
                                     else:
-                                        succeed =  pywerview.add_domaingroupmember(pv_args.identity, pv_args.members, pv_args)
+                                        succeed =  powerview.add_domaingroupmember(pv_args.identity, pv_args.members, pv_args)
 
                                     if succeed:
                                         logging.info(f'User {pv_args.members} successfully added to {pv_args.identity}')
@@ -534,10 +544,10 @@ def main():
                             elif pv_args.module.casefold() == 'remove-domaingroupmember' or pv_args.module.casefold() == 'remove-groupmember':
                                 if pv_args.identity is not None and pv_args.members is not None:
                                     suceed = False
-                                    if temp_pywerview:
-                                        succeed = temp_pywerview.remove_domaingroupmember(pv_args.identity, pv_args.members, pv_args)
+                                    if temp_powerview:
+                                        succeed = temp_powerview.remove_domaingroupmember(pv_args.identity, pv_args.members, pv_args)
                                     else:
-                                        succeed =  pywerview.remove_domaingroupmember(pv_args.identity, pv_args.members, pv_args)
+                                        succeed =  powerview.remove_domaingroupmember(pv_args.identity, pv_args.members, pv_args)
 
                                     if succeed:
                                         logging.info(f'User {pv_args.members} successfully removed from {pv_args.identity}')
@@ -546,10 +556,10 @@ def main():
                             elif pv_args.module.casefold() == 'set-domainobject' or pv_args.module.casefold() == 'set-adobject':
                                 if pv_args.identity and (pv_args.clear or pv_args.set):
                                     succeed = False
-                                    if temp_pywerview:
-                                        succeed = temp_pywerview.set_domainobject(pv_args.identity, pv_args)
+                                    if temp_powerview:
+                                        succeed = temp_powerview.set_domainobject(pv_args.identity, pv_args)
                                     else:
-                                        suceed = pywerview.set_domainobject(pv_args.identity, pv_args)
+                                        suceed = powerview.set_domainobject(pv_args.identity, pv_args)
 
                                     if succeed:
                                         logging.info('Object modified successfully')
@@ -558,10 +568,10 @@ def main():
                             elif pv_args.module.casefold() == 'set-domainuserpassword':
                                 if pv_args.identity and pv_args.accountpassword:
                                     succeed = False
-                                    if temp_pywerview:
-                                        succeed = temp_pywerview.set_domainuserpassword(pv_args.identity, pv_args.accountpassword, pv_args)
+                                    if temp_powerview:
+                                        succeed = temp_powerview.set_domainuserpassword(pv_args.identity, pv_args.accountpassword, pv_args)
                                     else:
-                                        succeed = pywerview.set_domainuserpassword(pv_args.identity, pv_args.accountpassword, pv_args)
+                                        succeed = powerview.set_domainuserpassword(pv_args.identity, pv_args.accountpassword, pv_args)
 
                                     if succeed:
                                         logging.info(f'Password changed for {pv_args.identity}')
@@ -573,31 +583,31 @@ def main():
                                 if pv_args.computername is not None:
                                     if pv_args.computerpass is None:
                                         pv_args.computerpass = ''.join(random.choice(list(string.ascii_letters + string.digits + "!@#$%^&*()")) for _ in range(12))
-                                    if temp_pywerview:
-                                        temp_pywerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
+                                    if temp_powerview:
+                                        temp_powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
                                     else:
-                                        pywerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
+                                        powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
                                 else:
                                     logging.error(f'-ComputerName and -ComputerPass are required')
                             elif pv_args.module.casefold() == 'add-domainuser' or pv_args.module.casefold() == 'add-aduser':
-                                if temp_pywerview:
-                                    temp_pywerview.add_domainuser(pv_args.username, pv_args.userpass)
+                                if temp_powerview:
+                                    temp_powerview.add_domainuser(pv_args.username, pv_args.userpass)
                                 else:
-                                    pywerview.add_domainuser(pv_args.username, pv_args.userpass)
+                                    powerview.add_domainuser(pv_args.username, pv_args.userpass)
                             elif pv_args.module.casefold() == 'remove-domainuser' or pv_args.module.casefold() == 'remove-aduser':
                                 if pv_args.identity:
-                                    if temp_pywerview:
-                                        temp_pywerview.remove_domainuser(pv_args.identity)
+                                    if temp_powerview:
+                                        temp_powerview.remove_domainuser(pv_args.identity)
                                     else:
-                                        pywerview.remove_domainuser(pv_args.identity)
+                                        powerview.remove_domainuser(pv_args.identity)
                                 else:
                                     logging.error(f'-Identity is required')
                             elif pv_args.module.casefold() == 'remove-domaincomputer' or pv_args.module.casefold() == 'remove-adcomputer':
                                 if pv_args.computername is not None:
-                                    if temp_pywerview:
-                                        temp_pywerview.remove_domaincomputer(pv_args.computername)
+                                    if temp_powerview:
+                                        temp_powerview.remove_domaincomputer(pv_args.computername)
                                     else:
-                                        pywerview.remove_domaincomputer(pv_args.computername)
+                                        powerview.remove_domaincomputer(pv_args.computername)
                                 else:
                                     logging.error(f'-ComputerName is required')
                             elif pv_args.module.casefold() == 'exit':
@@ -621,7 +631,7 @@ def main():
                                     else:
                                         formatter.print(entries)
 
-                            temp_pywerview = None
+                            temp_powerview = None
                             setattr(args,'dc_ip', args.init_dc_ip)
                         except ldap3.core.exceptions.LDAPAttributeError as e:
                             logging.error(str(e))
