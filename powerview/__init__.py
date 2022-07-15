@@ -285,15 +285,15 @@ def powerview_arg_parse(cmd):
     try:
         args, unknown = parser.parse_known_args(cmd)
         if unknown:
-            print(unknown)
-            #for unk in unknown:
-            #    for i in list(COMMANDS.values()):
-            #        if unk.casefold() == i.casefold():
-            #            cmd = [c.replace(unk, i) for c in cmd]
-            #            break
-            #print(cmd)
-            logging.error(f"Unrecognized argument: {' '.join(unknown)}")
-            return None
+            for unk in unknown:
+                if unk[0] == "-":
+                    if unk.casefold() in [ item.casefold() for item in COMMANDS[cmd[0]] ] :
+                        indexs = [item.lower() for item in COMMANDS[cmd[0]]].index(unk.lower())
+                        cmd = [c.replace(unk,COMMANDS[cmd[0]][indexs]) for c in cmd]
+                    else:
+                        logging.error(f"Unrecognized argument: {unk}")
+                        return None
+            return parser.parse_args(cmd)
         return args
     except argparse.ArgumentError as e:
         for i in list(COMMANDS.keys()):
