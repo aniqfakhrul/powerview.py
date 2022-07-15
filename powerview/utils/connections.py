@@ -4,7 +4,7 @@ from impacket.smb3structs import FILE_READ_DATA, FILE_WRITE_DATA
 from impacket.dcerpc.v5 import samr, epm, transport, rpcrt, rprn
 from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY
 
-from pywerview.utils.helpers import get_machine_name, ldap3_kerberos_login
+from powerview.utils.helpers import get_machine_name, ldap3_kerberos_login
 
 import ssl
 import ldap3

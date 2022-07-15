@@ -2,13 +2,13 @@
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 
-from pywerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser, switcher_sid
-from pywerview.modules.ca import CAEnum
-from pywerview.modules.addcomputer import ADDCOMPUTER
-from pywerview.modules.kerberoast import GetUserSPNs
-from pywerview.utils.helpers import *
-from pywerview.utils.connections import CONNECTION
-from pywerview.utils.colors import bcolors
+from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser, switcher_sid
+from powerview.modules.ca import CAEnum
+from powerview.modules.addcomputer import ADDCOMPUTER
+from powerview.modules.kerberoast import GetUserSPNs
+from powerview.utils.helpers import *
+from powerview.utils.connections import CONNECTION
+from powerview.utils.colors import bcolors
 
 import chardet
 from io import BytesIO
@@ -18,7 +18,7 @@ from ldap3.extend.microsoft import addMembersToGroups, modifyPassword, removeMem
 import logging
 import re
 
-class PywerView:
+class PowerView:
 
     def __init__(self, conn, args, target_server=None):
         self.conn = conn

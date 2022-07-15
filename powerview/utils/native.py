@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from os import system, name
 import json
-from pywerview.utils.colors import bcolors
+from powerview.utils.colors import bcolors
 
 # define our clear function
 def clear_screen():

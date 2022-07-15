@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from pywerview.utils.colors import bcolors
+from powerview.utils.colors import bcolors
 
 from ldap3.protocol.formatters.formatters import format_sid
 
