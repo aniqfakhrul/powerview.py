@@ -17,6 +17,7 @@ class FORMATTER:
     def print_index(self, entries):
         i = int(self.args.select)
         for entry in entries[0:i]:
+            entry = self.fix_sid_formatting(entry)
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -44,6 +45,7 @@ class FORMATTER:
     def print_select(self,entries):
         select_attributes = self.args.select.split(",")
         for entry in entries:
+            entry = self.fix_sid_formatting(entry)
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
