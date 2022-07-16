@@ -133,7 +133,7 @@ class PowerView:
         if args.security_identifier:
             principalsid_entry = self.get_domainobject(identity=args.security_identifier,properties=['objectSid'])
             if not principalsid_entry:
-                logging.error(f'Principal {args.security_identifier} not found in domain')
+                logging.error(f'Principal {args.security_identifier} not found. Try to use DN')
                 return
             elif len(principalsid_entry) > 1:
                 logging.error(f'[SecurityIdentifier] Multiple identities found. Use exact match')
@@ -144,7 +144,7 @@ class PowerView:
         if identity != "*":
             identity_entries = self.get_domainobject(identity=identity,properties=['objectSid','distinguishedName'])
             if len(identity_entries) == 0:
-                logging.error(f'Identity {args.identity} not found in domain')
+                logging.error(f'Identity {args.identity} not found. Try to use DN')
                 return
             elif len(identity_entries) > 1:
                 logging.error(f'[Identity] Multiple identities found. Use exact match')
@@ -216,7 +216,7 @@ class PowerView:
             if args.memberidentity:
                 entries = self.get_domainobject(identity=args.memberidentity)
                 if len(entries) == 0:
-                    logging.info("Member identity not found")
+                    logging.info("Member identity not found. Try to use DN")
                     return
                 memberidentity_dn = entries[0]['distinguishedName'].values[0]
                 ldap_filter += f"(member={memberidentity_dn})"
@@ -414,7 +414,7 @@ class PowerView:
             logging.error(f'Group {identity} not found in domain')
             return
         if len(user_entry) == 0:
-            logging.error(f'User {members} not found in domain')
+            logging.error(f'User {members} not found in domain. Try to use DN')
             return
         targetobject = group_entry[0]
         userobject = user_entry[0]
@@ -430,7 +430,7 @@ class PowerView:
             logging.error(f'Group {identity} not found in domain')
             return
         if len(user_entry) == 0:
-            logging.error(f'User {members} not found in domain')
+            logging.error(f'User {members} not found in domain, Try to use DN')
             return
         targetobject = group_entry[0]
         userobject = user_entry[0]
