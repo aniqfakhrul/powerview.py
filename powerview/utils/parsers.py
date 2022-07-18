@@ -8,6 +8,7 @@ def arg_parse():
     parser = argparse.ArgumentParser(description = "Python alternative to SharpSploit's PowerView script")
     parser.add_argument('account', action='store', metavar='[domain/]username[:password]', help='Account used to authenticate to DC.')
     group = parser.add_mutually_exclusive_group()
+    group.add_argument('--use-ldap', dest='use_ldap', action='store_true', help='Use LDAP instead of LDAPS')
     group.add_argument('--use-ldaps', dest='use_ldaps', action='store_true', help='Use LDAPS instead of LDAP')
     group.add_argument('--use-gc', dest='use_gc', action='store_true', help='Use GlobalCatalog (GC) protocol')
     group.add_argument('--use-gc-ldaps', dest='use_gc_ldaps', action='store_true', help='Use GlobalCatalog (GC) protocol for LDAPS')
