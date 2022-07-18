@@ -3,7 +3,7 @@ from powerview.powerview import PowerView
 from powerview.utils.helpers import *
 from powerview.utils.native import *
 from powerview.utils.formatter import FORMATTER
-from powerview.utils.completer import Completer, COMMANDS
+from powerview.utils.completer import Completer
 from powerview.utils.colors import bcolors
 from powerview.utils.connections import CONNECTION
 from powerview.utils.parsers import powerview_arg_parse, arg_parse
@@ -64,7 +64,7 @@ def main():
                             if foreign_dc_address is not None:
                                 setattr(args,'dc_ip', foreign_dc_address)
                                 conn = CONNECTION(args)
-                                temp_powerview = PywerView(conn, args)
+                                temp_powerview = PowerView(conn, args)
                             else:
                                 logging.error(f'Domain {pv_args.server} not found or probably not alive')
                                 continue
@@ -327,6 +327,9 @@ def main():
                             sys.exit(0)
             except KeyboardInterrupt:
                 print()
+            except EOFError:
+                print("Exiting...")
+                sys.exit(0)
             except Exception as e:
                 logging.error(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:

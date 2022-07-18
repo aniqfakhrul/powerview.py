@@ -19,6 +19,7 @@ class CONNECTION:
         self.nthash = args.nthash
         self.use_kerberos = args.use_kerberos
         self.dc_ip = args.dc_ip
+        self.use_ldap = args.use_ldap
         self.use_ldaps = args.use_ldaps
         self.use_gc = args.use_gc
         self.use_gc_ldaps = args.use_gc_ldaps
@@ -28,6 +29,9 @@ class CONNECTION:
         self.args = args
         self.targetIp = args.dc_ip
         self.kdcHost = args.dc_ip
+
+        if not self.use_ldap and not self.use_ldaps and not self.use_gc and not self.use_gc_ldaps:
+            self.use_ldaps = True
 
         self.samr = None
         self.TGT = None
@@ -45,20 +49,23 @@ class CONNECTION:
                 target = self.domain
 
         if self.use_ldaps is True or self.use_gc_ldaps is True:
+            logging.debug("No protocol provided. Trying LDAPS")
             try:
                 return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1_2, self.domain, self.username, self.password, self.lmhash, self.nthash)
-            except ldap3.core.exceptions.LDAPSocketOpenError:
+            except (ldap3.core.exceptions.LDAPSocketOpenError, ConnectionResetError):
                 try:
                     return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1, self.domain, self.username, self.password, self.lmhash, self.nthash)
                 except:
                     if self.use_ldaps:
-                        logging.error('Error bind to LDAPS, falling back to LDAP')
+                        logging.warning('Error bind to LDAPS, trying LDAP')
+                        self.use_ldap = True
                         self.use_ldaps = False
                     elif self.use_gc_ldaps:
-                        logging.error('Error bind to LDAPS, falling back to GC ssl')
+                        logging.warning('Error bind to GS ssl, trying GC')
                         self.use_gc = True
                         self.use_gc_ldaps = False
-                    return self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
+                    return self.init_ldap_session()
+                    #return self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
         else:
             return self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
 
@@ -76,7 +83,7 @@ class CONNECTION:
             if self.use_gc:
                 use_ssl = False
                 port = 3268
-            else:
+            elif self.use_ldap:
                 use_ssl = False
                 port = 389
 
