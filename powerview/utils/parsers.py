@@ -4,9 +4,10 @@ import logging
 
 from impacket import version
 from powerview.utils.completer import COMMANDS
+from powerview.utils.colors import bcolors
 
 def arg_parse():
-    parser = argparse.ArgumentParser(description = "Python alternative to SharpSploit's PowerView script")
+    parser = argparse.ArgumentParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE}0.1.2{bcolors.ENDC}")
     parser.add_argument('account', action='store', metavar='[domain/]username[:password]', help='Account used to authenticate to DC.')
     parser.add_argument('--debug', dest='debug', action='store_true', help='Enable debug output')
 

@@ -52,7 +52,7 @@ class CONNECTION:
             logging.debug("No protocol provided. Trying LDAPS")
             try:
                 return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1_2, self.domain, self.username, self.password, self.lmhash, self.nthash)
-            except ldap3.core.exceptions.LDAPSocketOpenError:
+            except (ldap3.core.exceptions.LDAPSocketOpenError, ConnectionResetError):
                 try:
                     return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1, self.domain, self.username, self.password, self.lmhash, self.nthash)
                 except:
