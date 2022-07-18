@@ -49,7 +49,7 @@ class CONNECTION:
                 target = self.domain
 
         if self.use_ldaps is True or self.use_gc_ldaps is True:
-            logging.debug("No protocol flag provided. Trying LDAPS")
+            logging.debug("No protocol provided. Trying LDAPS")
             try:
                 return self.init_ldap_connection(target, ssl.PROTOCOL_TLSv1_2, self.domain, self.username, self.password, self.lmhash, self.nthash)
             except ldap3.core.exceptions.LDAPSocketOpenError:

@@ -3,6 +3,7 @@ import sys
 import logging
 
 from impacket import version
+from powerview.utils.completer import COMMANDS
 
 def arg_parse():
     parser = argparse.ArgumentParser(description = "Python alternative to SharpSploit's PowerView script")

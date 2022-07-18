@@ -3,7 +3,7 @@ from powerview.powerview import PowerView
 from powerview.utils.helpers import *
 from powerview.utils.native import *
 from powerview.utils.formatter import FORMATTER
-from powerview.utils.completer import Completer, COMMANDS
+from powerview.utils.completer import Completer
 from powerview.utils.colors import bcolors
 from powerview.utils.connections import CONNECTION
 from powerview.utils.parsers import powerview_arg_parse, arg_parse
