@@ -8,12 +8,14 @@ from powerview.utils.completer import COMMANDS
 def arg_parse():
     parser = argparse.ArgumentParser(description = "Python alternative to SharpSploit's PowerView script")
     parser.add_argument('account', action='store', metavar='[domain/]username[:password]', help='Account used to authenticate to DC.')
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument('--use-ldap', dest='use_ldap', action='store_true', help='Use LDAP instead of LDAPS')
-    group.add_argument('--use-ldaps', dest='use_ldaps', action='store_true', help='Use LDAPS instead of LDAP')
-    group.add_argument('--use-gc', dest='use_gc', action='store_true', help='Use GlobalCatalog (GC) protocol')
-    group.add_argument('--use-gc-ldaps', dest='use_gc_ldaps', action='store_true', help='Use GlobalCatalog (GC) protocol for LDAPS')
     parser.add_argument('--debug', dest='debug', action='store_true', help='Enable debug output')
+
+    protocol = parser.add_argument_group('protocol')
+    group = protocol.add_mutually_exclusive_group()
+    group.add_argument('--use-ldap', dest='use_ldap', action='store_true', help='[Optional] Use LDAP instead of LDAPS')
+    group.add_argument('--use-ldaps', dest='use_ldaps', action='store_true', help='[Optional] Use LDAPS instead of LDAP')
+    group.add_argument('--use-gc', dest='use_gc', action='store_true', help='[Optional] Use GlobalCatalog (GC) protocol')
+    group.add_argument('--use-gc-ldaps', dest='use_gc_ldaps', action='store_true', help='[Optional] Use GlobalCatalog (GC) protocol for LDAPS')
 
     auth = parser.add_argument_group('authentication')
     auth.add_argument('-H','--hashes', action="store", metavar = "LMHASH:NTHASH", help='NTLM hashes, format is LMHASH:NTHASH')

@@ -809,11 +809,14 @@ class PowerView:
         ldap_filter = ""
         ldap_filter = f"(servicePrincipalName=*)(UserAccountControl:1.2.840.113556.1.4.803:=512)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(!(objectCategory=computer))"
         if args.identity:
-            ldap_filter = f"(sAMAccountName={identity})"
+            ldap_filter += f"(sAMAccountName={args.identity})"
         ldap_filter = f"(&{ldap_filter})"
         logging.debug(f'[Invoke-Kerberoast] LDAP Filter string: {ldap_filter}')
         self.ldap_session.search(self.root_dn, ldap_filter, attributes=['servicePrincipalName', 'sAMAccountName','pwdLastSet', 'MemberOf', 'userAccountControl', 'lastLogon'])
         entries = self.ldap_session.entries
+        if len(entries) == 0:
+            logging.error("No identity found")
+            return
         # request TGS for each accounts
         target_domain = self.domain
         if args.server:
