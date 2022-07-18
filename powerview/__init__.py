@@ -64,7 +64,7 @@ def main():
                             if foreign_dc_address is not None:
                                 setattr(args,'dc_ip', foreign_dc_address)
                                 conn = CONNECTION(args)
-                                temp_powerview = PywerView(conn, args)
+                                temp_powerview = PowerView(conn, args)
                             else:
                                 logging.error(f'Domain {pv_args.server} not found or probably not alive')
                                 continue
@@ -327,7 +327,7 @@ def main():
                             sys.exit(0)
             except KeyboardInterrupt:
                 print()
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
         print(e)
