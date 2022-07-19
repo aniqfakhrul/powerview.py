@@ -879,27 +879,46 @@ class PowerView:
         return local_admin_pcs
 
     def get_shares(self, args):
-        if is_ipaddress(args.computer) or is_ipaddress(args.computername) and self.use_kerberos:
-            logging.error('FQDN must be used for kerberos authentication')
-            return
+        is_fqdn = False
+        host = ""
 
+        if args.computer:
+            if not is_ipaddress(args.computer):
+                if args.server and args.server != self.domain:
+                    if args.server not in args.computer:
+                        host = f"{args.computer}.{args.server}"
+                        logging.debug(f"Using FQDN: {host}")
+                        is_fqdn = True
+                    else:
+                        host = args.computer
+                else:
+                    host = args.computer
+            else:
+                host = args.computer
+        elif args.computername:
+            if not is_ipaddress(args.computername):
+                if args.server and args.server != self.domain:
+                    if args.server not in args.computername:
+                        host = f"{args.computername}.{args.server}"
+                        logging.debug(f"Using FQDN: {host}")
+                        is_fqdn = True
+                    else:
+                        host = args.computername
+                else:
+                    host = args.computername
+            else:
+                host = args.computername
+        else:
+            logging.error(f'Host is required')
+            return
         if self.use_kerberos:
+            if is_ipaddress(args.computer) or is_ipaddress(args.computername):
+                logging.error('FQDN must be used for kerberos authentication')
+                return
             host = args.computer if args.computer else args.computername
         else:
-            if args.computer:
-                if is_ipaddress(args.computer):
-                    host = args.computer
-                else:
-                    host = host2ip(args.computer, self.dc_ip, 3, True)
-            elif args.computername:
-                if is_ipaddress(args.computername):
-                    host = args.computername
-                else:
-                    host = host2ip(args.computername, self.dc_ip, 3, True)
-            else:
-                logging.error(f'Host is required')
-                return
-
+            if is_fqdn:
+                host = host2ip(host, self.dc_ip, 3, True)
         if not host:
             return
 

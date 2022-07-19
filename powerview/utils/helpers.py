@@ -61,6 +61,7 @@ def is_ipaddress(address):
 def get_principal_dc_address(domain, nameserver, dns_tcp=True):
     answer = None
     logging.debug('Querying domain controller information from DNS')
+    print(f"nameserver {nameserver}")
     try:
         basequery = f'_ldap._tcp.pdc._msdcs.{domain}'
         dnsresolver = resolver.Resolver(configure=False)
@@ -69,20 +70,30 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
 
         q = dnsresolver.query(basequery, 'SRV', tcp=dns_tcp)
 
-
         if str(q.qname).lower().startswith('_ldap._tcp.pdc._msdcs'):
             ad_domain = str(q.qname).lower()[len(basequery):].strip('.')
             logging.debug('Found AD domain: %s' % ad_domain)
 
-        #print(q.response.additional[0].items['address'])
         for r in q:
             dc = str(r.target).rstrip('.')
         #resolve ip for principal dc
         answer = resolve_domain(dc, nameserver)
+        return answer
     except resolver.NXDOMAIN as e:
         logging.debug(str(e))
-    except:
-        logging.debug('Error retreiving principal DC')
+        logging.debug("Principal DC not found, querying other record")
+        pass
+
+    try:
+        logging.debug("Querying all DCs")
+        q = dnsresolver.query(basequery.replace('pdc','dc'), 'SRV', tcp=dns_tcp)
+        for r in q:
+            dc = str(r.target).rstrip('.')
+            logging.debug('Found AD Domain: %s' % dc)
+        answer = resolve_domain(dc,nameserver)
+        return answer
+    except resolver.NXDOMAIN:
+        pass
     return answer
 
 def resolve_domain(domain, nameserver):
