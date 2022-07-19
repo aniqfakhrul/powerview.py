@@ -60,8 +60,7 @@ def is_ipaddress(address):
 
 def get_principal_dc_address(domain, nameserver, dns_tcp=True):
     answer = None
-    logging.debug('Querying domain controller information from DNS')
-    print(f"nameserver {nameserver}")
+    logging.debug(f'Querying domain controller information from DNS server {nameserver}')
     try:
         basequery = f'_ldap._tcp.pdc._msdcs.{domain}'
         dnsresolver = resolver.Resolver(configure=False)
@@ -83,6 +82,9 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
         logging.debug(str(e))
         logging.debug("Principal DC not found, querying other record")
         pass
+    except dns.resolver.NoAnswer as e:
+        logging.debug(str(e))
+        pass
 
     try:
         logging.debug("Querying all DCs")
@@ -93,6 +95,9 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
         answer = resolve_domain(dc,nameserver)
         return answer
     except resolver.NXDOMAIN:
+        pass
+    except dns.resolver.NoAnswer as e:
+        logging.debug(str(e))
         pass
     return answer
 
@@ -106,6 +111,8 @@ def resolve_domain(domain, nameserver):
             answer = i.to_text()
     except dns.resolver.NoNameservers:
         logging.info(f'Records not found')
+    except dns.resolver.NoAnswer as e:
+        logging.error(str(e))
     return answer
 
 def get_machine_name(args, domain):
@@ -322,6 +329,7 @@ def get_user_info(samname, ldap_session, domain_dumper):
 def host2ip(hostname, nameserver,dns_timeout,dns_tcp):
     dnsresolver = resolver.Resolver()
     if nameserver:
+        logging.debug(f"Querying from DNS server {nameserver}")
         dnsresolver.nameservers = [nameserver]
     dnsresolver.lifetime = float(dns_timeout)
     try:
@@ -329,7 +337,7 @@ def host2ip(hostname, nameserver,dns_timeout,dns_tcp):
         for r in q:
             addr = r.address
         return addr
-    except Exception as e:
+    except resolver.NXDOMAIN as e:
         logging.error("Resolved Failed: %s" % e)
         return None
 
