@@ -642,28 +642,34 @@ class PowerView:
         is_fqdn = False
         if args.computer:
             if not is_ipaddress(args.computer):
+                is_fqdn = True
                 if args.server and args.server != self.domain:
-                    if args.server not in args.computer:
+                    if not args.computer.endswith(args.server):
                         host = f"{args.computer}.{args.server}"
-                        logging.debug(f"Using FQDN: {host}")
-                        is_fqdn = True
                     else:
                         host = args.computer
                 else:
-                    host = args.computer
+                    if not args.computer.endswith(self.domain):
+                        host = f"{args.computer}.{self.domain}"
+                    else:
+                        host = args.computer
+                logging.debug(f"Using FQDN: {host}")
             else:
                 host = args.computer
         elif args.computername:
             if not is_ipaddress(args.computername):
+                is_fqdn = True
                 if args.server and args.server != self.domain:
-                    if args.server not in args.computername:
+                    if not args.computername.endswith(self.domain):
                         host = f"{args.computername}.{args.server}"
-                        logging.debug(f"Using FQDN: {host}")
-                        is_fqdn = True
                     else:
                         host = args.computername
                 else:
-                    host = args.computername
+                    if not args.computername.endswith(self.domain):
+                        host = f"{args.computername}.{self.domain}"
+                    else:
+                        host = args.computername
+                logging.debug(f"Using FQDN: {host}")
             else:
                 host = args.computername
         else:
