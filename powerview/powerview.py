@@ -640,41 +640,24 @@ class PowerView:
     def get_namedpipes(self, args=None):
         host = ""
         is_fqdn = False
-        if args.computer:
-            if not is_ipaddress(args.computer):
+        host_inp = args.computer if args.computer else args.computername
+
+        if host_inp:
+            if not is_ipaddress(host_inp):
                 is_fqdn = True
-                if args.server and args.server != self.domain:
-                    if not args.computer.endswith(args.server):
-                        host = f"{args.computer}.{args.server}"
+                if args.server and args.server.casefold() != self.domain.casefold():
+                    if not host_inp.endswith(args.server):
+                        host = f"{host_inp}.{args.server}"
                     else:
-                        host = args.computer
+                        host = host_inp
                 else:
-                    if not args.computer.endswith(self.domain):
-                        host = f"{args.computer}.{self.domain}"
+                    if not is_valid_fqdn(host_inp):
+                        host = f"{host_inp}.{self.domain}"
                     else:
-                        host = args.computer
+                        host = host_inp
                 logging.debug(f"Using FQDN: {host}")
             else:
-                host = args.computer
-        elif args.computername:
-            if not is_ipaddress(args.computername):
-                is_fqdn = True
-                if args.server and args.server != self.domain:
-                    if not args.computername.endswith(self.domain):
-                        host = f"{args.computername}.{args.server}"
-                    else:
-                        host = args.computername
-                else:
-                    if not args.computername.endswith(self.domain):
-                        host = f"{args.computername}.{self.domain}"
-                    else:
-                        host = args.computername
-                logging.debug(f"Using FQDN: {host}")
-            else:
-                host = args.computername
-        else:
-            logging.error(f'Host is required')
-            return
+                host = host_inp
 
         if self.use_kerberos:
             if is_ipaddress(args.computer) or is_ipaddress(args.computername):
@@ -913,42 +896,24 @@ class PowerView:
     def get_shares(self, args):
         is_fqdn = False
         host = ""
+        host_inp = args.computer if args.computer else args.computername
 
-        if args.computer:
-            if not is_ipaddress(args.computer):
+        if host_inp:
+            if not is_ipaddress(host_inp):
                 is_fqdn = True
-                if args.server and args.server != self.domain:
-                    if not args.computer.endswith(args.server):
-                        host = f"{args.computer}.{args.server}"
+                if args.server and args.server.casefold() != self.domain.casefold():
+                    if not host_inp.endswith(args.server):
+                        host = f"{host_inp}.{args.server}"
                     else:
-                        host = args.computer
+                        host = host_inp
                 else:
-                    if not args.computer.endswith(self.domain):
-                        host = f"{args.computer}.{self.domain}"
+                    if not is_valid_fqdn(host_inp):
+                        host = f"{host_inp}.{self.domain}"
                     else:
-                        host = args.computer
+                        host = host_inp
                 logging.debug(f"Using FQDN: {host}")
             else:
-                host = args.computer
-        elif args.computername:
-            if not is_ipaddress(args.computername):
-                is_fqdn = True
-                if args.server and args.server != self.domain:
-                    if not args.computername.endswith(args.server):
-                        host = f"{args.computername}.{args.server}"
-                    else:
-                        host = args.computername
-                else:
-                    if not args.computername.endswith(self.domain):
-                        host = f"{args.computername}.{self.domain}"
-                    else:
-                        host = args.computername
-                logging.debug(f"Using FQDN: {host}")
-            else:
-                host = args.computername
-        else:
-            logging.error(f'Host is required')
-            return
+                host = host_inp
 
         if self.use_kerberos:
             if is_ipaddress(args.computer) or is_ipaddress(args.computername):
