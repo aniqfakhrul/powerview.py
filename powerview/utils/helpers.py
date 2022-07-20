@@ -60,7 +60,7 @@ def is_ipaddress(address):
 
 def get_principal_dc_address(domain, nameserver, dns_tcp=True):
     answer = None
-    logging.debug('Querying domain controller information from DNS')
+    logging.debug(f'Querying domain controller information from DNS server {nameserver}')
     try:
         basequery = f'_ldap._tcp.pdc._msdcs.{domain}'
         dnsresolver = resolver.Resolver(configure=False)
@@ -69,20 +69,36 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
 
         q = dnsresolver.query(basequery, 'SRV', tcp=dns_tcp)
 
-
         if str(q.qname).lower().startswith('_ldap._tcp.pdc._msdcs'):
             ad_domain = str(q.qname).lower()[len(basequery):].strip('.')
             logging.debug('Found AD domain: %s' % ad_domain)
 
-        #print(q.response.additional[0].items['address'])
         for r in q:
             dc = str(r.target).rstrip('.')
         #resolve ip for principal dc
         answer = resolve_domain(dc, nameserver)
+        return answer
     except resolver.NXDOMAIN as e:
         logging.debug(str(e))
-    except:
-        logging.debug('Error retreiving principal DC')
+        logging.debug("Principal DC not found, querying other record")
+        pass
+    except dns.resolver.NoAnswer as e:
+        logging.debug(str(e))
+        pass
+
+    try:
+        logging.debug("Querying all DCs")
+        q = dnsresolver.query(basequery.replace('pdc','dc'), 'SRV', tcp=dns_tcp)
+        for r in q:
+            dc = str(r.target).rstrip('.')
+            logging.debug('Found AD Domain: %s' % dc)
+        answer = resolve_domain(dc,nameserver)
+        return answer
+    except resolver.NXDOMAIN:
+        pass
+    except dns.resolver.NoAnswer as e:
+        logging.debug(str(e))
+        pass
     return answer
 
 def resolve_domain(domain, nameserver):
@@ -95,6 +111,8 @@ def resolve_domain(domain, nameserver):
             answer = i.to_text()
     except dns.resolver.NoNameservers:
         logging.info(f'Records not found')
+    except dns.resolver.NoAnswer as e:
+        logging.error(str(e))
     return answer
 
 def get_machine_name(args, domain):
@@ -311,6 +329,7 @@ def get_user_info(samname, ldap_session, domain_dumper):
 def host2ip(hostname, nameserver,dns_timeout,dns_tcp):
     dnsresolver = resolver.Resolver()
     if nameserver:
+        logging.debug(f"Querying from DNS server {nameserver}")
         dnsresolver.nameservers = [nameserver]
     dnsresolver.lifetime = float(dns_timeout)
     try:
@@ -318,7 +337,7 @@ def host2ip(hostname, nameserver,dns_timeout,dns_tcp):
         for r in q:
             addr = r.address
         return addr
-    except Exception as e:
+    except resolver.NXDOMAIN as e:
         logging.error("Resolved Failed: %s" % e)
         return None
 

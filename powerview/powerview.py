@@ -639,19 +639,51 @@ class PowerView:
 
     def get_namedpipes(self, args=None):
         host = ""
+        is_fqdn = False
         if args.computer:
-            if is_ipaddress(args.computer):
+            if not is_ipaddress(args.computer):
+                is_fqdn = True
+                if args.server and args.server != self.domain:
+                    if not args.computer.endswith(args.server):
+                        host = f"{args.computer}.{args.server}"
+                    else:
+                        host = args.computer
+                else:
+                    if not args.computer.endswith(self.domain):
+                        host = f"{args.computer}.{self.domain}"
+                    else:
+                        host = args.computer
+                logging.debug(f"Using FQDN: {host}")
+            else:
                 host = args.computer
-            else:
-                host = host2ip(args.computer, self.dc_ip, 3, True)
         elif args.computername:
-            if is_ipaddress(args.computername):
-                host = args.computername
+            if not is_ipaddress(args.computername):
+                is_fqdn = True
+                if args.server and args.server != self.domain:
+                    if not args.computername.endswith(self.domain):
+                        host = f"{args.computername}.{args.server}"
+                    else:
+                        host = args.computername
+                else:
+                    if not args.computername.endswith(self.domain):
+                        host = f"{args.computername}.{self.domain}"
+                    else:
+                        host = args.computername
+                logging.debug(f"Using FQDN: {host}")
             else:
-                host = host2ip(args.computername, self.dc_ip, 3, True)
+                host = args.computername
         else:
             logging.error(f'Host is required')
             return
+
+        if self.use_kerberos:
+            if is_ipaddress(args.computer) or is_ipaddress(args.computername):
+                logging.error('FQDN must be used for kerberos authentication')
+                return
+            host = args.computer if args.computer else args.computername
+        else:
+            if is_fqdn:
+                host = host2ip(host, self.dc_ip, 3, True)
 
         if not host:
             logging.error('Host not found')
@@ -879,28 +911,56 @@ class PowerView:
         return local_admin_pcs
 
     def get_shares(self, args):
-        if is_ipaddress(args.computer) or is_ipaddress(args.computername) and self.use_kerberos:
-            logging.error('FQDN must be used for kerberos authentication')
+        is_fqdn = False
+        host = ""
+
+        if args.computer:
+            if not is_ipaddress(args.computer):
+                is_fqdn = True
+                if args.server and args.server != self.domain:
+                    if not args.computer.endswith(args.server):
+                        host = f"{args.computer}.{args.server}"
+                    else:
+                        host = args.computer
+                else:
+                    if not args.computer.endswith(self.domain):
+                        host = f"{args.computer}.{self.domain}"
+                    else:
+                        host = args.computer
+                logging.debug(f"Using FQDN: {host}")
+            else:
+                host = args.computer
+        elif args.computername:
+            if not is_ipaddress(args.computername):
+                is_fqdn = True
+                if args.server and args.server != self.domain:
+                    if not args.computername.endswith(args.server):
+                        host = f"{args.computername}.{args.server}"
+                    else:
+                        host = args.computername
+                else:
+                    if not args.computername.endswith(self.domain):
+                        host = f"{args.computername}.{self.domain}"
+                    else:
+                        host = args.computername
+                logging.debug(f"Using FQDN: {host}")
+            else:
+                host = args.computername
+        else:
+            logging.error(f'Host is required')
             return
 
         if self.use_kerberos:
+            if is_ipaddress(args.computer) or is_ipaddress(args.computername):
+                logging.error('FQDN must be used for kerberos authentication')
+                return
             host = args.computer if args.computer else args.computername
         else:
-            if args.computer:
-                if is_ipaddress(args.computer):
-                    host = args.computer
-                else:
-                    host = host2ip(args.computer, self.dc_ip, 3, True)
-            elif args.computername:
-                if is_ipaddress(args.computername):
-                    host = args.computername
-                else:
-                    host = host2ip(args.computername, self.dc_ip, 3, True)
-            else:
-                logging.error(f'Host is required')
-                return
+            if is_fqdn:
+                host = host2ip(host, self.dc_ip, 3, True)
 
         if not host:
+            logging.error(f"Host not found")
             return
 
         if self.use_kerberos:
@@ -914,7 +974,7 @@ class PowerView:
         shares = client.listShares()
         share_infos = []
 
-        print(f'{"Name".ljust(15)}{"Remark".ljust(25)}ComputerName')
+        print(f'{"Name".ljust(15)}{"Remark".ljust(25)}Address')
         print(f'{"----".ljust(15)}{"-------".ljust(25)}------------')
         for i in range(len(shares)):
             share_name = shares[i]['shi1_netname'][:-1]
