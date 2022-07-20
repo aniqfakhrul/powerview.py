@@ -29,6 +29,13 @@ from impacket.krb5 import constants
 from impacket.krb5.types import Principal
 
 import configparser
+import validators
+
+def is_valid_fqdn(hostname: str) -> bool:
+    if validators.domain(hostname):
+        return True
+    else:
+        return False
 
 def parse_inicontent(filecontent=None, filepath=None):
     infobject = []
