@@ -315,6 +315,8 @@ def main():
                                             formatter.print_index(entries)
                                         else:
                                             formatter.print_select(entries)
+                                    elif pv_args.count:
+                                        formatter.count(entries)
                                     else:
                                         formatter.print(entries)
 

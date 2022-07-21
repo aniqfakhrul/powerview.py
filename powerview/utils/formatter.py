@@ -14,6 +14,9 @@ class FORMATTER:
         self.args = pv_args
         self.use_kerberos = use_kerberos
 
+    def count(self, entries):
+        print(f"{len(entries)}")
+
     def print_index(self, entries):
         i = int(self.args.select)
         for entry in entries[0:i]:

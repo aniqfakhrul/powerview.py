@@ -5,10 +5,12 @@ from impacket.dcerpc.v5 import samr, epm, transport, rpcrt, rprn
 from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY
 
 from powerview.utils.helpers import get_machine_name, ldap3_kerberos_login
+from powerview.utils.colors import bcolors
 
 import ssl
 import ldap3
 import logging
+import sys
 
 class CONNECTION:
     def __init__(self, args):
@@ -95,9 +97,24 @@ class CONNECTION:
             ldap_session.bind()
             ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, self.auth_aes_key, kdcHost=self.kdcHost,useCache=self.no_pass)
         elif self.hashes is not None:
-            ldap_session = ldap3.Connection(ldap_server, user=user, password=lmhash + ":" + nthash, authentication=ldap3.NTLM, auto_bind=True)
+            ldap_session = ldap3.Connection(ldap_server, user=user, password=lmhash + ":" + nthash, authentication=ldap3.NTLM)
         else:
-            ldap_session = ldap3.Connection(ldap_server, user=user, password=password, authentication=ldap3.NTLM, auto_bind=True)
+            ldap_session = ldap3.Connection(ldap_server, user=user, password=password, authentication=ldap3.NTLM)
+
+        # check for channel binding
+        if not ldap_session.bind():
+            # check if signing is enforced
+            if "strongerAuthRequired" in str(ldap_session.result):
+                logging.error(f"{bcolors.WARNING}LDAP Signing is enforced{bcolors.ENDC}")
+            elif "data 52e" or "data 532" in str(ldap_session.result):
+                logging.error("Bind not successful - invalidCredentials")
+            else:
+                logging.error("Unexpected Error: {str(ldapConn.result)}")
+
+            sys.exit(0)
+        else:
+            logging.debug(f"{bcolors.WARNING}LDAP Signing NOT Enforced!{bcolors.ENDC}")
+            logging.debug(f"{bcolors.OKGREEN}LDAP bind SUCCESS!{bcolors.ENDC}")
 
         return ldap_server, ldap_session
 

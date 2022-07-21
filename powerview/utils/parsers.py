@@ -46,6 +46,7 @@ def powerview_arg_parse(cmd):
     parser.add_argument('-Domain', action='store', dest='server')
     parser.add_argument('-Where', action='store', dest='where')
     parser.add_argument('-Select', action='store', dest='select')
+    parser.add_argument('-Count', action='store', dest='count')
     parser.add_argument('-NoWrap', action='store', dest='nowrap')
 
     #domain
@@ -55,6 +56,7 @@ def powerview_arg_parse(cmd):
     get_domain_parser.add_argument('-Domain', action='store', dest='server')
     get_domain_parser.add_argument('-Select', action='store', dest='select')
     get_domain_parser.add_argument('-Where', action='store', dest='where')
+    get_domain_parser.add_argument('-Count', action='store_true', dest='count')
     get_domain_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #domainobject
@@ -65,6 +67,7 @@ def powerview_arg_parse(cmd):
     get_domainobject_parser.add_argument('-Domain', action='store', dest='server')
     get_domainobject_parser.add_argument('-Select', action='store', dest='select')
     get_domainobject_parser.add_argument('-Where', action='store', dest='where')
+    get_domainobject_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainobject_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #domainobjectacl
@@ -75,6 +78,7 @@ def powerview_arg_parse(cmd):
     get_domainobjectacl_parser.add_argument('-ResolveGUIDs', action='store_true',default=False, dest='resolveguids')
     get_domainobjectacl_parser.add_argument('-Select', action='store', dest='select')
     get_domainobjectacl_parser.add_argument('-Where', action='store', dest='where')
+    get_domainobjectacl_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainobjectacl_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #group
@@ -87,6 +91,7 @@ def powerview_arg_parse(cmd):
     get_domaingroup_parser.add_argument('-Domain', action='store', dest='server')
     get_domaingroup_parser.add_argument('-Select', action='store', dest='select')
     get_domaingroup_parser.add_argument('-Where', action='store', dest='where')
+    get_domaingroup_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaingroup_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #groupmember
@@ -96,6 +101,7 @@ def powerview_arg_parse(cmd):
     get_domaingroupmember_parser.add_argument('-Domain', action='store', dest='server')
     get_domaingroupmember_parser.add_argument('-Select', action='store', dest='select')
     get_domaingroupmember_parser.add_argument('-Where', action='store', dest='where')
+    get_domaingroupmember_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaingroupmember_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #user
@@ -106,6 +112,7 @@ def powerview_arg_parse(cmd):
     get_domainuser_parser.add_argument('-Domain', action='store', dest='server')
     get_domainuser_parser.add_argument('-Select', action='store', dest='select')
     get_domainuser_parser.add_argument('-Where', action='store', dest='where')
+    get_domainuser_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainuser_parser.add_argument('-SPN', action='store_true', default=False, dest='spn')
     get_domainuser_parser.add_argument('-AdminCount', action='store_true', default=False, dest='admincount')
     get_domainuser_parser.add_argument('-PassNotRequired', action='store_true', default=False, dest='passnotrequired')
@@ -125,6 +132,7 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-Domain', action='store', dest='server')
     get_domaincomputer_parser.add_argument('-Select', action='store', dest='select')
     get_domaincomputer_parser.add_argument('-Where', action='store', dest='where')
+    get_domaincomputer_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaincomputer_parser.add_argument('-Unconstrained', action='store_true', default=False, dest='unconstrained')
     get_domaincomputer_parser.add_argument('-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
     get_domaincomputer_parser.add_argument('-LAPS', action='store_true', default=False, dest='laps')
@@ -141,6 +149,7 @@ def powerview_arg_parse(cmd):
     get_domaincontroller_parser.add_argument('-Domain', action='store', dest='server')
     get_domaincontroller_parser.add_argument('-Select',action='store', dest='select')
     get_domaincontroller_parser.add_argument('-Where', action='store', dest='where')
+    get_domaincontroller_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaincontroller_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #gpo
@@ -151,6 +160,7 @@ def powerview_arg_parse(cmd):
     get_domaingpo_parser.add_argument('-Domain', action='store', dest='server')
     get_domaingpo_parser.add_argument('-Select', action='store', dest='select')
     get_domaingpo_parser.add_argument('-Where', action='store', dest='where')
+    get_domaingpo_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaingpo_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #gpo local group / restricted groups
@@ -160,6 +170,7 @@ def powerview_arg_parse(cmd):
     get_domaingpolocalgroup_parser.add_argument('-Domain', action='store', dest='server')
     get_domaingpolocalgroup_parser.add_argument('-Select', action='store', dest='select')
     get_domaingpolocalgroup_parser.add_argument('-Where', action='store', dest='where')
+    get_domaingpolocalgroup_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaingpolocalgroup_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # OU
@@ -171,6 +182,7 @@ def powerview_arg_parse(cmd):
     get_domainou_parser.add_argument('-Select', action='store', dest='select')
     get_domainou_parser.add_argument('-GPLink', action='store', dest='gplink')
     get_domainou_parser.add_argument('-Where', action='store', dest='where')
+    get_domainou_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainou_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # Find DNS Zone
@@ -179,6 +191,7 @@ def powerview_arg_parse(cmd):
     get_domaindns_parser.add_argument('-Domain', action='store', dest='server')
     get_domaindns_parser.add_argument('-Select', action='store', dest='select')
     get_domaindns_parser.add_argument('-Where', action='store', dest='where')
+    get_domaindns_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaindns_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # Find CAs
@@ -187,6 +200,7 @@ def powerview_arg_parse(cmd):
     get_domainca_parser.add_argument('-Domain', action='store', dest='server')
     get_domainca_parser.add_argument('-Select', action='store', dest='select')
     get_domainca_parser.add_argument('-Where', action='store', dest='where')
+    get_domainca_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainca_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # get named pipes
@@ -196,6 +210,7 @@ def powerview_arg_parse(cmd):
     get_namedpipes_group.add_argument('-Computer', action='store', const=None, dest='computer')
     get_namedpipes_group.add_argument('-ComputerName', action='store', const=None, dest='computername')
     get_namedpipes_parser.add_argument('-Domain', action='store', dest='server')
+    get_namedpipes_parser.add_argument('-Count', action='store_true', dest='count')
 
     # shares
     get_shares_parser = subparsers.add_parser('Get-Shares', aliases=['Get-NetShares'], exit_on_error=False)
@@ -203,12 +218,15 @@ def powerview_arg_parse(cmd):
     get_shares_group.add_argument('-Computer', action='store', const=None, dest='computer')
     get_shares_group.add_argument('-ComputerName', action='store', const=None, dest='computername')
     get_shares_parser.add_argument('-Domain', action='store', dest='server')
+    get_shares_parser.add_argument('-Count', action='store_true', dest='count')
 
     # shares
     find_localadminaccess_parser = subparsers.add_parser('Find-LocalAdminAccess', exit_on_error=False)
-    find_localadminaccess_parser.add_argument('-Computer', action='store', dest='computer')
-    find_localadminaccess_parser.add_argument('-ComputerName', action='store', dest='computername')
+    find_localadminaccess_group = find_localadminaccess_parser.add_mutually_exclusive_group()
+    find_localadminaccess_group.add_argument('-Computer', action='store', dest='computer')
+    find_localadminaccess_group.add_argument('-ComputerName', action='store', dest='computername')
     find_localadminaccess_parser.add_argument('-Domain', action='store', dest='server')
+    find_localadminaccess_parser.add_argument('-Count', action='store_true', dest='count')
 
     # invoke kerberoast
     invoke_kerberoast_parser = subparsers.add_parser('Invoke-Kerberoast', exit_on_error=False)
@@ -217,6 +235,7 @@ def powerview_arg_parse(cmd):
     invoke_kerberoast_parser.add_argument('-Domain', action='store', dest='server')
     invoke_kerberoast_parser.add_argument('-Select', action='store', dest='select')
     invoke_kerberoast_parser.add_argument('-Where', action='store', dest='where')
+    invoke_kerberoast_parser.add_argument('-Count', action='store_true', dest='count')
     invoke_kerberoast_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #trust
@@ -226,6 +245,7 @@ def powerview_arg_parse(cmd):
     get_domaintrust_parser.add_argument('-Domain', action='store', dest='server')
     get_domaintrust_parser.add_argument('-Select', action='store', dest='select')
     get_domaintrust_parser.add_argument('-Where', action='store', dest='where')
+    get_domaintrust_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaintrust_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # convert from sid
