@@ -846,23 +846,18 @@ class PowerView:
         host_entries = []
         hosts = {}
 
-        if is_ipaddress(args.computer) or is_ipaddress(args.computername) and self.use_kerberos:
+        computer = args.computer if args.computer else args.computername
+
+        if not is_valid_fqdn(computer) and self.use_kerberos:
             logging.error('FQDN must be used for kerberos authentication')
             return
 
-        if args.computer:
-            if is_ipaddress(args.computer):
-                hosts['address'] = args.computer
+        if computer:
+            if is_ipaddress(computer):
+                hosts['address'] = computer
             else:
-                hosts['address'] = host2ip(args.computer, self.dc_ip, 3, True)
-                hosts['hostname'] = args.computer
-            host_entries.append(hosts)
-        elif args.computername:
-            if is_ipaddress(args.computername):
-                hosts['address'] = args.computername
-            else:
-                hosts['address'] = host2ip(args.computername, self.dc_ip, 3, True)
-                hosts['hostname'] = args.computername
+                hosts['address'] = host2ip(computer, self.dc_ip, 3, True)
+                hosts['hostname'] = computer
             host_entries.append(hosts)
         else:
             entries = self.get_domaincomputer(properties=['dnsHostName'])

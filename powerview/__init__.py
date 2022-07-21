@@ -310,13 +310,13 @@ def main():
                                 if entries is None:
                                     logging.error(f'Key not available')
                                 else:
-                                    if pv_args.select is not None:
+                                    if pv_args.count:
+                                        formatter.count(entries)
+                                    elif pv_args.select is not None:
                                         if pv_args.select.isdecimal():
                                             formatter.print_index(entries)
                                         else:
                                             formatter.print_select(entries)
-                                    elif pv_args.count:
-                                        formatter.count(entries)
                                     else:
                                         formatter.print(entries)
 
