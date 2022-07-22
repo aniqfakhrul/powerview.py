@@ -20,10 +20,21 @@ As most of yall know, _PowerView.ps1_ is highly likely to get detected by Defend
 
 ## Usage
 _Note that some of the kerberos functions are still not functioning well just yet_
+* Init connection
 ```
-python3 powerview.py range.net/lowpriv:Password123 --dc-ip 192.168.86.192 [--use-ldaps]
+python3 powerview.py range.net/lowpriv:Password123 --dc-ip 192.168.86.192 [-h]
 ```
 ![usage](https://cdn.discordapp.com/attachments/867691675563982878/996623323196833873/Screenshot_2022-07-13_103827.png)
+
+* Filter results
+```
+Get-DomainUser -Where 'samaccountname [contains][in][eq] admins'
+```
+
+* Count resulsts
+```
+Get-DomainUser -Count
+```
 
 ## Module available (so far?)
 | Module | Alias | Description |
@@ -59,10 +70,8 @@ python3 powerview.py range.net/lowpriv:Password123 --dc-ip 192.168.86.192 [--use
 |ConvertFrom-SID|||
 
 ### To-Do
-* Added more rights to Add-ObjectAcl
-  * setGenericAll
-  * setOwner
-* Fix DNS resolution
+* Add Set-DomainObjectOwner module
+* Add a wiki?
 
 ### Credits
 * https://github.com/SecureAuthCorp/impacket

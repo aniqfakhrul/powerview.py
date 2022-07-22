@@ -25,6 +25,7 @@ class CONNECTION:
         self.use_ldaps = args.use_ldaps
         self.use_gc = args.use_gc
         self.use_gc_ldaps = args.use_gc_ldaps
+        self.proto = None
         self.hashes = args.hashes
         self.auth_aes_key = args.auth_aes_key
         self.no_pass = args.no_pass
@@ -38,6 +39,36 @@ class CONNECTION:
         self.samr = None
         self.TGT = None
         self.TGS = None
+
+    def set_domain(self, domain):
+        self.domain = domain
+
+    def get_domain(self):
+        return self.domain
+
+    def set_username(self, username):
+        self.username = username
+
+    def get_username(self):
+        return self.username
+
+    def set_password(self, password):
+        self.password = password
+
+    def get_password(self):
+        return self.password
+
+    def set_dc_ip(self, dc_ip):
+        self.dc_ip = dc_ip
+
+    def get_dc_ip(self):
+        return self.dc_ip
+
+    def get_proto(self):
+        return self.proto
+
+    def set_proto(self, proto):
+        self.proto = proto
 
     def init_ldap_session(self):
         if self.use_kerberos:
@@ -76,16 +107,20 @@ class CONNECTION:
 
         if tls:
             if self.use_ldaps:
+                self.proto = "LDAPS"
                 use_ssl = True
                 port = 636
             elif self.use_gc_ldaps:
+                self.proto = "GCssl"
                 use_ssl = True
                 port = 3269
         else:
             if self.use_gc:
+                self.proto = "GC"
                 use_ssl = False
                 port = 3268
             elif self.use_ldap:
+                self.proto = "LDAP"
                 use_ssl = False
                 port = 389
 

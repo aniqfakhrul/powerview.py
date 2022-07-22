@@ -40,6 +40,7 @@ def main():
         conn = CONNECTION(args)
 
         powerview = PowerView(conn, args)
+        init_proto = conn.get_proto()
         temp_powerview = None
 
         while True:
@@ -49,7 +50,7 @@ def main():
                 readline.parse_and_bind("tab: complete")
                 readline.set_completer(comp.complete)
 
-                cmd = input(f'{bcolors.OKBLUE}PV> {bcolors.ENDC}')
+                cmd = input(f'{bcolors.WARNING}({init_proto}){bcolors.ENDC}{bcolors.OKBLUE} PV> {bcolors.ENDC}')
 
                 if cmd:
                     pv_args = powerview_arg_parse(shlex.split(cmd))
@@ -62,8 +63,9 @@ def main():
                             logging.warning(f"Cross-domain targetting might be unstable or slow depending on the network stability")
                             foreign_dc_address = get_principal_dc_address(pv_args.server,args.dc_ip)
                             if foreign_dc_address is not None:
-                                setattr(args,'dc_ip', foreign_dc_address)
-                                conn = CONNECTION(args)
+                                #setattr(args,'dc_ip', foreign_dc_address)
+                                #conn = CONNECTION(args)
+                                conn.set_dc_ip(foreign_dc_address)
                                 temp_powerview = PowerView(conn, args)
                             else:
                                 logging.error(f'Domain {pv_args.server} not found or probably not alive')
@@ -321,7 +323,8 @@ def main():
                                         formatter.print(entries)
 
                             temp_powerview = None
-                            setattr(args,'dc_ip', args.init_dc_ip)
+                            conn.set_dc_ip(args.init_dc_ip)
+                            #setattr(args,'dc_ip', args.init_dc_ip)
                         except ldap3.core.exceptions.LDAPAttributeError as e:
                             logging.error(str(e))
                         except ldap3.core.exceptions.LDAPSocketSendError as e:
