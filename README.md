@@ -18,11 +18,16 @@ _Maybe more?_
 ## Why not just stick with the ps1 script?
 As most of yall know, _PowerView.ps1_ is highly likely to get detected by Defender or AV vendors once downloaded onto the PC. An offensive tool to get detected by AV is a red flag during engagement. Maybe some of you thinking, why not just bypass AMSI and import the script undetected? Well, some of the big companies normally have EDR installed on most endpoints and EDRs are normally hook amsi patching and also most likely would get detected during AMSI patching. So, PowerView.py FTW!
 
+## Installation
+```
+python3 setup.py install
+```
+
 ## Usage
 _Note that some of the kerberos functions are still not functioning well just yet_
 * Init connection
 ```
-python3 powerview.py range.net/lowpriv:Password123 --dc-ip 192.168.86.192 [-h]
+powerview.py range.net/lowpriv:Password123 --dc-ip 192.168.86.192 [-h]
 ```
 ![usage](https://cdn.discordapp.com/attachments/867691675563982878/996623323196833873/Screenshot_2022-07-13_103827.png)
 
