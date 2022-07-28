@@ -79,3 +79,4 @@ Get-DomainUser -Count
 * https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1
 * https://github.com/ShutdownRepo/impacket/
 * https://github.com/the-useless-one/pywerview
+* https://github.com/dirkjanm/ldapdomaindump
