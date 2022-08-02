@@ -24,6 +24,6 @@ setup(name='powerview',
         'Programming Language :: Python :: 3.10',
       ],
       entry_points= {
-        'console_scripts': ['powerview.py=powerview:main']
+        'console_scripts': ['powerview=powerview:main']
       }
     )
