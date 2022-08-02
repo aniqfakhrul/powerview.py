@@ -339,3 +339,6 @@ def main():
                 logging.error(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
         print(e)
+
+if __name__ == '__main__':
+    main()
