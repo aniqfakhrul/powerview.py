@@ -7,6 +7,8 @@ import ldap3
 import json
 import re
 import logging
+import base64
+import datetime
 
 class FORMATTER:
     def __init__(self, pv_args, use_kerberos=False):
@@ -21,16 +23,17 @@ class FORMATTER:
         i = int(self.args.select)
         for entry in entries[0:i]:
             entry = self.fix_sid_formatting(entry)
-            if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
+            if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
                 for attr,value in entry['attributes'].items():
                     # Check dictionary in a list
-                    for i in value:
-                        if (isinstance(i,dict)) and ("encoded" in i.keys()):
-                            value = i["encoded"]
-                        if isinstance(i,int):
-                            value = str(i)
+                    if isinstance(value, list):
+                        for i in value:
+                            if (isinstance(i,dict)) and ("encoded" in i.keys()):
+                                value = i["encoded"]
+                            if isinstance(i,int):
+                                value = str(i)
 
                     value = self.beautify(value,self.get_max_len(list(entry['attributes'].keys()))+2)
                     if isinstance(value,list):
@@ -49,7 +52,7 @@ class FORMATTER:
         select_attributes = self.args.select.split(",")
         for entry in entries:
             entry = self.fix_sid_formatting(entry)
-            if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
+            if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
                 for key in list(entry["attributes"].keys()):
@@ -57,14 +60,17 @@ class FORMATTER:
                         if (str(attr).casefold() == str(key).casefold()):
                             value = ""
                             # Check dictionary in a list
-                            for i in entry['attributes'][key]:
-                                if (isinstance(i,dict)) and ("encoded" in i.keys()):
-                                    value = i["encoded"]
-                                else:
-                                    if len(select_attributes) == 1:
-                                        value += str(i)+"\n"
+                            if isinstance(entry['attributes'][key], list):
+                                for i in entry['attributes'][key]:
+                                    if (isinstance(i,dict)) and ("encoded" in i.keys()):
+                                        value = i["encoded"]
                                     else:
-                                        value += str(i)+"\n"+''.ljust(self.get_max_len(select_attributes)+2)
+                                        if len(select_attributes) == 1:
+                                            value += str(i)+"\n"
+                                        else:
+                                            value += str(i)+"\n"+''.ljust(self.get_max_len(select_attributes)+2)
+                            else:
+                                value = entry['attributes'][key]
                             value = value.strip()
                             if len(select_attributes) == 1:
                                 print(value)
@@ -87,23 +93,25 @@ class FORMATTER:
     def print(self,entries):
         for entry in entries:
             entry = self.fix_sid_formatting(entry)
-            if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
+            if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
                 for attr,value in entry['attributes'].items():
                     # Check dictionary in a list
-                    for i in value:
-                        if (isinstance(i,dict)) and ("encoded" in i.keys()):
-                            value = i["encoded"]
-                        if isinstance(i,int):
-                            value = str(i)
+                    if isinstance(value, list):
+                        for i in value:
+                            if (isinstance(i,dict)) and ("encoded" in i.keys()):
+                                value = i["encoded"]
+                            if isinstance(i,int):
+                                value = str(i)
 
                     value = self.beautify(value,self.get_max_len(list(entry['attributes'].keys()))+2)
+
                     if isinstance(value,list):
                         if len(value) != 0:
                             print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}")
                     else:
-                        print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {value}")
+                        print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {str(value)}")
                 print()
             elif isinstance(entry['attributes'],list):
                 for ace in entry['attributes']:
@@ -231,7 +239,7 @@ class FORMATTER:
         return len(max(lst,key=len)) + 5
 
     def beautify(self, strs,lens):
-        if not isinstance(strs,list) and not self.args.nowrap:
+        if isinstance(strs,str) and not self.args.nowrap:
             temp = ""
             if len(strs) > 100:
                 index = 100
@@ -243,5 +251,26 @@ class FORMATTER:
                 temp = f"{str(strs).ljust(lens)}"
 
             return temp.strip()
-        else:
+        elif isinstance(strs, list) and not self.args.nowrap:
+            for i in range(len(strs)):
+                if isinstance(strs[i], datetime.datetime):
+                    strs[i] = strs[i].strftime('%m/%d/%Y')
+                elif isinstance(strs[i], bytes):
+                    strs[i] = base64.b64encode(strs[i]).decode('utf-8')
+                    temp = ""
+                    if len(strs[i]) > 100:
+                        index = 100
+                        for j in range(0,len(strs[i]),100):
+                            temp += f"{str(strs[i][j:index])}\n"
+                            temp += ''.ljust(lens)
+                            index+=100
+                    else:
+                        temp = f"{str(strs[i]).ljust(lens)}"
+
+                    strs[i] = temp.strip()
             return strs
+        elif isinstance(strs, bytes):
+            strs = base64.b64encode(strs).decode("utf-8")
+            return strs
+        else:
+            return str(strs)
