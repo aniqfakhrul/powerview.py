@@ -28,6 +28,7 @@ def main():
     logging.getLogger().setLevel(logging.INFO)
 
     args = arg_parse()
+
     domain, username, password, lmhash, nthash = parse_identity(args)
     setattr(args,'domain',domain)
     setattr(args,'username',username)
