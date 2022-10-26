@@ -1,2 +1,5 @@
 .pywerview.py.swp
 __pycache__
+powerview.egg-info
+build
+dist
