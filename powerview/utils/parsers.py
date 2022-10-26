@@ -5,11 +5,13 @@ import logging
 from impacket import version
 from powerview.utils.completer import COMMANDS
 from powerview.utils.colors import bcolors
+from powerview._version import __version__
 
 def arg_parse():
     parser = argparse.ArgumentParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE}0.1.2{bcolors.ENDC}")
     parser.add_argument('account', action='store', metavar='[domain/]username[:password]', help='Account used to authenticate to DC.')
     parser.add_argument('--debug', dest='debug', action='store_true', help='Enable debug output')
+    parser.add_argument('--version', dest='version', action='version',version=f'%(prog)s {__version__}')
 
     protocol = parser.add_argument_group('protocol')
     group = protocol.add_mutually_exclusive_group()
