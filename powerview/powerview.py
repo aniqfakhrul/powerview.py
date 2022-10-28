@@ -42,7 +42,27 @@ class PowerView:
         self.root_dn = self.domain_dumper.getRoot()
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
 
-    def get_domainuser(self, args=None, properties=['cn','name','sAMAccountName','distinguishedName','mail','description','lastLogoff','lastLogon','memberof','objectSid','userPrincipalName'], identity='*'):
+    def get_domainuser(self, args=None, properties=None, identity='*'):
+        def_prop = [
+            'cn',
+            'name',
+            'sAMAccountName',
+            'distinguishedName',
+            'mail',
+            'description',
+            'lastLogoff',
+            'lastLogon',
+            'memberof',
+            'objectSid',
+            'userPrincipalName'
+        ]
+
+        if not properties:
+            properties = def_prop
+        else:
+            properties += def_prop
+
+
         ldap_filter = ""
         identity_filter = f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
 

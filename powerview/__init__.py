@@ -96,7 +96,7 @@ def main():
                                 else:
                                     entries = powerview.get_domainobjectacl(pv_args)
                             elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
-                                properties = pv_args.properties.replace(" ","").split(',')
+                                properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainuser(pv_args, properties, identity)
