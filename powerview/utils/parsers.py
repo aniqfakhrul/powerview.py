@@ -86,7 +86,7 @@ def powerview_arg_parse(cmd):
     #group
     get_domaingroup_parser = subparsers.add_parser('Get-DomainGroup', aliases=['Get-NetGroup'], exit_on_error=False)
     get_domaingroup_parser.add_argument('-Identity', action='store',default='*', dest='identity')
-    get_domaingroup_parser.add_argument('-Properties', action='store', default='*', dest='properties')
+    get_domaingroup_parser.add_argument('-Properties', action='store', dest='properties')
     get_domaingroup_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domaingroup_parser.add_argument('-MemberIdentity', action='store', dest='memberidentity')
     get_domaingroup_parser.add_argument('-AdminCount', action='store_true', default=False, dest='admincount')
@@ -129,7 +129,7 @@ def powerview_arg_parse(cmd):
     #computers
     get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer', aliases=['Get-NetComputer'],exit_on_error=False)
     get_domaincomputer_parser.add_argument('-Identity', action='store',default='*', dest='identity')
-    get_domaincomputer_parser.add_argument('-Properties', action='store', default='*', dest='properties')
+    get_domaincomputer_parser.add_argument('-Properties', action='store', dest='properties')
     get_domaincomputer_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domaincomputer_parser.add_argument('-Domain', action='store', dest='server')
     get_domaincomputer_parser.add_argument('-Select', action='store', dest='select')
@@ -139,7 +139,7 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
     get_domaincomputer_parser.add_argument('-LAPS', action='store_true', default=False, dest='laps')
     get_domaincomputer_parser.add_argument('-RBCD', action='store_true', default=False, dest='rbcd')
-    get_domaincomputer_parser.add_argument('-SPN', action='store', dest='spn')
+    get_domaincomputer_parser.add_argument('-SPN', action='store_true', dest='spn')
     get_domaincomputer_parser.add_argument('-Printers', action='store_true', default=False, dest='printers')
     get_domaincomputer_parser.add_argument('-ExcludeDCs', action='store_true', default=False, dest='excludedcs')
     get_domaincomputer_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')

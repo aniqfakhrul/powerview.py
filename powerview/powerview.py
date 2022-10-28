@@ -42,8 +42,15 @@ class PowerView:
         self.root_dn = self.domain_dumper.getRoot()
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
 
-    def get_domainuser(self, args=None, properties=None, identity='*'):
+    def get_domainuser(self, args=None, properties='*', identity='*'):
         def_prop = [
+            'servicePrincipalName',
+            'objectCategory',
+            'objectGUID',
+            'primaryGroupID',
+            'userAccountControl',
+            'sAMAccountType',
+            'adminCount',
             'cn',
             'name',
             'sAMAccountName',
@@ -54,7 +61,11 @@ class PowerView:
             'lastLogon',
             'memberof',
             'objectSid',
-            'userPrincipalName'
+            'userPrincipalName',
+            'pwdLastSet',
+            'description',
+            'badPwdCount',
+            'badPasswordTime'
         ]
 
         if not properties:
@@ -62,6 +73,8 @@ class PowerView:
         else:
             properties += def_prop
 
+        if args.trustedtoauth:
+            properties += ['msds-AllowedToDelegateTo']
 
         ldap_filter = ""
         identity_filter = f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
@@ -215,6 +228,39 @@ class PowerView:
         return entries_dacl
 
     def get_domaincomputer(self, args=None, properties='*', identity='*'):
+        def_prop = [
+            'lastLogonTimestamp',
+            'objectCategory',
+            'servicePrincipalName',
+            'dNSHostName',
+            'sAMAccountType',
+            'sAMAccountName',
+            'logonCount',
+            'objectSid',
+            'primaryGroupID',
+            'pwdLastSet',
+            'lastLogon',
+            'lastLogoff',
+            'badPasswordTime',
+            'badPwdCount',
+            'userAccountControl',
+            'objectGUID',
+            'name',
+            'instanceType',
+            'distinguishedName',
+            'cn',
+        ]
+
+        if not properties:
+            properties = def_prop
+        else:
+            properties += def_prop
+
+        if args.rbcd:
+            properties += ['msDS-AllowedToActOnBehalfOfOtherIdentity']
+        if args.laps:
+            properties += ['ms-MCS-AdmPwd']
+
         ldap_filter = ""
         identity_filter = f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
 
@@ -236,7 +282,7 @@ class PowerView:
                 ldap_filter += f'(objectCategory=printQueue)'
             if args.spn:
                 logging.debug(f"[Get-DomainComputer] Searching for computers with SPN attribute: {args.spn}")
-                ldap_filter += f'(servicePrincipalName={args.spn})'
+                ldap_filter += f'(servicePrincipalName=*)'
             if args.excludedcs:
                 logging.debug("[Get-DomainComputer] Excluding domain controllers")
                 ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=8192))'
@@ -259,6 +305,27 @@ class PowerView:
         #return self.ldap_session.entries
 
     def get_domaingroup(self, args=None, properties='*', identity='*'):
+        def_prop = [
+            'adminCount',
+            'cn',
+            'description',
+            'distinguishedName',
+            'groupType',
+            'instanceType',
+            'member',
+            'objectCategory',
+            'objectGUID',
+            'objectSid',
+            'sAMAccountName',
+            'sAMAccountType',
+            'name'
+        ]
+
+        if not properties:
+            properties = def_prop
+        else:
+            properties += def_prop
+
         ldap_filter = ""
         identity_filter = f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
         if args:

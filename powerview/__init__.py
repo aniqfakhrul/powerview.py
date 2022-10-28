@@ -103,14 +103,14 @@ def main():
                                 else:
                                     entries = powerview.get_domainuser(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaincomputer' or pv_args.module.casefold() == 'get-netcomputer':
-                                properties = pv_args.properties.replace(" ","").split(',')
+                                properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaincomputer(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domaincomputer(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaingroup' or pv_args.module.casefold() == 'get-netgroup':
-                                properties = pv_args.properties.replace(" ","").split(',')
+                                properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaingroup(pv_args, properties, identity)
