@@ -149,7 +149,7 @@ class CONNECTION:
             sys.exit(0)
         else:
             logging.debug(f"{bcolors.WARNING}LDAP Signing NOT Enforced!{bcolors.ENDC}")
-            logging.debug(f"{bcolors.OKGREEN}LDAP bind SUCCESS!{bcolors.ENDC}")
+            logging.debug(f"{bcolors.OKGREEN}Bind SUCCESS!{bcolors.ENDC}")
 
         return ldap_server, ldap_session
 

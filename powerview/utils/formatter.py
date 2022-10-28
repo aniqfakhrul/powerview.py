@@ -134,15 +134,18 @@ class FORMATTER:
             return
         if (operator in "contains") or (operator in "match"):
             for entry in entries:
-                if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
+                if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                     if isinstance(entry, ldap3.abstract.entry.Entry):
                         temp_entry = json.loads(entry.entry_to_json())
+                    else:
+                        temp_entry = entry
                     for c in list(temp_entry['attributes'].keys()):
                         if str(c).casefold() == str(left).casefold():
                             left = c
                             break
                     try:
-                        if str(right).casefold() in str(temp_entry['attributes'][left][0]).casefold():
+                        print(temp_entry['attributes']['name'])
+                        if str(right).casefold() in str(temp_entry['attributes'][left]).casefold():
                             temp_alter_entries.append(entry)
                     except KeyError:
                         return None
@@ -163,15 +166,17 @@ class FORMATTER:
 
         elif (operator in "equal") or (operator == "="):
             for entry in entries:
-                if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
+                if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                     if isinstance(entry, ldap3.abstract.entry.Entry):
                         temp_entry = json.loads(entry.entry_to_json())
+                    else:
+                        temp_entry = entry
                     for c in list(temp_entry['attributes'].keys()):
                         if str(c).casefold() == str(left).casefold():
                             left = c
                             break
                     try:
-                        if str(right).casefold() == str(temp_entry['attributes'][left][0]).casefold():
+                        if str(right).casefold() == str(temp_entry['attributes'][left]).casefold():
                             temp_alter_entries.append(entry)
                     except KeyError:
                         pass
@@ -191,17 +196,19 @@ class FORMATTER:
                     temp_alter_entries.append(entry)
         elif (operator.lower() == "not") or (operator.lower() == "!="):
             for entry in entries:
-                if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
+                if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                     if isinstance(entry, ldap3.abstract.entry.Entry):
                         temp_entry = json.loads(entry.entry_to_json())
+                    else:
+                        temp_entry = entry
                     for c in list(temp_entry['attributes'].keys()):
                         if str(c).casefold() == str(left).casefold():
                             left = c
                             break
                     try:
-                        if not (len(str(temp_entry['attributes'][left][0]).casefold()) == 0) and (str(right).casefold() == "null"):
+                        if not (len(str(''.join(temp_entry['attributes'][left])).casefold()) == 0) and (str(right).casefold() == "null"):
                             temp_alter_entries.append(entry)
-                        elif str(temp_entry['attributes'][left][0]).casefold() != str(right).casefold():
+                        elif str(''.join(temp_entry['attributes'][left])).casefold() != str(right).casefold():
                             temp_alter_entries.append(entry)
                     except KeyError:
                         pass
