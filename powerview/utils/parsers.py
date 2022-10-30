@@ -205,6 +205,16 @@ def powerview_arg_parse(cmd):
     get_domainca_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainca_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
+    # Find CA Templates
+    get_domaincatemplate_parser = subparsers.add_parser('Get-DomainCATemplate', aliases=['Get-NetCATemplate'], exit_on_error=False)
+    get_domaincatemplate_parser.add_argument('-Vulnerable', action='store_true', dest='vulnerable')
+    get_domaincatemplate_parser.add_argument('-Properties', action='store', default='*', dest='properties')
+    get_domaincatemplate_parser.add_argument('-Domain', action='store', dest='server')
+    get_domaincatemplate_parser.add_argument('-Select', action='store', dest='select')
+    get_domaincatemplate_parser.add_argument('-Where', action='store', dest='where')
+    get_domaincatemplate_parser.add_argument('-Count', action='store_true', dest='count')
+    get_domaincatemplate_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+
     # get named pipes
     get_namedpipes_parser = subparsers.add_parser('Get-NamedPipes', exit_on_error=False)
     get_namedpipes_parser.add_argument('-Name', action='store', dest='name')

@@ -16,6 +16,8 @@ COMMANDS = {
     'Get-DomainDNSZone':['-Properties','-Domain','-Select','-Where', '-Count', '-NoWrap'],
     'Get-DomainCA':['-Properties','-Domain','-Select','-Where', '-Count', '-NoWrap'],
     'Get-NetCA':['-Properties','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
+    'Get-DomainCATemplate':['-Properties','-Domain','-Select','-Where', '-Count', '-NoWrap'],
+    'Get-NetCATemplate':['-Properties','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
     'Get-DomainGPO':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
     'Get-NetGPO':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
     'Get-DomainGPOLocalGroup':['-Identity','-LDAPFilter','-Domain','-Select', '-Where', '-Count', '-NoWrap'],

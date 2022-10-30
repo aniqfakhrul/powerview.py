@@ -549,6 +549,11 @@ class PowerView:
         entries = ca_fetch.fetch_enrollment_services(properties)
         return entries
 
+    def get_domaincatemplate(self, args=None, properties='*'):
+        ca_fetch = CAEnum(self.ldap_session, self.root_dn)
+        entries = ca_fetch.get_certificate_template()
+        return entries
+
     def add_domaingroupmember(self, identity, members, args=None):
         group_entry = self.get_domaingroup(identity=identity,properties='distinguishedName')
         user_entry = self.get_domainobject(identity=members,properties='distinguishedName')

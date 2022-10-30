@@ -71,7 +71,7 @@ class FORMATTER:
                                             value += str(i)+"\n"+''.ljust(self.get_max_len(select_attributes)+2)
                             else:
                                 value = entry['attributes'][key]
-                            value = value.strip()
+                            value = str(value).strip()
                             if len(select_attributes) == 1:
                                 print(value)
                             else:
