@@ -86,9 +86,9 @@ def main():
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainobject(pv_args, properties, identity)
+                                    entries = temp_powerview.get_domainobject(pv_args, properties, identity, expand=True)
                                 else:
-                                    entries = powerview.get_domainobject(pv_args, properties, identity)
+                                    entries = powerview.get_domainobject(pv_args, properties, identity, expand=True)
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:
