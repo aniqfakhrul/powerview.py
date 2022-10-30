@@ -31,7 +31,7 @@ class FORMATTER:
                     if isinstance(value, list):
                         for i in value:
                             if (isinstance(i,dict)) and ("encoded" in i.keys()):
-                                value = i["encoded"]
+                                value = str(i["encoded"])
                             if isinstance(i,int):
                                 value = str(i)
 
@@ -63,19 +63,20 @@ class FORMATTER:
                             if isinstance(entry['attributes'][key], list):
                                 for i in entry['attributes'][key]:
                                     if (isinstance(i,dict)) and ("encoded" in i.keys()):
-                                        value = i["encoded"]
+                                        value = str(i["encoded"])
                                     else:
                                         if len(select_attributes) == 1:
                                             value += str(i)+"\n"
                                         else:
                                             value += str(i)+"\n"+''.ljust(self.get_max_len(select_attributes)+2)
                             else:
-                                value = entry['attributes'][key]
-                            value = str(value).strip()
-                            if len(select_attributes) == 1:
-                                print(value)
-                            else:
-                                print(f"{key.ljust(self.get_max_len(select_attributes))}: {value}")
+                                value = str(entry['attributes'][key])
+                            value = value.strip()
+                            if len(value) != 0:
+                                if len(select_attributes) == 1:
+                                    print(value)
+                                else:
+                                    print(f"{key.ljust(self.get_max_len(select_attributes))}: {value}")
                 if len(select_attributes) != 1:
                     print()
             elif isinstance(entry['attributes'], list):
@@ -101,7 +102,7 @@ class FORMATTER:
                     if isinstance(value, list):
                         for i in value:
                             if (isinstance(i,dict)) and ("encoded" in i.keys()):
-                                value = i["encoded"]
+                                value = str(i["encoded"])
                             if isinstance(i,int):
                                 value = str(i)
 

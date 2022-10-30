@@ -22,25 +22,12 @@ class CAEnum:
 
         return self.ldap_session.entries
 
-    def get_certificate_template(self):
-        ca_search_base = f"CN=Certification Authorities,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
+    def get_certificate_templates(self, properties='*'):
+        ca_search_base = f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
         self.ldap_session.search(
-            "(objectclass=pkicertificatetemplate)",
             ca_search_base,
-            attributes=[
-                "cn",
-                "name",
-                "displayName",
-                "pKIExpirationPeriod",
-                "pKIOverlapPeriod",
-                "msPKI-Enrollment-Flag",
-                "msPKI-Private-Key-Flag",
-                "msPKI-Certificate-Name-Flag",
-                "msPKI-RA-Signature",
-                "pKIExtendedKeyUsage",
-                "nTSecurityDescriptor",
-                "objectGUID",
-            ],
+            "(objectclass=pkicertificatetemplate)",
+            attributes=properties
         )
 
         return self.ldap_session.entries
