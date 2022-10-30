@@ -549,6 +549,41 @@ class PowerView:
         entries = ca_fetch.fetch_enrollment_services(properties)
         return entries
 
+    def get_domaincatemplate(self, args=None, properties='*'):
+        entries = []
+        ca_fetch = CAEnum(self.ldap_session, self.root_dn)
+
+        templates = ca_fetch.get_certificate_templates(properties)
+        cas = ca_fetch.fetch_enrollment_services()
+
+        if len(cas) <= 0:
+            logging.error(f"No certificate authority found")
+            return
+
+        logging.debug(f"Found {len(cas)} CA(s)")
+
+        for ca in cas:
+            for template in templates:
+                #template = template.entry_writable()
+                enabled = False
+                if template.name in ca.certificateTemplates:
+                    enabled = True
+
+                if not enabled and args.enabled:
+                    continue
+
+                entries.append({
+                    'attributes':{
+                        'cn': template['cn'].values,
+                        'name': template['name'].values,
+                        'displayName': template.displayName,
+                        'objectGUID': template.objectGUID,
+                        'Enabled': enabled
+                    }
+                })
+        return entries
+
+
     def add_domaingroupmember(self, identity, members, args=None):
         group_entry = self.get_domaingroup(identity=identity,properties='distinguishedName')
         user_entry = self.get_domainobject(identity=members,properties='distinguishedName')

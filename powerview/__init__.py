@@ -161,6 +161,12 @@ def main():
                                     entries = temp_powerview.get_domainca(pv_args, properties)
                                 else:
                                     entries = powerview.get_domainca(pv_args, properties)
+                            elif pv_args.module.casefold() == 'get-domaincatemplate' or pv_args.module.casefold() == 'get-netcatemplate':
+                                properties = pv_args.properties.replace(" ","").split(',')
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaincatemplate(pv_args, properties)
+                                else:
+                                    entries = powerview.get_domaincatemplate(pv_args, properties)
                             elif pv_args.module.casefold() == 'get-domaintrust' or pv_args.module.casefold() == 'get-nettrust':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 identity = pv_args.identity.strip()
