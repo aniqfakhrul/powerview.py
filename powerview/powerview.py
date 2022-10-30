@@ -141,7 +141,7 @@ class PowerView:
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
 
-    def get_domainobject(self, args=None, properties='*', identity='*'):
+    def get_domainobject(self, args=None, properties='*', identity='*', expand=False):
         identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
         ldap_filter = f"(|{identity_filter})"
         if args:
@@ -150,15 +150,17 @@ class PowerView:
                 ldap_filter += f"{args.ldap_filter}"
         ldap_fiter = f"(&{ldap_filter})"
         logging.debug(f'LDAP search filter: {ldap_filter}')
-        entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
-        for _entries in entry_generator:
-            if _entries['type'] != 'searchResEntry':
-                continue
-            entries.append({"attributes":_entries["attributes"]})
-        return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
+        if expand:
+            entries = []
+            entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+            for _entries in entry_generator:
+                if _entries['type'] != 'searchResEntry':
+                    continue
+                entries.append({"attributes":_entries["attributes"]})
+            return entries
+        else:
+            self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
+            return self.ldap_session.entries
 
     def get_domainou(self, args=None, properties='*', identity='*'):
         ldap_filter = ""
