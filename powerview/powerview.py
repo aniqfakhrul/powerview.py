@@ -562,7 +562,6 @@ class PowerView:
             return
 
         logging.debug(f"Found {len(cas)} CA(s)")
-
         for ca in cas:
             for template in templates:
                 #template = template.entry_writable()

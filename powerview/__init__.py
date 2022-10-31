@@ -342,8 +342,8 @@ def main():
             except EOFError:
                 print("Exiting...")
                 sys.exit(0)
-            #except Exception as e:
-            #    logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
         print(e)
 
