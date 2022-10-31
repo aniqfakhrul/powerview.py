@@ -73,9 +73,6 @@ class PowerView:
         else:
             properties += def_prop
 
-        if args.trustedtoauth:
-            properties += ['msds-AllowedToDelegateTo']
-
         ldap_filter = ""
         identity_filter = f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
 
@@ -98,6 +95,7 @@ class PowerView:
             if args.trustedtoauth:
                 logging.debug('[Get-DomainUser] Searching for users that are trusted to authenticate for other principals')
                 ldap_filter += f'(msds-allowedtodelegateto=*)'
+                properties += ['msds-AllowedToDelegateTo']
             if args.rbcd:
                 logging.debug('[Get-DomainUser] Searching for users that are configured to allow resource-based constrained delegation')
                 ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
@@ -256,11 +254,6 @@ class PowerView:
         else:
             properties += def_prop
 
-        if args.rbcd:
-            properties += ['msDS-AllowedToActOnBehalfOfOtherIdentity']
-        if args.laps:
-            properties += ['ms-MCS-AdmPwd']
-
         ldap_filter = ""
         identity_filter = f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
 
@@ -274,9 +267,11 @@ class PowerView:
             if args.laps:
                 logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
                 ldap_filter += f'(ms-MCS-AdmPwd=*)'
+                properties += ['ms-MCS-AdmPwd']
             if args.rbcd:
                 logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
                 ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
+                properties += ['msDS-AllowedToActOnBehalfOfOtherIdentity']
             if args.printers:
                 logging.debug("[Get-DomainComputer] Searching for printers")
                 ldap_filter += f'(objectCategory=printQueue)'
