@@ -31,6 +31,19 @@ from impacket.krb5.types import Principal
 import configparser
 import validators
 
+def modify_entry(entry, new_attributes=None):
+    entries = {}
+    e = json.loads(entry.entry_to_json())
+    j = e['attributes']
+    for i in j:
+        entries[i] = j[i]
+
+    if new_attributes:
+        for attr in new_attributes:
+            entries[attr]= new_attributes[attr]
+
+    return entries
+
 def is_valid_fqdn(hostname: str) -> bool:
     if validators.domain(hostname):
         return True

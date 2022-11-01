@@ -561,21 +561,21 @@ class PowerView:
             for template in templates:
                 #template = template.entry_writable()
                 enabled = False
+                vuln_type = ""
+
                 if template.name in ca.certificateTemplates:
                     enabled = True
-
                 if not enabled and args.enabled:
                     continue
+                # check vulnerable
+                if args.vulnerable:
+                    vuln_type, is_vulnerable = ca_fetch.check_vulnerable_template(template)
 
+                e = modify_entry(template, {'Enabled': enabled})
                 entries.append({
-                    'attributes':{
-                        'cn': template['cn'].values[0],
-                        'name': template['name'].values[0],
-                        'displayName': template.displayName,
-                        'objectGUID': template.objectGUID,
-                        'Enabled': enabled
-                    }
+                    'attributes': e
                 })
+
         return entries
 
 

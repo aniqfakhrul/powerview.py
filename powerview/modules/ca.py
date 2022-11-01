@@ -31,3 +31,7 @@ class CAEnum:
         )
 
         return self.ldap_session.entries
+
+    def check_vulnerable_template(self, template):
+        return "ESC1", True
+
