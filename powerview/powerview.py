@@ -545,11 +545,30 @@ class PowerView:
         entries = ca_fetch.fetch_enrollment_services(properties)
         return entries
 
-    def get_domaincatemplate(self, args=None, properties=['*']):
+    def get_domaincatemplate(self, args=None, properties=['*'], identity=None):
+        def_prop = [
+            "cn",
+            "name",
+            "displayName",
+            "pKIExpirationPeriod",
+            "pKIOverlapPeriod",
+            "msPKI-Enrollment-Flag",
+            "msPKI-Private-Key-Flag",
+            "msPKI-Certificate-Name-Flag",
+            "msPKI-RA-Signature",
+            "pKIExtendedKeyUsage",
+            "nTSecurityDescriptor",
+            "objectGUID",
+        ]
+        if not properties:
+            properties = def_prop
+        else:
+            properties += def_prop
+
         entries = []
         ca_fetch = CAEnum(self.ldap_session, self.root_dn)
 
-        templates = ca_fetch.get_certificate_templates(properties)
+        templates = ca_fetch.get_certificate_templates(properties,identity)
         cas = ca_fetch.fetch_enrollment_services()
 
         if len(cas) <= 0:
@@ -561,7 +580,16 @@ class PowerView:
             for template in templates:
                 #template = template.entry_writable()
                 enabled = False
-                vuln_type = ""
+                vulnerable = False
+                vulns = {}
+
+                # get enrollment rights
+                parsed_dacl = ca_fetch.parse_dacl(template)
+                for i in range(len(parsed_dacl['Enrollment Rights'])):
+                    try:
+                        parsed_dacl['Enrollment Rights'][i] = self.convertfrom_sid(parsed_dacl['Enrollment Rights'][i])
+                    except:
+                        pass
 
                 if template.name in ca.certificateTemplates:
                     enabled = True
@@ -569,9 +597,26 @@ class PowerView:
                     continue
                 # check vulnerable
                 if args.vulnerable:
-                    vuln_type, is_vulnerable = ca_fetch.check_vulnerable_template(template)
+                    vulns = ca_fetch.check_vulnerable_template(template)
+                    if vulns:
+                        vulnerable = True
 
-                e = modify_entry(template, {'Enabled': enabled})
+                e = modify_entry(template,
+                                new_attributes={
+                                    'Owner': self.convertfrom_sid(ca_fetch.get_owner_sid()),
+                                    'Enrollment Rights': parsed_dacl['Enrollment Rights'],
+                                    'Extended Rights': parsed_dacl['Extended Rights'],
+                                    'Write Owner': parsed_dacl['Write Owner Principals'],
+                                    'Write Dacl': parsed_dacl['Write Dacl Principals'],
+                                    'Write Property': parsed_dacl['Write Property Principals'],
+                                    'Enabled': enabled,
+                                    'Vulnerable': vulnerable,
+                                },
+                                 remove = [
+                                     'nTSecurityDescriptor'
+                                 ]
+
+                                 )
                 entries.append({
                     'attributes': e
                 })

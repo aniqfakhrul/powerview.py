@@ -31,12 +31,24 @@ from impacket.krb5.types import Principal
 import configparser
 import validators
 
-def modify_entry(entry, new_attributes=None):
+def to_pascal_case(snake_str: str) -> str:
+    components = snake_str.split("_")
+    return "".join(x.title() for x in components)
+
+def is_admin_sid(sid: str):
+    return (
+        re.match("^S-1-5-21-.+-(498|500|502|512|516|518|519|521)$", sid) is not None
+        or sid == "S-1-5-9"
+        or sid == "S-1-5-32-544"
+    )
+
+def modify_entry(entry, new_attributes=None, remove=None):
     entries = {}
     e = json.loads(entry.entry_to_json())
     j = e['attributes']
     for i in j:
-        entries[i] = j[i]
+        if i not in remove:
+            entries[i] = j[i]
 
     if new_attributes:
         for attr in new_attributes:

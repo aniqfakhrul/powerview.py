@@ -1,0 +1,265 @@
+import enum
+
+from powerview.utils.helpers import to_pascal_case
+
+class IntFlag(enum.IntFlag):
+    def to_list(self):
+        cls = self.__class__
+        members, _ = enum._decompose(cls, self._value_)
+        return members
+
+    def to_str_list(self):
+        return list(map(lambda x: str(x), self.to_list()))
+
+    def __str__(self):
+        cls = self.__class__
+        if self._name_ is not None:
+            return "%s" % (to_pascal_case(self._name_))
+        members, _ = enum._decompose(cls, self._value_)
+        if len(members) == 1 and members[0]._name_ is None:
+            return "%r" % (members[0]._value_)
+        else:
+            return "%s" % (
+                ", ".join(
+                    [to_pascal_case(str(m._name_ or m._value_)) for m in members]
+                ),
+            )
+
+    def __repr__(self):
+        return str(self)
+
+# https://github.com/GhostPack/Certify/blob/2b1530309c0c5eaf41b2505dfd5a68c83403d031/Certify/Domain/CertificateAuthority.cs#L11
+class CERTIFICATION_AUTHORITY_RIGHTS(IntFlag):
+    MANAGE_CA = 1
+    MANAGE_CERTIFICATES = 2
+    AUDITOR = 4
+    OPERATOR = 8
+    READ = 256
+    ENROLL = 512
+
+class CERTIFICATE_RIGHTS(IntFlag):
+    GENERIC_ALL = 983551
+    WRITE_OWNER = 524288
+    WRITE_DACL = 262144
+    WRITE_PROPERTY = 32
+
+    def to_list(self):
+        cls = self.__class__
+
+        if self._value_ == self.GENERIC_ALL:
+            return [CERTIFICATE_RIGHTS(self.GENERIC_ALL)]
+
+        members, _ = enum._decompose(cls, self._value_)
+        filtered_members = []
+        for member in members:
+            if str(member) == str(member.value):
+                continue
+            filtered_members.append(member)
+        return filtered_members
+
+# https://docs.microsoft.com/en-us/dotnet/api/system.directoryservices.activedirectoryrights?view=net-5.0
+class ACTIVE_DIRECTORY_RIGHTS(IntFlag):
+    ACCESS_SYSTEM_SECURITY = 16777216
+    SYNCHRONIZE = 1048576
+    GENERIC_ALL = 983551
+    WRITE_OWNER = 524288
+    WRITE_DACL = 262144
+    GENERIC_READ = 131220
+    GENERIC_WRITE = 131112
+    GENERIC_EXECUTE = 131076
+    READ_CONTROL = 131072
+    DELETE = 65536
+    EXTENDED_RIGHT = 256
+    LIST_OBJECT = 128
+    DELETE_TREE = 64
+    WRITE_PROPERTY = 32
+    READ_PROPERTY = 16
+    SELF = 8
+    LIST_CHILDREN = 4
+    DELETE_CHILD = 2
+    CREATE_CHILD = 1
+
+    def to_list(self):
+        cls = self.__class__
+        members, _ = enum._decompose(cls, self._value_)
+        filtered_members = []
+        for member in members:
+            found = False
+            for n in members:
+                if n & member and n != member:
+                    found = True
+
+            if not found:
+                filtered_members.append(member)
+        return members
+
+# Universal SIDs
+WELL_KNOWN_SIDS = {
+    'S-1-0': 'Null Authority',
+    'S-1-0-0': 'Nobody',
+    'S-1-1': 'World Authority',
+    'S-1-1-0': 'Everyone',
+    'S-1-2': 'Local Authority',
+    'S-1-2-0': 'Local',
+    'S-1-2-1': 'Console Logon',
+    'S-1-3': 'Creator Authority',
+    'S-1-3-0': 'Creator Owner',
+    'S-1-3-1': 'Creator Group',
+    'S-1-3-2': 'Creator Owner Server',
+    'S-1-3-3': 'Creator Group Server',
+    'S-1-3-4': 'Owner Rights',
+    'S-1-5-80-0': 'All Services',
+    'S-1-4': 'Non-unique Authority',
+    'S-1-5': 'NT Authority',
+    'S-1-5-1': 'Dialup',
+    'S-1-5-2': 'Network',
+    'S-1-5-3': 'Batch',
+    'S-1-5-4': 'Interactive',
+    'S-1-5-6': 'Service',
+    'S-1-5-7': 'Anonymous',
+    'S-1-5-8': 'Proxy',
+    'S-1-5-9': 'Enterprise Domain Controllers',
+    'S-1-5-10': 'Principal Self',
+    'S-1-5-11': 'Authenticated Users',
+    'S-1-5-12': 'Restricted Code',
+    'S-1-5-13': 'Terminal Server Users',
+    'S-1-5-14': 'Remote Interactive Logon',
+    'S-1-5-15': 'This Organization',
+    'S-1-5-17': 'This Organization',
+    'S-1-5-18': 'Local System',
+    'S-1-5-19': 'NT Authority',
+    'S-1-5-20': 'NT Authority',
+    'S-1-5-32-544': 'Administrators',
+    'S-1-5-32-545': 'Users',
+    'S-1-5-32-546': 'Guests',
+    'S-1-5-32-547': 'Power Users',
+    'S-1-5-32-548': 'Account Operators',
+    'S-1-5-32-549': 'Server Operators',
+    'S-1-5-32-550': 'Print Operators',
+    'S-1-5-32-551': 'Backup Operators',
+    'S-1-5-32-552': 'Replicators',
+    'S-1-5-64-10': 'NTLM Authentication',
+    'S-1-5-64-14': 'SChannel Authentication',
+    'S-1-5-64-21': 'Digest Authority',
+    'S-1-5-80': 'NT Service',
+    'S-1-5-83-0': 'NT VIRTUAL MACHINE\Virtual Machines',
+    'S-1-16-0': 'Untrusted Mandatory Level',
+    'S-1-16-4096': 'Low Mandatory Level',
+    'S-1-16-8192': 'Medium Mandatory Level',
+    'S-1-16-8448': 'Medium Plus Mandatory Level',
+    'S-1-16-12288': 'High Mandatory Level',
+    'S-1-16-16384': 'System Mandatory Level',
+    'S-1-16-20480': 'Protected Process Mandatory Level',
+    'S-1-16-28672': 'Secure Process Mandatory Level',
+    'S-1-5-32-554': 'BUILTIN\Pre-Windows 2000 Compatible Access',
+    'S-1-5-32-555': 'BUILTIN\Remote Desktop Users',
+    'S-1-5-32-557': 'BUILTIN\Incoming Forest Trust Builders',
+    'S-1-5-32-556': 'BUILTIN\\Network Configuration Operators',
+    'S-1-5-32-558': 'BUILTIN\Performance Monitor Users',
+    'S-1-5-32-559': 'BUILTIN\Performance Log Users',
+    'S-1-5-32-560': 'BUILTIN\Windows Authorization Access Group',
+    'S-1-5-32-561': 'BUILTIN\Terminal Server License Servers',
+    'S-1-5-32-562': 'BUILTIN\Distributed COM Users',
+    'S-1-5-32-569': 'BUILTIN\Cryptographic Operators',
+    'S-1-5-32-573': 'BUILTIN\Event Log Readers',
+    'S-1-5-32-574': 'BUILTIN\Certificate Service DCOM Access',
+    'S-1-5-32-575': 'BUILTIN\RDS Remote Access Servers',
+    'S-1-5-32-576': 'BUILTIN\RDS Endpoint Servers',
+    'S-1-5-32-577': 'BUILTIN\RDS Management Servers',
+    'S-1-5-32-578': 'BUILTIN\Hyper-V Administrators',
+    'S-1-5-32-579': 'BUILTIN\Access Control Assistance Operators',
+    'S-1-5-32-580': 'BUILTIN\Remote Management Users',
+}
+
+# Retrieved from Windows 2022 server via LDAP (CN=Extended-Rights,CN=Configuration,DC=...)
+EXTENDED_RIGHTS_MAP = {
+    "ab721a52-1e2f-11d0-9819-00aa0040529b": "Domain-Administer-Serve",
+    "ab721a53-1e2f-11d0-9819-00aa0040529b": "User-Change-Password",
+    "00299570-246d-11d0-a768-00aa006e0529": "User-Force-Change-Password",
+    "ab721a54-1e2f-11d0-9819-00aa0040529b": "Send-As",
+    "ab721a56-1e2f-11d0-9819-00aa0040529b": "Receive-As",
+    "ab721a55-1e2f-11d0-9819-00aa0040529b": "Send-To",
+    "c7407360-20bf-11d0-a768-00aa006e0529": "Domain-Password",
+    "59ba2f42-79a2-11d0-9020-00c04fc2d3cf": "General-Information",
+    "4c164200-20c0-11d0-a768-00aa006e0529": "User-Account-Restrictions",
+    "5f202010-79a5-11d0-9020-00c04fc2d4cf": "User-Logon",
+    "bc0ac240-79a9-11d0-9020-00c04fc2d4cf": "Membership",
+    "a1990816-4298-11d1-ade2-00c04fd8d5cd": "Open-Address-Book",
+    "77b5b886-944a-11d1-aebd-0000f80367c1": "Personal-Information",
+    "e45795b2-9455-11d1-aebd-0000f80367c1": "Email-Information",
+    "e45795b3-9455-11d1-aebd-0000f80367c1": "Web-Information",
+    "1131f6aa-9c07-11d1-f79f-00c04fc2dcd2": "DS-Replication-Get-Changes",
+    "1131f6ab-9c07-11d1-f79f-00c04fc2dcd2": "DS-Replication-Synchronize",
+    "1131f6ac-9c07-11d1-f79f-00c04fc2dcd2": "DS-Replication-Manage-Topology",
+    "e12b56b6-0a95-11d1-adbb-00c04fd8d5cd": "Change-Schema-Maste",
+    "d58d5f36-0a98-11d1-adbb-00c04fd8d5cd": "Change-Rid-Maste",
+    "fec364e0-0a98-11d1-adbb-00c04fd8d5cd": "Do-Garbage-Collection",
+    "0bc1554e-0a99-11d1-adbb-00c04fd8d5cd": "Recalculate-Hierarchy",
+    "1abd7cf8-0a99-11d1-adbb-00c04fd8d5cd": "Allocate-Rids",
+    "bae50096-4752-11d1-9052-00c04fc2d4cf": "Change-PDC",
+    "440820ad-65b4-11d1-a3da-0000f875ae0d": "Add-GUID",
+    "014bf69c-7b3b-11d1-85f6-08002be74fab": "Change-Domain-Maste",
+    "e48d0154-bcf8-11d1-8702-00c04fb96050": "Public-Information",
+    "4b6e08c0-df3c-11d1-9c86-006008764d0e": "msmq-Receive-Dead-Lette",
+    "4b6e08c1-df3c-11d1-9c86-006008764d0e": "msmq-Peek-Dead-Lette",
+    "4b6e08c2-df3c-11d1-9c86-006008764d0e": "msmq-Receive-computer-Journal",
+    "4b6e08c3-df3c-11d1-9c86-006008764d0e": "msmq-Peek-computer-Journal",
+    "06bd3200-df3e-11d1-9c86-006008764d0e": "msmq-Receive",
+    "06bd3201-df3e-11d1-9c86-006008764d0e": "msmq-Peek",
+    "06bd3202-df3e-11d1-9c86-006008764d0e": "msmq-Send",
+    "06bd3203-df3e-11d1-9c86-006008764d0e": "msmq-Receive-journal",
+    "b4e60130-df3f-11d1-9c86-006008764d0e": "msmq-Open-Connecto",
+    "edacfd8f-ffb3-11d1-b41d-00a0c968f939": "Apply-Group-Policy",
+    "037088f8-0ae1-11d2-b422-00a0c968f939": "RAS-Information",
+    "9923a32a-3607-11d2-b9be-0000f87a36b2": "DS-Install-Replica",
+    "cc17b1fb-33d9-11d2-97d4-00c04fd8d5cd": "Change-Infrastructure-Maste",
+    "be2bb760-7f46-11d2-b9ad-00c04f79f805": "Update-Schema-Cache",
+    "62dd28a8-7f46-11d2-b9ad-00c04f79f805": "Recalculate-Security-Inheritance",
+    "69ae6200-7f46-11d2-b9ad-00c04f79f805": "DS-Check-Stale-Phantoms",
+    "0e10c968-78fb-11d2-90d4-00c04f79dc55": "Enroll",
+    "bf9679c0-0de6-11d0-a285-00aa003049e2": "Self-Membership",
+    "72e39547-7b18-11d1-adef-00c04fd8d5cd": "DNS-Host-Name-Attributes",
+    "f3a64788-5306-11d1-a9c5-0000f80367c1": "Validated-SPN",
+    "b7b1b3dd-ab09-4242-9e30-9980e5d322f7": "Generate-RSoP-Planning",
+    "9432c620-033c-4db7-8b58-14ef6d0bf477": "Refresh-Group-Cache",
+    "91d67418-0135-4acc-8d79-c08e857cfbec": "SAM-Enumerate-Entire-Domain",
+    "b7b1b3de-ab09-4242-9e30-9980e5d322f7": "Generate-RSoP-Logging",
+    "b8119fd0-04f6-4762-ab7a-4986c76b3f9a": "Domain-Other-Parameters",
+    "e2a36dc9-ae17-47c3-b58b-be34c55ba633": "Create-Inbound-Forest-Trust",
+    "1131f6ad-9c07-11d1-f79f-00c04fc2dcd2": "DS-Replication-Get-Changes-All",
+    "ba33815a-4f93-4c76-87f3-57574bff8109": "Migrate-SID-History",
+    "45ec5156-db7e-47bb-b53f-dbeb2d03c40f": "Reanimate-Tombstones",
+    "68b1d179-0d15-4d4f-ab71-46152e79a7bc": "Allowed-To-Authenticate",
+    "2f16c4a5-b98e-432c-952a-cb388ba33f2e": "DS-Execute-Intentions-Script",
+    "f98340fb-7c5b-4cdb-a00b-2ebdfa115a96": "DS-Replication-Monitor-Topology",
+    "280f369c-67c7-438e-ae98-1d46f3c6f541": "Update-Password-Not-Required-Bit",
+    "ccc2dc7d-a6ad-4a7a-8846-c04e3cc53501": "Unexpire-Password",
+    "05c74c5e-4deb-43b4-bd9f-86664c2a7fd5": (
+        "Enable-Per-User-Reversibly-Encrypted-Password"
+    ),
+    "4ecc03fe-ffc0-4947-b630-eb672a8a9dbc": "DS-Query-Self-Quota",
+    "91e647de-d96f-4b70-9557-d63ff4f3ccd8": "Private-Information",
+    "1131f6ae-9c07-11d1-f79f-00c04fc2dcd2": (
+        "Read-Only-Replication-Secret-Synchronization"
+    ),
+    "ffa6f046-ca4b-4feb-b40d-04dfee722543": "MS-TS-GatewayAccess",
+    "5805bc62-bdc9-4428-a5e2-856a0f4c185e": "Terminal-Server-License-Serve",
+    "1a60ea8d-58a6-4b20-bcdc-fb71eb8a9ff8": "Reload-SSL-Certificate",
+    "89e95b76-444d-4c62-991a-0facbeda640c": (
+        "DS-Replication-Get-Changes-In-Filtered-Set"
+    ),
+    "7726b9d5-a4b4-4288-a6b2-dce952e80a7f": "Run-Protect-Admin-Groups-Task",
+    "7c0e2a7c-a419-48e4-a995-10180aad54dd": "Manage-Optional-Features",
+    "3e0f7e18-2c7a-4c10-ba82-4d926db99a3e": "DS-Clone-Domain-Controlle",
+    "d31a8757-2447-4545-8081-3bb610cacbf2": "Validated-MS-DS-Behavior-Version",
+    "80863791-dbe9-4eb8-837e-7f0ab55d9ac7": "Validated-MS-DS-Additional-DNS-Host-Name",
+    "a05b8cc2-17bc-4802-a710-e7c15ab866a2": "AutoEnroll",
+    "4125c71f-7fac-4ff0-bcb7-f09a41325286": "DS-Set-Owne",
+    "88a9933e-e5c8-4f2a-9dd7-2527416b8092": "DS-Bypass-Quota",
+    "084c93a2-620d-4879-a836-f0ae47de0e89": "DS-Read-Partition-Secrets",
+    "94825a8d-b171-4116-8146-1e34d8f54401": "DS-Write-Partition-Secrets",
+    "9b026da6-0d3c-465c-8bee-5199d7165cba": "DS-Validated-Write-Compute",
+    "00000000-0000-0000-0000-000000000000": "All-Extended-Rights",
+}
+
+EXTENDED_RIGHTS_NAME_MAP = {k: v for v, k in EXTENDED_RIGHTS_MAP.items()}
