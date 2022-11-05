@@ -3,7 +3,7 @@ from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 
 from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser, WELL_KNOWN_SIDS
-from powerview.modules.ca import CAEnum
+from powerview.modules.ca import CAEnum, PARSE_TEMPLATE
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.utils.helpers import *
@@ -19,7 +19,6 @@ import logging
 import re
 
 class PowerView:
-
     def __init__(self, conn, args, target_server=None):
         self.conn = conn
         self.args = args
@@ -584,36 +583,81 @@ class PowerView:
                 vulns = {}
 
                 # get enrollment rights
-                parsed_dacl = ca_fetch.parse_dacl(template)
-                for i in range(len(parsed_dacl['Enrollment Rights'])):
-                    try:
-                        parsed_dacl['Enrollment Rights'][i] = self.convertfrom_sid(parsed_dacl['Enrollment Rights'][i])
-                    except:
-                        pass
+                template_ops = PARSE_TEMPLATE(template)
+                parsed_dacl = template_ops.parse_dacl()
+                template_ops.resolve_flags()
+                template_owner = template_ops.get_owner_sid()
+                certificate_name_flag = template_ops.get_certificate_name_flag()
+                enrollment_flag = template_ops.get_enrollment_flag()
+                extended_key_usage = template_ops.get_extended_key_usage()
+                validity_period = template_ops.get_validity_period()
+                renewal_period = template_ops.get_renewal_period()
+
+                if args.resolve_sids:
+                    template_owner = self.convertfrom_sid(template_ops.get_owner_sid())
+
+                    for i in range(len(parsed_dacl['Enrollment Rights'])):
+                        try:
+                            parsed_dacl['Enrollment Rights'][i] = self.convertfrom_sid(parsed_dacl['Enrollment Rights'][i])
+                        except:
+                            pass
+
+                    for k in range(len(parsed_dacl['Write Owner'])):
+                        try:
+                            parsed_dacl['Write Owner'][k] = self.convertfrom_sid(parsed_dacl['Write Owner'][k])
+                        except:
+                            pass
+
+                    for j in range(len(parsed_dacl['Write Dacl'])):
+                        try:
+                            parsed_dacl['Write Dacl'][j] = self.convertfrom_sid(parsed_dacl['Write Dacl'][j])
+                        except:
+                            pass
+
+                    for y in range(len(parsed_dacl['Write Property'])):
+                        try:
+                            parsed_dacl['Write Property'][y] = self.convertfrom_sid(parsed_dacl['Write Property'][y])
+                        except:
+                            pass
 
                 if template.name in ca.certificateTemplates:
                     enabled = True
+
                 if not enabled and args.enabled:
                     continue
+
                 # check vulnerable
                 if args.vulnerable:
-                    vulns = ca_fetch.check_vulnerable_template(template)
+                    vulns = template_ops.check_vulnerable_template()
                     if vulns:
                         vulnerable = True
+                    else:
+                        continue
 
                 e = modify_entry(template,
                                 new_attributes={
-                                    'Owner': self.convertfrom_sid(ca_fetch.get_owner_sid()),
+                                    'Owner': template_owner,
+                                    'CertificateNameFlag': certificate_name_flag,
+                                    'Enrollment Flag': enrollment_flag,
+                                    'Extended Key Usage': extended_key_usage,
+                                    'pKIExpirationPeriod': validity_period,
+                                    'pKIOverlapPeriod': renewal_period,
                                     'Enrollment Rights': parsed_dacl['Enrollment Rights'],
                                     'Extended Rights': parsed_dacl['Extended Rights'],
-                                    'Write Owner': parsed_dacl['Write Owner Principals'],
-                                    'Write Dacl': parsed_dacl['Write Dacl Principals'],
-                                    'Write Property': parsed_dacl['Write Property Principals'],
+                                    'Write Owner': parsed_dacl['Write Owner'],
+                                    'Write Dacl': parsed_dacl['Write Dacl'],
+                                    'Write Property': parsed_dacl['Write Property'],
                                     'Enabled': enabled,
-                                    'Vulnerable': vulnerable,
+                                    'Vulnerable': list(vulns.keys()),
+                                    'Description': list(vulns.values())
                                 },
                                  remove = [
-                                     'nTSecurityDescriptor'
+                                     'nTSecurityDescriptor',
+                                     'msPKI-Certificate-Name-Flag',
+                                     'msPKI-Enrollment-Flag',
+                                     'pKIExpirationPeriod',
+                                     'pKIOverlapPeriod',
+                                     'pKIExtendedKeyUsage'
                                  ]
 
                                  )

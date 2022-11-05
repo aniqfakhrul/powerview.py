@@ -14,6 +14,7 @@ import logging
 from impacket import version
 from impacket.examples import logger, utils
 from dns import resolver
+import struct
 from ldap3.utils.conv import escape_filter_chars
 import re
 
@@ -30,6 +31,45 @@ from impacket.krb5.types import Principal
 
 import configparser
 import validators
+
+def filetime_to_span(filetime: str) -> int:
+    (span,) = struct.unpack("<q", filetime)
+
+    span *= -0.0000001
+
+    return int(span)
+
+def span_to_str(span: int) -> str:
+    if (span % 31536000 == 0) and (span // 31536000) >= 1:
+        if (span / 31536000) == 1:
+            return "1 year"
+        return "%i years" % (span // 31536000)
+    elif (span % 2592000 == 0) and (span // 2592000) >= 1:
+        if (span // 2592000) == 1:
+            return "1 month"
+        else:
+            return "%i months" % (span // 2592000)
+    elif (span % 604800 == 0) and (span // 604800) >= 1:
+        if (span / 604800) == 1:
+            return "1 week"
+        else:
+            return "%i weeks" % (span // 604800)
+
+    elif (span % 86400 == 0) and (span // 86400) >= 1:
+        if (span // 86400) == 1:
+            return "1 day"
+        else:
+            return "%i days" % (span // 86400)
+    elif (span % 3600 == 0) and (span / 3600) >= 1:
+        if (span // 3600) == 1:
+            return "1 hour"
+        else:
+            return "%i hours" % (span // 3600)
+    else:
+        return ""
+
+def filetime_to_str(filetime: str) -> str:
+    return span_to_str(filetime_to_span(filetime))
 
 def to_pascal_case(snake_str: str) -> str:
     components = snake_str.split("_")

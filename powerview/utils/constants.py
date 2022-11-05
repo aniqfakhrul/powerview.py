@@ -28,6 +28,141 @@ class IntFlag(enum.IntFlag):
     def __repr__(self):
         return str(self)
 
+class MS_PKI_CERTIFICATE_NAME_FLAG(IntFlag):
+    NONE = 0x00000000
+    ENROLLEE_SUPPLIES_SUBJECT = 0x00000001
+    ADD_EMAIL = 0x00000002
+    ADD_OBJ_GUID = 0x00000004
+    OLD_CERT_SUPPLIES_SUBJECT_AND_ALT_NAME = 0x00000008
+    ADD_DIRECTORY_PATH = 0x00000100
+    ENROLLEE_SUPPLIES_SUBJECT_ALT_NAME = 0x00010000
+    SUBJECT_ALT_REQUIRE_DOMAIN_DNS = 0x00400000
+    SUBJECT_ALT_REQUIRE_SPN = 0x00800000
+    SUBJECT_ALT_REQUIRE_DIRECTORY_GUID = 0x01000000
+    SUBJECT_ALT_REQUIRE_UPN = 0x02000000
+    SUBJECT_ALT_REQUIRE_EMAIL = 0x04000000
+    SUBJECT_ALT_REQUIRE_DNS = 0x08000000
+    SUBJECT_REQUIRE_DNS_AS_CN = 0x10000000
+    SUBJECT_REQUIRE_EMAIL = 0x20000000
+    SUBJECT_REQUIRE_COMMON_NAME = 0x40000000
+    SUBJECT_REQUIRE_DIRECTORY_PATH = 0x80000000
+
+# https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-crtd/ec71fd43-61c2-407b-83c9-b52272dec8a1
+class MS_PKI_ENROLLMENT_FLAG(IntFlag):
+    NONE = 0x00000000
+    INCLUDE_SYMMETRIC_ALGORITHMS = 0x00000001
+    PEND_ALL_REQUESTS = 0x00000002
+    PUBLISH_TO_KRA_CONTAINER = 0x00000004
+    PUBLISH_TO_DS = 0x00000008
+    AUTO_ENROLLMENT_CHECK_USER_DS_CERTIFICATE = 0x00000010
+    AUTO_ENROLLMENT = 0x00000020
+    CT_FLAG_DOMAIN_AUTHENTICATION_NOT_REQUIRED = 0x80
+    PREVIOUS_APPROVAL_VALIDATE_REENROLLMENT = 0x00000040
+    USER_INTERACTION_REQUIRED = 0x00000100
+    ADD_TEMPLATE_NAME = 0x200
+    REMOVE_INVALID_CERTIFICATE_FROM_PERSONAL_STORE = 0x00000400
+    ALLOW_ENROLL_ON_BEHALF_OF = 0x00000800
+    ADD_OCSP_NOCHECK = 0x00001000
+    ENABLE_KEY_REUSE_ON_NT_TOKEN_KEYSET_STORAGE_FULL = 0x00002000
+    NOREVOCATIONINFOINISSUEDCERTS = 0x00004000
+    INCLUDE_BASIC_CONSTRAINTS_FOR_EE_CERTS = 0x00008000
+    ALLOW_PREVIOUS_APPROVAL_KEYBASEDRENEWAL_VALIDATE_REENROLLMENT = 0x00010000
+    ISSUANCE_POLICIES_FROM_REQUEST = 0x00020000
+    SKIP_AUTO_RENEWAL = 0x00040000
+    NO_SECURITY_EXTENSION = 0x00080000
+
+
+# https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-crtd/f6122d87-b999-4b92-bff8-f465e8949667
+class MS_PKI_PRIVATE_KEY_FLAG(IntFlag):
+    REQUIRE_PRIVATE_KEY_ARCHIVAL = 0x00000001
+    EXPORTABLE_KEY = 0x00000010
+    STRONG_KEY_PROTECTION_REQUIRED = 0x00000020
+    REQUIRE_ALTERNATE_SIGNATURE_ALGORITHM = 0x00000040
+    REQUIRE_SAME_KEY_RENEWAL = 0x00000080
+    USE_LEGACY_PROVIDER = 0x00000100
+    ATTEST_NONE = 0x00000000
+    ATTEST_REQUIRED = 0x00002000
+    ATTEST_PREFERRED = 0x00001000
+    ATTESTATION_WITHOUT_POLICY = 0x00004000
+    EK_TRUST_ON_USE = 0x00000200
+    EK_VALIDATE_CERT = 0x00000400
+    EK_VALIDATE_KEY = 0x00000800
+    HELLO_LOGON_KEY = 0x00200000
+
+
+# https://github.com/GhostPack/Certify/blob/2b1530309c0c5eaf41b2505dfd5a68c83403d031/Certify/Domain/CertificateAuthority.cs#L23
+class MS_PKI_CERTIFICATE_AUTHORITY_FLAG(IntFlag):
+    NO_TEMPLATE_SUPPORT = 0x00000001
+    SUPPORTS_NT_AUTHENTICATION = 0x00000002
+    CA_SUPPORTS_MANUAL_AUTHENTICATION = 0x00000004
+    CA_SERVERTYPE_ADVANCED = 0x00000008
+
+
+# https://www.pkisolutions.com/object-identifiers-oid-in-pki/
+OID_TO_STR_MAP = {
+    "1.3.6.1.4.1.311.76.6.1": "Windows Update",
+    "1.3.6.1.4.1.311.10.3.11": "Key Recovery",
+    "1.3.6.1.4.1.311.10.3.25": "Windows Third Party Application Component",
+    "1.3.6.1.4.1.311.21.6": "Key Recovery Agent",
+    "1.3.6.1.4.1.311.10.3.6": "Windows System Component Verification",
+    "1.3.6.1.4.1.311.61.4.1": "Early Launch Antimalware Drive",
+    "1.3.6.1.4.1.311.10.3.23": "Windows TCB Component",
+    "1.3.6.1.4.1.311.61.1.1": "Kernel Mode Code Signing",
+    "1.3.6.1.4.1.311.10.3.26": "Windows Software Extension Verification",
+    "2.23.133.8.3": "Attestation Identity Key Certificate",
+    "1.3.6.1.4.1.311.76.3.1": "Windows Store",
+    "1.3.6.1.4.1.311.10.6.1": "Key Pack Licenses",
+    "1.3.6.1.4.1.311.20.2.2": "Smart Card Logon",
+    "1.3.6.1.5.2.3.5": "KDC Authentication",
+    "1.3.6.1.5.5.7.3.7": "IP security use",
+    "1.3.6.1.4.1.311.10.3.8": "Embedded Windows System Component Verification",
+    "1.3.6.1.4.1.311.10.3.20": "Windows Kits Component",
+    "1.3.6.1.5.5.7.3.6": "IP security tunnel termination",
+    "1.3.6.1.4.1.311.10.3.5": "Windows Hardware Driver Verification",
+    "1.3.6.1.5.5.8.2.2": "IP security IKE intermediate",
+    "1.3.6.1.4.1.311.10.3.39": "Windows Hardware Driver Extended Verification",
+    "1.3.6.1.4.1.311.10.6.2": "License Server Verification",
+    "1.3.6.1.4.1.311.10.3.5.1": "Windows Hardware Driver Attested Verification",
+    "1.3.6.1.4.1.311.76.5.1": "Dynamic Code Generato",
+    "1.3.6.1.5.5.7.3.8": "Time Stamping",
+    "1.3.6.1.4.1.311.10.3.4.1": "File Recovery",
+    "1.3.6.1.4.1.311.2.6.1": "SpcRelaxedPEMarkerCheck",
+    "2.23.133.8.1": "Endorsement Key Certificate",
+    "1.3.6.1.4.1.311.2.6.2": "SpcEncryptedDigestRetryCount",
+    "1.3.6.1.4.1.311.10.3.4": "Encrypting File System",
+    "1.3.6.1.5.5.7.3.1": "Server Authentication",
+    "1.3.6.1.4.1.311.61.5.1": "HAL Extension",
+    "1.3.6.1.5.5.7.3.4": "Secure Email",
+    "1.3.6.1.5.5.7.3.5": "IP security end system",
+    "1.3.6.1.4.1.311.10.3.9": "Root List Signe",
+    "1.3.6.1.4.1.311.10.3.30": "Disallowed List",
+    "1.3.6.1.4.1.311.10.3.19": "Revoked List Signe",
+    "1.3.6.1.4.1.311.10.3.21": "Windows RT Verification",
+    "1.3.6.1.4.1.311.10.3.10": "Qualified Subordination",
+    "1.3.6.1.4.1.311.10.3.12": "Document Signing",
+    "1.3.6.1.4.1.311.10.3.24": "Protected Process Verification",
+    "1.3.6.1.4.1.311.80.1": "Document Encryption",
+    "1.3.6.1.4.1.311.10.3.22": "Protected Process Light Verification",
+    "1.3.6.1.4.1.311.21.19": "Directory Service Email Replication",
+    "1.3.6.1.4.1.311.21.5": "Private Key Archival",
+    "1.3.6.1.4.1.311.10.5.1": "Digital Rights",
+    "1.3.6.1.4.1.311.10.3.27": "Preview Build Signing",
+    "1.3.6.1.4.1.311.20.2.1": "Certificate Request Agent",
+    "2.23.133.8.2": "Platform Certificate",
+    "1.3.6.1.4.1.311.20.1": "CTL Usage",
+    "1.3.6.1.5.5.7.3.9": "OCSP Signing",
+    "1.3.6.1.5.5.7.3.3": "Code Signing",
+    "1.3.6.1.4.1.311.10.3.1": "Microsoft Trust List Signing",
+    "1.3.6.1.4.1.311.10.3.2": "Microsoft Time Stamping",
+    "1.3.6.1.4.1.311.76.8.1": "Microsoft Publishe",
+    "1.3.6.1.5.5.7.3.2": "Client Authentication",
+    "1.3.6.1.5.2.3.4": "PKIINIT Client Authentication",
+    "1.3.6.1.4.1.311.10.3.13": "Lifetime Signing",
+    "2.5.29.37.0": "Any Purpose",
+    "1.3.6.1.4.1.311.64.1.1": "Server Trust",
+    "1.3.6.1.4.1.311.10.3.7": "OEM Windows System Component Verification",
+}
+
 # https://github.com/GhostPack/Certify/blob/2b1530309c0c5eaf41b2505dfd5a68c83403d031/Certify/Domain/CertificateAuthority.cs#L11
 class CERTIFICATION_AUTHORITY_RIGHTS(IntFlag):
     MANAGE_CA = 1
