@@ -658,7 +658,7 @@ class PowerView:
                                     'Write Property': parsed_dacl['Write Property'],
                                     'Enabled': enabled,
                                     'Vulnerable': list(vulns.keys()),
-                                    'Description': vulns['ESC1']
+                                    #'Description': vulns['ESC1']
                                 },
                                  remove = [
                                      'nTSecurityDescriptor',
