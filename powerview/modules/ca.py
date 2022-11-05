@@ -118,6 +118,9 @@ class PARSE_TEMPLATE:
         self.enrollee_supplies_subject = False
         self.any_purpose = False
         self.enrollment_agent = False
+        self.requires_manager_approval = False
+        self.authorized_signatures_required = False
+        self.no_security_extension = False
 
     def get_owner_sid(self):
         return self.owner_sid
@@ -185,6 +188,24 @@ class PARSE_TEMPLATE:
     def set_enrollment_agent(self, enrollment_agent):
         self.enrollment_agent = enrollment_agent
 
+    def get_requires_manager_approval(self):
+        return self.requires_manager_approval
+
+    def set_requires_manager_approval(self, requires_manager_approval):
+        self.requires_manager_approval = requires_manager_approval
+
+    def get_authorized_signatures_required(self):
+        return self.authorized_signatures_required
+
+    def set_authorized_signatures_required(self, authorized_signatures_required):
+        self.authorized_signatures_required = authorized_signatures_required
+
+    def get_no_security_extension(self):
+        return self.no_security_extension
+
+    def set_no_security_extension(self, no_security_extension):
+        self.no_security_extension = no_security_extension
+
     def resolve_flags(self):
         # resolve certificate name flag
         self.set_certificate_name_flag(self.template["msPKI-Certificate-Name-Flag"].raw_values[0])
@@ -201,6 +222,18 @@ class PARSE_TEMPLATE:
                 self.set_enrollment_flag(MS_PKI_ENROLLMENT_FLAG(int(self.enrollment_flag)))
         else:
             self.set_enrollment_flag(MS_PKI_ENROLLMENT_FLAG(0))
+
+        # resolve authorized signature
+        self.set_authorized_signatures_required(self.template["msPKI-RA-Signature"].raw_values[0])
+        if self.authorized_signatures_required is not None:
+                self.set_authorized_signatures_required(int(self.authorized_signatures_required))
+        else:
+            self.set_authorized_signatures_required(0)
+
+        # resolve no_security_extension
+        self.set_no_security_extension((
+                MS_PKI_ENROLLMENT_FLAG.NO_SECURITY_EXTENSION in self.enrollment_flag
+            ))
 
         # resolve pKIExtendedKeyUsage
         eku = self.template["pKIExtendedKeyUsage"].raw_values
@@ -242,23 +275,51 @@ class PARSE_TEMPLATE:
                 ]
             ))
 
+        self.set_requires_manager_approval((
+                MS_PKI_ENROLLMENT_FLAG.PEND_ALL_REQUESTS in self.enrollment_flag
+            ))
+
         # resolve validity period
         self.set_validity_period(filetime_to_str(self.template["pKIExpirationPeriod"].raw_values[0]))
 
         # resolve renewal_period
         self.set_renewal_period(filetime_to_str(self.template["pKIOverlapPeriod"].raw_values[0]))
 
+    def get_user_sids(self):
+        return ['S-1-5-21-3556610642-5733621-2059236447-515', 'S-1-5-21-3556610642-5733621-2059236447-513']
+
+    def can_user_enroll_template(self):
+        enrollable_sids = []
+        user_can_enroll = False
+        for sid in self.parsed_dacl["Enrollment Rights"]:
+            if sid in self.get_user_sids():
+                enrollable_sids.append(sid)
+                user_can_enroll = True
+        return user_can_enroll, enrollable_sids
+
     def check_vulnerable_template(self):
         vulns = {}
+        user_can_enroll, enrollable_sids = self.can_user_enroll_template()
+        if not self.get_requires_manager_approval() and not self.get_authorized_signatures_required():
+            # ESC1
+            # TODO: add another user_can_enroll logic
+            self.parsed_dacl["Enrollment Rights"]
+            if (user_can_enroll and self.get_enrollee_supplies_subject() and self.get_client_authentication()):
+                vulns["ESC1"] = enrollable_sids
 
-        # ESC1
-        # TODO: add another user_can_enroll logic
-        if (self.get_enrollee_supplies_subject() and self.get_client_authentication()):
-            vulns["ESC1"] = "Vulnerable yayyy"
+            # ESC2
+            if user_can_enroll and self.get_any_purpose():
+                vulns["ESC2"] = "Vulnerable yayyy"
 
-        # ESC4
+            # ESC3
+            if user_can_enroll and self.get_enrollment_agent():
+                vulns["ESC3"] = "Vulnerable yayyy"
 
-        # ESC8
+            # ESC9
+            if user_can_enroll and self.get_no_security_extension():
+                vunls["ESC9"] = "Vulnerable yayay"
+
+            # ESC4
         return vulns
 
     def parse_dacl(self):

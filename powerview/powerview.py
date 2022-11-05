@@ -593,6 +593,20 @@ class PowerView:
                 validity_period = template_ops.get_validity_period()
                 renewal_period = template_ops.get_renewal_period()
 
+                if template.name in ca.certificateTemplates:
+                    enabled = True
+
+                if not enabled and args.enabled:
+                    continue
+
+                # check vulnerable
+                if args.vulnerable:
+                    vulns = template_ops.check_vulnerable_template()
+                    if vulns:
+                        vulnerable = True
+                    else:
+                        continue
+
                 if args.resolve_sids:
                     template_owner = self.convertfrom_sid(template_ops.get_owner_sid())
 
@@ -620,19 +634,14 @@ class PowerView:
                         except:
                             pass
 
-                if template.name in ca.certificateTemplates:
-                    enabled = True
-
-                if not enabled and args.enabled:
-                    continue
-
-                # check vulnerable
-                if args.vulnerable:
-                    vulns = template_ops.check_vulnerable_template()
-                    if vulns:
-                        vulnerable = True
-                    else:
-                        continue
+                    for k,v in vulns.items():
+                        n = []
+                        for l in v:
+                            try:
+                                n.append(self.convertfrom_sid(l))
+                            except:
+                                n.append(l)
+                        vulns[k] = n
 
                 e = modify_entry(template,
                                 new_attributes={
@@ -649,7 +658,7 @@ class PowerView:
                                     'Write Property': parsed_dacl['Write Property'],
                                     'Enabled': enabled,
                                     'Vulnerable': list(vulns.keys()),
-                                    'Description': list(vulns.values())
+                                    'Description': vulns['ESC1']
                                 },
                                  remove = [
                                      'nTSecurityDescriptor',
