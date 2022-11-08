@@ -207,9 +207,11 @@ def powerview_arg_parse(cmd):
 
     # Find CA Templates
     get_domaincatemplate_parser = subparsers.add_parser('Get-DomainCATemplate', aliases=['Get-NetCATemplate'], exit_on_error=False)
+    get_domaincatemplate_parser.add_argument('-Identity', action='store', dest='identity')
     get_domaincatemplate_parser.add_argument('-Enabled', action='store_true', dest='enabled')
     get_domaincatemplate_parser.add_argument('-Vulnerable', action='store_true', dest='vulnerable')
-    get_domaincatemplate_parser.add_argument('-Properties', action='store', default='*', dest='properties')
+    get_domaincatemplate_parser.add_argument('-ResolveSIDs', action='store_true', dest='resolve_sids')
+    get_domaincatemplate_parser.add_argument('-Properties', action='store', dest='properties')
     get_domaincatemplate_parser.add_argument('-Domain', action='store', dest='server')
     get_domaincatemplate_parser.add_argument('-Select', action='store', dest='select')
     get_domaincatemplate_parser.add_argument('-Where', action='store', dest='where')

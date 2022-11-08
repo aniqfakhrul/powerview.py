@@ -3,7 +3,7 @@ from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 
 from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser, WELL_KNOWN_SIDS
-from powerview.modules.ca import CAEnum
+from powerview.modules.ca import CAEnum, PARSE_TEMPLATE
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.utils.helpers import *
@@ -19,7 +19,6 @@ import logging
 import re
 
 class PowerView:
-
     def __init__(self, conn, args, target_server=None):
         self.conn = conn
         self.args = args
@@ -73,9 +72,6 @@ class PowerView:
         else:
             properties += def_prop
 
-        if args.trustedtoauth:
-            properties += ['msds-AllowedToDelegateTo']
-
         ldap_filter = ""
         identity_filter = f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
 
@@ -98,6 +94,7 @@ class PowerView:
             if args.trustedtoauth:
                 logging.debug('[Get-DomainUser] Searching for users that are trusted to authenticate for other principals')
                 ldap_filter += f'(msds-allowedtodelegateto=*)'
+                properties += ['msds-AllowedToDelegateTo']
             if args.rbcd:
                 logging.debug('[Get-DomainUser] Searching for users that are configured to allow resource-based constrained delegation')
                 ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
@@ -256,11 +253,6 @@ class PowerView:
         else:
             properties += def_prop
 
-        if args.rbcd:
-            properties += ['msDS-AllowedToActOnBehalfOfOtherIdentity']
-        if args.laps:
-            properties += ['ms-MCS-AdmPwd']
-
         ldap_filter = ""
         identity_filter = f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
 
@@ -274,9 +266,11 @@ class PowerView:
             if args.laps:
                 logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
                 ldap_filter += f'(ms-MCS-AdmPwd=*)'
+                properties += ['ms-MCS-AdmPwd']
             if args.rbcd:
                 logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
                 ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
+                properties += ['msDS-AllowedToActOnBehalfOfOtherIdentity']
             if args.printers:
                 logging.debug("[Get-DomainComputer] Searching for printers")
                 ldap_filter += f'(objectCategory=printQueue)'
@@ -520,7 +514,7 @@ class PowerView:
                 except IndexError:
                     identity = f"{domain_name}\\{self.ldap_session.entries[0]['name'].value}"
             else:
-                logging.info("No objects found")
+                logging.debug("No objects found")
                 return
         if output:
             print(identity)
@@ -550,11 +544,30 @@ class PowerView:
         entries = ca_fetch.fetch_enrollment_services(properties)
         return entries
 
-    def get_domaincatemplate(self, args=None, properties=['*']):
+    def get_domaincatemplate(self, args=None, properties=['*'], identity=None):
+        def_prop = [
+            "cn",
+            "name",
+            "displayName",
+            "pKIExpirationPeriod",
+            "pKIOverlapPeriod",
+            "msPKI-Enrollment-Flag",
+            "msPKI-Private-Key-Flag",
+            "msPKI-Certificate-Name-Flag",
+            "msPKI-RA-Signature",
+            "pKIExtendedKeyUsage",
+            "nTSecurityDescriptor",
+            "objectGUID",
+        ]
+        if not properties:
+            properties = def_prop
+        else:
+            properties += def_prop
+
         entries = []
         ca_fetch = CAEnum(self.ldap_session, self.root_dn)
 
-        templates = ca_fetch.get_certificate_templates(properties)
+        templates = ca_fetch.get_certificate_templates(properties,identity)
         cas = ca_fetch.fetch_enrollment_services()
 
         if len(cas) <= 0:
@@ -562,26 +575,105 @@ class PowerView:
             return
 
         logging.debug(f"Found {len(cas)} CA(s)")
-
         for ca in cas:
             for template in templates:
                 #template = template.entry_writable()
                 enabled = False
+                vulnerable = False
+                vulns = {}
+
+                # get enrollment rights
+                template_ops = PARSE_TEMPLATE(template)
+                parsed_dacl = template_ops.parse_dacl()
+                template_ops.resolve_flags()
+                template_owner = template_ops.get_owner_sid()
+                certificate_name_flag = template_ops.get_certificate_name_flag()
+                enrollment_flag = template_ops.get_enrollment_flag()
+                extended_key_usage = template_ops.get_extended_key_usage()
+                validity_period = template_ops.get_validity_period()
+                renewal_period = template_ops.get_renewal_period()
+
                 if template.name in ca.certificateTemplates:
                     enabled = True
 
                 if not enabled and args.enabled:
                     continue
 
+                # check vulnerable
+                if args.vulnerable:
+                    vulns = template_ops.check_vulnerable_template()
+                    if vulns:
+                        vulnerable = True
+                    else:
+                        continue
+
+                if args.resolve_sids:
+                    template_owner = self.convertfrom_sid(template_ops.get_owner_sid())
+
+                    for i in range(len(parsed_dacl['Enrollment Rights'])):
+                        try:
+                            parsed_dacl['Enrollment Rights'][i] = self.convertfrom_sid(parsed_dacl['Enrollment Rights'][i])
+                        except:
+                            pass
+
+                    for k in range(len(parsed_dacl['Write Owner'])):
+                        try:
+                            parsed_dacl['Write Owner'][k] = self.convertfrom_sid(parsed_dacl['Write Owner'][k])
+                        except:
+                            pass
+
+                    for j in range(len(parsed_dacl['Write Dacl'])):
+                        try:
+                            parsed_dacl['Write Dacl'][j] = self.convertfrom_sid(parsed_dacl['Write Dacl'][j])
+                        except:
+                            pass
+
+                    for y in range(len(parsed_dacl['Write Property'])):
+                        try:
+                            parsed_dacl['Write Property'][y] = self.convertfrom_sid(parsed_dacl['Write Property'][y])
+                        except:
+                            pass
+
+                    for k,v in vulns.items():
+                        n = []
+                        for l in v:
+                            try:
+                                n.append(self.convertfrom_sid(l))
+                            except:
+                                n.append(l)
+                        vulns[k] = n
+
+                e = modify_entry(template,
+                                new_attributes={
+                                    'Owner': template_owner,
+                                    'CertificateNameFlag': certificate_name_flag,
+                                    'Enrollment Flag': enrollment_flag,
+                                    'Extended Key Usage': extended_key_usage,
+                                    'pKIExpirationPeriod': validity_period,
+                                    'pKIOverlapPeriod': renewal_period,
+                                    'Enrollment Rights': parsed_dacl['Enrollment Rights'],
+                                    'Extended Rights': parsed_dacl['Extended Rights'],
+                                    'Write Owner': parsed_dacl['Write Owner'],
+                                    'Write Dacl': parsed_dacl['Write Dacl'],
+                                    'Write Property': parsed_dacl['Write Property'],
+                                    'Enabled': enabled,
+                                    'Vulnerable': list(vulns.keys()),
+                                    #'Description': vulns['ESC1']
+                                },
+                                 remove = [
+                                     'nTSecurityDescriptor',
+                                     'msPKI-Certificate-Name-Flag',
+                                     'msPKI-Enrollment-Flag',
+                                     'pKIExpirationPeriod',
+                                     'pKIOverlapPeriod',
+                                     'pKIExtendedKeyUsage'
+                                 ]
+
+                                 )
                 entries.append({
-                    'attributes':{
-                        'cn': template['cn'].values[0],
-                        'name': template['name'].values[0],
-                        'displayName': template.displayName,
-                        'objectGUID': template.objectGUID,
-                        'Enabled': enabled
-                    }
+                    'attributes': e
                 })
+
         return entries
 
 

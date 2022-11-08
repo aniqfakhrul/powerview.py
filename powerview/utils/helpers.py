@@ -14,6 +14,7 @@ import logging
 from impacket import version
 from impacket.examples import logger, utils
 from dns import resolver
+import struct
 from ldap3.utils.conv import escape_filter_chars
 import re
 
@@ -30,6 +31,92 @@ from impacket.krb5.types import Principal
 
 import configparser
 import validators
+
+def get_user_sids(domain_sid, objectsid):
+    user_sids = []
+    rid = int(objectsid.split("-")[-1])
+
+    # add domain user group
+    user_sids.append(f"{domain_sid}-513")
+
+    # add domain computer group
+    user_sids.append(f"{domain_sid}-515")
+
+    # verify object sid
+    if rid > 1000:
+        user_sids.append(objectsid)
+
+    # Everyone, Authenticated Users, Users
+    user_sids += [
+        "S-1-1-0",
+        "S-1-5-11",
+        "S-1-5-32-545"
+    ]
+    return user_sids
+
+def filetime_to_span(filetime: str) -> int:
+    (span,) = struct.unpack("<q", filetime)
+
+    span *= -0.0000001
+
+    return int(span)
+
+def span_to_str(span: int) -> str:
+    if (span % 31536000 == 0) and (span // 31536000) >= 1:
+        if (span / 31536000) == 1:
+            return "1 year"
+        return "%i years" % (span // 31536000)
+    elif (span % 2592000 == 0) and (span // 2592000) >= 1:
+        if (span // 2592000) == 1:
+            return "1 month"
+        else:
+            return "%i months" % (span // 2592000)
+    elif (span % 604800 == 0) and (span // 604800) >= 1:
+        if (span / 604800) == 1:
+            return "1 week"
+        else:
+            return "%i weeks" % (span // 604800)
+
+    elif (span % 86400 == 0) and (span // 86400) >= 1:
+        if (span // 86400) == 1:
+            return "1 day"
+        else:
+            return "%i days" % (span // 86400)
+    elif (span % 3600 == 0) and (span / 3600) >= 1:
+        if (span // 3600) == 1:
+            return "1 hour"
+        else:
+            return "%i hours" % (span // 3600)
+    else:
+        return ""
+
+def filetime_to_str(filetime: str) -> str:
+    return span_to_str(filetime_to_span(filetime))
+
+def to_pascal_case(snake_str: str) -> str:
+    components = snake_str.split("_")
+    return "".join(x.title() for x in components)
+
+def is_admin_sid(sid: str):
+    return (
+        re.match("^S-1-5-21-.+-(498|500|502|512|516|518|519|521)$", sid) is not None
+        or sid == "S-1-5-9"
+        or sid == "S-1-5-32-544"
+    )
+
+def modify_entry(entry, new_attributes=None, remove=None):
+    entries = {}
+    e = json.loads(entry.entry_to_json())
+    j = e['attributes']
+    for i in j:
+        if i not in remove:
+            entries[i] = j[i]
+
+    if new_attributes:
+        for attr in new_attributes:
+            entries[attr]= new_attributes[attr]
+
+    return entries
 
 def is_valid_fqdn(hostname: str) -> bool:
     if validators.domain(hostname):
