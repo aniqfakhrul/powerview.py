@@ -1138,8 +1138,15 @@ class PowerView:
         else:
             entries = self.get_domaincomputer(properties=['dnsHostName'])
 
+            logging.info(f"Found {len(entries)} computers in the domain")
+            if len(entries) > 100:
+                logging.info("There are more than 100 computers in the domain. This might take some time")
+
             for entry in entries:
                 try:
+                    if len(entry['attributes']['dnsHostName']) <= 0:
+                        continue
+
                     hosts['address'] = host2ip(entry['attributes']['dnsHostName'], self.dc_ip, 3, True)
                     hosts['hostname'] = entry['attributes']['dnsHostname']
                     host_entries.append(hosts.copy())
