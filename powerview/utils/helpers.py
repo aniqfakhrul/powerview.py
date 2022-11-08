@@ -432,7 +432,7 @@ def host2ip(hostname, nameserver,dns_timeout,dns_tcp):
             addr = r.address
         return addr
     except resolver.NXDOMAIN as e:
-        logging.error("Resolved Failed: %s" % e)
+        logging.debug("Resolved Failed: %s" % e)
         return None
 
 def get_dc_host(ldap_session, domain_dumper,options):
