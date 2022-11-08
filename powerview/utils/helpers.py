@@ -32,6 +32,28 @@ from impacket.krb5.types import Principal
 import configparser
 import validators
 
+def get_user_sids(domain_sid, objectsid):
+    user_sids = []
+    rid = int(objectsid.split("-")[-1])
+
+    # add domain user group
+    user_sids.append(f"{domain_sid}-513")
+
+    # add domain computer group
+    user_sids.append(f"{domain_sid}-515")
+
+    # verify object sid
+    if rid > 1000:
+        user_sids.append(objectsid)
+
+    # Everyone, Authenticated Users, Users
+    user_sids += [
+        "S-1-1-0",
+        "S-1-5-11",
+        "S-1-5-32-545"
+    ]
+    return user_sids
+
 def filetime_to_span(filetime: str) -> int:
     (span,) = struct.unpack("<q", filetime)
 

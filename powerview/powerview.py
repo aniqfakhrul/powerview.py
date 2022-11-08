@@ -514,7 +514,7 @@ class PowerView:
                 except IndexError:
                     identity = f"{domain_name}\\{self.ldap_session.entries[0]['name'].value}"
             else:
-                logging.info("No objects found")
+                logging.debug("No objects found")
                 return
         if output:
             print(identity)

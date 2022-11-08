@@ -6,7 +6,8 @@ from ldap3.protocol.formatters.formatters import format_sid
 
 from powerview.utils.helpers import (
     is_admin_sid,
-    filetime_to_str
+    filetime_to_str,
+    get_user_sids
 )
 from powerview.utils.constants import (
     ACTIVE_DIRECTORY_RIGHTS,
@@ -121,6 +122,7 @@ class PARSE_TEMPLATE:
         self.requires_manager_approval = False
         self.authorized_signatures_required = False
         self.no_security_extension = False
+        self.domain_sid = None
 
     def get_owner_sid(self):
         return self.owner_sid
@@ -285,14 +287,11 @@ class PARSE_TEMPLATE:
         # resolve renewal_period
         self.set_renewal_period(filetime_to_str(self.template["pKIOverlapPeriod"].raw_values[0]))
 
-    def get_user_sids(self):
-        return ['S-1-5-21-3556610642-5733621-2059236447-515', 'S-1-5-21-3556610642-5733621-2059236447-513']
-
     def can_user_enroll_template(self):
         enrollable_sids = []
         user_can_enroll = False
         for sid in self.parsed_dacl["Enrollment Rights"]:
-            if sid in self.get_user_sids():
+            if sid in get_user_sids(self.domain_sid, sid):
                 enrollable_sids.append(sid)
                 user_can_enroll = True
         return user_can_enroll, enrollable_sids
@@ -320,6 +319,19 @@ class PARSE_TEMPLATE:
                 vunls["ESC9"] = "Vulnerable yayay"
 
             # ESC4
+            for s in self.parsed_dacl["Write Owner"]:
+                rid = int(s.split("-")[-1])
+                if rid > 1000:
+                    vulns["ESC4"] = f"{rid} have write permission"
+            for s in self.parsed_dacl["Write Dacl"]:
+                rid = int(s.split("-")[-1])
+                if rid > 1000:
+                    vulns["ESC4"] = f"{rid} have write permission"
+            for s in self.parsed_dacl["Write Property"]:
+                rid = int(s.split("-")[-1])
+                if rid > 1000:
+                    vulns["ESC4"] = f"{rid} have write permission"
+
         return vulns
 
     def parse_dacl(self):
@@ -331,6 +343,8 @@ class PARSE_TEMPLATE:
         sdData = self.template["nTSecurityDescriptor"].raw_values[0]
         security = CertifcateSecurity(sdData)
         self.owner_sid = security.owner
+        if not self.domain_sid:
+            self.domain_sid = '-'.join(self.owner_sid.split("-")[:-1])
         aces = security.aces
 
         for sid, rights in aces.items():
