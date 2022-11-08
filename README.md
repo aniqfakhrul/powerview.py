@@ -48,6 +48,7 @@ Get-DomainUser -Count
 | Get-DomainController | Get-NetDomainController ||
 | Get-DomainDNSZone    |                         ||
 | Get-DomainCA         | Get-NetCA               ||
+| Get-DomainCATemplate         | Get-NetCATemplate               ||
 |Get-DomainGPO|Get-NetGPO||
 |Get-DomainGPOLocalGroup|Get-GPOLocalGroup||
 |Get-DomainOU|Get-NetOU||
