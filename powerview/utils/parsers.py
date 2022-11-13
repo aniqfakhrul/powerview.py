@@ -145,7 +145,7 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #domain controller
-    get_domaincontroller_parser = subparsers.add_parser('Get-DomainController', aliases=['NetDomainController '], exit_on_error=False)
+    get_domaincontroller_parser = subparsers.add_parser('Get-DomainController', aliases=['Get-NetDomainController'], exit_on_error=False)
     get_domaincontroller_parser.add_argument('-Identity', action='store',default='*', dest='identity')
     get_domaincontroller_parser.add_argument('-Properties',action='store',default='*', dest='properties')
     get_domaincontroller_parser.add_argument('-Domain', action='store', dest='server')
