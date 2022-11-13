@@ -722,11 +722,13 @@ class PowerView:
         au.removeUser(identity_dn)
 
     def add_domainuser(self, username, userpass):
-        parent_dn_entries = self.get_domainobject(identity="Users")
+        # parent_dn_entries = self.get_domainobject(identity="Users")
+        parent_dn_entries = f"CN=Users,{self.root_dn}"
         if len(parent_dn_entries) == 0:
             logging.error('Users parent DN not found in domain')
             return
-        au = ADUser(self.ldap_session, self.root_dn, parent = parent_dn_entries[0]["attributes"]["distinguishedName"])
+        logging.debug(f"Adding user in {parent_dn_entries}")
+        au = ADUser(self.ldap_session, self.root_dn, parent = parent_dn_entries)
         if au.addUser(username, userpass):
             return True
         else:
