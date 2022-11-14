@@ -288,9 +288,9 @@ def main():
                                     logging.error(f'-ComputerName and -ComputerPass are required')
                             elif pv_args.module.casefold() == 'add-domainuser' or pv_args.module.casefold() == 'add-aduser':
                                 if temp_powerview:
-                                    temp_powerview.add_domainuser(pv_args.username, pv_args.userpass)
+                                    temp_powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
                                 else:
-                                    powerview.add_domainuser(pv_args.username, pv_args.userpass)
+                                    powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
                             elif pv_args.module.casefold() == 'remove-domainuser' or pv_args.module.casefold() == 'remove-aduser':
                                 if pv_args.identity:
                                     if temp_powerview:
@@ -343,8 +343,8 @@ def main():
             except EOFError:
                 print("Exiting...")
                 sys.exit(0)
-            #except Exception as e:
-            #    logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
