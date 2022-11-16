@@ -593,7 +593,7 @@ class PowerView:
                 validity_period = template_ops.get_validity_period()
                 renewal_period = template_ops.get_renewal_period()
 
-                if template.name in ca.certificateTemplates:
+                if template.name in ca["certificateTemplates"]:
                     enabled = True
 
                 if not enabled and args.enabled:
