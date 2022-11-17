@@ -582,6 +582,12 @@ class PowerView:
                 vulnerable = False
                 vulns = {}
 
+                # avoid dupes
+                if len(entries) != 0:
+                    for entry in entries:
+                        if template["objectGUID"] in entry["attributes"]["objectGUID"]:
+                            continue
+
                 # get enrollment rights
                 template_ops = PARSE_TEMPLATE(template)
                 parsed_dacl = template_ops.parse_dacl()
