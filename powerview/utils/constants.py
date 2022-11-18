@@ -306,6 +306,9 @@ WELL_KNOWN_SIDS = {
     'S-1-5-32-580': 'BUILTIN\Remote Management Users',
 }
 
+# store discovered sids
+KNOWN_SIDS = {}
+
 # Retrieved from Windows 2022 server via LDAP (CN=Extended-Rights,CN=Configuration,DC=...)
 EXTENDED_RIGHTS_MAP = {
     "ab721a52-1e2f-11d0-9819-00aa0040529b": "Domain-Administer-Serve",
