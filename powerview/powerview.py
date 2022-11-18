@@ -2,13 +2,14 @@
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 
-from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser, WELL_KNOWN_SIDS
+from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
 from powerview.utils.colors import bcolors
+from powerview.utils.constants import WELL_KNOWN_SIDS, KNOWN_SIDS
 
 import chardet
 from io import BytesIO
@@ -40,6 +41,7 @@ class PowerView:
         self.domain_dumper = ldapdomaindump.domainDumper(self.ldap_server, self.ldap_session, cnf)
         self.root_dn = self.domain_dumper.getRoot()
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
+        self.flatName = self.get_domain(properties=['name'])[0]['attributes']['name'].upper()
 
     def get_domainuser(self, args=None, properties=['*'], identity='*'):
         def_prop = [
@@ -500,21 +502,26 @@ class PowerView:
         return self.ldap_session.entries
 
     def convertfrom_sid(self, objectsid, args=None, output=False):
-        ldap_filter = f"(|(|(objectSid={objectsid})))"
-        logging.debug(f"LDAP search filter: {ldap_filter}")
-        domain_name = self.get_domain()[0]['attributes']['name'].upper()
         identity = WELL_KNOWN_SIDS.get(objectsid)
+        known_sid = KNOWN_SIDS.get(objectsid)
         if identity:
-            identity = f"{domain_name}\\{identity}"
+            identity = f"{self.flatName}\\{identity}"
+        elif known_sid:
+            identity = known_sid
         else:
+            ldap_filter = f"(|(|(objectSid={objectsid})))"
+            logging.debug(f"LDAP search filter: {ldap_filter}")
+            
             self.ldap_session.search(self.root_dn,ldap_filter,attributes=['sAMAccountName','name'])
             if len(self.ldap_session.entries) != 0:
                 try:
-                    identity = f"{domain_name}\\{self.ldap_session.entries[0]['sAMAccountName'].values[0]}"
+                    identity = f"{self.flatName}\\{self.ldap_session.entries[0]['sAMAccountName'].values[0]}"
                 except IndexError:
-                    identity = f"{domain_name}\\{self.ldap_session.entries[0]['name'].value}"
+                    identity = f"{self.flatName}\\{self.ldap_session.entries[0]['name'].value}"
+
+                KNOWN_SIDS[objectsid] = identity
             else:
-                logging.debug("No objects found")
+                logging.debug(f"No objects found for {objectsid}")
                 return
         if output:
             print(identity)
@@ -522,7 +529,7 @@ class PowerView:
 
     def get_domain(self, args=None, properties=['*'], identity='*'):
         ldap_filter = f'(objectClass=domain)'
-        logging.debug(f'LDAP search filter: {ldap_filter}')
+        logging.debug(f'[Get-Domain] LDAP search filter: {ldap_filter}')
         entries = []
         entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
@@ -648,15 +655,6 @@ class PowerView:
                             parsed_dacl['Write Property'][y] = self.convertfrom_sid(parsed_dacl['Write Property'][y])
                         except:
                             pass
-
-                    for k,v in vulns.items():
-                        n = []
-                        for l in v:
-                            try:
-                                n.append(self.convertfrom_sid(l))
-                            except:
-                                n.append(l)
-                        vulns[k] = n
 
                 e = modify_entry(template,
                                 new_attributes={
