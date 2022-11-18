@@ -502,11 +502,10 @@ class PowerView:
         return self.ldap_session.entries
 
     def convertfrom_sid(self, objectsid, args=None, output=False):
-        domain_name = self.flatName
         identity = WELL_KNOWN_SIDS.get(objectsid)
         known_sid = KNOWN_SIDS.get(objectsid)
         if identity:
-            identity = f"{domain_name}\\{identity}"
+            identity = f"{self.flatName}\\{identity}"
         elif known_sid:
             identity = known_sid
         else:
@@ -516,9 +515,9 @@ class PowerView:
             self.ldap_session.search(self.root_dn,ldap_filter,attributes=['sAMAccountName','name'])
             if len(self.ldap_session.entries) != 0:
                 try:
-                    identity = f"{domain_name}\\{self.ldap_session.entries[0]['sAMAccountName'].values[0]}"
+                    identity = f"{self.flatName}\\{self.ldap_session.entries[0]['sAMAccountName'].values[0]}"
                 except IndexError:
-                    identity = f"{domain_name}\\{self.ldap_session.entries[0]['name'].value}"
+                    identity = f"{self.flatName}\\{self.ldap_session.entries[0]['name'].value}"
 
                 KNOWN_SIDS[objectsid] = identity
             else:
