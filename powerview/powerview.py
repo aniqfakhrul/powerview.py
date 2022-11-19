@@ -4,7 +4,7 @@ from impacket.ldap import ldaptypes
 
 from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE
-from powerview.modules.addcomputer import ADDCOMPUTER
+from powerview.lib.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
@@ -1131,9 +1131,15 @@ class PowerView:
             return
         # request TGS for each accounts
         target_domain = self.domain
+        encType = None
+        options = None
+        if args.opsec:
+            encType = 18
+            options = "0x40810000"
+
         if args.server:
             target_domain = args.server
-        userspn = GetUserSPNs(self.username, self.password, self.domain, target_domain, self.args, identity=args.identity)
+        userspn = GetUserSPNs(self.username, self.password, self.domain, target_domain, self.args, identity=args.identity, options=options, encType=encType)
         entries_out = userspn.run(entries)
 
         # properly formatted for output

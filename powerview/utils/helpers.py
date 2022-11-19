@@ -25,9 +25,10 @@ from impacket import version
 from impacket.dcerpc.v5 import samr, dtypes
 from impacket.examples import logger
 from impacket.examples.utils import parse_credentials
-from impacket.krb5.kerberosv5 import getKerberosTGT
 from impacket.krb5 import constants
 from impacket.krb5.types import Principal
+
+from powerview.lib.kerberosv5 import getKerberosTGT
 
 import configparser
 import validators
@@ -241,6 +242,8 @@ def parse_identity(args):
         args.k = True
 
     if args.hashes is not None:
+        if ":" not in args.hashes[0] and len(args.hashes) == 32:
+            args.hashes = ":"+args.hashes
         hashes = ("aad3b435b51404eeaad3b435b51404ee:".upper() + args.hashes.split(":")[1]).upper()
         lmhash, nthash = hashes.split(':')
     else:

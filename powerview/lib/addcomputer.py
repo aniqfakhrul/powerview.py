@@ -298,10 +298,11 @@ class ADDCOMPUTER:
         # Importing down here so pyasn1 is not required if kerberos is not used.
         from impacket.krb5.ccache import CCache
         from impacket.krb5.asn1 import AP_REQ, Authenticator, TGS_REP, seq_set
-        from impacket.krb5.kerberosv5 import getKerberosTGT, getKerberosTGS
         from impacket.krb5 import constants
         from impacket.krb5.types import Principal, KerberosTime, Ticket
         import datetime
+
+        from powerview.lib.kerberosv5 import getKerberosTGT, getKerberosTGS
 
         if TGT is not None or TGS is not None:
             useCache = False
