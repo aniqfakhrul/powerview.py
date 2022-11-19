@@ -341,7 +341,7 @@ def getKerberosTGT(clientName, password, domain, lmhash, nthash, aesKey='', kdcH
 
     return tgt, cipher, key, sessionKey
 
-def getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey, options=None, encType=None):
+def getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey, options, encType):
 
     # Decode the TGT
     try:
@@ -400,14 +400,12 @@ def getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey, options
 
     reqBody = seq_set(tgsReq, 'req-body')
 
-    if options:
-        opts = options
-    else:
-        opts = list()
-        opts.append( constants.KDCOptions.forwardable.value )
-        opts.append( constants.KDCOptions.renewable.value )
-        opts.append( constants.KDCOptions.renewable_ok.value )
-        opts.append( constants.KDCOptions.canonicalize.value )
+    opts = options
+    #opts.append( constants.KDCOptions.forwardable.value )
+    #opts.append( constants.KDCOptions.renewable.value )
+    #opts.append( constants.KDCOptions.canonicalize.value )
+    #opts.append( constants.KDCOptions.renewable_ok.value )
+    #opts.append( constants.KDCOptions.canonicalize.value )
 
     reqBody['kdc-options'] = constants.encodeFlags(opts)
     seq_set(reqBody, 'sname', serverName.components_to_asn1)

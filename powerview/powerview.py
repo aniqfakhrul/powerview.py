@@ -4,7 +4,7 @@ from impacket.ldap import ldaptypes
 
 from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE
-from powerview.lib.addcomputer import ADDCOMPUTER
+from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
@@ -41,7 +41,7 @@ class PowerView:
         self.domain_dumper = ldapdomaindump.domainDumper(self.ldap_server, self.ldap_session, cnf)
         self.root_dn = self.domain_dumper.getRoot()
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
-        self.flatName = self.get_domain(properties=['name'])[0]['attributes']['name'].upper()
+        self.flatName = list_to_str(self.get_domain(properties=['name'])[0]['attributes']['name']).upper()
 
     def get_domainuser(self, args=None, properties=['*'], identity='*'):
         def_prop = [
@@ -511,7 +511,7 @@ class PowerView:
         else:
             ldap_filter = f"(|(|(objectSid={objectsid})))"
             logging.debug(f"LDAP search filter: {ldap_filter}")
-            
+
             self.ldap_session.search(self.root_dn,ldap_filter,attributes=['sAMAccountName','name'])
             if len(self.ldap_session.entries) != 0:
                 try:
@@ -1131,15 +1131,17 @@ class PowerView:
             return
         # request TGS for each accounts
         target_domain = self.domain
-        encType = None
-        options = None
-        if args.opsec:
-            encType = 18
-            options = "0x40810000"
 
         if args.server:
             target_domain = args.server
-        userspn = GetUserSPNs(self.username, self.password, self.domain, target_domain, self.args, identity=args.identity, options=options, encType=encType)
+
+        kdc_options = None
+        enctype = None
+        if args.opsec:
+            enctype = 18
+            kdc_options = "0x4010000"
+
+        userspn = GetUserSPNs(self.username, self.password, self.domain, target_domain, self.args, identity=args.identity, options=kdc_options, encType=enctype)
         entries_out = userspn.run(entries)
 
         # properly formatted for output

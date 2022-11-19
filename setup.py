@@ -10,7 +10,9 @@ setup(name='powerview',
       url='https://github.com/aniqfakhrul/powerview.py',
       packages=['powerview',
                 'powerview.utils',
-                'powerview.modules'],
+                'powerview.modules',
+                'powerview.lib'
+                ],
       license='MIT',
       install_requires=['dnspython','future','gnureadline','impacket>=0.10.0','validators','dsinternals'],
       classifiers=[

@@ -1,5 +1,4 @@
 import argparse
-import logging
 import sys
 import traceback
 import ldap3
@@ -28,7 +27,7 @@ from impacket.examples.utils import parse_credentials
 from impacket.krb5 import constants
 from impacket.krb5.types import Principal
 
-from powerview.lib.kerberosv5 import getKerberosTGT
+from impacket.krb5.kerberosv5 import getKerberosTGT
 
 import configparser
 import validators
@@ -146,6 +145,11 @@ def parse_inicontent(filecontent=None, filepath=None):
     return False, infobject
     #return sections, comments, keys
 
+def list_to_str(_input):
+    if isinstance(_input, list):
+        _input = ''.join(_input)
+    return _input
+
 def is_ipaddress(address):
     try:
         ip = ipaddress.ip_address(address)
@@ -252,8 +256,7 @@ def parse_identity(args):
 
     return domain, username, password, lmhash, nthash
 
-def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='', nthash='', auth_aes_key='', kdcHost=None,
-                         TGT=None, TGS=None, useCache=False):
+def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True):
     from pyasn1.codec.ber import encoder, decoder
     from pyasn1.type.univ import noValue
     """
@@ -263,7 +266,7 @@ def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='
     :param string domain: domain where the account is valid for (required)
     :param string lmhash: LMHASH used to authenticate using hashes (password is not used)
     :param string nthash: NTHASH used to authenticate using hashes (password is not used)
-    :param string auth_aes_key: aes256-cts-hmac-sha1-96 or aes128-cts-hmac-sha1-96 used for Kerberos authentication
+    :param string aesKey: aes256-cts-hmac-sha1-96 or aes128-cts-hmac-sha1-96 used for Kerberos authentication
     :param string kdcHost: hostname or IP Address for the KDC. If None, the domain will be used (it needs to resolve tho)
     :param struct TGT: If there's a TGT available, send the structure here and it will be used
     :param struct TGS: same for TGS. See smb3.py for the format
@@ -297,14 +300,14 @@ def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='
         try:
             ccache = CCache.loadFile(os.getenv('KRB5CCNAME'))
         except Exception as e:
-           # No cache present
+            # No cache present
             print(e)
             pass
         else:
             # retrieve domain information from CCache file if needed
             if domain == '':
                 domain = ccache.principal.realm['data'].decode('utf-8')
-                logging.debug('Domain retrieved from CCache: %s' % domain)
+                logger.debug('Domain retrieved from CCache: %s' % domain)
 
             logging.debug('Using Kerberos Cache: %s' % os.getenv('KRB5CCNAME'))
             principal = 'ldap/%s@%s' % (target.upper(), domain.upper())
@@ -330,13 +333,12 @@ def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='
             elif user == '' and len(ccache.principal.components) > 0:
                 user = ccache.principal.components[0]['data'].decode('utf-8')
                 logging.debug('Username retrieved from CCache: %s' % user)
-       
+
     # First of all, we need to get a TGT for the user
     userName = Principal(user, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
     if TGT is None:
         if TGS is None:
-            tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, password, domain, lmhash, nthash,
-                                                                    auth_aes_key, kdcHost)
+            tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, password, domain, lmhash, nthash, aesKey, kdcHost)
     else:
         tgt = TGT['KDC_REP']
         cipher = TGT['cipher']
@@ -344,8 +346,7 @@ def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='
 
     if TGS is None:
         serverName = Principal('ldap/%s' % target, type=constants.PrincipalNameType.NT_SRV_INST.value)
-        tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(serverName, domain, kdcHost, tgt, cipher,
-                                                                sessionKey)
+        tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey)
     else:
         tgs = TGS['KDC_REP']
         cipher = TGS['cipher']
