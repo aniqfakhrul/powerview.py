@@ -234,11 +234,17 @@ class FORMATTER:
 
     def fix_sid_formatting(self,entry):
         try:
-            entry['ObjectSID'].values[0] = format_sid(entry['ObjectSID'].values[0])
+            if isinstance(entry['attributes']['ObjectSID'], list):
+                entry['attributes']['ObjectSID'][0] = format_sid(entry['attributes']['ObjectSID'][0])
+            else:
+                entry['attributes']['ObjectSID'] = format_sid(entry['attributes']['ObjectSID'])
         except KeyError:
             pass
         try:
-            entry['mS-DS-CreatorSID'].values[0] = format_sid(entry['mS-DS-CreatorSID'].values[0])
+            if isinstance(entry['attributes']['mS-DS-CreatorSID'], list):
+                entry['attributes']['mS-DS-CreatorSID'][0] = format_sid(entry['attributes']['mS-DS-CreatorSID'][0])
+            else:
+                entry['attributes']['mS-DS-CreatorSID'] = format_sid(entry['attributes']['mS-DS-CreatorSID'])
         except KeyError:
             pass
         return entry
