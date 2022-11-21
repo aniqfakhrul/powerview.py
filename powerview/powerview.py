@@ -595,10 +595,8 @@ class PowerView:
                     for entry in entries:
                         if template["objectGUID"] in entry["attributes"]["objectGUID"]:
                             template_exist = True
-                            break
 
                 if template_exist:
-                    print("dah ada")
                     continue
 
                 # get enrollment rights
