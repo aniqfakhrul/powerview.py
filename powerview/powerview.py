@@ -595,6 +595,7 @@ class PowerView:
                     for entry in entries:
                         if template["objectGUID"] in entry["attributes"]["objectGUID"]:
                             template_exist = True
+                            break
 
                 if template_exist:
                     continue
