@@ -572,6 +572,7 @@ class PowerView:
             properties += def_prop
 
         entries = []
+        template_guids = []
         ca_fetch = CAEnum(self.ldap_session, self.root_dn)
 
         templates = ca_fetch.get_certificate_templates(properties,identity)
@@ -590,14 +591,10 @@ class PowerView:
                 vulns = {}
 
                 # avoid dupes
-                template_exist = False
-                if len(entries) != 0:
-                    for entry in entries:
-                        if template["objectGUID"] in entry["attributes"]["objectGUID"]:
-                            template_exist = True
-
-                if template_exist:
+                if template["objectGUID"] in template_guids:
                     continue
+                else:
+                    template_guids.append(template["objectGUID"])
 
                 # get enrollment rights
                 template_ops = PARSE_TEMPLATE(template)
@@ -689,7 +686,7 @@ class PowerView:
                 entries.append({
                     'attributes': e
                 })
-
+        template_guids.clear()
         return entries
 
 
