@@ -239,18 +239,14 @@ class FORMATTER:
             else:
                 entry['attributes']['ObjectSID'] = format_sid(entry['attributes']['ObjectSID'])
         except KeyError:
-            return entry
-        except TypeError:
-            return entry
+            pass
         try:
             if isinstance(entry['attributes']['mS-DS-CreatorSID'], list):
                 entry['attributes']['mS-DS-CreatorSID'][0] = format_sid(entry['attributes']['mS-DS-CreatorSID'][0])
             else:
                 entry['attributes']['mS-DS-CreatorSID'] = format_sid(entry['attributes']['mS-DS-CreatorSID'])
         except KeyError:
-            return entry
-        except TypeError:
-            return entry
+            pass
         return entry
 
     def get_max_len(self, lst):
