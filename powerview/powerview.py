@@ -590,10 +590,14 @@ class PowerView:
                 vulns = {}
 
                 # avoid dupes
+                template_exist = False
                 if len(entries) != 0:
                     for entry in entries:
                         if template["objectGUID"] in entry["attributes"]["objectGUID"]:
-                            continue
+                            template_exist = True
+
+                if template_exist:
+                    continue
 
                 # get enrollment rights
                 template_ops = PARSE_TEMPLATE(template)
