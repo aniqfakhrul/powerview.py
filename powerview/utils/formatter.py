@@ -240,12 +240,16 @@ class FORMATTER:
                 entry['attributes']['ObjectSID'] = format_sid(entry['attributes']['ObjectSID'])
         except KeyError:
             pass
+        except TypeError:
+            pass
         try:
             if isinstance(entry['attributes']['mS-DS-CreatorSID'], list):
                 entry['attributes']['mS-DS-CreatorSID'][0] = format_sid(entry['attributes']['mS-DS-CreatorSID'][0])
             else:
                 entry['attributes']['mS-DS-CreatorSID'] = format_sid(entry['attributes']['mS-DS-CreatorSID'])
         except KeyError:
+            pass
+        except TypeError:
             pass
         return entry
 

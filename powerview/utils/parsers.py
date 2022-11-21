@@ -85,7 +85,7 @@ def powerview_arg_parse(cmd):
 
     #group
     get_domaingroup_parser = subparsers.add_parser('Get-DomainGroup', aliases=['Get-NetGroup'], exit_on_error=False)
-    get_domaingroup_parser.add_argument('-Identity', action='store',default='*', dest='identity')
+    get_domaingroup_parser.add_argument('-Identity', action='store', dest='identity')
     get_domaingroup_parser.add_argument('-Properties', action='store', dest='properties')
     get_domaingroup_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domaingroup_parser.add_argument('-MemberIdentity', action='store', dest='memberidentity')
@@ -128,9 +128,10 @@ def powerview_arg_parse(cmd):
 
     #computers
     get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer', aliases=['Get-NetComputer'],exit_on_error=False)
-    get_domaincomputer_parser.add_argument('-Identity', action='store',default='*', dest='identity')
+    get_domaincomputer_parser.add_argument('-Identity', action='store', dest='identity')
     get_domaincomputer_parser.add_argument('-Properties', action='store', dest='properties')
     get_domaincomputer_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
+    get_domaincomputer_parser.add_argument('-ResolveIP', action='store_true', default=False, dest='resolveip')
     get_domaincomputer_parser.add_argument('-Domain', action='store', dest='server')
     get_domaincomputer_parser.add_argument('-Select', action='store', dest='select')
     get_domaincomputer_parser.add_argument('-Where', action='store', dest='where')

@@ -226,7 +226,7 @@ class PowerView:
         entries_dacl = enum.read_dacl()
         return entries_dacl
 
-    def get_domaincomputer(self, args=None, properties=['*'], identity='*'):
+    def get_domaincomputer(self, args=None, properties=[], identity=None):
         def_prop = [
             'lastLogonTimestamp',
             'objectCategory',
@@ -250,10 +250,8 @@ class PowerView:
             'cn',
         ]
 
-        if not properties:
-            properties = def_prop
-        else:
-            properties += def_prop
+        properties = def_prop if not properties else properties + def_prop
+        identity = '*' if not identity else identity
 
         ldap_filter = ""
         identity_filter = f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
@@ -295,12 +293,21 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            if args.resolveip and _entries['attributes']['dnsHostName']:
+                ip = host2ip(_entries['attributes']['dnsHostName'], self.dc_ip, 3, True)
+                if ip:
+                    _entries = modify_entry(
+                        _entries,
+                        new_attributes = {
+                            'IPAddress':ip
+                        }
+                    )
             entries.append({"attributes":_entries["attributes"]})
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
 
-    def get_domaingroup(self, args=None, properties=['*'], identity='*'):
+    def get_domaingroup(self, args=None, properties=[], identity=None):
         def_prop = [
             'adminCount',
             'cn',
@@ -317,10 +324,8 @@ class PowerView:
             'name'
         ]
 
-        if not properties:
-            properties = def_prop
-        else:
-            properties += def_prop
+        properties = def_prop if not properties else properties + def_prop
+        identity = '*' if not identity else identity
 
         ldap_filter = ""
         identity_filter = f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
@@ -684,7 +689,7 @@ class PowerView:
 
                                  )
                 entries.append({
-                    'attributes': e
+                    "attributes": e["attributes"]
                 })
         template_guids.clear()
         return entries
@@ -929,7 +934,7 @@ class PowerView:
             computer_pass)
         addmachineaccount.run()
 
-        if self.get_domainobject(identity=computer_name)[0]['attributes']['distinguisedName']:
+        if self.get_domainobject(identity=computer_name)[0]['attributes']['distinguishedName']:
             return True
         else:
             return False

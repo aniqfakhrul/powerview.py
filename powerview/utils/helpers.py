@@ -104,10 +104,12 @@ def is_admin_sid(sid: str):
         or sid == "S-1-5-32-544"
     )
 
-def modify_entry(entry, new_attributes=None, remove=None):
+def modify_entry(entry, new_attributes=[], remove=[]):
     entries = {}
-    e = json.loads(entry.entry_to_json())
-    j = e['attributes']
+    if isinstance(entry,ldap3.abstract.entry.Entry):
+        entry = json.loads(entry.entry_to_json())
+    j = entry['attributes']
+
     for i in j:
         if i not in remove:
             entries[i] = j[i]
@@ -116,7 +118,7 @@ def modify_entry(entry, new_attributes=None, remove=None):
         for attr in new_attributes:
             entries[attr]= new_attributes[attr]
 
-    return entries
+    return {"attributes":entries}
 
 def is_valid_fqdn(hostname: str) -> bool:
     if validators.domain(hostname):
