@@ -598,6 +598,7 @@ class PowerView:
                             break
 
                 if template_exist:
+                    print("dah ada")
                     continue
 
                 # get enrollment rights
@@ -610,7 +611,6 @@ class PowerView:
                 extended_key_usage = template_ops.get_extended_key_usage()
                 validity_period = template_ops.get_validity_period()
                 renewal_period = template_ops.get_renewal_period()
-
 
                 try:
                     ca_templates = ca.certificateTemplates
