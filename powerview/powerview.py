@@ -43,7 +43,7 @@ class PowerView:
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
         self.flatName = list_to_str(self.get_domain(properties=['name'])[0]['attributes']['name']).upper()
 
-    def get_domainuser(self, args=None, properties=['*'], identity='*'):
+    def get_domainuser(self, args=None, properties=[], identity=None):
         def_prop = [
             'servicePrincipalName',
             'objectCategory',
@@ -69,10 +69,8 @@ class PowerView:
             'badPasswordTime'
         ]
 
-        if not properties:
-            properties = def_prop
-        else:
-            properties += def_prop
+        properties = def_prop if not properties else properties + def_prop
+        identity = '*' if not identity else identity
 
         ldap_filter = ""
         identity_filter = f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
@@ -694,6 +692,42 @@ class PowerView:
         template_guids.clear()
         return entries
 
+    def set_domaincatemplate(self, identity, args=None):
+        if not args:
+            logging.error("No args supplied")
+            return
+        ca_fetch = CAEnum(self.ldap_session, self.root_dn)
+        target_template = ca_fetch.get_certificate_templates(identity=identity, properties=['*'])
+        if len(target_template) > 1:
+            logging.error('More than one template found')
+            return False
+        logging.info(f'Found template dn {target_template[0].entry_dn}')
+
+        if args.clear:
+            succeeded = self.ldap_session.modify(target_template[0].entry_dn, {args.clear: [(ldap3.MODIFY_REPLACE,[])]})
+        elif args.set:
+            attrs = self.parse_object(args.set)
+            if not attrs:
+                logging.error("Parsing -Set value failed")
+                return
+
+            try:
+                if str(attrs['val']) in str(target_template[0][attrs['attr']]):
+                    logging.error("Value already set in the attribute "+attrs['attr'])
+                    return
+            except ldap3.core.exceptions.LDAPKeyError as e:
+                logging.error(f"Key {attrs['attr']} not found in template attribute")
+                return
+
+            succeeded = self.ldap_session.modify(target_template[0].entry_dn, {attrs['attr']:[(ldap3.MODIFY_REPLACE,[attrs['val']])]})
+
+        if not succeeded:
+            logging.error(self.ldap_session.result['message'])
+        else:
+            logging.info(f'Success! modified attribute for {identity} template')
+
+        return succeeded
+        return None
 
     def add_domaingroupmember(self, identity, members, args=None):
         group_entry = self.get_domaingroup(identity=identity,properties=['distinguishedName'])

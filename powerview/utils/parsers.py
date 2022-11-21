@@ -108,7 +108,7 @@ def powerview_arg_parse(cmd):
 
     #user
     get_domainuser_parser = subparsers.add_parser('Get-DomainUser', aliases=['Get-NetUser'], exit_on_error=False)
-    get_domainuser_parser.add_argument('-Identity', action='store',default='*', dest='identity')
+    get_domainuser_parser.add_argument('-Identity', action='store', dest='identity')
     get_domainuser_parser.add_argument('-Properties', action='store', dest='properties')
     get_domainuser_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domainuser_parser.add_argument('-Domain', action='store', dest='server')
@@ -326,6 +326,13 @@ def powerview_arg_parse(cmd):
     set_domainobject_parser.add_argument('-Clear',action='store', dest='clear')
     set_domainobject_parser.add_argument('-Domain', action='store', dest='server')
 
+    # set domain ca template properties
+    set_domaincatemplate_parser = subparsers.add_parser('Set-DomainCATemplate', aliases=['Set-CATemplate'], exit_on_error=False)
+    set_domaincatemplate_parser.add_argument('-Identity', action='store', dest='identity')
+    set_domaincatemplate_parser.add_argument('-Set', dest='set')
+    set_domaincatemplate_parser.add_argument('-Clear',action='store', dest='clear')
+    set_domaincatemplate_parser.add_argument('-Domain', action='store', dest='server')
+
     # set domain object properties
     set_domainuserpassword_parser = subparsers.add_parser('Set-DomainUserPassword', exit_on_error=False)
     set_domainuserpassword_parser.add_argument('-identity', '-Identity', action='store', dest='identity')
@@ -346,6 +353,9 @@ def powerview_arg_parse(cmd):
                     else:
                         logging.error(f"Unrecognized argument: {unk}")
                         return None
+                else:
+                    logging.error(f"Unrecognized argument: {unk}")
+                    return None
             return parser.parse_args(cmd)
         return args
     except argparse.ArgumentError as e:

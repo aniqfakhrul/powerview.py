@@ -61,6 +61,8 @@ COMMANDS = {
     'Remove-ObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain'],
     'Set-DomainObject':['-Identity','-Clear','-Set','-Domain'],
     'Set-Object':['-Identity','-Clear','-Set','-Domain'],
+    'Set-DomainCATemplate':['-Identity','-Clear','-Set','-Domain'],
+    'Set-CATemplate':['-Identity','-Clear','-Set','-Domain'],
     'Set-DomainUserPassword':['-Identity','-AccountPassword','-Domain'],
     'clear':'',
     'exit':'',

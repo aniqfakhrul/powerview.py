@@ -97,7 +97,7 @@ def main():
                                     entries = powerview.get_domainobjectacl(pv_args)
                             elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
                                 properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
-                                identity = pv_args.identity.strip()
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainuser(pv_args, properties, identity)
                                 else:
@@ -259,7 +259,19 @@ def main():
                                     if temp_powerview:
                                         succeed = temp_powerview.set_domainobject(pv_args.identity, pv_args)
                                     else:
-                                        suceed = powerview.set_domainobject(pv_args.identity, pv_args)
+                                        succeed = powerview.set_domainobject(pv_args.identity, pv_args)
+
+                                    if succeed:
+                                        logging.info('Template modified successfully')
+                                else:
+                                    logging.error('-Identity and [-Clear][-Set] flags required')
+                            elif pv_args.module.casefold() == 'set-domaincatemplate' or pv_args.module.casefold() == 'set-catemplate':
+                                if pv_args.identity and (pv_args.clear or pv_args.set):
+                                    succeed = False
+                                    if temp_powerview:
+                                        succeed = temp_powerview.set_domaincatemplate(pv_args.identity, pv_args)
+                                    else:
+                                        succeed = powerview.set_domaincatemplate(pv_args.identity, pv_args)
 
                                     if succeed:
                                         logging.info('Object modified successfully')
