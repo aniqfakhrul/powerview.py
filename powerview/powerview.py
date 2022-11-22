@@ -554,7 +554,7 @@ class PowerView:
         entries = ca_fetch.fetch_enrollment_services(properties)
         return entries
 
-    def get_domaincatemplate(self, args=None, properties=['*'], identity=None):
+    def get_domaincatemplate(self, args=None, properties=[], identity=None):
         def_prop = [
             "cn",
             "name",
@@ -569,10 +569,9 @@ class PowerView:
             "nTSecurityDescriptor",
             "objectGUID",
         ]
-        if not properties:
-            properties = def_prop
-        else:
-            properties += def_prop
+
+        properties = def_prop if not properties else properties + def_prop
+        identity = '*' if not identity else identity
 
         entries = []
         template_guids = []
@@ -693,9 +692,10 @@ class PowerView:
         return entries
 
     def set_domaincatemplate(self, identity, args=None):
-        if not args:
-            logging.error("No args supplied")
+        if not args or not identity:
+            logging.error("No identity or args supplied")
             return
+
         ca_fetch = CAEnum(self.ldap_session, self.root_dn)
         target_template = ca_fetch.get_certificate_templates(identity=identity, properties=['*'])
         if len(target_template) > 1:
@@ -718,6 +718,9 @@ class PowerView:
             except ldap3.core.exceptions.LDAPKeyError as e:
                 logging.error(f"Key {attrs['attr']} not found in template attribute")
                 return
+
+            # resolve all attributes
+
 
             succeeded = self.ldap_session.modify(target_template[0].entry_dn, {attrs['attr']:[(ldap3.MODIFY_REPLACE,[attrs['val']])]})
 
