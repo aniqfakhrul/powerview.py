@@ -145,7 +145,6 @@ class FORMATTER:
                             left = c
                             break
                     try:
-                        print(temp_entry['attributes']['name'])
                         if str(right).casefold() in str(temp_entry['attributes'][left]).casefold():
                             temp_alter_entries.append(entry)
                     except KeyError:
