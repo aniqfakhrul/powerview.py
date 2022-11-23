@@ -36,7 +36,7 @@ powerview.py range.net/lowpriv:Password123 --dc-ip 192.168.86.192 [-h]
 Get-DomainUser -Where 'samaccountname [contains][in][eq] admins'
 ```
 
-* Count resulsts
+* Count results
 ```
 Get-DomainUser -Count
 ```

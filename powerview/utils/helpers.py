@@ -1,5 +1,4 @@
 import argparse
-import logging
 import sys
 import traceback
 import ldap3
@@ -25,9 +24,10 @@ from impacket import version
 from impacket.dcerpc.v5 import samr, dtypes
 from impacket.examples import logger
 from impacket.examples.utils import parse_credentials
-from impacket.krb5.kerberosv5 import getKerberosTGT
 from impacket.krb5 import constants
 from impacket.krb5.types import Principal
+
+from impacket.krb5.kerberosv5 import getKerberosTGT
 
 import configparser
 import validators
@@ -104,10 +104,12 @@ def is_admin_sid(sid: str):
         or sid == "S-1-5-32-544"
     )
 
-def modify_entry(entry, new_attributes=None, remove=None):
+def modify_entry(entry, new_attributes=[], remove=[]):
     entries = {}
-    e = json.loads(entry.entry_to_json())
-    j = e['attributes']
+    if isinstance(entry,ldap3.abstract.entry.Entry):
+        entry = json.loads(entry.entry_to_json())
+    j = entry['attributes']
+
     for i in j:
         if i not in remove:
             entries[i] = j[i]
@@ -116,13 +118,41 @@ def modify_entry(entry, new_attributes=None, remove=None):
         for attr in new_attributes:
             entries[attr]= new_attributes[attr]
 
-    return entries
+    return {"attributes":entries}
 
 def is_valid_fqdn(hostname: str) -> bool:
     if validators.domain(hostname):
         return True
     else:
         return False
+
+def ini_to_dict(obj):
+    d = {}
+    try:
+        config_string = '[dummy_section]\n' + obj
+        t = configparser.ConfigParser(converters={'list': lambda x: [int(i) if i.isnumeric() else i.strip() for i in x.replace("|",",").split(',')]})
+        t.read_string(config_string)
+    except configparser.ParsingError as e:
+        return None
+    for k in t['dummy_section'].keys():
+        d['attribute'] = k
+        d['value'] = t.getlist('dummy_section', k)
+    return d
+
+def parse_object(obj):
+    if '{' not in obj and '}' not in obj:
+        logging.error('Error format retrieve, (e.g. {dnsHostName=temppc.contoso.local})')
+        return None
+    attrs = dict()
+    try:
+        regex = r'\{(.*?)\}'
+        res = re.search(regex,obj)
+        dd = res.group(1).replace("'","").replace('"','').split("=")
+        attrs['attr'] = dd[0].strip()
+        attrs['val'] = dd[1].strip()
+        return attrs
+    except:
+        raise Exception('Error regex parsing')
 
 def parse_inicontent(filecontent=None, filepath=None):
     infobject = []
@@ -144,6 +174,11 @@ def parse_inicontent(filecontent=None, filepath=None):
         return True, infobject
     return False, infobject
     #return sections, comments, keys
+
+def list_to_str(_input):
+    if isinstance(_input, list):
+        _input = ''.join(_input)
+    return _input
 
 def is_ipaddress(address):
     try:
@@ -241,6 +276,8 @@ def parse_identity(args):
         args.k = True
 
     if args.hashes is not None:
+        if ":" not in args.hashes[0] and len(args.hashes) == 32:
+            args.hashes = ":"+args.hashes
         hashes = ("aad3b435b51404eeaad3b435b51404ee:".upper() + args.hashes.split(":")[1]).upper()
         lmhash, nthash = hashes.split(':')
     else:
@@ -249,8 +286,7 @@ def parse_identity(args):
 
     return domain, username, password, lmhash, nthash
 
-def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='', nthash='', auth_aes_key='', kdcHost=None,
-                         TGT=None, TGS=None, useCache=False):
+def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True):
     from pyasn1.codec.ber import encoder, decoder
     from pyasn1.type.univ import noValue
     """
@@ -260,7 +296,7 @@ def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='
     :param string domain: domain where the account is valid for (required)
     :param string lmhash: LMHASH used to authenticate using hashes (password is not used)
     :param string nthash: NTHASH used to authenticate using hashes (password is not used)
-    :param string auth_aes_key: aes256-cts-hmac-sha1-96 or aes128-cts-hmac-sha1-96 used for Kerberos authentication
+    :param string aesKey: aes256-cts-hmac-sha1-96 or aes128-cts-hmac-sha1-96 used for Kerberos authentication
     :param string kdcHost: hostname or IP Address for the KDC. If None, the domain will be used (it needs to resolve tho)
     :param struct TGT: If there's a TGT available, send the structure here and it will be used
     :param struct TGS: same for TGS. See smb3.py for the format
@@ -294,14 +330,14 @@ def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='
         try:
             ccache = CCache.loadFile(os.getenv('KRB5CCNAME'))
         except Exception as e:
-           # No cache present
+            # No cache present
             print(e)
             pass
         else:
             # retrieve domain information from CCache file if needed
             if domain == '':
                 domain = ccache.principal.realm['data'].decode('utf-8')
-                logging.debug('Domain retrieved from CCache: %s' % domain)
+                logger.debug('Domain retrieved from CCache: %s' % domain)
 
             logging.debug('Using Kerberos Cache: %s' % os.getenv('KRB5CCNAME'))
             principal = 'ldap/%s@%s' % (target.upper(), domain.upper())
@@ -327,13 +363,12 @@ def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='
             elif user == '' and len(ccache.principal.components) > 0:
                 user = ccache.principal.components[0]['data'].decode('utf-8')
                 logging.debug('Username retrieved from CCache: %s' % user)
-       
+
     # First of all, we need to get a TGT for the user
     userName = Principal(user, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
     if TGT is None:
         if TGS is None:
-            tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, password, domain, lmhash, nthash,
-                                                                    auth_aes_key, kdcHost)
+            tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, password, domain, lmhash, nthash, aesKey, kdcHost)
     else:
         tgt = TGT['KDC_REP']
         cipher = TGT['cipher']
@@ -341,8 +376,7 @@ def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='
 
     if TGS is None:
         serverName = Principal('ldap/%s' % target, type=constants.PrincipalNameType.NT_SRV_INST.value)
-        tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(serverName, domain, kdcHost, tgt, cipher,
-                                                                sessionKey)
+        tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey)
     else:
         tgs = TGS['KDC_REP']
         cipher = TGS['cipher']

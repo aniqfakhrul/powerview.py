@@ -97,21 +97,24 @@ def main():
                                     entries = powerview.get_domainobjectacl(pv_args)
                             elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
                                 properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
-                                identity = pv_args.identity.strip()
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainuser(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domainuser(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaincomputer' or pv_args.module.casefold() == 'get-netcomputer':
+                                if pv_args.resolveip and not pv_args.identity:
+                                    logging.error("-ResolveIP can only be used with -Identity")
+                                    continue
                                 properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
-                                identity = pv_args.identity.strip()
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaincomputer(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domaincomputer(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaingroup' or pv_args.module.casefold() == 'get-netgroup':
                                 properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
-                                identity = pv_args.identity.strip()
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaingroup(pv_args, properties, identity)
                                 else:
@@ -155,13 +158,13 @@ def main():
                                     entries = temp_powerview.get_domaindnszone(pv_args, properties)
                                 else:
                                     entries = powerview.get_domaindnszone(pv_args, properties)
-                            elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-netca':
+                            elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-ca':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainca(pv_args, properties)
                                 else:
                                     entries = powerview.get_domainca(pv_args, properties)
-                            elif pv_args.module.casefold() == 'get-domaincatemplate' or pv_args.module.casefold() == 'get-netcatemplate':
+                            elif pv_args.module.casefold() == 'get-domaincatemplate' or pv_args.module.casefold() == 'get-catemplate':
                                 properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
@@ -251,17 +254,29 @@ def main():
                                 else:
                                     logging.error('-Identity and -Members flags required')
                             elif pv_args.module.casefold() == 'set-domainobject' or pv_args.module.casefold() == 'set-adobject':
-                                if pv_args.identity and (pv_args.clear or pv_args.set):
+                                if pv_args.identity and (pv_args.clear or pv_args.set or pv_args.append):
                                     succeed = False
                                     if temp_powerview:
                                         succeed = temp_powerview.set_domainobject(pv_args.identity, pv_args)
                                     else:
-                                        suceed = powerview.set_domainobject(pv_args.identity, pv_args)
+                                        succeed = powerview.set_domainobject(pv_args.identity, pv_args)
 
                                     if succeed:
                                         logging.info('Object modified successfully')
                                 else:
                                     logging.error('-Identity and [-Clear][-Set] flags required')
+                            elif pv_args.module.casefold() == 'set-domaincatemplate' or pv_args.module.casefold() == 'set-catemplate':
+                                if pv_args.identity and (pv_args.clear or pv_args.set or pv_args.append):
+                                    succeed = False
+                                    if temp_powerview:
+                                        succeed = temp_powerview.set_domaincatemplate(pv_args.identity, pv_args)
+                                    else:
+                                        succeed = powerview.set_domaincatemplate(pv_args.identity, pv_args)
+
+                                    if succeed:
+                                        logging.info('Template modified successfully')
+                                else:
+                                    logging.error('-Identity and [-Clear][-Set|-Add] flags required')
                             elif pv_args.module.casefold() == 'set-domainuserpassword':
                                 if pv_args.identity and pv_args.accountpassword:
                                     succeed = False
@@ -343,8 +358,8 @@ def main():
             except EOFError:
                 print("Exiting...")
                 sys.exit(0)
-            #except Exception as e:
-            #    logging.error(str(e))
+#            except Exception as e:
+#                logging.error(str(e))
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:

@@ -221,7 +221,7 @@ class PARSE_TEMPLATE:
         # resolve enrollment flag
         self.set_enrollment_flag(self.template["msPKI-Enrollment-Flag"].raw_values[0])
         if self.enrollment_flag is not None:
-                self.set_enrollment_flag(MS_PKI_ENROLLMENT_FLAG(int(self.enrollment_flag)))
+            self.set_enrollment_flag(MS_PKI_ENROLLMENT_FLAG(int(self.enrollment_flag)))
         else:
             self.set_enrollment_flag(MS_PKI_ENROLLMENT_FLAG(0))
 

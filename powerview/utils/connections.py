@@ -125,19 +125,23 @@ class CONNECTION:
                 port = 389
 
         # TODO: fix target when using kerberos
+        bind = False
+
         logging.debug(f"Connecting to {target} Port: {port}, SSL: {use_ssl}")
         ldap_server = ldap3.Server(target, get_info=ldap3.ALL, port=port, use_ssl=use_ssl)
         if self.use_kerberos:
             ldap_session = ldap3.Connection(ldap_server, auto_referrals=False)
-            ldap_session.bind()
+            bind = ldap_session.bind()
             ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, self.auth_aes_key, kdcHost=self.kdcHost,useCache=self.no_pass)
         elif self.hashes is not None:
             ldap_session = ldap3.Connection(ldap_server, user=user, password=lmhash + ":" + nthash, authentication=ldap3.NTLM)
+            bind = ldap_session.bind()
         else:
             ldap_session = ldap3.Connection(ldap_server, user=user, password=password, authentication=ldap3.NTLM)
+            bind = ldap_session.bind()
 
         # check for channel binding
-        if not ldap_session.bind():
+        if not bind:
             # check if signing is enforced
             if "strongerAuthRequired" in str(ldap_session.result):
                 logging.error(f"{bcolors.WARNING}LDAP Signing is enforced{bcolors.ENDC}")

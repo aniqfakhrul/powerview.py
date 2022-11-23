@@ -33,17 +33,18 @@ class PowerView:
         self.use_kerberos = args.use_kerberos
 
         self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
-        if not self.ldap_session.tls_started and not self.ldap_session.server.ssl:
-            self.use_ldaps = False
+
+        if self.ldap_session.server.ssl:
+            self.use_ldaps = True
 
         cnf = ldapdomaindump.domainDumpConfig()
         cnf.basepath = None
         self.domain_dumper = ldapdomaindump.domainDumper(self.ldap_server, self.ldap_session, cnf)
         self.root_dn = self.domain_dumper.getRoot()
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
-        self.flatName = self.get_domain(properties=['name'])[0]['attributes']['name'].upper()
+        self.flatName = list_to_str(self.get_domain(properties=['name'])[0]['attributes']['name']).upper()
 
-    def get_domainuser(self, args=None, properties=['*'], identity='*'):
+    def get_domainuser(self, args=None, properties=[], identity=None):
         def_prop = [
             'servicePrincipalName',
             'objectCategory',
@@ -69,10 +70,8 @@ class PowerView:
             'badPasswordTime'
         ]
 
-        if not properties:
-            properties = def_prop
-        else:
-            properties += def_prop
+        properties = def_prop if not properties else properties + def_prop
+        identity = '*' if not identity else identity
 
         ldap_filter = ""
         identity_filter = f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
@@ -185,7 +184,7 @@ class PowerView:
         guids_dict = {}
         self.ldap_session.search(f"CN=Extended-Rights,CN=Configuration,{self.root_dn}", "(rightsGuid=*)",attributes=['displayName','rightsGuid'])
         for entry in self.ldap_session.entries:
-            guids_dict[entry['rightsGuid'].values[0]] = entry['displayName'].values[0]
+            guids_dict[entry['rightsGuid'].value] = entry['displayName'].value
         #self.ldap_session.search(f"CN=Schema,CN=Configuration,{self.root_dn}", "(schemaIdGuid=*)",attributes=['name','schemaIdGuid'])
         #for entry in self.ldap_session.entries:
         #    guids_dict[entry['schemaIdGuid'].values[0]] = entry['name'].values[0]
@@ -226,7 +225,7 @@ class PowerView:
         entries_dacl = enum.read_dacl()
         return entries_dacl
 
-    def get_domaincomputer(self, args=None, properties=['*'], identity='*'):
+    def get_domaincomputer(self, args=None, properties=[], identity=None):
         def_prop = [
             'lastLogonTimestamp',
             'objectCategory',
@@ -250,10 +249,8 @@ class PowerView:
             'cn',
         ]
 
-        if not properties:
-            properties = def_prop
-        else:
-            properties += def_prop
+        properties = def_prop if not properties else properties + def_prop
+        identity = '*' if not identity else identity
 
         ldap_filter = ""
         identity_filter = f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
@@ -295,12 +292,21 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            if args.resolveip and _entries['attributes']['dnsHostName']:
+                ip = host2ip(_entries['attributes']['dnsHostName'], self.dc_ip, 3, True)
+                if ip:
+                    _entries = modify_entry(
+                        _entries,
+                        new_attributes = {
+                            'IPAddress':ip
+                        }
+                    )
             entries.append({"attributes":_entries["attributes"]})
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
 
-    def get_domaingroup(self, args=None, properties=['*'], identity='*'):
+    def get_domaingroup(self, args=None, properties=[], identity=None):
         def_prop = [
             'adminCount',
             'cn',
@@ -317,10 +323,8 @@ class PowerView:
             'name'
         ]
 
-        if not properties:
-            properties = def_prop
-        else:
-            properties += def_prop
+        properties = def_prop if not properties else properties + def_prop
+        identity = '*' if not identity else identity
 
         ldap_filter = ""
         identity_filter = f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
@@ -373,12 +377,30 @@ class PowerView:
         for entry in self.ldap_session.entries:
             attr = {}
             member_infos = {}
-            member_infos['GroupDomainName'] = group_identity_sam
-            member_infos['GroupDistinguishedName'] = group_identity_dn
-            member_infos['MemberDomain'] = entry['userPrincipalName'].values[0].split("@")[-1]
-            member_infos['MemberName'] = entry['sAMAccountName'].values[0]
-            member_infos['MemberDistinguishedName'] = entry['distinguishedName'].values[0]
-            member_infos['MemberSID'] = entry['objectSid'].values[0]
+            try:
+                member_infos['GroupDomainName'] = group_identity_sam
+            except:
+                pass
+            try:
+                member_infos['GroupDistinguishedName'] = group_identity_dn
+            except:
+                pass
+            try:
+                member_infos['MemberDomain'] = entry['userPrincipalName'].value.split("@")[-1]
+            except:
+                member_infos['MemberDomain'] = self.domain
+            try:
+                member_infos['MemberName'] = entry['sAMAccountName'].value
+            except:
+                pass
+            try:
+                member_infos['MemberDistinguishedName'] = entry['distinguishedName'].value
+            except:
+                pass
+            try:
+                member_infos['MemberSID'] = entry['objectSid'].value
+            except:
+                pass
 
             attr['attributes'] = member_infos
             new_entries.append(attr.copy())
@@ -511,11 +533,11 @@ class PowerView:
         else:
             ldap_filter = f"(|(|(objectSid={objectsid})))"
             logging.debug(f"LDAP search filter: {ldap_filter}")
-            
+
             self.ldap_session.search(self.root_dn,ldap_filter,attributes=['sAMAccountName','name'])
             if len(self.ldap_session.entries) != 0:
                 try:
-                    identity = f"{self.flatName}\\{self.ldap_session.entries[0]['sAMAccountName'].values[0]}"
+                    identity = f"{self.flatName}\\{self.ldap_session.entries[0]['sAMAccountName'].value}"
                 except IndexError:
                     identity = f"{self.flatName}\\{self.ldap_session.entries[0]['name'].value}"
 
@@ -551,7 +573,7 @@ class PowerView:
         entries = ca_fetch.fetch_enrollment_services(properties)
         return entries
 
-    def get_domaincatemplate(self, args=None, properties=['*'], identity=None):
+    def get_domaincatemplate(self, args=None, properties=[], identity=None):
         def_prop = [
             "cn",
             "name",
@@ -566,12 +588,12 @@ class PowerView:
             "nTSecurityDescriptor",
             "objectGUID",
         ]
-        if not properties:
-            properties = def_prop
-        else:
-            properties += def_prop
+
+        properties = def_prop if not properties else properties + def_prop
+        identity = '*' if not identity else identity
 
         entries = []
+        template_guids = []
         ca_fetch = CAEnum(self.ldap_session, self.root_dn)
 
         templates = ca_fetch.get_certificate_templates(properties,identity)
@@ -590,10 +612,10 @@ class PowerView:
                 vulns = {}
 
                 # avoid dupes
-                if len(entries) != 0:
-                    for entry in entries:
-                        if template["objectGUID"] in entry["attributes"]["objectGUID"]:
-                            continue
+                if template["objectGUID"] in template_guids:
+                    continue
+                else:
+                    template_guids.append(template["objectGUID"])
 
                 # get enrollment rights
                 template_ops = PARSE_TEMPLATE(template)
@@ -605,7 +627,6 @@ class PowerView:
                 extended_key_usage = template_ops.get_extended_key_usage()
                 validity_period = template_ops.get_validity_period()
                 renewal_period = template_ops.get_renewal_period()
-
 
                 try:
                     ca_templates = ca.certificateTemplates
@@ -657,11 +678,11 @@ class PowerView:
                             pass
 
                 e = modify_entry(template,
-                                new_attributes={
+                                 new_attributes={
                                     'Owner': template_owner,
-                                    'CertificateNameFlag': certificate_name_flag,
-                                    'Enrollment Flag': enrollment_flag,
-                                    'Extended Key Usage': extended_key_usage,
+                                    'msPKI-Certificate-Name-Flag': certificate_name_flag,
+                                    'msPKI-Enrollment-Flag': enrollment_flag,
+                                    'pKIExtendedKeyUsage': extended_key_usage,
                                     'pKIExpirationPeriod': validity_period,
                                     'pKIOverlapPeriod': renewal_period,
                                     'Enrollment Rights': parsed_dacl['Enrollment Rights'],
@@ -684,11 +705,73 @@ class PowerView:
 
                                  )
                 entries.append({
-                    'attributes': e
+                    "attributes": e["attributes"]
                 })
-
+        template_guids.clear()
         return entries
 
+    def set_domaincatemplate(self, identity, args=None):
+        if not args or not identity:
+            logging.error("No identity or args supplied")
+            return
+
+        ca_fetch = CAEnum(self.ldap_session, self.root_dn)
+        target_template = ca_fetch.get_certificate_templates(identity=identity, properties=['*'])
+        if len(target_template) == 0:
+            logging.error("No template found")
+            return False
+        elif len(target_template) > 1:
+            logging.error('More than one template found')
+            return False
+        logging.info(f'Found template dn {target_template[0].entry_dn}')
+
+        attr_key = ""
+        attr_val = []
+
+        if args.clear:
+            attr_key = args.clear
+        else:
+            attrs = ini_to_dict(args.set) if args.set else ini_to_dict(args.append)
+
+            if not attrs:
+                logging.error(f"Parsing {'-Set' if args.set else '-Append'} value failed")
+                return
+
+            try:
+                for val in attrs['value']:
+                    if val in target_template[0][attrs['attribute']]:
+                        logging.error(f"Value {val} already set in the attribute "+attrs['attribute'])
+                        return
+            except ldap3.core.exceptions.LDAPKeyError as e:
+                logging.error(f"Key {attrs['attribute']} not found in template attribute. Adding anyway...")
+
+            if args.append:
+                temp_list = []
+                if isinstance(target_template[0][attrs['attribute']].value, str):
+                    temp_list.append(target_template[0][attrs['attribute']].value)
+                elif isinstance(target_template[0][attrs['attribute']].value, int):
+                    temp_list.append(target_template[0][attrs['attribute']].value)
+                elif isinstance(target_template[0][attrs['attribute']].value, list):
+                    temp_list = target_template[0][attrs['attribute']].value
+                attrs['value'] = list(set(attrs['value'] + temp_list))
+            elif args.set:
+                attrs['value'] = list(set(attrs['value']))
+
+            attr_key = attrs['attribute']
+            attr_val = attrs['value']
+
+        succeeded = self.ldap_session.modify(target_template[0].entry_dn, {
+            attr_key:[
+                (ldap3.MODIFY_REPLACE,attr_val)
+            ]
+        })
+
+        if not succeeded:
+            logging.error(self.ldap_session.result['message'])
+        else:
+            logging.info(f'Success! modified attribute for {identity} template')
+
+        return succeeded
 
     def add_domaingroupmember(self, identity, members, args=None):
         group_entry = self.get_domaingroup(identity=identity,properties=['distinguishedName'])
@@ -929,7 +1012,7 @@ class PowerView:
             computer_pass)
         addmachineaccount.run()
 
-        if self.get_domainobject(identity=computer_name)[0]['attributes']['distinguisedName']:
+        if self.get_domainobject(identity=computer_name)[0]['attributes']['distinguishedName']:
             return True
         else:
             return False
@@ -1096,18 +1179,47 @@ class PowerView:
             logging.error('More than one object found')
             return False
 
+        attr_key = ""
+        attr_val = []
+
         if args.clear:
-            logging.info('Printing object before clearing')
-            logging.info(f'Found target object {targetobject[0]["attributes"]["distinguishedName"]}')
-            succeeded = self.ldap_session.modify(targetobject[0]["attributes"]["distinguishedname"], {args.clear: [(ldap3.MODIFY_REPLACE,[])]})
-        elif args.set:
-            attrs = self.parse_object(args.set)
+            attr_key = args.clear
+        else:
+            attrs = ini_to_dict(args.set) if args.set else ini_to_dict(args.append)
+
             if not attrs:
-                logging.error("Parsing -Set value failed")
+                logging.error(f"Parsing {'-Set' if args.set else '-Append'} value failed")
                 return
-            logging.info('Printing object before modifying')
-            logging.info(f'Found target object {targetobject[0]["attributes"]["distinguishedName"]}')
-            succeeded = self.ldap_session.modify(targetobject[0]["attributes"]["distinguishedName"], {attrs['attr']:[(ldap3.MODIFY_REPLACE,[attrs['val']])]})
+
+            try:
+                for val in attrs['value']:
+                    if val == targetobject[0]["attributes"][attrs['attribute']]:
+                        logging.error(f"Value {val} already set in the attribute "+attrs['attribute'])
+                        return
+            except ldap3.core.exceptions.LDAPKeyError as e:
+                logging.error(f"Key {attrs['attribute']} not found in template attribute. Adding anyway...")
+
+            if args.append:
+                temp_list = []
+                if isinstance(targetobject[0]["attributes"][attrs['attribute']], str):
+                    temp_list.append(targetobject[0]["attributes"][attrs['attribute']])
+                elif isinstance(targetobject[0]["attributes"][attrs['attribute']], int):
+                    temp_list.append(targetobject[0]["attributes"][attrs['attribute']])
+                elif isinstance(targetobject[0]["attributes"][attrs['attribute']], list):
+                    temp_list = targetobject[0]["attributes"][attrs['attribute']]
+
+                attrs['value'] = list(set(attrs['value'] + temp_list))
+            elif args.set:
+                attrs['value'] = list(set(attrs['value']))
+
+            attr_key = attrs['attribute']
+            attr_val = attrs['value']
+
+        succeeded = self.ldap_session.modify(targetobject[0]["attributes"]["distinguishedName"], {
+            attr_key:[
+                (ldap3.MODIFY_REPLACE,attr_val)
+            ]
+        })
 
         if not succeeded:
             logging.error(self.ldap_session.result['message'])
@@ -1131,9 +1243,17 @@ class PowerView:
             return
         # request TGS for each accounts
         target_domain = self.domain
+
         if args.server:
             target_domain = args.server
-        userspn = GetUserSPNs(self.username, self.password, self.domain, target_domain, self.args, identity=args.identity)
+
+        kdc_options = None
+        enctype = None
+        if args.opsec:
+            enctype = 18
+            kdc_options = "0x4010000"
+
+        userspn = GetUserSPNs(self.username, self.password, self.domain, target_domain, self.args, identity=args.identity, options=kdc_options, encType=enctype)
         entries_out = userspn.run(entries)
 
         # properly formatted for output
@@ -1248,19 +1368,3 @@ class PowerView:
 
             print(f'{share_info["name"].ljust(15)}{share_info["remark"].ljust(25)}{host}')
         print()
-
-    def parse_object(self,obj):
-        if '{' not in obj and '}' not in obj:
-            logging.error('Error format retrieve, (e.g. {dnsHostName=temppc.contoso.local})')
-            return None
-        attrs = dict()
-        try:
-            regex = r'\{(.*?)\}'
-            res = re.search(regex,obj)
-            dd = res.group(1).replace("'","").replace('"','').split("=")
-            attrs['attr'] = dd[0].strip()
-            attrs['val'] = dd[1].strip()
-            return attrs
-        except:
-            raise Exception('Error regex parsing')
-            return None

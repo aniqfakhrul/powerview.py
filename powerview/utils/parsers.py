@@ -85,7 +85,7 @@ def powerview_arg_parse(cmd):
 
     #group
     get_domaingroup_parser = subparsers.add_parser('Get-DomainGroup', aliases=['Get-NetGroup'], exit_on_error=False)
-    get_domaingroup_parser.add_argument('-Identity', action='store',default='*', dest='identity')
+    get_domaingroup_parser.add_argument('-Identity', action='store', dest='identity')
     get_domaingroup_parser.add_argument('-Properties', action='store', dest='properties')
     get_domaingroup_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domaingroup_parser.add_argument('-MemberIdentity', action='store', dest='memberidentity')
@@ -108,7 +108,7 @@ def powerview_arg_parse(cmd):
 
     #user
     get_domainuser_parser = subparsers.add_parser('Get-DomainUser', aliases=['Get-NetUser'], exit_on_error=False)
-    get_domainuser_parser.add_argument('-Identity', action='store',default='*', dest='identity')
+    get_domainuser_parser.add_argument('-Identity', action='store', dest='identity')
     get_domainuser_parser.add_argument('-Properties', action='store', dest='properties')
     get_domainuser_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domainuser_parser.add_argument('-Domain', action='store', dest='server')
@@ -128,9 +128,10 @@ def powerview_arg_parse(cmd):
 
     #computers
     get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer', aliases=['Get-NetComputer'],exit_on_error=False)
-    get_domaincomputer_parser.add_argument('-Identity', action='store',default='*', dest='identity')
+    get_domaincomputer_parser.add_argument('-Identity', action='store', dest='identity')
     get_domaincomputer_parser.add_argument('-Properties', action='store', dest='properties')
     get_domaincomputer_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
+    get_domaincomputer_parser.add_argument('-ResolveIP', action='store_true', default=False, dest='resolveip')
     get_domaincomputer_parser.add_argument('-Domain', action='store', dest='server')
     get_domaincomputer_parser.add_argument('-Select', action='store', dest='select')
     get_domaincomputer_parser.add_argument('-Where', action='store', dest='where')
@@ -197,7 +198,7 @@ def powerview_arg_parse(cmd):
     get_domaindns_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # Find CAs
-    get_domainca_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-NetCA'], exit_on_error=False)
+    get_domainca_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-CA'], exit_on_error=False)
     get_domainca_parser.add_argument('-Properties', action='store', default='*', dest='properties')
     get_domainca_parser.add_argument('-Domain', action='store', dest='server')
     get_domainca_parser.add_argument('-Select', action='store', dest='select')
@@ -206,7 +207,7 @@ def powerview_arg_parse(cmd):
     get_domainca_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # Find CA Templates
-    get_domaincatemplate_parser = subparsers.add_parser('Get-DomainCATemplate', aliases=['Get-NetCATemplate'], exit_on_error=False)
+    get_domaincatemplate_parser = subparsers.add_parser('Get-DomainCATemplate', aliases=['Get-CATemplate'], exit_on_error=False)
     get_domaincatemplate_parser.add_argument('-Identity', action='store', dest='identity')
     get_domaincatemplate_parser.add_argument('-Enabled', action='store_true', dest='enabled')
     get_domaincatemplate_parser.add_argument('-Vulnerable', action='store_true', dest='vulnerable')
@@ -246,6 +247,7 @@ def powerview_arg_parse(cmd):
     # invoke kerberoast
     invoke_kerberoast_parser = subparsers.add_parser('Invoke-Kerberoast', exit_on_error=False)
     invoke_kerberoast_parser.add_argument('-Identity', action='store', dest='identity')
+    invoke_kerberoast_parser.add_argument('-Opsec', action='store_true', default=False, dest='opsec')
     invoke_kerberoast_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     invoke_kerberoast_parser.add_argument('-Domain', action='store', dest='server')
     invoke_kerberoast_parser.add_argument('-Select', action='store', dest='select')
@@ -320,9 +322,20 @@ def powerview_arg_parse(cmd):
     # set domain object properties
     set_domainobject_parser = subparsers.add_parser('Set-DomainObject', aliases=['Set-ADObject'], exit_on_error=False)
     set_domainobject_parser.add_argument('-Identity', action='store', dest='identity')
-    set_domainobject_parser.add_argument('-Set', dest='set')
-    set_domainobject_parser.add_argument('-Clear',action='store', dest='clear')
+    set_domainobject_group = set_domainobject_parser.add_mutually_exclusive_group()
+    set_domainobject_group.add_argument('-Set', dest='set')
+    set_domainobject_group.add_argument('-Append', dest='append')
+    set_domainobject_group.add_argument('-Clear',action='store', dest='clear')
     set_domainobject_parser.add_argument('-Domain', action='store', dest='server')
+
+    # set domain ca template properties
+    set_domaincatemplate_parser = subparsers.add_parser('Set-DomainCATemplate', aliases=['Set-CATemplate'], exit_on_error=False)
+    set_domaincatemplate_parser.add_argument('-Identity', action='store', dest='identity')
+    set_domaincatemplate_group = set_domaincatemplate_parser.add_mutually_exclusive_group()
+    set_domaincatemplate_group.add_argument('-Set', dest='set')
+    set_domaincatemplate_group.add_argument('-Append', dest='append')
+    set_domaincatemplate_group.add_argument('-Clear',action='store', dest='clear')
+    set_domaincatemplate_parser.add_argument('-Domain', action='store', dest='server')
 
     # set domain object properties
     set_domainuserpassword_parser = subparsers.add_parser('Set-DomainUserPassword', exit_on_error=False)
@@ -344,6 +357,9 @@ def powerview_arg_parse(cmd):
                     else:
                         logging.error(f"Unrecognized argument: {unk}")
                         return None
+                else:
+                    logging.error(f"Unrecognized argument: {unk}")
+                    return None
             return parser.parse_args(cmd)
         return args
     except argparse.ArgumentError as e:
