@@ -198,7 +198,7 @@ def powerview_arg_parse(cmd):
     get_domaindns_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # Find CAs
-    get_domainca_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-NetCA'], exit_on_error=False)
+    get_domainca_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-CA'], exit_on_error=False)
     get_domainca_parser.add_argument('-Properties', action='store', default='*', dest='properties')
     get_domainca_parser.add_argument('-Domain', action='store', dest='server')
     get_domainca_parser.add_argument('-Select', action='store', dest='select')
@@ -207,7 +207,7 @@ def powerview_arg_parse(cmd):
     get_domainca_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # Find CA Templates
-    get_domaincatemplate_parser = subparsers.add_parser('Get-DomainCATemplate', aliases=['Get-NetCATemplate'], exit_on_error=False)
+    get_domaincatemplate_parser = subparsers.add_parser('Get-DomainCATemplate', aliases=['Get-CATemplate'], exit_on_error=False)
     get_domaincatemplate_parser.add_argument('-Identity', action='store', dest='identity')
     get_domaincatemplate_parser.add_argument('-Enabled', action='store_true', dest='enabled')
     get_domaincatemplate_parser.add_argument('-Vulnerable', action='store_true', dest='vulnerable')
@@ -322,15 +322,19 @@ def powerview_arg_parse(cmd):
     # set domain object properties
     set_domainobject_parser = subparsers.add_parser('Set-DomainObject', aliases=['Set-ADObject'], exit_on_error=False)
     set_domainobject_parser.add_argument('-Identity', action='store', dest='identity')
-    set_domainobject_parser.add_argument('-Set', dest='set')
-    set_domainobject_parser.add_argument('-Clear',action='store', dest='clear')
+    set_domainobject_group = set_domainobject_parser.add_mutually_exclusive_group()
+    set_domainobject_group.add_argument('-Set', dest='set')
+    set_domainobject_group.add_argument('-Append', dest='append')
+    set_domainobject_group.add_argument('-Clear',action='store', dest='clear')
     set_domainobject_parser.add_argument('-Domain', action='store', dest='server')
 
     # set domain ca template properties
     set_domaincatemplate_parser = subparsers.add_parser('Set-DomainCATemplate', aliases=['Set-CATemplate'], exit_on_error=False)
     set_domaincatemplate_parser.add_argument('-Identity', action='store', dest='identity')
-    set_domaincatemplate_parser.add_argument('-Set', dest='set')
-    set_domaincatemplate_parser.add_argument('-Clear',action='store', dest='clear')
+    set_domaincatemplate_group = set_domaincatemplate_parser.add_mutually_exclusive_group()
+    set_domaincatemplate_group.add_argument('-Set', dest='set')
+    set_domaincatemplate_group.add_argument('-Append', dest='append')
+    set_domaincatemplate_group.add_argument('-Clear',action='store', dest='clear')
     set_domaincatemplate_parser.add_argument('-Domain', action='store', dest='server')
 
     # set domain object properties

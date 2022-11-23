@@ -66,7 +66,6 @@ class ADDCOMPUTER:
         self.__targetIp = cmdLineOptions.dc_ip
         self.__baseDN = None
         self.__computerGroup = None
-
         if self.__targetIp is not None:
             self.__kdcHost = self.__targetIp
 

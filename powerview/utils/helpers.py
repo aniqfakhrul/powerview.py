@@ -126,6 +126,34 @@ def is_valid_fqdn(hostname: str) -> bool:
     else:
         return False
 
+def ini_to_dict(obj):
+    d = {}
+    try:
+        config_string = '[dummy_section]\n' + obj
+        t = configparser.ConfigParser(converters={'list': lambda x: [int(i) if i.isnumeric() else i.strip() for i in x.replace("|",",").split(',')]})
+        t.read_string(config_string)
+    except configparser.ParsingError as e:
+        return None
+    for k in t['dummy_section'].keys():
+        d['attribute'] = k
+        d['value'] = t.getlist('dummy_section', k)
+    return d
+
+def parse_object(obj):
+    if '{' not in obj and '}' not in obj:
+        logging.error('Error format retrieve, (e.g. {dnsHostName=temppc.contoso.local})')
+        return None
+    attrs = dict()
+    try:
+        regex = r'\{(.*?)\}'
+        res = re.search(regex,obj)
+        dd = res.group(1).replace("'","").replace('"','').split("=")
+        attrs['attr'] = dd[0].strip()
+        attrs['val'] = dd[1].strip()
+        return attrs
+    except:
+        raise Exception('Error regex parsing')
+
 def parse_inicontent(filecontent=None, filepath=None):
     infobject = []
     infdict = {}

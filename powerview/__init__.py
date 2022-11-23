@@ -254,7 +254,7 @@ def main():
                                 else:
                                     logging.error('-Identity and -Members flags required')
                             elif pv_args.module.casefold() == 'set-domainobject' or pv_args.module.casefold() == 'set-adobject':
-                                if pv_args.identity and (pv_args.clear or pv_args.set):
+                                if pv_args.identity and (pv_args.clear or pv_args.set or pv_args.append):
                                     succeed = False
                                     if temp_powerview:
                                         succeed = temp_powerview.set_domainobject(pv_args.identity, pv_args)
@@ -262,11 +262,11 @@ def main():
                                         succeed = powerview.set_domainobject(pv_args.identity, pv_args)
 
                                     if succeed:
-                                        logging.info('Template modified successfully')
+                                        logging.info('Object modified successfully')
                                 else:
                                     logging.error('-Identity and [-Clear][-Set] flags required')
                             elif pv_args.module.casefold() == 'set-domaincatemplate' or pv_args.module.casefold() == 'set-catemplate':
-                                if pv_args.identity and (pv_args.clear or pv_args.set):
+                                if pv_args.identity and (pv_args.clear or pv_args.set or pv_args.append):
                                     succeed = False
                                     if temp_powerview:
                                         succeed = temp_powerview.set_domaincatemplate(pv_args.identity, pv_args)
@@ -274,9 +274,9 @@ def main():
                                         succeed = powerview.set_domaincatemplate(pv_args.identity, pv_args)
 
                                     if succeed:
-                                        logging.info('Object modified successfully')
+                                        logging.info('Template modified successfully')
                                 else:
-                                    logging.error('-Identity and [-Clear][-Set] flags required')
+                                    logging.error('-Identity and [-Clear][-Set|-Add] flags required')
                             elif pv_args.module.casefold() == 'set-domainuserpassword':
                                 if pv_args.identity and pv_args.accountpassword:
                                     succeed = False
