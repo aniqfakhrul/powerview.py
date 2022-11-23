@@ -247,6 +247,7 @@ class PowerView:
             'instanceType',
             'distinguishedName',
             'cn',
+            'operatingSystem',
         ]
 
         properties = def_prop if not properties else properties + def_prop
