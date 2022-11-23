@@ -158,13 +158,13 @@ def main():
                                     entries = temp_powerview.get_domaindnszone(pv_args, properties)
                                 else:
                                     entries = powerview.get_domaindnszone(pv_args, properties)
-                            elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-netca':
+                            elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-ca':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainca(pv_args, properties)
                                 else:
                                     entries = powerview.get_domainca(pv_args, properties)
-                            elif pv_args.module.casefold() == 'get-domaincatemplate' or pv_args.module.casefold() == 'get-netcatemplate':
+                            elif pv_args.module.casefold() == 'get-domaincatemplate' or pv_args.module.casefold() == 'get-catemplate':
                                 properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
