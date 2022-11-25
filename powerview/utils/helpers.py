@@ -26,11 +26,29 @@ from impacket.examples import logger
 from impacket.examples.utils import parse_credentials
 from impacket.krb5 import constants
 from impacket.krb5.types import Principal
-
 from impacket.krb5.kerberosv5 import getKerberosTGT
 
 import configparser
 import validators
+
+def parse_record_data(record):
+    rd = {}
+    if record['Type'] == 0:
+        tstime = DNS_RPC_RECORD_TS(record['Data'])
+        rd['tstime'] = tstime
+    if record['Type'] == 1:
+        address = DNS_RPC_RECORD_A(record['Data'])
+        rd['address'] = address
+    if record['Type'] == 2 or record['Type'] == 5:
+        address = DNS_RPC_RECORD_NODE_NAME(record['Data'])
+        rd['address'] = address
+    if record['Type'] == 33:
+        record_data = DNS_RPC_RECORD_SRV(record['Data'])
+        rd['record_data'] = record_data
+    if record['Type'] == 6:
+        record_data = DNS_RPC_RECORD_SOA(record['Data'])
+
+    return rd
 
 def get_user_sids(domain_sid, objectsid):
     user_sids = []

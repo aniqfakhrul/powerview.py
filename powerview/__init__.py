@@ -153,11 +153,20 @@ def main():
                                 else:
                                     entries = powerview.get_domainou(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaindnszone':
-                                properties = pv_args.properties.replace(" ","").split(',')
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaindnszone(pv_args, properties)
+                                    entries = temp_powerview.get_domaindnszone(identity, properties, args=pv_args)
                                 else:
-                                    entries = powerview.get_domaindnszone(pv_args, properties)
+                                    entries = powerview.get_domaindnszone(identity, properties, args=pv_args)
+                            elif pv_args.module.casefold() == 'get-domaindnsrecord':
+                                zonename = pv_args.zonename.strip() if pv_args.zonename else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaindnsrecord(identity, zonename, properties, args=pv_args)
+                                else:
+                                    entries = powerview.get_domaindnsrecord(identity, zonename, properties, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-ca':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 if temp_powerview:

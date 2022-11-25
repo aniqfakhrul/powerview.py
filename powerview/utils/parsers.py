@@ -189,13 +189,25 @@ def powerview_arg_parse(cmd):
     get_domainou_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # Find DNS Zone
-    get_domaindns_parser = subparsers.add_parser('Get-DomainDNSZone', exit_on_error=False)
-    get_domaindns_parser.add_argument('-Properties', action='store', default='*', dest='properties')
-    get_domaindns_parser.add_argument('-Domain', action='store', dest='server')
-    get_domaindns_parser.add_argument('-Select', action='store', dest='select')
-    get_domaindns_parser.add_argument('-Where', action='store', dest='where')
-    get_domaindns_parser.add_argument('-Count', action='store_true', dest='count')
-    get_domaindns_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+    get_domaindnszone_parser = subparsers.add_parser('Get-DomainDNSZone', exit_on_error=False)
+    get_domaindnszone_parser.add_argument('-Identity', action='store', dest='identity')
+    get_domaindnszone_parser.add_argument('-Properties', action='store' , dest='properties')
+    get_domaindnszone_parser.add_argument('-Domain', action='store', dest='server')
+    get_domaindnszone_parser.add_argument('-Select', action='store', dest='select')
+    get_domaindnszone_parser.add_argument('-Where', action='store', dest='where')
+    get_domaindnszone_parser.add_argument('-Count', action='store_true', dest='count')
+    get_domaindnszone_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+
+    # Get DNS Record
+    get_domaindnsrecord_parser = subparsers.add_parser('Get-DomainDNSRecord', exit_on_error=False)
+    get_domaindnsrecord_parser.add_argument('-ZoneName', action='store', dest='zonename')
+    get_domaindnsrecord_parser.add_argument('-Identity', action='store', dest='identity')
+    get_domaindnsrecord_parser.add_argument('-Properties', action='store', dest='properties')
+    get_domaindnsrecord_parser.add_argument('-Domain', action='store', dest='server')
+    get_domaindnsrecord_parser.add_argument('-Select', action='store', dest='select')
+    get_domaindnsrecord_parser.add_argument('-Where', action='store', dest='where')
+    get_domaindnsrecord_parser.add_argument('-Count', action='store_true', dest='count')
+    get_domaindnsrecord_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # Find CAs
     get_domainca_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-CA'], exit_on_error=False)
@@ -301,6 +313,11 @@ def powerview_arg_parse(cmd):
     add_domaincomputer_parser.add_argument('-ComputerName', action='store', const=None, dest='computername')
     add_domaincomputer_parser.add_argument('-ComputerPass', action='store', const=None, dest='computerpass')
     add_domaincomputer_parser.add_argument('-Domain', action='store', dest='server')
+
+    # add dns record
+    add_domaindnsrecord_parser = subparsers.add_parser('Add-DomainDNSRecord', aliases=['Add-DNSRecord'], exit_on_error=False)
+    add_domaindnsrecord_parser.add_argument('-ZoneName', action='store', dest='zonename')
+    add_domaindnsrecord_parser.add_argument('-Domain', action='store', dest='server')
 
     # add domain user
     add_domainuser_parser = subparsers.add_parser('Add-DomainUser', aliases=['Add-ADUser'], exit_on_error=False)

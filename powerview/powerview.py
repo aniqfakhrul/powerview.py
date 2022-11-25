@@ -9,7 +9,11 @@ from powerview.modules.kerberoast import GetUserSPNs
 from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
 from powerview.utils.colors import bcolors
-from powerview.utils.constants import WELL_KNOWN_SIDS, KNOWN_SIDS
+from powerview.utils.constants import (
+    WELL_KNOWN_SIDS,
+    KNOWN_SIDS,
+    DNS_RECORD,
+)
 
 import chardet
 from io import BytesIO
@@ -563,11 +567,66 @@ class PowerView:
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
 
-    def get_domaindnszone(self, args=None, properties=['*']):
-        ldap_filter = "(objectClass=dnsZone)"
+    def get_domaindnszone(self, identity=None, properties=[], args=None):
+        identity = '*' if not identity else identity
+        properties = ['*'] if not properties else properties
+
+        identity_filter = f"(name={identity})"
+        ldap_filter = f"(&(objectClass=dnsZone){identity_filter})"
         search_base = f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
-        self.ldap_session.search(search_base, ldap_filter, attributes=properties)
-        return self.ldap_session.entries
+
+        logging.debug(f"[Get-DomainDNSZone] LDAP filter string: {ldap_filter}")
+
+        entries = []
+        entry_generator = self.ldap_session.extend.standard.paged_search(search_base,ldap_filter,attributes=properties,paged_size = 1000,generator=True)
+        for _entries in entry_generator:
+            if _entries['type'] != 'searchResEntry':
+                continue
+            entries.append({"attributes":_entries["attributes"]})
+        return entries
+        #self.ldap_session.search(search_base, ldap_filter, attributes=properties)
+        #return self.ldap_session.entries
+
+    def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], args=None):
+        if not args:
+            logging.debug("No args given to Get-DomainDNSRecord function")
+            return
+
+        def_prop = [
+            'name',
+            'distinguishedName',
+            'dnsrecord',
+            'whenCreated',
+            'uSNChanged',
+            'objectCategory',
+            'objectGUID'
+        ]
+
+        zonename = '*' if not zonename else zonename
+        identity = '*' if not identity else identity
+        properties = def_prop if not properties else properties + def_prop
+
+        zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'])
+        entries = []
+        identity_filter = f"(name={identity})"
+        ldap_filter = f'(&(objectClass=dnsNode){identity_filter})'
+        for zone in zones:
+            logging.debug(f"[Get-DomainDNSRecord] Search base: {zone['attributes']['distinguishedName']}")
+
+            entry_generator = self.ldap_session.extend.standard.paged_search(zone['attributes']['distinguishedName'],ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+            for _entries in entry_generator:
+                if _entries['type'] != 'searchResEntry':
+                    continue
+                for record in _entries['attributes']['dnsRecord']:
+                    dr = DNS_RECORD(record)
+                    #parsed_data = parse_record_data(dr)
+                    #print(parsed_data)
+                    _entries = modify_entry(_entries,new_attributes={
+                        'TTL': dr['TtlSeconds'],
+                        'TimeStamp': dr['TimeStamp'],
+                    })
+                entries.append({"attributes":_entries["attributes"]})
+        return entries
 
     def get_domainca(self, args=None, properties=['*']):
         ca_fetch = CAEnum(self.ldap_session, self.root_dn)
@@ -971,6 +1030,20 @@ class PowerView:
         else:
             return False
 
+    def add_domaindnsrecord(self, args):
+        entries = self.get_domaindnsrecord(args.dnszone, properties=['dnsRecord','dNSTombstoned','name'])
+
+        if len(entries) == 0:
+            logging.info("No DNS Record found")
+            return
+        elif len(entries) > 1:
+            logging.info("More then one record found")
+            return
+
+        print(entries)
+
+        return True
+
     def add_domaincomputer(self, computer_name, computer_pass):
         if computer_name[-1] != '$':
             computer_name += '$'
@@ -1310,7 +1383,6 @@ class PowerView:
                 local_admin_pcs.append(pc_attr.copy())
             except:
                 pass
-
         return local_admin_pcs
 
     def get_shares(self, args):
