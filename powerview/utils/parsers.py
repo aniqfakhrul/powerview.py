@@ -315,8 +315,10 @@ def powerview_arg_parse(cmd):
     add_domaincomputer_parser.add_argument('-Domain', action='store', dest='server')
 
     # add dns record
-    add_domaindnsrecord_parser = subparsers.add_parser('Add-DomainDNSRecord', aliases=['Add-DNSRecord'], exit_on_error=False)
+    add_domaindnsrecord_parser = subparsers.add_parser('Add-DomainDNSRecord', exit_on_error=False)
     add_domaindnsrecord_parser.add_argument('-ZoneName', action='store', dest='zonename')
+    add_domaindnsrecord_parser.add_argument('-RecordName', action='store', required=True, dest='recordname')
+    add_domaindnsrecord_parser.add_argument('-RecordAddress', action='store', required=True, dest='recordaddress')
     add_domaindnsrecord_parser.add_argument('-Domain', action='store', dest='server')
 
     # add domain user

@@ -310,6 +310,11 @@ def main():
                                         powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
                                 else:
                                     logging.error(f'-ComputerName and -ComputerPass are required')
+                            elif pv_args.module.casefold() == 'add-domaindnsrecord':
+                                if temp_powerview:
+                                    temp_powerview.add_domaindnsrecord(pv_args)
+                                else:
+                                    powerview.add_domaindnsrecord(pv_args)
                             elif pv_args.module.casefold() == 'add-domainuser' or pv_args.module.casefold() == 'add-aduser':
                                 if temp_powerview:
                                     temp_powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)

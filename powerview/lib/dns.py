@@ -1,6 +1,7 @@
 from impacket.structure import Structure
 import socket
 from struct import unpack, pack
+import dns
 
 STORED_ADDR = {}
 
@@ -14,6 +15,74 @@ RECORD_TYPE_MAPPING = {
     33: 'SRV',
     65281: 'WINS',
 }
+
+class DNS_UTIL:
+    def get_next_serial(server, zone, tcp):
+        # Create a resolver object
+        dnsresolver = dns.resolver.Resolver()
+        # Is our host an IP? In that case make sure the server IP is used
+        # if not assume lookups are working already
+        try:
+            socket.inet_aton(server)
+            dnsresolver.nameservers = [server]
+        except socket.error:
+            pass
+        res = dnsresolver.resolve(zone, 'SOA',tcp=tcp)
+        for answer in res:
+            return answer.serial + 1
+
+    def new_record(rtype, serial, recordaddress):
+        nr = DNS_RECORD()
+        nr['Type'] = rtype
+        nr['Serial'] = serial
+        nr['TtlSeconds'] = 180
+        nr['Rank'] = 240
+
+        nr['Data'] = DNS_RPC_RECORD_A()
+        nr['Data'].fromCanonical(recordaddress)
+        return nr
+
+    def parse_record_data(record):
+        rd = {}
+        rtype = None
+        address = None
+        tstime = None
+        record_data = None
+        rtype = RECORD_TYPE_MAPPING.get(record['Type'])
+
+        if not rtype:
+            rd['RecordType'] = "Unsupported"
+            return
+
+        rd['RecordType'] = rtype
+
+        if record['Type'] == 0:
+            tstime = DNS_RPC_RECORD_TS(record['Data']).toDatetime()
+            rd['tstime'] = tstime
+        if record['Type'] == 1:
+            address = DNS_RPC_RECORD_A(record['Data']).formatCanonical()
+            rd['Address'] = address
+        if record['Type'] == 2 or record['Type'] == 5:
+            address = DNS_RPC_RECORD_NODE_NAME(record['Data'])['nameNode'].toFqdn()
+            rd['Address'] = address
+        if record['Type'] == 33:
+            record_data = DNS_RPC_RECORD_SRV(record['Data'])
+            rd['Priority'] = record_data['wPriority']
+            rd['Weight'] = record_data['wWeight']
+            rd['Port'] = record_data['wPort']
+            rd['Name'] = record_data['nameTarget'].toFqdn()
+        if record['Type'] == 6:
+            record_data = DNS_RPC_RECORD_SOA(record['Data'])
+            rd['Serial'] = record_data['dwSerialNo']
+            rd['Refresh'] = record_data['dwRefresh']
+            rd['Retry'] = record_data['dwRetry']
+            rd['Expire'] = record_data['dwExpire']
+            rd['Minimum'] = record_data['dwMinimumTtl']
+            rd['Primary Server'] = record_data['namePrimaryServer'].toFqdn()
+            rd['Zone Admin Email'] = record_data['zoneAdminEmail'].toFqdn()
+
+        return rd
+
 
 class DNS_RECORD(Structure):
     """

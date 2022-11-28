@@ -45,7 +45,7 @@ COMMANDS = {
     'Get-DomainComputer':['-Identity','-Properties','-ResolveIP','-LDAPFilter','-Domain','-Select','-Unconstrained','-TrustedToAuth', '-LAPS','-RBCD','-SPN','-Printers','-ExcludeDCs','-Where', '-Count', '-NoWrap'],
     'Get-NetComputer':['-Identity','-Properties','-ResolveIP','-LDAPFilter','-Domain','-Select','-Unconstrained','-TrustedToAuth', '-LAPS','-RBCD','-SPN','-Printers','-ExcludeDCs', '-Where', '-Count', '-NoWrap'],
     'Add-DomainComputer':['-ComputerName','-ComputerPass','-Domain'],
-    'Add-DomainDNSRecord':['-ZoneName','-Domain'],
+    'Add-DomainDNSRecord':['-ZoneName','-RecordName','-RecordAddress','-Domain'],
     'Add-ADComputer':['-ComputerName','-ComputerPass','-Domain'],
     'Add-DomainUser':['-UserName','-UserPass','-BaseDN','-Domain'],
     'Add-ADUser':['-UserName','-UserPass','-BaseDN','-Domain'],

@@ -31,56 +31,8 @@ from impacket.krb5.types import Principal
 from impacket.krb5.kerberosv5 import getKerberosTGT
 
 from powerview.lib.dns import (
-    RECORD_TYPE_MAPPING,
-    DNS_RPC_RECORD_TS,
-    DNS_RPC_RECORD_A,
-    DNS_RPC_RECORD_NODE_NAME,
-    DNS_RPC_RECORD_NODE_NAME,
-    DNS_RPC_RECORD_SOA,
-    DNS_RPC_RECORD_SRV,
     STORED_ADDR
 )
-
-def parse_record_data(record):
-    rd = {}
-    rtype = None
-    address = None
-    tstime = None
-    record_data = None
-    rtype = RECORD_TYPE_MAPPING.get(record['Type'])
-
-    if not rtype:
-        rd['RecordType'] = "Unsupported"
-        return
-
-    rd['RecordType'] = rtype
-
-    if record['Type'] == 0:
-        tstime = DNS_RPC_RECORD_TS(record['Data']).toDatetime()
-        rd['tstime'] = tstime
-    if record['Type'] == 1:
-        address = DNS_RPC_RECORD_A(record['Data']).formatCanonical()
-        rd['Address'] = address
-    if record['Type'] == 2 or record['Type'] == 5:
-        address = DNS_RPC_RECORD_NODE_NAME(record['Data'])['nameNode'].toFqdn()
-        rd['Address'] = address
-    if record['Type'] == 33:
-        record_data = DNS_RPC_RECORD_SRV(record['Data'])
-        rd['Priority'] = record_data['wPriority']
-        rd['Weight'] = record_data['wWeight']
-        rd['Port'] = record_data['wPort']
-        rd['Name'] = record_data['nameTarget'].toFqdn()
-    if record['Type'] == 6:
-        record_data = DNS_RPC_RECORD_SOA(record['Data'])
-        rd['Serial'] = record_data['dwSerialNo']
-        rd['Refresh'] = record_data['dwRefresh']
-        rd['Retry'] = record_data['dwRetry']
-        rd['Expire'] = record_data['dwExpire']
-        rd['Minimum'] = record_data['dwMinimumTtl']
-        rd['Primary Server'] = record_data['namePrimaryServer'].toFqdn()
-        rd['Zone Admin Email'] = record_data['zoneAdminEmail'].toFqdn()
-
-    return rd
 
 def get_user_sids(domain_sid, objectsid):
     user_sids = []

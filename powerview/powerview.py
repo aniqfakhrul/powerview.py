@@ -13,7 +13,11 @@ from powerview.utils.constants import (
     WELL_KNOWN_SIDS,
     KNOWN_SIDS,
 )
-from powerview.lib.dns import DNS_RECORD
+from powerview.lib.dns import (
+    DNS_RECORD,
+    DNS_RPC_RECORD_A,
+    DNS_UTIL,
+)
 
 import chardet
 from io import BytesIO
@@ -620,7 +624,7 @@ class PowerView:
                         'TimeStamp': dr['TimeStamp'],
                         'UpdatedAtSerial': dr['Serial'],
                     })
-                    parsed_data = parse_record_data(dr)
+                    parsed_data = DNS_UTIL.parse_record_data(dr)
                     if parsed_data:
                         for data in parsed_data:
                             _entries = modify_entry(_entries,new_attributes={
@@ -1032,18 +1036,64 @@ class PowerView:
             return False
 
     def add_domaindnsrecord(self, args):
-        entries = self.get_domaindnsrecord(args.dnszone, properties=['dnsRecord','dNSTombstoned','name'])
+        if args.zonename:
+            zonename = args.zonename
+        else:
+            zonename = self.domain
+        recordname = args.recordname
+        recordaddress = args.recordaddress
 
+        zones = [name['attributes']['name'] for name in self.get_domaindnszone(properties=['name'])]
+        if zonename not in zones:
+            logging.info("Zone %s not found" % zonename)
+            return
+
+        if recordname.lower().endswith(zonename.lower()):
+            recordname = recordname[:-(len(zonename)+1)]
+
+        entries = self.get_domaindnsrecord(identity=recordname, zonename=zonename, properties=['dnsRecord','dNSTombstoned','name'])
+
+        if entries:
+            for e in entries:
+                for record in e['attributes']['dnsRecord']:
+                    dr = DNS_RECORD(record)
+                    if dr['Type'] == 1:
+                        address = DNS_RPC_RECORD_A(dr['Data'])
+                        logging.info("Record %s in zone %s pointing to %s already exists" % (recordname, zonename, address.formatCanonical()))
+                        return
+
+        # addtype is A record = 1
+        addtype = 1
+        DNS_UTIL.get_next_serial(self.dc_ip, zonename, True)
+        node_data = {
+            # Schema is in the root domain (take if from schemaNamingContext to be sure)
+            'objectCategory': 'CN=Dns-Node,CN=Schema,CN=Configuration,%s' % self.root_dn,
+            'dNSTombstoned': False,
+            'name': recordname
+        }
+        record = DNS_UTIL.new_record(addtype, DNS_UTIL.get_next_serial(self.dc_ip, zonename, True), recordaddress)
+        search_base = f"DC={zonename},CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
+        record_dn = 'DC=%s,%s' % (recordname, search_base)
+        node_data['dnsRecord'] = [record.getData()]
+
+        succeeded = self.ldap_session.add(record_dn, ['top', 'dnsNode'], node_data)
+        if not succeeded:
+            logging.error(self.ldap_session.result['message'])
+            return False
+        else:
+            logging.info('Success! modified attribute for target object')
+            return True
+
+    def set_domaindnsrecord(self, args):
+        entries = self.get_domaindnsrecord(identity=recordname, zonename=zonename, properties=['dnsRecord','dNSTombstoned','name'])
         if len(entries) == 0:
             logging.info("No DNS Record found")
             return
         elif len(entries) > 1:
-            logging.info("More then one record found")
+            logging.info("More than 1 record found")
             return
+        return None
 
-        print(entries)
-
-        return True
 
     def add_domaincomputer(self, computer_name, computer_pass):
         if computer_name[-1] != '$':
