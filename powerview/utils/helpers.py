@@ -16,6 +16,8 @@ from dns import resolver
 import struct
 from ldap3.utils.conv import escape_filter_chars
 import re
+import configparser
+import validators
 
 from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
@@ -28,25 +30,55 @@ from impacket.krb5 import constants
 from impacket.krb5.types import Principal
 from impacket.krb5.kerberosv5 import getKerberosTGT
 
-import configparser
-import validators
+from powerview.lib.dns import (
+    RECORD_TYPE_MAPPING,
+    DNS_RPC_RECORD_TS,
+    DNS_RPC_RECORD_A,
+    DNS_RPC_RECORD_NODE_NAME,
+    DNS_RPC_RECORD_NODE_NAME,
+    DNS_RPC_RECORD_SOA,
+    DNS_RPC_RECORD_SRV,
+    STORED_ADDR
+)
 
 def parse_record_data(record):
     rd = {}
+    rtype = None
+    address = None
+    tstime = None
+    record_data = None
+    rtype = RECORD_TYPE_MAPPING.get(record['Type'])
+
+    if not rtype:
+        rd['RecordType'] = "Unsupported"
+        return
+
+    rd['RecordType'] = rtype
+
     if record['Type'] == 0:
-        tstime = DNS_RPC_RECORD_TS(record['Data'])
+        tstime = DNS_RPC_RECORD_TS(record['Data']).toDatetime()
         rd['tstime'] = tstime
     if record['Type'] == 1:
-        address = DNS_RPC_RECORD_A(record['Data'])
-        rd['address'] = address
+        address = DNS_RPC_RECORD_A(record['Data']).formatCanonical()
+        rd['Address'] = address
     if record['Type'] == 2 or record['Type'] == 5:
-        address = DNS_RPC_RECORD_NODE_NAME(record['Data'])
-        rd['address'] = address
+        address = DNS_RPC_RECORD_NODE_NAME(record['Data'])['nameNode'].toFqdn()
+        rd['Address'] = address
     if record['Type'] == 33:
         record_data = DNS_RPC_RECORD_SRV(record['Data'])
-        rd['record_data'] = record_data
+        rd['Priority'] = record_data['wPriority']
+        rd['Weight'] = record_data['wWeight']
+        rd['Port'] = record_data['wPort']
+        rd['Name'] = record_data['nameTarget'].toFqdn()
     if record['Type'] == 6:
         record_data = DNS_RPC_RECORD_SOA(record['Data'])
+        rd['Serial'] = record_data['dwSerialNo']
+        rd['Refresh'] = record_data['dwRefresh']
+        rd['Retry'] = record_data['dwRetry']
+        rd['Expire'] = record_data['dwExpire']
+        rd['Minimum'] = record_data['dwMinimumTtl']
+        rd['Primary Server'] = record_data['namePrimaryServer'].toFqdn()
+        rd['Zone Admin Email'] = record_data['zoneAdminEmail'].toFqdn()
 
     return rd
 
@@ -473,18 +505,28 @@ def get_user_info(samname, ldap_session, domain_dumper):
 
 
 def host2ip(hostname, nameserver,dns_timeout,dns_tcp):
+    if hostname in list(STORED_ADDR.keys()):
+        return STORED_ADDR[hostname]
+
     dnsresolver = resolver.Resolver()
     if nameserver:
-        logging.debug(f"Querying from DNS server {nameserver}")
+        logging.debug(f"Querying {hostname} from DNS server {nameserver}")
         dnsresolver.nameservers = [nameserver]
     dnsresolver.lifetime = float(dns_timeout)
     try:
         q = dnsresolver.query(hostname, 'A', tcp=dns_tcp)
         for r in q:
             addr = r.address
+        STORED_ADDR[hostname] = addr
         return addr
     except resolver.NXDOMAIN as e:
         logging.debug("Resolved Failed: %s" % e)
+        return None
+    except dns.exception.Timeout as e:
+        logging.debug(str(e))
+        return None
+    except dns.resolver.NoNameservers as e:
+        logging.debug(str(e))
         return None
 
 def get_dc_host(ldap_session, domain_dumper,options):

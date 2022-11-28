@@ -12,8 +12,8 @@ from powerview.utils.colors import bcolors
 from powerview.utils.constants import (
     WELL_KNOWN_SIDS,
     KNOWN_SIDS,
-    DNS_RECORD,
 )
+from powerview.lib.dns import DNS_RECORD
 
 import chardet
 from io import BytesIO
@@ -229,7 +229,7 @@ class PowerView:
         entries_dacl = enum.read_dacl()
         return entries_dacl
 
-    def get_domaincomputer(self, args=None, properties=[], identity=None):
+    def get_domaincomputer(self, args=None, properties=[], identity=None, resolveip=False):
         def_prop = [
             'lastLogonTimestamp',
             'objectCategory',
@@ -297,7 +297,7 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
-            if args.resolveip and _entries['attributes']['dnsHostName']:
+            if resolveip and _entries['attributes']['dnsHostName']:
                 ip = host2ip(_entries['attributes']['dnsHostName'], self.dc_ip, 3, True)
                 if ip:
                     _entries = modify_entry(
@@ -588,10 +588,6 @@ class PowerView:
         #return self.ldap_session.entries
 
     def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], args=None):
-        if not args:
-            logging.debug("No args given to Get-DomainDNSRecord function")
-            return
-
         def_prop = [
             'name',
             'distinguishedName',
@@ -608,7 +604,7 @@ class PowerView:
 
         zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'])
         entries = []
-        identity_filter = f"(name={identity})"
+        identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
         ldap_filter = f'(&(objectClass=dnsNode){identity_filter})'
         for zone in zones:
             logging.debug(f"[Get-DomainDNSRecord] Search base: {zone['attributes']['distinguishedName']}")
@@ -619,13 +615,18 @@ class PowerView:
                     continue
                 for record in _entries['attributes']['dnsRecord']:
                     dr = DNS_RECORD(record)
-                    #parsed_data = parse_record_data(dr)
-                    #print(parsed_data)
                     _entries = modify_entry(_entries,new_attributes={
                         'TTL': dr['TtlSeconds'],
                         'TimeStamp': dr['TimeStamp'],
+                        'UpdatedAtSerial': dr['Serial'],
                     })
-                entries.append({"attributes":_entries["attributes"]})
+                    parsed_data = parse_record_data(dr)
+                    if parsed_data:
+                        for data in parsed_data:
+                            _entries = modify_entry(_entries,new_attributes={
+                                data : parsed_data[data]
+                            })
+                        entries.append({"attributes":_entries["attributes"]})
         return entries
 
     def get_domainca(self, args=None, properties=['*']):
@@ -1344,6 +1345,9 @@ class PowerView:
             return
 
         if computer:
+            if not is_valid_fqdn(computer):
+                computer = "%s.%s" % (computer,self.domain)
+
             if is_ipaddress(computer):
                 hosts['address'] = computer
             else:
