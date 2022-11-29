@@ -274,6 +274,11 @@ def main():
                                         logging.info('Object modified successfully')
                                 else:
                                     logging.error('-Identity and [-Clear][-Set] flags required')
+                            elif pv_args.module.casefold() == 'set-domaindnsrecord':
+                                if temp_powerview:
+                                    temp_powerview.set_domaindnsrecord(pv_args)
+                                else:
+                                    powerview.set_domaindnsrecord(pv_args)
                             elif pv_args.module.casefold() == 'set-domaincatemplate' or pv_args.module.casefold() == 'set-catemplate':
                                 if pv_args.identity and (pv_args.clear or pv_args.set or pv_args.append):
                                     succeed = False

@@ -1035,6 +1035,51 @@ class PowerView:
         else:
             return False
 
+    def set_domaindnsrecord(self, args):
+        if args.zonename:
+            zonename = args.zonename
+        else:
+            zonename = self.domain
+
+        recordname = args.recordname
+        recordaddress = args.recordaddress
+
+        entry = self.get_domaindnsrecord(identity=recordname, zonename=zonename, properties=['dnsRecord', 'distinguishedName', 'name'])
+
+        if len(entry) == 0:
+            logging.info("No record found")
+            return
+        elif len(entry) > 1:
+            logging.info("More than one record found")
+            return
+
+        targetrecord = None
+        records = []
+        for record in entry[0]["attributes"]["dnsRecord"]:
+            dr = DNS_RECORD(record)
+            if dr["Type"] == 1:
+                targetrecord = dr
+            else:
+                records.append(record)
+
+        if not targetrecord:
+            logging.error("No A record exists yet. Nothing to modify")
+            return
+
+        targetrecord["Serial"] = DNS_UTIL.get_next_serial(self.dc_ip, zonename, True)
+        targetrecord['Data'] = DNS_RPC_RECORD_A()
+        targetrecord['Data'].fromCanonical(recordaddress)
+        records.append(targetrecord.getData())
+
+        succeeded = self.ldap_session.modify(entry[0]['attributes']['distinguishedName'], {'dnsRecord': [(ldap3.MODIFY_REPLACE, records)]})
+
+        if not succeeded:
+            logging.error(self.ldap_session.result['message'])
+            return False
+        else:
+            logging.info('Success! modified attribute for target record %s' % entry[0]['attributes']['distinguishedName'])
+            return True
+
     def add_domaindnsrecord(self, args):
         if args.zonename:
             zonename = args.zonename
@@ -1081,19 +1126,8 @@ class PowerView:
             logging.error(self.ldap_session.result['message'])
             return False
         else:
-            logging.info('Success! modified attribute for target object')
+            logging.info('Success! Created new record with dn %s' % record_dn)
             return True
-
-    def set_domaindnsrecord(self, args):
-        entries = self.get_domaindnsrecord(identity=recordname, zonename=zonename, properties=['dnsRecord','dNSTombstoned','name'])
-        if len(entries) == 0:
-            logging.info("No DNS Record found")
-            return
-        elif len(entries) > 1:
-            logging.info("More than 1 record found")
-            return
-        return None
-
 
     def add_domaincomputer(self, computer_name, computer_pass):
         if computer_name[-1] != '$':

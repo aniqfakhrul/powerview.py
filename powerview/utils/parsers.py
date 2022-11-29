@@ -347,6 +347,13 @@ def powerview_arg_parse(cmd):
     set_domainobject_group.add_argument('-Clear',action='store', dest='clear')
     set_domainobject_parser.add_argument('-Domain', action='store', dest='server')
 
+    # set dns record
+    set_domaindnsrecord_parser = subparsers.add_parser('Set-DomainDNSRecord', exit_on_error=False)
+    set_domaindnsrecord_parser.add_argument('-ZoneName', action='store', dest='zonename')
+    set_domaindnsrecord_parser.add_argument('-RecordName', action='store', required=True, dest='recordname')
+    set_domaindnsrecord_parser.add_argument('-RecordAddress', action='store', required=True, dest='recordaddress')
+    set_domaindnsrecord_parser.add_argument('-Domain', action='store', dest='server')
+
     # set domain ca template properties
     set_domaincatemplate_parser = subparsers.add_parser('Set-DomainCATemplate', aliases=['Set-CATemplate'], exit_on_error=False)
     set_domaincatemplate_parser.add_argument('-Identity', action='store', dest='identity')
