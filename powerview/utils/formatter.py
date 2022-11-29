@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from powerview.utils.colors import bcolors
+from powerview.lib.uac import UAC
 
 from ldap3.protocol.formatters.formatters import format_sid
 
@@ -22,7 +23,7 @@ class FORMATTER:
     def print_index(self, entries):
         i = int(self.args.select)
         for entry in entries[0:i]:
-            entry = self.fix_sid_formatting(entry)
+            entry = self.translate_values(entry)
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -51,7 +52,7 @@ class FORMATTER:
     def print_select(self,entries):
         select_attributes = self.args.select.split(",")
         for entry in entries:
-            entry = self.fix_sid_formatting(entry)
+            entry = self.translate_values(entry)
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -93,7 +94,7 @@ class FORMATTER:
 
     def print(self,entries):
         for entry in entries:
-            entry = self.fix_sid_formatting(entry)
+            entry = self.translate_values(entry)
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -231,7 +232,10 @@ class FORMATTER:
 
         return temp_alter_entries
 
-    def fix_sid_formatting(self,entry):
+    def translate_values(self,entry):
+        if "userAccountControl" in list(entry["attributes"].keys()):
+            entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"])
+
         try:
             if isinstance(entry['attributes']['ObjectSID'], list):
                 entry['attributes']['ObjectSID'][0] = format_sid(entry['attributes']['ObjectSID'][0])
