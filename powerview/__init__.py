@@ -285,6 +285,9 @@ def main():
                                 else:
                                     logging.error('-Identity and [-Clear][-Set] flags required')
                             elif pv_args.module.casefold() == 'set-domaindnsrecord':
+                                if pv_args.recordname is None or pv_args.recordaddress is None:
+                                    logging.error("-RecordName and -RecordAddress flags are required")
+                                    continue
                                 if temp_powerview:
                                     temp_powerview.set_domaindnsrecord(pv_args)
                                 else:
@@ -326,6 +329,9 @@ def main():
                                 else:
                                     logging.error(f'-ComputerName and -ComputerPass are required')
                             elif pv_args.module.casefold() == 'add-domaindnsrecord':
+                                if pv_args.recordname is None or pv_args.recordaddress is None:
+                                    logging.error("-RecordName and -RecordAddress flags are required")
+                                    continue
                                 if temp_powerview:
                                     temp_powerview.add_domaindnsrecord(pv_args)
                                 else:
@@ -343,6 +349,16 @@ def main():
                                         powerview.remove_domainuser(pv_args.identity)
                                 else:
                                     logging.error(f'-Identity is required')
+                            elif pv_args.module.casefold() == 'remove-domaindnsrecord':
+                                if pv_args.identity:
+                                    identity = pv_args.identity.strip()
+                                else:
+                                    logging.error("-Identity flag is required")
+                                    continue
+                                if temp_powerview:
+                                    temp_powerview.remove_domaindnsrecord(identity, args=pv_args)
+                                else:
+                                    powerview.remove_domaindnsrecord(identity, args=pv_args)
                             elif pv_args.module.casefold() == 'remove-domaincomputer' or pv_args.module.casefold() == 'remove-adcomputer':
                                 if pv_args.computername is not None:
                                     if temp_powerview:

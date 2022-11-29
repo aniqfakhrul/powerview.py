@@ -879,6 +879,31 @@ class PowerView:
             print(self.ldap_session.result['message'])
         return succeeded
 
+    def remove_domaindnsrecord(self, identity=None, args=None):
+        if args.zonename:
+            zonename = args.zonename
+        else:
+            zonename = self.domain
+            logging.debug("Using current domain %s as zone name" % self.domain)
+
+        entry = self.get_domaindnsrecord(identity=identity, zonename=zonename)
+
+        if len(entry) == 0:
+            logging.info("No record found")
+            return
+        elif len(entry) > 1:
+            logging.info("More than one record found")
+
+        record_dn = entry[0]["attributes"]["distinguishedName"]
+
+        succeeded = self.ldap_session.delete(record_dn)
+        if not succeeded:
+            logging.error(self.ldap_session.result['message'])
+            return False
+        else:
+            logging.info("Success! Deleted the record")
+            return True
+
     def remove_domaingroupmember(self, identity, members, args=None):
         group_entry = self.get_domaingroup(identity=identity,properties=['distinguishedName'])
         user_entry = self.get_domainobject(identity=members,properties=['distinguishedName'])

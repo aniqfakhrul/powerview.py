@@ -326,8 +326,8 @@ def powerview_arg_parse(cmd):
     # add dns record
     add_domaindnsrecord_parser = subparsers.add_parser('Add-DomainDNSRecord', exit_on_error=False)
     add_domaindnsrecord_parser.add_argument('-ZoneName', action='store', dest='zonename')
-    add_domaindnsrecord_parser.add_argument('-RecordName', action='store', required=True, dest='recordname')
-    add_domaindnsrecord_parser.add_argument('-RecordAddress', action='store', required=True, dest='recordaddress')
+    add_domaindnsrecord_parser.add_argument('-RecordName', action='store', dest='recordname')
+    add_domaindnsrecord_parser.add_argument('-RecordAddress', action='store', dest='recordaddress')
     add_domaindnsrecord_parser.add_argument('-Domain', action='store', dest='server')
 
     # add domain user
@@ -359,9 +359,15 @@ def powerview_arg_parse(cmd):
     # set dns record
     set_domaindnsrecord_parser = subparsers.add_parser('Set-DomainDNSRecord', exit_on_error=False)
     set_domaindnsrecord_parser.add_argument('-ZoneName', action='store', dest='zonename')
-    set_domaindnsrecord_parser.add_argument('-RecordName', action='store', required=True, dest='recordname')
-    set_domaindnsrecord_parser.add_argument('-RecordAddress', action='store', required=True, dest='recordaddress')
+    set_domaindnsrecord_parser.add_argument('-RecordName', action='store', dest='recordname')
+    set_domaindnsrecord_parser.add_argument('-RecordAddress', action='store', dest='recordaddress')
     set_domaindnsrecord_parser.add_argument('-Domain', action='store', dest='server')
+
+    # remove dns record
+    remove_domaindnsrecord_parser = subparsers.add_parser('Remove-DomainDNSRecord', exit_on_error=False)
+    remove_domaindnsrecord_parser.add_argument('-ZoneName', action='store', dest='zonename')
+    remove_domaindnsrecord_parser.add_argument('-Identity', action='store', dest='identity')
+    remove_domaindnsrecord_parser.add_argument('-Domain', action='store', dest='server')
 
     # set domain ca template properties
     set_domaincatemplate_parser = subparsers.add_parser('Set-DomainCATemplate', aliases=['Set-CATemplate'], exit_on_error=False)

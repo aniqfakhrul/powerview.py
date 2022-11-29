@@ -65,6 +65,7 @@ COMMANDS = {
     'Remove-ObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain'],
     'Set-DomainObject':['-Identity','-Clear','-Set','-Append','-Domain'],
     'Set-DomainDNSRecord':['-ZoneName','-RecordName','-RecordAddress','-Domain'],
+    'Remove-DomainDNSRecord':['-ZoneName','-Identity','-Domain'],
     'Set-Object':['-Identity','-Clear','-Set','-Append','-Domain'],
     'Set-DomainCATemplate':['-Identity','-Clear','-Set','-Append','-Domain'],
     'Set-CATemplate':['-Identity','-Clear','-Set','-Append','-Domain'],
