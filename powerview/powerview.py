@@ -886,6 +886,12 @@ class PowerView:
             zonename = self.domain
             logging.debug("Using current domain %s as zone name" % self.domain)
 
+        zones = [name['attributes']['name'] for name in self.get_domaindnszone(properties=['name'])]
+        if zonename not in zones:
+            logging.info("Zone %s not found" % zonename)
+            return
+
+
         entry = self.get_domaindnsrecord(identity=identity, zonename=zonename)
 
         if len(entry) == 0:
@@ -1090,6 +1096,11 @@ class PowerView:
             zonename = args.zonename
         else:
             zonename = self.domain
+
+        zones = [name['attributes']['name'] for name in self.get_domaindnszone(properties=['name'])]
+        if zonename not in zones:
+            logging.info("Zone %s not found" % zonename)
+            return
 
         recordname = args.recordname
         recordaddress = args.recordaddress
