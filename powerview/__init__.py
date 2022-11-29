@@ -90,7 +90,11 @@ def main():
                                 else:
                                     entries = powerview.get_domainobject(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainobjectowner' or pv_args.module.casefold() == 'get-objectowner':
-                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                if pv_args.identity:
+                                    identity = pv_args.identity.strip()
+                                else:
+                                    logging.error("-Identity flag is required")
+                                    continue
                                 if temp_powerview:
                                     temp_powerview.get_domainobjectowner(identity=identity)
                                 else:
@@ -383,8 +387,8 @@ def main():
             except EOFError:
                 print("Exiting...")
                 sys.exit(0)
-#            except Exception as e:
-#                logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
