@@ -2,7 +2,7 @@
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 
-from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser
+from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser, ObjectOwner
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
@@ -165,6 +165,31 @@ class PowerView:
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
+
+    def get_domainobjectowner(self, identity=None):
+        if not identity:
+            logging.error("No identity provided")
+            return
+
+        entries = self.get_domainobject(identity=identity, properties=[
+            'nTSecurityDescriptor',
+            'sAMAccountname',
+            'ObjectSID',
+            'distinguishedName',
+        ])
+
+        if len(entries) == 0:
+            logging.error("No object found")
+            return
+        elif len(entries) > 1:
+            logging.error("More then one object found")
+            return
+
+        parser = ObjectOwner(entries[0])
+        ownersid = parser.read()
+        if ownersid:
+            print("%s (%s)" % (self.convertfrom_sid(ownersid), ownersid))
+            return ownersid
 
     def get_domainou(self, args=None, properties=['*'], identity='*'):
         ldap_filter = ""

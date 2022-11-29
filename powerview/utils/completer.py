@@ -40,6 +40,8 @@ COMMANDS = {
     'Invoke-Kerberoast':['-Identity','-Opsec','-LDAPFilter','-Domain', '-NoWrap'],
     'Get-DomainObject':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
     'Get-ADObject':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
+    'Get-DomainObjectOwner':['-Identity','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
+    'Get-ObjectOwner':['-Identity','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
     'Get-DomainObjectAcl':['-Identity','-Domain','-SecurityIdentifier','-ResolveGUIDs','-Select', '-Where', '-Count', '-NoWrap'],
     'Get-ObjectAcl':['-Identity','-Domain','-ResolveGUIDs','-SecurityIdentifier','-Select', '-Where', '-Count', '-NoWrap'],
     'Get-DomainComputer':['-Identity','-Properties','-ResolveIP','-LDAPFilter','-Domain','-Select','-Unconstrained','-TrustedToAuth', '-LAPS','-RBCD','-SPN','-Printers','-ExcludeDCs','-Where', '-Count', '-NoWrap'],

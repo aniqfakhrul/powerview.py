@@ -89,6 +89,12 @@ def main():
                                     entries = temp_powerview.get_domainobject(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domainobject(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domainobjectowner' or pv_args.module.casefold() == 'get-objectowner':
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                if temp_powerview:
+                                    temp_powerview.get_domainobjectowner(identity=identity)
+                                else:
+                                    powerview.get_domainobjectowner(identity=identity)
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:

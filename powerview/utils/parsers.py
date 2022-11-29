@@ -72,6 +72,15 @@ def powerview_arg_parse(cmd):
     get_domainobject_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainobject_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
+    #domainobjectowner
+    get_domainobjectowner_parser = subparsers.add_parser('Get-DomainObjectOwner', aliases=['Get-ObjectOwner'] ,exit_on_error=False)
+    get_domainobjectowner_parser.add_argument('-Identity', action='store', required=True, dest='identity')
+    get_domainobjectowner_parser.add_argument('-Domain', action='store', dest='server')
+    get_domainobjectowner_parser.add_argument('-Select', action='store', dest='select')
+    get_domainobjectowner_parser.add_argument('-Where', action='store', dest='where')
+    get_domainobjectowner_parser.add_argument('-Count', action='store_true', dest='count')
+    get_domainobjectowner_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+
     #domainobjectacl
     get_domainobjectacl_parser = subparsers.add_parser('Get-DomainObjectAcl', aliases=['Get-ObjectAcl'] ,exit_on_error=False)
     get_domainobjectacl_parser.add_argument('-Identity', action='store', default='*', dest='identity')
