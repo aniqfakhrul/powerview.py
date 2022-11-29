@@ -23,7 +23,7 @@ class FORMATTER:
     def print_index(self, entries):
         i = int(self.args.select)
         for entry in entries[0:i]:
-            entry = self.translate_values(entry)
+            entry = self.resolve_values(entry)
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -52,7 +52,7 @@ class FORMATTER:
     def print_select(self,entries):
         select_attributes = self.args.select.split(",")
         for entry in entries:
-            entry = self.translate_values(entry)
+            entry = self.resolve_values(entry)
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -94,7 +94,7 @@ class FORMATTER:
 
     def print(self,entries):
         for entry in entries:
-            entry = self.translate_values(entry)
+            entry = self.resolve_values(entry)
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -232,7 +232,7 @@ class FORMATTER:
 
         return temp_alter_entries
 
-    def translate_values(self,entry):
+    def resolve_values(self,entry):
         if "userAccountControl" in list(entry["attributes"].keys()):
             entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"])
 
