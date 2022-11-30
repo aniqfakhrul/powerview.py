@@ -283,7 +283,7 @@ def main():
                                     if succeed:
                                         logging.info('Object modified successfully')
                                 else:
-                                    logging.error('-Identity and [-Clear][-Set] flags required')
+                                    logging.error('-Identity and [-Clear][-Set][-Append] flags required')
                             elif pv_args.module.casefold() == 'set-domaindnsrecord':
                                 if pv_args.recordname is None or pv_args.recordaddress is None:
                                     logging.error("-RecordName and -RecordAddress flags are required")
@@ -303,7 +303,7 @@ def main():
                                     if succeed:
                                         logging.info('Template modified successfully')
                                 else:
-                                    logging.error('-Identity and [-Clear][-Set|-Add] flags required')
+                                    logging.error('-Identity and [-Clear][-Set|-Append] flags required')
                             elif pv_args.module.casefold() == 'set-domainuserpassword':
                                 if pv_args.identity and pv_args.accountpassword:
                                     succeed = False
@@ -403,8 +403,8 @@ def main():
             except EOFError:
                 print("Exiting...")
                 sys.exit(0)
-            except Exception as e:
-                logging.error(str(e))
+#            except Exception as e:
+#                logging.error(str(e))
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:

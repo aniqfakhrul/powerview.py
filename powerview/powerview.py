@@ -825,9 +825,12 @@ class PowerView:
 
             try:
                 for val in attrs['value']:
-                    if val in target_template[0][attrs['attribute']]:
-                        logging.error(f"Value {val} already set in the attribute "+attrs['attribute'])
-                        return
+                    try:
+                        if val in target_template[0][attrs['attribute']]:
+                            logging.error(f"Value {val} already set in the attribute "+attrs['attribute'])
+                            return
+                    except KeyError as e:
+                        logging.debug("Attribute %s not found in template" % attrs['attribute'])
             except ldap3.core.exceptions.LDAPKeyError as e:
                 logging.error(f"Key {attrs['attribute']} not found in template attribute. Adding anyway...")
 
@@ -1409,9 +1412,12 @@ class PowerView:
 
             try:
                 for val in attrs['value']:
-                    if val == targetobject[0]["attributes"][attrs['attribute']]:
-                        logging.error(f"Value {val} already set in the attribute "+attrs['attribute'])
-                        return
+                    try:
+                        if val in targetobject[0]["attributes"][attrs['attribute']]:
+                            logging.error(f"Value {val} already set in the attribute "+attrs['attribute'])
+                            return
+                    except KeyError as e:
+                        logging.debug(f"Attribute {attrs['attribute']} not exists in object. Modifying anyway...")
             except ldap3.core.exceptions.LDAPKeyError as e:
                 logging.error(f"Key {attrs['attribute']} not found in template attribute. Adding anyway...")
 
