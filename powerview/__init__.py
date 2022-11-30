@@ -191,8 +191,8 @@ def main():
                                 else:
                                     entries = powerview.get_domaincatemplate(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaintrust' or pv_args.module.casefold() == 'get-nettrust':
-                                properties = pv_args.properties.replace(" ","").split(',')
-                                identity = pv_args.identity.strip()
+                                properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaintrust(pv_args, properties, identity)
                                 else:
@@ -403,8 +403,8 @@ def main():
             except EOFError:
                 print("Exiting...")
                 sys.exit(0)
-            except Exception as e:
-                logging.error(str(e))
+#            except Exception as e:
+#                logging.error(str(e))
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:

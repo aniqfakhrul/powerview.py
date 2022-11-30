@@ -309,6 +309,22 @@ WELL_KNOWN_SIDS = {
 # store discovered sids
 KNOWN_SIDS = {}
 
+# https://ldapwiki.com/wiki/Common%20Active%20Directory%20Bind%20Errors
+LDAP_ERROR_STATUS = {
+    "525": "LDAP_NO_SUCH_OBJECT",
+    "52e": "ERROR_LOGON_FAILURE",
+    "52f": "ERROR_ACCOUNT_RESTRICTION",
+    "530": "ERROR_INVALID_LOGON_HOURS",
+    "531": "ERROR_INVALID_WORKSTATION",
+    "532": "ERROR_PASSWORD_EXPIRED",
+    "533": "ERROR_ACCOUNT_DISABLED",
+    "568": "ERROR_TOO_MANY_CONTEXT_IDS",
+    "701": "ERROR_ACCOUNT_EXPIRED",
+    "773": "ERROR_PASSWORD_MUST_CHANGE",
+    "775": "ERROR_ACCOUNT_LOCKED_OUT",
+    "80090346": "ERROR_ACCOUNT_LOCKED_OUT"
+}
+
 # Retrieved from Windows 2022 server via LDAP (CN=Extended-Rights,CN=Configuration,DC=...)
 EXTENDED_RIGHTS_MAP = {
     "ab721a52-1e2f-11d0-9819-00aa0040529b": "Domain-Administer-Serve",
@@ -427,3 +443,28 @@ UAC_DICT = dict([
     (0x04000000, "PARTIAL_SECRETS_ACCOUNT")
 ])
 
+
+switcher_trustDirection = {
+    0: "Disabled",
+    1: "Inbound",
+    2: "Outbound",
+    3: "Bidirectional",
+}
+switcher_trustType = {
+    1: "WINDOWS_NON_ACTIVE_DIRECTORY",
+    2: "WINDOWS_ACTIVE_DIRECTORY",
+    3: "MIT",
+}
+switcher_trustAttributes = {
+    1 : "NON_TRANSITIVE",
+    2 : "UPLEVEL_ONLY",
+    4 : "QUARANTINED_DOMAIN",
+    8 : "FOREST_TRANSITIVE",
+    16 : "CROSS_ORGANIZATION",
+    32 : "WITHIN_FOREST",
+    64 : "TREAT_AS_EXTERNAL",
+    128 : "USES_RC4_ENCRYPTION",
+    512 : "CROSS_ORGANIZATION_NO_TGT_DELEGATION",
+    2048 : "CROSS_ORGANIZATION_ENABLE_TGT_DELEGATION",
+    1024 : "PIM_TRUST",
+}

@@ -509,53 +509,34 @@ class PowerView:
                 pass
         return new_entries
 
-    def get_domaintrust(self, args=None, properties=['*'], identity='*'):
-        ldap_filter = f'(objectClass=trustedDomain)'
-        logging.debug(f'LDAP search filter: {ldap_filter}')
-        switcher_trustDirection = {
-            0: "Disabled",
-            1: "Inbound",
-            2: "Outbound",
-            3: "Bidirectional",
-        }
-        switcher_trusttype = {
-            1: "WINDOWS_NON_ACTIVE_DIRECTORY",
-            2: "WINDOWS_ACTIVE_DIRECTORY",
-            3: "MIT",
-        }
-        switcher_trustAttributes = {
-            1 : "NON_TRANSITIVE",
-            2 : "UPLEVEL_ONLY",
-            4 : "QUARANTINED_DOMAIN",
-            8 : "FOREST_TRANSITIVE",
-            16 : "CROSS_ORGANIZATION",
-            32 : "WITHIN_FOREST",
-            64 : "TREAT_AS_EXTERNAL",
-            128 : "USES_RC4_ENCRYPTION",
-            512 : "CROSS_ORGANIZATION_NO_TGT_DELEGATION",
-            2048 : "CROSS_ORGANIZATION_ENABLE_TGT_DELEGATION",
-            1024 : "PIM_TRUST",
+    def get_domaintrust(self, args=None, properties=[], identity=None):
+        def_prop = [
+            'name',
+            'objectGUID',
+            'securityIdentifier',
+            'trustDirection',
+            'trustPartner',
+            'trustType',
+            'trustAttributes',
+            'flatName'
+        ]
 
-        }
-        self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        new_entries = []
-        for entry in self.ldap_session.entries:
-            try:
-                for index in range(len(entry['trustDirection'].values)):
-                    entry['trustDirection'].values[index] = switcher_trustDirection.get(entry['trustDirection'].values[index])
-            except:
-                pass
-            try:
-                for index in range(len(entry['trustType'].values)):
-                    entry['trustType'].values[index] = switcher_trusttype.get(entry['trustType'].values[index])
-            except:
-                pass
-            try:
-                for index in range(len(entry['trustAttributes'].values)):
-                    entry['trustAttributes'].values[index] = switcher_trustAttributes.get(entry['trustAttributes'].values[index])
-            except:
-                pass
-        return self.ldap_session.entries
+        properties = def_prop if not properties else properties + def_prop
+        identity = '*' if not identity else identity
+
+        identity_filter = f"(name={identity})"
+        ldap_filter = f'(&(objectClass=trustedDomain){identity_filter})'
+        logging.debug(f'LDAP search filter: {ldap_filter}')
+
+        entries = []
+        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        for _entries in entry_generator:
+            if _entries['type'] != 'searchResEntry':
+                continue
+            entries.append({"attributes":_entries["attributes"]})
+        return entries
+        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
+        #return self.ldap_session.entries
 
     def convertfrom_sid(self, objectsid, args=None, output=False):
         identity = WELL_KNOWN_SIDS.get(objectsid)
@@ -597,8 +578,22 @@ class PowerView:
         #return self.ldap_session.entries
 
     def get_domaindnszone(self, identity=None, properties=[], args=None):
+        def_prop = [
+            'objectClass',
+            'cn',
+            'distinguishedName',
+            'instanceType',
+            'whenCreated',
+            'whenChanged',
+            'name',
+            'objectGUID',
+            'objectCategory',
+            'dSCorePropagationData',
+            'dc'
+        ]
+
+        properties = def_prop if not properties else properties + def_prop
         identity = '*' if not identity else identity
-        properties = ['*'] if not properties else properties
 
         identity_filter = f"(name={identity})"
         ldap_filter = f"(&(objectClass=dnsZone){identity_filter})"
