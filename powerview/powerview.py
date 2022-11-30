@@ -549,7 +549,7 @@ class PowerView:
             identity = known_sid
         else:
             ldap_filter = f"(|(|(objectSid={objectsid})))"
-            logging.debug(f"LDAP search filter: {ldap_filter}")
+            logging.debug(f"[ConvertFrom-SID] LDAP search filter: {ldap_filter}")
 
             self.ldap_session.search(self.root_dn,ldap_filter,attributes=['sAMAccountName','name'])
             if len(self.ldap_session.entries) != 0:

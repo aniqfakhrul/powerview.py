@@ -5,6 +5,7 @@ from powerview.lib.resolver import (
     TRUST,
     ENCRYPTION_TYPE
 )
+from powerview.modules.ldapattack import RBCD
 
 from ldap3.protocol.formatters.formatters import format_sid
 
@@ -241,6 +242,16 @@ class FORMATTER:
         return temp_alter_entries
 
     def resolve_values(self,entry):
+        # resolve msDS-AllowedToActOnBehalfOfOtherIdentity
+        try:
+            if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(entry["attributes"].keys()):
+                parser = RBCD(entry)
+                entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = parser.read()
+        except KeyError:
+            pass
+        except TypeError:
+            oass
+
         # resolve msDS-SupportedEncryptionTypes
         try:
             if "msDS-SupportedEncryptionTypes" in list(entry["attributes"].keys()):

@@ -1281,7 +1281,7 @@ class ACLEnum:
 class ObjectOwner:
     def __init__(self, entry):
         self.__target_samaccountname = entry["attributes"]["sAMAccountName"]
-        self.__target_sid = entry["attributes"]["ObjectSID"]
+        self.__target_sid = entry["attributes"]["objectSID"]
         self.__target_dn = entry["attributes"]["distinguishedName"]
         self.__target_secdesc = entry["attributes"]["nTSecurityDescriptor"]
         self.__target_securitydescriptor = ldaptypes.SR_SECURITY_DESCRIPTOR(data=self.__target_secdesc)
@@ -1292,10 +1292,27 @@ class ObjectOwner:
 
     def set_new_owner(self, entry):
         self.new_owner_samaccountname = entry["attributes"]["sAMAccountName"]
-        self.new_owner_sid = entry["attributes"]["ObjectSID"]
+        self.new_owner_sid = entry["attributes"]["objectSID"]
         self.new_owner_dn = entry["attributes"]["distinguishedName"]
 
     def read(self):
         ownersid = None
         ownersid = format_sid(self.__target_securitydescriptor['OwnerSid']).formatCanonical()
         return ownersid
+
+class RBCD:
+    def __init__(self, entry):
+        self.__target_samaccountname = entry["attributes"]["sAMAccountName"]
+        self.__target_sid = entry["attributes"]["objectSID"]
+        self.__target_dn = entry["attributes"]["distinguishedName"]
+        self.__target_msds_allowedtoactonbehalfofotheridentity = entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"]
+        self.__target_securitydescriptor = ldaptypes.SR_SECURITY_DESCRIPTOR(data=self.__target_msds_allowedtoactonbehalfofotheridentity)
+
+    def read(self):
+        user_can_delegate = []
+        sd = self.__target_securitydescriptor
+        if len(sd['Dacl'].aces) > 0:
+            for ace in sd['Dacl'].aces:
+                user_can_delegate.append(ace['Ace']['Sid'].formatCanonical())
+
+        return user_can_delegate
