@@ -75,7 +75,8 @@ class PowerView:
             'pwdLastSet',
             'description',
             'badPwdCount',
-            'badPasswordTime'
+            'badPasswordTime',
+            'msDS-SupportedEncryptionTypes'
         ]
 
         properties = def_prop if not properties else properties + def_prop
@@ -1472,8 +1473,8 @@ class PowerView:
         kdc_options = None
         enctype = None
         if args.opsec:
-            enctype = 18
-            kdc_options = "0x4010000"
+            enctype = 18 # aes
+            kdc_options = "0x40810000"
 
         userspn = GetUserSPNs(self.username, self.password, self.domain, target_domain, self.args, identity=args.identity, options=kdc_options, encType=enctype)
         entries_out = userspn.run(entries)
