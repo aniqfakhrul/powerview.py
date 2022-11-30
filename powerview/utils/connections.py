@@ -6,6 +6,7 @@ from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_A
 
 from powerview.utils.helpers import get_machine_name, ldap3_kerberos_login
 from powerview.utils.colors import bcolors
+from powerview.lib.resolver import LDAP
 
 import ssl
 import ldap3
@@ -145,10 +146,13 @@ class CONNECTION:
             # check if signing is enforced
             if "strongerAuthRequired" in str(ldap_session.result):
                 logging.error(f"{bcolors.WARNING}LDAP Signing is enforced{bcolors.ENDC}")
-            elif "data 52e" or "data 532" in str(ldap_session.result):
-                logging.error("Bind not successful - invalidCredentials")
+
+            error_code = ldap_session.result['message'].split(",")[2].replace("data","").strip()
+            error_status = LDAP.resolve_err_status(error_code)
+            if error_code and error_status:
+                logging.error("Bind not successful - %s" % error_status)
             else:
-                logging.error("Unexpected Error: {str(ldapConn.result)}")
+                logging.error(f"Unexpected Error: {str(ldapConn.result)}")
 
             sys.exit(0)
         else:

@@ -1277,3 +1277,25 @@ class ACLEnum:
             if fsr & PERM.value:
                 _perms.append(PERM.name)
         return _perms
+
+class ObjectOwner:
+    def __init__(self, entry):
+        self.__target_samaccountname = entry["attributes"]["sAMAccountName"]
+        self.__target_sid = entry["attributes"]["ObjectSID"]
+        self.__target_dn = entry["attributes"]["distinguishedName"]
+        self.__target_secdesc = entry["attributes"]["nTSecurityDescriptor"]
+        self.__target_securitydescriptor = ldaptypes.SR_SECURITY_DESCRIPTOR(data=self.__target_secdesc)
+
+        self.new_owner_samaccountname = None
+        self.new_owner_sid = None
+        self.new_owner_dn = None
+
+    def set_new_owner(self, entry):
+        self.new_owner_samaccountname = entry["attributes"]["sAMAccountName"]
+        self.new_owner_sid = entry["attributes"]["ObjectSID"]
+        self.new_owner_dn = entry["attributes"]["distinguishedName"]
+
+    def read(self):
+        ownersid = None
+        ownersid = format_sid(self.__target_securitydescriptor['OwnerSid']).formatCanonical()
+        return ownersid

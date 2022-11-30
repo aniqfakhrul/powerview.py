@@ -89,6 +89,16 @@ def main():
                                     entries = temp_powerview.get_domainobject(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domainobject(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domainobjectowner' or pv_args.module.casefold() == 'get-objectowner':
+                                if pv_args.identity:
+                                    identity = pv_args.identity.strip()
+                                else:
+                                    logging.error("-Identity flag is required")
+                                    continue
+                                if temp_powerview:
+                                    temp_powerview.get_domainobjectowner(identity=identity)
+                                else:
+                                    powerview.get_domainobjectowner(identity=identity)
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:
@@ -109,9 +119,9 @@ def main():
                                 properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaincomputer(pv_args, properties, identity)
+                                    entries = temp_powerview.get_domaincomputer(pv_args, properties, identity, resolveip=pv_args.resolveip)
                                 else:
-                                    entries = powerview.get_domaincomputer(pv_args, properties, identity)
+                                    entries = powerview.get_domaincomputer(pv_args, properties, identity, resolveip=pv_args.resolveip)
                             elif pv_args.module.casefold() == 'get-domaingroup' or pv_args.module.casefold() == 'get-netgroup':
                                 properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
@@ -153,11 +163,20 @@ def main():
                                 else:
                                     entries = powerview.get_domainou(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaindnszone':
-                                properties = pv_args.properties.replace(" ","").split(',')
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaindnszone(pv_args, properties)
+                                    entries = temp_powerview.get_domaindnszone(identity, properties, args=pv_args)
                                 else:
-                                    entries = powerview.get_domaindnszone(pv_args, properties)
+                                    entries = powerview.get_domaindnszone(identity, properties, args=pv_args)
+                            elif pv_args.module.casefold() == 'get-domaindnsrecord':
+                                zonename = pv_args.zonename.strip() if pv_args.zonename else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaindnsrecord(identity, zonename, properties, args=pv_args)
+                                else:
+                                    entries = powerview.get_domaindnsrecord(identity, zonename, properties, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-ca':
                                 properties = pv_args.properties.replace(" ","").split(',')
                                 if temp_powerview:
@@ -172,8 +191,8 @@ def main():
                                 else:
                                     entries = powerview.get_domaincatemplate(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaintrust' or pv_args.module.casefold() == 'get-nettrust':
-                                properties = pv_args.properties.replace(" ","").split(',')
-                                identity = pv_args.identity.strip()
+                                properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaintrust(pv_args, properties, identity)
                                 else:
@@ -264,7 +283,15 @@ def main():
                                     if succeed:
                                         logging.info('Object modified successfully')
                                 else:
-                                    logging.error('-Identity and [-Clear][-Set] flags required')
+                                    logging.error('-Identity and [-Clear][-Set][-Append] flags required')
+                            elif pv_args.module.casefold() == 'set-domaindnsrecord':
+                                if pv_args.recordname is None or pv_args.recordaddress is None:
+                                    logging.error("-RecordName and -RecordAddress flags are required")
+                                    continue
+                                if temp_powerview:
+                                    temp_powerview.set_domaindnsrecord(pv_args)
+                                else:
+                                    powerview.set_domaindnsrecord(pv_args)
                             elif pv_args.module.casefold() == 'set-domaincatemplate' or pv_args.module.casefold() == 'set-catemplate':
                                 if pv_args.identity and (pv_args.clear or pv_args.set or pv_args.append):
                                     succeed = False
@@ -276,7 +303,7 @@ def main():
                                     if succeed:
                                         logging.info('Template modified successfully')
                                 else:
-                                    logging.error('-Identity and [-Clear][-Set|-Add] flags required')
+                                    logging.error('-Identity and [-Clear][-Set|-Append] flags required')
                             elif pv_args.module.casefold() == 'set-domainuserpassword':
                                 if pv_args.identity and pv_args.accountpassword:
                                     succeed = False
@@ -301,6 +328,14 @@ def main():
                                         powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
                                 else:
                                     logging.error(f'-ComputerName and -ComputerPass are required')
+                            elif pv_args.module.casefold() == 'add-domaindnsrecord':
+                                if pv_args.recordname is None or pv_args.recordaddress is None:
+                                    logging.error("-RecordName and -RecordAddress flags are required")
+                                    continue
+                                if temp_powerview:
+                                    temp_powerview.add_domaindnsrecord(pv_args)
+                                else:
+                                    powerview.add_domaindnsrecord(pv_args)
                             elif pv_args.module.casefold() == 'add-domainuser' or pv_args.module.casefold() == 'add-aduser':
                                 if temp_powerview:
                                     temp_powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
@@ -314,6 +349,16 @@ def main():
                                         powerview.remove_domainuser(pv_args.identity)
                                 else:
                                     logging.error(f'-Identity is required')
+                            elif pv_args.module.casefold() == 'remove-domaindnsrecord':
+                                if pv_args.identity:
+                                    identity = pv_args.identity.strip()
+                                else:
+                                    logging.error("-Identity flag is required")
+                                    continue
+                                if temp_powerview:
+                                    temp_powerview.remove_domaindnsrecord(identity, args=pv_args)
+                                else:
+                                    powerview.remove_domaindnsrecord(identity, args=pv_args)
                             elif pv_args.module.casefold() == 'remove-domaincomputer' or pv_args.module.casefold() == 'remove-adcomputer':
                                 if pv_args.computername is not None:
                                     if temp_powerview:
@@ -358,8 +403,8 @@ def main():
             except EOFError:
                 print("Exiting...")
                 sys.exit(0)
-            except Exception as e:
-                logging.error(str(e))
+#            except Exception as e:
+#                logging.error(str(e))
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:

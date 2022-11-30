@@ -2,14 +2,22 @@
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 
-from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser
+from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser, ObjectOwner
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
 from powerview.utils.colors import bcolors
-from powerview.utils.constants import WELL_KNOWN_SIDS, KNOWN_SIDS
+from powerview.utils.constants import (
+    WELL_KNOWN_SIDS,
+    KNOWN_SIDS,
+)
+from powerview.lib.dns import (
+    DNS_RECORD,
+    DNS_RPC_RECORD_A,
+    DNS_UTIL,
+)
 
 import chardet
 from io import BytesIO
@@ -158,6 +166,31 @@ class PowerView:
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
 
+    def get_domainobjectowner(self, identity=None):
+        if not identity:
+            logging.error("No identity provided")
+            return
+
+        entries = self.get_domainobject(identity=identity, properties=[
+            'nTSecurityDescriptor',
+            'sAMAccountname',
+            'ObjectSID',
+            'distinguishedName',
+        ])
+
+        if len(entries) == 0:
+            logging.error("No object found")
+            return
+        elif len(entries) > 1:
+            logging.error("More then one object found")
+            return
+
+        parser = ObjectOwner(entries[0])
+        ownersid = parser.read()
+        if ownersid:
+            print("%s (%s)" % (self.convertfrom_sid(ownersid), ownersid))
+            return ownersid
+
     def get_domainou(self, args=None, properties=['*'], identity='*'):
         ldap_filter = ""
         if args:
@@ -225,7 +258,7 @@ class PowerView:
         entries_dacl = enum.read_dacl()
         return entries_dacl
 
-    def get_domaincomputer(self, args=None, properties=[], identity=None):
+    def get_domaincomputer(self, args=None, properties=[], identity=None, resolveip=False):
         def_prop = [
             'lastLogonTimestamp',
             'objectCategory',
@@ -247,6 +280,8 @@ class PowerView:
             'instanceType',
             'distinguishedName',
             'cn',
+            'operatingSystem',
+            'msDS-SupportedEncryptionTypes'
         ]
 
         properties = def_prop if not properties else properties + def_prop
@@ -292,7 +327,7 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
-            if args.resolveip and _entries['attributes']['dnsHostName']:
+            if resolveip and _entries['attributes']['dnsHostName']:
                 ip = host2ip(_entries['attributes']['dnsHostName'], self.dc_ip, 3, True)
                 if ip:
                     _entries = modify_entry(
@@ -475,53 +510,34 @@ class PowerView:
                 pass
         return new_entries
 
-    def get_domaintrust(self, args=None, properties=['*'], identity='*'):
-        ldap_filter = f'(objectClass=trustedDomain)'
-        logging.debug(f'LDAP search filter: {ldap_filter}')
-        switcher_trustDirection = {
-            0: "Disabled",
-            1: "Inbound",
-            2: "Outbound",
-            3: "Bidirectional",
-        }
-        switcher_trusttype = {
-            1: "WINDOWS_NON_ACTIVE_DIRECTORY",
-            2: "WINDOWS_ACTIVE_DIRECTORY",
-            3: "MIT",
-        }
-        switcher_trustAttributes = {
-            1 : "NON_TRANSITIVE",
-            2 : "UPLEVEL_ONLY",
-            4 : "QUARANTINED_DOMAIN",
-            8 : "FOREST_TRANSITIVE",
-            16 : "CROSS_ORGANIZATION",
-            32 : "WITHIN_FOREST",
-            64 : "TREAT_AS_EXTERNAL",
-            128 : "USES_RC4_ENCRYPTION",
-            512 : "CROSS_ORGANIZATION_NO_TGT_DELEGATION",
-            2048 : "CROSS_ORGANIZATION_ENABLE_TGT_DELEGATION",
-            1024 : "PIM_TRUST",
+    def get_domaintrust(self, args=None, properties=[], identity=None):
+        def_prop = [
+            'name',
+            'objectGUID',
+            'securityIdentifier',
+            'trustDirection',
+            'trustPartner',
+            'trustType',
+            'trustAttributes',
+            'flatName'
+        ]
 
-        }
-        self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        new_entries = []
-        for entry in self.ldap_session.entries:
-            try:
-                for index in range(len(entry['trustDirection'].values)):
-                    entry['trustDirection'].values[index] = switcher_trustDirection.get(entry['trustDirection'].values[index])
-            except:
-                pass
-            try:
-                for index in range(len(entry['trustType'].values)):
-                    entry['trustType'].values[index] = switcher_trusttype.get(entry['trustType'].values[index])
-            except:
-                pass
-            try:
-                for index in range(len(entry['trustAttributes'].values)):
-                    entry['trustAttributes'].values[index] = switcher_trustAttributes.get(entry['trustAttributes'].values[index])
-            except:
-                pass
-        return self.ldap_session.entries
+        properties = def_prop if not properties else properties + def_prop
+        identity = '*' if not identity else identity
+
+        identity_filter = f"(name={identity})"
+        ldap_filter = f'(&(objectClass=trustedDomain){identity_filter})'
+        logging.debug(f'LDAP search filter: {ldap_filter}')
+
+        entries = []
+        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        for _entries in entry_generator:
+            if _entries['type'] != 'searchResEntry':
+                continue
+            entries.append({"attributes":_entries["attributes"]})
+        return entries
+        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
+        #return self.ldap_session.entries
 
     def convertfrom_sid(self, objectsid, args=None, output=False):
         identity = WELL_KNOWN_SIDS.get(objectsid)
@@ -562,11 +578,81 @@ class PowerView:
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
 
-    def get_domaindnszone(self, args=None, properties=['*']):
-        ldap_filter = "(objectClass=dnsZone)"
+    def get_domaindnszone(self, identity=None, properties=[], args=None):
+        def_prop = [
+            'objectClass',
+            'cn',
+            'distinguishedName',
+            'instanceType',
+            'whenCreated',
+            'whenChanged',
+            'name',
+            'objectGUID',
+            'objectCategory',
+            'dSCorePropagationData',
+            'dc'
+        ]
+
+        properties = def_prop if not properties else properties + def_prop
+        identity = '*' if not identity else identity
+
+        identity_filter = f"(name={identity})"
+        ldap_filter = f"(&(objectClass=dnsZone){identity_filter})"
         search_base = f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
-        self.ldap_session.search(search_base, ldap_filter, attributes=properties)
-        return self.ldap_session.entries
+
+        logging.debug(f"[Get-DomainDNSZone] LDAP filter string: {ldap_filter}")
+
+        entries = []
+        entry_generator = self.ldap_session.extend.standard.paged_search(search_base,ldap_filter,attributes=properties,paged_size = 1000,generator=True)
+        for _entries in entry_generator:
+            if _entries['type'] != 'searchResEntry':
+                continue
+            entries.append({"attributes":_entries["attributes"]})
+        return entries
+        #self.ldap_session.search(search_base, ldap_filter, attributes=properties)
+        #return self.ldap_session.entries
+
+    def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], args=None):
+        def_prop = [
+            'name',
+            'distinguishedName',
+            'dnsrecord',
+            'whenCreated',
+            'uSNChanged',
+            'objectCategory',
+            'objectGUID'
+        ]
+
+        zonename = '*' if not zonename else zonename
+        identity = '*' if not identity else identity
+        properties = def_prop if not properties else properties + def_prop
+
+        zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'])
+        entries = []
+        identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
+        ldap_filter = f'(&(objectClass=dnsNode){identity_filter})'
+        for zone in zones:
+            logging.debug(f"[Get-DomainDNSRecord] Search base: {zone['attributes']['distinguishedName']}")
+
+            entry_generator = self.ldap_session.extend.standard.paged_search(zone['attributes']['distinguishedName'],ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+            for _entries in entry_generator:
+                if _entries['type'] != 'searchResEntry':
+                    continue
+                for record in _entries['attributes']['dnsRecord']:
+                    dr = DNS_RECORD(record)
+                    _entries = modify_entry(_entries,new_attributes={
+                        'TTL': dr['TtlSeconds'],
+                        'TimeStamp': dr['TimeStamp'],
+                        'UpdatedAtSerial': dr['Serial'],
+                    })
+                    parsed_data = DNS_UTIL.parse_record_data(dr)
+                    if parsed_data:
+                        for data in parsed_data:
+                            _entries = modify_entry(_entries,new_attributes={
+                                data : parsed_data[data]
+                            })
+                        entries.append({"attributes":_entries["attributes"]})
+        return entries
 
     def get_domainca(self, args=None, properties=['*']):
         ca_fetch = CAEnum(self.ldap_session, self.root_dn)
@@ -739,9 +825,12 @@ class PowerView:
 
             try:
                 for val in attrs['value']:
-                    if val in target_template[0][attrs['attribute']]:
-                        logging.error(f"Value {val} already set in the attribute "+attrs['attribute'])
-                        return
+                    try:
+                        if val in target_template[0][attrs['attribute']]:
+                            logging.error(f"Value {val} already set in the attribute "+attrs['attribute'])
+                            return
+                    except KeyError as e:
+                        logging.debug("Attribute %s not found in template" % attrs['attribute'])
             except ldap3.core.exceptions.LDAPKeyError as e:
                 logging.error(f"Key {attrs['attribute']} not found in template attribute. Adding anyway...")
 
@@ -788,6 +877,37 @@ class PowerView:
         if not succeeded:
             print(self.ldap_session.result['message'])
         return succeeded
+
+    def remove_domaindnsrecord(self, identity=None, args=None):
+        if args.zonename:
+            zonename = args.zonename
+        else:
+            zonename = self.domain
+            logging.debug("Using current domain %s as zone name" % self.domain)
+
+        zones = [name['attributes']['name'] for name in self.get_domaindnszone(properties=['name'])]
+        if zonename not in zones:
+            logging.info("Zone %s not found" % zonename)
+            return
+
+
+        entry = self.get_domaindnsrecord(identity=identity, zonename=zonename)
+
+        if len(entry) == 0:
+            logging.info("No record found")
+            return
+        elif len(entry) > 1:
+            logging.info("More than one record found")
+
+        record_dn = entry[0]["attributes"]["distinguishedName"]
+
+        succeeded = self.ldap_session.delete(record_dn)
+        if not succeeded:
+            logging.error(self.ldap_session.result['message'])
+            return False
+        else:
+            logging.info("Success! Deleted the record")
+            return True
 
     def remove_domaingroupmember(self, identity, members, args=None):
         group_entry = self.get_domaingroup(identity=identity,properties=['distinguishedName'])
@@ -969,6 +1089,105 @@ class PowerView:
             return True
         else:
             return False
+
+    def set_domaindnsrecord(self, args):
+        if args.zonename:
+            zonename = args.zonename
+        else:
+            zonename = self.domain
+
+        zones = [name['attributes']['name'] for name in self.get_domaindnszone(properties=['name'])]
+        if zonename not in zones:
+            logging.info("Zone %s not found" % zonename)
+            return
+
+        recordname = args.recordname
+        recordaddress = args.recordaddress
+
+        entry = self.get_domaindnsrecord(identity=recordname, zonename=zonename, properties=['dnsRecord', 'distinguishedName', 'name'])
+
+        if len(entry) == 0:
+            logging.info("No record found")
+            return
+        elif len(entry) > 1:
+            logging.info("More than one record found")
+            return
+
+        targetrecord = None
+        records = []
+        for record in entry[0]["attributes"]["dnsRecord"]:
+            dr = DNS_RECORD(record)
+            if dr["Type"] == 1:
+                targetrecord = dr
+            else:
+                records.append(record)
+
+        if not targetrecord:
+            logging.error("No A record exists yet. Nothing to modify")
+            return
+
+        targetrecord["Serial"] = DNS_UTIL.get_next_serial(self.dc_ip, zonename, True)
+        targetrecord['Data'] = DNS_RPC_RECORD_A()
+        targetrecord['Data'].fromCanonical(recordaddress)
+        records.append(targetrecord.getData())
+
+        succeeded = self.ldap_session.modify(entry[0]['attributes']['distinguishedName'], {'dnsRecord': [(ldap3.MODIFY_REPLACE, records)]})
+
+        if not succeeded:
+            logging.error(self.ldap_session.result['message'])
+            return False
+        else:
+            logging.info('Success! modified attribute for target record %s' % entry[0]['attributes']['distinguishedName'])
+            return True
+
+    def add_domaindnsrecord(self, args):
+        if args.zonename:
+            zonename = args.zonename
+        else:
+            zonename = self.domain
+        recordname = args.recordname
+        recordaddress = args.recordaddress
+
+        zones = [name['attributes']['name'] for name in self.get_domaindnszone(properties=['name'])]
+        if zonename not in zones:
+            logging.info("Zone %s not found" % zonename)
+            return
+
+        if recordname.lower().endswith(zonename.lower()):
+            recordname = recordname[:-(len(zonename)+1)]
+
+        entries = self.get_domaindnsrecord(identity=recordname, zonename=zonename, properties=['dnsRecord','dNSTombstoned','name'])
+
+        if entries:
+            for e in entries:
+                for record in e['attributes']['dnsRecord']:
+                    dr = DNS_RECORD(record)
+                    if dr['Type'] == 1:
+                        address = DNS_RPC_RECORD_A(dr['Data'])
+                        logging.info("Record %s in zone %s pointing to %s already exists" % (recordname, zonename, address.formatCanonical()))
+                        return
+
+        # addtype is A record = 1
+        addtype = 1
+        DNS_UTIL.get_next_serial(self.dc_ip, zonename, True)
+        node_data = {
+            # Schema is in the root domain (take if from schemaNamingContext to be sure)
+            'objectCategory': 'CN=Dns-Node,CN=Schema,CN=Configuration,%s' % self.root_dn,
+            'dNSTombstoned': False,
+            'name': recordname
+        }
+        record = DNS_UTIL.new_record(addtype, DNS_UTIL.get_next_serial(self.dc_ip, zonename, True), recordaddress)
+        search_base = f"DC={zonename},CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
+        record_dn = 'DC=%s,%s' % (recordname, search_base)
+        node_data['dnsRecord'] = [record.getData()]
+
+        succeeded = self.ldap_session.add(record_dn, ['top', 'dnsNode'], node_data)
+        if not succeeded:
+            logging.error(self.ldap_session.result['message'])
+            return False
+        else:
+            logging.info('Success! Created new record with dn %s' % record_dn)
+            return True
 
     def add_domaincomputer(self, computer_name, computer_pass):
         if computer_name[-1] != '$':
@@ -1193,9 +1412,12 @@ class PowerView:
 
             try:
                 for val in attrs['value']:
-                    if val == targetobject[0]["attributes"][attrs['attribute']]:
-                        logging.error(f"Value {val} already set in the attribute "+attrs['attribute'])
-                        return
+                    try:
+                        if val in targetobject[0]["attributes"][attrs['attribute']]:
+                            logging.error(f"Value {val} already set in the attribute "+attrs['attribute'])
+                            return
+                    except KeyError as e:
+                        logging.debug(f"Attribute {attrs['attribute']} not exists in object. Modifying anyway...")
             except ldap3.core.exceptions.LDAPKeyError as e:
                 logging.error(f"Key {attrs['attribute']} not found in template attribute. Adding anyway...")
 
@@ -1270,6 +1492,9 @@ class PowerView:
             return
 
         if computer:
+            if not is_valid_fqdn(computer):
+                computer = "%s.%s" % (computer,self.domain)
+
             if is_ipaddress(computer):
                 hosts['address'] = computer
             else:
@@ -1309,7 +1534,6 @@ class PowerView:
                 local_admin_pcs.append(pc_attr.copy())
             except:
                 pass
-
         return local_admin_pcs
 
     def get_shares(self, args):

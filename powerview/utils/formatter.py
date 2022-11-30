@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 from powerview.utils.colors import bcolors
+from powerview.lib.resolver import (
+    UAC,
+    TRUST,
+    ENCRYPTION_TYPE
+)
 
 from ldap3.protocol.formatters.formatters import format_sid
 
@@ -22,10 +27,10 @@ class FORMATTER:
     def print_index(self, entries):
         i = int(self.args.select)
         for entry in entries[0:i]:
-            entry = self.fix_sid_formatting(entry)
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
+                entry = self.resolve_values(entry)
                 for attr,value in entry['attributes'].items():
                     # Check dictionary in a list
                     if isinstance(value, list):
@@ -43,6 +48,7 @@ class FORMATTER:
                         print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {value}")
                 print()
             elif isinstance(entry['attributes'],list):
+                entry = self.resolve_values(entry)
                 for ace in entry['attributes'][0:i]:
                     for attr, value in ace.items():
                         print(f"{attr.ljust(28)}: {value}")
@@ -51,10 +57,10 @@ class FORMATTER:
     def print_select(self,entries):
         select_attributes = self.args.select.split(",")
         for entry in entries:
-            entry = self.fix_sid_formatting(entry)
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
+                entry = self.resolve_values(entry)
                 for key in list(entry["attributes"].keys()):
                     for attr in select_attributes:
                         if (str(attr).casefold() == str(key).casefold()):
@@ -80,6 +86,7 @@ class FORMATTER:
                 if len(select_attributes) != 1:
                     print()
             elif isinstance(entry['attributes'], list):
+                entry = self.resolve_values(entry)
                 for ace in entry['attributes']:
                     for key in list(ace.keys()):
                         for attr in select_attributes:
@@ -93,10 +100,10 @@ class FORMATTER:
 
     def print(self,entries):
         for entry in entries:
-            entry = self.fix_sid_formatting(entry)
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
+                entry = self.resolve_values(entry)
                 for attr,value in entry['attributes'].items():
                     # Check dictionary in a list
                     if isinstance(value, list):
@@ -115,11 +122,13 @@ class FORMATTER:
                         print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {str(value)}")
                 print()
             elif isinstance(entry['attributes'],list):
+                entry = self.resolve_values(entry)
                 for ace in entry['attributes']:
                     for k, v in ace.items():
                         print(f'{k.ljust(28)}: {v}')
                     print()
             elif isinstance(entry, str):
+                entry = self.resolve_values(entry)
                 print(entry)
 
     def alter_entries(self,entries,cond):
@@ -231,21 +240,80 @@ class FORMATTER:
 
         return temp_alter_entries
 
-    def fix_sid_formatting(self,entry):
+    def resolve_values(self,entry):
+        # resolve msDS-SupportedEncryptionTypes
         try:
-            if isinstance(entry['attributes']['ObjectSID'], list):
-                entry['attributes']['ObjectSID'][0] = format_sid(entry['attributes']['ObjectSID'][0])
-            else:
-                entry['attributes']['ObjectSID'] = format_sid(entry['attributes']['ObjectSID'])
+            if "msDS-SupportedEncryptionTypes" in list(entry["attributes"].keys()):
+                entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"])
         except KeyError:
             pass
         except TypeError:
             pass
+
+        # resolve trustattributes
         try:
-            if isinstance(entry['attributes']['mS-DS-CreatorSID'], list):
-                entry['attributes']['mS-DS-CreatorSID'][0] = format_sid(entry['attributes']['mS-DS-CreatorSID'][0])
-            else:
-                entry['attributes']['mS-DS-CreatorSID'] = format_sid(entry['attributes']['mS-DS-CreatorSID'])
+            if "trustAttributes" in list(entry["attributes"].keys()):
+                entry["attributes"]["trustAttributes"] = TRUST.resolve_trustAttributes(entry["attributes"]["trustAttributes"])
+        except KeyError:
+            pass
+        except TypeError:
+            pass
+
+        # resolve trustType
+        try:
+            if "trustType" in list(entry["attributes"].keys()):
+                entry["attributes"]["trustType"] = TRUST.resolve_trustType(entry["attributes"]["trustType"])
+        except KeyError:
+            pass
+        except TypeError:
+            pass
+
+        # resolve trustDirection
+        try:
+            if "trustDirection" in list(entry["attributes"].keys()):
+                entry["attributes"]["trustDirection"] = TRUST.resolve_trustDirection(entry["attributes"]["trustDirection"])
+        except KeyError:
+            pass
+        except TypeError:
+            pass
+
+        # resolve userAccountControl
+        try:
+            if "userAccountControl" in list(entry["attributes"].keys()):
+                entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"])
+        except KeyError:
+            pass
+        except TypeError:
+            pass
+
+        # resolve securityIdentifier
+        try:
+            if "securityIdentifier" in list(entry["attributes"].keys()):
+                entry["attributes"]["securityIdentifier"] = format_sid(entry["attributes"]["securityIdentifier"])
+        except KeyError:
+            pass
+        except TypeError:
+            pass
+
+        #resolve objectSID
+        try:
+            if "ObjectSID" in list(entry["attributes"].keys()):
+                if isinstance(entry['attributes']['ObjectSID'], list):
+                    entry['attributes']['ObjectSID'][0] = format_sid(entry['attributes']['ObjectSID'][0])
+                else:
+                    entry['attributes']['ObjectSID'] = format_sid(entry['attributes']['ObjectSID'])
+        except KeyError:
+            pass
+        except TypeError:
+            pass
+
+        # resolve ms-ds-creatorSID
+        try:
+            if "mS-DS-CreatorSID" in list(entry["attributes"].keys()):
+                if isinstance(entry['attributes']['mS-DS-CreatorSID'], list):
+                    entry['attributes']['mS-DS-CreatorSID'][0] = format_sid(entry['attributes']['mS-DS-CreatorSID'][0])
+                else:
+                    entry['attributes']['mS-DS-CreatorSID'] = format_sid(entry['attributes']['mS-DS-CreatorSID'])
         except KeyError:
             pass
         except TypeError:

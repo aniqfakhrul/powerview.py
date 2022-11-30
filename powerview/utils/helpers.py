@@ -16,6 +16,8 @@ from dns import resolver
 import struct
 from ldap3.utils.conv import escape_filter_chars
 import re
+import configparser
+import validators
 
 from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
@@ -26,11 +28,11 @@ from impacket.examples import logger
 from impacket.examples.utils import parse_credentials
 from impacket.krb5 import constants
 from impacket.krb5.types import Principal
-
 from impacket.krb5.kerberosv5 import getKerberosTGT
 
-import configparser
-import validators
+from powerview.lib.dns import (
+    STORED_ADDR
+)
 
 def get_user_sids(domain_sid, objectsid):
     user_sids = []
@@ -455,18 +457,28 @@ def get_user_info(samname, ldap_session, domain_dumper):
 
 
 def host2ip(hostname, nameserver,dns_timeout,dns_tcp):
+    if hostname in list(STORED_ADDR.keys()):
+        return STORED_ADDR[hostname]
+
     dnsresolver = resolver.Resolver()
     if nameserver:
-        logging.debug(f"Querying from DNS server {nameserver}")
+        logging.debug(f"Querying {hostname} from DNS server {nameserver}")
         dnsresolver.nameservers = [nameserver]
     dnsresolver.lifetime = float(dns_timeout)
     try:
         q = dnsresolver.query(hostname, 'A', tcp=dns_tcp)
         for r in q:
             addr = r.address
+        STORED_ADDR[hostname] = addr
         return addr
     except resolver.NXDOMAIN as e:
         logging.debug("Resolved Failed: %s" % e)
+        return None
+    except dns.exception.Timeout as e:
+        logging.debug(str(e))
+        return None
+    except dns.resolver.NoNameservers as e:
+        logging.debug(str(e))
         return None
 
 def get_dc_host(ldap_session, domain_dumper,options):
