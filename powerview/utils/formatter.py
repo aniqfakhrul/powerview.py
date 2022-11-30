@@ -2,7 +2,8 @@
 from powerview.utils.colors import bcolors
 from powerview.lib.resolver import (
     UAC,
-    TRUST
+    TRUST,
+    ENCRYPTION_TYPE
 )
 
 from ldap3.protocol.formatters.formatters import format_sid
@@ -240,6 +241,15 @@ class FORMATTER:
         return temp_alter_entries
 
     def resolve_values(self,entry):
+        # resolve msDS-SupportedEncryptionTypes
+        try:
+            if "msDS-SupportedEncryptionTypes" in list(entry["attributes"].keys()):
+                entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"])
+        except KeyError:
+            pass
+        except TypeError:
+            pass
+
         # resolve trustattributes
         try:
             if "trustAttributes" in list(entry["attributes"].keys()):

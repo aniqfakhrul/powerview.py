@@ -443,6 +443,13 @@ UAC_DICT = dict([
     (0x04000000, "PARTIAL_SECRETS_ACCOUNT")
 ])
 
+SUPPORTED_ENCRYPTION_TYPES = dict([
+    (0x00000001, "DES-CBC-CRC"),
+    (0x00000002, "DES-CBC-MD5"),
+    (0x00000004, "RC4-HMAC"),
+    (0x00000008, "AES128"),
+    (0x00000010, "AES256")
+])
 
 switcher_trustDirection = {
     0: "Disabled",

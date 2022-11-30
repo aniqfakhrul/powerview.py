@@ -1,6 +1,7 @@
 from powerview.utils.constants import (
     UAC_DICT,
     LDAP_ERROR_STATUS,
+    SUPPORTED_ENCRYPTION_TYPES,
     switcher_trustDirection,
     switcher_trustType,
     switcher_trustAttributes
@@ -12,6 +13,16 @@ class UAC:
 
         for key, value in UAC_DICT.items():
             if uac_value & key:
+                flags.append(value)
+
+        return flags
+
+class ENCRYPTION_TYPE:
+    def parse_value(enc_value):
+        flags = []
+
+        for key, value in SUPPORTED_ENCRYPTION_TYPES.items():
+            if enc_value & key:
                 flags.append(value)
 
         return flags

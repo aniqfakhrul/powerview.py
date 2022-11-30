@@ -281,6 +281,7 @@ class PowerView:
             'distinguishedName',
             'cn',
             'operatingSystem',
+            'msDS-SupportedEncryptionTypes'
         ]
 
         properties = def_prop if not properties else properties + def_prop
