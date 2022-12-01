@@ -7,8 +7,14 @@ from powerview.utils.completer import COMMANDS
 from powerview.utils.colors import bcolors
 from powerview._version import BANNER
 
+# https://stackoverflow.com/questions/14591168/argparse-dont-show-usage-on-h
+class PowerViewParser(argparse.ArgumentParser):
+    def error(self, message):
+        logging.error(message)
+        sys.exit(0)
+
 def arg_parse():
-    parser = argparse.ArgumentParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE}0.1.2{bcolors.ENDC}")
+    parser = PowerViewParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE}0.1.2{bcolors.ENDC}")
     parser.add_argument('account', action='store', metavar='[domain/]username[:password]', help='Account used to authenticate to DC.')
     parser.add_argument('--debug', dest='debug', action='store_true', help='Enable debug output')
     parser.add_argument('--version', dest='version', action='version',version=BANNER)
@@ -43,7 +49,7 @@ def arg_parse():
     return args
 
 def powerview_arg_parse(cmd):
-    parser = argparse.ArgumentParser(exit_on_error=False)
+    parser = PowerViewParser(exit_on_error=False)
     subparsers = parser.add_subparsers(dest='module')
     parser.add_argument('-Domain', action='store', dest='server')
     parser.add_argument('-Where', action='store', dest='where')
@@ -141,6 +147,7 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-Properties', action='store', dest='properties')
     get_domaincomputer_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domaincomputer_parser.add_argument('-ResolveIP', action='store_true', default=False, dest='resolveip')
+    get_domaincomputer_parser.add_argument('-ResolveSIDs', action='store_true', default=False, dest='resolvesids')
     get_domaincomputer_parser.add_argument('-Domain', action='store', dest='server')
     get_domaincomputer_parser.add_argument('-Select', action='store', dest='select')
     get_domaincomputer_parser.add_argument('-Where', action='store', dest='where')

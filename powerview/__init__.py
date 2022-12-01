@@ -119,9 +119,9 @@ def main():
                                 properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaincomputer(pv_args, properties, identity, resolveip=pv_args.resolveip)
+                                    entries = temp_powerview.get_domaincomputer(pv_args, properties, identity, resolveip=pv_args.resolveip, resolvesids=pv_args.resolvesids)
                                 else:
-                                    entries = powerview.get_domaincomputer(pv_args, properties, identity, resolveip=pv_args.resolveip)
+                                    entries = powerview.get_domaincomputer(pv_args, properties, identity, resolveip=pv_args.resolveip, resolvesids=pv_args.resolvesids)
                             elif pv_args.module.casefold() == 'get-domaingroup' or pv_args.module.casefold() == 'get-netgroup':
                                 properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None

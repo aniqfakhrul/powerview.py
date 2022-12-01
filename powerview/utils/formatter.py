@@ -2,7 +2,6 @@
 from powerview.utils.colors import bcolors
 from powerview.lib.resolver import (
     UAC,
-    TRUST,
     ENCRYPTION_TYPE
 )
 
@@ -245,33 +244,6 @@ class FORMATTER:
         try:
             if "msDS-SupportedEncryptionTypes" in list(entry["attributes"].keys()):
                 entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"])
-        except KeyError:
-            pass
-        except TypeError:
-            pass
-
-        # resolve trustattributes
-        try:
-            if "trustAttributes" in list(entry["attributes"].keys()):
-                entry["attributes"]["trustAttributes"] = TRUST.resolve_trustAttributes(entry["attributes"]["trustAttributes"])
-        except KeyError:
-            pass
-        except TypeError:
-            pass
-
-        # resolve trustType
-        try:
-            if "trustType" in list(entry["attributes"].keys()):
-                entry["attributes"]["trustType"] = TRUST.resolve_trustType(entry["attributes"]["trustType"])
-        except KeyError:
-            pass
-        except TypeError:
-            pass
-
-        # resolve trustDirection
-        try:
-            if "trustDirection" in list(entry["attributes"].keys()):
-                entry["attributes"]["trustDirection"] = TRUST.resolve_trustDirection(entry["attributes"]["trustDirection"])
         except KeyError:
             pass
         except TypeError:
