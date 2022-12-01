@@ -244,27 +244,21 @@ class FORMATTER:
         try:
             if "msDS-SupportedEncryptionTypes" in list(entry["attributes"].keys()):
                 entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"])
-        except KeyError:
-            pass
-        except TypeError:
+        except:
             pass
 
         # resolve userAccountControl
         try:
             if "userAccountControl" in list(entry["attributes"].keys()):
                 entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"])
-        except KeyError:
-            pass
-        except TypeError:
+        except:
             pass
 
         # resolve securityIdentifier
         try:
             if "securityIdentifier" in list(entry["attributes"].keys()):
                 entry["attributes"]["securityIdentifier"] = format_sid(entry["attributes"]["securityIdentifier"])
-        except KeyError:
-            pass
-        except TypeError:
+        except:
             pass
 
         #resolve objectSID
@@ -274,9 +268,7 @@ class FORMATTER:
                     entry['attributes']['ObjectSID'][0] = format_sid(entry['attributes']['ObjectSID'][0])
                 else:
                     entry['attributes']['ObjectSID'] = format_sid(entry['attributes']['ObjectSID'])
-        except KeyError:
-            pass
-        except TypeError:
+        except:
             pass
 
         # resolve ms-ds-creatorSID
@@ -286,10 +278,9 @@ class FORMATTER:
                     entry['attributes']['mS-DS-CreatorSID'][0] = format_sid(entry['attributes']['mS-DS-CreatorSID'][0])
                 else:
                     entry['attributes']['mS-DS-CreatorSID'] = format_sid(entry['attributes']['mS-DS-CreatorSID'])
-        except KeyError:
+        except:
             pass
-        except TypeError:
-            pass
+
         return entry
 
     def get_max_len(self, lst):
