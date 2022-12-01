@@ -2,7 +2,13 @@
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 
-from powerview.modules.ldapattack import LDAPAttack, ACLEnum, ADUser, ObjectOwner
+from powerview.modules.ldapattack import (
+    LDAPAttack,
+    ACLEnum,
+    ADUser,
+    ObjectOwner,
+    RBCD
+)
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
@@ -17,6 +23,9 @@ from powerview.lib.dns import (
     DNS_RECORD,
     DNS_RPC_RECORD_A,
     DNS_UTIL,
+)
+from powerview.lib.resolver import (
+    TRUST
 )
 
 import chardet
@@ -259,7 +268,7 @@ class PowerView:
         entries_dacl = enum.read_dacl()
         return entries_dacl
 
-    def get_domaincomputer(self, args=None, properties=[], identity=None, resolveip=False):
+    def get_domaincomputer(self, args=None, properties=[], identity=None, resolveip=False, resolvesids=False):
         def_prop = [
             'lastLogonTimestamp',
             'objectCategory',
@@ -337,6 +346,18 @@ class PowerView:
                             'IPAddress':ip
                         }
                     )
+            # resolve msDS-AllowedToActOnBehalfOfOtherIdentity
+            try:
+                if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(_entries["attributes"].keys()):
+                    parser = RBCD(_entries)
+                    sids = parser.read()
+                    if args.resolvesids:
+                        for i in range(len(sids)):
+                            sids[i] = self.convertfrom_sid(sids[i])
+                    _entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = sids
+            except:
+                pass
+
             entries.append({"attributes":_entries["attributes"]})
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
@@ -535,6 +556,33 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            # resolve trustattributes
+            try:
+                if "trustAttributes" in list(_entries["attributes"].keys()):
+                    _entries["attributes"]["trustAttributes"] = TRUST.resolve_trustAttributes(_entries["attributes"]["trustAttributes"])
+            except KeyError:
+                pass
+            except TypeError:
+                pass
+
+            # resolve trustType
+            try:
+                if "trustType" in list(_entries["attributes"].keys()):
+                    _entries["attributes"]["trustType"] = TRUST.resolve_trustType(_entries["attributes"]["trustType"])
+            except KeyError:
+                pass
+            except TypeError:
+                pass
+
+            # resolve trustDirection
+            try:
+                if "trustDirection" in list(_entries["attributes"].keys()):
+                    _entries["attributes"]["trustDirection"] = TRUST.resolve_trustDirection(_entries["attributes"]["trustDirection"])
+            except KeyError:
+                pass
+            except TypeError:
+                pass
+
             entries.append({"attributes":_entries["attributes"]})
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
