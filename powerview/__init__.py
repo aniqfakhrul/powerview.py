@@ -18,7 +18,7 @@ import random
 import string
 import shlex
 from sys import platform
-if platform == "linux" or platform == "linux2":
+if platform in ["linux","linux2","darwin"]:
     import gnureadline as readline
 else:
     import readline
@@ -53,7 +53,7 @@ def main():
                 readline.parse_and_bind("tab: complete")
                 readline.set_completer(comp.complete)
 
-                cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{bcolors.BOLD}{cur_domain}\\{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV> {bcolors.ENDC}')
+                cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{bcolors.BOLD}{cur_domain}\\{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV > {bcolors.ENDC}')
 
                 if cmd:
                     pv_args = powerview_arg_parse(shlex.split(cmd))

@@ -421,3 +421,5 @@ def powerview_arg_parse(cmd):
 
         logging.error(str(e).split("(")[0])
         return None
+    except:
+        return
