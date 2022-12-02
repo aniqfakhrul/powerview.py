@@ -88,7 +88,7 @@ class PowerView:
             'msDS-SupportedEncryptionTypes'
         ]
 
-        properties = def_prop if not properties else properties + def_prop
+        properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
 
         ldap_filter = ""
@@ -294,7 +294,7 @@ class PowerView:
             'msDS-SupportedEncryptionTypes'
         ]
 
-        properties = def_prop if not properties else properties + def_prop
+        properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
 
         ldap_filter = ""
@@ -380,7 +380,7 @@ class PowerView:
             'name'
         ]
 
-        properties = def_prop if not properties else properties + def_prop
+        properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
 
         ldap_filter = ""
@@ -544,7 +544,7 @@ class PowerView:
             'flatName'
         ]
 
-        properties = def_prop if not properties else properties + def_prop
+        properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
 
         identity_filter = f"(name={identity})"
@@ -642,7 +642,7 @@ class PowerView:
             'dc'
         ]
 
-        properties = def_prop if not properties else properties + def_prop
+        properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
 
         identity_filter = f"(name={identity})"
@@ -674,7 +674,7 @@ class PowerView:
 
         zonename = '*' if not zonename else zonename
         identity = '*' if not identity else identity
-        properties = def_prop if not properties else properties + def_prop
+        properties = def_prop if not properties else properties
 
         zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'])
         entries = []
@@ -724,7 +724,7 @@ class PowerView:
             "objectGUID",
         ]
 
-        properties = def_prop if not properties else properties + def_prop
+        properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
 
         entries = []

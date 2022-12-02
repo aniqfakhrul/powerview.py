@@ -411,10 +411,13 @@ def powerview_arg_parse(cmd):
             return parser.parse_args(cmd)
         return args
     except argparse.ArgumentError as e:
-        for i in list(COMMANDS.keys()):
-            if cmd[0].casefold() == i.casefold():
-                cmd[0] = i
-                return parser.parse_args(cmd)
+        try:
+            for i in list(COMMANDS.keys()):
+                if cmd[0].casefold() == i.casefold():
+                    cmd[0] = i
+                    return parser.parse_args(cmd)
+        except:
+            pass
 
         logging.error(str(e).split("(")[0])
         return None
