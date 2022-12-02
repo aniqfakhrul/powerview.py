@@ -42,6 +42,8 @@ def main():
 
         powerview = PowerView(conn, args)
         init_proto = conn.get_proto()
+        cur_user = conn.get_username()
+        cur_domain = conn.get_domain()
         temp_powerview = None
 
         while True:
@@ -51,7 +53,7 @@ def main():
                 readline.parse_and_bind("tab: complete")
                 readline.set_completer(comp.complete)
 
-                cmd = input(f'{bcolors.WARNING}({init_proto}){bcolors.ENDC}{bcolors.OKBLUE} PV> {bcolors.ENDC}')
+                cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{bcolors.BOLD}{cur_domain}\\{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV> {bcolors.ENDC}')
 
                 if cmd:
                     pv_args = powerview_arg_parse(shlex.split(cmd))
