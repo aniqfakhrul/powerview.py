@@ -99,6 +99,7 @@ class FORMATTER:
 
     def print(self,entries):
         for entry in entries:
+            have_entry = False
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
                     entry = json.loads(entry.entry_to_json())
@@ -116,10 +117,13 @@ class FORMATTER:
 
                     if isinstance(value,list):
                         if len(value) != 0:
+                            have_entry = True
                             print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}")
                     else:
+                        have_entry = True
                         print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {str(value)}")
-                print()
+                if have_entry:
+                    print()
             elif isinstance(entry['attributes'],list):
                 entry = self.resolve_values(entry)
                 for ace in entry['attributes']:
