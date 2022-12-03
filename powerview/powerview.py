@@ -198,7 +198,7 @@ class PowerView:
         parser = ObjectOwner(entries[0])
         ownersid = parser.read()
         if ownersid:
-            print("%s (%s)" % (self.convertfrom_sid(ownersid), ownersid))
+            print("%s (%s)\n" % (self.convertfrom_sid(ownersid), ownersid))
             return ownersid
 
     def get_domainou(self, args=None, properties=['*'], identity='*'):
@@ -611,7 +611,7 @@ class PowerView:
                 logging.debug(f"No objects found for {objectsid}")
                 return
         if output:
-            print(identity)
+            print("%s\n" % identity)
         return identity
 
     def get_domain(self, args=None, properties=['*'], identity='*'):

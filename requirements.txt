@@ -4,3 +4,4 @@ gnureadline
 impacket>=0.10.0
 ldap3
 validators
+pycryptodome

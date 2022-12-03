@@ -14,7 +14,15 @@ setup(name='powerview',
                 'powerview.lib'
                 ],
       license='MIT',
-      install_requires=['dnspython','future','gnureadline','impacket>=0.10.0','validators','dsinternals'],
+      install_requires=[
+          'dnspython',
+          'future',
+          'gnureadline',
+          'impacket>=0.10.0',
+          'validators',
+          'dsinternals',
+          'pycryptodome'
+      ],
       classifiers=[
         'Intended Audience :: Information Technology',
         'License :: OSI Approved :: MIT License',
