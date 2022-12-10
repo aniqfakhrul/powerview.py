@@ -133,7 +133,11 @@ class CONNECTION:
         if self.use_kerberos:
             ldap_session = ldap3.Connection(ldap_server, auto_referrals=False)
             bind = ldap_session.bind()
-            ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, self.auth_aes_key, kdcHost=self.kdcHost,useCache=self.no_pass)
+            try:
+                ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, self.auth_aes_key, kdcHost=self.kdcHost,useCache=self.no_pass)
+            except Exception as e:
+                logging.error(str(e))
+                sys.exit(0)
         elif self.hashes is not None:
             ldap_session = ldap3.Connection(ldap_server, user=user, password=lmhash + ":" + nthash, authentication=ldap3.NTLM)
             bind = ldap_session.bind()
@@ -150,9 +154,9 @@ class CONNECTION:
             error_code = ldap_session.result['message'].split(",")[2].replace("data","").strip()
             error_status = LDAP.resolve_err_status(error_code)
             if error_code and error_status:
-                logging.error("Bind not successful - %s" % error_status)
+                logging.error("Bind not successful - %s [%s]" % (ldap_session.result['description'], error_status))
             else:
-                logging.error(f"Unexpected Error: {str(ldapConn.result)}")
+                logging.error(f"Unexpected Error: {str(ldap_session.result['message'])}")
 
             sys.exit(0)
         else:
