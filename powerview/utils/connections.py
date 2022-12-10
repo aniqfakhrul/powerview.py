@@ -139,10 +139,10 @@ class CONNECTION:
                 logging.error(str(e))
                 sys.exit(0)
         elif self.hashes is not None:
-            ldap_session = ldap3.Connection(ldap_server, user=user, password=lmhash + ":" + nthash, authentication=ldap3.NTLM)
+            ldap_session = ldap3.Connection(ldap_server, user=user, password=lmhash + ":" + nthash, authentication=ldap3.SASL)
             bind = ldap_session.bind()
         else:
-            ldap_session = ldap3.Connection(ldap_server, user=user, password=password, authentication=ldap3.NTLM)
+            ldap_session = ldap3.Connection(ldap_server, user=user, password=password, authentication=ldap3.SASL)
             bind = ldap_session.bind()
 
         # check for channel binding
@@ -155,6 +155,7 @@ class CONNECTION:
             error_status = LDAP.resolve_err_status(error_code)
             if error_code and error_status:
                 logging.error("Bind not successful - %s [%s]" % (ldap_session.result['description'], error_status))
+                logging.debug("%s" % (ldap_session.result['message']))
             else:
                 logging.error(f"Unexpected Error: {str(ldap_session.result['message'])}")
 
