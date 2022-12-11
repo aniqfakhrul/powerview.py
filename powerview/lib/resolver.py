@@ -9,6 +9,7 @@ from powerview.utils.constants import (
 
 class UAC:
     def parse_value(uac_value):
+        print(uac_value)
         flags = []
 
         for key, value in UAC_DICT.items():

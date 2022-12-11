@@ -254,7 +254,10 @@ class FORMATTER:
         # resolve userAccountControl
         try:
             if "userAccountControl" in list(entry["attributes"].keys()):
-                entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"])
+                if isinstance(entry['attributes']['userAccountcontrol'], list):
+                    entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"][0])
+                else:
+                    entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"])
         except:
             pass
 
@@ -267,11 +270,11 @@ class FORMATTER:
 
         #resolve objectSID
         try:
-            if "ObjectSID" in list(entry["attributes"].keys()):
-                if isinstance(entry['attributes']['ObjectSID'], list):
-                    entry['attributes']['ObjectSID'][0] = format_sid(entry['attributes']['ObjectSID'][0])
+            if "objectSid" in list(entry["attributes"].keys()):
+                if isinstance(entry['attributes']['objectSID'], list):
+                    entry['attributes']['objectSID'][0] = format_sid(entry['attributes']['objectSID'][0])
                 else:
-                    entry['attributes']['ObjectSID'] = format_sid(entry['attributes']['ObjectSID'])
+                    entry['attributes']['objectSID'] = format_sid(entry['attributes']['objectSID'])
         except:
             pass
 
