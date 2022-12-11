@@ -176,7 +176,7 @@ class PowerView:
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
 
-    def get_domainobjectowner(self, identity=None):
+    def get_domainobjectowner(self, identity, args=None):
         if not identity:
             logging.error("No identity provided")
             return
@@ -198,7 +198,10 @@ class PowerView:
         parser = ObjectOwner(entries[0])
         ownersid = parser.read()
         if ownersid:
-            print("%s (%s)\n" % (self.convertfrom_sid(ownersid), ownersid))
+            if args.resolvesid:
+                print("%s (%s)" % (self.convertfrom_sid(ownersid), ownersid))
+            else:
+                print("%s" % (ownersid))
             return ownersid
 
     def get_domainou(self, args=None, properties=['*'], identity='*'):

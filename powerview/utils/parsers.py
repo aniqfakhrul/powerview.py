@@ -81,6 +81,7 @@ def powerview_arg_parse(cmd):
     #domainobjectowner
     get_domainobjectowner_parser = subparsers.add_parser('Get-DomainObjectOwner', aliases=['Get-ObjectOwner'] ,exit_on_error=False)
     get_domainobjectowner_parser.add_argument('-Identity', action='store', dest='identity')
+    get_domainobjectowner_parser.add_argument('-ResolveSID', action='store_true', default=False, dest='resolvesid')
     get_domainobjectowner_parser.add_argument('-Domain', action='store', dest='server')
     get_domainobjectowner_parser.add_argument('-Select', action='store', dest='select')
     get_domainobjectowner_parser.add_argument('-Where', action='store', dest='where')

@@ -2,10 +2,9 @@
 from powerview.utils.colors import bcolors
 from powerview.lib.resolver import (
     UAC,
-    ENCRYPTION_TYPE
+    ENCRYPTION_TYPE,
+    LDAP
 )
-
-from ldap3.protocol.formatters.formatters import format_sid
 
 import ldap3
 import json
@@ -247,7 +246,10 @@ class FORMATTER:
         # resolve msDS-SupportedEncryptionTypes
         try:
             if "msDS-SupportedEncryptionTypes" in list(entry["attributes"].keys()):
-                entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"])
+                if isinstance(entry['attributes']['msDS-SupportedEncryptionTypes'], list):
+                    entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"][0])
+                else:
+                    entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"])
         except:
             pass
 
@@ -258,33 +260,6 @@ class FORMATTER:
                     entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"][0])
                 else:
                     entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"])
-        except:
-            pass
-
-        # resolve securityIdentifier
-        try:
-            if "securityIdentifier" in list(entry["attributes"].keys()):
-                entry["attributes"]["securityIdentifier"] = format_sid(entry["attributes"]["securityIdentifier"])
-        except:
-            pass
-
-        #resolve objectSID
-        try:
-            if "objectSid" in list(entry["attributes"].keys()):
-                if isinstance(entry['attributes']['objectSID'], list):
-                    entry['attributes']['objectSID'][0] = format_sid(entry['attributes']['objectSID'][0])
-                else:
-                    entry['attributes']['objectSID'] = format_sid(entry['attributes']['objectSID'])
-        except:
-            pass
-
-        # resolve ms-ds-creatorSID
-        try:
-            if "mS-DS-CreatorSID" in list(entry["attributes"].keys()):
-                if isinstance(entry['attributes']['mS-DS-CreatorSID'], list):
-                    entry['attributes']['mS-DS-CreatorSID'][0] = format_sid(entry['attributes']['mS-DS-CreatorSID'][0])
-                else:
-                    entry['attributes']['mS-DS-CreatorSID'] = format_sid(entry['attributes']['mS-DS-CreatorSID'])
         except:
             pass
 

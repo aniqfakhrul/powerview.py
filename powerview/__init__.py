@@ -98,9 +98,9 @@ def main():
                                     logging.error("-Identity flag is required")
                                     continue
                                 if temp_powerview:
-                                    temp_powerview.get_domainobjectowner(identity=identity)
+                                    temp_powerview.get_domainobjectowner(identity=identity, args=pv_args)
                                 else:
-                                    powerview.get_domainobjectowner(identity=identity)
+                                    powerview.get_domainobjectowner(identity=identity, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:

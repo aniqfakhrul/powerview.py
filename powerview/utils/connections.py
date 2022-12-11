@@ -114,7 +114,17 @@ class CONNECTION:
         ldap_server_kwargs = {
             "host": target,
             "get_info": ldap3.ALL,
-            "allowed_referral_hosts": [('*', True)]
+            "allowed_referral_hosts": [('*', True)],
+            "mode": ldap3.IP_V4_PREFERRED,
+            "formatter": {
+                "lastLogon": LDAP.ldap2datetime,
+                "pwdLastSet": LDAP.ldap2datetime,
+                "badPasswordTime": LDAP.ldap2datetime,
+                "objectGUID": LDAP.bin_to_guid,
+                "objectSid": LDAP.bin_to_sid,
+                "securityIdentifier": LDAP.bin_to_sid,
+                "mS-DS-CreatorSID": LDAP.bin_to_sid,
+            }
         }
 
         if tls:
