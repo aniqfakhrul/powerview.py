@@ -300,12 +300,12 @@ class PowerView:
         if identity != "*":
             identity_entries = self.get_domainobject(identity=identity,properties=['objectSid','distinguishedName'])
             if len(identity_entries) == 0:
-                logging.error(f'Identity {args.identity} not found. Try to use DN')
+                logging.error(f'[Get-DomainObjectAcl] Identity {args.identity} not found. Try to use DN')
                 return
             elif len(identity_entries) > 1:
-                logging.error(f'[Identity] Multiple identities found. Use exact match')
+                logging.error(f'[Get-DomainObjectAcl] Multiple identities found. Use exact match')
                 return
-            logging.debug(f'Target identity found in domain {identity_entries[0]["attributes"]["distinguishedName"]}')
+            logging.debug(f'Target identity found in domain {"".join(identity_entries[0]["attributes"]["distinguishedName"])}')
             identity = identity_entries[0]['attributes']['distinguishedName']
         else:
             logging.info('Recursing all domain objects. This might take a while')
@@ -1027,7 +1027,16 @@ class PowerView:
             return
         targetobject = group_entry[0]
         userobject = user_entry[0]
-        succeeded = self.ldap_session.modify(targetobject["attributes"]["distinguishedName"],{'member': [(ldap3.MODIFY_ADD, [userobject["attributes"]["distinguishedName"]])]})
+        if isinstance(targetobject["attributes"]["distinguishedName"], list):
+            targetobject_dn = targetobject["attributes"]["distinguishedName"][0]
+        else:
+            targetobject_dn = targetobject["attributes"]["distinguishedName"]
+
+        if isinstance(userobject["attributes"]["distinguishedName"], list):
+            userobject_dn = userobject["attributes"]["distinguishedName"][0]
+        else:
+            userobject_dn = userobject["attributes"]["distinguishedName"]
+        succeeded = self.ldap_session.modify(targetobject_dn,{'member': [(ldap3.MODIFY_ADD, [userobject_dn])]})
         if not succeeded:
             print(self.ldap_session.result['message'])
         return succeeded
@@ -1074,7 +1083,16 @@ class PowerView:
             return
         targetobject = group_entry[0]
         userobject = user_entry[0]
-        succeeded = self.ldap_session.modify(targetobject["attributes"]["distinguishedName"],{'member': [(ldap3.MODIFY_DELETE, [userobject["attributes"]["distinguishedName"]])]})
+        if isinstance(targetobject["attributes"]["distinguishedName"], list):
+            targetobject_dn = targetobject["attributes"]["distinguishedName"][0]
+        else:
+            targetobject_dn = targetobject["attributes"]["distinguishedName"]
+
+        if isinstance(userobject["attributes"]["distinguishedName"], list):
+            userobject_dn = userobject["attributes"]["distinguishedName"][0]
+        else:
+            userobject_dn = userobject["attributes"]["distinguishedName"]
+        succeeded = self.ldap_session.modify(targetobject_dn,{'member': [(ldap3.MODIFY_DELETE, [userobject_dn])]})
         if not succeeded:
             print(self.ldap_session.result['message'])
         return succeeded
@@ -1509,14 +1527,14 @@ class PowerView:
         elif len(entries) > 1:
             logging.error(f'Multiple principal objects found in domain. Use specific identifier')
             return
-        logging.info(f'Principal {entries[0]["attributes"]["distinguishedName"]} found in domain')
+        logging.info(f'Principal {"".join(entries[0]["attributes"]["distinguishedName"])} found in domain')
         if self.use_ldaps:
             succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0]["attributes"]["distinguishedName"], accountpassword, old_password=None)
             if succeed:
-                logging.info(f'Password has been successfully changed for user {entries[0]["attributes"]["sAMAccountName"]}')
+                logging.info(f'Password has been successfully changed for user {"".join(entries[0]["attributes"]["sAMAccountName"])}')
                 return True
             else:
-                logging.error(f'Failed to change password for {entries[0]["attributes"]["sAMAccountName"]}')
+                logging.error(f'Failed to change password for {"".join(entries[0]["attributes"]["sAMAccountName"])}')
                 return False
         else:
             try:
