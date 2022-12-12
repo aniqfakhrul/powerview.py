@@ -1281,10 +1281,22 @@ class ACLEnum:
 
 class ObjectOwner:
     def __init__(self, entry):
-        self.__target_samaccountname = entry["attributes"]["sAMAccountName"]
-        self.__target_sid = entry["attributes"]["objectSID"]
-        self.__target_dn = entry["attributes"]["distinguishedName"]
-        self.__target_secdesc = entry["attributes"]["nTSecurityDescriptor"]
+        try:
+            self.__target_samaccountname = entry["attributes"]["sAMAccountName"][0] if isinstance(entry["attributes"]["sAMAccountName"],list) else entry["attributes"]["sAMAccountName"]
+        except IndexError as e:
+            pass
+        try:
+            self.__target_sid = entry["attributes"]["objectSid"][0] if isinstance(entry["attributes"]["objectSid"], list) else entry["attributes"]["objectSid"]
+        except IndexError as e:
+            pass
+        try:
+            self.__target_dn = entry["attributes"]["distinguishedName"][0] if isinstance(entry["attributes"]["distinguishedName"], list) else entry["attributes"]["distinguishedName"]
+        except IndexError as e:
+            pass
+        try:
+            self.__target_secdesc = entry["attributes"]["nTSecurityDescriptor"][0] if isinstance(entry["attributes"]["nTSecurityDescriptor"], list) else entry["attributes"]["nTSecurityDescriptor"]
+        except IndexError as e:
+            pass
         self.__target_securitydescriptor = ldaptypes.SR_SECURITY_DESCRIPTOR(data=self.__target_secdesc)
 
         self.new_owner_samaccountname = None
@@ -1292,9 +1304,18 @@ class ObjectOwner:
         self.new_owner_dn = None
 
     def modify_securitydescriptor(self, entry):
-        self.new_owner_samaccountname = entry["attributes"]["sAMAccountName"]
-        self.new_owner_sid = entry["attributes"]["objectSid"]
-        self.new_owner_dn = entry["attributes"]["distinguishedName"]
+        try:
+            self.new_owner_samaccountname = entry["attributes"]["sAMAccountName"][0] if isinstance(entry["attributes"]["sAMAccountName"], list) else entry["attributes"]["sAMAccountName"]
+        except IndexError as e:
+            pass
+        try:
+            self.new_owner_sid = entry["attributes"]["objectSid"][0] if isinstance(entry["attributes"]["objectSid"], list) else entry["attributes"]["objectSid"]
+        except IndexError as e:
+            pass
+        try:
+            self.new_owner_dn = entry["attributes"]["distinguishedName"] if isinstance(entry["attributes"]["distinguishedName"], list) else entry["attributes"]["distinguishedName"]
+        except IndexError as e:
+            pass
 
         new_owner_sid = ldaptypes.LDAP_SID()
         new_owner_sid.fromCanonical(self.new_owner_sid)
