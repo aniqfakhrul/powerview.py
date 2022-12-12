@@ -34,6 +34,8 @@ class CONNECTION:
         self.proto = None
         self.hashes = args.hashes
         self.auth_aes_key = args.auth_aes_key
+        if self.auth_aes_key is not None:
+            self.use_kerberos = True
         self.no_pass = args.no_pass
         self.args = args
         self.targetIp = args.dc_ip
