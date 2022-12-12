@@ -47,6 +47,7 @@ Get-DomainUser -Count
 |Get-Domain|Get-NetDomain||
 | Get-DomainController | Get-NetDomainController ||
 | Get-DomainDNSZone    |                         ||
+| Get-DomainDNSRecord    |                         ||
 | Get-DomainCA         | Get-NetCA               ||
 | Get-DomainCATemplate         | Get-NetCATemplate               ||
 |Get-DomainGPO|Get-NetGPO||
@@ -60,6 +61,7 @@ Get-DomainUser -Count
 |Get-Shares|Get-NetShares||
 |Get-DomainComputer|Get-NetComputer||
 |Get-DomainObject|Get-ADObject||
+|Get-DomainObjectOwner|Get-ObjectOwner||
 |Get-DomainObjectAcl|Get-ObjectAcl||
 |Add-DomainObjectAcl|Add-ObjectAcl|Supported rights so far are All, DCsync, RBCD, ShadowCred, WriteMembers|
 |Remove-DomainObjectAcl|Remove-ObjectAcl||
@@ -71,12 +73,14 @@ Get-DomainUser -Count
 |Remove-DomainUser|Remove-ADUser||
 |Set-DomainObject|Set-Object||
 |Set-DomainUserPassword|||
+|Set-DomainCATemplate|Set-CATemplate||
+|Set-DomainDNSRecord|||
+|Set-DomainObjectOwner|Set-ObjectOwner||
 |Find-LocalAdminAccess|||
 |Invoke-Kerberoast|||
 |ConvertFrom-SID|||
 
 ### To-Do
-* Add Set-DomainObjectOwner module
 * Add a wiki?
 
 ### Credits

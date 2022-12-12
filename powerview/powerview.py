@@ -220,33 +220,39 @@ class PowerView:
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
 
-    def get_domainobjectowner(self, identity, args=None):
+    def get_domainobjectowner(self, identity=None, args=None):
         if not identity:
-            logging.error("No identity provided")
-            return
+            identity = '*'
+            logging.info("Recursing all domain objects. This might take a while")
 
-        entries = self.get_domainobject(identity=identity, properties=[
+        objects = self.get_domainobject(identity=identity, properties=[
+            'cn',
             'nTSecurityDescriptor',
             'sAMAccountname',
             'ObjectSID',
             'distinguishedName',
         ])
 
-        if len(entries) == 0:
+        if len(objects) == 0:
             logging.error("Identity not found in domain")
             return
-        elif len(entries) > 1:
-            logging.error("More then one identity found")
-            return
 
-        parser = ObjectOwner(entries[0])
-        ownersid = parser.read()
-        if ownersid:
+        for i in range(len(objects)):
+            ownersid = None
+            parser = ObjectOwner(objects[i])
+            ownersid = parser.read()
             if args.resolvesid:
-                print("%s (%s)" % (self.convertfrom_sid(ownersid), ownersid))
-            else:
-                print("%s" % (ownersid))
-            return ownersid
+                ownersid = "%s (%s)" % (self.convertfrom_sid(ownersid), ownersid)
+            objects[i] = modify_entry(
+                objects[i],
+                new_attributes = {
+                    "Owner": ownersid
+                },
+                remove = [
+                    'nTSecurityDescriptor'
+                ]
+            )
+        return objects
 
     def get_domainou(self, args=None, properties=['*'], identity='*'):
         ldap_filter = ""
@@ -1337,7 +1343,7 @@ class PowerView:
             logging.info('Success! Created new record with dn %s' % record_dn)
             return True
 
-    def add_domaincomputer(self, computer_name, computer_pass):
+    def add_domaincomputer(self, computer_name, computer_pass, args=None):
         if computer_name[-1] != '$':
             computer_name += '$'
         dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, self.args)

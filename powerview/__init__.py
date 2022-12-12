@@ -95,15 +95,11 @@ def main():
                                 else:
                                     entries = powerview.get_domainobject(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainobjectowner' or pv_args.module.casefold() == 'get-objectowner':
-                                if pv_args.identity:
-                                    identity = pv_args.identity.strip()
-                                else:
-                                    logging.error("-Identity flag is required")
-                                    continue
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    temp_powerview.get_domainobjectowner(identity=identity, args=pv_args)
+                                    entries = temp_powerview.get_domainobjectowner(identity=identity, args=pv_args)
                                 else:
-                                    powerview.get_domainobjectowner(identity=identity, args=pv_args)
+                                    entries = powerview.get_domainobjectowner(identity=identity, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:
