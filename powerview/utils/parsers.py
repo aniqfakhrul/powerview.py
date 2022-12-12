@@ -164,8 +164,9 @@ def powerview_arg_parse(cmd):
 
     #domain controller
     get_domaincontroller_parser = subparsers.add_parser('Get-DomainController', aliases=['Get-NetDomainController'], exit_on_error=False)
-    get_domaincontroller_parser.add_argument('-Identity', action='store',default='*', dest='identity')
-    get_domaincontroller_parser.add_argument('-Properties',action='store',default='*', dest='properties')
+    get_domaincontroller_parser.add_argument('-Identity', action='store', dest='identity')
+    get_domaincontroller_parser.add_argument('-ResolveSIDs', action='store_true', default=False, dest='resolvesids')
+    get_domaincontroller_parser.add_argument('-Properties',action='store', dest='properties')
     get_domaincontroller_parser.add_argument('-Domain', action='store', dest='server')
     get_domaincontroller_parser.add_argument('-Select',action='store', dest='select')
     get_domaincontroller_parser.add_argument('-Where', action='store', dest='where')
@@ -391,6 +392,12 @@ def powerview_arg_parse(cmd):
     set_domainuserpassword_parser.add_argument('-identity', '-Identity', action='store', dest='identity')
     set_domainuserpassword_parser.add_argument('-accountpassword', '-AccountPassword', action='store', dest='accountpassword')
     set_domainuserpassword_parser.add_argument('-domain', '-Domain', action='store', dest='server')
+
+    # set domain object owner
+    set_domainobjectowner_parser = subparsers.add_parser('Set-DomainObjectOwner', aliases=['Set-ObjectOwner'], exit_on_error=False)
+    set_domainobjectowner_parser.add_argument('-TargetIdentity', action='store', const=None, dest='targetidentity')
+    set_domainobjectowner_parser.add_argument('-PrincipalIdentity', action='store', const=None, dest='principalidentity')
+    set_domainobjectowner_parser.add_argument('-Domain', action='store', dest='server')
 
     subparsers.add_parser('exit', exit_on_error=False)
     subparsers.add_parser('clear', exit_on_error=False)

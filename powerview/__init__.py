@@ -47,6 +47,9 @@ def main():
         temp_powerview = None
 
         while True:
+            if not powerview.connection_alive():
+                powerview.reset_connection()
+
             try:
                 comp = Completer()
                 readline.set_completer_delims(' \t\n;')
@@ -138,8 +141,8 @@ def main():
                                 else:
                                     entries = powerview.get_domaingroupmember(pv_args, identity)
                             elif pv_args.module.casefold() == 'get-domaincontroller' or pv_args.module.casefold() == 'get-netdomaincontroller':
-                                properties = pv_args.properties.replace(" ","").split(',')
-                                identity = pv_args.identity.strip()
+                                properties = pv_args.properties.replace(" ","").split(',') if pv_args.properties else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaincontroller(pv_args, properties, identity)
                                 else:
@@ -320,6 +323,14 @@ def main():
                                         logging.error(f'Failed password change attempt for {pv_args.identity}')
                                 else:
                                     logging.error('-Identity and -AccountPassword flags are required')
+                            elif pv_args.module.casefold() == 'set-domainobjectowner' or pv_args.module.casefold() == 'set-objectowner':
+                                if pv_args.targetidentity is not None and pv_args.principalidentity is not None:
+                                    if temp_powerview:
+                                        temp_powerview.set_domainobjectowner(pv_args.targetidentity, pv_args.principalidentity, args=pv_args)
+                                    else:
+                                        powerview.set_domainobjectowner(pv_args.targetidentity, pv_args.principalidentity, args=pv_args)
+                                else:
+                                    logging.error('-TargetIdentity and -PrincipalIdentity flags are required')
                             elif pv_args.module.casefold() == 'add-domaincomputer' or pv_args.module.casefold() == 'add-adcomputer':
                                 if pv_args.computername is not None:
                                     if pv_args.computerpass is None:
@@ -399,14 +410,16 @@ def main():
                             logging.error(str(e))
                         except ldap3.core.exceptions.LDAPSocketSendError as e:
                             logging.error(str(e))
-                            sys.exit(0)
+                            powerview.reset_connection()
+                        except ldap3.core.exceptions.LDAPSocketReceiveError as e:
+                            powerview.reset_connection()
             except KeyboardInterrupt:
                 print()
             except EOFError:
                 print("Exiting...")
                 sys.exit(0)
- #           except Exception as e:
- #               logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:

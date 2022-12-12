@@ -5,6 +5,7 @@ from powerview.lib.resolver import (
     ENCRYPTION_TYPE,
     LDAP
 )
+from powerview import PowerView as PV
 
 import ldap3
 import json

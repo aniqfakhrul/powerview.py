@@ -1,7 +1,9 @@
 import datetime
+import binascii
 
 from impacket.uuid import bin_to_string
 from ldap3.protocol.formatters.formatters import format_sid
+
 
 from powerview.utils.constants import (
     UAC_DICT,
@@ -9,7 +11,9 @@ from powerview.utils.constants import (
     SUPPORTED_ENCRYPTION_TYPES,
     switcher_trustDirection,
     switcher_trustType,
-    switcher_trustAttributes
+    switcher_trustAttributes,
+    MSDS_MANAGEDPASSWORD_BLOB,
+    PWD_FLAGS,
 )
 
 class UAC:
@@ -49,6 +53,19 @@ class LDAP:
 
     def bin_to_sid(sid):
         return format_sid(sid)
+
+    def formatGMSApass(managedPassword):
+        blob = MSDS_MANAGEDPASSWORD_BLOB(managedPassword)
+        hash = MD4.new()
+        hash.update(blob["CurrentPassword"][:-2])
+        passwd = (
+            "aad3b435b51404eeaad3b435b51404ee:" + binascii.hexlify(hash.digest()).decode()
+        )
+        return passwd
+
+    def resolve_pwdProperties(flag):
+        prop =  PWD_FLAGS.get(int(flag))
+        return f"({flag.decode()}) {prop}" if prop else flag
 
 class TRUST:
     def resolve_trustDirection(flag):

@@ -124,6 +124,8 @@ class CONNECTION:
                 "objectSid": LDAP.bin_to_sid,
                 "securityIdentifier": LDAP.bin_to_sid,
                 "mS-DS-CreatorSID": LDAP.bin_to_sid,
+                "msDS-ManagedPassword": LDAP.formatGMSApass,
+                "pwdProperties": LDAP.resolve_pwdProperties,
             }
         }
 
@@ -170,7 +172,7 @@ class CONNECTION:
         if not bind:
             # check if signing is enforced
             if "strongerAuthRequired" in str(ldap_session.result):
-                logging.error(f"{bcolors.WARNING}LDAP Signing is enforced{bcolors.ENDC}")
+                logging.error(f"{bcolors.WARNING}LDAP signing is enforced{bcolors.ENDC}")
 
             error_code = ldap_session.result['message'].split(",")[2].replace("data","").strip()
             error_status = LDAP.resolve_err_status(error_code)

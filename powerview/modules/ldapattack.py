@@ -31,6 +31,7 @@ from ldap3.protocol.formatters.formatters import format_sid
 from ldap3.utils.conv import escape_filter_chars
 import os
 from Cryptodome.Hash import MD4
+import logging
 
 from impacket import LOG
 from impacket.examples.ldap_shell import LdapShell
@@ -1290,10 +1291,18 @@ class ObjectOwner:
         self.new_owner_sid = None
         self.new_owner_dn = None
 
-    def set_new_owner(self, entry):
+    def modify_securitydescriptor(self, entry):
         self.new_owner_samaccountname = entry["attributes"]["sAMAccountName"]
-        self.new_owner_sid = entry["attributes"]["objectSID"]
+        self.new_owner_sid = entry["attributes"]["objectSid"]
         self.new_owner_dn = entry["attributes"]["distinguishedName"]
+
+        new_owner_sid = ldaptypes.LDAP_SID()
+        new_owner_sid.fromCanonical(self.new_owner_sid)
+
+        logging.debug("Modifying %s OwnerSid to %s" % (self.__target_dn, self.new_owner_sid))
+
+        self.__target_securitydescriptor['OwnerSid'] = new_owner_sid
+        return self.__target_securitydescriptor
 
     def read(self):
         ownersid = None

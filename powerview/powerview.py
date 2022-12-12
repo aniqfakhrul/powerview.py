@@ -2,6 +2,11 @@
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 
+from powerview.modules.ca import CAEnum, PARSE_TEMPLATE
+from powerview.modules.addcomputer import ADDCOMPUTER
+from powerview.modules.kerberoast import GetUserSPNs
+from powerview.utils.helpers import *
+from powerview.utils.connections import CONNECTION
 from powerview.modules.ldapattack import (
     LDAPAttack,
     ACLEnum,
@@ -9,11 +14,6 @@ from powerview.modules.ldapattack import (
     ObjectOwner,
     RBCD
 )
-from powerview.modules.ca import CAEnum, PARSE_TEMPLATE
-from powerview.modules.addcomputer import ADDCOMPUTER
-from powerview.modules.kerberoast import GetUserSPNs
-from powerview.utils.helpers import *
-from powerview.utils.connections import CONNECTION
 from powerview.utils.colors import bcolors
 from powerview.utils.constants import (
     WELL_KNOWN_SIDS,
@@ -60,6 +60,12 @@ class PowerView:
         self.root_dn = self.domain_dumper.getRoot()
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
         self.flatName = list_to_str(self.get_domain(properties=['name'])[0]['attributes']['name']).upper()
+
+    def connection_alive(self):
+        return not self.ldap_session.closed
+
+    def reset_connection(self):
+        self.ldap_session.bind()
 
     def get_domainuser(self, args=None, properties=[], identity=None):
         def_prop = [
@@ -144,7 +150,32 @@ class PowerView:
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
 
-    def get_domaincontroller(self, args=None, properties=['*'], identity='*'):
+    def get_domaincontroller(self, args=None, properties=[], identity=None):
+        def_prop = [
+            'cn',
+            'distinguishedName',
+            'instanceType',
+            'whenCreated',
+            'whenChanged',
+            'name',
+            'objectGUID',
+            'userAccountControl',
+            'badPwdCount',
+            'badPasswordTime',
+            'objectSid',
+            'logonCount',
+            'sAMAccountType',
+            'sAMAccountName',
+            'operatingSystem',
+            'dNSHostName',
+            'objectCategory',
+            'msDS-SupportedEncryptionTypes',
+            'msDS-AllowedToActOnBehalfOfOtherIdentity'
+        ]
+
+        properties = def_prop if not properties else properties
+        identity = '*' if not identity else identity
+
         ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=8192)'
         logging.debug(f'LDAP search filter: {ldap_filter}')
         entries = []
@@ -152,7 +183,20 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            # resolve msDS-AllowedToActOnBehalfOfOtherIdentity
+            try:
+                if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(_entries["attributes"].keys()):
+                    parser = RBCD(_entries)
+                    sids = parser.read()
+                    if args.resolvesids:
+                        for i in range(len(sids)):
+                            sids[i] = self.convertfrom_sid(sids[i])
+                    _entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = sids
+            except:
+                pass
+
             entries.append({"attributes":_entries["attributes"]})
+
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
@@ -189,10 +233,10 @@ class PowerView:
         ])
 
         if len(entries) == 0:
-            logging.error("No object found")
+            logging.error("Identity not found in domain")
             return
         elif len(entries) > 1:
-            logging.error("More then one object found")
+            logging.error("More then one identity found")
             return
 
         parser = ObjectOwner(entries[0])
@@ -847,6 +891,58 @@ class PowerView:
                 })
         template_guids.clear()
         return entries
+
+    def set_domainobjectowner(self, targetidentity, principalidentity, args=None):
+        # verify that the targetidentity exists
+        target_identity = self.get_domainobject(identity=targetidentity, properties=[
+            'nTSecurityDescriptor',
+            'sAMAccountname',
+            'ObjectSID',
+            'distinguishedName',
+        ])
+        if len(target_identity) > 1:
+            logging.error("More than one target identity found")
+            return
+        elif len(target_identity) == 0:
+            logging.error("Target identity not found in domain")
+            return
+
+        # verify that the principalidentity exists
+        principal_identity = self.get_domainobject(identity=principalidentity)
+        if len(principal_identity) > 1:
+            logging.error("More than one principal identity found")
+            return
+        elif len(principal_identity) == 0:
+            logging.error("Principal identity not found in domain")
+            return
+
+        # create changeowner object
+        chown = ObjectOwner(target_identity[0])
+        target_identity_owner = chown.read()
+
+        if target_identity_owner == principal_identity[0]["attributes"]["objectSid"]:
+            logging.info("%s is already the owner of the %s" % (principal_identity[0]["attributes"]["sAMAccountName"], target_identity[0]["attributes"]["distinguishedName"]))
+            return
+
+        logging.info("Changing current owner %s to %s" % (target_identity_owner, principal_identity[0]["attributes"]["objectSid"]))
+
+        new_secdesc = chown.modify_securitydescriptor(principal_identity[0])
+
+        succeeded = self.ldap_session.modify(
+            target_identity[0]["attributes"]["distinguishedName"],
+            {'nTSecurityDescriptor': (ldap3.MODIFY_REPLACE, [
+                new_secdesc.getData()
+            ])},
+            controls=security_descriptor_control(sdflags=0x01)
+        )
+
+        if not succeeded:
+            logging.error(self.ldap_session.result['message'])
+        else:
+            logging.info(f'Success! modified owner for {target_identity[0]["attributes"]["distinguishedName"]}')
+
+        return succeeded
+        return None
 
     def set_domaincatemplate(self, identity, args=None):
         if not args or not identity:
