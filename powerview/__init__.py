@@ -18,7 +18,7 @@ import random
 import string
 import shlex
 from sys import platform
-if platform in ["linux","linux2","darwin"]:
+if platform in ["linux","linux2"]:
     import gnureadline as readline
 else:
     import readline
@@ -414,8 +414,8 @@ def main():
             except EOFError:
                 print("Exiting...")
                 sys.exit(0)
-            #except Exception as e:
-            #    logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:

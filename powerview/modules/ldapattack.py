@@ -1332,10 +1332,20 @@ class ObjectOwner:
 
 class RBCD:
     def __init__(self, entry):
-        self.__target_samaccountname = entry["attributes"]["sAMAccountName"]
-        self.__target_sid = entry["attributes"]["objectSID"]
-        self.__target_dn = entry["attributes"]["distinguishedName"]
-        self.__target_msds_allowedtoactonbehalfofotheridentity = entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"]
+        try:
+            self.__target_samaccountname = entry["attributes"]["sAMAccountName"][0] if isinstance(entry["attributes"]["sAMAccountName"], list) else entry["attributes"]["sAMAccountName"]
+        except IndexError as e:
+            pass
+            self.__target_sid = entry["attributes"]["objectSid"][0] if isinstance(entry["attributes"]["objectSid"], list) else entry["attributes"]["objectSid"]
+        except IndexError as e:
+            pass
+            self.__target_dn = entry["attributes"]["distinguishedName"][0] if isinstance(entry["attributes"]["distinguishedName"], list) else entry["attributes"]["distinguishedName"]
+        except IndexError as e:
+            pass
+        try:
+            self.__target_msds_allowedtoactonbehalfofotheridentity = entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"][0] if isinstance(entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"], list) else entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"]
+        except IndexError as e:
+            pass
         self.__target_securitydescriptor = ldaptypes.SR_SECURITY_DESCRIPTOR(data=self.__target_msds_allowedtoactonbehalfofotheridentity)
 
     def read(self):
