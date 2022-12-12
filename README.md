@@ -81,6 +81,7 @@ Get-DomainUser -Count
 |ConvertFrom-SID|||
 
 ### To-Do
+* Fix Where module to compare against list
 * Add a wiki?
 
 ### Credits
