@@ -2,10 +2,10 @@
 from powerview.utils.colors import bcolors
 from powerview.lib.resolver import (
     UAC,
-    ENCRYPTION_TYPE
+    ENCRYPTION_TYPE,
+    LDAP
 )
-
-from ldap3.protocol.formatters.formatters import format_sid
+from powerview import PowerView as PV
 
 import ldap3
 import json
@@ -247,41 +247,20 @@ class FORMATTER:
         # resolve msDS-SupportedEncryptionTypes
         try:
             if "msDS-SupportedEncryptionTypes" in list(entry["attributes"].keys()):
-                entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"])
+                if isinstance(entry['attributes']['msDS-SupportedEncryptionTypes'], list):
+                    entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"][0])
+                else:
+                    entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"])
         except:
             pass
 
         # resolve userAccountControl
         try:
             if "userAccountControl" in list(entry["attributes"].keys()):
-                entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"])
-        except:
-            pass
-
-        # resolve securityIdentifier
-        try:
-            if "securityIdentifier" in list(entry["attributes"].keys()):
-                entry["attributes"]["securityIdentifier"] = format_sid(entry["attributes"]["securityIdentifier"])
-        except:
-            pass
-
-        #resolve objectSID
-        try:
-            if "ObjectSID" in list(entry["attributes"].keys()):
-                if isinstance(entry['attributes']['ObjectSID'], list):
-                    entry['attributes']['ObjectSID'][0] = format_sid(entry['attributes']['ObjectSID'][0])
+                if isinstance(entry['attributes']['userAccountcontrol'], list):
+                    entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"][0])
                 else:
-                    entry['attributes']['ObjectSID'] = format_sid(entry['attributes']['ObjectSID'])
-        except:
-            pass
-
-        # resolve ms-ds-creatorSID
-        try:
-            if "mS-DS-CreatorSID" in list(entry["attributes"].keys()):
-                if isinstance(entry['attributes']['mS-DS-CreatorSID'], list):
-                    entry['attributes']['mS-DS-CreatorSID'][0] = format_sid(entry['attributes']['mS-DS-CreatorSID'][0])
-                else:
-                    entry['attributes']['mS-DS-CreatorSID'] = format_sid(entry['attributes']['mS-DS-CreatorSID'])
+                    entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"])
         except:
             pass
 

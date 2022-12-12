@@ -15,6 +15,7 @@ setup(name='powerview',
                 ],
       license='MIT',
       install_requires=[
+          'ldap3',
           'dnspython',
           'future',
           'gnureadline',

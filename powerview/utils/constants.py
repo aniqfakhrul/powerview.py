@@ -1,5 +1,6 @@
 import enum
 
+from impacket.structure import Structure
 from powerview.utils.helpers import to_pascal_case
 
 class IntFlag(enum.IntFlag):
@@ -475,3 +476,58 @@ switcher_trustAttributes = {
     2048 : "CROSS_ORGANIZATION_ENABLE_TGT_DELEGATION",
     1024 : "PIM_TRUST",
 }
+
+PWD_FLAGS = {
+    1 : "PASSWORD_COMPLEX",
+    2 : "PASSWORD_NO_ANON_CHANGE",
+    4 : "PASSWORD_NO_CLEAR_CHANGE",
+    8 : "LOCKOUT_ADMINS",
+    10 : "PASSWORD_STORE_CLEARTEXT",
+    20 : "REFUSE_PASSWORD_CHANGE",
+
+}
+
+class MSDS_MANAGEDPASSWORD_BLOB(Structure):
+    structure = (
+        ("Version", "<H"),
+        ("Reserved", "<H"),
+        ("Length", "<L"),
+        ("CurrentPasswordOffset", "<H"),
+        ("PreviousPasswordOffset", "<H"),
+        ("QueryPasswordIntervalOffset", "<H"),
+        ("UnchangedPasswordIntervalOffset", "<H"),
+        ("CurrentPassword", ":"),
+        ("PreviousPassword", ":"),
+        # ('AlignmentPadding',':'),
+        ("QueryPasswordInterval", ":"),
+        ("UnchangedPasswordInterval", ":"),
+    )
+
+    def __init__(self, data=None):
+        Structure.__init__(self, data=data)
+
+    def fromString(self, data):
+        Structure.fromString(self, data)
+
+        if self["PreviousPasswordOffset"] == 0:
+            endData = self["QueryPasswordIntervalOffset"]
+        else:
+            endData = self["PreviousPasswordOffset"]
+
+        self["CurrentPassword"] = self.rawData[self["CurrentPasswordOffset"] :][
+            : endData - self["CurrentPasswordOffset"]
+        ]
+        if self["PreviousPasswordOffset"] != 0:
+            self["PreviousPassword"] = self.rawData[self["PreviousPasswordOffset"] :][
+                : self["QueryPasswordIntervalOffset"] - self["PreviousPasswordOffset"]
+            ]
+
+        self["QueryPasswordInterval"] = self.rawData[
+            self["QueryPasswordIntervalOffset"] :
+        ][
+            : self["UnchangedPasswordIntervalOffset"]
+            - self["QueryPasswordIntervalOffset"]
+        ]
+        self["UnchangedPasswordInterval"] = self.rawData[
+            self["UnchangedPasswordIntervalOffset"] :
+        ]
