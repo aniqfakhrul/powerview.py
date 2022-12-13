@@ -2,6 +2,7 @@ from impacket.structure import Structure
 import socket
 from struct import unpack, pack
 import dns
+import datetime
 
 STORED_ADDR = {}
 
