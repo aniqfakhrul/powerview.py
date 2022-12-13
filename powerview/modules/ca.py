@@ -340,16 +340,17 @@ class PARSE_TEMPLATE:
         all_extended_rights = []
 
         self.parsed_dacl = {
-            "Write Owner": "UNKOWN",
-            "Write Dacl": "UNKNOWN",
-            "Write Property": "UNKNOWN",
-            "Enrollment Rights": "UNKNOWN",
-            "Extended Rights": "UNKNOWN",
+            "Write Owner": "N/A",
+            "Write Dacl": "N/A",
+            "Write Property": "N/A",
+            "Enrollment Rights": "N/A",
+            "Extended Rights": "N/A",
         }
+        return self.parsed_dacl
         try:
             sdData = self.template["nTSecurityDescriptor"].raw_values[0]
         except:
-            return parsed_dacl
+            return self.parsed_dacl
         security = CertificateSecurity(sdData)
         self.owner_sid = security.owner
         if not self.domain_sid:
