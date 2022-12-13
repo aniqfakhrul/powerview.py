@@ -145,6 +145,7 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
@@ -183,6 +184,7 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            strip_entry(_entries)
             # resolve msDS-AllowedToActOnBehalfOfOtherIdentity
             try:
                 if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(_entries["attributes"].keys()):
@@ -215,6 +217,7 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
@@ -270,6 +273,7 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
@@ -390,6 +394,13 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            strip_entry(_entries)
+            #if (_entries['attributes']['dnsHostName'], list):
+            #    dnshostname = _entries['attributes']['dnsHostName'][0]
+            #else:
+            #    dnshostname = _entries['attributes']['dnsHostName']
+            #if not dnshostname:
+            #    continue
             if resolveip and _entries['attributes']['dnsHostName']:
                 ip = host2ip(_entries['attributes']['dnsHostName'], self.dc_ip, 3, True)
                 if ip:
@@ -460,6 +471,7 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
@@ -532,6 +544,7 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
@@ -609,6 +622,7 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            strip_entry(_entries)
             # resolve trustattributes
             try:
                 if "trustAttributes" in list(_entries["attributes"].keys()):
@@ -675,6 +689,7 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
@@ -709,6 +724,7 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
         #self.ldap_session.search(search_base, ldap_filter, attributes=properties)
@@ -740,6 +756,7 @@ class PowerView:
             for _entries in entry_generator:
                 if _entries['type'] != 'searchResEntry':
                     continue
+                strip_entry(_entries)
                 for record in _entries['attributes']['dnsRecord']:
                     dr = DNS_RECORD(record)
                     _entries = modify_entry(_entries,new_attributes={
