@@ -111,6 +111,12 @@ def strip_entry(entry):
         # then break it into string
         if isinstance(v, list):
             if len(v) == 1:
+                if not isinstance(v[0], str):
+                    continue
+                try:
+                    v[0].decode()
+                except:
+                    continue
                 entry["attributes"][k] = v[0]
 
 def modify_entry(entry, new_attributes=[], remove=[]):

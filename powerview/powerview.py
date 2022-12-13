@@ -758,6 +758,8 @@ class PowerView:
                     continue
                 strip_entry(_entries)
                 for record in _entries['attributes']['dnsRecord']:
+                    if not isinstance(record, bytes):
+                        record = record.encode()
                     dr = DNS_RECORD(record)
                     _entries = modify_entry(_entries,new_attributes={
                         'TTL': dr['TtlSeconds'],
