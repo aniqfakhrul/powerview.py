@@ -828,6 +828,8 @@ class PowerView:
                 # get enrollment rights
                 template_ops = PARSE_TEMPLATE(template)
                 parsed_dacl = template_ops.parse_dacl()
+                if not parsed_dacl:
+                    continue
                 template_ops.resolve_flags()
                 template_owner = template_ops.get_owner_sid()
                 certificate_name_flag = template_ops.get_certificate_name_flag()

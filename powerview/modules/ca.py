@@ -61,7 +61,7 @@ class ActiveDirectorySecurity:
 
                 self.aces[sid]["extended_rights"].append(uuid)
 
-class CertifcateSecurity(ActiveDirectorySecurity):
+class CertificateSecurity(ActiveDirectorySecurity):
     RIGHTS_TYPE = CERTIFICATE_RIGHTS
 
 class CAEnum:
@@ -339,9 +339,18 @@ class PARSE_TEMPLATE:
         enrollment_rights = []
         all_extended_rights = []
 
-        self.parsed_dacl = {}
-        sdData = self.template["nTSecurityDescriptor"].raw_values[0]
-        security = CertifcateSecurity(sdData)
+        self.parsed_dacl = {
+            "Write Owner": "UNKOWN",
+            "Write Dacl": "UNKNOWN",
+            "Write Property": "UNKNOWN",
+            "Enrollment Rights": "UNKNOWN",
+            "Extended Rights": "UNKNOWN",
+        }
+        try:
+            sdData = self.template["nTSecurityDescriptor"].raw_values[0]
+        except:
+            return parsed_dacl
+        security = CertificateSecurity(sdData)
         self.owner_sid = security.owner
         if not self.domain_sid:
             self.domain_sid = '-'.join(self.owner_sid.split("-")[:-1])
