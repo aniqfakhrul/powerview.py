@@ -111,11 +111,11 @@ def strip_entry(entry):
         # then break it into string
         if isinstance(v, list):
             if len(v) == 1:
-                if not isinstance(v[0], str):
+                if k in [
+                        "dnsRecord",
+                ]:
                     continue
-                try:
-                    v[0].decode()
-                except:
+                if not isinstance(v[0], str):
                     continue
                 entry["attributes"][k] = v[0]
 

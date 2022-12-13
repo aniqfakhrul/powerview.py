@@ -293,10 +293,10 @@ class PowerView:
         if args.security_identifier:
             principalsid_entry = self.get_domainobject(identity=args.security_identifier,properties=['objectSid'])
             if not principalsid_entry:
-                logging.error(f'Principal {args.security_identifier} not found. Try to use DN')
+                logging.error(f'[Get-DomainObjectAcl] Principal {args.security_identifier} not found. Try to use DN')
                 return
             elif len(principalsid_entry) > 1:
-                logging.error(f'[SecurityIdentifier] Multiple identities found. Use exact match')
+                logging.error(f'[Get-DomainObjectAcl] Multiple identities found. Use exact match')
                 return
             args.security_identifier = principalsid_entry[0]['attributes']['objectSid']
 
@@ -310,15 +310,16 @@ class PowerView:
                 logging.error(f'[Get-DomainObjectAcl] Multiple identities found. Use exact match')
                 return
             logging.debug(f'Target identity found in domain {"".join(identity_entries[0]["attributes"]["distinguishedName"])}')
-            identity = identity_entries[0]['attributes']['distinguishedName']
+            identity = "".join(identity_entries[0]['attributes']['distinguishedName'])
         else:
-            logging.info('Recursing all domain objects. This might take a while')
+            logging.info('[Get-DomainObjectAcl] Recursing all domain objects. This might take a while')
 
+        logging.debug(f"[Get-DomainObjectAcl] Searching for identity %s" % (identity))
         self.ldap_session.search(self.root_dn, f'(distinguishedName={identity})', attributes=['nTSecurityDescriptor','sAMAccountName','distinguishedName','objectSid'], controls=security_descriptor_control(sdflags=0x04))
         entries = self.ldap_session.entries
 
         if not entries:
-            logging.error(f'Identity not found in domain')
+            logging.error(f'[Get-DomainObjectAcl] Identity not found in domain')
             return
 
         enum = ACLEnum(entries, self.ldap_session, self.root_dn, args)
@@ -1161,8 +1162,10 @@ class PowerView:
 
         principal_entries = self.get_domainobject(identity=args.principalidentity, properties=['objectSid', 'distinguishedName'])
         if len(principal_entries) == 0:
-            logging.error('Principal Identity object not found in domain')
+            logging.error('[Add-DomainObjectAcl] Principal Identity object not found in domain')
             return
+        if len(principal_entries) > 1:
+            logging.error("[Add-DomainObjectAcl] More then one objects found")
         principalidentity_dn = principal_entries[0]["attributes"]["distinguishedName"]
         setattr(args,'principalidentity_dn', principalidentity_dn)
         if principalidentity_dn.upper().startswith("OU="):
