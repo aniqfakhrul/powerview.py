@@ -3,6 +3,7 @@ import logging
 from impacket.ldap import ldaptypes
 from impacket.uuid import bin_to_string
 from ldap3.protocol.formatters.formatters import format_sid
+from ldap3.protocol.microsoft import security_descriptor_control
 
 from powerview.utils.helpers import (
     is_admin_sid,
@@ -101,7 +102,8 @@ class CAEnum:
         self.ldap_session.search(
             ca_search_base,
             search_filter,
-            attributes=properties
+            attributes=properties,
+            controls = security_descriptor_control(sdflags=0x5),
         )
 
         return self.ldap_session.entries
