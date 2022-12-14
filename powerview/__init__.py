@@ -309,9 +309,23 @@ def main():
                                 if pv_args.identity and pv_args.accountpassword:
                                     succeed = False
                                     if temp_powerview:
-                                        succeed = temp_powerview.set_domainuserpassword(pv_args.identity, pv_args.accountpassword, pv_args)
+                                        succeed = temp_powerview.set_domainuserpassword(pv_args.identity, pv_args.accountpassword, oldpassword=pv_args.oldpassword, args=pv_args)
                                     else:
-                                        succeed = powerview.set_domainuserpassword(pv_args.identity, pv_args.accountpassword, pv_args)
+                                        succeed = powerview.set_domainuserpassword(pv_args.identity, pv_args.accountpassword, oldpassword=pv_args.oldpassword, args=pv_args)
+
+                                    if succeed:
+                                        logging.info(f'Password changed for {pv_args.identity}')
+                                    else:
+                                        logging.error(f'Failed password change attempt for {pv_args.identity}')
+                                else:
+                                    logging.error('-Identity and -AccountPassword flags are required')
+                            elif pv_args.module.casefold() == 'set-domaincomputerpassword':
+                                if pv_args.identity and pv_args.accountpassword:
+                                    succeed = False
+                                    if temp_powerview:
+                                        succeed = temp_powerview.set_domaincomputerpassword(pv_args.identity, pv_args.accountpassword, oldpassword=pv_args.oldpassword, args=pv_args)
+                                    else:
+                                        succeed = powerview.set_domaincomputerpassword(pv_args.identity, pv_args.accountpassword, oldpassword=pv_args.oldpassword, args=pv_args)
 
                                     if succeed:
                                         logging.info(f'Password changed for {pv_args.identity}')

@@ -301,7 +301,7 @@ class ADDCOMPUTER:
         from impacket.krb5.types import Principal, KerberosTime, Ticket
         import datetime
 
-        from powerview.lib.kerberosv5 import getKerberosTGT, getKerberosTGS
+        from impacket.krb5.kerberosv5 import getKerberosTGT, getKerberosTGS
 
         if TGT is not None or TGS is not None:
             useCache = False

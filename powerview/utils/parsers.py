@@ -387,11 +387,19 @@ def powerview_arg_parse(cmd):
     set_domaincatemplate_group.add_argument('-Clear',action='store', dest='clear')
     set_domaincatemplate_parser.add_argument('-Domain', action='store', dest='server')
 
-    # set domain object properties
+    # set domain user password
     set_domainuserpassword_parser = subparsers.add_parser('Set-DomainUserPassword', exit_on_error=False)
-    set_domainuserpassword_parser.add_argument('-identity', '-Identity', action='store', dest='identity')
-    set_domainuserpassword_parser.add_argument('-accountpassword', '-AccountPassword', action='store', dest='accountpassword')
-    set_domainuserpassword_parser.add_argument('-domain', '-Domain', action='store', dest='server')
+    set_domainuserpassword_parser.add_argument('-Identity', action='store', dest='identity')
+    set_domainuserpassword_parser.add_argument('-AccountPassword', action='store', dest='accountpassword')
+    set_domainuserpassword_parser.add_argument('-OldPassword', action='store', dest='oldpassword')
+    set_domainuserpassword_parser.add_argument('-Domain', action='store', dest='server')
+
+    # set domain computer password
+    set_domaincomputerpassword_parser = subparsers.add_parser('Set-DomainComputerPassword', exit_on_error=False)
+    set_domaincomputerpassword_parser.add_argument('-Identity', action='store', dest='identity')
+    set_domaincomputerpassword_parser.add_argument('-AccountPassword', action='store', dest='accountpassword')
+    set_domaincomputerpassword_parser.add_argument('-OldPassword', action='store', dest='oldpassword')
+    set_domaincomputerpassword_parser.add_argument('-Domain', action='store', dest='server')
 
     # set domain object owner
     set_domainobjectowner_parser = subparsers.add_parser('Set-DomainObjectOwner', aliases=['Set-ObjectOwner'], exit_on_error=False)

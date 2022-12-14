@@ -828,8 +828,6 @@ class PowerView:
                 # get enrollment rights
                 template_ops = PARSE_TEMPLATE(template)
                 parsed_dacl = template_ops.parse_dacl()
-                if not parsed_dacl:
-                    continue
                 template_ops.resolve_flags()
                 template_owner = template_ops.get_owner_sid()
                 certificate_name_flag = template_ops.get_certificate_name_flag()
@@ -1543,24 +1541,26 @@ class PowerView:
                     available_pipes.append(pipe_attr.copy())
         return available_pipes
 
-    def set_domainuserpassword(self, identity, accountpassword, args=None):
+    def set_domainuserpassword(self, identity, accountpassword, oldpassword=None, args=None):
         entries = self.get_domainuser(identity=identity, properties=['distinguishedName','sAMAccountName'])
         if len(entries) == 0:
-            logging.error(f'No principal object found in domain')
+            logging.error(f'[Set-DomainUserPassword] No principal object found in domain')
             return
         elif len(entries) > 1:
-            logging.error(f'Multiple principal objects found in domain. Use specific identifier')
+            logging.error(f'[Set-DomainUserPassword] Multiple principal objects found in domain. Use specific identifier')
             return
-        logging.info(f'Principal {"".join(entries[0]["attributes"]["distinguishedName"])} found in domain')
+        logging.info(f'[Set-DomainUserPassword] Principal {"".join(entries[0]["attributes"]["distinguishedName"])} found in domain')
         if self.use_ldaps:
-            succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0]["attributes"]["distinguishedName"], accountpassword, old_password=None)
+            logging.debug("[Set-DomainUserPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
+            succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0]["attributes"]["distinguishedName"], accountpassword, old_password=oldpassword)
             if succeed:
-                logging.info(f'Password has been successfully changed for user {"".join(entries[0]["attributes"]["sAMAccountName"])}')
+                logging.info(f'[Set-DomainUserPassword] Password has been successfully changed for user {"".join(entries[0]["attributes"]["sAMAccountName"])}')
                 return True
             else:
-                logging.error(f'Failed to change password for {"".join(entries[0]["attributes"]["sAMAccountName"])}')
+                logging.error(f'[Set-DomainUserPassword] Failed to change password for {"".join(entries[0]["attributes"]["sAMAccountName"])}')
                 return False
         else:
+            logging.debug("[Set-DomainUserPassword] Using SAMR to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
             try:
                 #self.samr_conn = CONNECTION(self.args)
                 #dce = self.samr_conn.init_samr_session()
@@ -1584,9 +1584,62 @@ class PowerView:
                 req['Buffer']['Internal5']['PasswordExpired'] = 0
 
                 resp = dce.request(req)
+                logging.info(f'[Set-DomainUserPassword] Password has been successfully changed for user {"".join(entries[0]["attributes"]["sAMAccountName"])}')
                 return True
             except:
+                logging.error(f'[Set-DomainUserPassword] Failed to change password for {"".join(entries[0]["attributes"]["sAMAccountName"])}')
                 return False
+
+    def set_domaincomputerpassword(self, identity, accountpassword, oldpassword=None, args=None):
+        entries = self.get_domaincomputer(identity=identity, properties=[
+            'distinguishedName',
+            'sAMAccountName',
+        ])
+        if len(entries) == 0:
+            logging.error("[Get-DomainComputerPassword] Computer %s not found in domain" % (identity))
+            return False
+        elif len(entries) > 1:
+            logging.error("[Get-DomainComputerPassword] Multiple computers found in domain")
+            return False
+
+        if self.use_ldaps:
+            logging.debug("[Set-DomainComputerPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
+            succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0]["attributes"]["distinguishedName"], accountpassword, old_password=oldpassword)
+            if succeed:
+                logging.info(f'[Set-DomainComputerPassword] Password has been successfully changed for user {entries[0]["attributes"]["sAMAccountName"]}')
+                return True
+            else:
+                logging.error(f'[Set-DomainComputerPassword] Failed to change password for {entries[0]["attributes"]["sAMAccountName"]}')
+                return False
+        else:
+            logging.debug("[Set-DomainComputerPassword] Using SAMR to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
+            try:
+                dce = self.conn.init_samr_session()
+                if not dce:
+                    logging.error('Error binding with SAMR')
+                    return
+
+                server_handle = samr.hSamrConnect(dce, self.dc_ip + '\x00')['ServerHandle']
+                domainSID = samr.hSamrLookupDomainInSamServer(dce, server_handle, self.domain)['DomainId']
+                domain_handle = samr.hSamrOpenDomain(dce, server_handle, domainId=domainSID)['DomainHandle']
+                userRID = samr.hSamrLookupNamesInDomain(dce, domain_handle, (entries[0]['attributes']['sAMAccountName'],))['RelativeIds']['Element'][0]
+                opened_user = samr.hSamrOpenUser(dce, domain_handle, userId=userRID)
+
+                req = samr.SamrSetInformationUser2()
+                req['UserHandle'] = opened_user['UserHandle']
+                req['UserInformationClass'] = samr.USER_INFORMATION_CLASS.UserInternal5Information
+                req['Buffer'] = samr.SAMPR_USER_INFO_BUFFER()
+                req['Buffer']['tag'] = samr.USER_INFORMATION_CLASS.UserInternal5Information
+                req['Buffer']['Internal5']['UserPassword'] = cryptPassword(b'SystemLibraryDTC', accountpassword)
+                req['Buffer']['Internal5']['PasswordExpired'] = 0
+
+                resp = dce.request(req)
+                logging.info(f'[Set-DomainComputerPassword] Password has been successfully changed for user {"".join(entries[0]["attributes"]["sAMAccountName"])}')
+                return True
+            except:
+                logging.error(f'[Set-DomainComputerPassword] Failed to change password for {"".join(entries[0]["attributes"]["sAMAccountName"])}')
+                return False
+
 
     def set_domainobject(self,identity, args=None):
         targetobject = self.get_domainobject(identity=identity)
@@ -1609,7 +1662,7 @@ class PowerView:
             try:
                 for val in attrs['value']:
                     try:
-                        if val in targetobject[0]["attributes"][attrs['attribute']]:
+                        if val == targetobject[0]["attributes"][attrs['attribute']]:
                             logging.error(f"Value {val} already set in the attribute "+attrs['attribute'])
                             return
                     except KeyError as e:

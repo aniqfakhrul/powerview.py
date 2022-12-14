@@ -447,6 +447,8 @@ class CONNECTION:
     # stole from PetitPotam.py
     # TODO: FIX kerberos auth
     def connectRPCTransport(self, host=None, stringBindings=None, auth=True):
+        if not host:
+            host = self.dc_ip
         if not stringBindings:
             stringBindings = epm.hept_map(host, samr.MSRPC_UUID_SAMR, protocol = 'ncacn_ip_tcp')
         if not host:
