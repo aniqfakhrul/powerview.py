@@ -194,6 +194,7 @@ class CONNECTION:
     def ldap3_kerberos_login(self, connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True):
         from pyasn1.codec.ber import encoder, decoder
         from pyasn1.type.univ import noValue
+        from binascii import hexlify, unhexlify
         """
         logins into the target system explicitly using Kerberos. Hashes are used if RC4_HMAC is supported.
         :param string user: username
