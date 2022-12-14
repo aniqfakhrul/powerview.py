@@ -203,7 +203,13 @@ class PowerView:
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
 
-    def get_domainobject(self, args=None, properties=['*'], identity='*'):
+    def get_domainobject(self, args=None, properties=['*'], identity='*', sd_flag=None):
+        if sd_flag:
+            # Set SD flags to only query for DACL and Owner
+            controls = security_descriptor_control(sdflags=sd_flag)
+        else:
+            controls = None
+
         identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
         ldap_filter = f"(|{identity_filter})"
         if args:
@@ -213,7 +219,7 @@ class PowerView:
         ldap_fiter = f"(&{ldap_filter})"
         logging.debug(f'LDAP search filter: {ldap_filter}')
         entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True, controls=controls)
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
@@ -234,7 +240,7 @@ class PowerView:
             'sAMAccountname',
             'ObjectSID',
             'distinguishedName',
-        ])
+        ], sd_flag=0x01)
 
         if len(objects) == 0:
             logging.error("Identity not found in domain")
@@ -677,7 +683,7 @@ class PowerView:
                 KNOWN_SIDS[objectsid] = identity
             else:
                 logging.debug(f"No objects found for {objectsid}")
-                return
+                return objectsid
         if output:
             print("%s\n" % identity)
         return identity
