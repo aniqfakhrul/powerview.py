@@ -803,14 +803,13 @@ class PowerView:
             "objectGUID",
         ]
 
-        properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
 
         entries = []
         template_guids = []
         ca_fetch = CAEnum(self.ldap_session, self.root_dn)
 
-        templates = ca_fetch.get_certificate_templates(properties,identity)
+        templates = ca_fetch.get_certificate_templates(def_prop,identity)
         cas = ca_fetch.fetch_enrollment_services()
 
         if len(cas) <= 0:
@@ -848,12 +847,12 @@ class PowerView:
                     if ca_templates is None:
                         ca_templates = []
                 except ldap3.core.exceptions.LDAPCursorAttributeError:
-                    ca_tempaltes = []
+                    ca_templates = []
 
                 if template.name in ca_templates:
                     enabled = True
 
-                if not enabled and args.enabled:
+                if args.enabled and not enabled:
                     continue
 
                 # check vulnerable
@@ -894,6 +893,7 @@ class PowerView:
                 e = modify_entry(template,
                                  new_attributes={
                                     'Owner': template_owner,
+                                    'Certificate Authorities': ca.name,
                                     'msPKI-Certificate-Name-Flag': certificate_name_flag,
                                     'msPKI-Enrollment-Flag': enrollment_flag,
                                     'pKIExtendedKeyUsage': extended_key_usage,
@@ -918,8 +918,21 @@ class PowerView:
                                  ]
 
                                  )
+                new_dict = {}
+                if properties:
+                    ori_list = list(e["attributes"].keys())
+                    for p in properties:
+                        if p.lower() not in [x.lower() for x in ori_list]:
+                            logging.error("Invalid atribute type %s" % (p))
+                            return
+                        for i in ori_list:
+                            if p.casefold() == i.casefold():
+                                new_dict[i] = e["attributes"][i]
+                else:
+                    new_dict = e["attributes"]
+
                 entries.append({
-                    "attributes": e["attributes"]
+                    "attributes": new_dict
                 })
         template_guids.clear()
         return entries
