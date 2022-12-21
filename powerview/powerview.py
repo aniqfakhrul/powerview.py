@@ -65,6 +65,7 @@ class PowerView:
         return not self.ldap_session.closed
 
     def reset_connection(self):
+        logging.debug("Rebinding connection to ldap server")
         self.ldap_session.bind()
 
     def get_domainuser(self, args=None, properties=[], identity=None):
@@ -1442,7 +1443,14 @@ class PowerView:
             self.args,
             computer_name,
             computer_pass)
-        addmachineaccount.run()
+        try:
+            if self.use_ldaps:
+                addmachineaccount.run_ldaps()
+            else:
+                addmachineaccount.run_samr()
+        except Exception as e:
+            logging.error(str(e))
+            return False
 
         if self.get_domainobject(identity=computer_name)[0]['attributes']['distinguishedName']:
             return True
