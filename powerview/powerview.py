@@ -138,7 +138,7 @@ class PowerView:
         #ldap_filter = f'(&(samAccountType=805306368){identity_filter}{ldap_filter})'
         ldap_filter = f'(&(objectCategory=person)(objectClass=user){identity_filter}{ldap_filter})'
 
-        logging.debug(f'LDAP search filter: {ldap_filter}')
+        logging.debug(f'[Get-DomainUser] LDAP search filter: {ldap_filter}')
 
         # in case need more then 1000 entries
         entries = []
@@ -179,7 +179,7 @@ class PowerView:
         identity = '*' if not identity else identity
 
         ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=8192)'
-        logging.debug(f'LDAP search filter: {ldap_filter}')
+        logging.debug(f'[Get-DomainController] LDAP search filter: {ldap_filter}')
         entries = []
         entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
@@ -218,7 +218,7 @@ class PowerView:
                 logging.debug(f'[Get-DomainObject] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f"{args.ldap_filter}"
         ldap_fiter = f"(&{ldap_filter})"
-        logging.debug(f'LDAP search filter: {ldap_filter}')
+        logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
         entries = []
         entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True, controls=controls)
         for _entries in entry_generator:
@@ -233,7 +233,7 @@ class PowerView:
     def get_domainobjectowner(self, identity=None, args=None):
         if not identity:
             identity = '*'
-            logging.info("Recursing all domain objects. This might take a while")
+            logging.info("[Get-DomainObjectOwner] Recursing all domain objects. This might take a while")
 
         objects = self.get_domainobject(identity=identity, properties=[
             'cn',
@@ -244,7 +244,7 @@ class PowerView:
         ], sd_flag=0x01)
 
         if len(objects) == 0:
-            logging.error("Identity not found in domain")
+            logging.error("[Get-DomainObjectOwner] Identity not found in domain")
             return
 
         for i in range(len(objects)):
@@ -274,7 +274,7 @@ class PowerView:
                 ldap_filter += f"{args.ldapfilter}"
 
         ldap_filter = f'(&(objectCategory=organizationalUnit)(|(name={identity})){ldap_filter})'
-        logging.debug(f'LDAP search filter: {ldap_filter}')
+        logging.debug(f'[Get-DomainOU] LDAP search filter: {ldap_filter}')
         entries = []
         entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
@@ -396,7 +396,7 @@ class PowerView:
         # also need to change this to filter from objectClass instead
         #ldap_filter = f'(&(samAccountType=805306369){identity_filter}{ldap_filter})'
         ldap_filter = f'(&(objectClass=computer){identity_filter}{ldap_filter})'
-        logging.debug(f'LDAP search filter: {ldap_filter}')
+        logging.debug(f'[Get-DomainComputer] LDAP search filter: {ldap_filter}')
         entries = []
         entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
@@ -473,7 +473,7 @@ class PowerView:
                 logging.debug(f'[Get-DomainGroup] Filter is based on member property {ldap_filter}')
 
         ldap_filter = f'(&(objectCategory=group){identity_filter}{ldap_filter})'
-        logging.debug(f'LDAP search filter: {ldap_filter}')
+        logging.debug(f'[Get-DomainGroup] LDAP search filter: {ldap_filter}')
         entries = []
         entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
@@ -493,7 +493,7 @@ class PowerView:
             return
 
         if len(entries) > 1:
-            logging.info("Multiple group found. Probably try searching with distinguishedName")
+            logging.info("[Get-DomainGroupMember] Multiple group found. Probably try searching with distinguishedName")
             return
 
         group_identity_sam = entries[0]['attributes']['sAMAccountName']
@@ -546,7 +546,7 @@ class PowerView:
                 ldap_filter += f"{args.ldapfilter}"
 
         ldap_filter = f'(&(objectCategory=groupPolicyContainer){identity_filter}{ldap_filter})'
-        logging.debug(f'LDAP search filter: {ldap_filter}')
+        logging.debug(f'[Get-DomainGPO] LDAP search filter: {ldap_filter}')
         entries = []
         entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
@@ -562,7 +562,7 @@ class PowerView:
         new_entries = []
         entries = self.get_domaingpo(identity=identity)
         if len(entries) == 0:
-            logging.error("No GPO object found")
+            logging.error("[Get-DomainGPOLocalGroup] No GPO object found")
             return
         for entry in entries:
             new_dict = {}
@@ -623,7 +623,7 @@ class PowerView:
 
         identity_filter = f"(name={identity})"
         ldap_filter = f'(&(objectClass=trustedDomain){identity_filter})'
-        logging.debug(f'LDAP search filter: {ldap_filter}')
+        logging.debug(f'[Get-DomainTrust] LDAP search filter: {ldap_filter}')
 
         entries = []
         entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
@@ -1683,19 +1683,19 @@ class PowerView:
             attrs = ini_to_dict(args.set) if args.set else ini_to_dict(args.append)
 
             if not attrs:
-                logging.error(f"Parsing {'-Set' if args.set else '-Append'} value failed")
+                logging.error(f"[Set-DomainObject] Parsing {'-Set' if args.set else '-Append'} value failed")
                 return
 
             try:
                 for val in attrs['value']:
                     try:
                         if val == targetobject[0]["attributes"][attrs['attribute']]:
-                            logging.error(f"Value {val} already set in the attribute "+attrs['attribute'])
+                            logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
                             return
                     except KeyError as e:
-                        logging.debug(f"Attribute {attrs['attribute']} not exists in object. Modifying anyway...")
+                        logging.debug(f"[Set-DomainObject] Attribute {attrs['attribute']} not exists in object. Modifying anyway...")
             except ldap3.core.exceptions.LDAPKeyError as e:
-                logging.error(f"Key {attrs['attribute']} not found in template attribute. Adding anyway...")
+                logging.error(f"[Set-DomainObject] Key {attrs['attribute']} not found in template attribute. Adding anyway...")
 
             if args.append:
                 temp_list = []
@@ -1722,7 +1722,7 @@ class PowerView:
         if not succeeded:
             logging.error(self.ldap_session.result['message'])
         else:
-            logging.info('Success! modified attribute for target object')
+            logging.info('[Set-DomainObject] Success! modified attribute for target object')
 
         return succeeded
 
@@ -1737,7 +1737,7 @@ class PowerView:
         self.ldap_session.search(self.root_dn, ldap_filter, attributes=['servicePrincipalName', 'sAMAccountName','pwdLastSet', 'MemberOf', 'userAccountControl', 'lastLogon'])
         entries = self.ldap_session.entries
         if len(entries) == 0:
-            logging.debug("No identity found")
+            logging.debug("[Invoke-Kerberoast] No identity found")
             return
         # request TGS for each accounts
         target_domain = self.domain
@@ -1764,7 +1764,7 @@ class PowerView:
         computer = args.computer if args.computer else args.computername
 
         if not is_valid_fqdn(computer) and self.use_kerberos:
-            logging.error('FQDN must be used for kerberos authentication')
+            logging.error('[Find-LocaAdminAccess] FQDN must be used for kerberos authentication')
             return
 
         if computer:
@@ -1780,9 +1780,9 @@ class PowerView:
         else:
             entries = self.get_domaincomputer(properties=['dnsHostName'])
 
-            logging.info(f"Found {len(entries)} computers in the domain")
+            logging.info(f"[Find-LocaAdminAccess] Found {len(entries)} computers in the domain")
             if len(entries) > 100:
-                logging.info("There are more than 100 computers in the domain. This might take some time")
+                logging.info("[Find-LocalAdminAccess] There are more than 100 computers in the domain. This might take some time")
 
             for entry in entries:
                 try:
@@ -1830,13 +1830,13 @@ class PowerView:
                         host = f"{host_inp}.{self.domain}"
                     else:
                         host = host_inp
-                logging.debug(f"Using FQDN: {host}")
+                logging.debug(f"[Find-LocalAdminAccess] Using FQDN: {host}")
             else:
                 host = host_inp
 
         if self.use_kerberos:
             if is_ipaddress(args.computer) or is_ipaddress(args.computername):
-                logging.error('FQDN must be used for kerberos authentication')
+                logging.error('[Find-LocalAdminAccess] FQDN must be used for kerberos authentication')
                 return
             host = args.computer if args.computer else args.computername
         else:
@@ -1844,7 +1844,7 @@ class PowerView:
                 host = host2ip(host, self.dc_ip, 3, True)
 
         if not host:
-            logging.error(f"Host not found")
+            logging.error(f"[Find-LocalAdminAccess] Host not found")
             return
 
         if self.use_kerberos:

@@ -1,0 +1,1892 @@
+{
+  "Certificate Authorities": {
+    "0": {
+      "CA Name": "emerald-AD-CA",
+      "DNS Name": "AD.emerald.wgmy",
+      "Certificate Subject": "CN=emerald-AD-CA, DC=emerald, DC=wgmy",
+      "Certificate Serial Number": "48141D8E558954964B7EA0A8AD8CD3C1",
+      "Certificate Validity Start": "2022-12-21 01:02:03+00:00",
+      "Certificate Validity End": "2027-12-21 01:12:03+00:00",
+      "Web Enrollment": "Disabled",
+      "User Specified SAN": "Disabled",
+      "Request Disposition": "Issue",
+      "Permissions": {
+        "Owner": "EMERALD.WGMY\\Administrators",
+        "Access Rights": {
+          "512": [
+            "EMERALD.WGMY\\Authenticated Users",
+            "EMERALD.WGMY\\CA Admins"
+          ],
+          "256": [
+            "EMERALD.WGMY\\CA Admins"
+          ],
+          "2": [
+            "EMERALD.WGMY\\CA Admins",
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins",
+            "EMERALD.WGMY\\Administrators"
+          ],
+          "1": [
+            "EMERALD.WGMY\\CA Admins",
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins",
+            "EMERALD.WGMY\\Administrators"
+          ]
+        }
+      }
+    }
+  },
+  "Certificate Templates": {
+    "0": {
+      "Template Name": "UserBackup",
+      "Display Name": "UserBackup",
+      "Certificate Authorities": [
+        "emerald-AD-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": true,
+      "Certificate Name Flag": [
+        "EnrolleeSuppliesSubject"
+      ],
+      "Enrollment Flag": [
+        "PublishToDs",
+        "PendAllRequests",
+        "IncludeSymmetricAlgorithms"
+      ],
+      "Private Key Flag": [
+        "16777216",
+        "65536",
+        "ExportableKey"
+      ],
+      "Extended Key Usage": [
+        "Client Authentication",
+        "Secure Email",
+        "Encrypting File System"
+      ],
+      "Requires Manager Approval": true,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Domain Users",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Administrator",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins",
+            "EMERALD.WGMY\\Administrator"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins",
+            "EMERALD.WGMY\\Administrator"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins",
+            "EMERALD.WGMY\\Administrator"
+          ]
+        }
+      }
+    },
+    "1": {
+      "Template Name": "EmeraldLDAPS",
+      "Display Name": "Emerald LDAPS",
+      "Certificate Authorities": [
+        "emerald-AD-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectAltRequireDns",
+        "SubjectAltRequireDomainDns"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment",
+        "PublishToDs"
+      ],
+      "Private Key Flag": [
+        "16777216",
+        "65536",
+        "ExportableKey"
+      ],
+      "Extended Key Usage": [
+        "KDC Authentication",
+        "Smart Card Logon",
+        "Server Authentication",
+        "Client Authentication"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Enterprise Read-only Domain Controllers",
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Domain Controllers",
+            "EMERALD.WGMY\\Enterprise Admins",
+            "EMERALD.WGMY\\Enterprise Domain Controllers"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Administrator",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins",
+            "EMERALD.WGMY\\Administrator"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins",
+            "EMERALD.WGMY\\Administrator"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins",
+            "EMERALD.WGMY\\Administrator"
+          ]
+        }
+      }
+    },
+    "2": {
+      "Template Name": "KerberosAuthentication",
+      "Display Name": "Kerberos Authentication",
+      "Certificate Authorities": [
+        "emerald-AD-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectAltRequireDns",
+        "SubjectAltRequireDomainDns"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Client Authentication",
+        "Server Authentication",
+        "Smart Card Logon",
+        "KDC Authentication"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Enterprise Read-only Domain Controllers",
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Domain Controllers",
+            "EMERALD.WGMY\\Enterprise Admins",
+            "EMERALD.WGMY\\Enterprise Domain Controllers"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "3": {
+      "Template Name": "OCSPResponseSigning",
+      "Display Name": "OCSP Response Signing",
+      "Enabled": false,
+      "Client Authentication": false,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDnsAsCn",
+        "SubjectAltRequireDns"
+      ],
+      "Enrollment Flag": [
+        "Norevocationinfoinissuedcerts",
+        "AddOcspNocheck"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "OCSP Signing"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "2 weeks",
+      "Renewal Period": "2 days",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "4": {
+      "Template Name": "RASAndIASServer",
+      "Display Name": "RAS and IAS Server",
+      "Enabled": false,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireCommonName",
+        "SubjectAltRequireDns"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Client Authentication",
+        "Server Authentication"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins",
+            "EMERALD.WGMY\\RAS and IAS Servers"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "5": {
+      "Template Name": "Workstation",
+      "Display Name": "Workstation Authentication",
+      "Enabled": false,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectAltRequireDns"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Client Authentication"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Domain Computers",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "6": {
+      "Template Name": "DirectoryEmailReplication",
+      "Display Name": "Directory Email Replication",
+      "Certificate Authorities": [
+        "emerald-AD-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": false,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectAltRequireDns",
+        "SubjectAltRequireDirectoryGuid"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment",
+        "PublishToDs",
+        "IncludeSymmetricAlgorithms"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Directory Service Email Replication"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Enterprise Read-only Domain Controllers",
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Domain Controllers",
+            "EMERALD.WGMY\\Enterprise Admins",
+            "EMERALD.WGMY\\Enterprise Domain Controllers"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "7": {
+      "Template Name": "DomainControllerAuthentication",
+      "Display Name": "Domain Controller Authentication",
+      "Certificate Authorities": [
+        "emerald-AD-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectAltRequireDns"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Client Authentication",
+        "Server Authentication",
+        "Smart Card Logon"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Enterprise Read-only Domain Controllers",
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Domain Controllers",
+            "EMERALD.WGMY\\Enterprise Admins",
+            "EMERALD.WGMY\\Enterprise Domain Controllers"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "8": {
+      "Template Name": "KeyRecoveryAgent",
+      "Display Name": "Key Recovery Agent",
+      "Enabled": false,
+      "Client Authentication": false,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDirectoryPath",
+        "SubjectAltRequireUpn"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment",
+        "PublishToKraContainer",
+        "PendAllRequests",
+        "IncludeSymmetricAlgorithms"
+      ],
+      "Private Key Flag": [
+        "ExportableKey"
+      ],
+      "Extended Key Usage": [
+        "Key Recovery Agent"
+      ],
+      "Requires Manager Approval": true,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "2 years",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "9": {
+      "Template Name": "CAExchange",
+      "Display Name": "CA Exchange",
+      "Enabled": false,
+      "Client Authentication": false,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": true,
+      "Certificate Name Flag": [
+        "EnrolleeSuppliesSubject"
+      ],
+      "Enrollment Flag": [
+        "IncludeSymmetricAlgorithms"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Private Key Archival"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 week",
+      "Renewal Period": "1 day",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "10": {
+      "Template Name": "CrossCA",
+      "Display Name": "Cross Certification Authority",
+      "Enabled": false,
+      "Client Authentication": true,
+      "Enrollment Agent": true,
+      "Any Purpose": true,
+      "Enrollee Supplies Subject": true,
+      "Certificate Name Flag": [
+        "EnrolleeSuppliesSubject"
+      ],
+      "Enrollment Flag": [
+        "PublishToDs"
+      ],
+      "Private Key Flag": [
+        "ExportableKey"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 1,
+      "Validity Period": "5 years",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "11": {
+      "Template Name": "ExchangeUserSignature",
+      "Display Name": "Exchange Signature Only",
+      "Enabled": false,
+      "Client Authentication": false,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": true,
+      "Certificate Name Flag": [
+        "EnrolleeSuppliesSubject"
+      ],
+      "Enrollment Flag": [
+        "None"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Secure Email"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "12": {
+      "Template Name": "ExchangeUser",
+      "Display Name": "Exchange User",
+      "Enabled": false,
+      "Client Authentication": false,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": true,
+      "Certificate Name Flag": [
+        "EnrolleeSuppliesSubject"
+      ],
+      "Enrollment Flag": [
+        "IncludeSymmetricAlgorithms"
+      ],
+      "Private Key Flag": [
+        "ExportableKey"
+      ],
+      "Extended Key Usage": [
+        "Secure Email"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "13": {
+      "Template Name": "CEPEncryption",
+      "Display Name": "CEP Encryption",
+      "Enabled": false,
+      "Client Authentication": false,
+      "Enrollment Agent": true,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": true,
+      "Certificate Name Flag": [
+        "EnrolleeSuppliesSubject"
+      ],
+      "Enrollment Flag": [
+        "None"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Certificate Request Agent"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "2 years",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "14": {
+      "Template Name": "OfflineRouter",
+      "Display Name": "Router (Offline request)",
+      "Enabled": false,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": true,
+      "Certificate Name Flag": [
+        "EnrolleeSuppliesSubject"
+      ],
+      "Enrollment Flag": [
+        "None"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Client Authentication"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "2 years",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "15": {
+      "Template Name": "IPSECIntermediateOffline",
+      "Display Name": "IPSec (Offline request)",
+      "Enabled": false,
+      "Client Authentication": false,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": true,
+      "Certificate Name Flag": [
+        "EnrolleeSuppliesSubject"
+      ],
+      "Enrollment Flag": [
+        "None"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "IP security IKE intermediate"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "2 years",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "16": {
+      "Template Name": "IPSECIntermediateOnline",
+      "Display Name": "IPSec",
+      "Enabled": false,
+      "Client Authentication": false,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDnsAsCn",
+        "SubjectAltRequireDns"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "IP security IKE intermediate"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "2 years",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Domain Computers",
+            "EMERALD.WGMY\\Domain Controllers",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "17": {
+      "Template Name": "SubCA",
+      "Display Name": "Subordinate Certification Authority",
+      "Certificate Authorities": [
+        "emerald-AD-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": true,
+      "Enrollment Agent": true,
+      "Any Purpose": true,
+      "Enrollee Supplies Subject": true,
+      "Certificate Name Flag": [
+        "EnrolleeSuppliesSubject"
+      ],
+      "Enrollment Flag": [
+        "None"
+      ],
+      "Private Key Flag": [
+        "ExportableKey"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "5 years",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "18": {
+      "Template Name": "CA",
+      "Display Name": "Root Certification Authority",
+      "Enabled": false,
+      "Client Authentication": true,
+      "Enrollment Agent": true,
+      "Any Purpose": true,
+      "Enrollee Supplies Subject": true,
+      "Certificate Name Flag": [
+        "EnrolleeSuppliesSubject"
+      ],
+      "Enrollment Flag": [
+        "None"
+      ],
+      "Private Key Flag": [
+        "ExportableKey"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "5 years",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "19": {
+      "Template Name": "WebServer",
+      "Display Name": "Web Server",
+      "Certificate Authorities": [
+        "emerald-AD-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": false,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": true,
+      "Certificate Name Flag": [
+        "EnrolleeSuppliesSubject"
+      ],
+      "Enrollment Flag": [
+        "None"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Server Authentication"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "2 years",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "20": {
+      "Template Name": "DomainController",
+      "Display Name": "Domain Controller",
+      "Certificate Authorities": [
+        "emerald-AD-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDnsAsCn",
+        "SubjectAltRequireDns",
+        "SubjectAltRequireDirectoryGuid"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment",
+        "PublishToDs",
+        "IncludeSymmetricAlgorithms"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Client Authentication",
+        "Server Authentication"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Enterprise Read-only Domain Controllers",
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Domain Controllers",
+            "EMERALD.WGMY\\Enterprise Admins",
+            "EMERALD.WGMY\\Enterprise Domain Controllers"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "21": {
+      "Template Name": "Machine",
+      "Display Name": "Computer",
+      "Certificate Authorities": [
+        "emerald-AD-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDnsAsCn",
+        "SubjectAltRequireDns"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Client Authentication",
+        "Server Authentication"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Domain Computers",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "22": {
+      "Template Name": "MachineEnrollmentAgent",
+      "Display Name": "Enrollment Agent (Computer)",
+      "Enabled": false,
+      "Client Authentication": false,
+      "Enrollment Agent": true,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDnsAsCn",
+        "SubjectAltRequireDns"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Certificate Request Agent"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "2 years",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "23": {
+      "Template Name": "EnrollmentAgentOffline",
+      "Display Name": "Exchange Enrollment Agent (Offline request)",
+      "Enabled": false,
+      "Client Authentication": false,
+      "Enrollment Agent": true,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": true,
+      "Certificate Name Flag": [
+        "EnrolleeSuppliesSubject"
+      ],
+      "Enrollment Flag": [
+        "None"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Certificate Request Agent"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "2 years",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "24": {
+      "Template Name": "EnrollmentAgent",
+      "Display Name": "Enrollment Agent",
+      "Enabled": false,
+      "Client Authentication": false,
+      "Enrollment Agent": true,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDirectoryPath",
+        "SubjectAltRequireUpn"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Certificate Request Agent"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "2 years",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "25": {
+      "Template Name": "CTLSigning",
+      "Display Name": "Trust List Signing",
+      "Enabled": false,
+      "Client Authentication": false,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDirectoryPath",
+        "SubjectAltRequireUpn"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Microsoft Trust List Signing"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "26": {
+      "Template Name": "CodeSigning",
+      "Display Name": "Code Signing",
+      "Enabled": false,
+      "Client Authentication": false,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDirectoryPath",
+        "SubjectAltRequireUpn"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Code Signing"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "27": {
+      "Template Name": "EFSRecovery",
+      "Display Name": "EFS Recovery Agent",
+      "Certificate Authorities": [
+        "emerald-AD-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": false,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDirectoryPath",
+        "SubjectAltRequireUpn"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment",
+        "IncludeSymmetricAlgorithms"
+      ],
+      "Private Key Flag": [
+        "ExportableKey"
+      ],
+      "Extended Key Usage": [
+        "File Recovery"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "5 years",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "28": {
+      "Template Name": "Administrator",
+      "Display Name": "Administrator",
+      "Certificate Authorities": [
+        "emerald-AD-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDirectoryPath",
+        "SubjectRequireEmail",
+        "SubjectAltRequireEmail",
+        "SubjectAltRequireUpn"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment",
+        "PublishToDs",
+        "IncludeSymmetricAlgorithms"
+      ],
+      "Private Key Flag": [
+        "ExportableKey"
+      ],
+      "Extended Key Usage": [
+        "Microsoft Trust List Signing",
+        "Encrypting File System",
+        "Secure Email",
+        "Client Authentication"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "29": {
+      "Template Name": "EFS",
+      "Display Name": "Basic EFS",
+      "Certificate Authorities": [
+        "emerald-AD-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": false,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDirectoryPath",
+        "SubjectAltRequireUpn"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment",
+        "PublishToDs",
+        "IncludeSymmetricAlgorithms"
+      ],
+      "Private Key Flag": [
+        "ExportableKey"
+      ],
+      "Extended Key Usage": [
+        "Encrypting File System"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Domain Users",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "30": {
+      "Template Name": "SmartcardLogon",
+      "Display Name": "Smartcard Logon",
+      "Enabled": false,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDirectoryPath",
+        "SubjectAltRequireUpn"
+      ],
+      "Enrollment Flag": [
+        "None"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Client Authentication",
+        "Smart Card Logon"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "31": {
+      "Template Name": "ClientAuth",
+      "Display Name": "Authenticated Session",
+      "Enabled": false,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDirectoryPath",
+        "SubjectAltRequireUpn"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Client Authentication"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Domain Users",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "32": {
+      "Template Name": "SmartcardUser",
+      "Display Name": "Smartcard User",
+      "Enabled": false,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDirectoryPath",
+        "SubjectRequireEmail",
+        "SubjectAltRequireEmail",
+        "SubjectAltRequireUpn"
+      ],
+      "Enrollment Flag": [
+        "PublishToDs",
+        "IncludeSymmetricAlgorithms"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Secure Email",
+        "Client Authentication",
+        "Smart Card Logon"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "33": {
+      "Template Name": "UserSignature",
+      "Display Name": "User Signature Only",
+      "Enabled": false,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDirectoryPath",
+        "SubjectRequireEmail",
+        "SubjectAltRequireEmail",
+        "SubjectAltRequireUpn"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment"
+      ],
+      "Private Key Flag": [
+        "AttestNone"
+      ],
+      "Extended Key Usage": [
+        "Secure Email",
+        "Client Authentication"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Domain Users",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    },
+    "34": {
+      "Template Name": "User",
+      "Display Name": "User",
+      "Certificate Authorities": [
+        "emerald-AD-CA"
+      ],
+      "Enabled": true,
+      "Client Authentication": true,
+      "Enrollment Agent": false,
+      "Any Purpose": false,
+      "Enrollee Supplies Subject": false,
+      "Certificate Name Flag": [
+        "SubjectRequireDirectoryPath",
+        "SubjectRequireEmail",
+        "SubjectAltRequireEmail",
+        "SubjectAltRequireUpn"
+      ],
+      "Enrollment Flag": [
+        "AutoEnrollment",
+        "PublishToDs",
+        "IncludeSymmetricAlgorithms"
+      ],
+      "Private Key Flag": [
+        "ExportableKey"
+      ],
+      "Extended Key Usage": [
+        "Encrypting File System",
+        "Secure Email",
+        "Client Authentication"
+      ],
+      "Requires Manager Approval": false,
+      "Requires Key Archival": false,
+      "Authorized Signatures Required": 0,
+      "Validity Period": "1 year",
+      "Renewal Period": "6 weeks",
+      "Permissions": {
+        "Enrollment Permissions": {
+          "Enrollment Rights": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Domain Users",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        },
+        "Object Control Permissions": {
+          "Owner": "EMERALD.WGMY\\Enterprise Admins",
+          "Write Owner Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Dacl Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ],
+          "Write Property Principals": [
+            "EMERALD.WGMY\\Domain Admins",
+            "EMERALD.WGMY\\Enterprise Admins"
+          ]
+        }
+      }
+    }
+  }
+}
