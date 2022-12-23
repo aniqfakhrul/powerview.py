@@ -751,7 +751,6 @@ class PowerView:
 
         zonename = '*' if not zonename else zonename
         identity = '*' if not identity else identity
-        properties = def_prop if not properties else properties
 
         zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'])
         entries = []
@@ -760,7 +759,7 @@ class PowerView:
         for zone in zones:
             logging.debug(f"[Get-DomainDNSRecord] Search base: {zone['attributes']['distinguishedName']}")
 
-            entry_generator = self.ldap_session.extend.standard.paged_search(zone['attributes']['distinguishedName'],ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+            entry_generator = self.ldap_session.extend.standard.paged_search(zone['attributes']['distinguishedName'],ldap_filter,attributes=def_prop, paged_size = 1000, generator=True)
             for _entries in entry_generator:
                 if _entries['type'] != 'searchResEntry':
                     continue
@@ -780,7 +779,22 @@ class PowerView:
                             _entries = modify_entry(_entries,new_attributes={
                                 data : parsed_data[data]
                             })
-                        entries.append({"attributes":_entries["attributes"]})
+                    if properties:
+                        new_dict = {}
+                        ori_list = list(_entries["attributes"].keys())
+                        for p in properties:
+                            if p.lower() not in [x.lower() for x in ori_list]:
+                                continue
+                            for i in ori_list:
+                                if p.casefold() == i.casefold():
+                                    new_dict[i] = _entries["attributes"][i]
+                    else:
+                        new_dict = _entries["attributes"]
+
+                    entries.append({
+                        "attributes": new_dict
+                    })
+                        #entries.append({"attributes":_entries["attributes"]})
         return entries
 
     def get_domainca(self, args=None, properties=['*']):
@@ -919,13 +933,12 @@ class PowerView:
                                  ]
 
                                  )
-                new_dict = {}
                 if properties:
+                    new_dict = {}
                     ori_list = list(e["attributes"].keys())
                     for p in properties:
                         if p.lower() not in [x.lower() for x in ori_list]:
-                            logging.error("Invalid atribute type %s" % (p))
-                            return
+                            continue
                         for i in ori_list:
                             if p.casefold() == i.casefold():
                                 new_dict[i] = e["attributes"][i]
@@ -1475,13 +1488,13 @@ class PowerView:
                         host = f"{host_inp}.{self.domain}"
                     else:
                         host = host_inp
-                logging.debug(f"Using FQDN: {host}")
+                logging.debug(f"[Get-NamedPipes] Using FQDN: {host}")
             else:
                 host = host_inp
 
         if self.use_kerberos:
             if is_ipaddress(args.computer) or is_ipaddress(args.computername):
-                logging.error('FQDN must be used for kerberos authentication')
+                logging.error('[Get-NamedPipes] FQDN must be used for kerberos authentication')
                 return
             host = args.computer if args.computer else args.computername
         else:
@@ -1489,7 +1502,7 @@ class PowerView:
                 host = host2ip(host, self.dc_ip, 3, True)
 
         if not host:
-            logging.error('Host not found')
+            logging.error('[Get-NamedPipes] Host not found')
             return
 
         available_pipes = []
@@ -1838,7 +1851,7 @@ class PowerView:
             if is_ipaddress(args.computer) or is_ipaddress(args.computername):
                 logging.error('[Find-LocalAdminAccess] FQDN must be used for kerberos authentication')
                 return
-            host = args.computer if args.computer else args.computername
+            host = args.computer if args.computer else args.computereturne
         else:
             if is_fqdn:
                 host = host2ip(host, self.dc_ip, 3, True)

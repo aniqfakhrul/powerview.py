@@ -45,8 +45,8 @@ class CONNECTION:
             self.use_ldaps = True
 
         self.samr = None
-        self.TGT = None
-        self.TGS = None
+        self.TGT = {}
+        self.TGS = {}
 
     def set_domain(self, domain):
         self.domain = domain
@@ -240,7 +240,7 @@ class CONNECTION:
         import datetime
         import os
 
-        if TGT is not None or TGS is not None:
+        if self.TGT is not None or self.TGS is not None:
             useCache = False
 
         if useCache:
@@ -269,12 +269,12 @@ class CONNECTION:
                     principal = 'krbtgt/%s@%s' % (domain.upper(), domain.upper())
                     creds = ccache.getCredential(principal)
                     if creds is not None:
-                        TGT = creds.toTGT()
+                        self.TGT = creds.toTGT()
                         logging.debug('Using TGT from cache')
                     else:
                         logging.debug('No valid credentials found in cache')
                 else:
-                    TGS = creds.toTGS(principal)
+                    self.TGS = creds.toTGS(principal)
                     logging.debug('Using TGS from cache')
 
                 # retrieve user information from CCache file if needed
@@ -287,21 +287,29 @@ class CONNECTION:
 
         # First of all, we need to get a TGT for the user
         userName = Principal(user, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
-        if TGT is None:
-            if TGS is None:
+        if not self.TGT:
+            if not self.TGS:
                 tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, password, domain, lmhash, nthash, aesKey, kdcHost)
+                self.TGT['KDC_REP'] = tgt
+                self.TGT['cipher'] = cipher
+                self.TGT['oldSessionKey'] = oldSessionKey
+                self.TGT['sessionKey'] = sessionKey
         else:
-            tgt = TGT['KDC_REP']
-            cipher = TGT['cipher']
-            sessionKey = TGT['sessionKey']
+            tgt = self.TGT['KDC_REP']
+            cipher = self.TGT['cipher']
+            sessionKey = self.TGT['sessionKey']
 
-        if TGS is None:
+        if not self.TGS:
             serverName = Principal('ldap/%s' % target, type=constants.PrincipalNameType.NT_SRV_INST.value)
             tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey)
+            self.TGS['KDC_REP'] = tgs
+            self.TGS['cipher'] = cipher
+            self.TGS['oldSessionKey'] = oldSessionKey
+            self.TGS['sessionKey'] = sessionKey
         else:
-            tgs = TGS['KDC_REP']
-            cipher = TGS['cipher']
-            sessionKey = TGS['sessionKey']
+            tgs = self.TGS['KDC_REP']
+            cipher = self.TGS['cipher']
+            sessionKey = self.TGS['sessionKey']
 
             # Let's build a NegTokenInit with a Kerberos REQ_AP
 
@@ -364,57 +372,61 @@ class CONNECTION:
 
         return True
 
-    def init_smb_session(self, host, timeout=10):
+    def init_smb_session(self, host, timeout=10, useCache=True):
         try:
             logging.debug("Default timeout is set to 15. Expect a delay")
             conn = SMBConnection(host, host, sess_port=445, timeout=timeout)
             if self.use_kerberos:
-                # only import if used
-                import os
-                from impacket.krb5.ccache import CCache
-                from impacket.krb5.kerberosv5 import KerberosError
-                from impacket.krb5 import constants
+                if self.TGT and self.TGS:
+                    useCache = False
 
-                try:
-                    ccache = CCache.loadFile(os.getenv('KRB5CCNAME'))
-                except Exception as e:
-                   # No cache present
-                    logging.error(str(e))
-                    pass
-                else:
-                    # retrieve domain information from CCache file if needed
-                    if self.domain == '':
-                        self.domain = ccache.principal.realm['data'].decode('utf-8')
-                        logging.debug('Domain retrieved from CCache: %s' % domain)
+                if useCache:
+                    # only import if used
+                    import os
+                    from impacket.krb5.ccache import CCache
+                    from impacket.krb5.kerberosv5 import KerberosError
+                    from impacket.krb5 import constants
 
-                    logging.debug('Using Kerberos Cache: %s' % os.getenv('KRB5CCNAME'))
-                    principal = 'cifs/%s@%s' % (self.targetIp.upper(), self.domain.upper())
-
-                    creds = ccache.getCredential(principal)
-                    if creds is None:
-                        # Let's try for the TGT and go from there
-                        principal = 'krbtgt/%s@%s' % (self.domain.upper(), self.domain.upper())
-                        creds = ccache.getCredential(principal)
-                        if creds is not None:
-                            self.TGT = creds.toTGT()
-                            logging.debug('Using TGT from cache')
-                        else:
-                            logging.debug('No valid credentials found in cache')
+                    try:
+                        ccache = CCache.loadFile(os.getenv('KRB5CCNAME'))
+                    except Exception as e:
+                       # No cache present
+                        logging.info(str(e))
+                        return
                     else:
-                        self.TGS = creds.toTGS(principal)
-                        logging.debug('Using TGS from cache')
+                        # retrieve domain information from CCache file if needed
+                        if self.domain == '':
+                            self.domain = ccache.principal.realm['data'].decode('utf-8')
+                            logging.debug('Domain retrieved from CCache: %s' % domain)
 
-                    # retrieve user information from CCache file if needed
-                    if self.username == '' and creds is not None:
-                        self.username = creds['client'].prettyPrint().split(b'@')[0].decode('utf-8')
-                        logging.debug('Username retrieved from CCache: %s' % self.username)
-                    elif self.username == '' and len(ccache.principal.components) > 0:
-                        self.user = ccache.principal.components[0]['data'].decode('utf-8')
-                        logging.debug('Username retrieved from CCache: %s' % self.username)
+                        logging.debug('Using Kerberos Cache: %s' % os.getenv('KRB5CCNAME'))
+                        principal = 'cifs/%s@%s' % (self.targetIp.upper(), self.domain.upper())
 
-                    conn.kerberosLogin(self.username,self.password,self.domain, self.lmhash, self.nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
-                    #conn.kerberosLogin(self.username,self.password,self.domain, self.lmhash, self.nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
-                    # havent support kerberos authentication yet
+                        creds = ccache.getCredential(principal)
+                        if creds is None:
+                            # Let's try for the TGT and go from there
+                            principal = 'krbtgt/%s@%s' % (self.domain.upper(), self.domain.upper())
+                            creds = ccache.getCredential(principal)
+                            if creds is not None:
+                                self.TGT = creds.toTGT()
+                                logging.debug('Using TGT from cache')
+                            else:
+                                logging.debug('No valid credentials found in cache')
+                        else:
+                            self.TGS = creds.toTGS(principal)
+                            logging.debug('Using TGS from cache')
+
+                        # retrieve user information from CCache file if needed
+                        if self.username == '' and creds is not None:
+                            self.username = creds['client'].prettyPrint().split(b'@')[0].decode('utf-8')
+                            logging.debug('Username retrieved from CCache: %s' % self.username)
+                        elif self.username == '' and len(ccache.principal.components) > 0:
+                            self.user = ccache.principal.components[0]['data'].decode('utf-8')
+                            logging.debug('Username retrieved from CCache: %s' % self.username)
+
+                conn.kerberosLogin(self.username,self.password,self.domain, self.lmhash, self.nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
+                #conn.kerberosLogin(self.username,self.password,self.domain, self.lmhash, self.nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
+                # havent support kerberos authentication yet
             else:
                 conn.login(self.username,self.password,self.domain, self.lmhash, self.nthash)
             return conn
@@ -470,7 +482,8 @@ class CONNECTION:
         if hasattr(rpctransport, 'set_credentials') and auth:
             rpctransport.set_credentials(self.username, self.password, self.domain, self.lmhash, self.nthash)
 
-        rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.kdcHost)
+        if hasattr(rpctransport, 'set_kerberos') and self.use_kerberos and auth:
+            rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.kdcHost)
 
         if host:
             rpctransport.setRemoteHost(host)
