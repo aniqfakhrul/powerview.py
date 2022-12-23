@@ -3,6 +3,7 @@ import logging
 from impacket.ldap import ldaptypes
 from impacket.uuid import bin_to_string
 from ldap3.protocol.formatters.formatters import format_sid
+from ldap3.protocol.microsoft import security_descriptor_control
 
 from powerview.utils.helpers import (
     is_admin_sid,
@@ -61,7 +62,7 @@ class ActiveDirectorySecurity:
 
                 self.aces[sid]["extended_rights"].append(uuid)
 
-class CertifcateSecurity(ActiveDirectorySecurity):
+class CertificateSecurity(ActiveDirectorySecurity):
     RIGHTS_TYPE = CERTIFICATE_RIGHTS
 
 class CAEnum:
@@ -101,7 +102,8 @@ class CAEnum:
         self.ldap_session.search(
             ca_search_base,
             search_filter,
-            attributes=properties
+            attributes=properties,
+            controls = security_descriptor_control(sdflags=0x5),
         )
 
         return self.ldap_session.entries
@@ -339,9 +341,8 @@ class PARSE_TEMPLATE:
         enrollment_rights = []
         all_extended_rights = []
 
-        self.parsed_dacl = {}
         sdData = self.template["nTSecurityDescriptor"].raw_values[0]
-        security = CertifcateSecurity(sdData)
+        security = CertificateSecurity(sdData)
         self.owner_sid = security.owner
         if not self.domain_sid:
             self.domain_sid = '-'.join(self.owner_sid.split("-")[:-1])

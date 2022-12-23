@@ -105,6 +105,20 @@ def is_admin_sid(sid: str):
         or sid == "S-1-5-32-544"
     )
 
+def strip_entry(entry):
+    for k,v in entry["attributes"].items():
+        # check if its only have 1 index,
+        # then break it into string
+        if isinstance(v, list):
+            if len(v) == 1:
+                if k in [
+                        "dnsRecord",
+                ]:
+                    continue
+                if not isinstance(v[0], str):
+                    continue
+                entry["attributes"][k] = v[0]
+
 def modify_entry(entry, new_attributes=[], remove=[]):
     entries = {}
     if isinstance(entry,ldap3.abstract.entry.Entry):

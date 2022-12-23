@@ -82,6 +82,7 @@ Get-DomainUser -Count
 
 ### To-Do
 * Fix Where module to compare against list
+* Add --certificate flag to support ldap bind with certificate
 * Add a wiki?
 
 ### Credits

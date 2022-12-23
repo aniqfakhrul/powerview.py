@@ -145,114 +145,106 @@ class ADDCOMPUTER:
         connectTo = self.__target
         if self.__targetIp is not None:
             connectTo = self.__targetIp
+        user = '%s\\%s' % (self.__domain, self.__username)
+        tls = ldap3.Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1_2)
         try:
-            user = '%s\\%s' % (self.__domain, self.__username)
-            tls = ldap3.Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1_2)
-            try:
-                ldapServer = ldap3.Server(connectTo, use_ssl=True, port=self.__port, get_info=ldap3.ALL, tls=tls)
-                if self.__doKerberos:
-                    ldapConn = ldap3.Connection(ldapServer)
-                    self.LDAP3KerberosLogin(ldapConn, self.__username, self.__password, self.__domain, self.__lmhash, self.__nthash,
-                                                 self.__aesKey, kdcHost=self.__kdcHost)
-                elif self.__hashes is not None:
-                    ldapConn = ldap3.Connection(ldapServer, user=user, password=self.__hashes, authentication=ldap3.NTLM)
-                    ldapConn.bind()
-                else:
-                    ldapConn = ldap3.Connection(ldapServer, user=user, password=self.__password, authentication=ldap3.NTLM)
-                    ldapConn.bind()
-
-            except ldap3.core.exceptions.LDAPSocketOpenError:
-                #try tlsv1
-                tls = ldap3.Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1)
-                ldapServer = ldap3.Server(connectTo, use_ssl=True, port=self.__port, get_info=ldap3.ALL, tls=tls)
-                if self.__doKerberos:
-                    ldapConn = ldap3.Connection(ldapServer)
-                    self.LDAP3KerberosLogin(ldapConn, self.__username, self.__password, self.__domain, self.__lmhash, self.__nthash,
-                                                 self.__aesKey, kdcHost=self.__kdcHost)
-                elif self.__hashes is not None:
-                    ldapConn = ldap3.Connection(ldapServer, user=user, password=self.__hashes, authentication=ldap3.NTLM)
-                    ldapConn.bind()
-                else:
-                    ldapConn = ldap3.Connection(ldapServer, user=user, password=self.__password, authentication=ldap3.NTLM)
-                    ldapConn.bind()
-
-
-
-            if self.__noAdd or self.__delete:
-                if not self.LDAPComputerExists(ldapConn, self.__computerName):
-                    raise Exception("Account %s not found in %s!" % (self.__computerName, self.__baseDN))
-
-                computer = self.LDAPGetComputer(ldapConn, self.__computerName)
-
-                if self.__delete:
-                    res = ldapConn.delete(computer.entry_dn)
-                    message = "delete"
-                else:
-                    res = ldapConn.modify(computer.entry_dn, {'unicodePwd': [(ldap3.MODIFY_REPLACE, ['"{}"'.format(self.__computerPassword).encode('utf-16-le')])]})
-                    message = "set password for"
-
-
-                if not res:
-                    if ldapConn.result['result'] == ldap3.core.results.RESULT_INSUFFICIENT_ACCESS_RIGHTS:
-                        raise Exception("User %s doesn't have right to %s %s!" % (self.__username, message, self.__computerName))
-                    else:
-                        raise Exception(str(ldapConn.result))
-                else:
-                    if self.__noAdd:
-                        logging.info("Succesfully set password of %s to %s." % (self.__computerName, self.__computerPassword))
-                    else:
-                        logging.info("Succesfully deleted %s." % self.__computerName)
-
+            ldapServer = ldap3.Server(connectTo, use_ssl=True, port=self.__port, get_info=ldap3.ALL, tls=tls)
+            if self.__doKerberos:
+                ldapConn = ldap3.Connection(ldapServer)
+                self.LDAP3KerberosLogin(ldapConn, self.__username, self.__password, self.__domain, self.__lmhash, self.__nthash,
+                                             self.__aesKey, kdcHost=self.__kdcHost)
+            elif self.__hashes is not None:
+                ldapConn = ldap3.Connection(ldapServer, user=user, password=self.__hashes, authentication=ldap3.NTLM)
+                ldapConn.bind()
             else:
-                if self.__computerName is not None:
-                    if self.LDAPComputerExists(ldapConn, self.__computerName):
-                        raise Exception("Account %s already exists! If you just want to set a password, use -no-add." % self.__computerName)
+                ldapConn = ldap3.Connection(ldapServer, user=user, password=self.__password, authentication=ldap3.NTLM)
+                ldapConn.bind()
+
+        except ldap3.core.exceptions.LDAPSocketOpenError:
+            #try tlsv1
+            tls = ldap3.Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1)
+            ldapServer = ldap3.Server(connectTo, use_ssl=True, port=self.__port, get_info=ldap3.ALL, tls=tls)
+            if self.__doKerberos:
+                ldapConn = ldap3.Connection(ldapServer)
+                self.LDAP3KerberosLogin(ldapConn, self.__username, self.__password, self.__domain, self.__lmhash, self.__nthash,
+                                             self.__aesKey, kdcHost=self.__kdcHost)
+            elif self.__hashes is not None:
+                ldapConn = ldap3.Connection(ldapServer, user=user, password=self.__hashes, authentication=ldap3.NTLM)
+                ldapConn.bind()
+            else:
+                ldapConn = ldap3.Connection(ldapServer, user=user, password=self.__password, authentication=ldap3.NTLM)
+                ldapConn.bind()
+
+
+
+        if self.__noAdd or self.__delete:
+            if not self.LDAPComputerExists(ldapConn, self.__computerName):
+                raise Exception("Account %s not found in %s!" % (self.__computerName, self.__baseDN))
+
+            computer = self.LDAPGetComputer(ldapConn, self.__computerName)
+
+            if self.__delete:
+                res = ldapConn.delete(computer.entry_dn)
+                message = "delete"
+            else:
+                res = ldapConn.modify(computer.entry_dn, {'unicodePwd': [(ldap3.MODIFY_REPLACE, ['"{}"'.format(self.__computerPassword).encode('utf-16-le')])]})
+                message = "set password for"
+
+
+            if not res:
+                if ldapConn.result['result'] == ldap3.core.results.RESULT_INSUFFICIENT_ACCESS_RIGHTS:
+                    raise Exception("User %s doesn't have right to %s %s!" % (self.__username, message, self.__computerName))
                 else:
-                    while True:
-                        self.__computerName = self.generateComputerName()
-                        if not self.LDAPComputerExists(ldapConn, self.__computerName):
-                            break
+                    raise Exception(str(ldapConn.result))
+            else:
+                if self.__noAdd:
+                    logging.info("Succesfully set password of %s to %s." % (self.__computerName, self.__computerPassword))
+                else:
+                    logging.info("Succesfully deleted %s." % self.__computerName)
+
+        else:
+            if self.__computerName is not None:
+                if self.LDAPComputerExists(ldapConn, self.__computerName):
+                    raise Exception("Account %s already exists! If you just want to set a password, use -no-add." % self.__computerName)
+            else:
+                while True:
+                    self.__computerName = self.generateComputerName()
+                    if not self.LDAPComputerExists(ldapConn, self.__computerName):
+                        break
 
 
-                computerHostname = self.__computerName[:-1]
-                computerDn = ('CN=%s,%s' % (computerHostname, self.__computerGroup))
+            computerHostname = self.__computerName[:-1]
+            computerDn = ('CN=%s,%s' % (computerHostname, self.__computerGroup))
 
-                # Default computer SPNs
-                spns = [
-                    'HOST/%s' % computerHostname,
-                    'HOST/%s.%s' % (computerHostname, self.__domain),
-                    'RestrictedKrbHost/%s' % computerHostname,
-                    'RestrictedKrbHost/%s.%s' % (computerHostname, self.__domain),
-                ]
-                ucd = {
-                    'dnsHostName': '%s.%s' % (computerHostname, self.__domain),
-                    'userAccountControl': 0x1000,
-                    'servicePrincipalName': spns,
-                    'sAMAccountName': self.__computerName,
-                    'unicodePwd': ('"%s"' % self.__computerPassword).encode('utf-16-le')
-                }
+            # Default computer SPNs
+            spns = [
+                'HOST/%s' % computerHostname,
+                'HOST/%s.%s' % (computerHostname, self.__domain),
+                'RestrictedKrbHost/%s' % computerHostname,
+                'RestrictedKrbHost/%s.%s' % (computerHostname, self.__domain),
+            ]
+            ucd = {
+                'dnsHostName': '%s.%s' % (computerHostname, self.__domain),
+                'userAccountControl': 0x1000,
+                'servicePrincipalName': spns,
+                'sAMAccountName': self.__computerName,
+                'unicodePwd': ('"%s"' % self.__computerPassword).encode('utf-16-le')
+            }
 
-                res = ldapConn.add(computerDn, ['top','person','organizationalPerson','user','computer'], ucd)
-                if not res:
-                    if ldapConn.result['result'] == ldap3.core.results.RESULT_UNWILLING_TO_PERFORM:
-                        error_code = int(ldapConn.result['message'].split(':')[0].strip(), 16)
-                        if error_code == 0x216D:
-                            raise Exception("User %s machine quota exceeded!" % self.__username)
-                        else:
-                            raise Exception(str(ldapConn.result))
-                    elif ldapConn.result['result'] == ldap3.core.results.RESULT_INSUFFICIENT_ACCESS_RIGHTS:
-                        raise Exception("User %s doesn't have right to create a machine account!" % self.__username)
+            res = ldapConn.add(computerDn, ['top','person','organizationalPerson','user','computer'], ucd)
+            if not res:
+                if ldapConn.result['result'] == ldap3.core.results.RESULT_UNWILLING_TO_PERFORM:
+                    error_code = int(ldapConn.result['message'].split(':')[0].strip(), 16)
+                    if error_code == 0x216D:
+                        raise Exception("User %s machine quota exceeded!" % self.__username)
                     else:
                         raise Exception(str(ldapConn.result))
+                elif ldapConn.result['result'] == ldap3.core.results.RESULT_INSUFFICIENT_ACCESS_RIGHTS:
+                    raise Exception("User %s doesn't have right to create a machine account!" % self.__username)
                 else:
-                    logging.info("Successfully added machine account %s with password %s." % (self.__computerName, self.__computerPassword))
-        except Exception as e:
-            if logging.getLogger().level == logging.DEBUG:
-                import traceback
-                traceback.print_exc()
-
-            logging.critical(str(e))
-
+                    raise Exception(str(ldapConn.result))
+            else:
+                logging.info("Successfully added machine account %s with password %s." % (self.__computerName, self.__computerPassword))
 
     def LDAPComputerExists(self, connection, computerName):
         connection.search(self.__baseDN, '(sAMAccountName=%s)' % computerName)
@@ -301,7 +293,7 @@ class ADDCOMPUTER:
         from impacket.krb5.types import Principal, KerberosTime, Ticket
         import datetime
 
-        from powerview.lib.kerberosv5 import getKerberosTGT, getKerberosTGS
+        from impacket.krb5.kerberosv5 import getKerberosTGT, getKerberosTGS
 
         if TGT is not None or TGS is not None:
             useCache = False
@@ -524,9 +516,3 @@ class ADDCOMPUTER:
             if servHandle is not None:
                 samr.hSamrCloseHandle(dce, servHandle)
             dce.disconnect()
-
-    def run(self):
-        if self.__method == 'SAMR':
-            self.run_samr()
-        elif self.__method == 'LDAPS':
-            self.run_ldaps()
