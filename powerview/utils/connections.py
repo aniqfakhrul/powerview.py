@@ -240,7 +240,7 @@ class CONNECTION:
         import datetime
         import os
 
-        if self.TGT is not None or self.TGS is not None:
+        if self.TGT or self.TGS:
             useCache = False
 
         if useCache:
