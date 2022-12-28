@@ -4,6 +4,7 @@ from impacket.ldap import ldaptypes
 from impacket.uuid import bin_to_string
 from ldap3.protocol.formatters.formatters import format_sid
 from ldap3.protocol.microsoft import security_descriptor_control
+import socket
 
 from powerview.utils.helpers import (
     is_admin_sid,
@@ -108,6 +109,37 @@ class CAEnum:
 
         return self.ldap_session.entries
 
+    # https://github.com/ly4k/Certipy/blob/main/certipy/commands/find.py#L688
+    def check_web_enrollment(self, target_name, target_ip, timeout=5):
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            logging.debug("Default timeout is set to 5")
+            sock.settimeout(timeout)
+
+            logging.debug("Connecting to %s:80" % target_ip)
+            sock.connect((target_ip, 80))
+            sock.sendall(
+                "\r\n".join(
+                    ["HEAD /certsrv/ HTTP/1.1", "Host: %s" % target_name, "\r\n"]
+                ).encode()
+            )
+            resp = sock.recv(256)
+            sock.close()
+            head = resp.split(b"\r\n")[0].decode()
+
+            return " 404 " not in head
+        except ConnectionRefusedError:
+            return False
+        except socket.timeout:
+            logging.debug("Can't reach %s" % (target_name))
+            return False
+        except Exception as e:
+            logging.warning(
+                "Got error while trying to check for web enrollment: %s" % e
+            )
+
+        return False
+
 class PARSE_TEMPLATE:
     def __init__(self, template):
         self.template = template
@@ -192,11 +224,11 @@ class PARSE_TEMPLATE:
     def set_enrollment_agent(self, enrollment_agent):
         self.enrollment_agent = enrollment_agent
 
-    def get_requires_manager_approval(self):
-        return self.requires_manager_approval
-
     def set_requires_manager_approval(self, requires_manager_approval):
         self.requires_manager_approval = requires_manager_approval
+
+    def get_requires_manager_approval(self):
+        return self.requires_manager_approval
 
     def get_authorized_signatures_required(self):
         return self.authorized_signatures_required
@@ -279,9 +311,9 @@ class PARSE_TEMPLATE:
                 ]
             ))
 
-        self.set_requires_manager_approval((
+        self.set_requires_manager_approval(
                 MS_PKI_ENROLLMENT_FLAG.PEND_ALL_REQUESTS in self.enrollment_flag
-            ))
+        )
 
         # resolve validity period
         self.set_validity_period(filetime_to_str(self.template["pKIExpirationPeriod"].raw_values[0]))

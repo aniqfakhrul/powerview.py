@@ -313,6 +313,7 @@ def get_user_info(samname, ldap_session, domain_dumper):
 
 
 def host2ip(hostname, nameserver,dns_timeout,dns_tcp):
+    hostname = str(hostname)
     if hostname in list(STORED_ADDR.keys()):
         return STORED_ADDR[hostname]
 
