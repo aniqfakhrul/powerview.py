@@ -185,7 +185,7 @@ def main():
                                 else:
                                     entries = powerview.get_domaindnsrecord(identity, zonename, properties, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-ca':
-                                properties = pv_args.properties.strip(" ").split(',')
+                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainca(pv_args, properties)
                                 else:
@@ -434,6 +434,9 @@ def main():
             except EOFError:
                 print("Exiting...")
                 sys.exit(0)
+            except ldap3.core.exceptions.LDAPSocketSendError as e:
+                logging.info("Connection dead")
+                powerview.reset_connection()
             except Exception as e:
                 logging.error(str(e))
     except ldap3.core.exceptions.LDAPSocketOpenError as e:

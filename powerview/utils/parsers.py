@@ -229,7 +229,7 @@ def powerview_arg_parse(cmd):
 
     # Find CAs
     get_domainca_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-CA'], exit_on_error=False)
-    get_domainca_parser.add_argument('-Properties', action='store', default='*', dest='properties')
+    get_domainca_parser.add_argument('-Properties', action='store', dest='properties')
     get_domainca_parser.add_argument('-Domain', action='store', dest='server')
     get_domainca_parser.add_argument('-Select', action='store', dest='select')
     get_domainca_parser.add_argument('-Where', action='store', dest='where')

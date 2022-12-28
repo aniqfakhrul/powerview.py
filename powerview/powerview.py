@@ -683,10 +683,10 @@ class PowerView:
 
                 KNOWN_SIDS[objectsid] = identity
             else:
-                logging.debug(f"No objects found for {objectsid}")
+                logging.debug(f"[ConvertFrom-SID] No objects found for {objectsid}")
                 return objectsid
         if output:
-            print("%s\n" % identity)
+            print("%s" % identity)
         return identity
 
     def get_domain(self, args=None, properties=['*'], identity='*'):
@@ -797,9 +797,35 @@ class PowerView:
                         #entries.append({"attributes":_entries["attributes"]})
         return entries
 
-    def get_domainca(self, args=None, properties=['*']):
+    def get_domainca(self, args=None, properties=None):
+        def_prop = [
+            "cn",
+            "name",
+            "dNSHostName",
+            "cACertificateDN",
+            "cACertificate",
+            "certificateTemplates",
+            "objectGUID",
+            "distinguishedName",
+            "displayName",
+        ]
+        properties = def_prop if not properties else properties
+
         ca_fetch = CAEnum(self.ldap_session, self.root_dn)
         entries = ca_fetch.fetch_enrollment_services(properties)
+
+        # check for web enrollment
+        for i in range(len(entries)):
+            target_name = entries[i]['dnsHostName']
+            target_ip = host2ip(target_name, self.dc_ip, 3, True)
+            web_enrollment = ca_fetch.check_web_enrollment(target_name,target_ip)
+            entries[i] = modify_entry(
+                entries[i],
+                new_attributes = {
+                    "WebEnrollment": web_enrollment
+                }
+            )
+
         return entries
 
     def get_domaincatemplate(self, args=None, properties=[], identity=None):
@@ -855,6 +881,7 @@ class PowerView:
                 extended_key_usage = template_ops.get_extended_key_usage()
                 validity_period = template_ops.get_validity_period()
                 renewal_period = template_ops.get_renewal_period()
+                requires_manager_approval = template_ops.get_requires_manager_approval()
 
                 try:
                     ca_templates = ca.certificateTemplates
@@ -914,6 +941,7 @@ class PowerView:
                                     'pKIExtendedKeyUsage': extended_key_usage,
                                     'pKIExpirationPeriod': validity_period,
                                     'pKIOverlapPeriod': renewal_period,
+                                    'ManagerApproval': requires_manager_approval,
                                     'Enrollment Rights': parsed_dacl['Enrollment Rights'],
                                     'Extended Rights': parsed_dacl['Extended Rights'],
                                     'Write Owner': parsed_dacl['Write Owner'],
