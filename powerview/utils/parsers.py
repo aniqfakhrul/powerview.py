@@ -15,7 +15,7 @@ class PowerViewParser(argparse.ArgumentParser):
 
 def arg_parse():
     parser = PowerViewParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE}0.1.2{bcolors.ENDC}")
-    parser.add_argument('account', action='store', metavar='[domain/]username[:password]', help='Account used to authenticate to DC.')
+    parser.add_argument('target', action='store', help='[[domain/]username[:password]@]<targetName or address>')
     parser.add_argument('--debug', dest='debug', action='store_true', help='Enable debug output')
     parser.add_argument('--version', dest='version', action='version',version=BANNER)
 

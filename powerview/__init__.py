@@ -9,7 +9,6 @@ from powerview.utils.connections import CONNECTION
 from powerview.utils.parsers import powerview_arg_parse, arg_parse
 
 from impacket.examples import logger
-from impacket.examples.utils import parse_credentials
 
 import ldap3
 import logging
@@ -29,35 +28,38 @@ def main():
 
     args = arg_parse()
 
-    domain, username, password, lmhash, nthash = parse_identity(args)
+    domain, username, password, lmhash, nthash, ldap_address = parse_identity(args)
+
     setattr(args,'domain',domain)
     setattr(args,'username',username)
     setattr(args,'password',password)
     setattr(args,'lmhash',lmhash)
     setattr(args,'nthash', nthash)
-    setattr(args,'init_dc_ip', args.dc_ip)
+    setattr(args, 'ldap_address', ldap_address)
+    if not args.dc_ip:
+        setattr(args,'dc_ip', ldap_address)
+        setattr(args,'init_dc_ip', ldap_address)
+    else:
+        setattr(args,'dc_ip', args.dc_ip)
+        setattr(args,'init_dc_ip', args.dc_ip)
 
     try:
         conn = CONNECTION(args)
 
         powerview = PowerView(conn, args)
         init_proto = conn.get_proto()
-        cur_user = conn.get_username()
-        cur_domain = conn.get_domain()
-        server_ip = conn.get_dc_ip()
+        cur_user = conn.who_am_i()
+        server_ip = conn.get_ldap_address()
         temp_powerview = None
 
         while True:
-            if not powerview.connection_alive():
-                powerview.reset_connection()
-
             try:
                 comp = Completer()
                 readline.set_completer_delims(' \t\n;')
                 readline.parse_and_bind("tab: complete")
                 readline.set_completer(comp.complete)
 
-                cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{server_ip}{bcolors.OKBLUE}]-[{bcolors.ENDC}{cur_domain}\\{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV > {bcolors.ENDC}')
+                cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{server_ip}{bcolors.OKBLUE}]-[{bcolors.ENDC}{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV > {bcolors.ENDC}')
 
                 if cmd:
                     try:

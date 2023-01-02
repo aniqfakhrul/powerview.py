@@ -24,7 +24,7 @@ from impacket.smbconnection import SMBConnection
 from impacket import version
 from impacket.dcerpc.v5 import samr, dtypes
 from impacket.examples import logger
-from impacket.examples.utils import parse_credentials
+from impacket.examples.utils import parse_credentials, parse_target
 from impacket.krb5 import constants
 from impacket.krb5.types import Principal
 from impacket.krb5.kerberosv5 import getKerberosTGT
@@ -276,11 +276,8 @@ def get_machine_name(args, domain):
 
 
 def parse_identity(args):
-    domain, username, password = utils.parse_credentials(args.account)
-
-    if domain == '':
-        logging.critical('Domain should be specified!')
-        sys.exit(1)
+    #domain, username, password = utils.parse_credentials(args.account)
+    domain, username, password, address = utils.parse_target(args.target)
 
     if password == '' and username != '' and args.hashes is None and args.no_pass is False and args.auth_aes_key is None:
         from getpass import getpass
@@ -299,7 +296,7 @@ def parse_identity(args):
         lmhash = ''
         nthash = ''
 
-    return domain, username, password, lmhash, nthash
+    return domain, username, password, lmhash, nthash, address
 
 def get_user_info(samname, ldap_session, domain_dumper):
     ldap_session.search(domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars(samname), 

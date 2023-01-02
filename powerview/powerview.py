@@ -61,13 +61,6 @@ class PowerView:
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
         self.flatName = list_to_str(self.get_domain(properties=['name'])[0]['attributes']['name']).upper()
 
-    def connection_alive(self):
-        return not self.ldap_session.closed
-
-    def reset_connection(self):
-        logging.debug("Rebinding connection to ldap server")
-        self.ldap_session.bind()
-
     def get_domainuser(self, args=None, properties=[], identity=None):
         def_prop = [
             'servicePrincipalName',

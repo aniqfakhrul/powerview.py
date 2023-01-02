@@ -6,7 +6,9 @@ from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_A
 from impacket.spnego import SPNEGO_NegTokenInit, TypesMech
 
 from powerview.utils.helpers import (
-    get_machine_name
+    get_machine_name,
+    host2ip,
+    is_valid_fqdn,
 )
 from powerview.utils.colors import bcolors
 from powerview.lib.resolver import (
@@ -27,6 +29,7 @@ class CONNECTION:
         self.nthash = args.nthash
         self.use_kerberos = args.use_kerberos
         self.dc_ip = args.dc_ip
+        self.ldap_address = args.ldap_address
         self.use_ldap = args.use_ldap
         self.use_ldaps = args.use_ldaps
         self.use_gc = args.use_gc
@@ -38,11 +41,14 @@ class CONNECTION:
             self.use_kerberos = True
         self.no_pass = args.no_pass
         self.args = args
-        self.targetIp = args.dc_ip
+        self.targetIp = args.ldap_address
         self.kdcHost = args.dc_ip
 
         if not self.use_ldap and not self.use_ldaps and not self.use_gc and not self.use_gc_ldaps:
             self.use_ldaps = True
+
+        self.ldap_session = None
+        self.ldap_server = None
 
         self.samr = None
         self.TGT = {}
@@ -72,11 +78,21 @@ class CONNECTION:
     def get_dc_ip(self):
         return self.dc_ip
 
+    def set_ldap_address(self, ldap_address):
+        self.ldap_address = ldap_address
+
+    def get_ldap_address(self):
+        return self.ldap_address
+
     def get_proto(self):
         return self.proto
 
     def set_proto(self, proto):
         self.proto = proto
+
+    def who_am_i(self):
+        whoami = self.ldap_session.extend.standard.who_am_i()
+        return whoami.split(":")[-1] if whoami else "ANONYMOUS"
 
     def init_ldap_session(self):
         if self.use_kerberos:
@@ -84,10 +100,22 @@ class CONNECTION:
             self.kdcHost = target
             #target = get_machine_name(self.args, self.domain)
         else:
-            if self.dc_ip is not None:
-                target = self.dc_ip
+            if is_valid_fqdn(self.ldap_address):
+                if self.ldap_address == self.dc_ip:
+                    logging.error("Please specify --dc-ip if using FQDN")
+                    sys.exit(0)
+                logging.debug("Resolving %s to IPv4" % (self.ldap_address))
+                self.ldap_address = host2ip(self.ldap_address, self.dc_ip, 10, True)
+
+            if self.ldap_address is not None:
+                target = self.ldap_address
             else:
                 target = self.domain
+
+        _anonymous = False
+        if not self.domain and not self.username and (not self.password or not self.nthash or not self.lmhash):
+            logging.debug("No credentials supplied. Using ANONYMOUS access")
+            _anonymous = True
 
         if self.use_ldaps is True or self.use_gc_ldaps is True:
             logging.debug("No protocol provided. Trying LDAPS")
@@ -97,7 +125,11 @@ class CONNECTION:
                     version=ssl.PROTOCOL_TLSv1_2,
                     ciphers='ALL:@SECLEVEL=0',
                 )
-                return self.init_ldap_connection(target, tls, self.domain, self.username, self.password, self.lmhash, self.nthash)
+                if _anonymous:
+                    self.ldap_server, self.ldap_session = self.init_ldap_anonymous(target, tls)
+                else:
+                    self.ldap_server, self.ldap_session = self.init_ldap_connection(target, tls, self.domain, self.username, self.password, self.lmhash, self.nthash)
+                return self.ldap_server, self.ldap_session
             except (ldap3.core.exceptions.LDAPSocketOpenError, ConnectionResetError):
                 try:
                     tls = ldap3.Tls(
@@ -105,7 +137,11 @@ class CONNECTION:
                         version=ssl.PROTOCOL_TLSv1,
                         ciphers='ALL:@SECLEVEL=0',
                     )
-                    return self.init_ldap_connection(target, tls, self.domain, self.username, self.password, self.lmhash, self.nthash)
+                    if _anonymous:
+                        self.ldap_server, self.ldap_session = self.init_ldap_anonymous(target, tls)
+                    else:
+                        self.ldap_server, self.ldap_session = self.init_ldap_connection(target, tls, self.domain, self.username, self.password, self.lmhash, self.nthash)
+                    return self.ldap_server, self.ldap_session
                 except:
                     if self.use_ldaps:
                         logging.warning('Error bind to LDAPS, trying LDAP')
@@ -118,7 +154,52 @@ class CONNECTION:
                     return self.init_ldap_session()
                     #return self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
         else:
-            return self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
+            if _anonymous:
+                self.ldap_server, self.ldap_session = self.init_ldap_anonymous(target)
+            else:
+                self.ldap_server, self.ldap_session = self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
+            return self.ldap_server, self.ldap_session
+
+    def init_ldap_anonymous(self, target, tls=None):
+        ldap_server_kwargs = {
+            "host": target,
+            "get_info": ldap3.ALL,
+        }
+
+        if tls:
+            if self.use_ldaps:
+                self.proto = "LDAPS"
+                ldap_server_kwargs["use_ssl"] = True
+                ldap_server_kwargs["port"] = 636
+            elif self.use_gc_ldaps:
+                self.proto = "GCssl"
+                ldap_server_kwargs["use_ssl"] = True
+                ldap_server_kwargs["port"] = 3269
+        else:
+            if self.use_gc:
+                self.proto = "GC"
+                ldap_server_kwargs["use_ssl"] = False
+                ldap_server_kwargs["port"] = 3268
+            elif self.use_ldap:
+                self.proto = "LDAP"
+                ldap_server_kwargs["use_ssl"] = False
+                ldap_server_kwargs["port"] = 389
+
+        logging.debug(f"Connecting as ANONYMOUS to %s, Port: %s, SSL: %s" % (ldap_server_kwargs["host"], ldap_server_kwargs["port"], ldap_server_kwargs["use_ssl"]))
+        ldap_server = ldap3.Server(**ldap_server_kwargs)
+        ldap_session = ldap3.Connection(ldap_server)
+
+        if not ldap_session.bind():
+            logging.info(f"Error binding to {self.proto}")
+            sys.exit(0)
+
+        base_dn = ldap_server.info.other['defaultNamingContext'][0]
+        if not ldap_session.search(base_dn,'(objectclass=*)'):
+            logging.info("ANONYMOUS access not allowed")
+            sys.exit(0)
+        else:
+            logging.info(f"{bcolors.WARNING}Server allows ANONYMOUS access!{bcolors.ENDC}")
+            return ldap_server, ldap_session
 
     def init_ldap_connection(self, target, tls, domain, username, password, lmhash, nthash):
         user = '%s\\%s' % (domain, username)
