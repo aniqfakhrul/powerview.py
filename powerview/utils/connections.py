@@ -100,13 +100,6 @@ class CONNECTION:
             self.kdcHost = target
             #target = get_machine_name(self.args, self.domain)
         else:
-            if is_valid_fqdn(self.ldap_address):
-                if self.ldap_address == self.dc_ip:
-                    logging.error("Please specify --dc-ip if using FQDN")
-                    sys.exit(0)
-                logging.debug("Resolving %s to IPv4" % (self.ldap_address))
-                self.ldap_address = host2ip(self.ldap_address, self.dc_ip, 10, True)
-
             if self.ldap_address is not None:
                 target = self.ldap_address
             else:
