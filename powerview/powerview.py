@@ -1319,19 +1319,27 @@ class PowerView:
         setattr(self.args, "dc_host", dc_host)
         setattr(self.args, "delete", True)
 
-        if self.args.use_ldaps:
+        if self.use_ldaps:
             setattr(self.args, "method", "LDAPS")
         else:
             setattr(self.args, "method", "SAMR")
 
         # Creating Machine Account
         addmachineaccount = ADDCOMPUTER(
-            self.args.username,
-            self.args.password,
-            self.args.domain,
+            self.username,
+            self.password,
+            self.domain,
             self.args,
-            computer_name)
-        addmachineaccount.run()
+            computer_name,
+        )
+        try:
+            if self.use_ldaps:
+                addmachineaccount.run_ldaps()
+            else:
+                addmachineaccount.run_samr()
+        except Exception as e:
+            logging.error(str(e))
+            return False
 
         if len(self.get_domainobject(identity=computer_name)) == 0:
             return True
