@@ -79,7 +79,7 @@ def main():
                             if foreign_dc_address is not None:
                                 #setattr(args,'dc_ip', foreign_dc_address)
                                 #conn = CONNECTION(args)
-                                conn.set_dc_ip(foreign_dc_address)
+                                conn.set_ldap_address(foreign_dc_address)
                                 temp_powerview = PowerView(conn, args)
                             else:
                                 logging.error(f'Domain {pv_args.server} not found or probably not alive')
