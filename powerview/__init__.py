@@ -77,8 +77,6 @@ def main():
                             logging.warning(f"Cross-domain targetting might be unstable or slow depending on network stability")
                             foreign_dc_address = get_principal_dc_address(pv_args.server,args.dc_ip)
                             if foreign_dc_address is not None:
-                                #setattr(args,'dc_ip', foreign_dc_address)
-                                #conn = CONNECTION(args)
                                 conn.set_ldap_address(foreign_dc_address)
                                 temp_powerview = PowerView(conn, args)
                             else:
@@ -423,7 +421,6 @@ def main():
 
                             temp_powerview = None
                             conn.set_dc_ip(args.init_dc_ip)
-                            #setattr(args,'dc_ip', args.init_dc_ip)
                         except ldap3.core.exceptions.LDAPAttributeError as e:
                             logging.error(str(e))
                         except ldap3.core.exceptions.LDAPSocketSendError as e:

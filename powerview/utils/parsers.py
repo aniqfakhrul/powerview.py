@@ -422,8 +422,14 @@ def powerview_arg_parse(cmd):
                         logging.error(f"Unrecognized argument: {unk}")
                         return None
                 else:
-                    logging.error(f"Unrecognized argument: {unk}")
-                    return None
+                    if hasattr(args, 'identity'):
+                        args.identity = unk
+                    elif hasattr(args, 'objectsid'):
+                        args.objectsid = unk
+                    else:
+                        logging.error(f"Unrecognized argument: {unk}")
+                        return None
+                    return args
             return parser.parse_args(cmd)
         return args
     except argparse.ArgumentError as e:
