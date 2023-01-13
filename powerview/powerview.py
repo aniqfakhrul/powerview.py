@@ -955,14 +955,7 @@ class PowerView:
 
                                  )
                 if properties:
-                    new_dict = {}
-                    ori_list = list(e["attributes"].keys())
-                    for p in properties:
-                        if p.lower() not in [x.lower() for x in ori_list]:
-                            continue
-                        for i in ori_list:
-                            if p.casefold() == i.casefold():
-                                new_dict[i] = e["attributes"][i]
+                    new_dict = filter_entry(e,properties)
                 else:
                     new_dict = e["attributes"]
 
@@ -1797,6 +1790,7 @@ class PowerView:
         entries_out = userspn.run(entries)
 
         # properly formatted for output
+
         return entries_out
 
     def find_localadminaccess(self, args):

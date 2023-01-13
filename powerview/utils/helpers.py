@@ -119,6 +119,17 @@ def strip_entry(entry):
                     continue
                 entry["attributes"][k] = v[0]
 
+def filter_entry(entry, properties):
+    new_dict = {}
+    ori_list = list(entry["attributes"].keys())
+    for p in properties:
+        if p.lower() not in [x.lower() for x in ori_list]:
+            continue
+        for i in ori_list:
+            if p.casefold() == i.casefold():
+                new_dict[i] = entry["attributes"][i]
+    return new_dict
+
 def modify_entry(entry, new_attributes=[], remove=[]):
     entries = {}
     if isinstance(entry,ldap3.abstract.entry.Entry):

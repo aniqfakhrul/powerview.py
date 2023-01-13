@@ -15,7 +15,7 @@ class PowerViewParser(argparse.ArgumentParser):
 
 def arg_parse():
     parser = PowerViewParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE}0.1.2{bcolors.ENDC}")
-    parser.add_argument('target', action='store', help='[[domain/]username[:password]@]<targetName or address>')
+    parser.add_argument('target', action='store', metavar='target', help='[[domain/]username[:password]@]<targetName or address>')
     parser.add_argument('--debug', dest='debug', action='store_true', help='Enable debug output')
     parser.add_argument('--version', dest='version', action='version',version=BANNER)
 
@@ -33,11 +33,11 @@ def arg_parse():
     auth.add_argument('--aes-key', dest="auth_aes_key", action="store", metavar = "hex key", help='AES key to use for Kerberos Authentication \'(128 or 256 bits)\'')
     auth.add_argument("--dc-ip", action='store', metavar='IP address', help='IP Address of the domain controller or KDC (Key Distribution Center) for Kerberos. If omitted it will use the domain part (FQDN) specified in the identity parameter')
 
-    args = parser.parse_args()
-
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
+
+    args = parser.parse_args()
 
     if args.debug is True:
         logging.getLogger().setLevel(logging.DEBUG)
