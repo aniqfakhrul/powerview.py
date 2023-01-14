@@ -809,9 +809,9 @@ class PowerView:
 
         # check for web enrollment
         for i in range(len(entries)):
-            target_name = entries[i]['dnsHostName']
-            target_ip = host2ip(target_name, self.dc_ip, 3, True)
-            web_enrollment = ca_fetch.check_web_enrollment(target_name,target_ip)
+            target_name = entries[i]['dnsHostName'].value
+            # target_ip = host2ip(target_name, self.dc_ip, 3, True)
+            web_enrollment = ca_fetch.check_web_enrollment(target_name)
             entries[i] = modify_entry(
                 entries[i],
                 new_attributes = {

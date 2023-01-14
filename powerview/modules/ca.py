@@ -110,14 +110,13 @@ class CAEnum:
         return self.ldap_session.entries
 
     # https://github.com/ly4k/Certipy/blob/main/certipy/commands/find.py#L688
-    def check_web_enrollment(self, target_name, target_ip, timeout=5):
+    def check_web_enrollment(self, target_name, timeout=5):
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             logging.debug("Default timeout is set to 5")
             sock.settimeout(timeout)
-
-            logging.debug("Connecting to %s:80" % target_ip)
-            sock.connect((target_ip, 80))
+            logging.debug("Connecting to %s:80" % target_name)
+            sock.connect((target_name, 80))
             sock.sendall(
                 "\r\n".join(
                     ["HEAD /certsrv/ HTTP/1.1", "Host: %s" % target_name, "\r\n"]
