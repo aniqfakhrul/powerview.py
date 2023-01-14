@@ -121,13 +121,13 @@ def strip_entry(entry):
 
 def filter_entry(entry, properties):
     new_dict = {}
-    ori_list = list(entry["attributes"].keys())
+    ori_list = list(entry.keys())
     for p in properties:
         if p.lower() not in [x.lower() for x in ori_list]:
             continue
         for i in ori_list:
             if p.casefold() == i.casefold():
-                new_dict[i] = entry["attributes"][i]
+                new_dict[i] = entry[i]
     return new_dict
 
 def modify_entry(entry, new_attributes=[], remove=[]):
@@ -187,7 +187,7 @@ def parse_inicontent(filecontent=None, filepath=None):
     config.read_string(filecontent)
     if "Group Membership" in list(config.keys()):
         for left, right in config['Group Membership'].items():
-            if "memberof" in left: 
+            if "memberof" in left:
                 infdict['sids'] = left.replace("*","").replace("__memberof","")
                 infdict['members'] = ""
                 infdict['memberof'] = right.replace("*","")
@@ -310,7 +310,7 @@ def parse_identity(args):
     return domain, username, password, lmhash, nthash, address
 
 def get_user_info(samname, ldap_session, domain_dumper):
-    ldap_session.search(domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars(samname), 
+    ldap_session.search(domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars(samname),
             attributes=['objectSid','ms-DS-MachineAccountQuota'])
     try:
         et = ldap_session.entries[0]
@@ -348,7 +348,7 @@ def host2ip(hostname, nameserver,dns_timeout,dns_tcp):
 
 def get_dc_host(ldap_session, domain_dumper,options):
     dc_host = {}
-    ldap_session.search(domain_dumper.root, '(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))', 
+    ldap_session.search(domain_dumper.root, '(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))',
             attributes=['name','dNSHostName'])
     if len(ldap_session.entries) > 0:
         for host in ldap_session.entries:
@@ -365,7 +365,7 @@ def get_dc_host(ldap_session, domain_dumper,options):
 
 def get_domain_admins(ldap_session, domain_dumper):
     admins = []
-    ldap_session.search(domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars("Domain Admins"), 
+    ldap_session.search(domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars("Domain Admins"),
             attributes=['objectSid'])
     a = ldap_session.entries[0]
     js = a.entry_to_json()

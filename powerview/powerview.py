@@ -954,10 +954,7 @@ class PowerView:
                                      'pKIExtendedKeyUsage'
                                  ]
                                  )
-                if properties:
-                    new_dict = filter_entry(e,properties)
-                else:
-                    new_dict = e["attributes"]
+                new_dict = e["attributes"]
                 list_entries.append(new_dict)
 
         # Enabled + Vulnerable only
@@ -978,6 +975,9 @@ class PowerView:
 
             if args.vulnerable and not vulnerable:
                 continue
+
+            if properties:
+                ent = filter_entry(ent,properties)
 
             entries.append({
                 "attributes": ent
