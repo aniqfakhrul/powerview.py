@@ -338,33 +338,33 @@ class PARSE_TEMPLATE:
             # TODO: add another user_can_enroll logic
             self.parsed_dacl["Enrollment Rights"]
             if (user_can_enroll and self.get_enrollee_supplies_subject() and self.get_client_authentication()):
-                vulns["ESC1"] = enrollable_sids
+                vulns["ESC1"] = enrollable_sids[0]
 
             # ESC2
             if user_can_enroll and self.get_any_purpose():
-                vulns["ESC2"] = "Vulnerable yayyy"
+                vulns["ESC2"] = enrollable_sids[0]
 
             # ESC3
             if user_can_enroll and self.get_enrollment_agent():
-                vulns["ESC3"] = "Vulnerable yayyy"
+                vulns["ESC3"] = enrollable_sids[0]
 
             # ESC9
             if user_can_enroll and self.get_no_security_extension():
                 vunls["ESC9"] = "Vulnerable yayay"
 
             # ESC4
-            for s in self.parsed_dacl["Write Owner"]:
-                rid = int(s.split("-")[-1])
-                if rid > 1000:
-                    vulns["ESC4"] = f"{rid} have write permission"
-            for s in self.parsed_dacl["Write Dacl"]:
-                rid = int(s.split("-")[-1])
-                if rid > 1000:
-                    vulns["ESC4"] = f"{rid} have write permission"
-            for s in self.parsed_dacl["Write Property"]:
-                rid = int(s.split("-")[-1])
-                if rid > 1000:
-                    vulns["ESC4"] = f"{rid} have write permission"
+            # for s in self.parsed_dacl["Write Owner"]:
+            #     rid = int(s.split("-")[-1])
+            #     if rid > 1000:
+            #         vulns["ESC4"] = f"{rid} have write permission"
+            # for s in self.parsed_dacl["Write Dacl"]:
+            #     rid = int(s.split("-")[-1])
+            #     if rid > 1000:
+            #         vulns["ESC4"] = f"{rid} have write permission"
+            # for s in self.parsed_dacl["Write Property"]:
+            #     rid = int(s.split("-")[-1])
+            #     if rid > 1000:
+            #         vulns["ESC4"] = f"{rid} have write permission"
 
         return vulns
 
@@ -382,8 +382,8 @@ class PARSE_TEMPLATE:
 
         for sid, rights in aces.items():
             # TODO: Fix Logic here
-            if sid in list(WELL_KNOWN_SIDS.keys()):
-                continue
+            # if sid in list(WELL_KNOWN_SIDS.keys()):
+            #     continue
 
             if(EXTENDED_RIGHTS_NAME_MAP["Enroll"] in rights["extended_rights"]
                or EXTENDED_RIGHTS_NAME_MAP["Enroll"] in rights["extended_rights"]

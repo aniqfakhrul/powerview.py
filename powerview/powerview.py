@@ -851,12 +851,16 @@ class PowerView:
             return
 
         logging.debug(f"Found {len(cas)} CA(s)")
+        # Entries only
+        list_ca_templates = []
+        list_entries = []
         for ca in cas:
+            list_ca_templates += ca.certificateTemplates
             for template in templates:
                 #template = template.entry_writable()
-                enabled = False
                 vulnerable = False
                 vulns = {}
+                list_vuln = []
 
                 # avoid dupes
                 if template["objectGUID"] in template_guids:
@@ -871,32 +875,13 @@ class PowerView:
                 template_owner = template_ops.get_owner_sid()
                 certificate_name_flag = template_ops.get_certificate_name_flag()
                 enrollment_flag = template_ops.get_enrollment_flag()
+                # print(enrollment_flag)
                 extended_key_usage = template_ops.get_extended_key_usage()
                 validity_period = template_ops.get_validity_period()
                 renewal_period = template_ops.get_renewal_period()
                 requires_manager_approval = template_ops.get_requires_manager_approval()
 
-                try:
-                    ca_templates = ca.certificateTemplates
-
-                    if ca_templates is None:
-                        ca_templates = []
-                except ldap3.core.exceptions.LDAPCursorAttributeError:
-                    ca_templates = []
-
-                if template.name in ca_templates:
-                    enabled = True
-
-                if args.enabled and not enabled:
-                    continue
-
-                # check vulnerable
-                if args.vulnerable:
-                    vulns = template_ops.check_vulnerable_template()
-                    if vulns:
-                        vulnerable = True
-                    else:
-                        continue
+                vulns = template_ops.check_vulnerable_template()
 
                 if args.resolve_sids:
                     template_owner = self.convertfrom_sid(template_ops.get_owner_sid())
@@ -925,6 +910,21 @@ class PowerView:
                         except:
                             pass
 
+                    # Resolve Vulnerable (With resolvesids)
+                    for y in vulns.keys():
+                        try:
+                            list_vuln.append(y+" - "+self.convertfrom_sid(vulns[y]))
+                        except:
+                            list_vuln.append(vulns[y])
+
+                # Resolve Vulnerable (Without resolvesids)
+                if not args.resolve_sids:
+                    for y in vulns.keys():
+                        try:
+                            list_vuln.append(y+" - "+vulns[y])
+                        except:
+                            list_vuln.append(vulns[y])
+
                 e = modify_entry(template,
                                  new_attributes={
                                     'Owner': template_owner,
@@ -940,8 +940,9 @@ class PowerView:
                                     'Write Owner': parsed_dacl['Write Owner'],
                                     'Write Dacl': parsed_dacl['Write Dacl'],
                                     'Write Property': parsed_dacl['Write Property'],
-                                    'Enabled': enabled,
-                                    'Vulnerable': list(vulns.keys()),
+                                    'Enabled': False,
+                                    'Vulnerable': list_vuln
+                                    # 'Vulnerable': ",\n".join([i+" - "+vulns[i] for i in vulns.keys()]),
                                     #'Description': vulns['ESC1']
                                 },
                                  remove = [
@@ -952,16 +953,36 @@ class PowerView:
                                      'pKIOverlapPeriod',
                                      'pKIExtendedKeyUsage'
                                  ]
-
                                  )
                 if properties:
                     new_dict = filter_entry(e,properties)
                 else:
                     new_dict = e["attributes"]
+                list_entries.append(new_dict)
 
-                entries.append({
-                    "attributes": new_dict
-                })
+        # Enabled + Vulnerable only
+        for ent in list_entries:
+            # Enabled
+            enabled = False
+            if ent["cn"][0] in list_ca_templates:
+                enabled = True
+                ent["Enabled"] = enabled
+
+            if args.enabled and not enabled:
+                continue
+
+            # Vulnerable
+            vulnerable = False
+            if ent["Vulnerable"]:
+                vulnerable = True
+
+            if args.vulnerable and not vulnerable:
+                continue
+
+            entries.append({
+                "attributes": ent
+            })
+
         template_guids.clear()
         return entries
 
