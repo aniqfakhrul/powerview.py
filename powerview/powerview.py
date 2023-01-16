@@ -1131,12 +1131,12 @@ class PowerView:
 
     def remove_domaindnsrecord(self, identity=None, args=None):
         if args.zonename:
-            zonename = args.zonename
+            zonename = args.zonename.lower()
         else:
-            zonename = self.domain
+            zonename = self.domain.lower()
             logging.debug("Using current domain %s as zone name" % self.domain)
 
-        zones = [name['attributes']['name'] for name in self.get_domaindnszone(properties=['name'])]
+        zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
         if zonename not in zones:
             logging.info("Zone %s not found" % zonename)
             return
