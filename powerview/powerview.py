@@ -1134,7 +1134,7 @@ class PowerView:
             zonename = args.zonename.lower()
         else:
             zonename = self.domain.lower()
-            logging.debug("Using current domain %s as zone name" % self.domain)
+            logging.debug("Using current domain %s as zone name" % zonename)
 
         zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
         if zonename not in zones:
@@ -1365,6 +1365,7 @@ class PowerView:
             zonename = args.zonename.lower()
         else:
             zonename = self.domain.lower()
+            logging.debug("Using current domain %s as zone name" % zonename)
 
         zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
         if zonename not in zones:
@@ -1415,6 +1416,7 @@ class PowerView:
             zonename = args.zonename.lower()
         else:
             zonename = self.domain.lower()
+            logging.debug("Using current domain %s as zone name" % zonename)
 
         recordname = args.recordname
         recordaddress = args.recordaddress
