@@ -27,7 +27,7 @@ python3 setup.py install
 _Note that some of the kerberos functions are still not functioning well just yet_
 * Init connection
 ```
-powerview.py range.net/lowpriv:Password123 --dc-ip 192.168.86.192 [-h]
+powerview.py range.net/lowpriv:Password123@192.168.86.192 [--dc-ip 192.168.86.192] [-h]
 ```
 ![usage](https://cdn.discordapp.com/attachments/867691675563982878/996623323196833873/Screenshot_2022-07-13_103827.png)
 

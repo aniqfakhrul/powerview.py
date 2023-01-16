@@ -1362,11 +1362,11 @@ class PowerView:
 
     def set_domaindnsrecord(self, args):
         if args.zonename:
-            zonename = args.zonename
+            zonename = args.zonename.lower()
         else:
-            zonename = self.domain
+            zonename = self.domain.lower()
 
-        zones = [name['attributes']['name'] for name in self.get_domaindnszone(properties=['name'])]
+        zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
         if zonename not in zones:
             logging.info("Zone %s not found" % zonename)
             return
@@ -1412,13 +1412,14 @@ class PowerView:
 
     def add_domaindnsrecord(self, args):
         if args.zonename:
-            zonename = args.zonename
+            zonename = args.zonename.lower()
         else:
-            zonename = self.domain
+            zonename = self.domain.lower()
+
         recordname = args.recordname
         recordaddress = args.recordaddress
 
-        zones = [name['attributes']['name'] for name in self.get_domaindnszone(properties=['name'])]
+        zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
         if zonename not in zones:
             logging.info("Zone %s not found" % zonename)
             return
