@@ -94,6 +94,9 @@ class CONNECTION:
         whoami = self.ldap_session.extend.standard.who_am_i()
         return whoami.split(":")[-1] if whoami else "ANONYMOUS"
 
+    def reset_connection(self):
+        self.ldap_session.bind()
+
     def init_ldap_session(self):
         if self.use_kerberos:
             target = get_machine_name(self.args, self.domain)

@@ -235,10 +235,11 @@ def main():
                                 else:
                                     entries = powerview.find_localadminaccess(pv_args)
                             elif pv_args.module.casefold() == 'invoke-kerberoast':
+                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 if temp_powerview:
-                                    entries = temp_powerview.invoke_kerberoast(pv_args)
+                                    entries = temp_powerview.invoke_kerberoast(pv_args, properties)
                                 else:
-                                    entries = powerview.invoke_kerberoast(pv_args)
+                                    entries = powerview.invoke_kerberoast(pv_args, properties)
                             elif pv_args.module.casefold() == 'add-domainobjectacl' or pv_args.module.casefold() == 'add-objectacl':
                                 if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
                                     if temp_powerview:
@@ -425,9 +426,10 @@ def main():
                             logging.error(str(e))
                         except ldap3.core.exceptions.LDAPSocketSendError as e:
                             logging.error(str(e))
-                            powerview.reset_connection()
+                            conn.reset_connection()
                         except ldap3.core.exceptions.LDAPSocketReceiveError as e:
-                            powerview.reset_connection()
+                            logging.error(str(e))
+                            conn.reset_connection()
             except KeyboardInterrupt:
                 print()
             except EOFError:
@@ -436,8 +438,8 @@ def main():
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("Connection dead")
                 powerview.reset_connection()
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:

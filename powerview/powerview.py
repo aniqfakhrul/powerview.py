@@ -773,21 +773,13 @@ class PowerView:
                                 data : parsed_data[data]
                             })
                     if properties:
-                        new_dict = {}
-                        ori_list = list(_entries["attributes"].keys())
-                        for p in properties:
-                            if p.lower() not in [x.lower() for x in ori_list]:
-                                continue
-                            for i in ori_list:
-                                if p.casefold() == i.casefold():
-                                    new_dict[i] = _entries["attributes"][i]
+                        new_dict = filter_entry(_entries["attributes"], properties)
                     else:
                         new_dict = _entries["attributes"]
 
                     entries.append({
                         "attributes": new_dict
                     })
-                        #entries.append({"attributes":_entries["attributes"]})
         return entries
 
     def get_domainca(self, args=None, properties=None):
@@ -1785,7 +1777,7 @@ class PowerView:
 
         return succeeded
 
-    def invoke_kerberoast(self, args):
+    def invoke_kerberoast(self, args, properties=[]):
         # look for users with SPN set
         ldap_filter = ""
         ldap_filter = f"(servicePrincipalName=*)(UserAccountControl:1.2.840.113556.1.4.803:=512)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(!(objectCategory=computer))"
@@ -1798,6 +1790,7 @@ class PowerView:
         if len(entries) == 0:
             logging.debug("[Invoke-Kerberoast] No identity found")
             return
+
         # request TGS for each accounts
         target_domain = self.domain
 
@@ -1814,8 +1807,17 @@ class PowerView:
         entries_out = userspn.run(entries)
 
         # properly formatted for output
+        entries.clear()
+        entries = []
+        if properties:
+            for ent in entries_out:
+                entries.append({
+                    'attributes': filter_entry(ent['attributes'],properties)
+                })
+        else:
+            entries = entries_out
 
-        return entries_out
+        return entries
 
     def find_localadminaccess(self, args):
         host_entries = []

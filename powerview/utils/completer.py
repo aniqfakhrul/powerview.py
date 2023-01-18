@@ -37,7 +37,7 @@ COMMANDS = {
     'Get-Shares':['-Computer','-ComputerName','-Domain', '-NoWrap', '-Count'],
     'Get-NetShares':['-Computer','-ComputerName','-Domain', '-Count'],
     'Find-LocalAdminAccess':['-Computer','-ComputerName','-Domain', '-Count'],
-    'Invoke-Kerberoast':['-Identity','-Opsec','-LDAPFilter','-Domain', '-NoWrap'],
+    'Invoke-Kerberoast':['-Identity', '-Properties', '-Opsec','-LDAPFilter','-Domain', '-NoWrap'],
     'Get-DomainObject':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
     'Get-ADObject':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
     'Get-DomainObjectOwner':['-Identity','-ResolveSID','-Domain','-Select', '-Where', '-Count', '-NoWrap'],

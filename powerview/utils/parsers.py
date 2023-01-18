@@ -277,6 +277,7 @@ def powerview_arg_parse(cmd):
     # invoke kerberoast
     invoke_kerberoast_parser = subparsers.add_parser('Invoke-Kerberoast', exit_on_error=False)
     invoke_kerberoast_parser.add_argument('-Identity', action='store', dest='identity')
+    invoke_kerberoast_parser.add_argument('-Properties', action='store', dest='properties')
     invoke_kerberoast_parser.add_argument('-Opsec', action='store_true', default=False, dest='opsec')
     invoke_kerberoast_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     invoke_kerberoast_parser.add_argument('-Domain', action='store', dest='server')
