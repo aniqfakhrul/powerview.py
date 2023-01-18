@@ -59,7 +59,8 @@ class PowerView:
         self.domain_dumper = ldapdomaindump.domainDumper(self.ldap_server, self.ldap_session, cnf)
         self.root_dn = self.domain_dumper.getRoot()
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
-        self.flatName = list_to_str(self.get_domain(properties=['name'])[0]['attributes']['name']).upper()
+        #self.flatName = list_to_str(self.get_domain(properties=['name'])[0]['attributes']['name']).upper()
+        self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
 
     def get_domainuser(self, args=None, properties=[], identity=None):
         def_prop = [

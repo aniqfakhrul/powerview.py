@@ -437,9 +437,9 @@ def main():
                 sys.exit(0)
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("Connection dead")
-                powerview.reset_connection()
-            #except Exception as e:
-            #    logging.error(str(e))
+                conn.reset_connection()
+            except Exception as e:
+                logging.error(str(e))
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:

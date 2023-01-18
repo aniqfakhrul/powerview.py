@@ -160,6 +160,17 @@ class CONNECTION:
         ldap_server_kwargs = {
             "host": target,
             "get_info": ldap3.ALL,
+            "formatter": {
+                "lastLogon": LDAP.ldap2datetime,
+                "pwdLastSet": LDAP.ldap2datetime,
+                "badPasswordTime": LDAP.ldap2datetime,
+                "objectGUID": LDAP.bin_to_guid,
+                "objectSid": LDAP.bin_to_sid,
+                "securityIdentifier": LDAP.bin_to_sid,
+                "mS-DS-CreatorSID": LDAP.bin_to_sid,
+                "msDS-ManagedPassword": LDAP.formatGMSApass,
+                "pwdProperties": LDAP.resolve_pwdProperties,
+            }
         }
 
         if tls:
