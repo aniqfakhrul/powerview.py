@@ -38,10 +38,10 @@ def main():
     setattr(args, 'ldap_address', ldap_address)
     if not args.dc_ip:
         setattr(args,'dc_ip', ldap_address)
-        setattr(args,'init_dc_ip', ldap_address)
+        setattr(args,'init_ldap_address', ldap_address)
     else:
         setattr(args,'dc_ip', args.dc_ip)
-        setattr(args,'init_dc_ip', args.dc_ip)
+        setattr(args,'init_ldap_address', args.dc_ip)
 
     try:
         conn = CONNECTION(args)
@@ -420,7 +420,7 @@ def main():
                                         formatter.print(entries)
 
                             temp_powerview = None
-                            conn.set_dc_ip(args.init_dc_ip)
+                            conn.set_ldap_address(args.init_ldap_address)
                         except ldap3.core.exceptions.LDAPAttributeError as e:
                             logging.error(str(e))
                         except ldap3.core.exceptions.LDAPSocketSendError as e:
