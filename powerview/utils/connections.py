@@ -148,7 +148,6 @@ class CONNECTION:
                         self.use_gc = True
                         self.use_gc_ldaps = False
                     return self.init_ldap_session()
-                    #return self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
         else:
             if _anonymous:
                 self.ldap_server, self.ldap_session = self.init_ldap_anonymous(target)
