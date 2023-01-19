@@ -1988,6 +1988,9 @@ class PowerView:
             time = session['sesi10_time']
             idleTime = session['sesi10_idle_time']
 
+            if userName[:-1] == "$":
+                continue
+
             sessions.append({
                 "attributes": {
                     "IP": ip,
