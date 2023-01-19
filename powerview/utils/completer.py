@@ -8,7 +8,7 @@ else:
     import readline
 
 COMMANDS = {
-    'Get-Domain':['-Identity','-Properties','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
+    'Get-Domain':['-Identity','-Properties', '-LDAPFilter','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
     'Get-NetDomain':['-Identity','-Properties','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
     'ConvertFrom-SID':['-ObjectSID','-Domain'],
     'Get-DomainController':['-Identity','-ResolveSIDs','-Properties','-Domain','-Select', '-Where', '-Count', '-NoWrap'],

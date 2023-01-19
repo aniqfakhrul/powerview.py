@@ -111,11 +111,14 @@ class CAEnum:
         return self.ldap_session.entries
 
     # https://github.com/ly4k/Certipy/blob/main/certipy/commands/find.py#L688
-    def check_web_enrollment(self, target_name, dc_ip, target_ip=None, timeout=5):
-        if target_ip:
-            target = target_ip
-        else:
-            target = target_name
+    def check_web_enrollment(self, target, dc_ip, timeout=5, use_ip=False):
+        if use_ip:
+            target = host2ip(target, dc_ip, 3, True)
+
+        if target is None:
+            logging.debug("No target found")
+            return False
+
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             logging.debug("Default timeout is set to 5")
@@ -141,8 +144,7 @@ class CAEnum:
             logging.warning(
                 "Got error while trying to check for web enrollment: %s" % e
             )
-            target_ip = host2ip(target_name, dc_ip, 3, True)
-            return self.check_web_enrollment(target_name, dc_ip, target_ip)
+            return False
 
         return False
 

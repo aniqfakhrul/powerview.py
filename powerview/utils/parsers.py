@@ -61,6 +61,7 @@ def powerview_arg_parse(cmd):
     get_domain_parser = subparsers.add_parser('Get-Domain', aliases=['Get-NetDomain'], exit_on_error=False)
     get_domain_parser.add_argument('-Identity', action='store',default='*', dest='identity')
     get_domain_parser.add_argument('-Properties', action='store', default='*', dest='properties')
+    get_domain_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domain_parser.add_argument('-Domain', action='store', dest='server')
     get_domain_parser.add_argument('-Select', action='store', dest='select')
     get_domain_parser.add_argument('-Where', action='store', dest='where')

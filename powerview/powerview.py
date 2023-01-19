@@ -61,7 +61,6 @@ class PowerView:
         self.domain_dumper = ldapdomaindump.domainDumper(self.ldap_server, self.ldap_session, cnf)
         self.root_dn = self.domain_dumper.getRoot()
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
-        #self.flatName = list_to_str(self.get_domain(properties=['name'])[0]['attributes']['name']).upper()
         self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
 
     def get_domainuser(self, args=None, properties=[], identity=None):
@@ -197,8 +196,6 @@ class PowerView:
             entries.append({"attributes":_entries["attributes"]})
 
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
 
     def get_domainobject(self, args=None, properties=['*'], identity='*', sd_flag=None):
         if sd_flag:
@@ -207,14 +204,18 @@ class PowerView:
         else:
             controls = None
 
+        ldap_filter = ""
         identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
-        ldap_filter = f"(|{identity_filter})"
+
         if args:
             if args.ldapfilter:
                 logging.debug(f'[Get-DomainObject] Using additional LDAP filter: {args.ldapfilter}')
-                ldap_filter += f"{args.ldap_filter}"
+                ldap_filter += f"{args.ldapfilter}"
+
         ldap_fiter = f"(&{ldap_filter})"
+        ldap_filter = f'(&{identity_filter}{ldap_filter})'
         logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
+
         entries = []
         entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True, controls=controls)
         for _entries in entry_generator:
@@ -223,8 +224,6 @@ class PowerView:
             strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
 
     def get_domainobjectowner(self, identity=None, args=None):
         if not identity:
@@ -370,8 +369,8 @@ class PowerView:
                 ldap_filter += f'(msds-allowedtodelegateto=*)'
             if args.laps:
                 logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
-                ldap_filter += f'(ms-MCS-AdmPwd=*)'
-                properties += ['ms-MCS-AdmPwd']
+                ldap_filter += f'(ms-Mcs-AdmPwd=*)'
+                properties += ['ms-MCS-AdmPwd','ms-Mcs-AdmPwdExpirationTime']
             if args.rbcd:
                 logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
                 ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
@@ -428,25 +427,6 @@ class PowerView:
 
             entries.append({"attributes":_entries["attributes"]})
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
-
-    def get_domaingroup(self, args=None, properties=[], identity=None):
-        def_prop = [
-            'adminCount',
-            'cn',
-            'description',
-            'distinguishedName',
-            'groupType',
-            'instanceType',
-            'member',
-            'objectCategory',
-            'objectGUID',
-            'objectSid',
-            'sAMAccountName',
-            'sAMAccountType',
-            'name'
-        ]
 
         properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
@@ -478,8 +458,6 @@ class PowerView:
             strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
 
     def get_domaingroupmember(self, args=None, identity='*'):
         # get the identity group information
@@ -551,8 +529,6 @@ class PowerView:
             strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
 
     def get_domaingpolocalgroup(self, args=None, identity='*'):
         new_entries = []
@@ -656,8 +632,6 @@ class PowerView:
 
             entries.append({"attributes":_entries["attributes"]})
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
 
     def convertfrom_sid(self, objectsid, args=None, output=False):
         identity = WELL_KNOWN_SIDS.get(objectsid)
@@ -685,9 +659,20 @@ class PowerView:
             print("%s" % identity)
         return identity
 
-    def get_domain(self, args=None, properties=['*'], identity='*'):
-        ldap_filter = f'(objectClass=domain)'
+    def get_domain(self, args=None, properties=['*'], identity=None):
+        identity = '*' if not identity else identity
+
+        identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
+        ldap_filter = ""
+
+        if args:
+            if args.ldapfilter:
+                logging.debug(f'[Get-Domain] Using additional LDAP filter: {args.ldapfilter}')
+                ldap_filter += f'{args.ldapfilter}'
+
+        ldap_filter = f'(&(objectClass=domain){identity_filter}{ldap_filter})'
         logging.debug(f'[Get-Domain] LDAP search filter: {ldap_filter}')
+
         entries = []
         entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
@@ -696,8 +681,6 @@ class PowerView:
             strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
 
     def get_domaindnszone(self, identity=None, properties=[], args=None):
         def_prop = [
@@ -731,8 +714,6 @@ class PowerView:
             strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
-        #self.ldap_session.search(search_base, ldap_filter, attributes=properties)
-        #return self.ldap_session.entries
 
     def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], args=None):
         def_prop = [
@@ -803,15 +784,21 @@ class PowerView:
         entries = ca_fetch.fetch_enrollment_services(properties)
 
         # check for web enrollment
-        for i in range(len(entries)):
-            target_name = entries[i]['dnsHostName'].value
-            web_enrollment = ca_fetch.check_web_enrollment(target_name,self.dc_ip)
-            entries[i] = modify_entry(
-                entries[i],
-                new_attributes = {
-                    "WebEnrollment": web_enrollment
-                }
-            )
+        if not properties:
+            for i in range(len(entries)):
+                target_name = entries[i]['dnsHostName'].value
+                web_enrollment = ca_fetch.check_web_enrollment(target_name,self.dc_ip)
+
+                if not web_enrollment:
+                    logging.debug("Trying to check web enrollment with IP")
+                    web_enrollment = ca_fetch.check_web_enrollment(target_name,self.dc_ip,use_ip=True)
+
+                entries[i] = modify_entry(
+                    entries[i],
+                    new_attributes = {
+                        "WebEnrollment": web_enrollment
+                    }
+                )
 
         return entries
 
@@ -1978,6 +1965,8 @@ class PowerView:
         except Exception as e:
             if 'rpc_s_access_denied' in str(e):
                 logging.info('Access denied while enumerating Sessions on %s' % (host))
+            else:
+                logging.info(str(e))
             return
 
         sessions = []
