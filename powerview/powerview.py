@@ -1977,7 +1977,9 @@ class PowerView:
         try:
             resp = srvs.hNetrSessionEnum(dce, '\x00', NULL, 10)
         except Exception as e:
-            logging.error(str(e))
+            if 'rpc_s_access_denied' in str(e):
+                logging.info('Access denied while enumerating Sessions on %s' % (host))
+            return
 
         sessions = []
         for session in resp['InfoStruct']['SessionInfo']['Level10']['Buffer']:
