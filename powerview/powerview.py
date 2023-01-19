@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
+from impacket.dcerpc.v5 import srvs
+from impacket.dcerpc.v5.ndr import NULL
 
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE
 from powerview.modules.addcomputer import ADDCOMPUTER
@@ -1893,13 +1895,13 @@ class PowerView:
                         host = f"{host_inp}.{self.domain}"
                     else:
                         host = host_inp
-                logging.debug(f"[Find-LocalAdminAccess] Using FQDN: {host}")
+                logging.debug(f"[Get-Shares] Using FQDN: {host}")
             else:
                 host = host_inp
 
         if self.use_kerberos:
             if is_ipaddress(args.computer) or is_ipaddress(args.computername):
-                logging.error('[Find-LocalAdminAccess] FQDN must be used for kerberos authentication')
+                logging.error('[Get-Shares] FQDN must be used for kerberos authentication')
                 return
             host = args.computer if args.computer else args.computereturne
         else:
@@ -1907,7 +1909,7 @@ class PowerView:
                 host = host2ip(host, self.dc_ip, 3, True)
 
         if not host:
-            logging.error(f"[Find-LocalAdminAccess] Host not found")
+            logging.error(f"[Get-Shares] Host not found")
             return
 
         if self.use_kerberos:
@@ -1931,3 +1933,67 @@ class PowerView:
 
             print(f'{share_info["name"].ljust(15)}{share_info["remark"].ljust(25)}{host}')
         print()
+
+    def get_netsession(self, args):
+        is_fqdn = False
+        host = ""
+        host_inp = args.computer if args.computer else args.computername
+
+        if host_inp:
+            if not is_ipaddress(host_inp):
+                is_fqdn = True
+                if args.server and args.server.casefold() != self.domain.casefold():
+                    if not host_inp.endswith(args.server):
+                        host = f"{host_inp}.{args.server}"
+                    else:
+                        host = host_inp
+                else:
+                    if not is_valid_fqdn(host_inp):
+                        host = f"{host_inp}.{self.domain}"
+                    else:
+                        host = host_inp
+                logging.debug(f"[Get-NetSession] Using FQDN: {host}")
+            else:
+                host = host_inp
+
+        if self.use_kerberos:
+            if is_ipaddress(args.computer) or is_ipaddress(args.computername):
+                logging.error('[Get-NetSession] FQDN must be used for kerberos authentication')
+                return
+            host = args.computer if args.computer else args.computereturne
+        else:
+            if is_fqdn:
+                host = host2ip(host, self.dc_ip, 3, True)
+
+        if not host:
+            logging.error(f"[Get-NetSession] Host not found")
+            return
+
+        dce = self.conn.init_rpc_session(host=host, pipe=r'\srvsvc')
+
+        if dce is None:
+            return
+
+        try:
+            resp = srvs.hNetrSessionEnum(dce, '\x00', NULL, 10)
+        except Exception as e:
+            logging.error(str(e))
+
+        sessions = []
+        for session in resp['InfoStruct']['SessionInfo']['Level10']['Buffer']:
+            ip = session['sesi10_cname'][:-1]
+            userName = session['sesi10_username'][:-1]
+            time = session['sesi10_time']
+            idleTime = session['sesi10_idle_time']
+
+            sessions.append({
+                "attributes": {
+                    "IP": ip,
+                    "Username": userName,
+                    "Time": time,
+                    "Idle Time": idleTime,
+                    "Computer": host,
+                }
+            })
+
+        return sessions

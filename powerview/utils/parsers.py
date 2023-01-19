@@ -266,6 +266,14 @@ def powerview_arg_parse(cmd):
     get_shares_parser.add_argument('-Domain', action='store', dest='server')
     get_shares_parser.add_argument('-Count', action='store_true', dest='count')
 
+    # get-netsession
+    get_netsession_parser = subparsers.add_parser('Get-NetSession', exit_on_error=False)
+    get_netsession_group = get_netsession_parser.add_mutually_exclusive_group()
+    get_netsession_group.add_argument('-Computer', action='store', const=None, dest='computer')
+    get_netsession_group.add_argument('-ComputerName', action='store', const=None, dest='computername')
+    get_netsession_parser.add_argument('-Domain', action='store', dest='server')
+    get_netsession_parser.add_argument('-Count', action='store_true', dest='count')
+
     # shares
     find_localadminaccess_parser = subparsers.add_parser('Find-LocalAdminAccess', exit_on_error=False)
     find_localadminaccess_group = find_localadminaccess_parser.add_mutually_exclusive_group()

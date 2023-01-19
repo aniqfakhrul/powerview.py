@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from impacket.smbconnection import SMBConnection, SessionError
 from impacket.smb3structs import FILE_READ_DATA, FILE_WRITE_DATA
-from impacket.dcerpc.v5 import samr, epm, transport, rpcrt, rprn
+from impacket.dcerpc.v5 import samr, epm, transport, rpcrt, rprn, srvs, wkst, scmr, drsuapi
 from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY
 from impacket.spnego import SPNEGO_NegTokenInit, TypesMech
 
@@ -50,6 +50,7 @@ class CONNECTION:
         self.ldap_session = None
         self.ldap_server = None
 
+        self.rpc_conn = None
         self.samr = None
         self.TGT = {}
         self.TGS = {}
@@ -345,7 +346,7 @@ class CONNECTION:
                 # retrieve domain information from CCache file if needed
                 if domain == '':
                     domain = ccache.principal.realm['data'].decode('utf-8')
-                    logger.debug('Domain retrieved from CCache: %s' % domain)
+                    logging.debug('Domain retrieved from CCache: %s' % domain)
 
                 logging.debug('Using Kerberos Cache: %s' % os.getenv('KRB5CCNAME'))
                 principal = 'ldap/%s@%s' % (target.upper(), domain.upper())
@@ -586,3 +587,50 @@ class CONNECTION:
             return dce
         except Exception as e:
             return None
+
+    # stolen from pywerview
+    def create_rpc_connection(self, host, pipe):
+        binding_strings = dict()
+        binding_strings['srvsvc'] = srvs.MSRPC_UUID_SRVS
+        binding_strings['wkssvc'] = wkst.MSRPC_UUID_WKST
+        binding_strings['samr'] = samr.MSRPC_UUID_SAMR
+        binding_strings['svcctl'] = scmr.MSRPC_UUID_SCMR
+        binding_strings['drsuapi'] = drsuapi.MSRPC_UUID_DRSUAPI
+
+        # TODO: try to fallback to TCP/139 if tcp/445 is closed
+        if pipe == r'\drsuapi':
+            string_binding = epm.hept_map(host, drsuapi.MSRPC_UUID_DRSUAPI,
+                                          protocol='ncacn_ip_tcp')
+            rpctransport = transport.DCERPCTransportFactory(string_binding)
+            rpctransport.set_credentials(username=self.username, password=self.password,
+                                         domain=self.domain, lmhash=self.lmhash,
+                                         nthash=self.nthash)
+        else:
+            rpctransport = transport.SMBTransport(host, 445, pipe,
+                                                  username=self.username, password=self.password,
+                                                  domain=self.domain, lmhash=self.lmhash,
+                                                  nthash=self.nthash, doKerberos=self.use_kerberos)
+
+        rpctransport.set_connect_timeout(10)
+        dce = rpctransport.get_dce_rpc()
+
+        if pipe == r'\drsuapi':
+            dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+
+        try:
+            dce.connect()
+        except Exception as e:
+            logging.critical('Error when creating RPC connection')
+            logging.critical(e)
+            self.rpc_conn = None
+        else:
+            dce.bind(binding_strings[pipe[1:]])
+            self.rpc_conn = dce
+
+        return self.rpc_conn
+
+    def init_rpc_session(self, host, pipe=r'\srvsvc'):
+        if not self.rpc_conn:
+            return self.create_rpc_connection(host=host, pipe=pipe)
+        else:
+            return self.rpc_conn

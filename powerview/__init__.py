@@ -229,6 +229,14 @@ def main():
                                         powerview.get_shares(pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'get-netsession':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    if temp_powerview:
+                                        entries = temp_powerview.get_netsession(pv_args)
+                                    else:
+                                        entries = powerview.get_netsession(pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'find-localadminaccess':
                                 if temp_powerview:
                                     entries = temp_powerview.find_localadminaccess(pv_args)
@@ -438,8 +446,8 @@ def main():
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("Connection dead")
                 conn.reset_connection()
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
