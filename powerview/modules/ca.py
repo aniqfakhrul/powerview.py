@@ -9,7 +9,8 @@ import socket
 from powerview.utils.helpers import (
     is_admin_sid,
     filetime_to_str,
-    get_user_sids
+    get_user_sids,
+    host2ip
 )
 from powerview.utils.constants import (
     ACTIVE_DIRECTORY_RIGHTS,
@@ -110,16 +111,20 @@ class CAEnum:
         return self.ldap_session.entries
 
     # https://github.com/ly4k/Certipy/blob/main/certipy/commands/find.py#L688
-    def check_web_enrollment(self, target_name, timeout=5):
+    def check_web_enrollment(self, target_name, dc_ip, target_ip=None, timeout=5):
+        if target_ip:
+            target = target_ip
+        else:
+            target = target_name
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             logging.debug("Default timeout is set to 5")
             sock.settimeout(timeout)
-            logging.debug("Connecting to %s:80" % target_name)
-            sock.connect((target_name, 80))
+            logging.debug("Connecting to %s:80" % target)
+            sock.connect((target, 80))
             sock.sendall(
                 "\r\n".join(
-                    ["HEAD /certsrv/ HTTP/1.1", "Host: %s" % target_name, "\r\n"]
+                    ["HEAD /certsrv/ HTTP/1.1", "Host: %s" % target, "\r\n"]
                 ).encode()
             )
             resp = sock.recv(256)
@@ -130,12 +135,14 @@ class CAEnum:
         except ConnectionRefusedError:
             return False
         except socket.timeout:
-            logging.debug("Can't reach %s" % (target_name))
+            logging.debug("Can't reach %s" % (target))
             return False
         except Exception as e:
             logging.warning(
                 "Got error while trying to check for web enrollment: %s" % e
             )
+            target_ip = host2ip(target_name, dc_ip, 3, True)
+            return self.check_web_enrollment(target_name, dc_ip, target_ip)
 
         return False
 
