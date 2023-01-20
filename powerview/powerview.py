@@ -459,6 +459,54 @@ class PowerView:
             entries.append({"attributes":_entries["attributes"]})
         return entries
 
+    def get_domaingroup(self, args=None, properties=[], identity=None):
+        def_prop = [
+            'adminCount',
+            'cn',
+            'description',
+            'distinguishedName',
+            'groupType',
+            'instanceType',
+            'member',
+            'objectCategory',
+            'objectGUID',
+            'objectSid',
+            'sAMAccountName',
+            'sAMAccountType',
+            'name'
+        ]
+
+        properties = def_prop if not properties else properties
+        identity = '*' if not identity else identity
+
+        ldap_filter = ""
+        identity_filter = f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
+        if args:
+            if args.admincount:
+                ldap_filter += f"(admincount=1)"
+            if args.ldapfilter:
+                ldap_filter += f"{args.ldapfilter}"
+                logging.debug(f'[Get-DomainGroup] Using additional LDAP filter: {args.ldapfilter}')
+            if args.memberidentity:
+                entries = self.get_domainobject(identity=args.memberidentity)
+                if len(entries) == 0:
+                    logging.info("Member identity not found. Try to use DN")
+                    return
+                memberidentity_dn = entries[0]['attributes']['distinguishedName']
+                ldap_filter += f"(member={memberidentity_dn})"
+                logging.debug(f'[Get-DomainGroup] Filter is based on member property {ldap_filter}')
+
+        ldap_filter = f'(&(objectCategory=group){identity_filter}{ldap_filter})'
+        logging.debug(f'[Get-DomainGroup] LDAP search filter: {ldap_filter}')
+        entries = []
+        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        for _entries in entry_generator:
+            if _entries['type'] != 'searchResEntry':
+                continue
+            strip_entry(_entries)
+            entries.append({"attributes":_entries["attributes"]})
+        return entries
+
     def get_domaingroupmember(self, args=None, identity='*'):
         # get the identity group information
         entries = self.get_domaingroup(identity=identity)
@@ -540,10 +588,9 @@ class PowerView:
             new_dict = {}
             try:
                 gpcfilesyspath = f"{entry['attributes']['gPCFileSysPath']}\MACHINE\Microsoft\Windows NT\SecEdit\GptTmpl.inf"
-                if self.use_kerberos:
-                    conn = self.conn.init_smb_session(self.kdcHost)
-                else:
-                    conn = self.conn.init_smb_session(self.dc_ip)
+                
+                conn = self.conn.init_smb_session(self.dc_ip)
+                
                 share = 'sysvol'
                 filepath = ''.join(gpcfilesyspath.lower().split(share)[1:])
 

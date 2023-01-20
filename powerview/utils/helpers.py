@@ -240,6 +240,9 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
     except dns.resolver.NoAnswer as e:
         logging.debug(str(e))
         pass
+    except dns.resolver.LifetimeTimeout as e:
+        logging.debug("Domain resolution timed out")
+        return
 
     try:
         logging.debug("Querying all DCs")
