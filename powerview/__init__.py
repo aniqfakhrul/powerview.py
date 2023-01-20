@@ -430,6 +430,8 @@ def main():
 
                             temp_powerview = None
                             conn.set_ldap_address(args.init_ldap_address)
+                        except ldap3.core.exceptions.LDAPInvalidFilterError as e:
+                            logging.error(str(e))
                         except ldap3.core.exceptions.LDAPAttributeError as e:
                             logging.error(str(e))
                         except ldap3.core.exceptions.LDAPSocketSendError as e:
