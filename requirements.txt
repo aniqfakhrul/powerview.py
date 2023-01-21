@@ -1,7 +1,8 @@
-dnspython
+dnspython==2.2.1
 dsinternals
 gnureadline
 impacket>=0.10.0
 ldap3
+future
 validators
 pycryptodome
