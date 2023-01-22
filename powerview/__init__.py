@@ -221,12 +221,12 @@ def main():
                                         entries = powerview.get_namedpipes(pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
-                            elif pv_args.module.casefold() == 'get-shares' or pv_args.module.casefold() == 'get-netshares':
+                            elif pv_args.module.casefold() == 'get-netshare':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     if temp_powerview:
-                                        temp_powerview.get_shares(pv_args)
+                                        temp_powerview.get_netshare(pv_args)
                                     else:
-                                        powerview.get_shares(pv_args)
+                                        powerview.get_netshare(pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'get-netsession':

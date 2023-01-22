@@ -75,7 +75,7 @@ Get-DomainUser -Count
 |Get-DomainGroupMember|Get-NetGroupMember||
 |Get-NamedPipes|||
 |Get-NetSession|||
-|Get-Shares|Get-NetShares||
+|Get-NetShare|||
 |Get-DomainComputer|Get-NetComputer||
 |Get-DomainObject|Get-ADObject||
 |Get-DomainObjectOwner|Get-ObjectOwner||

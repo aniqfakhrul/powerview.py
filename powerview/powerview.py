@@ -1570,7 +1570,6 @@ class PowerView:
             if is_ipaddress(args.computer) or is_ipaddress(args.computername):
                 logging.error('[Get-NamedPipes] FQDN must be used for kerberos authentication')
                 return
-            host = args.computer if args.computer else args.computername
         else:
             if is_fqdn:
                 host = host2ip(host, self.dc_ip, 3, True)
@@ -1910,7 +1909,7 @@ class PowerView:
                 pass
         return local_admin_pcs
 
-    def get_shares(self, args):
+    def get_netshare(self, args):
         is_fqdn = False
         host = ""
         host_inp = args.computer if args.computer else args.computername
@@ -1928,21 +1927,20 @@ class PowerView:
                         host = f"{host_inp}.{self.domain}"
                     else:
                         host = host_inp
-                logging.debug(f"[Get-Shares] Using FQDN: {host}")
+                logging.debug(f"[Get-NetShare] Using FQDN: {host}")
             else:
                 host = host_inp
 
         if self.use_kerberos:
             if is_ipaddress(args.computer) or is_ipaddress(args.computername):
-                logging.error('[Get-Shares] FQDN must be used for kerberos authentication')
+                logging.error('[Get-NetShare] FQDN must be used for kerberos authentication')
                 return
-            host = args.computer if args.computer else args.computereturne
         else:
             if is_fqdn:
                 host = host2ip(host, self.dc_ip, 3, True)
 
         if not host:
-            logging.error(f"[Get-Shares] Host not found")
+            logging.error(f"[Get-NetShare] Host not found")
             return
 
         if self.use_kerberos:
