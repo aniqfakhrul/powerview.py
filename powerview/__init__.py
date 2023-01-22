@@ -9,7 +9,6 @@ from powerview.utils.connections import CONNECTION
 from powerview.utils.parsers import powerview_arg_parse, arg_parse
 
 from impacket.examples import logger
-from impacket.examples.utils import parse_credentials
 
 import ldap3
 import logging
@@ -29,35 +28,38 @@ def main():
 
     args = arg_parse()
 
-    domain, username, password, lmhash, nthash = parse_identity(args)
+    domain, username, password, lmhash, nthash, ldap_address = parse_identity(args)
+
     setattr(args,'domain',domain)
     setattr(args,'username',username)
     setattr(args,'password',password)
     setattr(args,'lmhash',lmhash)
     setattr(args,'nthash', nthash)
-    setattr(args,'init_dc_ip', args.dc_ip)
+    setattr(args, 'ldap_address', ldap_address)
+    if not args.dc_ip:
+        setattr(args,'dc_ip', ldap_address)
+        setattr(args,'init_ldap_address', ldap_address)
+    else:
+        setattr(args,'dc_ip', args.dc_ip)
+        setattr(args,'init_ldap_address', args.dc_ip)
 
     try:
         conn = CONNECTION(args)
 
         powerview = PowerView(conn, args)
         init_proto = conn.get_proto()
-        cur_user = conn.get_username()
-        cur_domain = conn.get_domain()
-        server_ip = conn.get_dc_ip()
+        cur_user = conn.who_am_i()
+        server_ip = conn.get_ldap_address()
         temp_powerview = None
 
         while True:
-            if not powerview.connection_alive():
-                powerview.reset_connection()
-
             try:
                 comp = Completer()
                 readline.set_completer_delims(' \t\n;')
                 readline.parse_and_bind("tab: complete")
                 readline.set_completer(comp.complete)
 
-                cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{server_ip}{bcolors.OKBLUE}]-[{bcolors.ENDC}{cur_domain}\\{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV > {bcolors.ENDC}')
+                cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{server_ip}{bcolors.OKBLUE}]-[{bcolors.ENDC}{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV > {bcolors.ENDC}')
 
                 if cmd:
                     try:
@@ -75,9 +77,7 @@ def main():
                             logging.warning(f"Cross-domain targetting might be unstable or slow depending on network stability")
                             foreign_dc_address = get_principal_dc_address(pv_args.server,args.dc_ip)
                             if foreign_dc_address is not None:
-                                #setattr(args,'dc_ip', foreign_dc_address)
-                                #conn = CONNECTION(args)
-                                conn.set_dc_ip(foreign_dc_address)
+                                conn.set_ldap_address(foreign_dc_address)
                                 temp_powerview = PowerView(conn, args)
                             else:
                                 logging.error(f'Domain {pv_args.server} not found or probably not alive')
@@ -221,12 +221,20 @@ def main():
                                         entries = powerview.get_namedpipes(pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
-                            elif pv_args.module.casefold() == 'get-shares' or pv_args.module.casefold() == 'get-netshares':
+                            elif pv_args.module.casefold() == 'get-netshare':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     if temp_powerview:
-                                        temp_powerview.get_shares(pv_args)
+                                        temp_powerview.get_netshare(pv_args)
                                     else:
-                                        powerview.get_shares(pv_args)
+                                        powerview.get_netshare(pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'get-netsession':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    if temp_powerview:
+                                        entries = temp_powerview.get_netsession(pv_args)
+                                    else:
+                                        entries = powerview.get_netsession(pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'find-localadminaccess':
@@ -235,10 +243,11 @@ def main():
                                 else:
                                     entries = powerview.find_localadminaccess(pv_args)
                             elif pv_args.module.casefold() == 'invoke-kerberoast':
+                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 if temp_powerview:
-                                    entries = temp_powerview.invoke_kerberoast(pv_args)
+                                    entries = temp_powerview.invoke_kerberoast(pv_args, properties)
                                 else:
-                                    entries = powerview.invoke_kerberoast(pv_args)
+                                    entries = powerview.invoke_kerberoast(pv_args, properties)
                             elif pv_args.module.casefold() == 'add-domainobjectacl' or pv_args.module.casefold() == 'add-objectacl':
                                 if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
                                     if temp_powerview:
@@ -420,15 +429,17 @@ def main():
                                         formatter.print(entries)
 
                             temp_powerview = None
-                            conn.set_dc_ip(args.init_dc_ip)
-                            #setattr(args,'dc_ip', args.init_dc_ip)
+                            conn.set_ldap_address(args.init_ldap_address)
+                        except ldap3.core.exceptions.LDAPInvalidFilterError as e:
+                            logging.error(str(e))
                         except ldap3.core.exceptions.LDAPAttributeError as e:
                             logging.error(str(e))
                         except ldap3.core.exceptions.LDAPSocketSendError as e:
                             logging.error(str(e))
-                            powerview.reset_connection()
+                            conn.reset_connection()
                         except ldap3.core.exceptions.LDAPSocketReceiveError as e:
-                            powerview.reset_connection()
+                            logging.error(str(e))
+                            conn.reset_connection()
             except KeyboardInterrupt:
                 print()
             except EOFError:
@@ -436,9 +447,9 @@ def main():
                 sys.exit(0)
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("Connection dead")
-                powerview.reset_connection()
-            except Exception as e:
-                logging.error(str(e))
+                conn.reset_connection()
+            #except Exception as e:
+            #    logging.error(str(e))
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:

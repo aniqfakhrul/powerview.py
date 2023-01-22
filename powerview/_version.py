@@ -1,4 +1,4 @@
-__version__ = "1.5.7 (2022)"
+__version__ = "1.6.0 (2023)"
 __author__ = [
     "Aniq Fakhrul",
     "Ali Radzali"

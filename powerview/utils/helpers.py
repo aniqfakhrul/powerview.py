@@ -24,7 +24,7 @@ from impacket.smbconnection import SMBConnection
 from impacket import version
 from impacket.dcerpc.v5 import samr, dtypes
 from impacket.examples import logger
-from impacket.examples.utils import parse_credentials
+from impacket.examples.utils import parse_credentials, parse_target
 from impacket.krb5 import constants
 from impacket.krb5.types import Principal
 from impacket.krb5.kerberosv5 import getKerberosTGT
@@ -119,6 +119,17 @@ def strip_entry(entry):
                     continue
                 entry["attributes"][k] = v[0]
 
+def filter_entry(entry, properties):
+    new_dict = {}
+    ori_list = list(entry.keys())
+    for p in properties:
+        if p.lower() not in [x.lower() for x in ori_list]:
+            continue
+        for i in ori_list:
+            if p.casefold() == i.casefold():
+                new_dict[i] = entry[i]
+    return new_dict
+
 def modify_entry(entry, new_attributes=[], remove=[]):
     entries = {}
     if isinstance(entry,ldap3.abstract.entry.Entry):
@@ -176,7 +187,7 @@ def parse_inicontent(filecontent=None, filepath=None):
     config.read_string(filecontent)
     if "Group Membership" in list(config.keys()):
         for left, right in config['Group Membership'].items():
-            if "memberof" in left: 
+            if "memberof" in left:
                 infdict['sids'] = left.replace("*","").replace("__memberof","")
                 infdict['members'] = ""
                 infdict['memberof'] = right.replace("*","")
@@ -229,6 +240,9 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
     except dns.resolver.NoAnswer as e:
         logging.debug(str(e))
         pass
+    except dns.resolver.LifetimeTimeout as e:
+        logging.debug("Domain resolution timed out")
+        return
 
     try:
         logging.debug("Querying all DCs")
@@ -276,11 +290,8 @@ def get_machine_name(args, domain):
 
 
 def parse_identity(args):
-    domain, username, password = utils.parse_credentials(args.account)
-
-    if domain == '':
-        logging.critical('Domain should be specified!')
-        sys.exit(1)
+    #domain, username, password = utils.parse_credentials(args.account)
+    domain, username, password, address = utils.parse_target(args.target)
 
     if password == '' and username != '' and args.hashes is None and args.no_pass is False and args.auth_aes_key is None:
         from getpass import getpass
@@ -299,10 +310,10 @@ def parse_identity(args):
         lmhash = ''
         nthash = ''
 
-    return domain, username, password, lmhash, nthash
+    return domain, username, password, lmhash, nthash, address
 
 def get_user_info(samname, ldap_session, domain_dumper):
-    ldap_session.search(domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars(samname), 
+    ldap_session.search(domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars(samname),
             attributes=['objectSid','ms-DS-MachineAccountQuota'])
     try:
         et = ldap_session.entries[0]
@@ -340,7 +351,7 @@ def host2ip(hostname, nameserver,dns_timeout,dns_tcp):
 
 def get_dc_host(ldap_session, domain_dumper,options):
     dc_host = {}
-    ldap_session.search(domain_dumper.root, '(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))', 
+    ldap_session.search(domain_dumper.root, '(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))',
             attributes=['name','dNSHostName'])
     if len(ldap_session.entries) > 0:
         for host in ldap_session.entries:
@@ -357,7 +368,7 @@ def get_dc_host(ldap_session, domain_dumper,options):
 
 def get_domain_admins(ldap_session, domain_dumper):
     admins = []
-    ldap_session.search(domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars("Domain Admins"), 
+    ldap_session.search(domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars("Domain Admins"),
             attributes=['objectSid'])
     a = ldap_session.entries[0]
     js = a.entry_to_json()

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
+from impacket.dcerpc.v5 import srvs
+from impacket.dcerpc.v5.ndr import NULL
 
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE
 from powerview.modules.addcomputer import ADDCOMPUTER
@@ -59,14 +61,7 @@ class PowerView:
         self.domain_dumper = ldapdomaindump.domainDumper(self.ldap_server, self.ldap_session, cnf)
         self.root_dn = self.domain_dumper.getRoot()
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
-        self.flatName = list_to_str(self.get_domain(properties=['name'])[0]['attributes']['name']).upper()
-
-    def connection_alive(self):
-        return not self.ldap_session.closed
-
-    def reset_connection(self):
-        logging.debug("Rebinding connection to ldap server")
-        self.ldap_session.bind()
+        self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
 
     def get_domainuser(self, args=None, properties=[], identity=None):
         def_prop = [
@@ -201,8 +196,6 @@ class PowerView:
             entries.append({"attributes":_entries["attributes"]})
 
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
 
     def get_domainobject(self, args=None, properties=['*'], identity='*', sd_flag=None):
         if sd_flag:
@@ -211,14 +204,18 @@ class PowerView:
         else:
             controls = None
 
+        ldap_filter = ""
         identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
-        ldap_filter = f"(|{identity_filter})"
+
         if args:
             if args.ldapfilter:
                 logging.debug(f'[Get-DomainObject] Using additional LDAP filter: {args.ldapfilter}')
-                ldap_filter += f"{args.ldap_filter}"
+                ldap_filter += f"{args.ldapfilter}"
+
         ldap_fiter = f"(&{ldap_filter})"
+        ldap_filter = f'(&{identity_filter}{ldap_filter})'
         logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
+
         entries = []
         entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True, controls=controls)
         for _entries in entry_generator:
@@ -227,8 +224,6 @@ class PowerView:
             strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
 
     def get_domainobjectowner(self, identity=None, args=None):
         if not identity:
@@ -374,8 +369,8 @@ class PowerView:
                 ldap_filter += f'(msds-allowedtodelegateto=*)'
             if args.laps:
                 logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
-                ldap_filter += f'(ms-MCS-AdmPwd=*)'
-                properties += ['ms-MCS-AdmPwd']
+                ldap_filter += f'(ms-Mcs-AdmPwd=*)'
+                properties += ['ms-MCS-AdmPwd','ms-Mcs-AdmPwdExpirationTime']
             if args.rbcd:
                 logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
                 ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
@@ -432,8 +427,37 @@ class PowerView:
 
             entries.append({"attributes":_entries["attributes"]})
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
+
+        properties = def_prop if not properties else properties
+        identity = '*' if not identity else identity
+
+        ldap_filter = ""
+        identity_filter = f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
+        if args:
+            if args.admincount:
+                ldap_filter += f"(admincount=1)"
+            if args.ldapfilter:
+                ldap_filter += f"{args.ldapfilter}"
+                logging.debug(f'[Get-DomainGroup] Using additional LDAP filter: {args.ldapfilter}')
+            if args.memberidentity:
+                entries = self.get_domainobject(identity=args.memberidentity)
+                if len(entries) == 0:
+                    logging.info("Member identity not found. Try to use DN")
+                    return
+                memberidentity_dn = entries[0]['attributes']['distinguishedName']
+                ldap_filter += f"(member={memberidentity_dn})"
+                logging.debug(f'[Get-DomainGroup] Filter is based on member property {ldap_filter}')
+
+        ldap_filter = f'(&(objectCategory=group){identity_filter}{ldap_filter})'
+        logging.debug(f'[Get-DomainGroup] LDAP search filter: {ldap_filter}')
+        entries = []
+        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        for _entries in entry_generator:
+            if _entries['type'] != 'searchResEntry':
+                continue
+            strip_entry(_entries)
+            entries.append({"attributes":_entries["attributes"]})
+        return entries
 
     def get_domaingroup(self, args=None, properties=[], identity=None):
         def_prop = [
@@ -482,8 +506,6 @@ class PowerView:
             strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
 
     def get_domaingroupmember(self, args=None, identity='*'):
         # get the identity group information
@@ -555,8 +577,6 @@ class PowerView:
             strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
 
     def get_domaingpolocalgroup(self, args=None, identity='*'):
         new_entries = []
@@ -568,10 +588,9 @@ class PowerView:
             new_dict = {}
             try:
                 gpcfilesyspath = f"{entry['attributes']['gPCFileSysPath']}\MACHINE\Microsoft\Windows NT\SecEdit\GptTmpl.inf"
-                if self.use_kerberos:
-                    conn = self.conn.init_smb_session(self.kdcHost)
-                else:
-                    conn = self.conn.init_smb_session(self.dc_ip)
+
+                conn = self.conn.init_smb_session(self.dc_ip)
+
                 share = 'sysvol'
                 filepath = ''.join(gpcfilesyspath.lower().split(share)[1:])
 
@@ -660,8 +679,6 @@ class PowerView:
 
             entries.append({"attributes":_entries["attributes"]})
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
 
     def convertfrom_sid(self, objectsid, args=None, output=False):
         identity = WELL_KNOWN_SIDS.get(objectsid)
@@ -689,9 +706,20 @@ class PowerView:
             print("%s" % identity)
         return identity
 
-    def get_domain(self, args=None, properties=['*'], identity='*'):
-        ldap_filter = f'(objectClass=domain)'
+    def get_domain(self, args=None, properties=['*'], identity=None):
+        identity = '*' if not identity else identity
+
+        identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
+        ldap_filter = ""
+
+        if args:
+            if args.ldapfilter:
+                logging.debug(f'[Get-Domain] Using additional LDAP filter: {args.ldapfilter}')
+                ldap_filter += f'{args.ldapfilter}'
+
+        ldap_filter = f'(&(objectClass=domain){identity_filter}{ldap_filter})'
         logging.debug(f'[Get-Domain] LDAP search filter: {ldap_filter}')
+
         entries = []
         entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
@@ -700,8 +728,6 @@ class PowerView:
             strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
 
     def get_domaindnszone(self, identity=None, properties=[], args=None):
         def_prop = [
@@ -735,8 +761,6 @@ class PowerView:
             strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
-        #self.ldap_session.search(search_base, ldap_filter, attributes=properties)
-        #return self.ldap_session.entries
 
     def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], args=None):
         def_prop = [
@@ -780,21 +804,13 @@ class PowerView:
                                 data : parsed_data[data]
                             })
                     if properties:
-                        new_dict = {}
-                        ori_list = list(_entries["attributes"].keys())
-                        for p in properties:
-                            if p.lower() not in [x.lower() for x in ori_list]:
-                                continue
-                            for i in ori_list:
-                                if p.casefold() == i.casefold():
-                                    new_dict[i] = _entries["attributes"][i]
+                        new_dict = filter_entry(_entries["attributes"], properties)
                     else:
                         new_dict = _entries["attributes"]
 
                     entries.append({
                         "attributes": new_dict
                     })
-                        #entries.append({"attributes":_entries["attributes"]})
         return entries
 
     def get_domainca(self, args=None, properties=None):
@@ -816,9 +832,13 @@ class PowerView:
 
         # check for web enrollment
         for i in range(len(entries)):
-            target_name = entries[i]['dnsHostName']
-            target_ip = host2ip(target_name, self.dc_ip, 3, True)
-            web_enrollment = ca_fetch.check_web_enrollment(target_name,target_ip)
+            target_name = entries[i]['dnsHostName'].value
+            web_enrollment = ca_fetch.check_web_enrollment(target_name,self.dc_ip)
+
+            if not web_enrollment:
+                logging.debug("Trying to check web enrollment with IP")
+                web_enrollment = ca_fetch.check_web_enrollment(target_name,self.dc_ip,use_ip=True)
+
             entries[i] = modify_entry(
                 entries[i],
                 new_attributes = {
@@ -858,12 +878,16 @@ class PowerView:
             return
 
         logging.debug(f"Found {len(cas)} CA(s)")
+        # Entries only
+        list_ca_templates = []
+        list_entries = []
         for ca in cas:
+            list_ca_templates += ca.certificateTemplates
             for template in templates:
                 #template = template.entry_writable()
-                enabled = False
                 vulnerable = False
                 vulns = {}
+                list_vuln = []
 
                 # avoid dupes
                 if template["objectGUID"] in template_guids:
@@ -878,32 +902,13 @@ class PowerView:
                 template_owner = template_ops.get_owner_sid()
                 certificate_name_flag = template_ops.get_certificate_name_flag()
                 enrollment_flag = template_ops.get_enrollment_flag()
+                # print(enrollment_flag)
                 extended_key_usage = template_ops.get_extended_key_usage()
                 validity_period = template_ops.get_validity_period()
                 renewal_period = template_ops.get_renewal_period()
                 requires_manager_approval = template_ops.get_requires_manager_approval()
 
-                try:
-                    ca_templates = ca.certificateTemplates
-
-                    if ca_templates is None:
-                        ca_templates = []
-                except ldap3.core.exceptions.LDAPCursorAttributeError:
-                    ca_templates = []
-
-                if template.name in ca_templates:
-                    enabled = True
-
-                if args.enabled and not enabled:
-                    continue
-
-                # check vulnerable
-                if args.vulnerable:
-                    vulns = template_ops.check_vulnerable_template()
-                    if vulns:
-                        vulnerable = True
-                    else:
-                        continue
+                vulns = template_ops.check_vulnerable_template()
 
                 if args.resolve_sids:
                     template_owner = self.convertfrom_sid(template_ops.get_owner_sid())
@@ -932,6 +937,21 @@ class PowerView:
                         except:
                             pass
 
+                    # Resolve Vulnerable (With resolvesids)
+                    for y in vulns.keys():
+                        try:
+                            list_vuln.append(y+" - "+self.convertfrom_sid(vulns[y]))
+                        except:
+                            list_vuln.append(vulns[y])
+
+                # Resolve Vulnerable (Without resolvesids)
+                if not args.resolve_sids:
+                    for y in vulns.keys():
+                        try:
+                            list_vuln.append(y+" - "+vulns[y])
+                        except:
+                            list_vuln.append(vulns[y])
+
                 e = modify_entry(template,
                                  new_attributes={
                                     'Owner': template_owner,
@@ -947,8 +967,9 @@ class PowerView:
                                     'Write Owner': parsed_dacl['Write Owner'],
                                     'Write Dacl': parsed_dacl['Write Dacl'],
                                     'Write Property': parsed_dacl['Write Property'],
-                                    'Enabled': enabled,
-                                    'Vulnerable': list(vulns.keys()),
+                                    'Enabled': False,
+                                    'Vulnerable': list_vuln
+                                    # 'Vulnerable': ",\n".join([i+" - "+vulns[i] for i in vulns.keys()]),
                                     #'Description': vulns['ESC1']
                                 },
                                  remove = [
@@ -959,23 +980,36 @@ class PowerView:
                                      'pKIOverlapPeriod',
                                      'pKIExtendedKeyUsage'
                                  ]
-
                                  )
-                if properties:
-                    new_dict = {}
-                    ori_list = list(e["attributes"].keys())
-                    for p in properties:
-                        if p.lower() not in [x.lower() for x in ori_list]:
-                            continue
-                        for i in ori_list:
-                            if p.casefold() == i.casefold():
-                                new_dict[i] = e["attributes"][i]
-                else:
-                    new_dict = e["attributes"]
+                new_dict = e["attributes"]
+                list_entries.append(new_dict)
 
-                entries.append({
-                    "attributes": new_dict
-                })
+        # Enabled + Vulnerable only
+        for ent in list_entries:
+            # Enabled
+            enabled = False
+            if ent["cn"][0] in list_ca_templates:
+                enabled = True
+                ent["Enabled"] = enabled
+
+            if args.enabled and not enabled:
+                continue
+
+            # Vulnerable
+            vulnerable = False
+            if ent["Vulnerable"]:
+                vulnerable = True
+
+            if args.vulnerable and not vulnerable:
+                continue
+
+            if properties:
+                ent = filter_entry(ent,properties)
+
+            entries.append({
+                "attributes": ent
+            })
+
         template_guids.clear()
         return entries
 
@@ -1124,12 +1158,12 @@ class PowerView:
 
     def remove_domaindnsrecord(self, identity=None, args=None):
         if args.zonename:
-            zonename = args.zonename
+            zonename = args.zonename.lower()
         else:
-            zonename = self.domain
-            logging.debug("Using current domain %s as zone name" % self.domain)
+            zonename = self.domain.lower()
+            logging.debug("Using current domain %s as zone name" % zonename)
 
-        zones = [name['attributes']['name'] for name in self.get_domaindnszone(properties=['name'])]
+        zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
         if zonename not in zones:
             logging.info("Zone %s not found" % zonename)
             return
@@ -1326,19 +1360,27 @@ class PowerView:
         setattr(self.args, "dc_host", dc_host)
         setattr(self.args, "delete", True)
 
-        if self.args.use_ldaps:
+        if self.use_ldaps:
             setattr(self.args, "method", "LDAPS")
         else:
             setattr(self.args, "method", "SAMR")
 
         # Creating Machine Account
         addmachineaccount = ADDCOMPUTER(
-            self.args.username,
-            self.args.password,
-            self.args.domain,
+            self.username,
+            self.password,
+            self.domain,
             self.args,
-            computer_name)
-        addmachineaccount.run()
+            computer_name,
+        )
+        try:
+            if self.use_ldaps:
+                addmachineaccount.run_ldaps()
+            else:
+                addmachineaccount.run_samr()
+        except Exception as e:
+            logging.error(str(e))
+            return False
 
         if len(self.get_domainobject(identity=computer_name)) == 0:
             return True
@@ -1347,11 +1389,12 @@ class PowerView:
 
     def set_domaindnsrecord(self, args):
         if args.zonename:
-            zonename = args.zonename
+            zonename = args.zonename.lower()
         else:
-            zonename = self.domain
+            zonename = self.domain.lower()
+            logging.debug("Using current domain %s as zone name" % zonename)
 
-        zones = [name['attributes']['name'] for name in self.get_domaindnszone(properties=['name'])]
+        zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
         if zonename not in zones:
             logging.info("Zone %s not found" % zonename)
             return
@@ -1397,13 +1440,15 @@ class PowerView:
 
     def add_domaindnsrecord(self, args):
         if args.zonename:
-            zonename = args.zonename
+            zonename = args.zonename.lower()
         else:
-            zonename = self.domain
+            zonename = self.domain.lower()
+            logging.debug("Using current domain %s as zone name" % zonename)
+
         recordname = args.recordname
         recordaddress = args.recordaddress
 
-        zones = [name['attributes']['name'] for name in self.get_domaindnszone(properties=['name'])]
+        zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
         if zonename not in zones:
             logging.info("Zone %s not found" % zonename)
             return
@@ -1524,7 +1569,6 @@ class PowerView:
             if is_ipaddress(args.computer) or is_ipaddress(args.computername):
                 logging.error('[Get-NamedPipes] FQDN must be used for kerberos authentication')
                 return
-            host = args.computer if args.computer else args.computername
         else:
             if is_fqdn:
                 host = host2ip(host, self.dc_ip, 3, True)
@@ -1767,7 +1811,7 @@ class PowerView:
 
         return succeeded
 
-    def invoke_kerberoast(self, args):
+    def invoke_kerberoast(self, args, properties=[]):
         # look for users with SPN set
         ldap_filter = ""
         ldap_filter = f"(servicePrincipalName=*)(UserAccountControl:1.2.840.113556.1.4.803:=512)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(!(objectCategory=computer))"
@@ -1780,6 +1824,7 @@ class PowerView:
         if len(entries) == 0:
             logging.debug("[Invoke-Kerberoast] No identity found")
             return
+
         # request TGS for each accounts
         target_domain = self.domain
 
@@ -1796,7 +1841,17 @@ class PowerView:
         entries_out = userspn.run(entries)
 
         # properly formatted for output
-        return entries_out
+        entries.clear()
+        entries = []
+        if properties:
+            for ent in entries_out:
+                entries.append({
+                    'attributes': filter_entry(ent['attributes'],properties)
+                })
+        else:
+            entries = entries_out
+
+        return entries
 
     def find_localadminaccess(self, args):
         host_entries = []
@@ -1853,7 +1908,7 @@ class PowerView:
                 pass
         return local_admin_pcs
 
-    def get_shares(self, args):
+    def get_netshare(self, args):
         is_fqdn = False
         host = ""
         host_inp = args.computer if args.computer else args.computername
@@ -1871,21 +1926,20 @@ class PowerView:
                         host = f"{host_inp}.{self.domain}"
                     else:
                         host = host_inp
-                logging.debug(f"[Find-LocalAdminAccess] Using FQDN: {host}")
+                logging.debug(f"[Get-NetShare] Using FQDN: {host}")
             else:
                 host = host_inp
 
         if self.use_kerberos:
             if is_ipaddress(args.computer) or is_ipaddress(args.computername):
-                logging.error('[Find-LocalAdminAccess] FQDN must be used for kerberos authentication')
+                logging.error('[Get-NetShare] FQDN must be used for kerberos authentication')
                 return
-            host = args.computer if args.computer else args.computereturne
         else:
             if is_fqdn:
                 host = host2ip(host, self.dc_ip, 3, True)
 
         if not host:
-            logging.error(f"[Find-LocalAdminAccess] Host not found")
+            logging.error(f"[Get-NetShare] Host not found")
             return
 
         if self.use_kerberos:
@@ -1909,3 +1963,74 @@ class PowerView:
 
             print(f'{share_info["name"].ljust(15)}{share_info["remark"].ljust(25)}{host}')
         print()
+
+    def get_netsession(self, args):
+        is_fqdn = False
+        host = ""
+        host_inp = args.computer if args.computer else args.computername
+
+        if host_inp:
+            if not is_ipaddress(host_inp):
+                is_fqdn = True
+                if args.server and args.server.casefold() != self.domain.casefold():
+                    if not host_inp.endswith(args.server):
+                        host = f"{host_inp}.{args.server}"
+                    else:
+                        host = host_inp
+                else:
+                    if not is_valid_fqdn(host_inp):
+                        host = f"{host_inp}.{self.domain}"
+                    else:
+                        host = host_inp
+                logging.debug(f"[Get-NetSession] Using FQDN: {host}")
+            else:
+                host = host_inp
+
+        if self.use_kerberos:
+            if is_ipaddress(args.computer) or is_ipaddress(args.computername):
+                logging.error('[Get-NetSession] FQDN must be used for kerberos authentication')
+                return
+            host = args.computer if args.computer else args.computereturne
+        else:
+            if is_fqdn:
+                host = host2ip(host, self.dc_ip, 3, True)
+
+        if not host:
+            logging.error(f"[Get-NetSession] Host not found")
+            return
+
+        dce = self.conn.init_rpc_session(host=host, pipe=r'\srvsvc')
+
+        if dce is None:
+            return
+
+        try:
+            resp = srvs.hNetrSessionEnum(dce, '\x00', NULL, 10)
+        except Exception as e:
+            if 'rpc_s_access_denied' in str(e):
+                logging.info('Access denied while enumerating Sessions on %s' % (host))
+            else:
+                logging.info(str(e))
+            return
+
+        sessions = []
+        for session in resp['InfoStruct']['SessionInfo']['Level10']['Buffer']:
+            ip = session['sesi10_cname'][:-1]
+            userName = session['sesi10_username'][:-1]
+            time = session['sesi10_time']
+            idleTime = session['sesi10_idle_time']
+
+            if userName[:-1] == "$":
+                continue
+
+            sessions.append({
+                "attributes": {
+                    "IP": ip,
+                    "Username": userName,
+                    "Time": time,
+                    "Idle Time": idleTime,
+                    "Computer": host,
+                }
+            })
+
+        return sessions

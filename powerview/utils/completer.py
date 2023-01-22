@@ -8,7 +8,7 @@ else:
     import readline
 
 COMMANDS = {
-    'Get-Domain':['-Identity','-Properties','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
+    'Get-Domain':['-Identity','-Properties', '-LDAPFilter','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
     'Get-NetDomain':['-Identity','-Properties','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
     'ConvertFrom-SID':['-ObjectSID','-Domain'],
     'Get-DomainController':['-Identity','-ResolveSIDs','-Properties','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
@@ -34,10 +34,10 @@ COMMANDS = {
     'Get-DomainUser':['-Identity','-Properties','-LDAPFilter','-Domain','-Select','-RBCD', '-Unconstrained','-PassNotRequired','-PreAuthNotRequired','-AllowDelegation','-DisallowDelegation','-AdminCount','-TrustedToAuth','-SPN', '-Where', '-Count', '-NoWrap'],
     'Get-NetUser':['-Identity','-Properties','-LDAPFilter','-Domain','-Select','-RBCD','-Unconstrained','-PassNotRequired','-PreAuthNotRequired','-AllowDelegation','-DisallowDelegation','-AdminCount','-TrustedToAuth','-SPN', '-Where', '-Count', '-NoWrap'],
     'Get-NamedPipes':['-Name','-Computer','-ComputerName','-Domain', '-NoWrap', '-Count'],
-    'Get-Shares':['-Computer','-ComputerName','-Domain', '-NoWrap', '-Count'],
-    'Get-NetShares':['-Computer','-ComputerName','-Domain', '-Count'],
+    'Get-NetShare':['-Computer','-ComputerName','-Domain', '-NoWrap', '-Count'],
+    'Get-NetSession':['-Computer','-ComputerName','-Domain', '-Count'],
     'Find-LocalAdminAccess':['-Computer','-ComputerName','-Domain', '-Count'],
-    'Invoke-Kerberoast':['-Identity','-Opsec','-LDAPFilter','-Domain', '-NoWrap'],
+    'Invoke-Kerberoast':['-Identity', '-Properties', '-Opsec','-LDAPFilter','-Domain', '-NoWrap'],
     'Get-DomainObject':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
     'Get-ADObject':['-Identity','-Properties','-LDAPFilter','-Domain','-Select', '-Where', '-Count', '-NoWrap'],
     'Get-DomainObjectOwner':['-Identity','-ResolveSID','-Domain','-Select', '-Where', '-Count', '-NoWrap'],

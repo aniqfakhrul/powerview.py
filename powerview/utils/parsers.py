@@ -15,7 +15,7 @@ class PowerViewParser(argparse.ArgumentParser):
 
 def arg_parse():
     parser = PowerViewParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE}0.1.2{bcolors.ENDC}")
-    parser.add_argument('account', action='store', metavar='[domain/]username[:password]', help='Account used to authenticate to DC.')
+    parser.add_argument('target', action='store', metavar='target', help='[[domain/]username[:password]@]<targetName or address>')
     parser.add_argument('--debug', dest='debug', action='store_true', help='Enable debug output')
     parser.add_argument('--version', dest='version', action='version',version=BANNER)
 
@@ -33,11 +33,11 @@ def arg_parse():
     auth.add_argument('--aes-key', dest="auth_aes_key", action="store", metavar = "hex key", help='AES key to use for Kerberos Authentication \'(128 or 256 bits)\'')
     auth.add_argument("--dc-ip", action='store', metavar='IP address', help='IP Address of the domain controller or KDC (Key Distribution Center) for Kerberos. If omitted it will use the domain part (FQDN) specified in the identity parameter')
 
-    args = parser.parse_args()
-
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
+
+    args = parser.parse_args()
 
     if args.debug is True:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -61,6 +61,7 @@ def powerview_arg_parse(cmd):
     get_domain_parser = subparsers.add_parser('Get-Domain', aliases=['Get-NetDomain'], exit_on_error=False)
     get_domain_parser.add_argument('-Identity', action='store',default='*', dest='identity')
     get_domain_parser.add_argument('-Properties', action='store', default='*', dest='properties')
+    get_domain_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domain_parser.add_argument('-Domain', action='store', dest='server')
     get_domain_parser.add_argument('-Select', action='store', dest='select')
     get_domain_parser.add_argument('-Where', action='store', dest='where')
@@ -259,12 +260,20 @@ def powerview_arg_parse(cmd):
     get_namedpipes_parser.add_argument('-Count', action='store_true', dest='count')
 
     # shares
-    get_shares_parser = subparsers.add_parser('Get-Shares', aliases=['Get-NetShares'], exit_on_error=False)
-    get_shares_group = get_shares_parser.add_mutually_exclusive_group()
-    get_shares_group.add_argument('-Computer', action='store', const=None, dest='computer')
-    get_shares_group.add_argument('-ComputerName', action='store', const=None, dest='computername')
-    get_shares_parser.add_argument('-Domain', action='store', dest='server')
-    get_shares_parser.add_argument('-Count', action='store_true', dest='count')
+    get_netshare_parser = subparsers.add_parser('Get-NetShare', exit_on_error=False)
+    get_netshare_group = get_netshare_parser.add_mutually_exclusive_group()
+    get_netshare_group.add_argument('-Computer', action='store', const=None, dest='computer')
+    get_netshare_group.add_argument('-ComputerName', action='store', const=None, dest='computername')
+    get_netshare_parser.add_argument('-Domain', action='store', dest='server')
+    get_netshare_parser.add_argument('-Count', action='store_true', dest='count')
+
+    # get-netsession
+    get_netsession_parser = subparsers.add_parser('Get-NetSession', exit_on_error=False)
+    get_netsession_group = get_netsession_parser.add_mutually_exclusive_group()
+    get_netsession_group.add_argument('-Computer', action='store', const=None, dest='computer')
+    get_netsession_group.add_argument('-ComputerName', action='store', const=None, dest='computername')
+    get_netsession_parser.add_argument('-Domain', action='store', dest='server')
+    get_netsession_parser.add_argument('-Count', action='store_true', dest='count')
 
     # shares
     find_localadminaccess_parser = subparsers.add_parser('Find-LocalAdminAccess', exit_on_error=False)
@@ -277,6 +286,7 @@ def powerview_arg_parse(cmd):
     # invoke kerberoast
     invoke_kerberoast_parser = subparsers.add_parser('Invoke-Kerberoast', exit_on_error=False)
     invoke_kerberoast_parser.add_argument('-Identity', action='store', dest='identity')
+    invoke_kerberoast_parser.add_argument('-Properties', action='store', dest='properties')
     invoke_kerberoast_parser.add_argument('-Opsec', action='store_true', default=False, dest='opsec')
     invoke_kerberoast_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     invoke_kerberoast_parser.add_argument('-Domain', action='store', dest='server')
@@ -422,8 +432,14 @@ def powerview_arg_parse(cmd):
                         logging.error(f"Unrecognized argument: {unk}")
                         return None
                 else:
-                    logging.error(f"Unrecognized argument: {unk}")
-                    return None
+                    if hasattr(args, 'identity'):
+                        args.identity = unk
+                    elif hasattr(args, 'objectsid'):
+                        args.objectsid = unk
+                    else:
+                        logging.error(f"Unrecognized argument: {unk}")
+                        return None
+                    return args
             return parser.parse_args(cmd)
         return args
     except argparse.ArgumentError as e:

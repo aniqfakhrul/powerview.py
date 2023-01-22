@@ -9,7 +9,8 @@ import socket
 from powerview.utils.helpers import (
     is_admin_sid,
     filetime_to_str,
-    get_user_sids
+    get_user_sids,
+    host2ip
 )
 from powerview.utils.constants import (
     ACTIVE_DIRECTORY_RIGHTS,
@@ -110,17 +111,23 @@ class CAEnum:
         return self.ldap_session.entries
 
     # https://github.com/ly4k/Certipy/blob/main/certipy/commands/find.py#L688
-    def check_web_enrollment(self, target_name, target_ip, timeout=5):
+    def check_web_enrollment(self, target, dc_ip, timeout=5, use_ip=False):
+        if use_ip:
+            target = host2ip(target, dc_ip, 3, True)
+
+        if target is None:
+            logging.debug("No target found")
+            return False
+
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             logging.debug("Default timeout is set to 5")
             sock.settimeout(timeout)
-
-            logging.debug("Connecting to %s:80" % target_ip)
-            sock.connect((target_ip, 80))
+            logging.debug("Connecting to %s:80" % target)
+            sock.connect((target, 80))
             sock.sendall(
                 "\r\n".join(
-                    ["HEAD /certsrv/ HTTP/1.1", "Host: %s" % target_name, "\r\n"]
+                    ["HEAD /certsrv/ HTTP/1.1", "Host: %s" % target, "\r\n"]
                 ).encode()
             )
             resp = sock.recv(256)
@@ -131,12 +138,13 @@ class CAEnum:
         except ConnectionRefusedError:
             return False
         except socket.timeout:
-            logging.debug("Can't reach %s" % (target_name))
+            logging.debug("Can't reach %s" % (target))
             return False
         except Exception as e:
             logging.warning(
                 "Got error while trying to check for web enrollment: %s" % e
             )
+            return False
 
         return False
 
@@ -338,33 +346,33 @@ class PARSE_TEMPLATE:
             # TODO: add another user_can_enroll logic
             self.parsed_dacl["Enrollment Rights"]
             if (user_can_enroll and self.get_enrollee_supplies_subject() and self.get_client_authentication()):
-                vulns["ESC1"] = enrollable_sids
+                vulns["ESC1"] = enrollable_sids[0]
 
             # ESC2
             if user_can_enroll and self.get_any_purpose():
-                vulns["ESC2"] = "Vulnerable yayyy"
+                vulns["ESC2"] = enrollable_sids[0]
 
             # ESC3
             if user_can_enroll and self.get_enrollment_agent():
-                vulns["ESC3"] = "Vulnerable yayyy"
+                vulns["ESC3"] = enrollable_sids[0]
 
             # ESC9
             if user_can_enroll and self.get_no_security_extension():
                 vunls["ESC9"] = "Vulnerable yayay"
 
             # ESC4
-            for s in self.parsed_dacl["Write Owner"]:
-                rid = int(s.split("-")[-1])
-                if rid > 1000:
-                    vulns["ESC4"] = f"{rid} have write permission"
-            for s in self.parsed_dacl["Write Dacl"]:
-                rid = int(s.split("-")[-1])
-                if rid > 1000:
-                    vulns["ESC4"] = f"{rid} have write permission"
-            for s in self.parsed_dacl["Write Property"]:
-                rid = int(s.split("-")[-1])
-                if rid > 1000:
-                    vulns["ESC4"] = f"{rid} have write permission"
+            # for s in self.parsed_dacl["Write Owner"]:
+            #     rid = int(s.split("-")[-1])
+            #     if rid > 1000:
+            #         vulns["ESC4"] = f"{rid} have write permission"
+            # for s in self.parsed_dacl["Write Dacl"]:
+            #     rid = int(s.split("-")[-1])
+            #     if rid > 1000:
+            #         vulns["ESC4"] = f"{rid} have write permission"
+            # for s in self.parsed_dacl["Write Property"]:
+            #     rid = int(s.split("-")[-1])
+            #     if rid > 1000:
+            #         vulns["ESC4"] = f"{rid} have write permission"
 
         return vulns
 
@@ -382,8 +390,8 @@ class PARSE_TEMPLATE:
 
         for sid, rights in aces.items():
             # TODO: Fix Logic here
-            if sid in list(WELL_KNOWN_SIDS.keys()):
-                continue
+            # if sid in list(WELL_KNOWN_SIDS.keys()):
+            #     continue
 
             if(EXTENDED_RIGHTS_NAME_MAP["Enroll"] in rights["extended_rights"]
                or EXTENDED_RIGHTS_NAME_MAP["Enroll"] in rights["extended_rights"]
