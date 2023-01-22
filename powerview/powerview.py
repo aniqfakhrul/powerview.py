@@ -588,9 +588,9 @@ class PowerView:
             new_dict = {}
             try:
                 gpcfilesyspath = f"{entry['attributes']['gPCFileSysPath']}\MACHINE\Microsoft\Windows NT\SecEdit\GptTmpl.inf"
-                
+
                 conn = self.conn.init_smb_session(self.dc_ip)
-                
+
                 share = 'sysvol'
                 filepath = ''.join(gpcfilesyspath.lower().split(share)[1:])
 
@@ -831,21 +831,20 @@ class PowerView:
         entries = ca_fetch.fetch_enrollment_services(properties)
 
         # check for web enrollment
-        if not properties:
-            for i in range(len(entries)):
-                target_name = entries[i]['dnsHostName'].value
-                web_enrollment = ca_fetch.check_web_enrollment(target_name,self.dc_ip)
+        for i in range(len(entries)):
+            target_name = entries[i]['dnsHostName'].value
+            web_enrollment = ca_fetch.check_web_enrollment(target_name,self.dc_ip)
 
-                if not web_enrollment:
-                    logging.debug("Trying to check web enrollment with IP")
-                    web_enrollment = ca_fetch.check_web_enrollment(target_name,self.dc_ip,use_ip=True)
+            if not web_enrollment:
+                logging.debug("Trying to check web enrollment with IP")
+                web_enrollment = ca_fetch.check_web_enrollment(target_name,self.dc_ip,use_ip=True)
 
-                entries[i] = modify_entry(
-                    entries[i],
-                    new_attributes = {
-                        "WebEnrollment": web_enrollment
-                    }
-                )
+            entries[i] = modify_entry(
+                entries[i],
+                new_attributes = {
+                    "WebEnrollment": web_enrollment
+                }
+            )
 
         return entries
 
