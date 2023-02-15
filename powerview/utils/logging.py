@@ -16,10 +16,10 @@ class LOG:
         if not os.path.exists(self.root_folder):
             os.makedirs(self.root_folder)
 
-        abspath = os.path.join(self.root_folder, file_name)        
+        abspath = os.path.join(self.root_folder, file_name)
 
         try:
-            open(abspath,"w").write(text)
+            open(abspath,"a").write(text+"\n")
         except IOError as e:
             logging.error(
                 "Error writing to %s (%s)" % (
@@ -30,14 +30,15 @@ class LOG:
 
             logging.debug(
                     "Log written to %s" % (
-                        abspath 
+                        abspath
                     )
                 )
 
     @staticmethod
     def write_to_file(file_name, text):
+
         try:
-            open(file_name, "w").write(text)
+            open(file_name, "a").write(text+"\n")
         except IOError as e:
             logging.error(
                 "Error writing to %s (%s)" % (

@@ -411,6 +411,11 @@ def main():
                                 clear_screen()
 
                             if entries:
+                                if pv_args.outfile:
+                                    if os.path.exists(pv_args.outfile):
+                                        logging.error("%s exists "%(pv_args.outfile))
+                                        continue
+
                                 formatter = FORMATTER(pv_args, args.use_kerberos)
                                 if pv_args.where is not None:
                                     # Alter entries
