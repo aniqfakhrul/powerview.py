@@ -88,6 +88,7 @@ def powerview_arg_parse(cmd):
     get_domainobjectowner_parser.add_argument('-Domain', action='store', dest='server')
     get_domainobjectowner_parser.add_argument('-Select', action='store', dest='select')
     get_domainobjectowner_parser.add_argument('-Where', action='store', dest='where')
+    get_domainobjectowner_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domainobjectowner_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainobjectowner_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -99,6 +100,7 @@ def powerview_arg_parse(cmd):
     get_domainobjectacl_parser.add_argument('-ResolveGUIDs', action='store_true',default=False, dest='resolveguids')
     get_domainobjectacl_parser.add_argument('-Select', action='store', dest='select')
     get_domainobjectacl_parser.add_argument('-Where', action='store', dest='where')
+    get_domainobjectacl_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domainobjectacl_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainobjectacl_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -112,6 +114,7 @@ def powerview_arg_parse(cmd):
     get_domaingroup_parser.add_argument('-Domain', action='store', dest='server')
     get_domaingroup_parser.add_argument('-Select', action='store', dest='select')
     get_domaingroup_parser.add_argument('-Where', action='store', dest='where')
+    get_domaingroup_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domaingroup_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaingroup_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -122,6 +125,7 @@ def powerview_arg_parse(cmd):
     get_domaingroupmember_parser.add_argument('-Domain', action='store', dest='server')
     get_domaingroupmember_parser.add_argument('-Select', action='store', dest='select')
     get_domaingroupmember_parser.add_argument('-Where', action='store', dest='where')
+    get_domaingroupmember_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domaingroupmember_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaingroupmember_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -133,6 +137,7 @@ def powerview_arg_parse(cmd):
     get_domainuser_parser.add_argument('-Domain', action='store', dest='server')
     get_domainuser_parser.add_argument('-Select', action='store', dest='select')
     get_domainuser_parser.add_argument('-Where', action='store', dest='where')
+    get_domainuser_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domainuser_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainuser_parser.add_argument('-SPN', action='store_true', default=False, dest='spn')
     get_domainuser_parser.add_argument('-AdminCount', action='store_true', default=False, dest='admincount')
@@ -155,6 +160,7 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-Domain', action='store', dest='server')
     get_domaincomputer_parser.add_argument('-Select', action='store', dest='select')
     get_domaincomputer_parser.add_argument('-Where', action='store', dest='where')
+    get_domaincomputer_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domaincomputer_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaincomputer_parser.add_argument('-Unconstrained', action='store_true', default=False, dest='unconstrained')
     get_domaincomputer_parser.add_argument('-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
@@ -173,6 +179,7 @@ def powerview_arg_parse(cmd):
     get_domaincontroller_parser.add_argument('-Domain', action='store', dest='server')
     get_domaincontroller_parser.add_argument('-Select',action='store', dest='select')
     get_domaincontroller_parser.add_argument('-Where', action='store', dest='where')
+    get_domaincontroller_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domaincontroller_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaincontroller_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -184,6 +191,7 @@ def powerview_arg_parse(cmd):
     get_domaingpo_parser.add_argument('-Domain', action='store', dest='server')
     get_domaingpo_parser.add_argument('-Select', action='store', dest='select')
     get_domaingpo_parser.add_argument('-Where', action='store', dest='where')
+    get_domaingpo_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domaingpo_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaingpo_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -194,6 +202,7 @@ def powerview_arg_parse(cmd):
     get_domaingpolocalgroup_parser.add_argument('-Domain', action='store', dest='server')
     get_domaingpolocalgroup_parser.add_argument('-Select', action='store', dest='select')
     get_domaingpolocalgroup_parser.add_argument('-Where', action='store', dest='where')
+    get_domaingpolocalgroup_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domaingpolocalgroup_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaingpolocalgroup_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -206,6 +215,7 @@ def powerview_arg_parse(cmd):
     get_domainou_parser.add_argument('-Select', action='store', dest='select')
     get_domainou_parser.add_argument('-GPLink', action='store', dest='gplink')
     get_domainou_parser.add_argument('-Where', action='store', dest='where')
+    get_domainou_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domainou_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainou_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -216,6 +226,7 @@ def powerview_arg_parse(cmd):
     get_domaindnszone_parser.add_argument('-Domain', action='store', dest='server')
     get_domaindnszone_parser.add_argument('-Select', action='store', dest='select')
     get_domaindnszone_parser.add_argument('-Where', action='store', dest='where')
+    get_domaindnszone_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domaindnszone_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaindnszone_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -227,6 +238,7 @@ def powerview_arg_parse(cmd):
     get_domaindnsrecord_parser.add_argument('-Domain', action='store', dest='server')
     get_domaindnsrecord_parser.add_argument('-Select', action='store', dest='select')
     get_domaindnsrecord_parser.add_argument('-Where', action='store', dest='where')
+    get_domaindnsrecord_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domaindnsrecord_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaindnsrecord_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -236,6 +248,7 @@ def powerview_arg_parse(cmd):
     get_domainca_parser.add_argument('-Domain', action='store', dest='server')
     get_domainca_parser.add_argument('-Select', action='store', dest='select')
     get_domainca_parser.add_argument('-Where', action='store', dest='where')
+    get_domainca_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domainca_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainca_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -249,6 +262,7 @@ def powerview_arg_parse(cmd):
     get_domaincatemplate_parser.add_argument('-Domain', action='store', dest='server')
     get_domaincatemplate_parser.add_argument('-Select', action='store', dest='select')
     get_domaincatemplate_parser.add_argument('-Where', action='store', dest='where')
+    get_domaincatemplate_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domaincatemplate_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaincatemplate_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -260,6 +274,7 @@ def powerview_arg_parse(cmd):
     get_namedpipes_group.add_argument('-ComputerName', action='store', const=None, dest='computername')
     get_namedpipes_parser.add_argument('-Domain', action='store', dest='server')
     get_namedpipes_parser.add_argument('-Count', action='store_true', dest='count')
+    get_namedpipes_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # shares
     get_netshare_parser = subparsers.add_parser('Get-NetShare', exit_on_error=False)
@@ -268,6 +283,7 @@ def powerview_arg_parse(cmd):
     get_netshare_group.add_argument('-ComputerName', action='store', const=None, dest='computername')
     get_netshare_parser.add_argument('-Domain', action='store', dest='server')
     get_netshare_parser.add_argument('-Count', action='store_true', dest='count')
+    get_netshare_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # get-netsession
     get_netsession_parser = subparsers.add_parser('Get-NetSession', exit_on_error=False)
@@ -276,6 +292,7 @@ def powerview_arg_parse(cmd):
     get_netsession_group.add_argument('-ComputerName', action='store', const=None, dest='computername')
     get_netsession_parser.add_argument('-Domain', action='store', dest='server')
     get_netsession_parser.add_argument('-Count', action='store_true', dest='count')
+    get_netsession_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # shares
     find_localadminaccess_parser = subparsers.add_parser('Find-LocalAdminAccess', exit_on_error=False)
@@ -284,6 +301,7 @@ def powerview_arg_parse(cmd):
     find_localadminaccess_group.add_argument('-ComputerName', action='store', dest='computername')
     find_localadminaccess_parser.add_argument('-Domain', action='store', dest='server')
     find_localadminaccess_parser.add_argument('-Count', action='store_true', dest='count')
+    find_localadminaccess_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # invoke kerberoast
     invoke_kerberoast_parser = subparsers.add_parser('Invoke-Kerberoast', exit_on_error=False)
@@ -294,6 +312,7 @@ def powerview_arg_parse(cmd):
     invoke_kerberoast_parser.add_argument('-Domain', action='store', dest='server')
     invoke_kerberoast_parser.add_argument('-Select', action='store', dest='select')
     invoke_kerberoast_parser.add_argument('-Where', action='store', dest='where')
+    invoke_kerberoast_parser.add_argument('-OutFile', action='store', dest='outfile')
     invoke_kerberoast_parser.add_argument('-Count', action='store_true', dest='count')
     invoke_kerberoast_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -304,6 +323,7 @@ def powerview_arg_parse(cmd):
     get_domaintrust_parser.add_argument('-Domain', action='store', dest='server')
     get_domaintrust_parser.add_argument('-Select', action='store', dest='select')
     get_domaintrust_parser.add_argument('-Where', action='store', dest='where')
+    get_domaintrust_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domaintrust_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaintrust_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -311,18 +331,21 @@ def powerview_arg_parse(cmd):
     convertfrom_sid_parser = subparsers.add_parser('ConvertFrom-SID' ,exit_on_error=False)
     convertfrom_sid_parser.add_argument('-ObjectSID', action='store', dest='objectsid')
     convertfrom_sid_parser.add_argument('-Domain', action='store', dest='server')
+    convertfrom_sid_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # add domain group members
     add_domaingroupmember_parser = subparsers.add_parser('Add-DomainGroupMember',aliases=['Add-GroupMember'], exit_on_error=False)
     add_domaingroupmember_parser.add_argument('-Identity', action='store', const=None, dest='identity')
     add_domaingroupmember_parser.add_argument('-Members', action='store', const=None, dest='members')
     add_domaingroupmember_parser.add_argument('-Domain', action='store', dest='server')
+    add_domaingroupmember_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # remove domain group members
     remove_domaingroupmember_parser = subparsers.add_parser('Remove-DomainGroupMember',aliases=['Remove-GroupMember'], exit_on_error=False)
     remove_domaingroupmember_parser.add_argument('-Identity', action='store', const=None, dest='identity')
     remove_domaingroupmember_parser.add_argument('-Members', action='store', const=None, dest='members')
     remove_domaingroupmember_parser.add_argument('-Domain', action='store', dest='server')
+    remove_domaingroupmember_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # add domain object acl
     add_domainobjectacl_parser = subparsers.add_parser('Add-DomainObjectAcl', aliases=['Add-ObjectAcl'], exit_on_error=False)
@@ -330,6 +353,7 @@ def powerview_arg_parse(cmd):
     add_domainobjectacl_parser.add_argument('-PrincipalIdentity', action='store', const=None, dest='principalidentity')
     add_domainobjectacl_parser.add_argument('-Rights', action='store', const=None, dest='rights', choices=['all', 'dcsync', 'writemembers','resetpassword','rbcd','shadowcred'], type = str.lower)
     add_domainobjectacl_parser.add_argument('-Domain', action='store', dest='server')
+    add_domainobjectacl_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # remove domain object acl
     remove_domainobjectacl_parser = subparsers.add_parser('Remove-DomainObjectAcl', aliases=['Remove-ObjectAcl'], exit_on_error=False)
@@ -337,12 +361,14 @@ def powerview_arg_parse(cmd):
     remove_domainobjectacl_parser.add_argument('-PrincipalIdentity', action='store', const=None, dest='principalidentity')
     remove_domainobjectacl_parser.add_argument('-Rights', action='store', const=None, dest='rights', choices=['all', 'dcsync','writemembers','resetpassword'], type = str.lower)
     remove_domainobjectacl_parser.add_argument('-Domain', action='store', dest='server')
+    remove_domainobjectacl_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # add domain computer
     add_domaincomputer_parser = subparsers.add_parser('Add-DomainComputer', aliases=['Add-ADComputer'], exit_on_error=False)
     add_domaincomputer_parser.add_argument('-ComputerName', action='store', const=None, dest='computername')
     add_domaincomputer_parser.add_argument('-ComputerPass', action='store', const=None, dest='computerpass')
     add_domaincomputer_parser.add_argument('-Domain', action='store', dest='server')
+    add_domaincomputer_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # add dns record
     add_domaindnsrecord_parser = subparsers.add_parser('Add-DomainDNSRecord', exit_on_error=False)
@@ -350,6 +376,7 @@ def powerview_arg_parse(cmd):
     add_domaindnsrecord_parser.add_argument('-RecordName', action='store', dest='recordname')
     add_domaindnsrecord_parser.add_argument('-RecordAddress', action='store', dest='recordaddress')
     add_domaindnsrecord_parser.add_argument('-Domain', action='store', dest='server')
+    add_domaindnsrecord_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # add domain user
     add_domainuser_parser = subparsers.add_parser('Add-DomainUser', aliases=['Add-ADUser'], exit_on_error=False)
@@ -357,16 +384,19 @@ def powerview_arg_parse(cmd):
     add_domainuser_parser.add_argument('-UserPass', action='store', default=None, const=None, dest='userpass')
     add_domainuser_parser.add_argument('-BaseDN', action='store', default=None, const=None, dest='basedn')
     add_domainuser_parser.add_argument('-Domain', action='store', dest='server')
+    add_domainuser_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # remove domain user
     remove_domainuser_parser = subparsers.add_parser('Remove-DomainUser', aliases=['Remove-ADUser'], exit_on_error=False)
     remove_domainuser_parser.add_argument('-Identity', action='store', dest='identity')
     remove_domainuser_parser.add_argument('-Domain', action='store', dest='server')
+    remove_domainuser_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # remove domain computer
     remove_domaincomputer_parser = subparsers.add_parser('Remove-DomainComputer', aliases=['Remove-ADComputer'], exit_on_error=False)
     remove_domaincomputer_parser.add_argument('-ComputerName',action='store', const=None, dest='computername')
     remove_domaincomputer_parser.add_argument('-Domain', action='store', dest='server')
+    remove_domaincomputer_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # set domain object properties
     set_domainobject_parser = subparsers.add_parser('Set-DomainObject', aliases=['Set-ADObject'], exit_on_error=False)
@@ -376,6 +406,7 @@ def powerview_arg_parse(cmd):
     set_domainobject_group.add_argument('-Append', dest='append')
     set_domainobject_group.add_argument('-Clear',action='store', dest='clear')
     set_domainobject_parser.add_argument('-Domain', action='store', dest='server')
+    set_domainobject_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # set dns record
     set_domaindnsrecord_parser = subparsers.add_parser('Set-DomainDNSRecord', exit_on_error=False)
@@ -383,12 +414,14 @@ def powerview_arg_parse(cmd):
     set_domaindnsrecord_parser.add_argument('-RecordName', action='store', dest='recordname')
     set_domaindnsrecord_parser.add_argument('-RecordAddress', action='store', dest='recordaddress')
     set_domaindnsrecord_parser.add_argument('-Domain', action='store', dest='server')
+    set_domaindnsrecord_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # remove dns record
     remove_domaindnsrecord_parser = subparsers.add_parser('Remove-DomainDNSRecord', exit_on_error=False)
     remove_domaindnsrecord_parser.add_argument('-ZoneName', action='store', dest='zonename')
     remove_domaindnsrecord_parser.add_argument('-Identity', action='store', dest='identity')
     remove_domaindnsrecord_parser.add_argument('-Domain', action='store', dest='server')
+    remove_domaindnsrecord_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # set domain ca template properties
     set_domaincatemplate_parser = subparsers.add_parser('Set-DomainCATemplate', aliases=['Set-CATemplate'], exit_on_error=False)
@@ -398,6 +431,7 @@ def powerview_arg_parse(cmd):
     set_domaincatemplate_group.add_argument('-Append', dest='append')
     set_domaincatemplate_group.add_argument('-Clear',action='store', dest='clear')
     set_domaincatemplate_parser.add_argument('-Domain', action='store', dest='server')
+    set_domaincatemplate_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # set domain user password
     set_domainuserpassword_parser = subparsers.add_parser('Set-DomainUserPassword', exit_on_error=False)
@@ -405,6 +439,7 @@ def powerview_arg_parse(cmd):
     set_domainuserpassword_parser.add_argument('-AccountPassword', action='store', dest='accountpassword')
     set_domainuserpassword_parser.add_argument('-OldPassword', action='store', dest='oldpassword')
     set_domainuserpassword_parser.add_argument('-Domain', action='store', dest='server')
+    set_domainuserpassword_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # set domain computer password
     set_domaincomputerpassword_parser = subparsers.add_parser('Set-DomainComputerPassword', exit_on_error=False)
@@ -412,12 +447,14 @@ def powerview_arg_parse(cmd):
     set_domaincomputerpassword_parser.add_argument('-AccountPassword', action='store', dest='accountpassword')
     set_domaincomputerpassword_parser.add_argument('-OldPassword', action='store', dest='oldpassword')
     set_domaincomputerpassword_parser.add_argument('-Domain', action='store', dest='server')
+    set_domaincomputerpassword_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # set domain object owner
     set_domainobjectowner_parser = subparsers.add_parser('Set-DomainObjectOwner', aliases=['Set-ObjectOwner'], exit_on_error=False)
     set_domainobjectowner_parser.add_argument('-TargetIdentity', action='store', const=None, dest='targetidentity')
     set_domainobjectowner_parser.add_argument('-PrincipalIdentity', action='store', const=None, dest='principalidentity')
     set_domainobjectowner_parser.add_argument('-Domain', action='store', dest='server')
+    set_domainobjectowner_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     subparsers.add_parser('exit', exit_on_error=False)
     subparsers.add_parser('clear', exit_on_error=False)
