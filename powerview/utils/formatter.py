@@ -6,6 +6,7 @@ from powerview.lib.resolver import (
     LDAP
 )
 from powerview import PowerView as PV
+from powerview.utils.logging import LOG
 
 import ldap3
 import json
@@ -19,6 +20,8 @@ class FORMATTER:
         self.__newline = '\n'
         self.args = pv_args
         self.use_kerberos = use_kerberos
+        
+        print(self.args)
 
     def count(self, entries):
         print(f"{len(entries)}")
@@ -42,6 +45,10 @@ class FORMATTER:
                     value = self.beautify(value,self.get_max_len(list(entry['attributes'].keys()))+2)
                     if isinstance(value,list):
                         if len(value) != 0:
+                            # write output to file
+                            if self.args.outfile:
+                                LOG.write_to_file(self.args.outfile, "hehehhee")
+
                             print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}")
                     else:
                         print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {value}")

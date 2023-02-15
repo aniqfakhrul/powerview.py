@@ -54,8 +54,8 @@ def powerview_arg_parse(cmd):
     parser.add_argument('-Domain', action='store', dest='server')
     parser.add_argument('-Where', action='store', dest='where')
     parser.add_argument('-Select', action='store', dest='select')
-    parser.add_argument('-Count', action='store', dest='count')
-    parser.add_argument('-NoWrap', action='store', dest='nowrap')
+    parser.add_argument('-Count', action='store_true', dest='count')
+    parser.add_argument('-NoWrap', action='store_true', dest='nowrap')
 
     #domain
     get_domain_parser = subparsers.add_parser('Get-Domain', aliases=['Get-NetDomain'], exit_on_error=False)
@@ -65,6 +65,7 @@ def powerview_arg_parse(cmd):
     get_domain_parser.add_argument('-Domain', action='store', dest='server')
     get_domain_parser.add_argument('-Select', action='store', dest='select')
     get_domain_parser.add_argument('-Where', action='store', dest='where')
+    get_domain_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domain_parser.add_argument('-Count', action='store_true', dest='count')
     get_domain_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
@@ -76,6 +77,7 @@ def powerview_arg_parse(cmd):
     get_domainobject_parser.add_argument('-Domain', action='store', dest='server')
     get_domainobject_parser.add_argument('-Select', action='store', dest='select')
     get_domainobject_parser.add_argument('-Where', action='store', dest='where')
+    get_domainobject_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domainobject_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainobject_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
