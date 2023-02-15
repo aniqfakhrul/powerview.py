@@ -411,6 +411,11 @@ def main():
                                 clear_screen()
 
                             if entries:
+                                if pv_args.outfile:
+                                    if os.path.exists(pv_args.outfile):
+                                        logging.error("%s exists "%(pv_args.outfile))
+                                        continue
+
                                 formatter = FORMATTER(pv_args, args.use_kerberos)
                                 if pv_args.where is not None:
                                     # Alter entries
@@ -448,8 +453,8 @@ def main():
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("Connection dead")
                 conn.reset_connection()
-            #except Exception as e:
-            #    logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:

@@ -6,6 +6,7 @@ from powerview.lib.resolver import (
     LDAP
 )
 from powerview import PowerView as PV
+from powerview.utils.logging import LOG
 
 import ldap3
 import json
@@ -19,6 +20,8 @@ class FORMATTER:
         self.__newline = '\n'
         self.args = pv_args
         self.use_kerberos = use_kerberos
+
+        print(self.args)
 
     def count(self, entries):
         print(f"{len(entries)}")
@@ -42,15 +45,28 @@ class FORMATTER:
                     value = self.beautify(value,self.get_max_len(list(entry['attributes'].keys()))+2)
                     if isinstance(value,list):
                         if len(value) != 0:
-                            print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}")
+                            _stdout = f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}"
+                            if self.args.outfile:
+                                LOG.write_to_file(self.args.outfile, _stdout)
+                            print(_stdout)
                     else:
-                        print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {value}")
+                        _stdout = f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {value}"
+                        if self.args.outfile:
+                            LOG.write_to_file(self.args.outfile, _stdout)
+                        print(_stdout)
+                if self.args.outfile:
+                    LOG.write_to_file(self.args.outfile, "")
                 print()
             elif isinstance(entry['attributes'],list):
                 entry = self.resolve_values(entry)
                 for ace in entry['attributes'][0:i]:
                     for attr, value in ace.items():
-                        print(f"{attr.ljust(28)}: {value}")
+                        _stdout = f"{attr.ljust(28)}: {value}"
+                        if self.args.outfile:
+                            LOG.write_to_file(self.args.outfile, _stdout)
+                        print(_stdout)
+                    if self.args.outfile:
+                        LOG.write_to_file(self.args.outfile, "")
                     print()
 
     def print_select(self,entries):
@@ -79,10 +95,17 @@ class FORMATTER:
                             value = value.strip()
                             if len(value) != 0:
                                 if len(select_attributes) == 1:
+                                    if self.args.outfile:
+                                        LOG.write_to_file(self.args.outfile, value)
                                     print(value)
                                 else:
-                                    print(f"{key.ljust(self.get_max_len(select_attributes))}: {value}")
+                                    _stdout = f"{key.ljust(self.get_max_len(select_attributes))}: {value}"
+                                    if self.args.outfile:
+                                        LOG.write_to_file(self.args.outfile, _stdout)
+                                    print(_stdout)
                 if len(select_attributes) != 1:
+                    if self.args.outfile:
+                        LOG.write_to_file(self.args.outfile, "")
                     print()
             elif isinstance(entry['attributes'], list):
                 entry = self.resolve_values(entry)
@@ -91,10 +114,17 @@ class FORMATTER:
                         for attr in select_attributes:
                             if str(attr).casefold() == str(key).casefold():
                                 if len(select_attributes) == 1:
+                                    if self.args.outfile:
+                                        LOG.write_to_file(self.args.outfile, ace[key])
                                     print(ace[key])
                                 else:
-                                    print(f"{key.ljust(28)}: {ace[key]}")
+                                    _stdout = f"{key.ljust(28)}: {ace[key]}"
+                                    if self.args.outfile:
+                                        LOG.write_to_file(self.args.outfile, _stdout)
+                                    print(_stdout)
                     if len(select_attributes) != 1:
+                        if self.args.outfile:
+                            LOG.write_to_file(self.args.outfile, "")
                         print()
 
     def print(self,entries):
@@ -118,20 +148,35 @@ class FORMATTER:
                     if isinstance(value,list):
                         if len(value) != 0:
                             have_entry = True
-                            print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}")
+                            _stdout = f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}"
+                            if self.args.outfile:
+                                LOG.write_to_file(self.args.outfile, _stdout)
+                            print(_stdout)
                     else:
                         have_entry = True
-                        print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {str(value)}")
+                        _stdout = f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {str(value)}"
+                        if self.args.outfile:
+                            LOG.write_to_file(self.args.outfile, _stdout)
+                        print(_stdout)
                 if have_entry:
+                    if self.args.outfile:
+                        LOG.write_to_file(self.args.outfile, "")
                     print()
             elif isinstance(entry['attributes'],list):
                 entry = self.resolve_values(entry)
                 for ace in entry['attributes']:
                     for k, v in ace.items():
-                        print(f'{k.ljust(28)}: {v}')
+                        _stdout = f'{k.ljust(28)}: {v}'
+                        if self.args.outfile:
+                            LOG.write_to_file(self.args.outfile, _stdout)
+                        print(_stdout)
+                    if self.args.outfile:
+                        LOG.write_to_file(self.args.outfile, "")
                     print()
             elif isinstance(entry, str):
                 entry = self.resolve_values(entry)
+                if self.args.outfile:
+                    LOG.write_to_file(self.args.outfile, entry)
                 print(entry)
 
     def alter_entries(self,entries,cond):
