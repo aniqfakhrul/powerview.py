@@ -21,8 +21,6 @@ class FORMATTER:
         self.args = pv_args
         self.use_kerberos = use_kerberos
 
-        print(self.args)
-
     def count(self, entries):
         print(f"{len(entries)}")
 
