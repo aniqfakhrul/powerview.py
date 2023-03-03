@@ -1793,7 +1793,9 @@ class PowerView:
 
                 attrs['value'] = list(set(attrs['value'] + temp_list))
             elif args.set:
-                attrs['value'] = list(set(attrs['value']))
+                #In case the value is a Distinguished Name
+                if not re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', str(attrs['value'])):
+                    attrs['value'] = list(set(attrs['value']))
 
             attr_key = attrs['attribute']
             attr_val = attrs['value']
