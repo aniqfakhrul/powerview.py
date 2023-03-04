@@ -162,7 +162,11 @@ def ini_to_dict(obj):
         return None
     for k in t['dummy_section'].keys():
         d['attribute'] = k
-        d['value'] = t.getlist('dummy_section', k)
+        #In case the value is a Distinguished Name
+        if re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', t.get('dummy_section', k)):
+            d['value'] = t.get('dummy_section', k)
+        else:
+            d['value'] = t.getlist('dummy_section', k)
     return d
 
 def parse_object(obj):
