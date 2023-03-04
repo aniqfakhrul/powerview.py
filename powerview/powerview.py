@@ -1791,7 +1791,12 @@ class PowerView:
                 elif isinstance(targetobject[0]["attributes"][attrs['attribute']], list):
                     temp_list = targetobject[0]["attributes"][attrs['attribute']]
 
-                attrs['value'] = list(set(attrs['value'] + temp_list))
+                #In case the value a Distinguished Name we retransform it into a list to append it
+                if re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', str(attrs['value'])):
+                    attrs['value'] = list(set(list(attrs['value'].split('\n') + temp_list)))
+                    print(attrs['value'])
+                else:
+                    attrs['value'] = list(set(attrs['value'] + temp_list))
             elif args.set:
                 #In case the value is a Distinguished Name
                 if not re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', str(attrs['value'])):
