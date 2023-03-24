@@ -59,7 +59,10 @@ def main():
                 readline.parse_and_bind("tab: complete")
                 readline.set_completer(comp.complete)
 
-                cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{server_ip}{bcolors.OKBLUE}]-[{bcolors.ENDC}{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV > {bcolors.ENDC}')
+                if not args.query:
+                    cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{server_ip}{bcolors.OKBLUE}]-[{bcolors.ENDC}{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV > {bcolors.ENDC}')
+                else:
+                    cmd = args.query
 
                 if cmd:
                     try:
@@ -455,6 +458,10 @@ def main():
                 conn.reset_connection()
             except Exception as e:
                 logging.error(str(e))
+
+            if args.query:
+                sys.exit(0)
+
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
