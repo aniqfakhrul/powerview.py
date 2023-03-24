@@ -374,17 +374,17 @@ class LDAPAttack(ProtocolAttack):
         controls = security_descriptor_control(sdflags=0x04)
         alreadyEscalated = True
 
-        LOG.info('Querying domain security descriptor')
+        #LOG.info('Querying domain security descriptor')
         self.client.search(self.rootDN, f'(distinguishedName={self.targetidentity_dn})', attributes=['SAMAccountName','nTSecurityDescriptor'], controls=controls)
 
-        if len(self.client.entries) == 0:
-            LOG.error(f'{self.args.targetidentity} not found in domain. Ensure to use valid object distinguishedName property')
-            return
-
+        #if len(self.client.entries) == 0:
+        #    LOG.error(f'{self.args.targetidentity} not found in domain. Ensure to use valid object distinguishedName property')
+        #    return
+        
         entry = self.client.entries[0]
         secDescData = entry['nTSecurityDescriptor'].raw_values[0]
         secDesc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDescData)
-
+        
         if not self.args.delete:
             if self.args.rights.lower() in list(rights.keys()):
                 for guid in rights[self.args.rights]:
@@ -412,7 +412,7 @@ class LDAPAttack(ProtocolAttack):
                 elif self.args.rights == 'resetpassword':
                     LOG.info('Success! User %s now has Reset Password privileges on %s', username, self.args.targetidentity)
                 elif self.args.rights == 'all':
-                    LOG.info('Success! User %s now has GenericAll privileges on $s', username, self.args.targetidentity)
+                    LOG.info('Success! User %s now has GenericAll privileges on %s', username, self.args.targetidentity)
             else:
                 if self.args.rights == 'dcsync':
                     LOG.info('Success! Replication-Get-Changes-All privileges restored for %s', username)
