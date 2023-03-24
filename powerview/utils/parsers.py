@@ -16,8 +16,9 @@ class PowerViewParser(argparse.ArgumentParser):
 def arg_parse():
     parser = PowerViewParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE}0.1.2{bcolors.ENDC}")
     parser.add_argument('target', action='store', metavar='target', help='[[domain/]username[:password]@]<targetName or address>')
-    parser.add_argument('--debug', dest='debug', action='store_true', help='Enable debug output')
-    parser.add_argument('--version', dest='version', action='version',version=BANNER)
+    parser.add_argument('-d','--debug', dest='debug', action='store_true', help='Enable debug output')
+    parser.add_argument('-q','--query', dest='query', action='store', help='PowerView query to be executed one-time')
+    parser.add_argument('-v','--version', dest='version', action='version',version=BANNER)
 
     protocol = parser.add_argument_group('protocol')
     group = protocol.add_mutually_exclusive_group()
@@ -461,6 +462,7 @@ def powerview_arg_parse(cmd):
 
     try:
         args, unknown = parser.parse_known_args(cmd)
+        
         if unknown:
             for unk in unknown:
                 if unk[0] == "-":

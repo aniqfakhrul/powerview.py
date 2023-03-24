@@ -1,4 +1,4 @@
-dnspython==2.2.1
+dnspython
 dsinternals
 gnureadline
 impacket>=0.10.0

