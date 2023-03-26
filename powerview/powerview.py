@@ -48,6 +48,7 @@ class PowerView:
         self.lmhash = args.lmhash
         self.nthash = args.nthash
         self.use_ldaps = args.use_ldaps
+        self.nameserver = args.nameserver
         self.dc_ip = args.dc_ip
         self.use_kerberos = args.use_kerberos
 
@@ -405,7 +406,7 @@ class PowerView:
             #if not dnshostname:
             #    continue
             if resolveip and _entries['attributes']['dnsHostName']:
-                ip = host2ip(_entries['attributes']['dnsHostName'], self.dc_ip, 3, True)
+                ip = host2ip(_entries['attributes']['dnsHostName'], self.nameserver, 3, True)
                 if ip:
                     _entries = modify_entry(
                         _entries,
@@ -1571,7 +1572,7 @@ class PowerView:
                 return
         else:
             if is_fqdn:
-                host = host2ip(host, self.dc_ip, 3, True)
+                host = host2ip(host, self.nameserver, 3, True)
 
         if not host:
             logging.error('[Get-NamedPipes] Host not found')
@@ -1877,7 +1878,7 @@ class PowerView:
             if is_ipaddress(computer):
                 hosts['address'] = computer
             else:
-                hosts['address'] = host2ip(computer, self.dc_ip, 3, True)
+                hosts['address'] = host2ip(computer, self.nameserver, 3, True)
                 hosts['hostname'] = computer
             host_entries.append(hosts)
         else:
@@ -1892,7 +1893,7 @@ class PowerView:
                     if len(entry['attributes']['dnsHostName']) <= 0:
                         continue
 
-                    hosts['address'] = host2ip(entry['attributes']['dnsHostName'], self.dc_ip, 3, True)
+                    hosts['address'] = host2ip(entry['attributes']['dnsHostName'], self.nameserver, 3, True)
                     hosts['hostname'] = entry['attributes']['dnsHostname']
                     host_entries.append(hosts.copy())
                 except IndexError:
@@ -1943,7 +1944,7 @@ class PowerView:
                 return
         else:
             if is_fqdn:
-                host = host2ip(host, self.dc_ip, 3, True)
+                host = host2ip(host, self.nameserver, 3, True)
 
         if not host:
             logging.error(f"[Get-NetShare] Host not found")
@@ -2000,7 +2001,7 @@ class PowerView:
             host = args.computer if args.computer else args.computereturne
         else:
             if is_fqdn:
-                host = host2ip(host, self.dc_ip, 3, True)
+                host = host2ip(host, self.nameserver, 3, True)
 
         if not host:
             logging.error(f"[Get-NetSession] Host not found")

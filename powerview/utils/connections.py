@@ -28,8 +28,6 @@ class CONNECTION:
         self.lmhash = args.lmhash
         self.nthash = args.nthash
         self.use_kerberos = args.use_kerberos
-        self.dc_ip = args.dc_ip
-        self.ldap_address = args.ldap_address
         self.use_ldap = args.use_ldap
         self.use_ldaps = args.use_ldaps
         self.use_gc = args.use_gc
@@ -41,8 +39,29 @@ class CONNECTION:
             self.use_kerberos = True
         self.no_pass = args.no_pass
         self.args = args
-        self.targetIp = args.ldap_address
-        self.kdcHost = args.dc_ip
+
+        if is_valid_fqdn(args.ldap_address):
+            _ldap_address = host2ip(args.ldap_address, nameserver=self.args.nameserver, dns_timeout=5)
+            if not _ldap_address:
+                logging.error("Couldn't resolve %s" % args.ldap_address)
+                sys.exit(0)
+            self.targetIp = _ldap_address
+            self.ldap_address = _ldap_address
+            args.ldap_address = _ldap_address
+        else:
+            self.targetIp = args.ldap_address
+            self.ldap_address = args.ldap_address
+
+        if self.args.dc_ip:
+            self.dc_ip = args.dc_ip
+        else:
+            self.dc_ip = self.targetIp
+
+        self.kdcHost = self.dc_ip
+
+        # if no nameserver is provided, dc_ip will be used instead
+        if args.nameserver is None:
+            args.nameserver = self.dc_ip
 
         if not self.use_ldap and not self.use_ldaps and not self.use_gc and not self.use_gc_ldaps:
             self.use_ldaps = True

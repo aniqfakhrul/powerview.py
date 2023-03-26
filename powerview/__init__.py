@@ -36,15 +36,10 @@ def main():
     setattr(args,'lmhash',lmhash)
     setattr(args,'nthash', nthash)
     setattr(args, 'ldap_address', ldap_address)
-    if not args.dc_ip:
-        setattr(args,'dc_ip', ldap_address)
-        setattr(args,'init_ldap_address', ldap_address)
-    else:
-        setattr(args,'dc_ip', args.dc_ip)
-        setattr(args,'init_ldap_address', args.dc_ip)
 
     try:
         conn = CONNECTION(args)
+        init_ldap_address = args.ldap_address
 
         powerview = PowerView(conn, args)
         init_proto = conn.get_proto()
@@ -437,7 +432,7 @@ def main():
                                         formatter.print(entries)
 
                             temp_powerview = None
-                            conn.set_ldap_address(args.init_ldap_address)
+                            conn.set_ldap_address(init_ldap_address)
                         except ldap3.core.exceptions.LDAPInvalidFilterError as e:
                             logging.error(str(e))
                         except ldap3.core.exceptions.LDAPAttributeError as e:

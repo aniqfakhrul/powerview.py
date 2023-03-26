@@ -18,6 +18,7 @@ def arg_parse():
     parser.add_argument('target', action='store', metavar='target', help='[[domain/]username[:password]@]<targetName or address>')
     parser.add_argument('-d','--debug', dest='debug', action='store_true', help='Enable debug output')
     parser.add_argument('-q','--query', dest='query', action='store', help='PowerView query to be executed one-time')
+    parser.add_argument('-ns','--nameserver', dest='nameserver', action='store', help='Specify custom nameserver. If not specified, domain controller will be used instead')
     parser.add_argument('-v','--version', dest='version', action='version',version=BANNER)
 
     protocol = parser.add_argument_group('protocol')
