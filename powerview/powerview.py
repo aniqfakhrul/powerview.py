@@ -508,55 +508,125 @@ class PowerView:
             entries.append({"attributes":_entries["attributes"]})
         return entries
 
-    def get_domaingroupmember(self, args=None, identity='*'):
+    def get_domainforeigngroupmember(self, args=None):
+        group_members = self.get_domaingroupmember(multiple=True)
+        cur_domain_sid = self.get_domain()[0]['attributes']['objectSid']
+
+        if not group_members:
+            logging.info("[Get-DomainForeignGroupMember] No group members found")
+            return
+        
+        new_entries = []
+        for member in group_members:
+            member_sid = member['attributes']['MemberSID']
+            if cur_domain_sid not in member_sid:
+                new_entries.append(member)
+
+        return new_entries
+
+    def get_domainforeignuser(self, args=None):
+        return False
+
+    def get_domaingroupmember(self, args=None, identity='*', multiple=False):
         # get the identity group information
         entries = self.get_domaingroup(identity=identity)
+        cur_domain = self.get_domain()[0]['attributes']['objectSid']
+
         if len(entries) == 0:
             logging.info("No group found")
             return
 
-        if len(entries) > 1:
+        if len(entries) > 1 and not multiple:
             logging.info("[Get-DomainGroupMember] Multiple group found. Probably try searching with distinguishedName")
             return
 
-        group_identity_sam = entries[0]['attributes']['sAMAccountName']
-        group_identity_dn = entries[0]['attributes']['distinguishedName']
-
-        ldap_filter = f"(&(samAccountType=805306368)(memberof:1.2.840.113556.1.4.1941:={group_identity_dn}))"
-        self.ldap_session.search(self.root_dn, ldap_filter, attributes='*')
-
         # create a new entry structure
         new_entries = []
-        for entry in self.ldap_session.entries:
-            attr = {}
-            member_infos = {}
-            try:
-                member_infos['GroupDomainName'] = group_identity_sam
-            except:
-                pass
-            try:
-                member_infos['GroupDistinguishedName'] = group_identity_dn
-            except:
-                pass
-            try:
-                member_infos['MemberDomain'] = entry['userPrincipalName'].value.split("@")[-1]
-            except:
-                member_infos['MemberDomain'] = self.domain
-            try:
-                member_infos['MemberName'] = entry['sAMAccountName'].value
-            except:
-                pass
-            try:
-                member_infos['MemberDistinguishedName'] = entry['distinguishedName'].value
-            except:
-                pass
-            try:
-                member_infos['MemberSID'] = entry['objectSid'].value
-            except:
-                pass
+        for ent in entries:
+            group_identity_sam = ent['attributes']['sAMAccountName']
+            group_identity_dn = ent['attributes']['distinguishedName']
+            group_members = ent['attributes']['member']
+            
+            for member_dn in group_members:
+                member_root_dn = dn2rootdn(member_dn)
+                member_domain = dn2domain(member_dn)
+                ldap_filter = f"(&(objectCategory=person)(objectClass=user)(|(distinguishedName={member_dn})))"
 
-            attr['attributes'] = member_infos
-            new_entries.append(attr.copy())
+                if len(member_domain) != 0 and member_domain.casefold() != cur_domain.casefold():
+                    _, ldap_session = self.conn.init_ldap_session(ldap_address=member_domain)
+                    succeed = ldap_session.search(member_root_dn, ldap_filter, attributes='*')
+                    if not succeed:
+                        logging.error(f"[Get-DomainGroupMember] Failed to query for {member_dn}")
+                        return
+                    entries = ldap_session.entries
+                else:
+                    self.ldap_session.search(self.root_dn, ldap_filter, attributes='*')
+                    entries = self.ldap_session.entries
+
+                for ent in entries:
+                    attr = {}
+                    member_infos = {}
+                    try:
+                        member_infos['GroupDomainName'] = group_identity_sam
+                    except:
+                        pass
+                    try:
+                        member_infos['GroupDistinguishedName'] = group_identity_dn
+                    except:
+                        pass
+                    try:
+                        member_infos['MemberDomain'] = ent['userPrincipalName'].value.split("@")[-1]
+                    except:
+                        member_infos['MemberDomain'] = self.domain
+                    try:
+                        member_infos['MemberName'] = ent['sAMAccountName'].value
+                    except:
+                        pass
+                    try:
+                        member_infos['MemberDistinguishedName'] = ent['distinguishedName'].value
+                    except:
+                        pass
+                    try:
+                        member_infos['MemberSID'] = ent['objectSid'].value
+                    except:
+                        pass
+
+                    attr['attributes'] = member_infos
+                    new_entries.append(attr.copy())
+
+            #ldap_filter = f"(&(samAccountType=805306368)(memberof:1.2.840.113556.1.4.1941:={group_identity_dn}))"
+            #self.ldap_session.search(self.root_dn, ldap_filter, attributes='*')
+
+            #for entry in self.ldap_session.entries:
+            #    attr = {}
+            #    member_infos = {}
+            #    try:
+            #        member_infos['GroupDomainName'] = group_identity_sam
+            #    except:
+            #        pass
+            #    try:
+            #        member_infos['GroupDistinguishedName'] = group_identity_dn
+            #    except:
+            #        pass
+            #    try:
+            #        member_infos['MemberDomain'] = entry['userPrincipalName'].value.split("@")[-1]
+            #    except:
+            #        member_infos['MemberDomain'] = self.domain
+            #    try:
+            #        member_infos['MemberName'] = entry['sAMAccountName'].value
+            #    except:
+            #        pass
+            #    try:
+            #        member_infos['MemberDistinguishedName'] = entry['distinguishedName'].value
+            #    except:
+            #        pass
+            #    try:
+            #        member_infos['MemberSID'] = entry['objectSid'].value
+            #    except:
+            #        pass
+
+            #    attr['attributes'] = member_infos
+            #    new_entries.append(attr.copy())
 
         return new_entries
 

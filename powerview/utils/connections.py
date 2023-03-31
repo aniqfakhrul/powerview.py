@@ -56,6 +56,7 @@ class CONNECTION:
             self.dc_ip = args.dc_ip
         else:
             self.dc_ip = self.targetIp
+            args.dc_ip = self.dc_ip
 
         self.kdcHost = self.dc_ip
 
@@ -117,13 +118,19 @@ class CONNECTION:
     def reset_connection(self):
         self.ldap_session.bind()
 
-    def init_ldap_session(self):
+    def init_ldap_session(self, ldap_address=None, use_ldap=False, use_gc_ldap=False):
+        if use_ldap or use_gc_ldap:
+            self.use_ldaps = False
+            self.use_gc_ldaps = False
+
         if self.use_kerberos:
             target = get_machine_name(self.args, self.domain)
             self.kdcHost = target
             #target = get_machine_name(self.args, self.domain)
         else:
-            if self.ldap_address is not None:
+            if ldap_address:
+                target = ldap_address
+            elif self.ldap_address is not None:
                 target = self.ldap_address
             else:
                 target = self.domain
@@ -134,7 +141,7 @@ class CONNECTION:
             _anonymous = True
 
         if self.use_ldaps is True or self.use_gc_ldaps is True:
-            logging.debug("No protocol provided. Trying LDAPS")
+            logging.debug("Trying LDAPS")
             try:
                 tls = ldap3.Tls(
                     validate=ssl.CERT_NONE,
@@ -160,11 +167,11 @@ class CONNECTION:
                     return self.ldap_server, self.ldap_session
                 except:
                     if self.use_ldaps:
-                        logging.warning('Error bind to LDAPS, trying LDAP')
+                        logging.debug('Error bind to LDAPS, trying LDAP')
                         self.use_ldap = True
                         self.use_ldaps = False
                     elif self.use_gc_ldaps:
-                        logging.warning('Error bind to GS ssl, trying GC')
+                        logging.debug('Error bind to GS ssl, trying GC')
                         self.use_gc = True
                         self.use_gc_ldaps = False
                     return self.init_ldap_session()

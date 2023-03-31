@@ -13,6 +13,20 @@ class PowerViewParser(argparse.ArgumentParser):
         logging.error(message)
         sys.exit(0)
 
+    def where(self, value):
+        values = value.split(" ")
+        if values > 3:
+            raise
+
+        key = values[0]
+        op = values[1]
+        val = values[2]
+
+        if op not in ["contains", "equal", "=", "!=", "not"]:
+            raise Exception("invalid values")
+
+        return value
+
 def arg_parse():
     parser = PowerViewParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE}0.1.2{bcolors.ENDC}")
     parser.add_argument('target', action='store', metavar='target', help='[[domain/]username[:password]@]<targetName or address>')
@@ -120,6 +134,26 @@ def powerview_arg_parse(cmd):
     get_domaingroup_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaingroup_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
+    # foreignuser
+    get_domainforeignuser_parser = subparsers.add_parser('Get-DomainForeignUser', aliases=['Find-ForeignUser'], exit_on_error=False)
+    get_domainforeignuser_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
+    get_domainforeignuser_parser.add_argument('-Domain', action='store', dest='server')
+    get_domainforeignuser_parser.add_argument('-Select', action='store', dest='select')
+    get_domainforeignuser_parser.add_argument('-Where', action='store', dest='where')
+    get_domainforeignuser_parser.add_argument('-OutFile', action='store', dest='outfile')
+    get_domainforeignuser_parser.add_argument('-Count', action='store_true', dest='count')
+    get_domainforeignuser_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+
+    # foreigngroupmember
+    get_domainforeigngroupmember_parser = subparsers.add_parser('Get-DomainForeignGroupMember', aliases=['Find-ForeignGroup'], exit_on_error=False)
+    get_domainforeigngroupmember_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
+    get_domainforeigngroupmember_parser.add_argument('-Domain', action='store', dest='server')
+    get_domainforeigngroupmember_parser.add_argument('-Select', action='store', dest='select')
+    get_domainforeigngroupmember_parser.add_argument('-Where', action='store', dest='where')
+    get_domainforeigngroupmember_parser.add_argument('-OutFile', action='store', dest='outfile')
+    get_domainforeigngroupmember_parser.add_argument('-Count', action='store_true', dest='count')
+    get_domainforeigngroupmember_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+
     #groupmember
     get_domaingroupmember_parser = subparsers.add_parser('Get-DomainGroupMember', aliases=['Get-NetGroupMember'], exit_on_error=False)
     get_domaingroupmember_parser.add_argument('-Identity', action='store',default='*', dest='identity')
@@ -138,7 +172,7 @@ def powerview_arg_parse(cmd):
     get_domainuser_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domainuser_parser.add_argument('-Domain', action='store', dest='server')
     get_domainuser_parser.add_argument('-Select', action='store', dest='select')
-    get_domainuser_parser.add_argument('-Where', action='store', dest='where')
+    get_domainuser_parser.add_argument('-Where', action='store', dest='where') # type=parser.where
     get_domainuser_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domainuser_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainuser_parser.add_argument('-SPN', action='store_true', default=False, dest='spn')

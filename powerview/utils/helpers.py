@@ -33,6 +33,12 @@ from powerview.lib.dns import (
     STORED_ADDR
 )
 
+def dn2rootdn(value):
+    return ','.join(re.findall(r"(DC=[\w-]+)", value))
+
+def dn2domain(value):
+    return '.'.join(re.findall(r'DC=([\w-]+)',value))
+
 def get_user_sids(domain_sid, objectsid):
     user_sids = []
     rid = int(objectsid.split("-")[-1])

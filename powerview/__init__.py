@@ -73,11 +73,16 @@ def main():
                                 logging.error("Kerberos authentication doesn't support cross-domain targetting (Coming Soon?)")
                                 continue
                             logging.warning(f"Cross-domain targetting might be unstable or slow depending on network stability")
-                            foreign_dc_address = get_principal_dc_address(pv_args.server,args.dc_ip)
+
+                            foreign_dc_address = get_principal_dc_address(pv_args.server, args.nameserver)
                             if foreign_dc_address is not None:
                                 conn.set_ldap_address(foreign_dc_address)
-                                temp_powerview = PowerView(conn, args)
                             else:
+                                conn.set_ldap_address(pv_args.server)
+                            
+                            try:
+                                temp_powerview = PowerView(conn, args)
+                            except:
                                 logging.error(f'Domain {pv_args.server} not found or probably not alive')
                                 continue
 
@@ -140,6 +145,16 @@ def main():
                                     entries = temp_powerview.get_domaingroupmember(pv_args, identity)
                                 else:
                                     entries = powerview.get_domaingroupmember(pv_args, identity)
+                            elif pv_args.module.casefold() == 'get-domainforeigngroupmember' or pv_args.module.casefold() == 'find-foreigngroup':
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domainforeigngroupmember(pv_args)
+                                else:
+                                    entries = powerview.get_domainforeigngroupmember(pv_args)
+                            elif pv_args.module.casefold() == 'get-domainforeignuser' or pv_args.module.casefold() == 'find-foreignuser':
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domainforeignuser(pv_args)
+                                else:
+                                    entries = powerview.get_domaingforeignuser(pv_args)
                             elif pv_args.module.casefold() == 'get-domaincontroller' or pv_args.module.casefold() == 'get-netdomaincontroller':
                                 properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
@@ -451,8 +466,8 @@ def main():
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("Connection dead")
                 conn.reset_connection()
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
 
             if args.query:
                 sys.exit(0)
