@@ -69,18 +69,20 @@ def main():
 
                     if pv_args:
                         if pv_args.server and pv_args.server != args.domain:
-                            if args.use_kerberos:
-                                logging.error("Kerberos authentication doesn't support cross-domain targetting (Coming Soon?)")
-                                continue
+                            #if args.use_kerberos:
+                            #    logging.error("Kerberos authentication doesn't support cross-domain targetting (Coming Soon?)")
+                            #    continue
 
-                            foreign_dc_address = get_principal_dc_address(pv_args.server, args.nameserver)
-                            if foreign_dc_address is not None:
-                                conn.set_ldap_address(foreign_dc_address)
+                            if args.use_kerberos:
+                                ldap_address = pv_args.server
                             else:
-                                conn.set_ldap_address(pv_args.server)
+                                ldap_address = get_principal_dc_address(pv_args.server, args.nameserver)
+                            
+                            conn.set_ldap_address(ldap_address)
+                            conn.set_targetDomain(pv_args.server)
                             
                             try:
-                                temp_powerview = PowerView(conn, args, domain=pv_args.server)
+                                temp_powerview = PowerView(conn, args, target_domain=pv_args.server)
                             except:
                                 logging.error(f'Domain {pv_args.server} not found or probably not alive')
                                 continue
@@ -447,6 +449,7 @@ def main():
 
                             temp_powerview = None
                             conn.set_ldap_address(init_ldap_address)
+                            conn.set_targetDomain(None)
                         except ldap3.core.exceptions.LDAPInvalidFilterError as e:
                             logging.error(str(e))
                         except ldap3.core.exceptions.LDAPAttributeError as e:
@@ -465,8 +468,8 @@ def main():
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("Connection dead")
                 conn.reset_connection()
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
 
             if args.query:
                 sys.exit(0)

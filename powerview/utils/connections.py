@@ -56,8 +56,9 @@ class CONNECTION:
         else:
             self.dc_ip = self.targetIp
             args.dc_ip = self.dc_ip
-        
+       
         self.kdcHost = self.dc_ip
+        self.targetDomain = None
 
         # if no nameserver is provided, dc_ip will be used instead
         if args.nameserver is None:
@@ -82,6 +83,12 @@ class CONNECTION:
 
     def get_domain(self):
         return self.domain
+
+    def set_targetDomain(self, targetDomain):
+        self.targetDomain = targetDomain
+
+    def get_targetDomain(self):
+        return self.targetDomain
 
     def set_username(self, username):
         self.username = username
@@ -121,14 +128,19 @@ class CONNECTION:
         self.ldap_session.bind()
 
     def init_ldap_session(self, ldap_address=None, use_ldap=False, use_gc_ldap=False):
+
+        if self.targetDomain and self.targetDomain != self.domain and self.kdcHost:
+            self.kdcHost = None
+
         if use_ldap or use_gc_ldap:
             self.use_ldaps = False
             self.use_gc_ldaps = False
 
         if self.use_kerberos:
-            target = get_machine_name(self.args, self.domain)
-            self.kdcHost = target
-            #target = get_machine_name(self.args, self.domain)
+            if ldap_address:
+                target = get_machine_name(ldap_address)
+            else:
+                target = get_machine_name(self.ldap_address)
         else:
             if ldap_address:
                 if is_valid_fqdn(ldap_address):
@@ -288,7 +300,7 @@ class CONNECTION:
             ldap_session = ldap3.Connection(ldap_server, auto_referrals=False)
             bind = ldap_session.bind()
             try:
-                self.ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, self.auth_aes_key, kdcHost=self.kdcHost,useCache=self.no_pass)
+                self.ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, self.auth_aes_key, kdcHost=self.kdcHost, useCache=self.no_pass)
             except Exception as e:
                 logging.error(str(e))
                 sys.exit(0)
@@ -418,7 +430,7 @@ class CONNECTION:
             cipher = self.TGT['cipher']
             sessionKey = self.TGT['sessionKey']
 
-        if not self.TGS:
+        if TGS is None:
             serverName = Principal('ldap/%s' % target, type=constants.PrincipalNameType.NT_SRV_INST.value)
             tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey)
             self.TGS['KDC_REP'] = tgs

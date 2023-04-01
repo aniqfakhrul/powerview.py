@@ -283,9 +283,9 @@ def resolve_domain(domain, nameserver):
         logging.error(str(e))
     return answer
 
-def get_machine_name(args, domain):
-    if args.dc_ip is not None:
-        s = SMBConnection(args.dc_ip, args.dc_ip)
+def get_machine_name(domain, args=None):
+    if args and args.ldap_address is not None:
+        s = SMBConnection(args.ldap_address, args.dc_ip)
     else:
         s = SMBConnection(domain, domain)
     try:

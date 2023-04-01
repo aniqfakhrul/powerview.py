@@ -39,16 +39,17 @@ import logging
 import re
 
 class PowerView:
-    def __init__(self, conn, args, target_server=None, domain=None):
+    def __init__(self, conn, args, target_server=None, target_domain=None):
         self.conn = conn
         self.args = args
         self.username = args.username
         self.password = args.password
 
-        if domain:
-            self.domain = domain
+        if target_domain:
+            self.domain = target_domain
         else:
             self.domain = args.domain.lower()
+
         self.lmhash = args.lmhash
         self.nthash = args.nthash
         self.use_ldaps = args.use_ldaps
@@ -545,7 +546,10 @@ class PowerView:
                     _, ldap_session = self.conn.init_ldap_session(ldap_address=group_domain)
                     ldap_filter = f"(&(objectCategory=group)(distinguishedName={group}))"
                     succeed = ldap_session.search(group_root_dn, ldap_filter, attributes='*')
-                    ent = ldap_session.entries[0]
+                    if not succeed:
+                        logging.error("[Get-DomainForeignUser] Failed ldap query")
+                    if ldap_session.entries:
+                        ent = ldap_session.entries[0]
                     entries.append(
                             {'attributes':{
                                     'UserDomain': dn2domain(user['attributes']['distinguishedName']),
