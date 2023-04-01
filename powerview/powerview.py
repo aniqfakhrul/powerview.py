@@ -525,15 +525,47 @@ class PowerView:
         return new_entries
 
     def get_domainforeignuser(self, args=None):
-        return False
+        domain_users = self.get_domainuser()
+
+        entries = []
+        for user in domain_users:
+            user_san = user['attributes']['sAMAccountName']
+            user_memberof = user['attributes']['memberOf']
+            if isinstance(user_memberof, str):
+                user_memberof = [user_memberof]
+
+            for group in user_memberof:
+                group_domain = dn2domain(group)
+                group_root_dn = dn2rootdn(group)
+                if group_domain.casefold() != self.domain.casefold():
+                    _, ldap_session = self.conn.init_ldap_session(ldap_address=group_domain)
+                    ldap_filter = f"(&(objectCategory=group)(distinguishedName={group}))"
+                    succeed = ldap_session.search(group_root_dn, ldap_filter, attributes='*')
+                    ent = ldap_session.entries[0]
+                    entries.append(
+                            {'attributes':{
+                                    'UserDomain': dn2domain(user['attributes']['distinguishedName']),
+                                    'UserName': user_san,
+                                    'UserDistinguishedName': user['attributes']['distinguishedName'],
+                                    'GroupDomain': group_domain,
+                                    'GroupName': ent['name'].value,
+                                    'GroupDistinguishedName': group
+                                }
+                             }
+                            )
+
+        return entries
+
 
     def get_domaingroupmember(self, args=None, identity='*', multiple=False):
         # get the identity group information
         entries = self.get_domaingroup(identity=identity)
-        cur_domain = self.get_domain()[0]['attributes']['objectSid']
+        cur_domain = self.get_domain()[0]
+        cur_domainsid = cur_domain['attributes']['objectSid']
+        cur_domaindn = cur_domain['attributes']['distinguishedName']
 
         if len(entries) == 0:
-            logging.info("No group found")
+            logging.info("[Get-DomainGroupMember] No group found")
             return
 
         if len(entries) > 1 and not multiple:
@@ -543,27 +575,71 @@ class PowerView:
         # create a new entry structure
         new_entries = []
         for ent in entries:
+            haveForeign = False
             group_identity_sam = ent['attributes']['sAMAccountName']
             group_identity_dn = ent['attributes']['distinguishedName']
             group_members = ent['attributes']['member']
+            #ensure that member attribute always returns list
+            if isinstance(group_members, str):
+                group_members = [group_members]
             
-            for member_dn in group_members:
-                member_root_dn = dn2rootdn(member_dn)
-                member_domain = dn2domain(member_dn)
-                ldap_filter = f"(&(objectCategory=person)(objectClass=user)(|(distinguishedName={member_dn})))"
+            for dn in group_members:
+                if len(dn) != 0 and dn2domain(dn).casefold() != dn2domain(cur_domaindn).casefold():
+                    haveForeign = True
+                    break
 
-                if len(member_domain) != 0 and member_domain.casefold() != cur_domain.casefold():
-                    _, ldap_session = self.conn.init_ldap_session(ldap_address=member_domain)
-                    succeed = ldap_session.search(member_root_dn, ldap_filter, attributes='*')
-                    if not succeed:
-                        logging.error(f"[Get-DomainGroupMember] Failed to query for {member_dn}")
-                        return
-                    entries = ldap_session.entries
-                else:
-                    self.ldap_session.search(self.root_dn, ldap_filter, attributes='*')
-                    entries = self.ldap_session.entries
+            if haveForeign:
+                for member_dn in group_members:
+                    member_root_dn = dn2rootdn(member_dn)
+                    member_domain = dn2domain(member_dn)
+                    ldap_filter = f"(&(objectCategory=person)(objectClass=user)(|(distinguishedName={member_dn})))"
 
-                for ent in entries:
+                    if len(member_domain) != 0 and member_domain.casefold() != dn2domain(cur_domaindn).casefold():
+                        _, ldap_session = self.conn.init_ldap_session(ldap_address=member_domain)
+                        succeed = ldap_session.search(member_root_dn, ldap_filter, attributes='*')
+                        if not succeed:
+                            logging.error(f"[Get-DomainGroupMember] Failed to query for {member_dn}")
+                            return
+                        entries = ldap_session.entries
+                    else:
+                        self.ldap_session.search(self.root_dn, ldap_filter, attributes='*')
+                        entries = self.ldap_session.entries
+
+                    for ent in entries:
+                        attr = {}
+                        member_infos = {}
+                        try:
+                            member_infos['GroupDomainName'] = group_identity_sam
+                        except:
+                            pass
+                        try:
+                            member_infos['GroupDistinguishedName'] = group_identity_dn
+                        except:
+                            pass
+                        try:
+                            member_infos['MemberDomain'] = ent['userPrincipalName'].value.split("@")[-1]
+                        except:
+                            member_infos['MemberDomain'] = self.domain
+                        try:
+                            member_infos['MemberName'] = ent['sAMAccountName'].value
+                        except:
+                            pass
+                        try:
+                            member_infos['MemberDistinguishedName'] = ent['distinguishedName'].value
+                        except:
+                            pass
+                        try:
+                            member_infos['MemberSID'] = ent['objectSid'].value
+                        except:
+                            pass
+
+                        attr['attributes'] = member_infos
+                        new_entries.append(attr.copy())
+            else:
+                ldap_filter = f"(&(samAccountType=805306368)(memberof:1.2.840.113556.1.4.1941:={group_identity_dn}))"
+                self.ldap_session.search(self.root_dn, ldap_filter, attributes='*')
+
+                for entry in self.ldap_session.entries:
                     attr = {}
                     member_infos = {}
                     try:
@@ -575,58 +651,24 @@ class PowerView:
                     except:
                         pass
                     try:
-                        member_infos['MemberDomain'] = ent['userPrincipalName'].value.split("@")[-1]
+                        member_infos['MemberDomain'] = entry['userPrincipalName'].value.split("@")[-1]
                     except:
                         member_infos['MemberDomain'] = self.domain
                     try:
-                        member_infos['MemberName'] = ent['sAMAccountName'].value
+                        member_infos['MemberName'] = entry['sAMAccountName'].value
                     except:
                         pass
                     try:
-                        member_infos['MemberDistinguishedName'] = ent['distinguishedName'].value
+                        member_infos['MemberDistinguishedName'] = entry['distinguishedName'].value
                     except:
                         pass
                     try:
-                        member_infos['MemberSID'] = ent['objectSid'].value
+                        member_infos['MemberSID'] = entry['objectSid'].value
                     except:
                         pass
 
                     attr['attributes'] = member_infos
                     new_entries.append(attr.copy())
-
-            #ldap_filter = f"(&(samAccountType=805306368)(memberof:1.2.840.113556.1.4.1941:={group_identity_dn}))"
-            #self.ldap_session.search(self.root_dn, ldap_filter, attributes='*')
-
-            #for entry in self.ldap_session.entries:
-            #    attr = {}
-            #    member_infos = {}
-            #    try:
-            #        member_infos['GroupDomainName'] = group_identity_sam
-            #    except:
-            #        pass
-            #    try:
-            #        member_infos['GroupDistinguishedName'] = group_identity_dn
-            #    except:
-            #        pass
-            #    try:
-            #        member_infos['MemberDomain'] = entry['userPrincipalName'].value.split("@")[-1]
-            #    except:
-            #        member_infos['MemberDomain'] = self.domain
-            #    try:
-            #        member_infos['MemberName'] = entry['sAMAccountName'].value
-            #    except:
-            #        pass
-            #    try:
-            #        member_infos['MemberDistinguishedName'] = entry['distinguishedName'].value
-            #    except:
-            #        pass
-            #    try:
-            #        member_infos['MemberSID'] = entry['objectSid'].value
-            #    except:
-            #        pass
-
-            #    attr['attributes'] = member_infos
-            #    new_entries.append(attr.copy())
 
         return new_entries
 

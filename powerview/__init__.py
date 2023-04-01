@@ -72,7 +72,6 @@ def main():
                             if args.use_kerberos:
                                 logging.error("Kerberos authentication doesn't support cross-domain targetting (Coming Soon?)")
                                 continue
-                            logging.warning(f"Cross-domain targetting might be unstable or slow depending on network stability")
 
                             foreign_dc_address = get_principal_dc_address(pv_args.server, args.nameserver)
                             if foreign_dc_address is not None:
@@ -154,7 +153,7 @@ def main():
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainforeignuser(pv_args)
                                 else:
-                                    entries = powerview.get_domaingforeignuser(pv_args)
+                                    entries = powerview.get_domainforeignuser(pv_args)
                             elif pv_args.module.casefold() == 'get-domaincontroller' or pv_args.module.casefold() == 'get-netdomaincontroller':
                                 properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
@@ -466,8 +465,8 @@ def main():
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("Connection dead")
                 conn.reset_connection()
-            #except Exception as e:
-            #    logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
 
             if args.query:
                 sys.exit(0)
