@@ -80,7 +80,7 @@ def main():
                                 conn.set_ldap_address(pv_args.server)
                             
                             try:
-                                temp_powerview = PowerView(conn, args)
+                                temp_powerview = PowerView(conn, args, domain=pv_args.server)
                             except:
                                 logging.error(f'Domain {pv_args.server} not found or probably not alive')
                                 continue

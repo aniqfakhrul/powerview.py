@@ -39,12 +39,16 @@ import logging
 import re
 
 class PowerView:
-    def __init__(self, conn, args, target_server=None):
+    def __init__(self, conn, args, target_server=None, domain=None):
         self.conn = conn
         self.args = args
         self.username = args.username
         self.password = args.password
-        self.domain = args.domain
+
+        if domain:
+            self.domain = domain
+        else:
+            self.domain = args.domain.lower()
         self.lmhash = args.lmhash
         self.nthash = args.nthash
         self.use_ldaps = args.use_ldaps
@@ -560,9 +564,6 @@ class PowerView:
     def get_domaingroupmember(self, args=None, identity='*', multiple=False):
         # get the identity group information
         entries = self.get_domaingroup(identity=identity)
-        cur_domain = self.get_domain()[0]
-        cur_domainsid = cur_domain['attributes']['objectSid']
-        cur_domaindn = cur_domain['attributes']['distinguishedName']
 
         if len(entries) == 0:
             logging.info("[Get-DomainGroupMember] No group found")
@@ -579,12 +580,11 @@ class PowerView:
             group_identity_sam = ent['attributes']['sAMAccountName']
             group_identity_dn = ent['attributes']['distinguishedName']
             group_members = ent['attributes']['member']
-            #ensure that member attribute always returns list
             if isinstance(group_members, str):
                 group_members = [group_members]
             
             for dn in group_members:
-                if len(dn) != 0 and dn2domain(dn).casefold() != dn2domain(cur_domaindn).casefold():
+                if len(dn) != 0 and dn2domain(dn).casefold() != self.domain.casefold():
                     haveForeign = True
                     break
 
@@ -594,7 +594,7 @@ class PowerView:
                     member_domain = dn2domain(member_dn)
                     ldap_filter = f"(&(objectCategory=person)(objectClass=user)(|(distinguishedName={member_dn})))"
 
-                    if len(member_domain) != 0 and member_domain.casefold() != dn2domain(cur_domaindn).casefold():
+                    if len(member_domain) != 0 and member_domain.casefold() != self.domain.casefold():
                         _, ldap_session = self.conn.init_ldap_session(ldap_address=member_domain)
                         succeed = ldap_session.search(member_root_dn, ldap_filter, attributes='*')
                         if not succeed:
