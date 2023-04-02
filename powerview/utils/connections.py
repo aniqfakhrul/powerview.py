@@ -38,9 +38,10 @@ class CONNECTION:
         if self.auth_aes_key is not None:
             self.use_kerberos = True
         self.no_pass = args.no_pass
+        self.nameserver = args.nameserver
 
-        if is_valid_fqdn(args.ldap_address):
-            _ldap_address = host2ip(args.ldap_address, nameserver=args.nameserver, dns_timeout=5)
+        if is_valid_fqdn(args.ldap_address) and self.nameserver:
+            _ldap_address = host2ip(args.ldap_address, nameserver=self.nameserver, dns_timeout=5)
             if not _ldap_address:
                 logging.error("Couldn't resolve %s" % args.ldap_address)
                 sys.exit(0)
@@ -59,12 +60,6 @@ class CONNECTION:
        
         self.kdcHost = self.dc_ip
         self.targetDomain = None
-
-        # if no nameserver is provided, dc_ip will be used instead
-        if args.nameserver is None:
-            self.nameserver = args.nameserver = self.dc_ip
-        else:
-            self.nameserver = args.nameserver
 
         if not self.use_ldap and not self.use_ldaps and not self.use_gc and not self.use_gc_ldaps:
             self.use_ldaps = True
@@ -143,7 +138,7 @@ class CONNECTION:
                 target = get_machine_name(self.ldap_address)
         else:
             if ldap_address:
-                if is_valid_fqdn(ldap_address):
+                if is_valid_fqdn(ldap_address) and self.nameserver:
                     target = host2ip(ldap_address, nameserver=self.nameserver)
                 else:
                     target = ldap_address

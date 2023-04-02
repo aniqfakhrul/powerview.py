@@ -950,11 +950,11 @@ class PowerView:
         # check for web enrollment
         for i in range(len(entries)):
             target_name = entries[i]['dnsHostName'].value
-            web_enrollment = ca_fetch.check_web_enrollment(target_name,self.dc_ip)
+            web_enrollment = ca_fetch.check_web_enrollment(target_name,self.nameserver)
 
             if not web_enrollment:
                 logging.debug("Trying to check web enrollment with IP")
-                web_enrollment = ca_fetch.check_web_enrollment(target_name,self.dc_ip,use_ip=True)
+                web_enrollment = ca_fetch.check_web_enrollment(target_name,self.nameserver,use_ip=True)
 
             entries[i] = modify_entry(
                 entries[i],
@@ -1687,7 +1687,7 @@ class PowerView:
                 logging.error('[Get-NamedPipes] FQDN must be used for kerberos authentication')
                 return
         else:
-            if is_fqdn:
+            if is_fqdn and self.nameserver:
                 host = host2ip(host, self.nameserver, 3, True)
 
         if not host:
@@ -1994,7 +1994,10 @@ class PowerView:
             if is_ipaddress(computer):
                 hosts['address'] = computer
             else:
-                hosts['address'] = host2ip(computer, self.nameserver, 3, True)
+                if self.nameserver:
+                    hosts['address'] = host2ip(computer, self.nameserver, 3, True)
+                else:
+                    host['address'] = computer
                 hosts['hostname'] = computer
             host_entries.append(hosts)
         else:
@@ -2059,7 +2062,7 @@ class PowerView:
                 logging.error('[Get-NetShare] FQDN must be used for kerberos authentication')
                 return
         else:
-            if is_fqdn:
+            if is_fqdn and self.nameserver:
                 host = host2ip(host, self.nameserver, 3, True)
 
         if not host:
@@ -2116,7 +2119,7 @@ class PowerView:
                 return
             host = args.computer if args.computer else args.computereturne
         else:
-            if is_fqdn:
+            if is_fqdn and self.nameserver:
                 host = host2ip(host, self.nameserver, 3, True)
 
         if not host:

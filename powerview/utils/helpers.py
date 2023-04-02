@@ -345,7 +345,10 @@ def host2ip(hostname, nameserver, dns_timeout=10, dns_tcp=True):
     dnsresolver.lifetime = float(dns_timeout)
     try:
         q = dnsresolver.query(hostname, 'A', tcp=dns_tcp)
+        addr = None
         for r in q:
+            if addr:
+                break
             addr = r.address
         STORED_ADDR[hostname] = addr
         return addr

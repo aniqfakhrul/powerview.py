@@ -468,8 +468,8 @@ def main():
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("Connection dead")
                 conn.reset_connection()
-            #except Exception as e:
-            #    logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
 
             if args.query:
                 sys.exit(0)

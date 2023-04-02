@@ -112,7 +112,8 @@ class CAEnum:
 
     # https://github.com/ly4k/Certipy/blob/main/certipy/commands/find.py#L688
     def check_web_enrollment(self, target, nameserver=None, timeout=5, use_ip=False):
-        target = host2ip(target, nameserver, 3, True)
+        if nameserver:
+            target = host2ip(target, nameserver, 3, True)
 
         if target is None:
             logging.debug("No target found")
