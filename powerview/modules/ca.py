@@ -88,9 +88,7 @@ class CAEnum:
 
         return self.ldap_session.entries
 
-    def get_certificate_templates(self, properties, identity=None):
-        ca_search_base = f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
-
+    def get_certificate_templates(self, properties, ca_search_base, identity=None):
         search_filter = ""
         identity_filter = ""
 

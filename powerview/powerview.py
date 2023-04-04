@@ -98,6 +98,7 @@ class PowerView:
 
         properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
+        searchbase = self.root_dn if not args.searchbase else args.searchbase
 
         ldap_filter = ""
         identity_filter = f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
@@ -143,7 +144,7 @@ class PowerView:
 
         # in case need more then 1000 entries
         entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
@@ -178,11 +179,12 @@ class PowerView:
 
         properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
+        searchbase = self.root_dn if not args.searchbase else args.searchbase
 
         ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=8192)'
         logging.debug(f'[Get-DomainController] LDAP search filter: {ldap_filter}')
         entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
@@ -212,6 +214,7 @@ class PowerView:
 
         ldap_filter = ""
         identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
+        searchbase = self.root_dn if not args.searchbase else args.searchbase
 
         if args:
             if args.ldapfilter:
@@ -223,7 +226,7 @@ class PowerView:
         logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
 
         entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True, controls=controls)
+        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True, controls=controls)
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
@@ -362,6 +365,7 @@ class PowerView:
 
         properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
+        searchbase = self.root_dn if not args.searchbase else args.searchbase
 
         ldap_filter = ""
         identity_filter = f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
@@ -399,7 +403,7 @@ class PowerView:
         ldap_filter = f'(&(objectClass=computer){identity_filter}{ldap_filter})'
         logging.debug(f'[Get-DomainComputer] LDAP search filter: {ldap_filter}')
         entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
@@ -484,6 +488,7 @@ class PowerView:
 
         properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
+        searchbase = self.root_dn if not args.searchbase else args.searchbase
 
         ldap_filter = ""
         identity_filter = f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
@@ -505,7 +510,7 @@ class PowerView:
         ldap_filter = f'(&(objectCategory=group){identity_filter}{ldap_filter})'
         logging.debug(f'[Get-DomainGroup] LDAP search filter: {ldap_filter}')
         entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
@@ -679,6 +684,8 @@ class PowerView:
     def get_domaingpo(self, args=None, properties=['*'], identity='*'):
         ldap_filter = ""
         identity_filter = f"(cn={identity})"
+        searchbase = self.root_dn if not args.searchbase else args.searchbase
+
         if args:
             if args.ldapfilter:
                 logging.debug(f'[Get-DomainGPO] Using additional LDAP filter: {args.ldapfilter}')
@@ -687,7 +694,7 @@ class PowerView:
         ldap_filter = f'(&(objectCategory=groupPolicyContainer){identity_filter}{ldap_filter})'
         logging.debug(f'[Get-DomainGPO] LDAP search filter: {ldap_filter}')
         entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
@@ -827,6 +834,7 @@ class PowerView:
         identity = '*' if not identity else identity
 
         identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
+        searchbase = self.root_dn if not args.searchbase else args.searchbase
         ldap_filter = ""
 
         if args:
@@ -838,7 +846,7 @@ class PowerView:
         logging.debug(f'[Get-Domain] LDAP search filter: {ldap_filter}')
 
         entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
@@ -968,6 +976,7 @@ class PowerView:
     def get_domaincatemplate(self, args=None, properties=[], identity=None):
         def_prop = [
             "cn",
+            "distinguishedName",
             "name",
             "displayName",
             "pKIExpirationPeriod",
@@ -982,12 +991,13 @@ class PowerView:
         ]
 
         identity = '*' if not identity else identity
+        searchbase = f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}" if not args.searchbase else args.searchbase
 
         entries = []
         template_guids = []
         ca_fetch = CAEnum(self.ldap_session, self.root_dn)
 
-        templates = ca_fetch.get_certificate_templates(def_prop,identity)
+        templates = ca_fetch.get_certificate_templates(def_prop,searchbase,identity)
         cas = ca_fetch.fetch_enrollment_services()
 
         if len(cas) <= 0:
