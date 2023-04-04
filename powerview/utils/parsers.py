@@ -13,20 +13,6 @@ class PowerViewParser(argparse.ArgumentParser):
         logging.error(message)
         sys.exit(0)
 
-    def where(self, value):
-        values = value.split(" ")
-        if values > 3:
-            raise
-
-        key = values[0]
-        op = values[1]
-        val = values[2]
-
-        if op not in ["contains", "equal", "=", "!=", "not"]:
-            raise Exception("invalid values")
-
-        return value
-
 def arg_parse():
     parser = PowerViewParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE}0.1.2{bcolors.ENDC}")
     parser.add_argument('target', action='store', metavar='target', help='[[domain/]username[:password]@]<targetName or address>')
