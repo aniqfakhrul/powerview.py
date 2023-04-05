@@ -18,6 +18,7 @@ from ldap3.utils.conv import escape_filter_chars
 import re
 import configparser
 import validators
+import random
 
 from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
@@ -32,6 +33,13 @@ from impacket.krb5.kerberosv5 import getKerberosTGT
 from powerview.lib.dns import (
     STORED_ADDR
 )
+
+def get_random_hex(length):
+    hex_string = '0123456789ABCDEF'
+    return ''.join([random.choice(hex_string) for x in range(length)])
+
+def get_random_num(minimum,maximum):
+    return random.randint(minimum,maximum)
 
 def dn2rootdn(value):
     return ','.join(re.findall(r"(DC=[\w-]+)", value))

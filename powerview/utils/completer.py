@@ -19,6 +19,8 @@ COMMANDS = {
     'Get-CA':['-Properties','-Domain','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
     'Get-DomainCATemplate':['-Identity','-Vulnerable','-Enabled','-ResolveSIDs','-Properties','-SearchBase','-Domain','-Select','-Where', '-Count', '-NoWrap', '-OutFile'],
     'Get-CATemplate':['-Identity','-Vulnerable','-Enabled','-ResolveSIDs','-Properties','-SearchBase','-Domain','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
+    'Add-DomainCATemplate':['-DisplayName','-Name','-Duplicate','-Domain','-NoWrap'],
+    'Add-CATemplate':['-DisplayName','-Name','-Duplicate','-Domain','-NoWrap'],
     'Get-DomainGPO':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Domain','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
     'Get-NetGPO':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Domain','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
     'Get-DomainGPOLocalGroup':['-Identity','-LDAPFilter','-Domain','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],

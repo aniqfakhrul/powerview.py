@@ -69,10 +69,6 @@ def main():
 
                     if pv_args:
                         if pv_args.server and pv_args.server != args.domain:
-                            #if args.use_kerberos:
-                            #    logging.error("Kerberos authentication doesn't support cross-domain targetting (Coming Soon?)")
-                            #    continue
-
                             if args.use_kerberos:
                                 ldap_address = pv_args.server
                             else:
@@ -89,7 +85,6 @@ def main():
 
                         try:
                             entries = None
-
                             if pv_args.module.casefold() == 'get-domain' or pv_args.module.casefold() == 'get-netdomain':
                                 properties = pv_args.properties.strip(" ").split(',')
                                 identity = pv_args.identity.strip()
@@ -211,6 +206,17 @@ def main():
                                     entries = temp_powerview.get_domaincatemplate(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domaincatemplate(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'add-domaincatemplate' or pv_args.module.casefold() == 'add-catemplate':
+                                if pv_args.displayname is None:
+                                    logging.info("-DisplayName flag is required")
+                                    continue
+
+                                displayname = pv_args.displayname
+                                name = pv_args.name
+                                if temp_powerview:
+                                    temp_powerview.add_domaincatemplate(displayname, name, args=pv_args)
+                                else:
+                                    powerview.add_domaincatemplate(displayname, name, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domaintrust' or pv_args.module.casefold() == 'get-nettrust':
                                 properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None

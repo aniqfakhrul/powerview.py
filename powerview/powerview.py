@@ -4,7 +4,7 @@ from impacket.ldap import ldaptypes
 from impacket.dcerpc.v5 import srvs
 from impacket.dcerpc.v5.ndr import NULL
 
-from powerview.modules.ca import CAEnum, PARSE_TEMPLATE
+from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.utils.helpers import *
@@ -98,7 +98,7 @@ class PowerView:
 
         properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
-        searchbase = self.root_dn if not args.searchbase else args.searchbase
+        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
         ldap_filter = ""
         identity_filter = f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
@@ -179,7 +179,7 @@ class PowerView:
 
         properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
-        searchbase = self.root_dn if not args.searchbase else args.searchbase
+        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
         ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=8192)'
         logging.debug(f'[Get-DomainController] LDAP search filter: {ldap_filter}')
@@ -214,7 +214,7 @@ class PowerView:
 
         ldap_filter = ""
         identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
-        searchbase = self.root_dn if not args.searchbase else args.searchbase
+        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
         if args:
             if args.ldapfilter:
@@ -365,7 +365,7 @@ class PowerView:
 
         properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
-        searchbase = self.root_dn if not args.searchbase else args.searchbase
+        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
         ldap_filter = ""
         identity_filter = f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
@@ -488,7 +488,7 @@ class PowerView:
 
         properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
-        searchbase = self.root_dn if not args.searchbase else args.searchbase
+        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
         ldap_filter = ""
         identity_filter = f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
@@ -684,7 +684,7 @@ class PowerView:
     def get_domaingpo(self, args=None, properties=['*'], identity='*'):
         ldap_filter = ""
         identity_filter = f"(cn={identity})"
-        searchbase = self.root_dn if not args.searchbase else args.searchbase
+        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
         if args:
             if args.ldapfilter:
@@ -834,7 +834,7 @@ class PowerView:
         identity = '*' if not identity else identity
 
         identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
-        searchbase = self.root_dn if not args.searchbase else args.searchbase
+        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
         ldap_filter = ""
 
         if args:
@@ -973,8 +973,86 @@ class PowerView:
 
         return entries
 
+    def add_domaincatemplate(self, displayname, name=None, args=None):
+        if not name:
+            name = displayname.replace(" ","").strip()
+
+        if args.duplicate:
+            # query for other cert template
+            identity = args.duplicate
+            entries = self.get_domaincatemplate(identity=identity)
+            if len(entries) > 1:
+                logging.error("[Add-DomainCATemplate] More than one certificate templates found")
+                return False
+            elif len(entries) == 0:
+                logging.error("[Add-DomainCATemplate] No certificate template found")
+                return False
+            exist_template = entries[0]['attributes']
+            return
+
+        # create certiciate template
+        default_template = {
+            'DisplayName': displayname,
+            'name': name,
+            'msPKI-Cert-Template-OID': template_oid,
+            'msPKI-Certificate-Name-Flag' : 1,
+            'msPKI-Enrollment-Flag': 41,
+            'revision': 3,
+            'pKIDefaultKeySpec': 1,
+            'msPKI-RA-Signature': 0,
+            'pKIMaxIssuingDepth': 0,
+            'msPKI-Template-Schema-Version': 1,
+            'msPKI-Template-Minor-Revision': 1,
+            'msPKI-Private-Key-Flag': 16842768,
+            'msPKI-Minimal-Key-Size': 2048,
+            "pKICriticalExtensions": ["2.5.29.19", "2.5.29.15"],
+            "pKIExtendedKeyUsage": [
+                "1.3.6.1.4.1.311.10.3.4",
+                "1.3.6.1.5.5.7.3.4",
+                "1.3.6.1.5.5.7.3.2"
+            ],
+            "pKIExpirationPeriod": b"\x00@\x1e\xa4\xe8e\xfa\xff",
+            "pKIOverlapPeriod": b"\x00\x80\xa6\n\xff\xde\xff\xff",
+            "pKIDefaultCSPs": b"1,M#icrosoft Enhanced Cryptographic Provider v1.0",
+        }
+
+        # create oid
+        basedn = f"CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
+        self.ldap_session.search(basedn, "(objectclass=*)" ,attributes=['msPKI-Cert-Template-OID'])
+
+        if len(self.ldap_session.entries) == 0:
+            logging.error("[Add-DomainCATemplate] No Forest OID found in domain")
+
+        forest_oid = self.ldap_session.entries[0]['msPKI-Cert-Template-OID'].value
+        template_oid, template_name = UTILS.get_template_oid(forest_oid)
+        oa = {
+                'Name': template_name,
+                'DisplayName': displayname,
+                'flags' : 0x01,
+                'msPKI-Cert-Template-OID': template_oid,
+                }
+        oidpath = f"CN={template_name},CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
+        self.ldap_session.add(oidpath, ['top','msPKI-Enterprise-Oid'], oa)
+        if self.ldap_session.result['result'] == 0:
+            logging.info(f"[Add-DomainCATemplate] Added new template OID {oidpath}")
+            logging.debug(f"[Add-DomainCATemplate] msPKI-Cert-Template-OID: {template_oid}")
+        else:
+            logging.error("[Add-DomainCATemplate] Error adding new template OID")
+            logging.error(str(self.ldap_session.result['description']))
+            return False
+
+        template_base = f"CN={name},CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
+        self.ldap_session.add(template_base, ['top','pKICertificateTemplate'], default_template)
+        if self.ldap_session.result['result'] == 0:
+            logging.info(f"[Add-DomainCATemplate] Added new certificate template {name}")
+            return True
+        else:
+            logging.error(f"[Add-DomainCATemplate] Failed to create certiciate template {name} ({self.ldap_session.result['description']})")
+            return False
+
     def get_domaincatemplate(self, args=None, properties=[], identity=None):
         def_prop = [
+            "objectClass",
             "cn",
             "distinguishedName",
             "name",
@@ -984,6 +1062,7 @@ class PowerView:
             "msPKI-Enrollment-Flag",
             "msPKI-Private-Key-Flag",
             "msPKI-Certificate-Name-Flag",
+            "msPKI-Cert-Template-OID",
             "msPKI-RA-Signature",
             "pKIExtendedKeyUsage",
             "nTSecurityDescriptor",
@@ -991,7 +1070,10 @@ class PowerView:
         ]
 
         identity = '*' if not identity else identity
-        searchbase = f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}" if not args.searchbase else args.searchbase
+        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
+        resolve_sids = args.resolve_sids if hasattr(args, 'resolve_sids') and args.resolve_sids else None
+        args_enabled = args.enabled if hasattr(args, 'enabled') and args.enabled else False
+        args_vulnerable = args.vulnerable if hasattr(args, 'vulnerable') and args.vulnerable else False
 
         entries = []
         template_guids = []
@@ -1001,10 +1083,10 @@ class PowerView:
         cas = ca_fetch.fetch_enrollment_services()
 
         if len(cas) <= 0:
-            logging.error(f"No certificate authority found")
+            logging.error(f"[Get-DomainCATemplate] No certificate authority found")
             return
 
-        logging.debug(f"Found {len(cas)} CA(s)")
+        logging.debug(f"[Get-DomainCATemplate] Found {len(cas)} CA(s)")
         # Entries only
         list_ca_templates = []
         list_entries = []
@@ -1037,7 +1119,7 @@ class PowerView:
 
                 vulns = template_ops.check_vulnerable_template()
 
-                if args.resolve_sids:
+                if resolve_sids:
                     template_owner = self.convertfrom_sid(template_ops.get_owner_sid())
 
                     for i in range(len(parsed_dacl['Enrollment Rights'])):
@@ -1072,7 +1154,7 @@ class PowerView:
                             list_vuln.append(vulns[y])
 
                 # Resolve Vulnerable (Without resolvesids)
-                if not args.resolve_sids:
+                if not resolve_sids:
                     for y in vulns.keys():
                         try:
                             list_vuln.append(y+" - "+vulns[y])
@@ -1119,7 +1201,7 @@ class PowerView:
                 enabled = True
                 ent["Enabled"] = enabled
 
-            if args.enabled and not enabled:
+            if args_enabled and not enabled:
                 continue
 
             # Vulnerable
@@ -1127,7 +1209,7 @@ class PowerView:
             if ent["Vulnerable"]:
                 vulnerable = True
 
-            if args.vulnerable and not vulnerable:
+            if args_vulnerable and not vulnerable:
                 continue
 
             if properties:

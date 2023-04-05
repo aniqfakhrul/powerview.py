@@ -10,7 +10,9 @@ from powerview.utils.helpers import (
     is_admin_sid,
     filetime_to_str,
     get_user_sids,
-    host2ip
+    host2ip,
+    get_random_num,
+    get_random_hex,
 )
 from powerview.utils.constants import (
     ACTIVE_DIRECTORY_RIGHTS,
@@ -88,7 +90,8 @@ class CAEnum:
 
         return self.ldap_session.entries
 
-    def get_certificate_templates(self, properties, ca_search_base, identity=None):
+    def get_certificate_templates(self, properties, ca_search_base=None, identity=None):
+        ca_search_base = f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}" if not ca_search_base else ca_search_base
         search_filter = ""
         identity_filter = ""
 
@@ -433,3 +436,17 @@ class PARSE_TEMPLATE:
         self.parsed_dacl['Extended Rights'] = all_extended_rights
 
         return self.parsed_dacl
+
+class UTILS:
+    @staticmethod
+    def get_template_oid(oid_forest):
+        oid_part_1 = get_random_num(10000000,99999999)
+        oid_part_2 = get_random_num(10000000,99999999)
+        oid_part_3 = get_random_hex(32)
+        
+        template_oid = f"{oid_forest}.{oid_part_1}.{oid_part_2}"
+        templatename = f"{oid_part_2}.{oid_part_3}"
+
+        return template_oid, templatename
+        
+
