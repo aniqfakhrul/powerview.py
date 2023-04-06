@@ -324,13 +324,13 @@ class PowerView:
             elif len(identity_entries) > 1:
                 logging.error(f'[Get-DomainObjectAcl] Multiple identities found. Use exact match')
                 return
-            logging.debug(f'Target identity found in domain {"".join(identity_entries[0]["attributes"]["distinguishedName"])}')
+            logging.debug(f'[Get-DomainObjectAcl] Target identity found in domain {"".join(identity_entries[0]["attributes"]["distinguishedName"])}')
             identity = "".join(identity_entries[0]['attributes']['distinguishedName'])
         else:
             logging.info('[Get-DomainObjectAcl] Recursing all domain objects. This might take a while')
 
         logging.debug(f"[Get-DomainObjectAcl] Searching for identity %s" % (identity))
-        self.ldap_session.search(self.root_dn, f'(distinguishedName={identity})', attributes=['nTSecurityDescriptor','sAMAccountName','distinguishedName','objectSid'], controls=security_descriptor_control(sdflags=0x04))
+        self.ldap_session.search(searchbase, f'(distinguishedName={identity})', attributes=['nTSecurityDescriptor','sAMAccountName','distinguishedName','objectSid'], controls=security_descriptor_control(sdflags=0x04))
         entries = self.ldap_session.entries
 
         if not entries:
