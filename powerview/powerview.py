@@ -1029,12 +1029,12 @@ class PowerView:
             logging.error(f"[Add-DomainCATemplate] Error adding new template OID ({self.ldap_session.result['description']})")
             return False
 
-        # create new certificate tempate
+        # create new certificate tempate based on User template
         default_template = {
             'DisplayName': displayname,
             'name': name,
             'msPKI-Cert-Template-OID': template_oid,
-            'msPKI-Certificate-Name-Flag' : 1,
+            'msPKI-Certificate-Name-Flag' : -1509949440,
             'msPKI-Enrollment-Flag': 41,
             'revision': 3,
             'pKIDefaultKeySpec': 1,
@@ -1042,7 +1042,7 @@ class PowerView:
             'pKIMaxIssuingDepth': 0,
             'msPKI-Template-Schema-Version': 1,
             'msPKI-Template-Minor-Revision': 1,
-            'msPKI-Private-Key-Flag': 16842768,
+            'msPKI-Private-Key-Flag': 16,
             'msPKI-Minimal-Key-Size': 2048,
             "pKICriticalExtensions": ["2.5.29.19", "2.5.29.15"],
             "pKIExtendedKeyUsage": [
