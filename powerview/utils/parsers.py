@@ -1,11 +1,11 @@
 import argparse
 import sys
-import logging
 
 from impacket import version
 from powerview.utils.completer import COMMANDS
 from powerview.utils.colors import bcolors
 from powerview._version import BANNER
+from powerview.utils.logging import setup_logger
 
 # https://stackoverflow.com/questions/14591168/argparse-dont-show-usage-on-h
 class PowerViewParser(argparse.ArgumentParser):
@@ -42,11 +42,11 @@ def arg_parse():
     args = parser.parse_args()
 
     if args.debug is True:
-        logging.getLogger().setLevel(logging.DEBUG)
+        logging = setup_logger("DEBUG")
         # Print the Library's installation path
         logging.debug(version.getInstallationPath())
     else:
-        logging.getLogger().setLevel(logging.INFO)
+        logging = setup_logger()
 
     return args
 
@@ -99,6 +99,7 @@ def powerview_arg_parse(cmd):
     #domainobjectacl
     get_domainobjectacl_parser = subparsers.add_parser('Get-DomainObjectAcl', aliases=['Get-ObjectAcl'] ,exit_on_error=False)
     get_domainobjectacl_parser.add_argument('-Identity', action='store', default='*', dest='identity')
+    get_domainobjectacl_parser.add_argument('-SearchBase', action='store', dest='searchbase')
     get_domainobjectacl_parser.add_argument('-Domain', action='store', dest='server')
     get_domainobjectacl_parser.add_argument('-SecurityIdentifier', action='store', dest='security_identifier')
     get_domainobjectacl_parser.add_argument('-ResolveGUIDs', action='store_true',default=False, dest='resolveguids')
@@ -273,6 +274,7 @@ def powerview_arg_parse(cmd):
 
     # Find CAs
     get_domainca_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-CA'], exit_on_error=False)
+    get_domainca_parser.add_argument('-CheckWebEnrollment', action='store_true', dest='check_web_enrollment')
     get_domainca_parser.add_argument('-Properties', action='store', dest='properties')
     get_domainca_parser.add_argument('-Domain', action='store', dest='server')
     get_domainca_parser.add_argument('-Select', action='store', dest='select')
@@ -443,6 +445,7 @@ def powerview_arg_parse(cmd):
     set_domainobject_group.add_argument('-Set', dest='set')
     set_domainobject_group.add_argument('-Append', dest='append')
     set_domainobject_group.add_argument('-Clear',action='store', dest='clear')
+    set_domainobject_parser.add_argument('-SearchBase', action='store', dest='searchbase')
     set_domainobject_parser.add_argument('-Domain', action='store', dest='server')
     set_domainobject_parser.add_argument('-OutFile', action='store', dest='outfile')
 
@@ -529,7 +532,7 @@ def powerview_arg_parse(cmd):
         except:
             pass
 
-        logging.error(str(e).split("(")[0])
+        print(str(e).split("(")[0])
         return None
     except:
         return

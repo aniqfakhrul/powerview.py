@@ -3,6 +3,7 @@ from powerview.powerview import PowerView
 from powerview.utils.helpers import *
 from powerview.utils.native import *
 from powerview.utils.formatter import FORMATTER
+from powerview.utils.logging import CustomFormatter, setup_logger
 from powerview.utils.completer import Completer
 from powerview.utils.colors import bcolors
 from powerview.utils.connections import CONNECTION
@@ -11,7 +12,6 @@ from powerview.utils.parsers import powerview_arg_parse, arg_parse
 from impacket.examples import logger
 
 import ldap3
-import logging
 import json
 import random
 import string
@@ -23,9 +23,6 @@ else:
     import readline
 
 def main():
-    # logger properties
-    logging.getLogger().setLevel(logging.INFO)
-
     args = arg_parse()
 
     domain, username, password, lmhash, nthash, ldap_address = parse_identity(args)
@@ -108,9 +105,9 @@ def main():
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainobjectacl(pv_args)
+                                    entries = temp_powerview.get_domainobjectacl(args=pv_args)
                                 else:
-                                    entries = powerview.get_domainobjectacl(pv_args)
+                                    entries = powerview.get_domainobjectacl(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
                                 properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
@@ -310,14 +307,10 @@ def main():
                                     logging.error('-Identity and -Members flags required')
                             elif pv_args.module.casefold() == 'set-domainobject' or pv_args.module.casefold() == 'set-adobject':
                                 if pv_args.identity and (pv_args.clear or pv_args.set or pv_args.append):
-                                    succeed = False
                                     if temp_powerview:
-                                        succeed = temp_powerview.set_domainobject(pv_args.identity, pv_args)
+                                        succeed = temp_powerview.set_domainobject(pv_args.identity, args=pv_args)
                                     else:
-                                        succeed = powerview.set_domainobject(pv_args.identity, pv_args)
-
-                                    if succeed:
-                                        logging.info('Object modified successfully')
+                                        succeed = powerview.set_domainobject(pv_args.identity, args=pv_args)
                                 else:
                                     logging.error('-Identity and [-Clear][-Set][-Append] flags required')
                             elif pv_args.module.casefold() == 'set-domaindnsrecord':
@@ -474,8 +467,8 @@ def main():
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("Connection dead")
                 conn.reset_connection()
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
 
             if args.query:
                 sys.exit(0)

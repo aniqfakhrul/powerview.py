@@ -90,7 +90,25 @@ class CAEnum:
 
         return self.ldap_session.entries
 
-    def get_certificate_templates(self, properties, ca_search_base=None, identity=None):
+    def get_certificate_templates(self, properties=None, ca_search_base=None, identity=None):
+        if not properties:
+            properties = [
+                "objectClass",
+                "cn",
+                "distinguishedName",
+                "name",
+                "displayName",
+                "pKIExpirationPeriod",
+                "pKIOverlapPeriod",
+                "msPKI-Enrollment-Flag",
+                "msPKI-Private-Key-Flag",
+                "msPKI-Certificate-Name-Flag",
+                "msPKI-Cert-Template-OID",
+                "msPKI-RA-Signature",
+                "pKIExtendedKeyUsage",
+                "nTSecurityDescriptor",
+                "objectGUID",
+            ]
         ca_search_base = f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}" if not ca_search_base else ca_search_base
         search_filter = ""
         identity_filter = ""
@@ -113,7 +131,7 @@ class CAEnum:
 
     # https://github.com/ly4k/Certipy/blob/main/certipy/commands/find.py#L688
     def check_web_enrollment(self, target, nameserver=None, timeout=5, use_ip=False):
-        if nameserver:
+        if use_ip and nameserver:
             target = host2ip(target, nameserver, 3, True)
 
         if target is None:

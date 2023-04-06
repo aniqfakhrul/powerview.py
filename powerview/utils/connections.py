@@ -10,7 +10,6 @@ from powerview.utils.helpers import (
     host2ip,
     is_valid_fqdn,
 )
-from powerview.utils.colors import bcolors
 from powerview.lib.resolver import (
     LDAP,
 )
@@ -153,7 +152,6 @@ class CONNECTION:
             _anonymous = True
 
         if self.use_ldaps is True or self.use_gc_ldaps is True:
-            logging.debug("Trying LDAPS")
             try:
                 tls = ldap3.Tls(
                     validate=ssl.CERT_NONE,
@@ -243,7 +241,7 @@ class CONNECTION:
             logging.info("ANONYMOUS access not allowed")
             sys.exit(0)
         else:
-            logging.info(f"{bcolors.WARNING}Server allows ANONYMOUS access!{bcolors.ENDC}")
+            logging.warning("Server allows ANONYMOUS access!")
             return ldap_server, ldap_session
 
     def init_ldap_connection(self, target, tls, domain, username, password, lmhash, nthash):
@@ -310,7 +308,7 @@ class CONNECTION:
         if not bind:
             # check if signing is enforced
             if "strongerAuthRequired" in str(ldap_session.result):
-                logging.error(f"{bcolors.WARNING}LDAP signing is enforced{bcolors.ENDC}")
+                logging.warning("LDAP signing is enforced!")
 
             error_code = ldap_session.result['message'].split(",")[2].replace("data","").strip()
             error_status = LDAP.resolve_err_status(error_code)
@@ -322,8 +320,8 @@ class CONNECTION:
 
             sys.exit(0)
         else:
-            logging.debug(f"{bcolors.WARNING}LDAP Signing NOT Enforced!{bcolors.ENDC}")
-            logging.debug(f"{bcolors.OKGREEN}Bind SUCCESS!{bcolors.ENDC}")
+            logging.warning("LDAP Signing NOT Enforced!")
+            logging.debug("Bind SUCCESS!")
 
         return ldap_server, ldap_session
 
