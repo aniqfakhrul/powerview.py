@@ -35,7 +35,6 @@ from io import BytesIO
 import ldap3
 from ldap3.protocol.microsoft import security_descriptor_control
 from ldap3.extend.microsoft import addMembersToGroups, modifyPassword, removeMembersFromGroups
-import logging
 import re
 
 class PowerView:
@@ -978,6 +977,57 @@ class PowerView:
 
         return entries
 
+    def add_domaincatemplateacl(self, name, targetidentity, rights=None, ca_fetch=None, args=None):
+        if not rights:
+            if args and hasattr(args, 'rights') and args.rights:
+                rights = args.rights
+            else:
+                rights = 'all'
+
+        target_identity = self.get_domainobject(identity=targetidentity, properties=[
+            'objectSid',
+            'distinguishedName',
+            'sAMAccountName'
+        ])
+        if len(target_identity) > 1:
+            logging.error("[Add-DomainCATemplateAcl] More than one target identity found")
+            return
+        elif len(target_identity) == 0:
+            logging.error("[Add-DomainCATemplateAcl] Target identity not found in domain")
+            return
+
+        logging.debug(f"[Add-DomainCATemplateAcl] Found target identity {target_identity[0].get('attributes').get('sAMAccountName')}")
+
+        if not ca_fetch:
+            ca_fetch = CAEnum(self.ldap_session, self.root_dn)
+
+        template = ca_fetch.get_certificate_templates(identity=name)
+        
+        if len(template) == 0:
+            logging.error(f"[Add-DomainCATemplateAcl] {name} template not found in domain")
+            return
+        elif len(template) > 1:
+            logging.error("[Add-DomainCATemplateAcl] Multiple templates found")
+            return
+
+        template_parser = PARSE_TEMPLATE(template[0])
+        secDesc = template_parser.modify_dacl(target_identity[0].get('attributes').get('objectSid'), rights)
+        succeed = self.set_domainobject(  
+                                name,
+                                _set = {
+                                        'attribute': 'nTSecurityDescriptor',
+                                        'value': [secDesc]
+                                    },
+                                searchbase=f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}",
+                                sd_flag = 0x04
+                              )
+        if succeed:
+            logging.info(f"[Add-DomainCATemplateAcl] Successfully modified {name} template acl")
+            return True
+        else:
+            logging.error(f"[Add-DomainCATemplateAcl] Failed to modify {name} template ACL")
+            return False
+
     def add_domaincatemplate(self, displayname, name=None, args=None):
         ca_fetch = CAEnum(self.ldap_session, self.root_dn)
 
@@ -994,15 +1044,59 @@ class PowerView:
         if args.duplicate:
             # query for other cert template
             identity = args.duplicate
-            entries = ca_fetch.get_certificate_templates(identity=identity)
+            entries = ca_fetch.get_certificate_templates(identity=identity, properties=['*'])
             if len(entries) > 1:
                 logging.error("[Add-DomainCATemplate] More than one certificate templates found")
                 return False
             elif len(entries) == 0:
                 logging.error("[Add-DomainCATemplate] No certificate template found")
                 return False
-            exist_template = entries[0].entry_to_json(raw=True)
-            return
+
+            logging.debug(f"[Add-DomainCATemplate] Duplicating existing template {args.duplicate} properties")
+            default_template = {
+                'DisplayName': displayname,
+                'name': name,
+                'msPKI-Certificate-Name-Flag' : int(entries[0]['msPKI-Certificate-Name-Flag'].value),
+                'msPKI-Enrollment-Flag': int(entries[0]['msPKI-Enrollment-Flag'].value),
+                'revision': int(entries[0]['revision'].value),
+                'pKIDefaultKeySpec': int(entries[0]['pKIDefaultKeySpec'].value),
+                'msPKI-RA-Signature': int(entries[0]['msPKI-RA-Signature'].value),
+                'pKIMaxIssuingDepth': int(entries[0]['pKIMaxIssuingDepth'].value),
+                'msPKI-Template-Schema-Version': int(entries[0]['msPKI-Template-Schema-Version'].value),
+                'msPKI-Template-Minor-Revision': int(entries[0]['msPKI-Template-Minor-Revision'].value),
+                'msPKI-Private-Key-Flag': int(entries[0]['msPKI-Private-Key-Flag'].value),
+                'msPKI-Minimal-Key-Size': int(entries[0]['msPKI-Minimal-Key-Size'].value),
+                "pKICriticalExtensions": entries[0]['pKICriticalExtensions'].values,
+                "pKIExtendedKeyUsage": entries[0]['pKIExtendedKeyUsage'].values,
+                'nTSecurityDescriptor': entries[0]['nTSecurityDescriptor'].raw_values[0],
+                "pKIExpirationPeriod": entries[0]['pKIExpirationPeriod'].raw_values[0],
+                "pKIOverlapPeriod": entries[0]['pKIOverlapPeriod'].raw_values[0],
+                "pKIDefaultCSPs": entries[0]['pKIDefaultCSPs'].values,
+            }
+        else:
+            default_template = {
+                'DisplayName': displayname,
+                'name': name,
+                'msPKI-Certificate-Name-Flag' : 1,
+                'msPKI-Enrollment-Flag': 41,
+                'revision': 3,
+                'pKIDefaultKeySpec': 1,
+                'msPKI-RA-Signature': 0,
+                'pKIMaxIssuingDepth': 0,
+                'msPKI-Template-Schema-Version': 1,
+                'msPKI-Template-Minor-Revision': 1,
+                'msPKI-Private-Key-Flag': 16842768,
+                'msPKI-Minimal-Key-Size': 2048,
+                "pKICriticalExtensions": ["2.5.29.19", "2.5.29.15"],
+                "pKIExtendedKeyUsage": [
+                    "1.3.6.1.4.1.311.10.3.4",
+                    "1.3.6.1.5.5.7.3.4",
+                    "1.3.6.1.5.5.7.3.2"
+                ],
+                "pKIExpirationPeriod": b"\x00@\x1e\xa4\xe8e\xfa\xff",
+                "pKIOverlapPeriod": b"\x00\x80\xa6\n\xff\xde\xff\xff",
+                "pKIDefaultCSPs": b"1,M#icrosoft Enhanced Cryptographic Provider v1.0",
+            }
 
         # create certiciate template
         # create oid
@@ -1023,37 +1117,12 @@ class PowerView:
         oidpath = f"CN={template_name},CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
         self.ldap_session.add(oidpath, ['top','msPKI-Enterprise-Oid'], oa)
         if self.ldap_session.result['result'] == 0:
-            logging.info(f"[Add-DomainCATemplate] Added new template OID {oidpath}")
+            logging.debug(f"[Add-DomainCATemplate] Added new template OID {oidpath}")
             logging.debug(f"[Add-DomainCATemplate] msPKI-Cert-Template-OID: {template_oid}")
+            default_template['msPKI-Cert-Template-OID'] = template_oid
         else:
             logging.error(f"[Add-DomainCATemplate] Error adding new template OID ({self.ldap_session.result['description']})")
             return False
-
-        # create new certificate tempate
-        default_template = {
-            'DisplayName': displayname,
-            'name': name,
-            'msPKI-Cert-Template-OID': template_oid,
-            'msPKI-Certificate-Name-Flag' : 1,
-            'msPKI-Enrollment-Flag': 41,
-            'revision': 3,
-            'pKIDefaultKeySpec': 1,
-            'msPKI-RA-Signature': 0,
-            'pKIMaxIssuingDepth': 0,
-            'msPKI-Template-Schema-Version': 1,
-            'msPKI-Template-Minor-Revision': 1,
-            'msPKI-Private-Key-Flag': 16842768,
-            'msPKI-Minimal-Key-Size': 2048,
-            "pKICriticalExtensions": ["2.5.29.19", "2.5.29.15"],
-            "pKIExtendedKeyUsage": [
-                "1.3.6.1.4.1.311.10.3.4",
-                "1.3.6.1.5.5.7.3.4",
-                "1.3.6.1.5.5.7.3.2"
-            ],
-            "pKIExpirationPeriod": b"\x00@\x1e\xa4\xe8e\xfa\xff",
-            "pKIOverlapPeriod": b"\x00\x80\xa6\n\xff\xde\xff\xff",
-            "pKIDefaultCSPs": b"1,M#icrosoft Enhanced Cryptographic Provider v1.0",
-        }
 
         template_base = f"CN={name},CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
         self.ldap_session.add(template_base, ['top','pKICertificateTemplate'], default_template)
@@ -1062,6 +1131,12 @@ class PowerView:
         else:
             logging.error(f"[Add-DomainCATemplate] Failed to create certiciate template {name} ({self.ldap_session.result['description']})")
             return False
+
+        # set acl for the template
+        if not args.duplicate:
+            logging.debug("Modifying template ACL")
+            if not self.add_domaincatemplateacl(name,'bala',ca_fetch=ca_fetch):
+                logging.debug("[Add-DomainCATemplate] Failed to modify template ACL. Skipping...")
 
         # issue certificate
         cas = ca_fetch.fetch_enrollment_services()
@@ -1156,6 +1231,12 @@ class PowerView:
 
                 if resolve_sids:
                     template_owner = self.convertfrom_sid(template_ops.get_owner_sid())
+
+                    for i in range(len(parsed_dacl['Extended Rights'])):
+                        try:
+                            parsed_dacl['Extended Rights'][i] = self.convertfrom_sid(parsed_dacl['Extended Rights'][i])
+                        except:
+                            pass
 
                     for i in range(len(parsed_dacl['Enrollment Rights'])):
                         try:
@@ -1997,14 +2078,14 @@ class PowerView:
                 return False
 
 
-    def set_domainobject(self, identity, clear=None, _set=None, append=None, searchbase=None, args=None):
+    def set_domainobject(self, identity, clear=None, _set=None, append=None, searchbase=None, sd_flag=None, args=None):
         if _set and clear and append:
             raise Exception("Set, Clear and Append couldn't be together")
 
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
         
-        targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['*'])
+        targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['*'], sd_flag=sd_flag)
         if len(targetobject) > 1:
             logging.error(f"[Set-DomainObject] More than one object found")
             return False
@@ -2040,20 +2121,30 @@ class PowerView:
                 return
             
             try:
-                for val in attrs['value']:
-                    try:
-                        values = targetobject[0]["attributes"].get(attrs['attribute'])
-                        if isinstance(values, list):
-                            for ori_val in values:
-                                if val.casefold() == ori_val.casefold():
+                if isinstance(attrs['value'], list):
+                    for val in attrs['value']:
+                        try:
+                            values = targetobject[0]["attributes"].get(attrs['attribute'])
+                            if isinstance(values, list):
+                                for ori_val in values:
+                                    if isinstance(ori_val, str):
+                                        if val.casefold() == ori_val.casefold():
+                                            logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
+                                            return
+                                    else:
+                                        if val == values:
+                                            logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
+                                            return
+                            elif isinstance(values, str):
+                                if val.casefold() == values.casefold():
                                     logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
                                     return
-                        elif isintance(values, str):
-                            if val.casefold() == values.casefold():
-                                logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-                                return
-                    except KeyError as e:
-                        logging.debug(f"[Set-DomainObject] Attribute {attrs['attribute']} not exists in object. Modifying anyway...")
+                            else:
+                                if val == values:
+                                    logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
+                                    return
+                        except KeyError as e:
+                            logging.debug(f"[Set-DomainObject] Attribute {attrs['attribute']} not exists in object. Modifying anyway...")
             except ldap3.core.exceptions.LDAPKeyError as e:
                 logging.error(f"[Set-DomainObject] Key {attrs['attribute']} not found in template attribute. Adding anyway...")
 
@@ -2065,7 +2156,8 @@ class PowerView:
                             'attribute': attrs['attribute'],
                             'value': attrs['value'],
                         },
-                        searchbase=searchbase
+                        searchbase=searchbase,
+                        sdflags=sdflags
                     )
 
                 temp_list = []
@@ -2093,7 +2185,7 @@ class PowerView:
             attr_key:[
                 (ldap3.MODIFY_REPLACE,attr_val)
             ]
-        })
+        }, controls=security_descriptor_control(sdflags=sd_flag) if sd_flag else None)
 
         if not succeeded:
             logging.error(self.ldap_session.result['message'])

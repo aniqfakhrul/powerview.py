@@ -306,6 +306,14 @@ def powerview_arg_parse(cmd):
     add_domaincatemplate_parser.add_argument('-Domain', action='store', dest='server')
     add_domaincatemplate_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
+    # add domain ca template acl
+    add_domaincatemplateacl_parser = subparsers.add_parser('Add-DomainCATemplateAcl', aliases=['Add-CATemplateAcl'], exit_on_error=False)
+    add_domaincatemplateacl_parser.add_argument('-Template', action='store', const=None, dest='template')
+    add_domaincatemplateacl_parser.add_argument('-PrincipalIdentity', action='store', const=None, dest='principalidentity')
+    add_domaincatemplateacl_parser.add_argument('-Rights', action='store', const=None, dest='rights', choices=['all', 'enroll','write'], type = str.lower)
+    add_domaincatemplateacl_parser.add_argument('-Domain', action='store', dest='server')
+    add_domaincatemplateacl_parser.add_argument('-OutFile', action='store', dest='outfile')
+
     # get named pipes
     get_namedpipes_parser = subparsers.add_parser('Get-NamedPipes', exit_on_error=False)
     get_namedpipes_parser.add_argument('-Name', action='store', dest='name')

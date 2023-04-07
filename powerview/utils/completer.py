@@ -75,6 +75,8 @@ COMMANDS = {
     'Set-Object':['-Identity','-Clear','-Set','-Append','-Domain', '-OutFile'],
     'Set-DomainCATemplate':['-Identity','-Clear','-Set','-Append','-Domain', '-OutFile'],
     'Set-CATemplate':['-Identity','-Clear','-Set','-Append','-Domain', '-OutFile'],
+    'Add-DomainCATemplateAcl':['-Template','-PrincipalIdentity','-Rights','-Domain', '-OutFile'],
+    'Add-CATemplateAcl':['-Template','-PrincipalIdentity','-Rights','-Domain', '-OutFile'],
     'Set-DomainUserPassword':['-Identity','-AccountPassword', '-OldPassword','-Domain','-OutFile'],
     'Set-DomainComputerPassword':['-Identity','-AccountPassword', '-OldPassword','-Domain','-OutFile'],
     'Set-DomainObjectOwner':['-TargetIdentity','-PrincipalIdentity','-Domain','-OutFile'],

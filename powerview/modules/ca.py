@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import logging
 from impacket.ldap import ldaptypes
-from impacket.uuid import bin_to_string
+from impacket.uuid import bin_to_string, string_to_bin
 from ldap3.protocol.formatters.formatters import format_sid
 from ldap3.protocol.microsoft import security_descriptor_control
 import socket
@@ -394,6 +394,43 @@ class PARSE_TEMPLATE:
             #         vulns["ESC4"] = f"{rid} have write permission"
 
         return vulns
+
+    def create_object_ace(self,privguid,sid, mask=983551):
+        nace = ldaptypes.ACE()
+        nace['AceType'] = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ACE_TYPE
+        nace['AceFlags'] = 0x02 # inherit to child objects
+        acedata = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE()
+        acedata['Mask'] = ldaptypes.ACCESS_MASK()
+        acedata['Mask']['Mask'] = mask # Full control
+        acedata['ObjectType'] = string_to_bin(privguid)
+        acedata['InheritedObjectType'] = b''
+        acedata['Sid'] = ldaptypes.LDAP_SID()
+        acedata['Sid'].fromCanonical(sid)
+        assert sid == acedata['Sid'].formatCanonical()
+        acedata['Flags'] = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT
+        nace['Ace'] = acedata
+        return nace
+        
+    def modify_dacl(self, sid, right_opt):
+        permissions = {
+                'all': {
+                        'rights': [EXTENDED_RIGHTS_NAME_MAP["Enroll"], EXTENDED_RIGHTS_NAME_MAP["AutoEnroll"], EXTENDED_RIGHTS_NAME_MAP["All-Extended-Rights"]],
+                        'mask': CERTIFICATE_RIGHTS.GENERIC_ALL,
+                    },
+                'enroll': {
+                        'rights':[EXTENDED_RIGHTS_NAME_MAP["Enroll"], EXTENDED_RIGHTS_NAME_MAP["AutoEnroll"]],
+                        'mask': CERTIFICATE_RIGHTS.GENERIC_ALL,
+                    },
+                'write': {
+                        'rights':[EXTENDED_RIGHTS_NAME_MAP["Enroll"], EXTENDED_RIGHTS_NAME_MAP["AutoEnroll"]],
+                        'mask':CERTIFICATE_RIGHTS.GENERIC_ALL,
+                    }
+                }
+        sdData = self.template["nTSecurityDescriptor"].raw_values[0]
+        security = CertificateSecurity(sdData)
+        for guid in permissions.get(right_opt).get('rights'):
+            security.sd['Dacl']['Data'].append(self.create_object_ace(guid, sid, mask=permissions.get(right_opt).get('mask')))
+        return security.sd.getData() 
 
     def parse_dacl(self):
         user_can_enroll = False

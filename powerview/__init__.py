@@ -214,6 +214,14 @@ def main():
                                     temp_powerview.add_domaincatemplate(displayname, name, args=pv_args)
                                 else:
                                     powerview.add_domaincatemplate(displayname, name, args=pv_args)
+                            elif pv_args.module.casefold() == 'add-domaincatemplateacl' or pv_args.module.casefold() == 'add-catemplateacl':
+                                if pv_args.template is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
+                                    if temp_powerview:
+                                        temp_powerview.add_domaincatemplateacl(pv_args.template, pv_args.principalidentity, args=pv_args)
+                                    else:
+                                        powerview.add_domaincatemplateacl(pv_args.template, pv_args.principalidentity, args=pv_args)
+                                else:
+                                    logging.error('-TargetIdentity , -PrincipalIdentity and -Rights flags are required')
                             elif pv_args.module.casefold() == 'get-domaintrust' or pv_args.module.casefold() == 'get-nettrust':
                                 properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
