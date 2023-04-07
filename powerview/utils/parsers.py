@@ -89,6 +89,7 @@ def powerview_arg_parse(cmd):
     get_domainobjectowner_parser = subparsers.add_parser('Get-DomainObjectOwner', aliases=['Get-ObjectOwner'] ,exit_on_error=False)
     get_domainobjectowner_parser.add_argument('-Identity', action='store', dest='identity')
     get_domainobjectowner_parser.add_argument('-ResolveSID', action='store_true', default=False, dest='resolvesid')
+    get_domainobjectowner_parser.add_argument('-SearchBase', action='store', dest='searchbase')
     get_domainobjectowner_parser.add_argument('-Domain', action='store', dest='server')
     get_domainobjectowner_parser.add_argument('-Select', action='store', dest='select')
     get_domainobjectowner_parser.add_argument('-Where', action='store', dest='where')
@@ -502,6 +503,7 @@ def powerview_arg_parse(cmd):
     set_domainobjectowner_parser = subparsers.add_parser('Set-DomainObjectOwner', aliases=['Set-ObjectOwner'], exit_on_error=False)
     set_domainobjectowner_parser.add_argument('-TargetIdentity', action='store', const=None, dest='targetidentity')
     set_domainobjectowner_parser.add_argument('-PrincipalIdentity', action='store', const=None, dest='principalidentity')
+    set_domainobjectowner_parser.add_argument('-SearchBase', action='store', dest='searchbase')
     set_domainobjectowner_parser.add_argument('-Domain', action='store', dest='server')
     set_domainobjectowner_parser.add_argument('-OutFile', action='store', dest='outfile')
 

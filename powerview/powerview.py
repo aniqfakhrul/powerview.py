@@ -237,7 +237,10 @@ class PowerView:
             entries.append({"attributes":_entries["attributes"]})
         return entries
 
-    def get_domainobjectowner(self, identity=None, args=None):
+    def get_domainobjectowner(self, identity=None, searchbase=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        
         if not identity:
             identity = '*'
             logging.info("[Get-DomainObjectOwner] Recursing all domain objects. This might take a while")
@@ -248,7 +251,7 @@ class PowerView:
             'sAMAccountname',
             'ObjectSID',
             'distinguishedName',
-        ], sd_flag=0x01)
+        ], searchbase=searchbase, sd_flag=0x01)
 
         if len(objects) == 0:
             logging.error("[Get-DomainObjectOwner] Identity not found in domain")
@@ -1058,22 +1061,22 @@ class PowerView:
             default_template = {
                 'DisplayName': displayname,
                 'name': name,
-                'msPKI-Certificate-Name-Flag' : int(entries[0]['msPKI-Certificate-Name-Flag'].value),
-                'msPKI-Enrollment-Flag': int(entries[0]['msPKI-Enrollment-Flag'].value),
-                'revision': int(entries[0]['revision'].value),
-                'pKIDefaultKeySpec': int(entries[0]['pKIDefaultKeySpec'].value),
-                'msPKI-RA-Signature': int(entries[0]['msPKI-RA-Signature'].value),
-                'pKIMaxIssuingDepth': int(entries[0]['pKIMaxIssuingDepth'].value),
-                'msPKI-Template-Schema-Version': int(entries[0]['msPKI-Template-Schema-Version'].value),
-                'msPKI-Template-Minor-Revision': int(entries[0]['msPKI-Template-Minor-Revision'].value),
-                'msPKI-Private-Key-Flag': int(entries[0]['msPKI-Private-Key-Flag'].value),
-                'msPKI-Minimal-Key-Size': int(entries[0]['msPKI-Minimal-Key-Size'].value),
-                "pKICriticalExtensions": entries[0]['pKICriticalExtensions'].values,
-                "pKIExtendedKeyUsage": entries[0]['pKIExtendedKeyUsage'].values,
+                'msPKI-Certificate-Name-Flag' : int(entries[0]['msPKI-Certificate-Name-Flag'].value) if entries[0].get('msPKI-Certificate-Name-Flag') else 1,
+                'msPKI-Enrollment-Flag': int(entries[0]['msPKI-Enrollment-Flag'].value) if entries[0].get('msPKI-Enrollment-Flag') else 41,
+                'revision': int(entries[0]['revision'].value) if entries[0].get('revision') else 3,
+                'pKIDefaultKeySpec': int(entries[0]['pKIDefaultKeySpec'].value) if entries[0].get('pKIDefaultKeySpec') else 1,
+                'msPKI-RA-Signature': int(entries[0]['msPKI-RA-Signature'].value) if entries[0].get('msPKI-RA-Signature') else 0,
+                'pKIMaxIssuingDepth': int(entries[0]['pKIMaxIssuingDepth'].value) if entries[0].get('pKIMaxIssuingDepth') else 0,
+                'msPKI-Template-Schema-Version': int(entries[0]['msPKI-Template-Schema-Version'].value) if entries[0].get('msPKI-Template-Schema-Version') else 1,
+                'msPKI-Template-Minor-Revision': int(entries[0]['msPKI-Template-Minor-Revision'].value) if entries[0].get('msPKI-Template-Minor-Revision') else 1,
+                'msPKI-Private-Key-Flag': int(entries[0]['msPKI-Private-Key-Flag'].value) if entries[0].get('msPKI-Private-Key-Flag') else 16842768,
+                'msPKI-Minimal-Key-Size': int(entries[0]['msPKI-Minimal-Key-Size'].value) if entries[0].get('msPKI-Minimal-Key-Size') else 2048,
+                "pKICriticalExtensions": entries[0]['pKICriticalExtensions'].values if entries[0].get('pKICriticalExtensions') else ["2.5.29.19", "2.5.29.15"],
+                "pKIExtendedKeyUsage": entries[0]['pKIExtendedKeyUsage'].values if entries[0].get('pKIExtendedKeyUsage') else ["1.3.6.1.4.1.311.10.3.4","1.3.6.1.5.5.7.3.4","1.3.6.1.5.5.7.3.2"],
                 'nTSecurityDescriptor': entries[0]['nTSecurityDescriptor'].raw_values[0],
                 "pKIExpirationPeriod": entries[0]['pKIExpirationPeriod'].raw_values[0],
                 "pKIOverlapPeriod": entries[0]['pKIOverlapPeriod'].raw_values[0],
-                "pKIDefaultCSPs": entries[0]['pKIDefaultCSPs'].values,
+                "pKIDefaultCSPs": entries[0]['pKIDefaultCSPs'].value if entries[0].get('pKIDefaultCSPs') else b"1,Microsoft Enhanced Cryptographic Provider v1.0",
             }
         else:
             default_template = {
@@ -1341,14 +1344,19 @@ class PowerView:
         template_guids.clear()
         return entries
 
-    def set_domainobjectowner(self, targetidentity, principalidentity, args=None):
+    def set_domainobjectowner(self, targetidentity, principalidentity, searchbase=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        
         # verify that the targetidentity exists
         target_identity = self.get_domainobject(identity=targetidentity, properties=[
             'nTSecurityDescriptor',
             'sAMAccountname',
             'ObjectSID',
             'distinguishedName',
-        ])
+            ],
+            searchbase=searchbase
+        )
         if len(target_identity) > 1:
             logging.error("More than one target identity found")
             return
