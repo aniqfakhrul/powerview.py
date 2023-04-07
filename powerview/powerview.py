@@ -1355,7 +1355,8 @@ class PowerView:
             'ObjectSID',
             'distinguishedName',
             ],
-            searchbase=searchbase
+            searchbase=searchbase,
+            sd_flag=0x01,
         )
         if len(target_identity) > 1:
             logging.error("More than one target identity found")
@@ -1378,7 +1379,7 @@ class PowerView:
         target_identity_owner = chown.read()
 
         if target_identity_owner == principal_identity[0]["attributes"]["objectSid"]:
-            logging.info("%s is already the owner of the %s" % (principal_identity[0]["attributes"]["sAMAccountName"], target_identity[0]["attributes"]["distinguishedName"]))
+            logging.warning("%s is already the owner of the %s" % (principal_identity[0]["attributes"]["sAMAccountName"], target_identity[0]["attributes"]["distinguishedName"]))
             return
 
         logging.info("Changing current owner %s to %s" % (target_identity_owner, principal_identity[0]["attributes"]["objectSid"]))
