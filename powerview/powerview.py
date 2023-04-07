@@ -977,26 +977,26 @@ class PowerView:
 
         return entries
 
-    def add_domaincatemplateacl(self, name, targetidentity, rights=None, ca_fetch=None, args=None):
+    def add_domaincatemplateacl(self, name, principalidentity, rights=None, ca_fetch=None, args=None):
         if not rights:
             if args and hasattr(args, 'rights') and args.rights:
                 rights = args.rights
             else:
                 rights = 'all'
 
-        target_identity = self.get_domainobject(identity=targetidentity, properties=[
+        principal_identity = self.get_domainobject(identity=principalidentity, properties=[
             'objectSid',
             'distinguishedName',
             'sAMAccountName'
         ])
-        if len(target_identity) > 1:
+        if len(principal_identity) > 1:
             logging.error("[Add-DomainCATemplateAcl] More than one target identity found")
             return
-        elif len(target_identity) == 0:
+        elif len(principal_identity) == 0:
             logging.error("[Add-DomainCATemplateAcl] Target identity not found in domain")
             return
 
-        logging.debug(f"[Add-DomainCATemplateAcl] Found target identity {target_identity[0].get('attributes').get('sAMAccountName')}")
+        logging.debug(f"[Add-DomainCATemplateAcl] Found target identity {principal_identity[0].get('attributes').get('sAMAccountName')}")
 
         if not ca_fetch:
             ca_fetch = CAEnum(self.ldap_session, self.root_dn)
@@ -1010,8 +1010,10 @@ class PowerView:
             logging.error("[Add-DomainCATemplateAcl] Multiple templates found")
             return
 
+        logging.debug(f"[Add-DomainCATemplateAcle] Template {name} exists")
+
         template_parser = PARSE_TEMPLATE(template[0])
-        secDesc = template_parser.modify_dacl(target_identity[0].get('attributes').get('objectSid'), rights)
+        secDesc = template_parser.modify_dacl(principal_identity[0].get('attributes').get('objectSid'), rights)
         succeed = self.set_domainobject(  
                                 name,
                                 _set = {
@@ -1134,8 +1136,9 @@ class PowerView:
 
         # set acl for the template
         if not args.duplicate:
-            logging.debug("Modifying template ACL")
-            if not self.add_domaincatemplateacl(name,'bala',ca_fetch=ca_fetch):
+            cur_user = self.conn.who_am_i().split('\\')[1]
+            logging.debug("[Add-DomainCATemplate] Modifying template ACL for current user")
+            if not self.add_domaincatemplateacl(name,cur_user,ca_fetch=ca_fetch):
                 logging.debug("[Add-DomainCATemplate] Failed to modify template ACL. Skipping...")
 
         # issue certificate
