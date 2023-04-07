@@ -1359,19 +1359,19 @@ class PowerView:
             sd_flag=0x01,
         )
         if len(target_identity) > 1:
-            logging.error("More than one target identity found")
+            logging.error("[Set-DomainObjectOwner] More than one target identity found")
             return
         elif len(target_identity) == 0:
-            logging.error("Target identity not found in domain")
+            logging.error("[Set-DomainObjectOwner] Target identity not found in domain")
             return
 
         # verify that the principalidentity exists
         principal_identity = self.get_domainobject(identity=principalidentity)
         if len(principal_identity) > 1:
-            logging.error("More than one principal identity found")
+            logging.error("[Set-DomainObjectOwner] More than one principal identity found")
             return
         elif len(principal_identity) == 0:
-            logging.error("Principal identity not found in domain")
+            logging.error("[Set-DomainObjectOwner] Principal identity not found in domain")
             return
 
         # create changeowner object
@@ -1395,12 +1395,11 @@ class PowerView:
         )
 
         if not succeeded:
-            logging.error(self.ldap_session.result['message'])
+            logging.error(f"Error modifying object owner ({self.ldap_session.result['description']})")
         else:
             logging.info(f'Success! modified owner for {target_identity[0]["attributes"]["distinguishedName"]}')
 
         return succeeded
-        return None
 
     def set_domaincatemplate(self, identity, args=None):
         if not args or not identity:
