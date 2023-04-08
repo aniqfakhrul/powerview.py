@@ -1379,10 +1379,10 @@ class PowerView:
         target_identity_owner = chown.read()
 
         if target_identity_owner == principal_identity[0]["attributes"]["objectSid"]:
-            logging.warning("%s is already the owner of the %s" % (principal_identity[0]["attributes"]["sAMAccountName"], target_identity[0]["attributes"]["distinguishedName"]))
+            logging.warning("[Set-DomainObjectOwner] %s is already the owner of the %s" % (principal_identity[0]["attributes"]["sAMAccountName"], target_identity[0]["attributes"]["distinguishedName"]))
             return
 
-        logging.info("Changing current owner %s to %s" % (target_identity_owner, principal_identity[0]["attributes"]["objectSid"]))
+        logging.info("[Set-DomainObjectOwner] Changing current owner %s to %s" % (target_identity_owner, principal_identity[0]["attributes"]["objectSid"]))
 
         new_secdesc = chown.modify_securitydescriptor(principal_identity[0])
 
@@ -1395,26 +1395,26 @@ class PowerView:
         )
 
         if not succeeded:
-            logging.error(f"Error modifying object owner ({self.ldap_session.result['description']})")
+            logging.error(f"[Set-DomainObjectOwner] Error modifying object owner ({self.ldap_session.result['description']})")
         else:
-            logging.info(f'Success! modified owner for {target_identity[0]["attributes"]["distinguishedName"]}')
+            logging.info(f'[Set-DomainObjectOwner] Success! modified owner for {target_identity[0]["attributes"]["distinguishedName"]}')
 
         return succeeded
 
     def set_domaincatemplate(self, identity, args=None):
         if not args or not identity:
-            logging.error("No identity or args supplied")
+            logging.error("[Set-DomainCATemplate] No identity or args supplied")
             return
 
         ca_fetch = CAEnum(self.ldap_session, self.root_dn)
         target_template = ca_fetch.get_certificate_templates(identity=identity, properties=['*'])
         if len(target_template) == 0:
-            logging.error("No template found")
+            logging.error("[Set-DomainCATemplate] No template found")
             return False
         elif len(target_template) > 1:
-            logging.error('More than one template found')
+            logging.error('[Set-DomainCATemplate] More than one template found')
             return False
-        logging.info(f'Found template dn {target_template[0].entry_dn}')
+        logging.info(f'[Set-DomainCATempalte] Found template dn {target_template[0].entry_dn}')
 
         attr_key = ""
         attr_val = []
@@ -1432,12 +1432,12 @@ class PowerView:
                 for val in attrs['value']:
                     try:
                         if val in target_template[0][attrs['attribute']]:
-                            logging.error(f"Value {val} already set in the attribute "+attrs['attribute'])
+                            logging.error(f"[Set-DomainCATemplate] Value {val} already set in the attribute "+attrs['attribute'])
                             return
                     except KeyError as e:
-                        logging.debug("Attribute %s not found in template" % attrs['attribute'])
+                        logging.debug("[Set-DomainCATemplate] Attribute %s not found in template" % attrs['attribute'])
             except ldap3.core.exceptions.LDAPKeyError as e:
-                logging.error(f"Key {attrs['attribute']} not found in template attribute. Adding anyway...")
+                logging.error(f"[Set-DomainCATemplate] Key {attrs['attribute']} not found in template attribute. Adding anyway...")
 
             if args.append:
                 temp_list = []
@@ -1463,7 +1463,7 @@ class PowerView:
         if not succeeded:
             logging.error(self.ldap_session.result['message'])
         else:
-            logging.info(f'Success! modified attribute for {identity} template')
+            logging.info(f'[Set-DomainCATemplate] Success! modified attribute for {identity} template')
 
         return succeeded
 
@@ -1471,10 +1471,10 @@ class PowerView:
         group_entry = self.get_domaingroup(identity=identity,properties=['distinguishedName'])
         user_entry = self.get_domainobject(identity=members,properties=['distinguishedName'])
         if len(group_entry) == 0:
-            logging.error(f'Group {identity} not found in domain')
+            logging.error(f'[Add-DomainGroupMember] Group {identity} not found in domain')
             return
         if len(user_entry) == 0:
-            logging.error(f'User {members} not found in domain. Try to use DN')
+            logging.error(f'[Add-DomainGroupMember] User {members} not found in domain. Try to use DN')
             return
         targetobject = group_entry[0]
         userobject = user_entry[0]
@@ -1497,21 +1497,21 @@ class PowerView:
             zonename = args.zonename.lower()
         else:
             zonename = self.domain.lower()
-            logging.debug("Using current domain %s as zone name" % zonename)
+            logging.debug("[Remove-DomainDNSRecord] Using current domain %s as zone name" % zonename)
 
         zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
         if zonename not in zones:
-            logging.info("Zone %s not found" % zonename)
+            logging.info("[Remove-DomainDNSRecord] Zone %s not found" % zonename)
             return
 
 
         entry = self.get_domaindnsrecord(identity=identity, zonename=zonename)
 
         if len(entry) == 0:
-            logging.info("No record found")
+            logging.info("[Remove-DomainDNSRecord] No record found")
             return
         elif len(entry) > 1:
-            logging.info("More than one record found")
+            logging.info("[Remove-DomainDNSRecord] More than one record found")
 
         record_dn = entry[0]["attributes"]["distinguishedName"]
 
@@ -1520,17 +1520,17 @@ class PowerView:
             logging.error(self.ldap_session.result['message'])
             return False
         else:
-            logging.info("Success! Deleted the record")
+            logging.info("[Remove-DomainDNSRecord] Success! Deleted the record")
             return True
 
     def remove_domaingroupmember(self, identity, members, args=None):
         group_entry = self.get_domaingroup(identity=identity,properties=['distinguishedName'])
         user_entry = self.get_domainobject(identity=members,properties=['distinguishedName'])
         if len(group_entry) == 0:
-            logging.error(f'Group {identity} not found in domain')
+            logging.error(f'[Remove-DomainGroupmember] Group {identity} not found in domain')
             return
         if len(user_entry) == 0:
-            logging.error(f'User {members} not found in domain, Try to use DN')
+            logging.error(f'[Remove-DomainGroupMember] User {members} not found in domain, Try to use DN')
             return
         targetobject = group_entry[0]
         userobject = user_entry[0]
@@ -1550,11 +1550,11 @@ class PowerView:
 
     def remove_domainuser(self, identity):
         if not identity:
-            logging.error('Identity is required')
+            logging.error('[Remove-DomainUser] Identity is required')
             return
         entries = self.get_domainuser(identity=identity)
         if len(entries) == 0:
-            logging.error('Identity not found in domain')
+            logging.error('[Remove-DomainUser] Identity not found in domain')
             return
         identity_dn = entries[0]["attributes"]["distinguishedName"]
         au = ADUser(self.ldap_session, self.root_dn)
@@ -1565,14 +1565,14 @@ class PowerView:
         if args.basedn:
             entries = self.get_domainobject(identity=args.basedn)
             if len(entries) <= 0:
-                logging.error(f"{args.basedn} could not be found in the domain")
+                logging.error(f"[Add-DomainUser] {args.basedn} could not be found in the domain")
                 return
             parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
 
         if len(parent_dn_entries) == 0:
-            logging.error('Users parent DN not found in domain')
+            logging.error('[Add-DomainUser] Users parent DN not found in domain')
             return
-        logging.debug(f"Adding user in {parent_dn_entries}")
+        logging.debug(f"[Add-DomainUser] Adding user in {parent_dn_entries}")
         au = ADUser(self.ldap_session, self.root_dn, parent = parent_dn_entries)
         if au.addUser(username, userpass):
             return True
