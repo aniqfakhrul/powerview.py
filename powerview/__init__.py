@@ -3,6 +3,7 @@ from powerview.powerview import PowerView
 from powerview.utils.helpers import *
 from powerview.utils.native import *
 from powerview.utils.formatter import FORMATTER
+from powerview.utils.logging import CustomFormatter, setup_logger
 from powerview.utils.completer import Completer
 from powerview.utils.colors import bcolors
 from powerview.utils.connections import CONNECTION
@@ -11,7 +12,6 @@ from powerview.utils.parsers import powerview_arg_parse, arg_parse
 from impacket.examples import logger
 
 import ldap3
-import logging
 import json
 import random
 import string
@@ -23,9 +23,6 @@ else:
     import readline
 
 def main():
-    # logger properties
-    logging.getLogger().setLevel(logging.INFO)
-
     args = arg_parse()
 
     domain, username, password, lmhash, nthash, ldap_address = parse_identity(args)
@@ -36,15 +33,10 @@ def main():
     setattr(args,'lmhash',lmhash)
     setattr(args,'nthash', nthash)
     setattr(args, 'ldap_address', ldap_address)
-    if not args.dc_ip:
-        setattr(args,'dc_ip', ldap_address)
-        setattr(args,'init_ldap_address', ldap_address)
-    else:
-        setattr(args,'dc_ip', args.dc_ip)
-        setattr(args,'init_ldap_address', args.dc_ip)
 
     try:
         conn = CONNECTION(args)
+        init_ldap_address = args.ldap_address
 
         powerview = PowerView(conn, args)
         init_proto = conn.get_proto()
@@ -75,20 +67,21 @@ def main():
                     if pv_args:
                         if pv_args.server and pv_args.server != args.domain:
                             if args.use_kerberos:
-                                logging.error("Kerberos authentication doesn't support cross-domain targetting (Coming Soon?)")
-                                continue
-                            logging.warning(f"Cross-domain targetting might be unstable or slow depending on network stability")
-                            foreign_dc_address = get_principal_dc_address(pv_args.server,args.dc_ip)
-                            if foreign_dc_address is not None:
-                                conn.set_ldap_address(foreign_dc_address)
-                                temp_powerview = PowerView(conn, args)
+                                ldap_address = pv_args.server
                             else:
+                                ldap_address = get_principal_dc_address(pv_args.server, args.nameserver)
+                            
+                            conn.set_ldap_address(ldap_address)
+                            conn.set_targetDomain(pv_args.server)
+                            
+                            try:
+                                temp_powerview = PowerView(conn, args, target_domain=pv_args.server)
+                            except:
                                 logging.error(f'Domain {pv_args.server} not found or probably not alive')
                                 continue
 
                         try:
                             entries = None
-
                             if pv_args.module.casefold() == 'get-domain' or pv_args.module.casefold() == 'get-netdomain':
                                 properties = pv_args.properties.strip(" ").split(',')
                                 identity = pv_args.identity.strip()
@@ -112,9 +105,9 @@ def main():
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainobjectacl(pv_args)
+                                    entries = temp_powerview.get_domainobjectacl(args=pv_args)
                                 else:
-                                    entries = powerview.get_domainobjectacl(pv_args)
+                                    entries = powerview.get_domainobjectacl(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
                                 properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
@@ -145,6 +138,16 @@ def main():
                                     entries = temp_powerview.get_domaingroupmember(pv_args, identity)
                                 else:
                                     entries = powerview.get_domaingroupmember(pv_args, identity)
+                            elif pv_args.module.casefold() == 'get-domainforeigngroupmember' or pv_args.module.casefold() == 'find-foreigngroup':
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domainforeigngroupmember(pv_args)
+                                else:
+                                    entries = powerview.get_domainforeigngroupmember(pv_args)
+                            elif pv_args.module.casefold() == 'get-domainforeignuser' or pv_args.module.casefold() == 'find-foreignuser':
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domainforeignuser(pv_args)
+                                else:
+                                    entries = powerview.get_domainforeignuser(pv_args)
                             elif pv_args.module.casefold() == 'get-domaincontroller' or pv_args.module.casefold() == 'get-netdomaincontroller':
                                 properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
@@ -200,6 +203,34 @@ def main():
                                     entries = temp_powerview.get_domaincatemplate(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domaincatemplate(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'remove-domaincatemplate' or pv_args.module.casefold() == 'remove-catemplate':
+                                if not pv_args.template_name:
+                                    logging.error("-TemplateName flag is required")
+                                    continue
+
+                                if temp_powerview:
+                                    temp_powerview.remove_domaincatemplate(identity=pv_args.template_name, args=pv_args)
+                                else:
+                                    powerview.remove_domaincatemplate(identity=pv_args.template_name, args=pv_args)
+                            elif pv_args.module.casefold() == 'add-domaincatemplate' or pv_args.module.casefold() == 'add-catemplate':
+                                if pv_args.displayname is None:
+                                    logging.error("-DisplayName flag is required")
+                                    continue
+
+                                displayname = pv_args.displayname
+                                name = pv_args.name
+                                if temp_powerview:
+                                    temp_powerview.add_domaincatemplate(displayname, name, args=pv_args)
+                                else:
+                                    powerview.add_domaincatemplate(displayname, name, args=pv_args)
+                            elif pv_args.module.casefold() == 'add-domaincatemplateacl' or pv_args.module.casefold() == 'add-catemplateacl':
+                                if pv_args.template is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
+                                    if temp_powerview:
+                                        temp_powerview.add_domaincatemplateacl(pv_args.template, pv_args.principalidentity, args=pv_args)
+                                    else:
+                                        powerview.add_domaincatemplateacl(pv_args.template, pv_args.principalidentity, args=pv_args)
+                                else:
+                                    logging.error('-TargetIdentity , -PrincipalIdentity and -Rights flags are required')
                             elif pv_args.module.casefold() == 'get-domaintrust' or pv_args.module.casefold() == 'get-nettrust':
                                 properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
@@ -293,14 +324,10 @@ def main():
                                     logging.error('-Identity and -Members flags required')
                             elif pv_args.module.casefold() == 'set-domainobject' or pv_args.module.casefold() == 'set-adobject':
                                 if pv_args.identity and (pv_args.clear or pv_args.set or pv_args.append):
-                                    succeed = False
                                     if temp_powerview:
-                                        succeed = temp_powerview.set_domainobject(pv_args.identity, pv_args)
+                                        succeed = temp_powerview.set_domainobject(pv_args.identity, args=pv_args)
                                     else:
-                                        succeed = powerview.set_domainobject(pv_args.identity, pv_args)
-
-                                    if succeed:
-                                        logging.info('Object modified successfully')
+                                        succeed = powerview.set_domainobject(pv_args.identity, args=pv_args)
                                 else:
                                     logging.error('-Identity and [-Clear][-Set][-Append] flags required')
                             elif pv_args.module.casefold() == 'set-domaindnsrecord':
@@ -313,14 +340,10 @@ def main():
                                     powerview.set_domaindnsrecord(pv_args)
                             elif pv_args.module.casefold() == 'set-domaincatemplate' or pv_args.module.casefold() == 'set-catemplate':
                                 if pv_args.identity and (pv_args.clear or pv_args.set or pv_args.append):
-                                    succeed = False
                                     if temp_powerview:
-                                        succeed = temp_powerview.set_domaincatemplate(pv_args.identity, pv_args)
+                                        temp_powerview.set_domaincatemplate(pv_args.identity, pv_args)
                                     else:
-                                        succeed = powerview.set_domaincatemplate(pv_args.identity, pv_args)
-
-                                    if succeed:
-                                        logging.info('Template modified successfully')
+                                        powerview.set_domaincatemplate(pv_args.identity, pv_args)
                                 else:
                                     logging.error('-Identity and [-Clear][-Set|-Append] flags required')
                             elif pv_args.module.casefold() == 'set-domainuserpassword':
@@ -437,7 +460,8 @@ def main():
                                         formatter.print(entries)
 
                             temp_powerview = None
-                            conn.set_ldap_address(args.init_ldap_address)
+                            conn.set_ldap_address(init_ldap_address)
+                            conn.set_targetDomain(None)
                         except ldap3.core.exceptions.LDAPInvalidFilterError as e:
                             logging.error(str(e))
                         except ldap3.core.exceptions.LDAPAttributeError as e:
@@ -456,8 +480,8 @@ def main():
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("Connection dead")
                 conn.reset_connection()
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
 
             if args.query:
                 sys.exit(0)

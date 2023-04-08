@@ -10,7 +10,6 @@ from powerview.utils.helpers import (
     host2ip,
     is_valid_fqdn,
 )
-from powerview.utils.colors import bcolors
 from powerview.lib.resolver import (
     LDAP,
 )
@@ -28,8 +27,6 @@ class CONNECTION:
         self.lmhash = args.lmhash
         self.nthash = args.nthash
         self.use_kerberos = args.use_kerberos
-        self.dc_ip = args.dc_ip
-        self.ldap_address = args.ldap_address
         self.use_ldap = args.use_ldap
         self.use_ldaps = args.use_ldaps
         self.use_gc = args.use_gc
@@ -40,13 +37,33 @@ class CONNECTION:
         if self.auth_aes_key is not None:
             self.use_kerberos = True
         self.no_pass = args.no_pass
-        self.args = args
-        self.targetIp = args.ldap_address
-        self.kdcHost = args.dc_ip
+        self.nameserver = args.nameserver
+
+        if is_valid_fqdn(args.ldap_address) and self.nameserver:
+            _ldap_address = host2ip(args.ldap_address, nameserver=self.nameserver, dns_timeout=5)
+            if not _ldap_address:
+                logging.error("Couldn't resolve %s" % args.ldap_address)
+                sys.exit(0)
+            self.targetIp = _ldap_address
+            self.ldap_address = _ldap_address
+            args.ldap_address = _ldap_address
+        else:
+            self.targetIp = args.ldap_address
+            self.ldap_address = args.ldap_address
+
+        if args.dc_ip:
+            self.dc_ip = args.dc_ip
+        else:
+            self.dc_ip = self.targetIp
+            args.dc_ip = self.dc_ip
+       
+        self.kdcHost = self.dc_ip
+        self.targetDomain = None
 
         if not self.use_ldap and not self.use_ldaps and not self.use_gc and not self.use_gc_ldaps:
             self.use_ldaps = True
 
+        self.args = args
         self.ldap_session = None
         self.ldap_server = None
 
@@ -60,6 +77,12 @@ class CONNECTION:
 
     def get_domain(self):
         return self.domain
+
+    def set_targetDomain(self, targetDomain):
+        self.targetDomain = targetDomain
+
+    def get_targetDomain(self):
+        return self.targetDomain
 
     def set_username(self, username):
         self.username = username
@@ -98,13 +121,27 @@ class CONNECTION:
     def reset_connection(self):
         self.ldap_session.bind()
 
-    def init_ldap_session(self):
+    def init_ldap_session(self, ldap_address=None, use_ldap=False, use_gc_ldap=False):
+
+        if self.targetDomain and self.targetDomain != self.domain and self.kdcHost:
+            self.kdcHost = None
+
+        if use_ldap or use_gc_ldap:
+            self.use_ldaps = False
+            self.use_gc_ldaps = False
+
         if self.use_kerberos:
-            target = get_machine_name(self.args, self.domain)
-            self.kdcHost = target
-            #target = get_machine_name(self.args, self.domain)
+            if ldap_address:
+                target = get_machine_name(ldap_address)
+            else:
+                target = get_machine_name(self.ldap_address)
         else:
-            if self.ldap_address is not None:
+            if ldap_address:
+                if is_valid_fqdn(ldap_address) and self.nameserver:
+                    target = host2ip(ldap_address, nameserver=self.nameserver)
+                else:
+                    target = ldap_address
+            elif self.ldap_address is not None:
                 target = self.ldap_address
             else:
                 target = self.domain
@@ -115,7 +152,6 @@ class CONNECTION:
             _anonymous = True
 
         if self.use_ldaps is True or self.use_gc_ldaps is True:
-            logging.debug("No protocol provided. Trying LDAPS")
             try:
                 tls = ldap3.Tls(
                     validate=ssl.CERT_NONE,
@@ -141,11 +177,11 @@ class CONNECTION:
                     return self.ldap_server, self.ldap_session
                 except:
                     if self.use_ldaps:
-                        logging.warning('Error bind to LDAPS, trying LDAP')
+                        logging.debug('Error bind to LDAPS, trying LDAP')
                         self.use_ldap = True
                         self.use_ldaps = False
                     elif self.use_gc_ldaps:
-                        logging.warning('Error bind to GS ssl, trying GC')
+                        logging.debug('Error bind to GS ssl, trying GC')
                         self.use_gc = True
                         self.use_gc_ldaps = False
                     return self.init_ldap_session()
@@ -205,7 +241,7 @@ class CONNECTION:
             logging.info("ANONYMOUS access not allowed")
             sys.exit(0)
         else:
-            logging.info(f"{bcolors.WARNING}Server allows ANONYMOUS access!{bcolors.ENDC}")
+            logging.warning("Server allows ANONYMOUS access!")
             return ldap_server, ldap_session
 
     def init_ldap_connection(self, target, tls, domain, username, password, lmhash, nthash):
@@ -257,7 +293,7 @@ class CONNECTION:
             ldap_session = ldap3.Connection(ldap_server, auto_referrals=False)
             bind = ldap_session.bind()
             try:
-                self.ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, self.auth_aes_key, kdcHost=self.kdcHost,useCache=self.no_pass)
+                self.ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, self.auth_aes_key, kdcHost=self.kdcHost, useCache=self.no_pass)
             except Exception as e:
                 logging.error(str(e))
                 sys.exit(0)
@@ -272,7 +308,7 @@ class CONNECTION:
         if not bind:
             # check if signing is enforced
             if "strongerAuthRequired" in str(ldap_session.result):
-                logging.error(f"{bcolors.WARNING}LDAP signing is enforced{bcolors.ENDC}")
+                logging.warning("LDAP signing is enforced!")
 
             error_code = ldap_session.result['message'].split(",")[2].replace("data","").strip()
             error_status = LDAP.resolve_err_status(error_code)
@@ -284,8 +320,8 @@ class CONNECTION:
 
             sys.exit(0)
         else:
-            logging.debug(f"{bcolors.WARNING}LDAP Signing NOT Enforced!{bcolors.ENDC}")
-            logging.debug(f"{bcolors.OKGREEN}Bind SUCCESS!{bcolors.ENDC}")
+            logging.warning("LDAP Signing NOT Enforced!")
+            logging.debug("Bind SUCCESS!")
 
         return ldap_server, ldap_session
 
@@ -387,7 +423,7 @@ class CONNECTION:
             cipher = self.TGT['cipher']
             sessionKey = self.TGT['sessionKey']
 
-        if not self.TGS:
+        if TGS is None:
             serverName = Principal('ldap/%s' % target, type=constants.PrincipalNameType.NT_SRV_INST.value)
             tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey)
             self.TGS['KDC_REP'] = tgs

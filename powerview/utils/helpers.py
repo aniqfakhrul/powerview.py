@@ -18,6 +18,7 @@ from ldap3.utils.conv import escape_filter_chars
 import re
 import configparser
 import validators
+import random
 
 from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
@@ -32,6 +33,19 @@ from impacket.krb5.kerberosv5 import getKerberosTGT
 from powerview.lib.dns import (
     STORED_ADDR
 )
+
+def get_random_hex(length):
+    hex_string = '0123456789ABCDEF'
+    return ''.join([random.choice(hex_string) for x in range(length)])
+
+def get_random_num(minimum,maximum):
+    return random.randint(minimum,maximum)
+
+def dn2rootdn(value):
+    return ','.join(re.findall(r"(DC=[\w-]+)", value))
+
+def dn2domain(value):
+    return '.'.join(re.findall(r'DC=([\w-]+)',value)).lower()
 
 def get_user_sids(domain_sid, objectsid):
     user_sids = []
@@ -277,9 +291,9 @@ def resolve_domain(domain, nameserver):
         logging.error(str(e))
     return answer
 
-def get_machine_name(args, domain):
-    if args.dc_ip is not None:
-        s = SMBConnection(args.dc_ip, args.dc_ip)
+def get_machine_name(domain, args=None):
+    if args and args.ldap_address is not None:
+        s = SMBConnection(args.ldap_address, args.dc_ip)
     else:
         s = SMBConnection(domain, domain)
     try:
@@ -327,7 +341,7 @@ def get_user_info(samname, ldap_session, domain_dumper):
         return False
 
 
-def host2ip(hostname, nameserver,dns_timeout,dns_tcp):
+def host2ip(hostname, nameserver, dns_timeout=10, dns_tcp=True):
     hostname = str(hostname)
     if hostname in list(STORED_ADDR.keys()):
         return STORED_ADDR[hostname]
@@ -339,7 +353,10 @@ def host2ip(hostname, nameserver,dns_timeout,dns_tcp):
     dnsresolver.lifetime = float(dns_timeout)
     try:
         q = dnsresolver.query(hostname, 'A', tcp=dns_tcp)
+        addr = None
         for r in q:
+            if addr:
+                break
             addr = r.address
         STORED_ADDR[hostname] = addr
         return addr
@@ -353,7 +370,7 @@ def host2ip(hostname, nameserver,dns_timeout,dns_tcp):
         logging.debug(str(e))
         return None
 
-def get_dc_host(ldap_session, domain_dumper,options):
+def get_dc_host(ldap_session, domain_dumper, options):
     dc_host = {}
     ldap_session.search(domain_dumper.root, '(&(objectCategory=Computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))',
             attributes=['name','dNSHostName'])
@@ -361,7 +378,7 @@ def get_dc_host(ldap_session, domain_dumper,options):
         for host in ldap_session.entries:
             dc_host[str(host['name'])] = {}
             dc_host[str(host['name'])]['dNSHostName'] = str(host['dNSHostName'])
-            host_ip = host2ip(str(host['dNSHostName']), options.dc_ip, 3, True)
+            host_ip = host2ip(str(host['dNSHostName']), options.nameserver, 3, True)
             if host_ip:
                 dc_host[str(host['name'])]['HostIP'] = host_ip
             else:

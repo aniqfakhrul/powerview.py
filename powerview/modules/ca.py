@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import logging
 from impacket.ldap import ldaptypes
-from impacket.uuid import bin_to_string
+from impacket.uuid import bin_to_string, string_to_bin
 from ldap3.protocol.formatters.formatters import format_sid
 from ldap3.protocol.microsoft import security_descriptor_control
 import socket
@@ -10,7 +10,9 @@ from powerview.utils.helpers import (
     is_admin_sid,
     filetime_to_str,
     get_user_sids,
-    host2ip
+    host2ip,
+    get_random_num,
+    get_random_hex,
 )
 from powerview.utils.constants import (
     ACTIVE_DIRECTORY_RIGHTS,
@@ -88,14 +90,31 @@ class CAEnum:
 
         return self.ldap_session.entries
 
-    def get_certificate_templates(self, properties, identity=None):
-        ca_search_base = f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
-
+    def get_certificate_templates(self, properties=None, ca_search_base=None, identity=None):
+        if not properties:
+            properties = [
+                "objectClass",
+                "cn",
+                "distinguishedName",
+                "name",
+                "displayName",
+                "pKIExpirationPeriod",
+                "pKIOverlapPeriod",
+                "msPKI-Enrollment-Flag",
+                "msPKI-Private-Key-Flag",
+                "msPKI-Certificate-Name-Flag",
+                "msPKI-Cert-Template-OID",
+                "msPKI-RA-Signature",
+                "pKIExtendedKeyUsage",
+                "nTSecurityDescriptor",
+                "objectGUID",
+            ]
+        ca_search_base = f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}" if not ca_search_base else ca_search_base
         search_filter = ""
         identity_filter = ""
 
         if identity:
-            identity_filter = f"(|(cn={identity}))"
+            identity_filter = f"(|(cn={identity})(displayName={identity}))"
 
         search_filter = f"(&(objectclass=pkicertificatetemplate){identity_filter})"
 
@@ -111,9 +130,9 @@ class CAEnum:
         return self.ldap_session.entries
 
     # https://github.com/ly4k/Certipy/blob/main/certipy/commands/find.py#L688
-    def check_web_enrollment(self, target, dc_ip, timeout=5, use_ip=False):
-        if use_ip:
-            target = host2ip(target, dc_ip, 3, True)
+    def check_web_enrollment(self, target, nameserver=None, timeout=5, use_ip=False):
+        if use_ip and nameserver:
+            target = host2ip(target, nameserver, 3, True)
 
         if target is None:
             logging.debug("No target found")
@@ -376,6 +395,43 @@ class PARSE_TEMPLATE:
 
         return vulns
 
+    def create_object_ace(self,privguid,sid, mask=983551):
+        nace = ldaptypes.ACE()
+        nace['AceType'] = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ACE_TYPE
+        nace['AceFlags'] = 0x02 # inherit to child objects
+        acedata = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE()
+        acedata['Mask'] = ldaptypes.ACCESS_MASK()
+        acedata['Mask']['Mask'] = mask # Full control
+        acedata['ObjectType'] = string_to_bin(privguid)
+        acedata['InheritedObjectType'] = b''
+        acedata['Sid'] = ldaptypes.LDAP_SID()
+        acedata['Sid'].fromCanonical(sid)
+        assert sid == acedata['Sid'].formatCanonical()
+        acedata['Flags'] = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ACE_OBJECT_TYPE_PRESENT
+        nace['Ace'] = acedata
+        return nace
+        
+    def modify_dacl(self, sid, right_opt):
+        permissions = {
+                'all': {
+                        'rights': [EXTENDED_RIGHTS_NAME_MAP["Enroll"], EXTENDED_RIGHTS_NAME_MAP["AutoEnroll"], EXTENDED_RIGHTS_NAME_MAP["All-Extended-Rights"]],
+                        'mask': CERTIFICATE_RIGHTS.GENERIC_ALL,
+                    },
+                'enroll': {
+                        'rights':[EXTENDED_RIGHTS_NAME_MAP["Enroll"], EXTENDED_RIGHTS_NAME_MAP["AutoEnroll"]],
+                        'mask': CERTIFICATE_RIGHTS.GENERIC_ALL,
+                    },
+                'write': {
+                        'rights':[EXTENDED_RIGHTS_NAME_MAP["Enroll"], EXTENDED_RIGHTS_NAME_MAP["AutoEnroll"]],
+                        'mask':CERTIFICATE_RIGHTS.GENERIC_ALL,
+                    }
+                }
+        sdData = self.template["nTSecurityDescriptor"].raw_values[0]
+        security = CertificateSecurity(sdData)
+        for guid in permissions.get(right_opt).get('rights'):
+            security.sd['Dacl']['Data'].append(self.create_object_ace(guid, sid, mask=permissions.get(right_opt).get('mask')))
+        return security.sd.getData() 
+
     def parse_dacl(self):
         user_can_enroll = False
         enrollment_rights = []
@@ -435,3 +491,17 @@ class PARSE_TEMPLATE:
         self.parsed_dacl['Extended Rights'] = all_extended_rights
 
         return self.parsed_dacl
+
+class UTILS:
+    @staticmethod
+    def get_template_oid(oid_forest):
+        oid_part_1 = get_random_num(10000000,99999999)
+        oid_part_2 = get_random_num(10000000,99999999)
+        oid_part_3 = get_random_hex(32)
+        
+        template_oid = f"{oid_forest}.{oid_part_1}.{oid_part_2}"
+        templatename = f"{oid_part_2}.{oid_part_3}"
+
+        return template_oid, templatename
+        
+
