@@ -68,7 +68,7 @@ class PowerView:
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
         self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
 
-    def get_domainuser(self, args=None, properties=[], identity=None):
+    def get_domainuser(self, args=None, properties=[], identity=None, searchbase=None):
         def_prop = [
             'servicePrincipalName',
             'objectCategory',
@@ -97,7 +97,8 @@ class PowerView:
 
         properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
-        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
 
         ldap_filter = ""
         identity_filter = f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
@@ -836,11 +837,12 @@ class PowerView:
             print("%s" % identity)
         return identity
 
-    def get_domain(self, args=None, properties=['*'], identity=None):
+    def get_domain(self, args=None, properties=['*'], identity=None, searchbase=None):
         identity = '*' if not identity else identity
 
         identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
-        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
         ldap_filter = ""
 
         if args:
@@ -860,7 +862,7 @@ class PowerView:
             entries.append({"attributes":_entries["attributes"]})
         return entries
 
-    def get_domaindnszone(self, identity=None, properties=[], args=None):
+    def get_domaindnszone(self, identity=None, properties=[], searchbase=None, args=None):
         def_prop = [
             'objectClass',
             'cn',
@@ -877,15 +879,17 @@ class PowerView:
 
         properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
+        
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}" 
 
         identity_filter = f"(name={identity})"
         ldap_filter = f"(&(objectClass=dnsZone){identity_filter})"
-        search_base = f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
 
         logging.debug(f"[Get-DomainDNSZone] LDAP filter string: {ldap_filter}")
 
         entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(search_base,ldap_filter,attributes=properties,paged_size = 1000,generator=True)
+        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties,paged_size = 1000,generator=True)
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
@@ -893,7 +897,7 @@ class PowerView:
             entries.append({"attributes":_entries["attributes"]})
         return entries
 
-    def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], args=None):
+    def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], searchbase=None, args=None):
         def_prop = [
             'name',
             'distinguishedName',
@@ -906,8 +910,10 @@ class PowerView:
 
         zonename = '*' if not zonename else zonename
         identity = '*' if not identity else identity
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}" 
 
-        zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'])
+        zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'], searchbase=searchbase)
         entries = []
         identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
         ldap_filter = f'(&(objectClass=dnsNode){identity_filter})'
@@ -979,6 +985,27 @@ class PowerView:
                 )
 
         return entries
+
+    def remove_domaincatemplate(self, identity, searchbase=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
+        ca_fetch = CAEnum(self.ldap_session, self.root_dn)
+        templates = ca_fetch.get_certificate_templates(identity=identity, ca_search_base=searchbase)
+        if len(templates) > 1:
+            logging.error(f"[Remove-DomainCATemplate] Multiple certificates found with name {identity}")
+            return
+        if len(templates) == 0:
+            logging.error(f"[Remove-DomainCATemplate] Template {identity} not found in domain")
+            return
+
+        # delete operation
+        succeeded = self.ldap_session.delete(templates[0].entry_dn)
+        if succeeded:
+            logging.info(f"[Remove-DomainCATemplate] {identity} template deleted")
+            return True
+        else:
+            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainCATemplate] Failed to delete template {identity}")
+            return False
 
     def add_domaincatemplateacl(self, name, principalidentity, rights=None, ca_fetch=None, args=None):
         if not rights:
@@ -1061,22 +1088,22 @@ class PowerView:
             default_template = {
                 'DisplayName': displayname,
                 'name': name,
-                'msPKI-Certificate-Name-Flag' : int(entries[0]['msPKI-Certificate-Name-Flag'].value) if entries[0].get('msPKI-Certificate-Name-Flag') else 1,
-                'msPKI-Enrollment-Flag': int(entries[0]['msPKI-Enrollment-Flag'].value) if entries[0].get('msPKI-Enrollment-Flag') else 41,
-                'revision': int(entries[0]['revision'].value) if entries[0].get('revision') else 3,
-                'pKIDefaultKeySpec': int(entries[0]['pKIDefaultKeySpec'].value) if entries[0].get('pKIDefaultKeySpec') else 1,
-                'msPKI-RA-Signature': int(entries[0]['msPKI-RA-Signature'].value) if entries[0].get('msPKI-RA-Signature') else 0,
-                'pKIMaxIssuingDepth': int(entries[0]['pKIMaxIssuingDepth'].value) if entries[0].get('pKIMaxIssuingDepth') else 0,
-                'msPKI-Template-Schema-Version': int(entries[0]['msPKI-Template-Schema-Version'].value) if entries[0].get('msPKI-Template-Schema-Version') else 1,
-                'msPKI-Template-Minor-Revision': int(entries[0]['msPKI-Template-Minor-Revision'].value) if entries[0].get('msPKI-Template-Minor-Revision') else 1,
-                'msPKI-Private-Key-Flag': int(entries[0]['msPKI-Private-Key-Flag'].value) if entries[0].get('msPKI-Private-Key-Flag') else 16842768,
-                'msPKI-Minimal-Key-Size': int(entries[0]['msPKI-Minimal-Key-Size'].value) if entries[0].get('msPKI-Minimal-Key-Size') else 2048,
-                "pKICriticalExtensions": entries[0]['pKICriticalExtensions'].values if entries[0].get('pKICriticalExtensions') else ["2.5.29.19", "2.5.29.15"],
-                "pKIExtendedKeyUsage": entries[0]['pKIExtendedKeyUsage'].values if entries[0].get('pKIExtendedKeyUsage') else ["1.3.6.1.4.1.311.10.3.4","1.3.6.1.5.5.7.3.4","1.3.6.1.5.5.7.3.2"],
+                'msPKI-Certificate-Name-Flag' : int(entries[0]['msPKI-Certificate-Name-Flag'].value) if entries[0]['msPKI-Certificate-Name-Flag'] else 1,
+                'msPKI-Enrollment-Flag': int(entries[0]['msPKI-Enrollment-Flag'].value) if entries[0]['msPKI-Enrollment-Flag'] else 41,
+                'revision': int(entries[0]['revision'].value) if entries[0]['revision'] else 3,
+                'pKIDefaultKeySpec': int(entries[0]['pKIDefaultKeySpec'].value) if entries[0]['pKIDefaultKeySpec'] else 1,
+                'msPKI-RA-Signature': int(entries[0]['msPKI-RA-Signature'].value) if entries[0]['msPKI-RA-Signature'] else 0,
+                'pKIMaxIssuingDepth': int(entries[0]['pKIMaxIssuingDepth'].value) if entries[0]['pKIMaxIssuingDepth'] else 0,
+                'msPKI-Template-Schema-Version': int(entries[0]['msPKI-Template-Schema-Version'].value) if entries[0]['msPKI-Template-Schema-Version'] else 1,
+                'msPKI-Template-Minor-Revision': int(entries[0]['msPKI-Template-Minor-Revision'].value) if entries[0]['msPKI-Template-Minor-Revision'] else 1,
+                'msPKI-Private-Key-Flag': int(entries[0]['msPKI-Private-Key-Flag'].value) if entries[0]['msPKI-Private-Key-Flag'] else 16842768,
+                'msPKI-Minimal-Key-Size': int(entries[0]['msPKI-Minimal-Key-Size'].value) if entries[0]['msPKI-Minimal-Key-Size'] else 2048,
+                "pKICriticalExtensions": entries[0]['pKICriticalExtensions'].values if entries[0]['pKICriticalExtensions'] else ["2.5.29.19", "2.5.29.15"],
+                "pKIExtendedKeyUsage": entries[0]['pKIExtendedKeyUsage'].values if entries[0]['pKIExtendedKeyUsage'] else ["1.3.6.1.4.1.311.10.3.4","1.3.6.1.5.5.7.3.4","1.3.6.1.5.5.7.3.2"],
                 'nTSecurityDescriptor': entries[0]['nTSecurityDescriptor'].raw_values[0],
                 "pKIExpirationPeriod": entries[0]['pKIExpirationPeriod'].raw_values[0],
                 "pKIOverlapPeriod": entries[0]['pKIOverlapPeriod'].raw_values[0],
-                "pKIDefaultCSPs": entries[0]['pKIDefaultCSPs'].value if entries[0].get('pKIDefaultCSPs') else b"1,Microsoft Enhanced Cryptographic Provider v1.0",
+                "pKIDefaultCSPs": entries[0]['pKIDefaultCSPs'].value if entries[0]['pKIDefaultCSPs'] else b"1,Microsoft Enhanced Cryptographic Provider v1.0",
             }
         else:
             default_template = {
@@ -1166,7 +1193,7 @@ class PowerView:
 
         return succeed
 
-    def get_domaincatemplate(self, args=None, properties=[], identity=None):
+    def get_domaincatemplate(self, args=None, properties=[], identity=None, searchbase=None):
         def_prop = [
             "objectClass",
             "cn",
@@ -1186,7 +1213,8 @@ class PowerView:
         ]
 
         identity = '*' if not identity else identity
-        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
         resolve_sids = args.resolve_sids if hasattr(args, 'resolve_sids') and args.resolve_sids else None
         args_enabled = args.enabled if hasattr(args, 'enabled') and args.enabled else False
         args_vulnerable = args.vulnerable if hasattr(args, 'vulnerable') and args.vulnerable else False
@@ -1454,14 +1482,18 @@ class PowerView:
             attr_key = attrs['attribute']
             attr_val = attrs['value']
 
-        succeeded = self.ldap_session.modify(target_template[0].entry_dn, {
-            attr_key:[
-                (ldap3.MODIFY_REPLACE,attr_val)
-            ]
-        })
+        try:
+            succeeded = self.ldap_session.modify(target_template[0].entry_dn, {
+                attr_key:[
+                    (ldap3.MODIFY_REPLACE,attr_val)
+                ]
+            })
+        except ldap3.core.exceptions.LDAPInvalidValueError as e:
+            logging.error(f"[Set-DomainCATemplate] {str(e)}")
+            succeeded = False
 
         if not succeeded:
-            logging.error(self.ldap_session.result['message'])
+            logging.error(self.ldap_session.result if self.args.debug else "[Set-DomainCATemplate] Failed to modify template")
         else:
             logging.info(f'[Set-DomainCATemplate] Success! modified attribute for {identity} template')
 
@@ -1487,9 +1519,15 @@ class PowerView:
             userobject_dn = userobject["attributes"]["distinguishedName"][0]
         else:
             userobject_dn = userobject["attributes"]["distinguishedName"]
-        succeeded = self.ldap_session.modify(targetobject_dn,{'member': [(ldap3.MODIFY_ADD, [userobject_dn])]})
+        
+        try:
+            succeeded = self.ldap_session.modify(targetobject_dn,{'member': [(ldap3.MODIFY_ADD, [userobject_dn])]})
+        except ldap3.core.exceptions.LDAPInvalidValueError as e:
+            logging.error(f"[Add-DomainGroupMember] {str(e)}")
+            succeeded = False
+        
         if not succeeded:
-            print(self.ldap_session.result['message'])
+            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainGroupMember] Failed to add {members} to group {identity}")
         return succeeded
 
     def remove_domaindnsrecord(self, identity=None, args=None):
@@ -1517,7 +1555,7 @@ class PowerView:
 
         succeeded = self.ldap_session.delete(record_dn)
         if not succeeded:
-            logging.error(self.ldap_session.result['message'])
+            logging.error(self.ldap_session.result['message'] if self.args.debug else "[Remove-DomainDNSRecord] Failed to delete record")
             return False
         else:
             logging.info("[Remove-DomainDNSRecord] Success! Deleted the record")
@@ -1812,6 +1850,7 @@ class PowerView:
             'dNSTombstoned': False,
             'name': recordname
         }
+        logging.debug("[Add-DomainDNSRecord] Creating DNS record structure")
         record = DNS_UTIL.new_record(addtype, DNS_UTIL.get_next_serial(self.dc_ip, zonename, True), recordaddress)
         search_base = f"DC={zonename},CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
         record_dn = 'DC=%s,%s' % (recordname, search_base)
@@ -1819,10 +1858,10 @@ class PowerView:
 
         succeeded = self.ldap_session.add(record_dn, ['top', 'dnsNode'], node_data)
         if not succeeded:
-            logging.error(self.ldap_session.result['message'])
+            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainDNSRecord] Failed adding DNS record to domain ({self.ldap_session.result['description']})")
             return False
         else:
-            logging.info('Success! Created new record with dn %s' % record_dn)
+            logging.info('[Add-DomainDNSRecord] Success! Created new record with dn %s' % record_dn)
             return True
 
     def add_domaincomputer(self, computer_name, computer_pass, args=None):
@@ -1830,7 +1869,7 @@ class PowerView:
             computer_name += '$'
         dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, self.args)
         if len(dcinfo)== 0:
-            logging.error("Cannot get domain info")
+            logging.error("[Add-DomainComputer] Cannot get domain info")
             exit()
         c_key = 0
         dcs = list(dcinfo.keys())
@@ -2192,14 +2231,18 @@ class PowerView:
             attr_key = attrs['attribute']
             attr_val = attrs['value']
 
-        succeeded = self.ldap_session.modify(targetobject[0]["attributes"]["distinguishedName"], {
-            attr_key:[
-                (ldap3.MODIFY_REPLACE,attr_val)
-            ]
-        }, controls=security_descriptor_control(sdflags=sd_flag) if sd_flag else None)
+        try:
+            succeeded = self.ldap_session.modify(targetobject[0]["attributes"]["distinguishedName"], {
+                attr_key:[
+                    (ldap3.MODIFY_REPLACE,attr_val)
+                ]
+            }, controls=security_descriptor_control(sdflags=sd_flag) if sd_flag else None)
+        except ldap3.core.exceptions.LDAPInvalidValueError as e:
+            logging.error(f"[Set-DomainObject] {str(e)}")
+            succeeded = False
 
         if not succeeded:
-            logging.error(self.ldap_session.result['message'])
+            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Set-DomainObject] Failed to modify object")
         else:
             logging.info('[Set-DomainObject] Success! modified attribute for target object')
         

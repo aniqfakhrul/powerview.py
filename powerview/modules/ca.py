@@ -114,7 +114,7 @@ class CAEnum:
         identity_filter = ""
 
         if identity:
-            identity_filter = f"(|(cn={identity}))"
+            identity_filter = f"(|(cn={identity})(displayName={identity}))"
 
         search_filter = f"(&(objectclass=pkicertificatetemplate){identity_filter})"
 
