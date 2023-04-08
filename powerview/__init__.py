@@ -204,14 +204,14 @@ def main():
                                 else:
                                     entries = powerview.get_domaincatemplate(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'remove-domaincatemplate' or pv_args.module.casefold() == 'remove-catemplate':
-                                if not pv_args.template_name:
-                                    logging.error("-TemplateName flag is required")
+                                if not pv_args.identity:
+                                    logging.error("-Identity flag is required")
                                     continue
 
                                 if temp_powerview:
-                                    temp_powerview.remove_domaincatemplate(identity=pv_args.template_name, args=pv_args)
+                                    temp_powerview.remove_domaincatemplate(identity=pv_args.identity, args=pv_args)
                                 else:
-                                    powerview.remove_domaincatemplate(identity=pv_args.template_name, args=pv_args)
+                                    powerview.remove_domaincatemplate(identity=pv_args.identity, args=pv_args)
                             elif pv_args.module.casefold() == 'add-domaincatemplate' or pv_args.module.casefold() == 'add-catemplate':
                                 if pv_args.displayname is None:
                                     logging.error("-DisplayName flag is required")

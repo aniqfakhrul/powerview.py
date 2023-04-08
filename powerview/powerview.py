@@ -205,7 +205,7 @@ class PowerView:
 
         return entries
 
-    def get_domainobject(self, args=None, properties=['*'], identity='*', searchbase=None, sd_flag=None):
+    def get_domainobject(self, args=None, properties=['*'], identity='*', identity_filter=None, searchbase=None, sd_flag=None):
         if sd_flag:
             # Set SD flags to only query for DACL and Owner
             controls = security_descriptor_control(sdflags=sd_flag)
@@ -213,7 +213,8 @@ class PowerView:
             controls = None
 
         ldap_filter = ""
-        identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
+        if not identity_filter:
+            identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
 
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -999,12 +1000,37 @@ class PowerView:
             return
 
         # delete operation
-        succeeded = self.ldap_session.delete(templates[0].entry_dn)
-        if succeeded:
-            logging.info(f"[Remove-DomainCATemplate] {identity} template deleted")
+        # delete template from Certificate Templates
+        # unissue the template
+        cas = ca_fetch.fetch_enrollment_services()
+        for ca in cas:
+            if self.ldap_session.modify(ca["distinguishedName"].value, {'certificateTemplates':[(ldap3.MODIFY_DELETE,[templates[0]["name"].value])]}):
+                logging.info(f"[Remove-DomainCATemplate] Template {templates[0]['name'].value} is no longer issued")
+            else:
+                logging.warning(f"[Remove-DomainCATemplate] Failed to remove template from CA. Skipping...")
+        
+        # delete template oid
+        oid = templates[0]["msPKI-Cert-Template-OID"].value
+        template_oid = self.get_domainobject(identity_filter=f'(|(msPKI-Cert-Template-OID={oid}))',searchbase=f"CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}", properties=['distinguishedName'])
+        if len(template_oid) > 1:
+            logging.error("[Remove-DomainCATemplate] Multiple OIDs found. Ignoring..")
+        elif len(template_oid) == 0:
+            logging.error("[Remove-DomainCATemplate] Template OID not found in domain. Ignoring...")
+
+        oid_dn = template_oid[0]['attributes']['distinguishedName']
+        logging.debug(f"[Remove-DomainCATemplate] Found template oid {oid_dn}")
+        logging.debug(f"[Remove-DomainCATemplate] Deleting {oid_dn}")
+        if self.ldap_session.delete(oid_dn):
+            logging.info(f"[Remove-DomainCATemplate] Template oid {oid} removed")
+        else:
+            logging.warning(f"[Remove-DomainCATemplate] Failed to remove template oid {oid}. Ignoring...")
+
+        # delete template
+        if self.ldap_session.delete(templates[0].entry_dn):
+            logging.info(f"[Remove-DomainCATemplate] {identity} template deleted from certificate store")
             return True
         else:
-            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainCATemplate] Failed to delete template {identity}")
+            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainCATemplate] Failed to delete template {identity} from certificate store")
             return False
 
     def add_domaincatemplateacl(self, name, principalidentity, rights=None, ca_fetch=None, args=None):
@@ -1084,7 +1110,7 @@ class PowerView:
                 logging.error("[Add-DomainCATemplate] No certificate template found")
                 return False
 
-            logging.debug(f"[Add-DomainCATemplate] Duplicating existing template {args.duplicate} properties")
+            logging.info(f"[Add-DomainCATemplate] Duplicating existing template {args.duplicate} properties")
             default_template = {
                 'DisplayName': displayname,
                 'name': name,
@@ -2242,9 +2268,9 @@ class PowerView:
             succeeded = False
 
         if not succeeded:
-            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Set-DomainObject] Failed to modify object")
+            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Set-DomainObject] Failed to modify attribute {attr_key} for {targetobject[0]['attributes']['distinguishedName']}")
         else:
-            logging.info('[Set-DomainObject] Success! modified attribute for target object')
+            logging.info(f'[Set-DomainObject] Success! modified attribute {attr_key} for {targetobject[0]["attributes"]["distinguishedName"]}')
         
         return succeeded
 

@@ -302,7 +302,7 @@ def powerview_arg_parse(cmd):
     get_domaincatemplate_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     remove_domaincatemplate_parser = subparsers.add_parser('Remove-DomainCATemplate', aliases=['Remove-CATemplate'], exit_on_error=False)
-    remove_domaincatemplate_parser.add_argument('-TemplateName', action='store', dest='template_name')
+    remove_domaincatemplate_parser.add_argument('-Identity', action='store', dest='identity')
     remove_domaincatemplate_parser.add_argument('-SearchBase', action='store', dest='searchbase')
     remove_domaincatemplate_parser.add_argument('-Domain', action='store', dest='server')
     remove_domaincatemplate_parser.add_argument('-Select', action='store', dest='select')
