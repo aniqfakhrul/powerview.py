@@ -10,7 +10,7 @@ from powerview.utils.logging import setup_logger
 # https://stackoverflow.com/questions/14591168/argparse-dont-show-usage-on-h
 class PowerViewParser(argparse.ArgumentParser):
     def error(self, message):
-        logging.error(message)
+        print(message)
         sys.exit(0)
 
 def arg_parse():
@@ -58,6 +58,7 @@ def powerview_arg_parse(cmd):
     parser.add_argument('-Select', action='store', dest='select')
     parser.add_argument('-Count', action='store_true', dest='count')
     parser.add_argument('-NoWrap', action='store_true', dest='nowrap')
+    parser.add_argument('-Raw', action='store_true', dest='raw')
 
     #domain
     get_domain_parser = subparsers.add_parser('Get-Domain', aliases=['Get-NetDomain'], exit_on_error=False)
@@ -215,7 +216,7 @@ def powerview_arg_parse(cmd):
 
     #gpo
     get_domaingpo_parser = subparsers.add_parser('Get-DomainGPO', aliases=['Get-NetGPO'], exit_on_error=False)
-    get_domaingpo_parser.add_argument('-Identity', action='store',default='*', dest='identity')
+    get_domaingpo_parser.add_argument('-Identity', action='store', dest='identity')
     get_domaingpo_parser.add_argument('-Properties', action='store', default='*', dest='properties')
     get_domaingpo_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domaingpo_parser.add_argument('-SearchBase', action='store', dest='searchbase')
@@ -241,10 +242,11 @@ def powerview_arg_parse(cmd):
     get_domainou_parser = subparsers.add_parser('Get-DomainOU', aliases=['Get-NetOU'], exit_on_error=False)
     get_domainou_parser.add_argument('-Identity', action='store',default='*', dest='identity')
     get_domainou_parser.add_argument('-Properties', action='store', default='*', dest='properties')
+    get_domainou_parser.add_argument('-GPLink', action='store', dest='gplink')
+    get_domainou_parser.add_argument('-SearchBase', action='store', dest='searchbase')
     get_domainou_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domainou_parser.add_argument('-Domain', action='store', dest='server')
     get_domainou_parser.add_argument('-Select', action='store', dest='select')
-    get_domainou_parser.add_argument('-GPLink', action='store', dest='gplink')
     get_domainou_parser.add_argument('-Where', action='store', dest='where')
     get_domainou_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domainou_parser.add_argument('-Count', action='store_true', dest='count')
@@ -528,11 +530,11 @@ def powerview_arg_parse(cmd):
         if unknown:
             for unk in unknown:
                 if unk[0] == "-":
-                    if unk.casefold() in [ item.casefold() for item in COMMANDS[cmd[0]] ] :
+                    if unk.casefold() in [ item.casefold() for item in COMMANDS[cmd[0]]]:
                         indexs = [item.lower() for item in COMMANDS[cmd[0]]].index(unk.lower())
                         cmd = [c.replace(unk,COMMANDS[cmd[0]][indexs]) for c in cmd]
                     else:
-                        logging.error(f"Unrecognized argument: {unk}")
+                        print(f"Unrecognized argument: {unk}")
                         return None
                 else:
                     if hasattr(args, 'identity'):
@@ -540,7 +542,7 @@ def powerview_arg_parse(cmd):
                     elif hasattr(args, 'objectsid'):
                         args.objectsid = unk
                     else:
-                        logging.error(f"Unrecognized argument: {unk}")
+                        print(f"Unrecognized argument: {unk}")
                         return None
                     return args
             return parser.parse_args(cmd)
@@ -556,5 +558,3 @@ def powerview_arg_parse(cmd):
 
         print(str(e).split("(")[0])
         return None
-    except:
-        return

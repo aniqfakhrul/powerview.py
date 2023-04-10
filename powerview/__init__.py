@@ -3,13 +3,10 @@ from powerview.powerview import PowerView
 from powerview.utils.helpers import *
 from powerview.utils.native import *
 from powerview.utils.formatter import FORMATTER
-from powerview.utils.logging import CustomFormatter, setup_logger
 from powerview.utils.completer import Completer
 from powerview.utils.colors import bcolors
 from powerview.utils.connections import CONNECTION
 from powerview.utils.parsers import powerview_arg_parse, arg_parse
-
-from impacket.examples import logger
 
 import ldap3
 import json
@@ -66,7 +63,7 @@ def main():
 
                     if pv_args:
                         if pv_args.server and pv_args.server != args.domain:
-                            if args.use_kerberos:
+                            if args.use_kerberos or not args.nameserver:
                                 ldap_address = pv_args.server
                             else:
                                 ldap_address = get_principal_dc_address(pv_args.server, args.nameserver)
@@ -157,7 +154,7 @@ def main():
                                     entries = powerview.get_domaincontroller(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaingpo' or pv_args.module.casefold() == 'get-netgpo':
                                 properties = pv_args.properties.strip(" ").split(',')
-                                identity = pv_args.identity.strip()
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaingpo(pv_args, properties, identity)
                                 else:
@@ -480,8 +477,8 @@ def main():
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("Connection dead")
                 conn.reset_connection()
-            #except Exception as e:
-            #    logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
 
             if args.query:
                 sys.exit(0)
