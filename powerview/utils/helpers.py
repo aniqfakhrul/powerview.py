@@ -233,13 +233,19 @@ def is_ipaddress(address):
 
 def get_principal_dc_address(domain, nameserver, dns_tcp=True):
     answer = None
-    logging.debug(f'Querying domain controller information from DNS server {nameserver}')
-    try:
-        basequery = f'_ldap._tcp.pdc._msdcs.{domain}'
-        dnsresolver = resolver.Resolver(configure=False)
-        dnsresolver.nameservers = [nameserver]
-        dnsresolver.lifetime = float(3)
 
+    basequery = f'_ldap._tcp.pdc._msdcs.{domain}'
+    dnsresolver = resolver.Resolver(configure=False)
+    
+    if nameserver:
+        logging.debug(f'Querying domain controller information from DNS server {nameserver}')
+        dnsresolver.nameservers = [nameserver]
+    else:
+        logging.debug(f'No nameserver provided, using host\'s resolver to resolve {domain}')
+
+    dnsresolver.lifetime = float(3)
+
+    try:
         q = dnsresolver.query(basequery, 'SRV', tcp=dns_tcp)
 
         if str(q.qname).lower().startswith('_ldap._tcp.pdc._msdcs'):
@@ -350,6 +356,9 @@ def host2ip(hostname, nameserver, dns_timeout=10, dns_tcp=True):
     if nameserver:
         logging.debug(f"Querying {hostname} from DNS server {nameserver}")
         dnsresolver.nameservers = [nameserver]
+    else:
+        logging.debug(f"No nameserver provided, using host's resolver to resolve {hostname}")
+
     dnsresolver.lifetime = float(dns_timeout)
     try:
         q = dnsresolver.query(hostname, 'A', tcp=dns_tcp)

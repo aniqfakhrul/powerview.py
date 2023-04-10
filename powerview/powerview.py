@@ -276,8 +276,16 @@ class PowerView:
             )
         return objects
 
-    def get_domainou(self, args=None, properties=['*'], identity='*'):
+    def get_domainou(self, args=None, properties=['*'], identity=None, searchbase=None):
         ldap_filter = ""
+        identity_filter = "" 
+
+        if identity:
+            identity_filter = f"(|(name={identity}))"
+
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        
         if args:
             if args.gplink:
                 ldap_filter += f"(gplink=*{args.gplink}*)"
@@ -285,10 +293,10 @@ class PowerView:
                 logging.debug(f'[Get-DomainOU] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f"{args.ldapfilter}"
 
-        ldap_filter = f'(&(objectCategory=organizationalUnit)(|(name={identity})){ldap_filter})'
+        ldap_filter = f'(&(objectCategory=organizationalUnit){identity_filter}{ldap_filter})'
         logging.debug(f'[Get-DomainOU] LDAP search filter: {ldap_filter}')
         entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
@@ -423,7 +431,16 @@ class PowerView:
             #if not dnshostname:
             #    continue
             if resolveip and _entries['attributes']['dnsHostName']:
-                ip = host2ip(_entries['attributes']['dnsHostName'], self.nameserver, 3, True)
+                if self.nameserver:
+                    ns = self.nameserver
+                elif self.dc_ip and is_ipaddress(self.dc_ip):
+                    ns = self.dc_ip
+                elif self.ldap_server and is_ipaddress(self.ldap_server):
+                    ns = self.ldap_server
+                else:
+                    ns = None
+
+                ip = host2ip(_entries['attributes']['dnsHostName'], ns, 3, True)
                 if ip:
                     _entries = modify_entry(
                         _entries,
@@ -689,10 +706,14 @@ class PowerView:
 
         return new_entries
 
-    def get_domaingpo(self, args=None, properties=['*'], identity='*'):
+    def get_domaingpo(self, args=None, properties=['*'], identity=None, searchbase=None):
         ldap_filter = ""
-        identity_filter = f"(cn={identity})"
-        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        identity_filter = ""
+        if identity:
+            identity_filter = f"(cn=*{identity}*)"
+        
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
         if args:
             if args.ldapfilter:
@@ -1005,7 +1026,7 @@ class PowerView:
         cas = ca_fetch.fetch_enrollment_services()
         for ca in cas:
             if self.ldap_session.modify(ca["distinguishedName"].value, {'certificateTemplates':[(ldap3.MODIFY_DELETE,[templates[0]["name"].value])]}):
-                logging.info(f"[Remove-DomainCATemplate] Template {templates[0]['name'].value} is no longer issued")
+                logging.debug(f"[Remove-DomainCATemplate] Template {templates[0]['name'].value} is no longer issued")
             else:
                 logging.warning(f"[Remove-DomainCATemplate] Failed to remove template from CA. Skipping...")
         
@@ -1021,13 +1042,13 @@ class PowerView:
         logging.debug(f"[Remove-DomainCATemplate] Found template oid {oid_dn}")
         logging.debug(f"[Remove-DomainCATemplate] Deleting {oid_dn}")
         if self.ldap_session.delete(oid_dn):
-            logging.info(f"[Remove-DomainCATemplate] Template oid {oid} removed")
+            logging.debug(f"[Remove-DomainCATemplate] Template oid {oid} removed")
         else:
             logging.warning(f"[Remove-DomainCATemplate] Failed to remove template oid {oid}. Ignoring...")
 
         # delete template
         if self.ldap_session.delete(templates[0].entry_dn):
-            logging.info(f"[Remove-DomainCATemplate] {identity} template deleted from certificate store")
+            logging.info(f"[Remove-DomainCATemplate] Success! {identity} template deleted")
             return True
         else:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainCATemplate] Failed to delete template {identity} from certificate store")
