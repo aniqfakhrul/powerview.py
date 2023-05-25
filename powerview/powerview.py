@@ -89,7 +89,6 @@ class PowerView:
             'objectSid',
             'userPrincipalName',
             'pwdLastSet',
-            'description',
             'badPwdCount',
             'badPasswordTime',
             'msDS-SupportedEncryptionTypes'
@@ -376,7 +375,8 @@ class PowerView:
             'distinguishedName',
             'cn',
             'operatingSystem',
-            'msDS-SupportedEncryptionTypes'
+            'msDS-SupportedEncryptionTypes',
+            'description'
         ]
 
         properties = def_prop if not properties else properties
