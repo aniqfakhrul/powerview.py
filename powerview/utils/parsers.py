@@ -281,6 +281,8 @@ def powerview_arg_parse(cmd):
     get_domainsccm_parser = subparsers.add_parser('Get-DomainSCCM', aliases=['Get-SCCM'], exit_on_error=False)
     get_domainsccm_parser.add_argument('-Identity', action='store', dest='identity')
     get_domainsccm_parser.add_argument('-Properties', action='store', dest='properties')
+    get_domainsccm_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
+    get_domainsccm_parser.add_argument('-SearchBase', action='store', dest='searchbase')
     get_domainsccm_parser.add_argument('-Domain', action='store', dest='server')
     get_domainsccm_parser.add_argument('-Select', action='store', dest='select')
     get_domainsccm_parser.add_argument('-Where', action='store', dest='where')
