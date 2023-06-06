@@ -486,7 +486,7 @@ def main():
                 conn.reset_connection()
             except ldap3.core.exceptions.LDAPSessionTerminatedByServerError as e:
                 logging.warning("Server connection terminated. Trying to reconnect")
-                powerview.reset_connection()
+                conn.reset_connection()
             except Exception as e:
                 logging.error(str(e))
 
