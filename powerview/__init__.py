@@ -160,7 +160,7 @@ def main():
                                 else:
                                     entries = powerview.get_domaingpo(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaingpolocalgroup' or pv_args.module.casefold() == 'get-gpolocalgroup':
-                                identity = pv_args.identity.strip()
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaingpolocalgroup(pv_args, identity)
                                 else:

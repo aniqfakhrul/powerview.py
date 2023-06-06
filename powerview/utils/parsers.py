@@ -229,7 +229,7 @@ def powerview_arg_parse(cmd):
 
     #gpo local group / restricted groups
     get_domaingpolocalgroup_parser = subparsers.add_parser('Get-DomainGPOLocalGroup', aliases=['Get-GPOLocalGroup'], exit_on_error=False)
-    get_domaingpolocalgroup_parser.add_argument('-Identity', action='store',default='*', dest='identity')
+    get_domaingpolocalgroup_parser.add_argument('-Identity', action='store', dest='identity')
     get_domaingpolocalgroup_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domaingpolocalgroup_parser.add_argument('-Domain', action='store', dest='server')
     get_domaingpolocalgroup_parser.add_argument('-Select', action='store', dest='select')

@@ -731,7 +731,7 @@ class PowerView:
             entries.append({"attributes":_entries["attributes"]})
         return entries
 
-    def get_domaingpolocalgroup(self, args=None, identity='*'):
+    def get_domaingpolocalgroup(self, args=None, identity=None):
         new_entries = []
         entries = self.get_domaingpo(identity=identity)
         if len(entries) == 0:
