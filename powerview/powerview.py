@@ -985,6 +985,7 @@ class PowerView:
             "mSSMSMPName",
             "mSSMSDeviceManagementPoint",
             "mSSMSVersion",
+            "mSSMSCapabilities",
         ]
         properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
