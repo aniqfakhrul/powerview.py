@@ -494,7 +494,7 @@ def main():
             except Exception as e:
                 logging.error(str(e))
 
-            pv_args.clear()
+            pv_args = None
 
             if args.query:
                 sys.exit(0)
