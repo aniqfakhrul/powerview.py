@@ -17,6 +17,8 @@ COMMANDS = {
     'Get-DomainDNSRecord':['-ZoneName','-Identity','-Properties','-SearchBase','-Domain','-Select','-Where', '-Count', '-NoWrap', '-OutFile'],
     'Get-DomainCA':['-CheckWebEnrollment','-Properties','-Domain','-Select','-Where', '-Count', '-NoWrap', '-OutFile'],
     'Get-CA':['-CheckWebEnrollment','-Properties','-Domain','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
+    'Get-DomainSCCM':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Domain','-Select','-Where','-Count','-NoWrap','-OutFile'],
+    'Get-SCCM':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Domain','-Select','-Where','-Count','-NoWrap','-OutFile'],
     'Get-DomainCATemplate':['-Identity','-Vulnerable','-Enabled','-ResolveSIDs','-Properties','-SearchBase','-Domain','-Select','-Where', '-Count', '-NoWrap', '-OutFile'],
     'Get-CATemplate':['-Identity','-Vulnerable','-Enabled','-ResolveSIDs','-Properties','-SearchBase','-Domain','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
     'Add-DomainCATemplate':['-DisplayName','-Name','-Duplicate','-Domain','-NoWrap'],

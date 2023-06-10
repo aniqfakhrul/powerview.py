@@ -229,7 +229,7 @@ def powerview_arg_parse(cmd):
 
     #gpo local group / restricted groups
     get_domaingpolocalgroup_parser = subparsers.add_parser('Get-DomainGPOLocalGroup', aliases=['Get-GPOLocalGroup'], exit_on_error=False)
-    get_domaingpolocalgroup_parser.add_argument('-Identity', action='store',default='*', dest='identity')
+    get_domaingpolocalgroup_parser.add_argument('-Identity', action='store', dest='identity')
     get_domaingpolocalgroup_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domaingpolocalgroup_parser.add_argument('-Domain', action='store', dest='server')
     get_domaingpolocalgroup_parser.add_argument('-Select', action='store', dest='select')
@@ -276,6 +276,19 @@ def powerview_arg_parse(cmd):
     get_domaindnsrecord_parser.add_argument('-OutFile', action='store', dest='outfile')
     get_domaindnsrecord_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaindnsrecord_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+
+    # Get SCCM
+    get_domainsccm_parser = subparsers.add_parser('Get-DomainSCCM', aliases=['Get-SCCM'], exit_on_error=False)
+    get_domainsccm_parser.add_argument('-Identity', action='store', dest='identity')
+    get_domainsccm_parser.add_argument('-Properties', action='store', dest='properties')
+    get_domainsccm_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
+    get_domainsccm_parser.add_argument('-SearchBase', action='store', dest='searchbase')
+    get_domainsccm_parser.add_argument('-Domain', action='store', dest='server')
+    get_domainsccm_parser.add_argument('-Select', action='store', dest='select')
+    get_domainsccm_parser.add_argument('-Where', action='store', dest='where')
+    get_domainsccm_parser.add_argument('-OutFile', action='store', dest='outfile')
+    get_domainsccm_parser.add_argument('-Count', action='store_true', dest='count')
+    get_domainsccm_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # Find CAs
     get_domainca_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-CA'], exit_on_error=False)

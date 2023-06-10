@@ -731,7 +731,7 @@ class PowerView:
             entries.append({"attributes":_entries["attributes"]})
         return entries
 
-    def get_domaingpolocalgroup(self, args=None, identity='*'):
+    def get_domaingpolocalgroup(self, args=None, identity=None):
         new_entries = []
         entries = self.get_domaingpo(identity=identity)
         if len(entries) == 0:
@@ -970,6 +970,48 @@ class PowerView:
                     entries.append({
                         "attributes": new_dict
                     })
+        return entries
+
+    def get_domainsccm(self, args=None, properties=[], identity=None, searchbase=None):
+        def_prop = [
+            "cn",
+            "distinguishedname",
+            "instanceType",
+            "name",
+            "objectGUID",
+            "dNSHostName",
+            "mSSMSSiteCode",
+            "mSSMSDefaultMP",
+            "mSSMSMPName",
+            "mSSMSDeviceManagementPoint",
+            "mSSMSVersion",
+            "mSSMSCapabilities",
+        ]
+        properties = def_prop if not properties else properties
+        identity = '*' if not identity else identity
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
+
+        ldap_filter = ""
+        identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
+
+        if args:
+            if args.ldapfilter:
+                logging.debug(f'[Get-DomainSCCM] Using additional LDAP filter: {args.ldapfilter}')
+                ldap_filter += f'{args.ldapfilter}'
+
+        ldap_filter = f'(&(objectClass=mSSMSManagementPoint){identity_filter}{ldap_filter})'
+
+        logging.debug(f'[Get-DomainSCCM] LDAP search filter: {ldap_filter}')
+
+        # in case need more then 1000 entries
+        entries = []
+        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        for _entries in entry_generator:
+            if _entries['type'] != 'searchResEntry':
+                continue
+            strip_entry(_entries)
+            entries.append({"attributes":_entries["attributes"]})
         return entries
 
     def get_domainca(self, args=None, properties=None):

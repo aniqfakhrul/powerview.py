@@ -160,7 +160,7 @@ def main():
                                 else:
                                     entries = powerview.get_domaingpo(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaingpolocalgroup' or pv_args.module.casefold() == 'get-gpolocalgroup':
-                                identity = pv_args.identity.strip()
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaingpolocalgroup(pv_args, identity)
                                 else:
@@ -187,6 +187,13 @@ def main():
                                     entries = temp_powerview.get_domaindnsrecord(identity, zonename, properties, args=pv_args)
                                 else:
                                     entries = powerview.get_domaindnsrecord(identity, zonename, properties, args=pv_args)
+                            elif pv_args.module.casefold() == 'get-domainsccm' or pv_args.module.casefold() == 'get-sccm':
+                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domainsccm(pv_args, properties, identity)
+                                else:
+                                    entries = powerview.get_domainsccm(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-ca':
                                 properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 if temp_powerview:
@@ -476,6 +483,9 @@ def main():
                 sys.exit(0)
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("Connection dead")
+                conn.reset_connection()
+            except ldap3.core.exceptions.LDAPSessionTerminatedByServerError as e:
+                logging.warning("Server connection terminated. Trying to reconnect")
                 conn.reset_connection()
             except Exception as e:
                 logging.error(str(e))

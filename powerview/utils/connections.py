@@ -119,7 +119,7 @@ class CONNECTION:
         return whoami.split(":")[-1] if whoami else "ANONYMOUS"
 
     def reset_connection(self):
-        self.ldap_session.bind()
+        self.ldap_session.rebind()
 
     def init_ldap_session(self, ldap_address=None, use_ldap=False, use_gc_ldap=False):
 

@@ -64,6 +64,7 @@ Get-DomainUser -Count
 | Get-DomainController | Get-NetDomainController | Query for available domain controllers |
 | Get-DomainDNSZone    |                         | Query for available DNS zones in the domain |
 | Get-DomainDNSRecord    |                         | Query for available records. It will recurse all DNS zones if doesn't specify -ZoneName |
+| Get-DomainSCCM         | Get-SCCM               | Query for SCCM |
 | Get-DomainCA         | Get-NetCA               | Query for Certificate Authority(CA) |
 | Get-DomainCATemplate         | Get-NetCATemplate               | Query for available CA templates. Supports filtering for vulnerable template |
 |Get-DomainGPO|Get-NetGPO| Query for domain group policy objects |
