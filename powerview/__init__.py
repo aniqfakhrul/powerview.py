@@ -40,7 +40,6 @@ def main():
         cur_user = conn.who_am_i()
         server_ip = conn.get_ldap_address()
         temp_powerview = None
-        pv_args = None
 
         while True:
             try:
@@ -52,8 +51,7 @@ def main():
                 if args.query:
                     cmd = args.query
                 else:
-                    if not pv_args:
-                        cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{server_ip}{bcolors.OKBLUE}]-[{bcolors.ENDC}{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV > {bcolors.ENDC}')
+                    cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{server_ip}{bcolors.OKBLUE}]-[{bcolors.ENDC}{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV > {bcolors.ENDC}')
 
                 if cmd:
                     try:
@@ -62,8 +60,7 @@ def main():
                         logging.error(str(e))
                         continue
 
-                    if not pv_args:
-                        pv_args = powerview_arg_parse(cmd)
+                    pv_args = powerview_arg_parse(cmd)
 
                     if pv_args:
                         if pv_args.server and pv_args.server != args.domain:
@@ -494,8 +491,6 @@ def main():
                 continue
             except Exception as e:
                 logging.error(str(e))
-
-            pv_args = None
 
             if args.query:
                 sys.exit(0)
