@@ -40,6 +40,7 @@ def main():
         cur_user = conn.who_am_i()
         server_ip = conn.get_ldap_address()
         temp_powerview = None
+        pv_args = []
 
         while True:
             try:
@@ -59,7 +60,9 @@ def main():
                     except ValueError as e:
                         logging.error(str(e))
                         continue
-                    pv_args = powerview_arg_parse(cmd)
+
+                    if not pv_args:
+                        pv_args = powerview_arg_parse(cmd)
 
                     if pv_args:
                         if pv_args.server and pv_args.server != args.domain:
@@ -487,8 +490,11 @@ def main():
             except ldap3.core.exceptions.LDAPSessionTerminatedByServerError as e:
                 logging.warning("Server connection terminated. Trying to reconnect")
                 conn.reset_connection()
+                continue
             except Exception as e:
                 logging.error(str(e))
+
+            pv_args.clear()
 
             if args.query:
                 sys.exit(0)
