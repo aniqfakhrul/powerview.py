@@ -43,6 +43,21 @@ class FORMATTER:
                     value = self.beautify(value,self.get_max_len(list(entry['attributes'].keys()))+2)
                     if isinstance(value,list):
                         if len(value) != 0:
+                            # debug
+                            #print(self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3))
+
+                            temp = []
+                            for i in range(len(value)):
+                                if isinstance(value[i], list):
+                                    temp += value[i]
+                                else:
+                                    temp.append(value[i])
+                            
+                            value = temp
+
+                            #if isinstance(value[0], list):
+                                #    value = value[0]
+
                             _stdout = f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}"
                             if self.args.outfile:
                                 LOG.write_to_file(self.args.outfile, _stdout)
@@ -144,6 +159,16 @@ class FORMATTER:
                     value = self.beautify(value,self.get_max_len(list(entry['attributes'].keys()))+2)
 
                     if isinstance(value,list):
+
+                        temp = []
+                        for i in range(len(value)):
+                            if isinstance(value[i], list):
+                                temp += value[i]
+                            else:
+                                temp.append(value[i])
+                        
+                        value = temp
+
                         if len(value) != 0:
                             have_entry = True
                             _stdout = f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}"
@@ -288,24 +313,24 @@ class FORMATTER:
 
     def resolve_values(self,entry):
         # resolve msDS-SupportedEncryptionTypes
-        try:
-            if "msDS-SupportedEncryptionTypes" in list(entry["attributes"].keys()):
-                if isinstance(entry['attributes']['msDS-SupportedEncryptionTypes'], list):
-                    entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"][0])
-                else:
-                    entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"])
-        except:
-            pass
+        #try:
+        #    if "msDS-SupportedEncryptionTypes" in list(entry["attributes"].keys()):
+        #        if isinstance(entry['attributes']['msDS-SupportedEncryptionTypes'], list):
+        #            entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"][0])
+        #        else:
+        #            entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"])
+        #except:
+        #    pass
 
-        # resolve userAccountControl
-        try:
-            if "userAccountControl" in list(entry["attributes"].keys()):
-                if isinstance(entry['attributes']['userAccountcontrol'], list):
-                    entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"][0])
-                else:
-                    entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"])
-        except:
-            pass
+        #        # resolve userAccountControl
+        #        try:
+        #            if "userAccountControl" in list(entry["attributes"].keys()):
+        #                if isinstance(entry['attributes']['userAccountcontrol'], list):
+        #                    entry["attributes"]["userAccountControl"] = UAC.parse_value(entry['attributes']['userAccountControl'][0])
+        #                else:
+        #                    entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"])
+        #        except:
+        #            pass
 
         return entry
 

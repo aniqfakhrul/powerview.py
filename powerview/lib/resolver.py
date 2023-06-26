@@ -42,6 +42,21 @@ class LDAP:
     def resolve_err_status(error_status):
         return LDAP_ERROR_STATUS.get(error_status)
 
+    def resolve_enc_type(enc_type):
+        if isinstance(enc_type, list):
+            return ENCRYPTION_TYPE.parse_value(enc_type[0])
+        else:
+            return ENCRYPTION_TYPE.parse_value(enc_type)
+
+    def resolve_uac(uac_val):
+        # resolve userAccountControl
+        if isinstance(uac_val, list):
+            return UAC.parse_value(uac_val[0])
+        elif isinstance(uac_val, bytes):
+            return UAC.parse_value(uac_val.decode())
+        else:
+            return UAC.parse_value(uac_val)
+
     def ldap2datetime(ts):
         if isinstance(ts, datetime.datetime):
             return ts
