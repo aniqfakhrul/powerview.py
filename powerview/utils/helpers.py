@@ -47,6 +47,10 @@ def dn2rootdn(value):
 def dn2domain(value):
     return '.'.join(re.findall(r'DC=([\w-]+)',value)).lower()
 
+def escape_filter_chars_except_asterisk(filter_str):
+    escaped_chars = ''.join(c if c == '*' else escape_filter_chars(c) for c in filter_str)
+    return escaped_chars
+
 def get_user_sids(domain_sid, objectsid):
     user_sids = []
     rid = int(objectsid.split("-")[-1])

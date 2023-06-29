@@ -167,8 +167,8 @@ def main():
                                 else:
                                     entries = powerview.get_domaingpolocalgroup(pv_args, identity)
                             elif pv_args.module.casefold() == 'get-domainou' or pv_args.module.casefold() == 'get-netou':
-                                properties = pv_args.properties.strip(" ").split(',')
-                                identity = pv_args.identity.strip()
+                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainou(pv_args, properties, identity)
                                 else:

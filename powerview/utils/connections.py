@@ -206,6 +206,8 @@ class CONNECTION:
                 "mS-DS-CreatorSID": LDAP.bin_to_sid,
                 "msDS-ManagedPassword": LDAP.formatGMSApass,
                 "pwdProperties": LDAP.resolve_pwdProperties,
+                "userAccountControl": LDAP.resolve_uac,
+                "msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
             }
         }
 
@@ -238,13 +240,13 @@ class CONNECTION:
 
         base_dn = ldap_server.info.other['defaultNamingContext'][0]
         if not ldap_session.search(base_dn,'(objectclass=*)'):
-            logging.info("ANONYMOUS access not allowed")
+            logging.warning("ANONYMOUS access not allowed")
             sys.exit(0)
         else:
-            logging.warning("Server allows ANONYMOUS access!")
+            logging.info("Server allows ANONYMOUS access!")
             return ldap_server, ldap_session
 
-    def init_ldap_connection(self, target, tls, domain, username, password, lmhash, nthash, raw=False):
+    def init_ldap_connection(self, target, tls, domain, username, password, lmhash, nthash):
         user = '%s\\%s' % (domain, username)
 
         ldap_server_kwargs = {
@@ -252,27 +254,20 @@ class CONNECTION:
             "get_info": ldap3.ALL,
             "allowed_referral_hosts": [('*', True)],
             "mode": ldap3.IP_V4_PREFERRED,
+            "formatter": {
+                "lastLogon": LDAP.ldap2datetime,
+                "pwdLastSet": LDAP.ldap2datetime,
+                "badPasswordTime": LDAP.ldap2datetime,
+                "objectGUID": LDAP.bin_to_guid,
+                "objectSid": LDAP.bin_to_sid,
+                "securityIdentifier": LDAP.bin_to_sid,
+                "mS-DS-CreatorSID": LDAP.bin_to_sid,
+                "msDS-ManagedPassword": LDAP.formatGMSApass,
+                "pwdProperties": LDAP.resolve_pwdProperties,
+                "userAccountControl": LDAP.resolve_uac,
+                "msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
+            }
         }
-
-        # if raw is given, then skip this
-        if not raw:
-            ldap_server_kwargs.update(
-                {
-                    "formatter": {
-                        "lastLogon": LDAP.ldap2datetime,
-                        "pwdLastSet": LDAP.ldap2datetime,
-                        "badPasswordTime": LDAP.ldap2datetime,
-                        "objectGUID": LDAP.bin_to_guid,
-                        "objectSid": LDAP.bin_to_sid,
-                        "securityIdentifier": LDAP.bin_to_sid,
-                        "mS-DS-CreatorSID": LDAP.bin_to_sid,
-                        "msDS-ManagedPassword": LDAP.formatGMSApass,
-                        "pwdProperties": LDAP.resolve_pwdProperties,
-                        "userAccountControl": LDAP.resolve_uac,
-                        "msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
-                    }
-                }
-            )
 
         if tls:
             if self.use_ldaps:
