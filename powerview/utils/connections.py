@@ -2,7 +2,7 @@
 from impacket.smbconnection import SMBConnection, SessionError
 from impacket.smb3structs import FILE_READ_DATA, FILE_WRITE_DATA
 from impacket.dcerpc.v5 import samr, epm, transport, rpcrt, rprn, srvs, wkst, scmr, drsuapi
-from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY
+from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_AUTHN_GSS_NEGOTIATE
 from impacket.spnego import SPNEGO_NegTokenInit, TypesMech
 
 from powerview.utils.helpers import (
@@ -577,17 +577,16 @@ class CONNECTION:
     def connectSamr(self):
         rpctransport = transport.SMBTransport(self.dc_ip, filename=r'\samr')
 
-        #if self.nthash:
         if hasattr(rpctransport, 'set_credentials'):
             rpctransport.set_credentials(self.username, self.password, self.domain, lmhash=self.lmhash, nthash=self.nthash, aesKey=self.auth_aes_key)
-        #else:
-        #    rpctransport.set_credentials(self.username, self.password, self.domain)
 
         rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.kdcHost)
 
         try:
             dce = rpctransport.get_dce_rpc()
-            dce.set_auth_level(rpcrt.RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+            if self.use_kerberos:
+                dce.set_auth_type(RPC_C_AUTHN_GSS_NEGOTIATE)
+            dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
             dce.connect()
             dce.bind(samr.MSRPC_UUID_SAMR)
             return dce

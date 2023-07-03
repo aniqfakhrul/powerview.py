@@ -3,6 +3,7 @@ from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 from impacket.dcerpc.v5 import srvs
 from impacket.dcerpc.v5.ndr import NULL
+from impacket.dcerpc.v5 import transport, tsch, tsts as TSTS
 
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
 from powerview.modules.addcomputer import ADDCOMPUTER
@@ -2551,6 +2552,7 @@ class PowerView:
             return
 
         try:
+#            tss = TSTS.TermSrvEnumeration(dce_2, "192.168.131.144")
             resp = srvs.hNetrSessionEnum(dce, '\x00', NULL, 10)
         except Exception as e:
             if 'rpc_s_access_denied' in str(e):
