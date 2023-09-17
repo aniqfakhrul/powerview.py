@@ -123,7 +123,7 @@ class LDAPAttack(ProtocolAttack):
             self.principalidentity_dn = args.principalidentity_dn
             self.principalidentity_sid = format_sid(args.principalidentity_sid)
             self.targetidentity_dn = args.targetidentity_dn
-            self.targetidentity_sid = format_sid(args.targetidentity_sid)
+            #self.targetidentity_sid = format_sid(args.targetidentity_sid)
             self.args = args
 
         self.rootDN = root_dn
