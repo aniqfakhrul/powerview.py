@@ -48,10 +48,10 @@ def main():
                 readline.parse_and_bind("tab: complete")
                 readline.set_completer(comp.complete)
 
-                if not args.query:
-                    cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{server_ip}{bcolors.OKBLUE}]-[{bcolors.ENDC}{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV > {bcolors.ENDC}')
-                else:
+                if args.query:
                     cmd = args.query
+                else:
+                    cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{server_ip}{bcolors.OKBLUE}]-[{bcolors.ENDC}{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV > {bcolors.ENDC}')
 
                 if cmd:
                     try:
@@ -59,6 +59,7 @@ def main():
                     except ValueError as e:
                         logging.error(str(e))
                         continue
+
                     pv_args = powerview_arg_parse(cmd)
 
                     if pv_args:
@@ -166,8 +167,8 @@ def main():
                                 else:
                                     entries = powerview.get_domaingpolocalgroup(pv_args, identity)
                             elif pv_args.module.casefold() == 'get-domainou' or pv_args.module.casefold() == 'get-netou':
-                                properties = pv_args.properties.strip(" ").split(',')
-                                identity = pv_args.identity.strip()
+                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainou(pv_args, properties, identity)
                                 else:
@@ -487,6 +488,7 @@ def main():
             except ldap3.core.exceptions.LDAPSessionTerminatedByServerError as e:
                 logging.warning("Server connection terminated. Trying to reconnect")
                 conn.reset_connection()
+                continue
             except Exception as e:
                 logging.error(str(e))
 

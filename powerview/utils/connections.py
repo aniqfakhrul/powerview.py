@@ -2,7 +2,7 @@
 from impacket.smbconnection import SMBConnection, SessionError
 from impacket.smb3structs import FILE_READ_DATA, FILE_WRITE_DATA
 from impacket.dcerpc.v5 import samr, epm, transport, rpcrt, rprn, srvs, wkst, scmr, drsuapi
-from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY
+from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_AUTHN_GSS_NEGOTIATE
 from impacket.spnego import SPNEGO_NegTokenInit, TypesMech
 
 from powerview.utils.helpers import (
@@ -206,6 +206,8 @@ class CONNECTION:
                 "mS-DS-CreatorSID": LDAP.bin_to_sid,
                 "msDS-ManagedPassword": LDAP.formatGMSApass,
                 "pwdProperties": LDAP.resolve_pwdProperties,
+                "userAccountControl": LDAP.resolve_uac,
+                "msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
             }
         }
 
@@ -238,10 +240,10 @@ class CONNECTION:
 
         base_dn = ldap_server.info.other['defaultNamingContext'][0]
         if not ldap_session.search(base_dn,'(objectclass=*)'):
-            logging.info("ANONYMOUS access not allowed")
+            logging.warning("ANONYMOUS access not allowed")
             sys.exit(0)
         else:
-            logging.warning("Server allows ANONYMOUS access!")
+            logging.info("Server allows ANONYMOUS access!")
             return ldap_server, ldap_session
 
     def init_ldap_connection(self, target, tls, domain, username, password, lmhash, nthash):
@@ -262,6 +264,8 @@ class CONNECTION:
                 "mS-DS-CreatorSID": LDAP.bin_to_sid,
                 "msDS-ManagedPassword": LDAP.formatGMSApass,
                 "pwdProperties": LDAP.resolve_pwdProperties,
+                "userAccountControl": LDAP.resolve_uac,
+                "msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
             }
         }
 
@@ -573,17 +577,16 @@ class CONNECTION:
     def connectSamr(self):
         rpctransport = transport.SMBTransport(self.dc_ip, filename=r'\samr')
 
-        #if self.nthash:
         if hasattr(rpctransport, 'set_credentials'):
             rpctransport.set_credentials(self.username, self.password, self.domain, lmhash=self.lmhash, nthash=self.nthash, aesKey=self.auth_aes_key)
-        #else:
-        #    rpctransport.set_credentials(self.username, self.password, self.domain)
 
         rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.kdcHost)
 
         try:
             dce = rpctransport.get_dce_rpc()
-            dce.set_auth_level(rpcrt.RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+            if self.use_kerberos:
+                dce.set_auth_type(RPC_C_AUTHN_GSS_NEGOTIATE)
+            dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
             dce.connect()
             dce.bind(samr.MSRPC_UUID_SAMR)
             return dce

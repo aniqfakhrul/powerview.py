@@ -243,12 +243,12 @@ class GetUserSPNs:
                     if str(attribute) == 'sAMAccountName':
                         sAMAccountName = str(value[0])
                         mustCommit = True
-                    elif str(attribute) == 'userAccountControl':
-                        userAccountControl = str(value[0])
-                        if int(userAccountControl) & UF_TRUSTED_FOR_DELEGATION:
-                            delegation = 'unconstrained'
-                        elif int(userAccountControl) & UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION:
-                            delegation = 'constrained'
+                    #elif str(attribute) == 'userAccountControl':
+                    #    userAccountControl = str(value[0])
+                    #    if int(userAccountControl) & UF_TRUSTED_FOR_DELEGATION:
+                    #        delegation = 'unconstrained'
+                    #    elif int(userAccountControl) & UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION:
+                    #        delegation = 'constrained'
                     elif str(attribute) == 'memberOf':
                         memberOf = str(value[0])
                     elif str(attribute) == 'servicePrincipalName':

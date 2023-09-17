@@ -22,7 +22,7 @@ class FORMATTER:
         self.use_kerberos = use_kerberos
 
     def count(self, entries):
-        print(f"{len(entries)}")
+        print(len(entries))
 
     def print_index(self, entries):
         i = int(self.args.select)
@@ -43,6 +43,8 @@ class FORMATTER:
                     value = self.beautify(value,self.get_max_len(list(entry['attributes'].keys()))+2)
                     if isinstance(value,list):
                         if len(value) != 0:
+                            value = self.clean_value(value)
+
                             _stdout = f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}"
                             if self.args.outfile:
                                 LOG.write_to_file(self.args.outfile, _stdout)
@@ -80,6 +82,7 @@ class FORMATTER:
                             value = ""
                             # Check dictionary in a list
                             if isinstance(entry['attributes'][key], list):
+                                entry['attributes'][key] = self.clean_value(entry['attributes'][key])
                                 for i in entry['attributes'][key]:
                                     if (isinstance(i,dict)) and ("encoded" in i.keys()):
                                         value = str(i["encoded"])
@@ -145,6 +148,8 @@ class FORMATTER:
 
                     if isinstance(value,list):
                         if len(value) != 0:
+                            value = self.clean_value(value)
+
                             have_entry = True
                             _stdout = f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}"
                             if self.args.outfile:
@@ -288,29 +293,39 @@ class FORMATTER:
 
     def resolve_values(self,entry):
         # resolve msDS-SupportedEncryptionTypes
-        try:
-            if "msDS-SupportedEncryptionTypes" in list(entry["attributes"].keys()):
-                if isinstance(entry['attributes']['msDS-SupportedEncryptionTypes'], list):
-                    entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"][0])
-                else:
-                    entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"])
-        except:
-            pass
+        #try:
+        #    if "msDS-SupportedEncryptionTypes" in list(entry["attributes"].keys()):
+        #        if isinstance(entry['attributes']['msDS-SupportedEncryptionTypes'], list):
+        #            entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"][0])
+        #        else:
+        #            entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"])
+        #except:
+        #    pass
 
-        # resolve userAccountControl
-        try:
-            if "userAccountControl" in list(entry["attributes"].keys()):
-                if isinstance(entry['attributes']['userAccountcontrol'], list):
-                    entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"][0])
-                else:
-                    entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"])
-        except:
-            pass
+        #        # resolve userAccountControl
+        #        try:
+        #            if "userAccountControl" in list(entry["attributes"].keys()):
+        #                if isinstance(entry['attributes']['userAccountcontrol'], list):
+        #                    entry["attributes"]["userAccountControl"] = UAC.parse_value(entry['attributes']['userAccountControl'][0])
+        #                else:
+        #                    entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"])
+        #        except:
+        #            pass
 
         return entry
 
     def get_max_len(self, lst):
         return len(max(lst,key=len)) + 5
+
+    def clean_value(self, value):
+        temp = []
+        for i in range(len(value)):
+            if isinstance(value[i], list):
+                temp += value[i]
+            else:
+                temp.append(value[i])
+        
+        return temp
 
     def beautify(self, strs,lens):
         if isinstance(strs,str) and not self.args.nowrap:

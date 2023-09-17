@@ -3,6 +3,7 @@ from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
 from impacket.dcerpc.v5 import srvs
 from impacket.dcerpc.v5.ndr import NULL
+from impacket.dcerpc.v5 import transport, tsch, tsts as TSTS
 
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
 from powerview.modules.addcomputer import ADDCOMPUTER
@@ -95,12 +96,14 @@ class PowerView:
         ]
 
         properties = def_prop if not properties else properties
-        identity = '*' if not identity else identity
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
 
         ldap_filter = ""
-        identity_filter = f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
+        identity_filter = ""
+
+        if identity:
+            identity_filter += f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
 
         if args:
             if args.preauthnotrequired:
@@ -176,12 +179,22 @@ class PowerView:
             'msDS-AllowedToActOnBehalfOfOtherIdentity'
         ]
 
+        ldap_filter = ""
+        identity_filter = ""
+
         properties = def_prop if not properties else properties
-        identity = '*' if not identity else identity
         searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
-        ldap_filter = f'(userAccountControl:1.2.840.113556.1.4.803:=8192)'
-        logging.debug(f'[Get-DomainController] LDAP search filter: {ldap_filter}')
+        if identity:
+            identity_filter += f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
+
+        if args:
+            if args.ldapfilter:
+                logging.debug(f'[Get-DomainController] Using additional LDAP filter: {args.ldapfilter}')
+                ldap_filter += args.ldapfilter
+
+        ldap_filter = f"(&(userAccountControl:1.2.840.113556.1.4.803:=8192){identity_filter}{ldap_filter})"
+        logging.debug(f"[Get-DomainController] LDAP search filter: {ldap_filter}")
         entries = []
         entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
@@ -280,7 +293,7 @@ class PowerView:
         identity_filter = "" 
 
         if identity:
-            identity_filter = f"(|(name={identity}))"
+            identity_filter += f"(|(name={identity}))"
 
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -380,11 +393,13 @@ class PowerView:
         ]
 
         properties = def_prop if not properties else properties
-        identity = '*' if not identity else identity
         searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
         ldap_filter = ""
-        identity_filter = f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
+        identity_filter = ""
+
+        if identity:
+            identity_filter += f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
 
         if args:
             if args.unconstrained:
@@ -512,11 +527,14 @@ class PowerView:
         ]
 
         properties = def_prop if not properties else properties
-        identity = '*' if not identity else identity
         searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
         ldap_filter = ""
-        identity_filter = f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
+        identity_filter = ""
+
+        if identity:
+            identity_filter += f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
+
         if args:
             if args.admincount:
                 ldap_filter += f"(admincount=1)"
@@ -2534,6 +2552,7 @@ class PowerView:
             return
 
         try:
+#            tss = TSTS.TermSrvEnumeration(dce_2, "192.168.131.144")
             resp = srvs.hNetrSessionEnum(dce, '\x00', NULL, 10)
         except Exception as e:
             if 'rpc_s_access_denied' in str(e):
