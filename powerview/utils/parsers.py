@@ -180,7 +180,7 @@ def powerview_arg_parse(cmd):
     get_domainuser_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #computers
-    get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer', aliases=['Get-NetComputer'],exit_on_error=False)
+    get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer', aliases=['Get-NetComputer'], exit_on_error=False)
     get_domaincomputer_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
     get_domaincomputer_parser.add_argument('-Properties', action='store', dest='properties')
     get_domaincomputer_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
@@ -195,6 +195,7 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-Unconstrained', action='store_true', default=False, dest='unconstrained')
     get_domaincomputer_parser.add_argument('-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
     get_domaincomputer_parser.add_argument('-LAPS', action='store_true', default=False, dest='laps')
+    get_domaincomputer_parser.add_argument('-BitLocker', action='store_true', default=False, dest='bitlocker')
     get_domaincomputer_parser.add_argument('-RBCD', action='store_true', default=False, dest='rbcd')
     get_domaincomputer_parser.add_argument('-SPN', action='store_true', dest='spn')
     get_domaincomputer_parser.add_argument('-Printers', action='store_true', default=False, dest='printers')

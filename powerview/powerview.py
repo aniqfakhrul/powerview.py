@@ -424,6 +424,10 @@ class PowerView:
             if args.excludedcs:
                 logging.debug("[Get-DomainComputer] Excluding domain controllers")
                 ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=8192))'
+            if args.bitlocker:
+                logging.debug("[Get-DomainComputer] Searching for computers with BitLocker keys")
+                ldap_filter += f'(objectClass=msFVE-RecoveryInformation)'
+                properties += ["msFVE-KeyPackage", "msFVE-RecoveryGuid", "msFVE-RecoveryPassword", "msFVE-VolumeGuid"]
             if args.ldapfilter:
                 logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f"{args.ldapfilter}"

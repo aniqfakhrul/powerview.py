@@ -52,7 +52,7 @@ COMMANDS = {
     'Get-ObjectOwner':['-Identity','-ResolveSID','-SearchBase','-Domain','-Select', '-Where', '-Count', '-NoWrap','-OutFile'],
     'Get-DomainObjectAcl':['-Identity','-SearchBase','-Domain','-SecurityIdentifier','-ResolveGUIDs','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
     'Get-ObjectAcl':['-Identity','-SearchBase','-Domain','-ResolveGUIDs','-SecurityIdentifier','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
-    'Get-DomainComputer':['-Identity','-Properties','-ResolveIP','-ResolveSIDs','-LDAPFilter','-SearchBase','-Domain','-Select','-Unconstrained','-TrustedToAuth', '-LAPS','-RBCD','-SPN','-Printers','-ExcludeDCs','-Where', '-Count', '-NoWrap', '-OutFile'],
+    'Get-DomainComputer':['-Identity','-Properties','-ResolveIP','-ResolveSIDs','-LDAPFilter','-SearchBase','-Domain','-Select','-Unconstrained','-TrustedToAuth', '-LAPS', '-BitLocker', '-RBCD','-SPN','-Printers','-ExcludeDCs','-Where', '-Count', '-NoWrap', '-OutFile'],
     'Get-NetComputer':['-Identity','-Properties','-ResolveIP','-ResolveSIDs','-LDAPFilter','-SearchBase','-Domain','-Select','-Unconstrained','-TrustedToAuth', '-LAPS','-RBCD','-SPN','-Printers','-ExcludeDCs', '-Where', '-Count', '-NoWrap', '-OutFile'],
     'Add-DomainComputer':['-ComputerName','-ComputerPass','-Domain', '-OutFile'],
     'Add-DomainDNSRecord':['-ZoneName','-RecordName','-RecordAddress','-Domain', '-OutFile'],
