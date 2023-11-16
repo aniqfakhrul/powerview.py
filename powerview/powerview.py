@@ -2287,7 +2287,7 @@ class PowerView:
                             values = targetobject[0]["attributes"].get(attrs['attribute'])
                             if isinstance(values, list):
                                 for ori_val in values:
-                                    if isinstance(ori_val, str):
+                                    if isinstance(ori_val, str) and isinstance(val, str):
                                         if val.casefold() == ori_val.casefold():
                                             logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
                                             return
@@ -2355,6 +2355,38 @@ class PowerView:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Set-DomainObject] Failed to modify attribute {attr_key} for {targetobject[0]['attributes']['distinguishedName']}")
         else:
             logging.info(f'[Set-DomainObject] Success! modified attribute {attr_key} for {targetobject[0]["attributes"]["distinguishedName"]}')
+        
+        return succeeded
+
+    def set_domainobjectdn(self, identity, new_dn, searchbase=None, sd_flag=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        
+        # verify if the identity exists
+        targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['*'], sd_flag=sd_flag)
+        if len(targetobject) > 1:
+            logging.error(f"[Set-DomainObject] More than one object found")
+            return False
+        elif len(targetobject) == 0:
+            logging.error(f"[Set-DomainObject] {identity} not found in domain")
+            return False
+
+        targetobject = targetobject[0]
+        # set the object new dn
+        if isinstance(targetobject["attributes"]["distinguishedName"], list):
+            targetobject_dn = targetobject["attributes"]["distinguishedName"][0]
+        else:
+            targetobject_dn = targetobject["attributes"]["distinguishedName"]
+        
+        logging.debug(f"[Set-DomainObjectDN] Modifying {targetobject_dn} object dn to {new_dn}")
+
+        relative_dn = targetobject_dn.split(",")[0]
+
+        succeeded = self.ldap_session.modify_dn(targetobject_dn, relative_dn, new_superior=new_dn)
+        if not succeeded:
+            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Set-DomainObject] Failed to modify")
+        else:
+            logging.info(f'[Set-DomainObject] Success! modified new dn for {targetobject_dn}')
         
         return succeeded
 

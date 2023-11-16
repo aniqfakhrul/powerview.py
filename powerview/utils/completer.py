@@ -74,6 +74,7 @@ COMMANDS = {
     'Remove-DomainObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain', '-OutFile'],
     'Remove-ObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain', '-OutFile'],
     'Set-DomainObject':['-Identity','-Clear','-Set','-Append','-SearchBase','-Domain','-OutFile'],
+    'Set-DomainObjectDN':['-Identity','-DistinguishedName','-SearchBase','-Domain','-OutFile'],
     'Set-DomainDNSRecord':['-ZoneName','-RecordName','-RecordAddress','-Domain', '-OutFile'],
     'Remove-DomainDNSRecord':['-ZoneName','-Identity','-Domain', '-OutFile'],
     'Set-Object':['-Identity','-Clear','-Set','-Append','-SearchBase','-Domain', '-OutFile'],
