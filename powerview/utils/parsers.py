@@ -17,6 +17,7 @@ class PowerViewParser(argparse.ArgumentParser):
 def arg_parse():
     parser = PowerViewParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE}0.1.2{bcolors.ENDC}")
     parser.add_argument('target', action='store', metavar='target', help='[[domain/]username[:password]@]<targetName or address>')
+    parser.add_argument('-p','--port', dest='port', action='store', help='LDAP server port. (Default: 389|636)', type=int)
     parser.add_argument('-d','--debug', dest='debug', action='store_true', help='Enable debug output')
     parser.add_argument('-q','--query', dest='query', action='store', help='PowerView query to be executed one-time')
     parser.add_argument('-ns','--nameserver', dest='nameserver', action='store', help='Specify custom nameserver. If not specified, domain controller will be used instead')
