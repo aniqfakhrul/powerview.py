@@ -47,6 +47,7 @@ COMMANDS = {
     'Find-LocalAdminAccess':['-Computer','-ComputerName','-Domain', '-Count', '-OutFile'],
     'Invoke-Kerberoast':['-Identity', '-Properties', '-Opsec','-LDAPFilter','-Domain', '-NoWrap','-OutFile'],
     'Get-DomainObject':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Domain','-Select', '-Where', '-Count', '-NoWrap','-OutFile'],
+    'Remove-DomainObject':['-Identity','-SearchBase','-Domain','-OutFile'],
     'Get-ADObject':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Domain','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
     'Get-DomainObjectOwner':['-Identity','-ResolveSID','-SearchBase','-Domain','-Select', '-Where', '-Count', '-NoWrap','-OutFile'],
     'Get-ObjectOwner':['-Identity','-ResolveSID','-SearchBase','-Domain','-Select', '-Where', '-Count', '-NoWrap','-OutFile'],

@@ -418,6 +418,15 @@ def main():
                                     temp_powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
                                 else:
                                     powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
+                            elif pv_args.module.casefold() == 'remove-domainobject' or pv_args.module.casefold() == 'remove-adobject':
+                                if pv_args.identity:
+                                    identity = pv_args.identity.strip()
+                                    if temp_powerview:
+                                        temp_powerview.remove_domainobject(identity, args=pv_args)
+                                    else:
+                                        powerview.remove_domainobject(identity, args=pv_args)
+                                else:
+                                    logging.error("-Identity flag is required")
                             elif pv_args.module.casefold() == 'remove-domainuser' or pv_args.module.casefold() == 'remove-aduser':
                                 if pv_args.identity:
                                     if temp_powerview:
@@ -425,7 +434,7 @@ def main():
                                     else:
                                         powerview.remove_domainuser(pv_args.identity)
                                 else:
-                                    logging.error(f'-Identity is required')
+                                    logging.error("-Identity is required")
                             elif pv_args.module.casefold() == 'remove-domaindnsrecord':
                                 if pv_args.identity:
                                     identity = pv_args.identity.strip()
@@ -491,14 +500,17 @@ def main():
                 print("Exiting...")
                 sys.exit(0)
             except ldap3.core.exceptions.LDAPSocketSendError as e:
-                logging.info("Connection dead")
+                logging.info("LDAPSocketSendError: Connection dead")
                 conn.reset_connection()
             except ldap3.core.exceptions.LDAPSessionTerminatedByServerError as e:
-                logging.warning("Server connection terminated. Trying to reconnect")
+                logging.warning("LDAPSessionTerminatedByServerError: Server connection terminated. Trying to reconnect")
                 conn.reset_connection()
                 continue
-            #except Exception as e:
-            #    logging.error(str(e))
+            except ldap3.core.exceptions.LDAPInvalidDnError as e:
+                logging.error(f"LDAPInvalidDnError: {str(e)}")
+                continue
+            except Exception as e:
+                logging.error(str(e))
 
             if args.query:
                 sys.exit(0)

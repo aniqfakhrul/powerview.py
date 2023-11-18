@@ -418,6 +418,13 @@ def powerview_arg_parse(cmd):
     add_domaingroupmember_parser.add_argument('-Domain', action='store', dest='server')
     add_domaingroupmember_parser.add_argument('-OutFile', action='store', dest='outfile')
 
+    # remove domain object
+    remove_domainobject_parser = subparsers.add_parser('Remove-DomainObject',aliases=['Remove-ADObject'], exit_on_error=False)
+    remove_domainobject_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+    remove_domainobject_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+    remove_domainobject_parser.add_argument('-Domain', action='store', dest='server')
+    remove_domainobject_parser.add_argument('-OutFile', action='store', dest='outfile')
+
     # remove domain group members
     remove_domaingroupmember_parser = subparsers.add_parser('Remove-DomainGroupMember',aliases=['Remove-GroupMember'], exit_on_error=False)
     remove_domaingroupmember_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))

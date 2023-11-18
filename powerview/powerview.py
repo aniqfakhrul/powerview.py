@@ -98,6 +98,8 @@ class PowerView:
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
 
+        logging.debug(f"[Get-DomainUser] Using search base: {searchbase}")
+
         ldap_filter = ""
         identity_filter = ""
 
@@ -155,7 +157,7 @@ class PowerView:
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
 
-    def get_domaincontroller(self, args=None, properties=[], identity=None):
+    def get_domaincontroller(self, args=None, properties=[], identity=None, searchbase=None):
         def_prop = [
             'cn',
             'distinguishedName',
@@ -182,7 +184,10 @@ class PowerView:
         identity_filter = ""
 
         properties = def_prop if not properties else properties
-        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
+        
+        logging.debug(f"[Get-DomainController] Using search base: {searchbase}")
 
         if identity:
             identity_filter += f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
@@ -249,6 +254,42 @@ class PowerView:
             strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
+
+    def remove_domainobject(self, identity, searchbase=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        targetobject = self.get_domainobject(identity=identity, properties=[
+            'sAMAccountname',
+            'ObjectSID',
+            'distinguishedName',
+        ], searchbase=searchbase)
+        
+        # verify if the identity exists
+        if len(targetobject) > 1:
+            logging.error(f"[Remove-DomainObject] More than one object found")
+            return False
+        elif len(targetobject) == 0:
+            logging.error(f"[Remove-DomainObject] {identity} not found in domain")
+            return False
+
+        if isinstance(targetobject, list):
+            targetobject_dn = targetobject[0]["attributes"]["distinguishedName"]
+        else:
+            targetobject_dn = targetobject["attributes"]["distinguishedName"]
+
+        logging.info(f"[Remove-DomainObject] Found {targetobject_dn} in domain")
+        
+        logging.warning(f"[Remove-DomainObject] Removing object from domain")
+        
+        succeeded = self.ldap_session.delete(targetobject_dn)
+
+        if not succeeded:
+            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainObject] Failed to modify, view debug message with --debug")
+        else:
+            logging.info(f'[Remove-DomainObject] Success! {targetobject_dn} removed')
+        
+        return succeeded
 
     def get_domainobjectowner(self, identity=None, searchbase=None, args=None):
         if not searchbase:
@@ -2365,16 +2406,15 @@ class PowerView:
         # verify if the identity exists
         targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['*'], sd_flag=sd_flag)
         if len(targetobject) > 1:
-            logging.error(f"[Set-DomainObject] More than one object found")
+            logging.error(f"[Set-DomainObjectDN] More than one object found")
             return False
         elif len(targetobject) == 0:
-            logging.error(f"[Set-DomainObject] {identity} not found in domain")
+            logging.error(f"[Set-DomainObjectDN] {identity} not found in domain")
             return False
 
-        targetobject = targetobject[0]
         # set the object new dn
-        if isinstance(targetobject["attributes"]["distinguishedName"], list):
-            targetobject_dn = targetobject["attributes"]["distinguishedName"][0]
+        if isinstance(targetobject, list):
+            targetobject_dn = targetobject[0]["attributes"]["distinguishedName"]
         else:
             targetobject_dn = targetobject["attributes"]["distinguishedName"]
         
@@ -2384,7 +2424,7 @@ class PowerView:
 
         succeeded = self.ldap_session.modify_dn(targetobject_dn, relative_dn, new_superior=new_dn)
         if not succeeded:
-            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Set-DomainObject] Failed to modify")
+            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Set-DomainObjectDN] Failed to modify, view debug message with --debug")
         else:
             logging.info(f'[Set-DomainObject] Success! modified new dn for {targetobject_dn}')
         

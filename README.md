@@ -83,6 +83,7 @@ Get-DomainUser -Count
 |Get-DomainObjectAcl|Get-ObjectAcl||
 |Add-DomainObjectAcl|Add-ObjectAcl|Supported rights so far are All, DCsync, RBCD, ShadowCred, WriteMembers|
 |Remove-DomainObjectAcl|Remove-ObjectAcl||
+|Remove-DomainObject|Remove-Object||
 |Add-DomainGroupMember|Add-GroupMember||
 |Remove-DomainGroupmember|Remove-GroupMember||
 |Add-DomainComputer|Add-ADComputer||
@@ -90,6 +91,7 @@ Get-DomainUser -Count
 |Add-DomainUser|Add-ADUser||
 |Remove-DomainUser|Remove-ADUser||
 |Set-DomainObject|Set-Object||
+|Set-DomainObjectDN|Set-ObjectDN| Modify object's distinguishedName attribute as well as changing OU|
 |Set-DomainUserPassword|||
 |Set-DomainCATemplate|Set-CATemplate||
 |Set-DomainDNSRecord|||
