@@ -81,6 +81,8 @@ Get-DomainUser -Count
 |Get-DomainObject|Get-ADObject||
 |Get-DomainObjectOwner|Get-ObjectOwner||
 |Get-DomainObjectAcl|Get-ObjectAcl||
+|Add-DomainOU|Add-OU||
+|Remove-DomainOU|Remove-OU||
 |Add-DomainObjectAcl|Add-ObjectAcl|Supported rights so far are All, DCsync, RBCD, ShadowCred, WriteMembers|
 |Remove-DomainObjectAcl|Remove-ObjectAcl||
 |Remove-DomainObject|Remove-Object||
@@ -98,6 +100,7 @@ Get-DomainUser -Count
 |Set-DomainObjectOwner|Set-ObjectOwner||
 |Find-LocalAdminAccess|||
 |Invoke-Kerberoast|||
+|New-GPLink|||
 |ConvertFrom-SID|||
 
 ### To-Do

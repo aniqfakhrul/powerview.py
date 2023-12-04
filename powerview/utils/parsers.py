@@ -433,6 +433,20 @@ def powerview_arg_parse(cmd):
     remove_domaingroupmember_parser.add_argument('-Domain', action='store', dest='server')
     remove_domaingroupmember_parser.add_argument('-OutFile', action='store', dest='outfile')
 
+    # add domain ou
+    add_domainou_parser = subparsers.add_parser('Add-DomainOU', aliases=['Add-OU'], exit_on_error=False)
+    add_domainou_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+    add_domainou_parser.add_argument('-DistinguishedName', action='store', const=None, dest='distinguishedname')
+    add_domainou_parser.add_argument('-Domain', action='store', dest='server')
+    add_domainou_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+    # remove domain ou
+    remove_domainou_parser = subparsers.add_parser('Remove-DomainOU', aliases=['Remove-OU'], exit_on_error=False)
+    remove_domainou_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+    remove_domainou_parser.add_argument('-DistinguishedName', action='store', const=None, dest='distinguishedname')
+    remove_domainou_parser.add_argument('-Domain', action='store', dest='server')
+    remove_domainou_parser.add_argument('-OutFile', action='store', dest='outfile')
+
     # add domain object acl
     add_domainobjectacl_parser = subparsers.add_parser('Add-DomainObjectAcl', aliases=['Add-ObjectAcl'], exit_on_error=False)
     add_domainobjectacl_parser.add_argument('-TargetIdentity', action='store', const=None, dest='targetidentity', type=lambda value: escape_filter_chars_except_asterisk(value))
@@ -551,6 +565,16 @@ def powerview_arg_parse(cmd):
     set_domainobjectowner_parser.add_argument('-SearchBase', action='store', dest='searchbase')
     set_domainobjectowner_parser.add_argument('-Domain', action='store', dest='server')
     set_domainobjectowner_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+    # new gp link
+    new_gplink_parser = subparsers.add_parser('New-GPLink', exit_on_error=False)
+    new_gplink_parser.add_argument('-GUID', action='store', const=None, dest='guid')
+    new_gplink_parser.add_argument('-TargetIdentity', action='store', const=None, dest='targetidentity')
+    new_gplink_parser.add_argument('-LinkEnabled', action='store', dest='link_enabled', default="Yes", choices=["Yes","No"])
+    new_gplink_parser.add_argument('-Enforced', action='store', dest='enforced', default="No", choices=["Yes","No"])
+    new_gplink_parser.add_argument('-SearchBase', action='store', dest='searchbase')
+    new_gplink_parser.add_argument('-Domain', action='store', dest='server')
+    new_gplink_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     subparsers.add_parser('exit', exit_on_error=False)
     subparsers.add_parser('clear', exit_on_error=False)

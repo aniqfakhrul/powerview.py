@@ -229,6 +229,11 @@ class ACTIVE_DIRECTORY_RIGHTS(IntFlag):
                 filtered_members.append(member)
         return members
 
+# GPO
+LINK_ENABLED = 0
+LINK_DISABLED = 1
+ENFORCED = 3
+
 # Universal SIDs
 WELL_KNOWN_SIDS = {
     'S-1-0': 'Null Authority',
@@ -381,7 +386,6 @@ EXTENDED_RIGHTS_MAP = {
     "b7b1b3de-ab09-4242-9e30-9980e5d322f7": "Generate-RSoP-Logging",
     "b8119fd0-04f6-4762-ab7a-4986c76b3f9a": "Domain-Other-Parameters",
     "e2a36dc9-ae17-47c3-b58b-be34c55ba633": "Create-Inbound-Forest-Trust",
-    "1131f6aa-9c07-11d1-f79f-00c04fc2dcd2": "Replication-Get-Changes-All",
     "1131f6ad-9c07-11d1-f79f-00c04fc2dcd2": "DS-Replication-Get-Changes-All",
     "ba33815a-4f93-4c76-87f3-57574bff8109": "Migrate-SID-History",
     "45ec5156-db7e-47bb-b53f-dbeb2d03c40f": "Reanimate-Tombstones",

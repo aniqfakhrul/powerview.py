@@ -287,6 +287,22 @@ def main():
                                     entries = temp_powerview.invoke_kerberoast(pv_args, properties)
                                 else:
                                     entries = powerview.invoke_kerberoast(pv_args, properties)
+                            elif pv_args.module.casefold() == 'add-domainou' or pv_args.module.casefold() == 'add-ou':
+                                if pv_args.identity is not None:
+                                    if temp_powerview:
+                                        temp_powerview.add_domainou(identity=pv_args.identity, args=pv_args)
+                                    else:
+                                        powerview.add_domainou(identity=pv_args.identity, args=pv_args)
+                                else:
+                                    logging.error('-Identity flag is required')
+                            elif pv_args.module.casefold() == 'remove-domainou' or pv_args.module.casefold() == 'remove-ou':
+                                if pv_args.identity is not None:
+                                    if temp_powerview:
+                                        temp_powerview.remove_domainou(identity=pv_args.identity, args=pv_args)
+                                    else:
+                                        powerview.remove_domainou(identity=pv_args.identity, args=pv_args)
+                                else:
+                                    logging.error('-Identity flag is required')
                             elif pv_args.module.casefold() == 'add-domainobjectacl' or pv_args.module.casefold() == 'add-objectacl':
                                 if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
                                     if temp_powerview:
@@ -452,7 +468,15 @@ def main():
                                     else:
                                         powerview.remove_domaincomputer(pv_args.computername)
                                 else:
-                                    logging.error(f'-ComputerName is required')
+                                    logging.error('-ComputerName is required')
+                            elif pv_args.module.casefold() == 'new-gplink':
+                                if pv_args.guid is not None and pv_args.targetidentity is not None:
+                                    if temp_powerview:
+                                        powerview.new_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, link_enabled=pv_args.link_enabled, enforced=pv_args.enforced, args=pv_args)
+                                    else:
+                                        powerview.new_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, link_enabled=pv_args.link_enabled, enforced=pv_args.enforced, args=pv_args)
+                                else:
+                                    logging.error("-GUID and -TargetIdentity flags are required")
                             elif pv_args.module.casefold() == 'exit':
                                 sys.exit(0)
                             elif pv_args.module.casefold() == 'clear':

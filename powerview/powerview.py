@@ -1158,6 +1158,137 @@ class PowerView:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainCATemplate] Failed to delete template {identity} from certificate store")
             return False
 
+    def add_domainou(self, identity, args=None):
+        dn = "" 
+        if not args.distinguishedname:
+            dn = "OU=%s,%s" % (identity, self.root_dn)
+        else:
+            dn = args.distinguishedname
+        
+        ou_data = {
+            	'objectCategory': 'CN=Organizational-Unit,CN=Schema,CN=Configuration,%s' % self.root_dn,
+            	'name': identity
+        		}
+        
+        self.ldap_session.add(dn, ['top','organizationalUnit'], ou_data)
+        
+        if self.ldap_session.result['result'] == 0:
+            logging.info(f"[Add-DomainOU] Added new {identity} OU")
+            return True
+        else:
+            logging.error(f"[Add-DomainOU] Failed to create {identity} OU ({self.ldap_session.result['description']})")
+            return False
+
+    def remove_domainou(self, identity, searchbase=None, sd_flag=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        # verify if the ou exists
+        targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['distinguishedName'], sd_flag=sd_flag)
+        if len(targetobject) > 1:
+            logging.error(f"[Remove-DomainOU] More than one object found")
+            return False
+        elif len(targetobject) == 0:
+            logging.error(f"[Remove-DomainOU] {identity} not found in domain")
+            return False
+
+        # set the object new dn
+        if isinstance(targetobject, list):
+            targetobject_dn = targetobject[0]["attributes"]["distinguishedName"]
+        else:
+            targetobject_dn = targetobject["attributes"]["distinguishedName"]
+
+        logging.debug(f"[Remove-DomainOU] Removing {targetobject_dn}")
+
+        succeeded = self.ldap_session.delete(targetobject_dn)
+
+        if not succeeded:
+            logging.error(f"[Remove-DomainOU] Failed to delete OU ({self.ldap_session.result['message']})")
+            return False
+        else:
+            logging.info("[Remove-DomainOU] Success! Deleted the OU")
+            return True
+
+    def new_gplink(self, guid, targetidentity, link_enabled="Yes", enforced="No", searchbase=None, sd_flag=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        # verify that the targetidentity exists
+        gpo = self.get_domaingpo(identity=guid, properties=[
+            'name',
+            'distinguishedName',
+            ],
+            searchbase=searchbase,
+        )
+        if len(gpo) > 1:
+            logging.error("[New-GPLink] More than one GPO found")
+            return
+        elif len(gpo) == 0:
+            logging.error("[New-GPLink] GPO not found in domain")
+            return
+
+        if isinstance(gpo, list):
+            gpidentity = gpo[0]["attributes"]["distinguishedName"]
+        else:
+            gpidentity = gpo["attributes"]["distinguishedName"]
+
+        logging.debug(f"Found GPO with GUID {gpidentity}")
+
+        # verify that the principalidentity exists
+        target_identity = self.get_domainobject(identity=targetidentity, properties=[
+            'distinguishedName',
+            ],
+            searchbase=searchbase,
+            sd_flag=sd_flag
+            )
+        if len(target_identity) > 1:
+            logging.error("[New-GPLink] More than one principal identity found")
+            return
+        elif len(target_identity) == 0:
+            logging.error("[New-GPLink] Principal identity not found in domain")
+            return
+
+        if isinstance(target_identity, list):
+            targetidentity_dn = target_identity[0]["attributes"]["distinguishedName"]
+        else:
+            targetidentity_dn = target_identity["attributes"]["distinguishedName"]
+
+        logging.debug(f"[New-GPLink] Found target identity {targetidentity_dn}")
+        
+        logging.warning(f"[New-GPLink] Adding new GPLink to {targetidentity_dn}")
+
+        attr = "0"
+        if enforced.casefold() == "Yes".casefold():
+            if link_enabled.casefold() == "Yes".casefold():
+                attr = "2"
+            elif link_enabled.casefold() == "No".casefold():
+                attr = "3"
+        elif enforced.casefold() == "No".casefold():
+            if link_enabled.casefold() == "Yes".casefold():
+                attr = "0"
+            elif link_enabled.casefold() == "No".casefold():
+                attr = "1"
+
+        gpidentity = "[LDAP://%s;%s]" % (gpidentity, attr)
+
+        if self.args.debug:
+            logging.debug(f"[New-GPLink] gPLink value: {gpidentity}")
+
+        succeed = self.set_domainobject(  
+                                targetidentity_dn,
+                                append = {
+                                        'attribute': 'gPLink',
+                                        'value': [gpidentity]
+                                    },
+                              )
+
+        if succeed:
+            logging.info(f"[New-GPLink] Successfully added gPLink to {targetidentity_dn} OU")
+            return True
+        else:
+            logging.error(f"[New-GPLink] Failed to add gPLink to {targetidentity_dn} OU")
+            return False
+
     def add_domaincatemplateacl(self, name, principalidentity, rights=None, ca_fetch=None, args=None):
         if not rights:
             if args and hasattr(args, 'rights') and args.rights:
@@ -2383,12 +2514,13 @@ class PowerView:
                         'value': attrs['value'],
                         },
                         						 searchbase=searchbase,
-                        						 sdflags=sdflags
+                        						 sd_flag=sd_flag
                     							 )
 
                 temp_list = []
                 if isinstance(targetobject[0]["attributes"][attrs['attribute']], str):
-                    temp_list.append(targetobject[0]["attributes"][attrs['attribute']])
+                    if len(targetobject[0]["attributes"][attrs['attribute']].strip()) != 0:
+                        temp_list.append(targetobject[0]["attributes"][attrs['attribute']])
                 elif isinstance(targetobject[0]["attributes"][attrs['attribute']], int):
                     temp_list.append(targetobject[0]["attributes"][attrs['attribute']])
                 elif isinstance(targetobject[0]["attributes"][attrs['attribute']], list):
@@ -2418,7 +2550,8 @@ class PowerView:
             succeeded = False
 
         if not succeeded:
-            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Set-DomainObject] Failed to modify attribute {attr_key} for {targetobject[0]['attributes']['distinguishedName']}")
+            logging.error(f"[Set-DomainObject] Failed to modify attribute {attr_key} for {targetobject[0]['attributes']['distinguishedName']}")
+            logging.error(self.ldap_session.result['message'] )
         else:
             logging.info(f'[Set-DomainObject] Success! modified attribute {attr_key} for {targetobject[0]["attributes"]["distinguishedName"]}')
 

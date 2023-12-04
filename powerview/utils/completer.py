@@ -71,6 +71,10 @@ COMMANDS = {
     'Remove-DomainGroupMember':['-Identity','-Members','-Domain', '-OutFile'],
     'Remove-GroupMember':['-Identity','-Members','-Domain', '-OutFile'],
     'Add-DomainObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain','-OutFile'],
+    'Add-DomainOU':['-Identity','-DistinguishedName','-Domain','-OutFile'],
+    'Add-OU':['-Identity','-DistinguishedName','-Domain','-OutFile'],
+    'Remove-DomainOU':['-Identity','-DistinguishedName','-Domain','-OutFile'],
+    'Remove-OU':['-Identity','-DistinguishedName','-Domain','-OutFile'],
     'Add-ObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain','-OutFile'],
     'Remove-DomainObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain', '-OutFile'],
     'Remove-ObjectAcl':['-PrincipalIdentity','-TargetIdentity', '-Rights','-Domain', '-OutFile'],
@@ -87,6 +91,7 @@ COMMANDS = {
     'Set-DomainComputerPassword':['-Identity','-AccountPassword', '-OldPassword','-Domain','-OutFile'],
     'Set-DomainObjectOwner':['-TargetIdentity','-PrincipalIdentity','-SearchBase','-Domain','-OutFile'],
     'Set-ObjectOwner':['-TargetIdentity','-PrincipalIdentity','-SearchBase','-Domain','-OutFile'],
+    'New-GPLink':['-GUID','-TargetIdentity','-LinkEnabled','-Enforced','-SearchBase','-Domain','-OutFile'],
     'clear':'',
     'exit':'',
 }
