@@ -68,6 +68,19 @@ class PowerView:
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
         self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
 
+        # check if the user is domain admin
+        self.is_domainadmin = self.domain_dumper.isDomainAdmin(self.username)
+        self.is_admincount = False
+        if self.is_domainadmin:
+            logging.info(f"User {self.username} is a Domain Admin")
+        else:
+            self.is_admincount = bool(self.get_domainuser(identity=self.username, properties=["adminCount"])[0]["attributes"]["adminCount"])
+            if self.is_admincount:
+                logging.info(f"User {self.username} has adminCount attribute set to 1. Might be admin somewhere :)")
+
+    def get_admin_status(self):
+        return self.is_domainadmin or self.is_admincount
+
     def get_domainuser(self, args=None, properties=[], identity=None, searchbase=None):
         def_prop = [
             'servicePrincipalName',

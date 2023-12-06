@@ -36,8 +36,9 @@ def main():
         init_ldap_address = args.ldap_address
 
         powerview = PowerView(conn, args)
+        is_admin = powerview.get_admin_status()
         init_proto = conn.get_proto()
-        cur_user = conn.who_am_i()
+        cur_user = conn.who_am_i() if not is_admin else "%s%s%s" % (bcolors.WARNING, conn.who_am_i(), bcolors.ENDC)
         server_ip = conn.get_ldap_address()
         temp_powerview = None
 
