@@ -576,6 +576,14 @@ def powerview_arg_parse(cmd):
     new_gplink_parser.add_argument('-Domain', action='store', dest='server')
     new_gplink_parser.add_argument('-OutFile', action='store', dest='outfile')
 
+    # new gp link
+    remove_gplink_parser = subparsers.add_parser('Remove-GPLink', exit_on_error=False)
+    remove_gplink_parser.add_argument('-GUID', action='store', const=None, dest='guid')
+    remove_gplink_parser.add_argument('-TargetIdentity', action='store', const=None, dest='targetidentity')
+    remove_gplink_parser.add_argument('-SearchBase', action='store', dest='searchbase')
+    remove_gplink_parser.add_argument('-Domain', action='store', dest='server')
+    remove_gplink_parser.add_argument('-OutFile', action='store', dest='outfile')
+    
     subparsers.add_parser('exit', exit_on_error=False)
     subparsers.add_parser('clear', exit_on_error=False)
 

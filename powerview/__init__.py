@@ -478,6 +478,14 @@ def main():
                                         powerview.new_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, link_enabled=pv_args.link_enabled, enforced=pv_args.enforced, args=pv_args)
                                 else:
                                     logging.error("-GUID and -TargetIdentity flags are required")
+                            elif pv_args.module.casefold() == 'remove-gplink':
+                                if pv_args.guid is not None and pv_args.targetidentity is not None:
+                                    if temp_powerview:
+                                        powerview.remove_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, args=pv_args)
+                                    else:
+                                        powerview.remove_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, args=pv_args)
+                                else:
+                                    logging.error("-GUID and -TargetIdentity flags are required")
                             elif pv_args.module.casefold() == 'exit':
                                 sys.exit(0)
                             elif pv_args.module.casefold() == 'clear':

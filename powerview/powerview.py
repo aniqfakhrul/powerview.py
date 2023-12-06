@@ -76,7 +76,7 @@ class PowerView:
         else:
             self.is_admincount = bool(self.get_domainuser(identity=self.username, properties=["adminCount"])[0]["attributes"]["adminCount"])
             if self.is_admincount:
-                logging.info(f"User {self.username} has adminCount attribute set to 1. Might be admin somewhere :)")
+                logging.info(f"User {self.username} has adminCount attribute set to 1. Might be admin somewhere somehow :)")
 
     def get_admin_status(self):
         return self.is_domainadmin or self.is_admincount
@@ -1222,11 +1222,11 @@ class PowerView:
             logging.info("[Remove-DomainOU] Success! Deleted the OU")
             return True
 
-    def new_gplink(self, guid, targetidentity, link_enabled="Yes", enforced="No", searchbase=None, sd_flag=None, args=None):
+    def remove_gplink(self, guid, targetidentity, searchbase=None, sd_flag=None, args=None):
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
-        # verify that the targetidentity exists
+        # verify that the gpidentity exists
         gpo = self.get_domaingpo(identity=guid, properties=[
             'name',
             'distinguishedName',
@@ -1247,9 +1247,84 @@ class PowerView:
 
         logging.debug(f"Found GPO with GUID {gpidentity}")
 
-        # verify that the principalidentity exists
+        # verify that the target identity exists
         target_identity = self.get_domainobject(identity=targetidentity, properties=[
+            '*',
+            ],
+            searchbase=searchbase,
+            sd_flag=sd_flag
+            )
+        if len(target_identity) > 1:
+            logging.error("[Remove-GPLink] More than one principal identity found")
+            return
+        elif len(target_identity) == 0:
+            logging.error("[Remove-GPLink] Principal identity not found in domain")
+            return
+
+        if isinstance(target_identity, list):
+            targetidentity_dn = target_identity[0]["attributes"]["distinguishedName"]
+            targetidentity_gplink = target_identity[0]["attributes"].get("gPLink")
+        else:
+            targetidentity_dn = target_identity["attributes"]["distinguishedName"]
+            targetidentity_gplink = target_identity["attributes"].get("gPLink")
+
+        logging.debug(f"[Remove-GPLink] Found target identity {targetidentity_dn}")
+
+        if not targetidentity_gplink:
+            logging.error("[Remove-GPLink] Principal identity doesn't have any linked GPO")
+            return
+
+        # parsing gPLink attribute and remove selected gpo
+        pattern = "(?<=\[).*?(?=\])"
+        new_gplink = ""
+        gplinks = re.findall(pattern, targetidentity_gplink)
+        for link in gplinks:
+            if guid.lower() not in link.lower():
+                new_gplink += "[%s]" % (link)
+                
+        succeed = self.set_domainobject(  
+                                targetidentity_dn,
+                                _set = {
+                                        'attribute': 'gPLink',
+                                        'value': [new_gplink]
+                                    },
+                              )
+
+        if succeed:
+            logging.info(f"[Remove-GPLink] Successfully modified gPLink on {targetidentity_dn} OU")
+            return True
+        else:
+            logging.error(f"[Remove-GPLink] Failed to modify gPLink on {targetidentity_dn} OU")
+            return False
+
+    def new_gplink(self, guid, targetidentity, link_enabled="Yes", enforced="No", searchbase=None, sd_flag=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        # verify that the gpidentity exists
+        gpo = self.get_domaingpo(identity=guid, properties=[
+            'name',
             'distinguishedName',
+            ],
+            searchbase=searchbase,
+        )
+        if len(gpo) > 1:
+            logging.error("[New-GPLink] More than one GPO found")
+            return
+        elif len(gpo) == 0:
+            logging.error("[New-GPLink] GPO not found in domain")
+            return
+
+        if isinstance(gpo, list):
+            gpidentity_dn = gpo[0]["attributes"]["distinguishedName"]
+        else:
+            gpidentity_dn = gpo["attributes"]["distinguishedName"]
+
+        logging.debug(f"Found GPO with GUID {gpidentity_dn}")
+
+        # verify that the target identity exists
+        target_identity = self.get_domainobject(identity=targetidentity, properties=[
+            '*',
             ],
             searchbase=searchbase,
             sd_flag=sd_flag
@@ -1263,8 +1338,10 @@ class PowerView:
 
         if isinstance(target_identity, list):
             targetidentity_dn = target_identity[0]["attributes"]["distinguishedName"]
+            targetidentity_gplink = target_identity[0]["attributes"].get("gPLink")
         else:
             targetidentity_dn = target_identity["attributes"]["distinguishedName"]
+            targetidentity_gplink = target_identity["attributes"].get("gPLink")
 
         logging.debug(f"[New-GPLink] Found target identity {targetidentity_dn}")
         
@@ -1282,16 +1359,26 @@ class PowerView:
             elif link_enabled.casefold() == "No".casefold():
                 attr = "1"
 
-        gpidentity = "[LDAP://%s;%s]" % (gpidentity, attr)
+        gpidentity = "[LDAP://%s;%s]" % (gpidentity_dn, attr)
+
+        if targetidentity_gplink:
+            if gpidentity_dn in targetidentity_gplink:
+                logging.error("gPLink attribute already exists")
+                return
+
+            logging.debug("[New-GPLink] gPLink attribute already populated. Appending new gPLink...")
+            targetidentity_gplink += gpidentity
+        else:
+            targetidentity_gplink = gpidentity
 
         if self.args.debug:
             logging.debug(f"[New-GPLink] gPLink value: {gpidentity}")
 
         succeed = self.set_domainobject(  
                                 targetidentity_dn,
-                                append = {
+                                _set = {
                                         'attribute': 'gPLink',
-                                        'value': [gpidentity]
+                                        'value': [targetidentity_gplink]
                                     },
                               )
 

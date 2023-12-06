@@ -92,6 +92,7 @@ COMMANDS = {
     'Set-DomainObjectOwner':['-TargetIdentity','-PrincipalIdentity','-SearchBase','-Domain','-OutFile'],
     'Set-ObjectOwner':['-TargetIdentity','-PrincipalIdentity','-SearchBase','-Domain','-OutFile'],
     'New-GPLink':['-GUID','-TargetIdentity','-LinkEnabled','-Enforced','-SearchBase','-Domain','-OutFile'],
+    'Remove-GPLink':['-GUID','-TargetIdentity','-SearchBase','-Domain','-OutFile'],
     'clear':'',
     'exit':'',
 }
