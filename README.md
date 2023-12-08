@@ -11,9 +11,10 @@ We are not developers, bugs and errors are very likely to happen during executio
 ## Interesting Features
 * Embeded user session
 * Binding with multiple protocols (ldap, ldaps, gc, gc-ssl), trial and error approach. SSL connection is prioritized.
-* Mini Powerview.py console to make you feel like home when using PowerView in Powershell
-* Auto-completer, so no more memorizing commands
+* Mini Powerview.py console to make you feel like home when using PowerView.ps1
+* Auto-completer, so no more remembering commands
 * Cross-Domain interactions (might or might not work)
+* Check if current user has Domain Admin or adminCount attribute set to 1
 _Maybe more?_
 
 ## Why not just stick with the ps1 script?
@@ -55,6 +56,13 @@ Get-DomainUser -Where 'samaccountname [contains][in][eq] admins'
 * Count results
 ```
 Get-DomainUser -Count
+```
+
+* Set module
+```
+Set-DomainObject -Identity "adminuser" -Set 'servicePrincipalname=http/web.ws.local'
+Set-DomainObject -Identity "adminuser" -Append 'servicePrincipalname=http/web.ws.local'
+Set-DomainObject -Identity "adminuser" -Clear 'servicePrincipalname'
 ```
 
 ## Module available (so far?)
