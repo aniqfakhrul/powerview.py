@@ -2040,6 +2040,8 @@ class PowerView:
         setattr(args,'targetidentity_dn', targetidentity_dn)
         if targetidentity_dn.upper().startswith("OU="):
             logging.info('[Add-DomainObjectAcl] Target identity is an OU')
+        elif targetidentity_dn.upper().startswith("CN={"):
+            logging.info('Target identity is a GPO')
         else:
             targetidentity_sid = target_entries[0]['attributes']['objectSid']
             setattr(args,'targetidentity_sid', targetidentity_sid)
@@ -2083,7 +2085,6 @@ class PowerView:
         else:
             principalidentity_sid = principal_entries[0]['attributes']['objectSid']
             setattr(args,'principalidentity_sid', principalidentity_sid)
-
         logging.info(f'Found principal identity dn {principalidentity_dn}')
 
         target_entries = self.get_domainobject(identity=args.targetidentity)
@@ -2094,7 +2095,6 @@ class PowerView:
 
         targetidentity_dn = target_entries[0]['attributes']['distinguishedName']
         setattr(args,'targetidentity_dn', targetidentity_dn)
-
         if targetidentity_dn.upper().startswith("OU="):
             logging.debug('[Remove-DomainObjectACL] Target identity is an OU')
         elif targetidentity_dn.upper().startswith("CN={"):
@@ -2102,7 +2102,6 @@ class PowerView:
         else:
             targetidentity_sid = target_entries[0]['attributes']['objectSid']
             setattr(args,'targetidentity_sid', targetidentity_sid)
-
         logging.info(f'Found target identity dn {targetidentity_dn}')
         entries = self.get_domainobject(identity=args.principalidentity)
         if len(entries) == 0:

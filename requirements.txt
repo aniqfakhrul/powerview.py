@@ -6,3 +6,4 @@ ldap3
 future
 validators
 pycryptodome
+chardet
