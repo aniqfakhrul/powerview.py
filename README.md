@@ -11,9 +11,10 @@ We are not developers, bugs and errors are very likely to happen during executio
 ## Interesting Features
 * Embeded user session
 * Binding with multiple protocols (ldap, ldaps, gc, gc-ssl), trial and error approach. SSL connection is prioritized.
-* Mini Powerview.py console to make you feel like home when using PowerView in Powershell
-* Auto-completer, so no more memorizing commands
+* Mini Powerview.py console to make you feel like home when using PowerView.ps1
+* Auto-completer, so no more remembering commands
 * Cross-Domain interactions (might or might not work)
+* Check if current user has Domain Admin or adminCount attribute set to 1
 _Maybe more?_
 
 ## Why not just stick with the ps1 script?
@@ -57,6 +58,13 @@ Get-DomainUser -Where 'samaccountname [contains][in][eq] admins'
 Get-DomainUser -Count
 ```
 
+* Set module
+```
+Set-DomainObject -Identity "adminuser" -Set 'servicePrincipalname=http/web.ws.local'
+Set-DomainObject -Identity "adminuser" -Append 'servicePrincipalname=http/web.ws.local'
+Set-DomainObject -Identity "adminuser" -Clear 'servicePrincipalname'
+```
+
 ## Module available (so far?)
 | Module | Alias | Description |
 | ------ | ----- | ---- |
@@ -81,8 +89,11 @@ Get-DomainUser -Count
 |Get-DomainObject|Get-ADObject||
 |Get-DomainObjectOwner|Get-ObjectOwner||
 |Get-DomainObjectAcl|Get-ObjectAcl||
+|Add-DomainOU|Add-OU||
+|Remove-DomainOU|Remove-OU||
 |Add-DomainObjectAcl|Add-ObjectAcl|Supported rights so far are All, DCsync, RBCD, ShadowCred, WriteMembers|
 |Remove-DomainObjectAcl|Remove-ObjectAcl||
+|Remove-DomainObject|Remove-Object||
 |Add-DomainGroupMember|Add-GroupMember||
 |Remove-DomainGroupmember|Remove-GroupMember||
 |Add-DomainComputer|Add-ADComputer||
@@ -90,12 +101,14 @@ Get-DomainUser -Count
 |Add-DomainUser|Add-ADUser||
 |Remove-DomainUser|Remove-ADUser||
 |Set-DomainObject|Set-Object||
+|Set-DomainObjectDN|Set-ObjectDN| Modify object's distinguishedName attribute as well as changing OU|
 |Set-DomainUserPassword|||
 |Set-DomainCATemplate|Set-CATemplate||
 |Set-DomainDNSRecord|||
 |Set-DomainObjectOwner|Set-ObjectOwner||
 |Find-LocalAdminAccess|||
 |Invoke-Kerberoast|||
+|New-GPLink|||
 |ConvertFrom-SID|||
 
 ### To-Do

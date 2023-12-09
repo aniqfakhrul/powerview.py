@@ -32,6 +32,7 @@ class CONNECTION:
         self.use_gc = args.use_gc
         self.use_gc_ldaps = args.use_gc_ldaps
         self.proto = None
+        self.port = args.port
         self.hashes = args.hashes
         self.auth_aes_key = args.auth_aes_key
         if self.auth_aes_key is not None:
@@ -122,7 +123,7 @@ class CONNECTION:
         self.ldap_session.rebind()
 
     def init_ldap_session(self, ldap_address=None, use_ldap=False, use_gc_ldap=False):
-
+        
         if self.targetDomain and self.targetDomain != self.domain and self.kdcHost:
             self.kdcHost = None
 
@@ -273,20 +274,20 @@ class CONNECTION:
             if self.use_ldaps:
                 self.proto = "LDAPS"
                 ldap_server_kwargs["use_ssl"] = True
-                ldap_server_kwargs["port"] = 636
+                ldap_server_kwargs["port"] = 636 if not self.port else self.port
             elif self.use_gc_ldaps:
                 self.proto = "GCssl"
                 ldap_server_kwargs["use_ssl"] = True
-                ldap_server_kwargs["port"] = 3269
+                ldap_server_kwargs["port"] = 3269 if not self.port else self.port
         else:
             if self.use_gc:
                 self.proto = "GC"
                 ldap_server_kwargs["use_ssl"] = False
-                ldap_server_kwargs["port"] = 3268
+                ldap_server_kwargs["port"] = 3268 if not self.port else self.port
             elif self.use_ldap:
                 self.proto = "LDAP"
                 ldap_server_kwargs["use_ssl"] = False
-                ldap_server_kwargs["port"] = 389
+                ldap_server_kwargs["port"] = 389 if not self.port else self.port
 
         # TODO: fix target when using kerberos
         bind = False

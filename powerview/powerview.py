@@ -68,6 +68,19 @@ class PowerView:
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
         self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
 
+        # check if the user is domain admin
+        self.is_domainadmin = self.domain_dumper.isDomainAdmin(self.username)
+        self.is_admincount = False
+        if self.is_domainadmin:
+            logging.info(f"User {self.username} is a Domain Admin")
+        else:
+            self.is_admincount = bool(self.get_domainuser(identity=self.username, properties=["adminCount"])[0]["attributes"]["adminCount"])
+            if self.is_admincount:
+                logging.info(f"User {self.username} has adminCount attribute set to 1. Might be admin somewhere somehow :)")
+
+    def get_admin_status(self):
+        return self.is_domainadmin or self.is_admincount
+
     def get_domainuser(self, args=None, properties=[], identity=None, searchbase=None):
         def_prop = [
             'servicePrincipalName',
@@ -97,6 +110,8 @@ class PowerView:
         properties = def_prop if not properties else properties
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
+
+        logging.debug(f"[Get-DomainUser] Using search base: {searchbase}")
 
         ldap_filter = ""
         identity_filter = ""
@@ -155,7 +170,7 @@ class PowerView:
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
 
-    def get_domaincontroller(self, args=None, properties=[], identity=None):
+    def get_domaincontroller(self, args=None, properties=[], identity=None, searchbase=None):
         def_prop = [
             'cn',
             'distinguishedName',
@@ -182,7 +197,10 @@ class PowerView:
         identity_filter = ""
 
         properties = def_prop if not properties else properties
-        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
+        
+        logging.debug(f"[Get-DomainController] Using search base: {searchbase}")
 
         if identity:
             identity_filter += f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
@@ -249,6 +267,42 @@ class PowerView:
             strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
         return entries
+
+    def remove_domainobject(self, identity, searchbase=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        targetobject = self.get_domainobject(identity=identity, properties=[
+            'sAMAccountname',
+            'ObjectSID',
+            'distinguishedName',
+        ], searchbase=searchbase)
+        
+        # verify if the identity exists
+        if len(targetobject) > 1:
+            logging.error(f"[Remove-DomainObject] More than one object found")
+            return False
+        elif len(targetobject) == 0:
+            logging.error(f"[Remove-DomainObject] {identity} not found in domain")
+            return False
+
+        if isinstance(targetobject, list):
+            targetobject_dn = targetobject[0]["attributes"]["distinguishedName"]
+        else:
+            targetobject_dn = targetobject["attributes"]["distinguishedName"]
+
+        logging.info(f"[Remove-DomainObject] Found {targetobject_dn} in domain")
+        
+        logging.warning(f"[Remove-DomainObject] Removing object from domain")
+        
+        succeeded = self.ldap_session.delete(targetobject_dn)
+
+        if not succeeded:
+            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainObject] Failed to modify, view debug message with --debug")
+        else:
+            logging.info(f'[Remove-DomainObject] Success! {targetobject_dn} removed')
+        
+        return succeeded
 
     def get_domainobjectowner(self, identity=None, searchbase=None, args=None):
         if not searchbase:
@@ -424,6 +478,10 @@ class PowerView:
             if args.excludedcs:
                 logging.debug("[Get-DomainComputer] Excluding domain controllers")
                 ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=8192))'
+            if args.bitlocker:
+                logging.debug("[Get-DomainComputer] Searching for computers with BitLocker keys")
+                ldap_filter += f'(objectClass=msFVE-RecoveryInformation)'
+                properties += ["msFVE-KeyPackage", "msFVE-RecoveryGuid", "msFVE-RecoveryPassword", "msFVE-VolumeGuid"]
             if args.ldapfilter:
                 logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f"{args.ldapfilter}"
@@ -1113,6 +1171,224 @@ class PowerView:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainCATemplate] Failed to delete template {identity} from certificate store")
             return False
 
+    def add_domainou(self, identity, args=None):
+        dn = "" 
+        if not args.distinguishedname:
+            dn = "OU=%s,%s" % (identity, self.root_dn)
+        else:
+            dn = args.distinguishedname
+        
+        ou_data = {
+            	'objectCategory': 'CN=Organizational-Unit,CN=Schema,CN=Configuration,%s' % self.root_dn,
+            	'name': identity
+        		}
+        
+        self.ldap_session.add(dn, ['top','organizationalUnit'], ou_data)
+        
+        if self.ldap_session.result['result'] == 0:
+            logging.info(f"[Add-DomainOU] Added new {identity} OU")
+            return True
+        else:
+            logging.error(f"[Add-DomainOU] Failed to create {identity} OU ({self.ldap_session.result['description']})")
+            return False
+
+    def remove_domainou(self, identity, searchbase=None, sd_flag=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        # verify if the ou exists
+        targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['distinguishedName'], sd_flag=sd_flag)
+        if len(targetobject) > 1:
+            logging.error(f"[Remove-DomainOU] More than one object found")
+            return False
+        elif len(targetobject) == 0:
+            logging.error(f"[Remove-DomainOU] {identity} not found in domain")
+            return False
+
+        # set the object new dn
+        if isinstance(targetobject, list):
+            targetobject_dn = targetobject[0]["attributes"]["distinguishedName"]
+        else:
+            targetobject_dn = targetobject["attributes"]["distinguishedName"]
+
+        logging.debug(f"[Remove-DomainOU] Removing {targetobject_dn}")
+
+        succeeded = self.ldap_session.delete(targetobject_dn)
+
+        if not succeeded:
+            logging.error(f"[Remove-DomainOU] Failed to delete OU ({self.ldap_session.result['message']})")
+            return False
+        else:
+            logging.info("[Remove-DomainOU] Success! Deleted the OU")
+            return True
+
+    def remove_gplink(self, guid, targetidentity, searchbase=None, sd_flag=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        # verify that the gpidentity exists
+        gpo = self.get_domaingpo(identity=guid, properties=[
+            'name',
+            'distinguishedName',
+            ],
+            searchbase=searchbase,
+        )
+        if len(gpo) > 1:
+            logging.error("[New-GPLink] More than one GPO found")
+            return
+        elif len(gpo) == 0:
+            logging.error("[New-GPLink] GPO not found in domain")
+            return
+
+        if isinstance(gpo, list):
+            gpidentity = gpo[0]["attributes"]["distinguishedName"]
+        else:
+            gpidentity = gpo["attributes"]["distinguishedName"]
+
+        logging.debug(f"Found GPO with GUID {gpidentity}")
+
+        # verify that the target identity exists
+        target_identity = self.get_domainobject(identity=targetidentity, properties=[
+            '*',
+            ],
+            searchbase=searchbase,
+            sd_flag=sd_flag
+            )
+        if len(target_identity) > 1:
+            logging.error("[Remove-GPLink] More than one principal identity found")
+            return
+        elif len(target_identity) == 0:
+            logging.error("[Remove-GPLink] Principal identity not found in domain")
+            return
+
+        if isinstance(target_identity, list):
+            targetidentity_dn = target_identity[0]["attributes"]["distinguishedName"]
+            targetidentity_gplink = target_identity[0]["attributes"].get("gPLink")
+        else:
+            targetidentity_dn = target_identity["attributes"]["distinguishedName"]
+            targetidentity_gplink = target_identity["attributes"].get("gPLink")
+
+        logging.debug(f"[Remove-GPLink] Found target identity {targetidentity_dn}")
+
+        if not targetidentity_gplink:
+            logging.error("[Remove-GPLink] Principal identity doesn't have any linked GPO")
+            return
+
+        # parsing gPLink attribute and remove selected gpo
+        pattern = "(?<=\[).*?(?=\])"
+        new_gplink = ""
+        gplinks = re.findall(pattern, targetidentity_gplink)
+        for link in gplinks:
+            if guid.lower() not in link.lower():
+                new_gplink += "[%s]" % (link)
+                
+        succeed = self.set_domainobject(  
+                                targetidentity_dn,
+                                _set = {
+                                        'attribute': 'gPLink',
+                                        'value': [new_gplink]
+                                    },
+                              )
+
+        if succeed:
+            logging.info(f"[Remove-GPLink] Successfully modified gPLink on {targetidentity_dn} OU")
+            return True
+        else:
+            logging.error(f"[Remove-GPLink] Failed to modify gPLink on {targetidentity_dn} OU")
+            return False
+
+    def new_gplink(self, guid, targetidentity, link_enabled="Yes", enforced="No", searchbase=None, sd_flag=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        # verify that the gpidentity exists
+        gpo = self.get_domaingpo(identity=guid, properties=[
+            'name',
+            'distinguishedName',
+            ],
+            searchbase=searchbase,
+        )
+        if len(gpo) > 1:
+            logging.error("[New-GPLink] More than one GPO found")
+            return
+        elif len(gpo) == 0:
+            logging.error("[New-GPLink] GPO not found in domain")
+            return
+
+        if isinstance(gpo, list):
+            gpidentity_dn = gpo[0]["attributes"]["distinguishedName"]
+        else:
+            gpidentity_dn = gpo["attributes"]["distinguishedName"]
+
+        logging.debug(f"Found GPO with GUID {gpidentity_dn}")
+
+        # verify that the target identity exists
+        target_identity = self.get_domainobject(identity=targetidentity, properties=[
+            '*',
+            ],
+            searchbase=searchbase,
+            sd_flag=sd_flag
+            )
+        if len(target_identity) > 1:
+            logging.error("[New-GPLink] More than one principal identity found")
+            return
+        elif len(target_identity) == 0:
+            logging.error("[New-GPLink] Principal identity not found in domain")
+            return
+
+        if isinstance(target_identity, list):
+            targetidentity_dn = target_identity[0]["attributes"]["distinguishedName"]
+            targetidentity_gplink = target_identity[0]["attributes"].get("gPLink")
+        else:
+            targetidentity_dn = target_identity["attributes"]["distinguishedName"]
+            targetidentity_gplink = target_identity["attributes"].get("gPLink")
+
+        logging.debug(f"[New-GPLink] Found target identity {targetidentity_dn}")
+        
+        logging.warning(f"[New-GPLink] Adding new GPLink to {targetidentity_dn}")
+
+        attr = "0"
+        if enforced.casefold() == "Yes".casefold():
+            if link_enabled.casefold() == "Yes".casefold():
+                attr = "2"
+            elif link_enabled.casefold() == "No".casefold():
+                attr = "3"
+        elif enforced.casefold() == "No".casefold():
+            if link_enabled.casefold() == "Yes".casefold():
+                attr = "0"
+            elif link_enabled.casefold() == "No".casefold():
+                attr = "1"
+
+        gpidentity = "[LDAP://%s;%s]" % (gpidentity_dn, attr)
+
+        if targetidentity_gplink:
+            if gpidentity_dn in targetidentity_gplink:
+                logging.error("gPLink attribute already exists")
+                return
+
+            logging.debug("[New-GPLink] gPLink attribute already populated. Appending new gPLink...")
+            targetidentity_gplink += gpidentity
+        else:
+            targetidentity_gplink = gpidentity
+
+        if self.args.debug:
+            logging.debug(f"[New-GPLink] gPLink value: {gpidentity}")
+
+        succeed = self.set_domainobject(  
+                                targetidentity_dn,
+                                _set = {
+                                        'attribute': 'gPLink',
+                                        'value': [targetidentity_gplink]
+                                    },
+                              )
+
+        if succeed:
+            logging.info(f"[New-GPLink] Successfully added gPLink to {targetidentity_dn} OU")
+            return True
+        else:
+            logging.error(f"[New-GPLink] Failed to add gPLink to {targetidentity_dn} OU")
+            return False
+
     def add_domaincatemplateacl(self, name, principalidentity, rights=None, ca_fetch=None, args=None):
         if not rights:
             if args and hasattr(args, 'rights') and args.rights:
@@ -1736,33 +2012,40 @@ class PowerView:
             username = args.principalidentity
 
         principal_entries = self.get_domainobject(identity=args.principalidentity, properties=['objectSid', 'distinguishedName'])
+
         if len(principal_entries) == 0:
-            logging.error('[Add-DomainObjectAcl] Principal Identity object not found in domain')
+            logging.error('Principal Identity object not found in domain')
             return
+
         if len(principal_entries) > 1:
-            logging.error("[Add-DomainObjectAcl] More then one objects found")
+            logging.error("More then one objects found")
+            return
+
         principalidentity_dn = principal_entries[0]["attributes"]["distinguishedName"]
         setattr(args,'principalidentity_dn', principalidentity_dn)
         if principalidentity_dn.upper().startswith("OU="):
-            logging.info('Principal identity is an OU')
+            logging.debug('[Add-DomainObjectAcl] Principal identity is an OU')
         else:
             principalidentity_sid = principal_entries[0]['attributes']['objectSid']
             setattr(args,'principalidentity_sid', principalidentity_sid)
+
         logging.info(f'Found principal identity dn {principalidentity_dn}')
 
         target_entries = self.get_domainobject(identity=args.targetidentity, properties=['objectSid', 'distinguishedName'])
         if len(target_entries) == 0:
             logging.error('Target Identity object not found in domain')
             return
+
         targetidentity_dn = target_entries[0]["attributes"]["distinguishedName"]
         setattr(args,'targetidentity_dn', targetidentity_dn)
         if targetidentity_dn.upper().startswith("OU="):
-            logging.info('Target identity is an OU')
+            logging.info('[Add-DomainObjectAcl] Target identity is an OU')
         elif targetidentity_dn.upper().startswith("CN={"):
             logging.info('Target identity is a GPO')
         else:
             targetidentity_sid = target_entries[0]['attributes']['objectSid']
             setattr(args,'targetidentity_sid', targetidentity_sid)
+
         logging.info(f'Found target identity dn {targetidentity_dn}')
 
         logging.info(f'Adding {args.rights} privilege to {args.targetidentity}')
@@ -1786,29 +2069,36 @@ class PowerView:
         else:
             username = args.principalidentity
 
-        principal_entries = self.get_domainobject(identity=args.principalidentity)
+        principal_entries = self.get_domainobject(identity=args.principalidentity, properties=['objectSid', 'distinguishedName'])
         if len(principal_entries) == 0:
             logging.error('Principal Identity object not found in domain')
             return
+
+        if len(principal_entries) > 1:
+            logging.error("More then one objects found")
+            return
+
         principalidentity_dn = principal_entries[0]['attributes']['distinguishedName']
         setattr(args,'principalidentity_dn', principalidentity_dn)
         if principalidentity_dn.upper().startswith("OU="):
-            logging.info('Principal identity is an OU')
+            logging.debug('[Remove-DomainObjectAcl] Principal identity is an OU')
         else:
             principalidentity_sid = principal_entries[0]['attributes']['objectSid']
             setattr(args,'principalidentity_sid', principalidentity_sid)
         logging.info(f'Found principal identity dn {principalidentity_dn}')
 
         target_entries = self.get_domainobject(identity=args.targetidentity)
+        
         if len(target_entries) == 0:
             logging.error('Target Identity object not found in domain')
             return
+
         targetidentity_dn = target_entries[0]['attributes']['distinguishedName']
         setattr(args,'targetidentity_dn', targetidentity_dn)
         if targetidentity_dn.upper().startswith("OU="):
-            logging.info('Target identity is an OU')
+            logging.debug('[Remove-DomainObjectACL] Target identity is an OU')
         elif targetidentity_dn.upper().startswith("CN={"):
-            logging.info('Target identity is a GPO')
+            logging.debug('[Remove-DomainObjectACL] Target identity is a GPO')
         else:
             targetidentity_sid = target_entries[0]['attributes']['objectSid']
             setattr(args,'targetidentity_sid', targetidentity_sid)
@@ -1857,12 +2147,12 @@ class PowerView:
 
         # Creating Machine Account
         addmachineaccount = ADDCOMPUTER(
-            self.username,
-            self.password,
-            self.domain,
-            self.args,
-            computer_name,
-        )
+            	self.username,
+            	self.password,
+            	self.domain,
+            	self.args,
+            	computer_name,
+        		)
         try:
             if self.use_ldaps:
                 addmachineaccount.run_ldaps()
@@ -1961,11 +2251,11 @@ class PowerView:
         addtype = 1
         DNS_UTIL.get_next_serial(self.dc_ip, zonename, True)
         node_data = {
-            # Schema is in the root domain (take if from schemaNamingContext to be sure)
-            'objectCategory': 'CN=Dns-Node,CN=Schema,CN=Configuration,%s' % self.root_dn,
-            'dNSTombstoned': False,
-            'name': recordname
-        }
+            	# Schema is in the root domain (take if from schemaNamingContext to be sure)
+            	'objectCategory': 'CN=Dns-Node,CN=Schema,CN=Configuration,%s' % self.root_dn,
+            	'dNSTombstoned': False,
+            	'name': recordname
+        		}
         logging.debug("[Add-DomainDNSRecord] Creating DNS record structure")
         record = DNS_UTIL.new_record(addtype, DNS_UTIL.get_next_serial(self.dc_ip, zonename, True), recordaddress)
         search_base = f"DC={zonename},CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
@@ -2014,12 +2304,12 @@ class PowerView:
 
         # Creating Machine Account
         addmachineaccount = ADDCOMPUTER(
-            self.username,
-            self.password,
-            self.domain,
-            self.args,
-            computer_name,
-            computer_pass)
+            	self.username,
+            	self.password,
+            	self.domain,
+            	self.args,
+            	computer_name,
+            	computer_pass)
         try:
             if self.use_ldaps:
                 addmachineaccount.run_ldaps()
@@ -2070,52 +2360,52 @@ class PowerView:
 
         available_pipes = []
         binding_params = {
-            'lsarpc': {
-                'stringBinding': r'ncacn_np:%s[\PIPE\lsarpc]' % host,
-                'protocol': 'MS-EFSRPC',
-                'description': 'Encrypting File System Remote (EFSRPC) Protocol',
-            },
-            'efsr': {
-                'stringBinding': r'ncacn_np:%s[\PIPE\efsrpc]' % host,
-                'protocol': 'MS-EFSR',
-                'description': 'Encrypting File System Remote (EFSRPC) Protocol',
-            },
-            'samr': {
-                'stringBinding': r'ncacn_np:%s[\PIPE\samr]' % host,
-                'protocol': 'MS-SAMR',
-                'description': 'Security Account Manager (SAM)',
-            },
-            'lsass': {
-                'stringBinding': r'ncacn_np:%s[\PIPE\lsass]' % host,
-                'protocol': 'N/A',
-                'description': 'N/A',
-            },
-            'netlogon': {
-                'stringBinding': r'ncacn_np:%s[\PIPE\netlogon]' % host,
-                'protocol': 'MS-NRPC',
-                'description': 'Netlogon Remote Protocol',
-            },
-            'spoolss': {
-                'stringBinding': r'ncacn_np:%s[\PIPE\spoolss]' % host,
-                'protocol': 'MS-RPRN',
-                'description': 'Print System Remote Protocol',
-            },
-            'DAV RPC SERVICE': {
-                'stringBinding': r'ncacn_np:%s[\PIPE\DAV RPC SERVICE]' % host,
-                'protocol': 'WebClient',
-                'description': 'WebDAV WebClient Service',
-            },
-            'netdfs': {
-                'stringBinding': r'ncacn_np:%s[\PIPE\netdfs]' % host,
-                'protocol': 'MS-DFSNM',
-                'description': 'Distributed File System (DFS)',
-            },
-            'atsvc': {
-                'stringBinding': r'ncacn_np:%s[\PIPE\atsvc]' % host,
-                'protocol': 'ATSvc',
-                'description': 'Microsoft AT-Scheduler Service',
-            },
-        }
+            	'lsarpc': {
+                	'stringBinding': r'ncacn_np:%s[\PIPE\lsarpc]' % host,
+                	'protocol': 'MS-EFSRPC',
+                	'description': 'Encrypting File System Remote (EFSRPC) Protocol',
+            		},
+            	'efsr': {
+                	'stringBinding': r'ncacn_np:%s[\PIPE\efsrpc]' % host,
+                	'protocol': 'MS-EFSR',
+                	'description': 'Encrypting File System Remote (EFSRPC) Protocol',
+            		},
+            	'samr': {
+                	'stringBinding': r'ncacn_np:%s[\PIPE\samr]' % host,
+                	'protocol': 'MS-SAMR',
+                	'description': 'Security Account Manager (SAM)',
+            		},
+            	'lsass': {
+                	'stringBinding': r'ncacn_np:%s[\PIPE\lsass]' % host,
+                	'protocol': 'N/A',
+                	'description': 'N/A',
+            		},
+            	'netlogon': {
+                	'stringBinding': r'ncacn_np:%s[\PIPE\netlogon]' % host,
+                	'protocol': 'MS-NRPC',
+                	'description': 'Netlogon Remote Protocol',
+            		},
+            	'spoolss': {
+                	'stringBinding': r'ncacn_np:%s[\PIPE\spoolss]' % host,
+                	'protocol': 'MS-RPRN',
+                	'description': 'Print System Remote Protocol',
+            		},
+            	'DAV RPC SERVICE': {
+                	'stringBinding': r'ncacn_np:%s[\PIPE\DAV RPC SERVICE]' % host,
+                	'protocol': 'WebClient',
+                	'description': 'WebDAV WebClient Service',
+            		},
+            	'netdfs': {
+                	'stringBinding': r'ncacn_np:%s[\PIPE\netdfs]' % host,
+                	'protocol': 'MS-DFSNM',
+                	'description': 'Distributed File System (DFS)',
+            		},
+            	'atsvc': {
+                	'stringBinding': r'ncacn_np:%s[\PIPE\atsvc]' % host,
+                	'protocol': 'ATSvc',
+                	'description': 'Microsoft AT-Scheduler Service',
+            		},
+        		}
         #self.rpc_conn = CONNECTION(self.args)
         if args.name:
             if args.name in list(binding_params.keys()):
@@ -2197,7 +2487,7 @@ class PowerView:
         entries = self.get_domaincomputer(identity=identity, properties=[
             'distinguishedName',
             'sAMAccountName',
-        ])
+        	])
         if len(entries) == 0:
             logging.error("[Get-DomainComputerPassword] Computer %s not found in domain" % (identity))
             return False
@@ -2250,7 +2540,7 @@ class PowerView:
 
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
-        
+
         targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['*'], sd_flag=sd_flag)
         if len(targetobject) > 1:
             logging.error(f"[Set-DomainObject] More than one object found")
@@ -2285,7 +2575,7 @@ class PowerView:
             if not attrs:
                 logging.error(f"[Set-DomainObject] Parsing {'-Set' if args.set else '-Append'} value failed")
                 return
-            
+
             try:
                 if isinstance(attrs['value'], list):
                     for val in attrs['value']:
@@ -2293,7 +2583,7 @@ class PowerView:
                             values = targetobject[0]["attributes"].get(attrs['attribute'])
                             if isinstance(values, list):
                                 for ori_val in values:
-                                    if isinstance(ori_val, str):
+                                    if isinstance(ori_val, str) and isinstance(val, str):
                                         if val.casefold() == ori_val.casefold():
                                             logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
                                             return
@@ -2319,16 +2609,17 @@ class PowerView:
                     logging.warning(f"[Set-DomainObject] {attrs['attribute']} property not found in target identity")
                     logging.warning(f"[Set-DomainObject] Attempting to force add attribute {attrs['attribute']} to target object")
                     return self.set_domainobject(identity, _set={
-                            'attribute': attrs['attribute'],
-                            'value': attrs['value'],
+                        'attribute': attrs['attribute'],
+                        'value': attrs['value'],
                         },
-                        searchbase=searchbase,
-                        sdflags=sdflags
-                    )
+                        						 searchbase=searchbase,
+                        						 sd_flag=sd_flag
+                    							 )
 
                 temp_list = []
                 if isinstance(targetobject[0]["attributes"][attrs['attribute']], str):
-                    temp_list.append(targetobject[0]["attributes"][attrs['attribute']])
+                    if len(targetobject[0]["attributes"][attrs['attribute']].strip()) != 0:
+                        temp_list.append(targetobject[0]["attributes"][attrs['attribute']])
                 elif isinstance(targetobject[0]["attributes"][attrs['attribute']], int):
                     temp_list.append(targetobject[0]["attributes"][attrs['attribute']])
                 elif isinstance(targetobject[0]["attributes"][attrs['attribute']], list):
@@ -2351,17 +2642,49 @@ class PowerView:
             succeeded = self.ldap_session.modify(targetobject[0]["attributes"]["distinguishedName"], {
                 attr_key:[
                     (ldap3.MODIFY_REPLACE,attr_val)
-                ]
-            }, controls=security_descriptor_control(sdflags=sd_flag) if sd_flag else None)
+                	]
+            	}, controls=security_descriptor_control(sdflags=sd_flag) if sd_flag else None)
         except ldap3.core.exceptions.LDAPInvalidValueError as e:
             logging.error(f"[Set-DomainObject] {str(e)}")
             succeeded = False
 
         if not succeeded:
-            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Set-DomainObject] Failed to modify attribute {attr_key} for {targetobject[0]['attributes']['distinguishedName']}")
+            logging.error(f"[Set-DomainObject] Failed to modify attribute {attr_key} for {targetobject[0]['attributes']['distinguishedName']}")
+            logging.error(self.ldap_session.result['message'] )
         else:
             logging.info(f'[Set-DomainObject] Success! modified attribute {attr_key} for {targetobject[0]["attributes"]["distinguishedName"]}')
-        
+
+        return succeeded
+
+    def set_domainobjectdn(self, identity, new_dn, searchbase=None, sd_flag=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        # verify if the identity exists
+        targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['*'], sd_flag=sd_flag)
+        if len(targetobject) > 1:
+            logging.error(f"[Set-DomainObjectDN] More than one object found")
+            return False
+        elif len(targetobject) == 0:
+            logging.error(f"[Set-DomainObjectDN] {identity} not found in domain")
+            return False
+
+        # set the object new dn
+        if isinstance(targetobject, list):
+            targetobject_dn = targetobject[0]["attributes"]["distinguishedName"]
+        else:
+            targetobject_dn = targetobject["attributes"]["distinguishedName"]
+
+        logging.debug(f"[Set-DomainObjectDN] Modifying {targetobject_dn} object dn to {new_dn}")
+
+        relative_dn = targetobject_dn.split(",")[0]
+
+        succeeded = self.ldap_session.modify_dn(targetobject_dn, relative_dn, new_superior=new_dn)
+        if not succeeded:
+            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Set-DomainObjectDN] Failed to modify, view debug message with --debug")
+        else:
+            logging.info(f'[Set-DomainObject] Success! modified new dn for {targetobject_dn}')
+
         return succeeded
 
     def invoke_kerberoast(self, args, properties=[]):
@@ -2400,7 +2723,7 @@ class PowerView:
             for ent in entries_out:
                 entries.append({
                     'attributes': filter_entry(ent['attributes'],properties)
-                })
+                	})
         else:
             entries = entries_out
 
@@ -2586,7 +2909,7 @@ class PowerView:
                     "Time": time,
                     "Idle Time": idleTime,
                     "Computer": host,
-                }
-            })
+                	}
+            	})
 
         return sessions

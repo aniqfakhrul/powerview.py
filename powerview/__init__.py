@@ -36,8 +36,9 @@ def main():
         init_ldap_address = args.ldap_address
 
         powerview = PowerView(conn, args)
+        is_admin = powerview.get_admin_status()
         init_proto = conn.get_proto()
-        cur_user = conn.who_am_i()
+        cur_user = conn.who_am_i() if not is_admin else "%s%s%s" % (bcolors.WARNING, conn.who_am_i(), bcolors.ENDC)
         server_ip = conn.get_ldap_address()
         temp_powerview = None
 
@@ -287,6 +288,22 @@ def main():
                                     entries = temp_powerview.invoke_kerberoast(pv_args, properties)
                                 else:
                                     entries = powerview.invoke_kerberoast(pv_args, properties)
+                            elif pv_args.module.casefold() == 'add-domainou' or pv_args.module.casefold() == 'add-ou':
+                                if pv_args.identity is not None:
+                                    if temp_powerview:
+                                        temp_powerview.add_domainou(identity=pv_args.identity, args=pv_args)
+                                    else:
+                                        powerview.add_domainou(identity=pv_args.identity, args=pv_args)
+                                else:
+                                    logging.error('-Identity flag is required')
+                            elif pv_args.module.casefold() == 'remove-domainou' or pv_args.module.casefold() == 'remove-ou':
+                                if pv_args.identity is not None:
+                                    if temp_powerview:
+                                        temp_powerview.remove_domainou(identity=pv_args.identity, args=pv_args)
+                                    else:
+                                        powerview.remove_domainou(identity=pv_args.identity, args=pv_args)
+                                else:
+                                    logging.error('-Identity flag is required')
                             elif pv_args.module.casefold() == 'add-domainobjectacl' or pv_args.module.casefold() == 'add-objectacl':
                                 if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
                                     if temp_powerview:
@@ -335,6 +352,14 @@ def main():
                                         succeed = powerview.set_domainobject(pv_args.identity, args=pv_args)
                                 else:
                                     logging.error('-Identity and [-Clear][-Set][-Append] flags required')
+                            elif pv_args.module.casefold() == 'set-domainobjectdn' or pv_args.module.casefold() == 'set-adobjectdn':
+                                if pv_args.identity and pv_args.new_dn:
+                                    if temp_powerview:
+                                        succeed = temp_powerview.set_domainobjectdn(pv_args.identity, new_dn=pv_args.new_dn, args=pv_args)
+                                    else:
+                                        succeed = powerview.set_domainobjectdn(pv_args.identity, new_dn=pv_args.new_dn, args=pv_args)
+                                else:
+                                    logging.error('-Identity and -DistinguishedName flags required')
                             elif pv_args.module.casefold() == 'set-domaindnsrecord':
                                 if pv_args.recordname is None or pv_args.recordaddress is None:
                                     logging.error("-RecordName and -RecordAddress flags are required")
@@ -410,6 +435,15 @@ def main():
                                     temp_powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
                                 else:
                                     powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
+                            elif pv_args.module.casefold() == 'remove-domainobject' or pv_args.module.casefold() == 'remove-adobject':
+                                if pv_args.identity:
+                                    identity = pv_args.identity.strip()
+                                    if temp_powerview:
+                                        temp_powerview.remove_domainobject(identity, args=pv_args)
+                                    else:
+                                        powerview.remove_domainobject(identity, args=pv_args)
+                                else:
+                                    logging.error("-Identity flag is required")
                             elif pv_args.module.casefold() == 'remove-domainuser' or pv_args.module.casefold() == 'remove-aduser':
                                 if pv_args.identity:
                                     if temp_powerview:
@@ -417,7 +451,7 @@ def main():
                                     else:
                                         powerview.remove_domainuser(pv_args.identity)
                                 else:
-                                    logging.error(f'-Identity is required')
+                                    logging.error("-Identity is required")
                             elif pv_args.module.casefold() == 'remove-domaindnsrecord':
                                 if pv_args.identity:
                                     identity = pv_args.identity.strip()
@@ -435,7 +469,23 @@ def main():
                                     else:
                                         powerview.remove_domaincomputer(pv_args.computername)
                                 else:
-                                    logging.error(f'-ComputerName is required')
+                                    logging.error('-ComputerName is required')
+                            elif pv_args.module.casefold() == 'new-gplink':
+                                if pv_args.guid is not None and pv_args.targetidentity is not None:
+                                    if temp_powerview:
+                                        powerview.new_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, link_enabled=pv_args.link_enabled, enforced=pv_args.enforced, args=pv_args)
+                                    else:
+                                        powerview.new_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, link_enabled=pv_args.link_enabled, enforced=pv_args.enforced, args=pv_args)
+                                else:
+                                    logging.error("-GUID and -TargetIdentity flags are required")
+                            elif pv_args.module.casefold() == 'remove-gplink':
+                                if pv_args.guid is not None and pv_args.targetidentity is not None:
+                                    if temp_powerview:
+                                        powerview.remove_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, args=pv_args)
+                                    else:
+                                        powerview.remove_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, args=pv_args)
+                                else:
+                                    logging.error("-GUID and -TargetIdentity flags are required")
                             elif pv_args.module.casefold() == 'exit':
                                 sys.exit(0)
                             elif pv_args.module.casefold() == 'clear':
@@ -483,11 +533,14 @@ def main():
                 print("Exiting...")
                 sys.exit(0)
             except ldap3.core.exceptions.LDAPSocketSendError as e:
-                logging.info("Connection dead")
+                logging.info("LDAPSocketSendError: Connection dead")
                 conn.reset_connection()
             except ldap3.core.exceptions.LDAPSessionTerminatedByServerError as e:
-                logging.warning("Server connection terminated. Trying to reconnect")
+                logging.warning("LDAPSessionTerminatedByServerError: Server connection terminated. Trying to reconnect")
                 conn.reset_connection()
+                continue
+            except ldap3.core.exceptions.LDAPInvalidDnError as e:
+                logging.error(f"LDAPInvalidDnError: {str(e)}")
                 continue
             except Exception as e:
                 logging.error(str(e))

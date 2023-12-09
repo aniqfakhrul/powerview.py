@@ -17,6 +17,7 @@ class PowerViewParser(argparse.ArgumentParser):
 def arg_parse():
     parser = PowerViewParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE}0.1.2{bcolors.ENDC}")
     parser.add_argument('target', action='store', metavar='target', help='[[domain/]username[:password]@]<targetName or address>')
+    parser.add_argument('-p','--port', dest='port', action='store', help='LDAP server port. (Default: 389|636)', type=int)
     parser.add_argument('-d','--debug', dest='debug', action='store_true', help='Enable debug output')
     parser.add_argument('-q','--query', dest='query', action='store', help='PowerView query to be executed one-time')
     parser.add_argument('-ns','--nameserver', dest='nameserver', action='store', help='Specify custom nameserver. If not specified, domain controller will be used instead')
@@ -180,7 +181,7 @@ def powerview_arg_parse(cmd):
     get_domainuser_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     #computers
-    get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer', aliases=['Get-NetComputer'],exit_on_error=False)
+    get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer', aliases=['Get-NetComputer'], exit_on_error=False)
     get_domaincomputer_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
     get_domaincomputer_parser.add_argument('-Properties', action='store', dest='properties')
     get_domaincomputer_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
@@ -195,6 +196,7 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-Unconstrained', action='store_true', default=False, dest='unconstrained')
     get_domaincomputer_parser.add_argument('-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
     get_domaincomputer_parser.add_argument('-LAPS', action='store_true', default=False, dest='laps')
+    get_domaincomputer_parser.add_argument('-BitLocker', action='store_true', default=False, dest='bitlocker')
     get_domaincomputer_parser.add_argument('-RBCD', action='store_true', default=False, dest='rbcd')
     get_domaincomputer_parser.add_argument('-SPN', action='store_true', dest='spn')
     get_domaincomputer_parser.add_argument('-Printers', action='store_true', default=False, dest='printers')
@@ -417,12 +419,33 @@ def powerview_arg_parse(cmd):
     add_domaingroupmember_parser.add_argument('-Domain', action='store', dest='server')
     add_domaingroupmember_parser.add_argument('-OutFile', action='store', dest='outfile')
 
+    # remove domain object
+    remove_domainobject_parser = subparsers.add_parser('Remove-DomainObject',aliases=['Remove-ADObject'], exit_on_error=False)
+    remove_domainobject_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+    remove_domainobject_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+    remove_domainobject_parser.add_argument('-Domain', action='store', dest='server')
+    remove_domainobject_parser.add_argument('-OutFile', action='store', dest='outfile')
+
     # remove domain group members
     remove_domaingroupmember_parser = subparsers.add_parser('Remove-DomainGroupMember',aliases=['Remove-GroupMember'], exit_on_error=False)
     remove_domaingroupmember_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
     remove_domaingroupmember_parser.add_argument('-Members', action='store', const=None, dest='members', type=lambda value: escape_filter_chars_except_asterisk(value))
     remove_domaingroupmember_parser.add_argument('-Domain', action='store', dest='server')
     remove_domaingroupmember_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+    # add domain ou
+    add_domainou_parser = subparsers.add_parser('Add-DomainOU', aliases=['Add-OU'], exit_on_error=False)
+    add_domainou_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+    add_domainou_parser.add_argument('-DistinguishedName', action='store', const=None, dest='distinguishedname')
+    add_domainou_parser.add_argument('-Domain', action='store', dest='server')
+    add_domainou_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+    # remove domain ou
+    remove_domainou_parser = subparsers.add_parser('Remove-DomainOU', aliases=['Remove-OU'], exit_on_error=False)
+    remove_domainou_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+    remove_domainou_parser.add_argument('-DistinguishedName', action='store', const=None, dest='distinguishedname')
+    remove_domainou_parser.add_argument('-Domain', action='store', dest='server')
+    remove_domainou_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # add domain object acl
     add_domainobjectacl_parser = subparsers.add_parser('Add-DomainObjectAcl', aliases=['Add-ObjectAcl'], exit_on_error=False)
@@ -486,6 +509,14 @@ def powerview_arg_parse(cmd):
     set_domainobject_parser.add_argument('-Domain', action='store', dest='server')
     set_domainobject_parser.add_argument('-OutFile', action='store', dest='outfile')
 
+    # set domain object distinguishednam
+    set_domainobjectdn_parser = subparsers.add_parser('Set-DomainObjectDN', aliases=['Set-ADObjectDN'], exit_on_error=False)
+    set_domainobjectdn_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+    set_domainobjectdn_parser.add_argument('-DistinguishedName', action='store', dest='new_dn')
+    set_domainobjectdn_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+    set_domainobjectdn_parser.add_argument('-Domain', action='store', dest='server')
+    set_domainobjectdn_parser.add_argument('-OutFile', action='store', dest='outfile')
+
     # set dns record
     set_domaindnsrecord_parser = subparsers.add_parser('Set-DomainDNSRecord', exit_on_error=False)
     set_domaindnsrecord_parser.add_argument('-ZoneName', action='store', dest='zonename')
@@ -535,6 +566,24 @@ def powerview_arg_parse(cmd):
     set_domainobjectowner_parser.add_argument('-Domain', action='store', dest='server')
     set_domainobjectowner_parser.add_argument('-OutFile', action='store', dest='outfile')
 
+    # new gp link
+    new_gplink_parser = subparsers.add_parser('New-GPLink', exit_on_error=False)
+    new_gplink_parser.add_argument('-GUID', action='store', const=None, dest='guid')
+    new_gplink_parser.add_argument('-TargetIdentity', action='store', const=None, dest='targetidentity')
+    new_gplink_parser.add_argument('-LinkEnabled', action='store', dest='link_enabled', default="Yes", choices=["Yes","No"])
+    new_gplink_parser.add_argument('-Enforced', action='store', dest='enforced', default="No", choices=["Yes","No"])
+    new_gplink_parser.add_argument('-SearchBase', action='store', dest='searchbase')
+    new_gplink_parser.add_argument('-Domain', action='store', dest='server')
+    new_gplink_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+    # new gp link
+    remove_gplink_parser = subparsers.add_parser('Remove-GPLink', exit_on_error=False)
+    remove_gplink_parser.add_argument('-GUID', action='store', const=None, dest='guid')
+    remove_gplink_parser.add_argument('-TargetIdentity', action='store', const=None, dest='targetidentity')
+    remove_gplink_parser.add_argument('-SearchBase', action='store', dest='searchbase')
+    remove_gplink_parser.add_argument('-Domain', action='store', dest='server')
+    remove_gplink_parser.add_argument('-OutFile', action='store', dest='outfile')
+    
     subparsers.add_parser('exit', exit_on_error=False)
     subparsers.add_parser('clear', exit_on_error=False)
 

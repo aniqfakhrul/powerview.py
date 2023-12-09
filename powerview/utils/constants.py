@@ -229,6 +229,11 @@ class ACTIVE_DIRECTORY_RIGHTS(IntFlag):
                 filtered_members.append(member)
         return members
 
+# GPO
+LINK_ENABLED = 0
+LINK_DISABLED = 1
+ENFORCED = 3
+
 # Universal SIDs
 WELL_KNOWN_SIDS = {
     'S-1-0': 'Null Authority',
