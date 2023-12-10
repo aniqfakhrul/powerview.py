@@ -244,6 +244,15 @@ def main():
                                     entries = temp_powerview.get_domaintrust(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domaintrust(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'convertfrom-uacvalue':
+                                if pv_args.value:
+                                    value = pv_args.value.strip()
+                                    if temp_powerview:
+                                        temp_powerview.convertfrom_uacvalue(value=value, output=True)
+                                    else:
+                                        powerview.convertfrom_uacvalue(value=value, output=True)
+                                else:
+                                    logging.error("-Value flag is required")
                             elif pv_args.module.casefold() == 'convertfrom-sid':
                                 if pv_args.objectsid:
                                     objectsid = pv_args.objectsid.strip()

@@ -27,7 +27,8 @@ from powerview.lib.dns import (
     DNS_UTIL,
 )
 from powerview.lib.resolver import (
-    TRUST
+    TRUST,
+    UAC
 )
 
 import chardet
@@ -907,6 +908,15 @@ class PowerView:
 
             entries.append({"attributes":_entries["attributes"]})
         return entries
+
+    def convertfrom_uacvalue(self, value, args=None, output=False):
+        resolved = UAC.parse_value_todict(value)
+        if output:
+            for key in resolved:
+                print("Name: %s" % key)
+                print("Value: %s" % resolved[key])
+                print()
+        return resolved
 
     def convertfrom_sid(self, objectsid, args=None, output=False):
         identity = WELL_KNOWN_SIDS.get(objectsid)

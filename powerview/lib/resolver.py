@@ -27,6 +27,16 @@ class UAC:
 
         return flags
 
+    def parse_value_todict(uac_value):
+        uac_value = int(uac_value)
+        flags = {}
+
+        for key, value in UAC_DICT.items():
+            if uac_value & key:
+                flags[value] = key
+
+        return flags
+
 class ENCRYPTION_TYPE:
     def parse_value(enc_value):
         enc_value = int(enc_value)

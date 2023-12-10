@@ -406,6 +406,12 @@ def powerview_arg_parse(cmd):
     get_domaintrust_parser.add_argument('-Count', action='store_true', dest='count')
     get_domaintrust_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
+    # convert from uac value
+    convertfrom_uacvalue_parser = subparsers.add_parser('ConvertFrom-UACValue' ,exit_on_error=False)
+    convertfrom_uacvalue_parser.add_argument('-Value', action='store', dest='value')
+    convertfrom_uacvalue_parser.add_argument('-Domain', action='store', dest='server')
+    convertfrom_uacvalue_parser.add_argument('-OutFile', action='store', dest='outfile')
+    
     # convert from sid
     convertfrom_sid_parser = subparsers.add_parser('ConvertFrom-SID' ,exit_on_error=False)
     convertfrom_sid_parser.add_argument('-ObjectSID', action='store', dest='objectsid')
@@ -604,6 +610,8 @@ def powerview_arg_parse(cmd):
                         args.identity = escape_filter_chars_except_asterisk(unk)
                     elif hasattr(args, 'objectsid'):
                         args.objectsid = unk
+                    elif hasattr(args, 'value'):
+                        args.value = unk
                     else:
                         print(f"Unrecognized argument: {unk}")
                         return None

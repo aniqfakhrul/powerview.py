@@ -11,6 +11,7 @@ COMMANDS = {
     'Get-Domain':['-Identity','-Properties', '-LDAPFilter','-SearchBase','-Domain','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
     'Get-NetDomain':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Domain','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
     'ConvertFrom-SID':['-ObjectSID','-Domain', '-Outfile'],
+    'ConvertFrom-UACValue':['-Value','-Domain', '-Outfile'],
     'Get-DomainController':['-Identity','-ResolveSIDs','-SearchBase','-LDAPFilter','-Properties','-Domain','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
     'Get-NetDomainController':['-Identity','-ResolveSIDs','-SearchBase','-LDAPFilter','-Properties','-Domain','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
     'Get-DomainDNSZone':['-Identity','-Properties','-SearchBase','-Domain','-Select','-Where', '-Count', '-NoWrap', '-OutFile'],
