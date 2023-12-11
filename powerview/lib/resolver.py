@@ -27,13 +27,13 @@ class UAC:
 
         return flags
 
-    def parse_value_todict(uac_value):
+    def parse_value_tolist(uac_value):
         uac_value = int(uac_value)
-        flags = {}
+        flags = []
 
         for key, value in UAC_DICT.items():
             if uac_value & key:
-                flags[value] = key
+                flags.append([value, key])
 
         return flags
 

@@ -14,6 +14,7 @@ import re
 import logging
 import base64
 import datetime
+from tabulate import tabulate as table
 
 class FORMATTER:
     def __init__(self, pv_args, use_kerberos=False):
@@ -23,6 +24,15 @@ class FORMATTER:
 
     def count(self, entries):
         print(len(entries))
+
+    def print_table(self, entries: list, headers: list, align: str = None):
+        print()
+        print(table(
+            entries,
+            headers,
+            numalign="left" if not align else align
+            ))
+        print()
 
     def print_index(self, entries):
         i = int(self.args.select)

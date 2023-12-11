@@ -248,9 +248,9 @@ def main():
                                 if pv_args.value:
                                     value = pv_args.value.strip()
                                     if temp_powerview:
-                                        temp_powerview.convertfrom_uacvalue(value=value, output=True)
+                                        entries = temp_powerview.convertfrom_uacvalue(value=value, output=True)
                                     else:
-                                        powerview.convertfrom_uacvalue(value=value, output=True)
+                                        entries = powerview.convertfrom_uacvalue(value=value, output=True)
                                 else:
                                     logging.error("-Value flag is required")
                             elif pv_args.module.casefold() == 'convertfrom-sid':
@@ -273,9 +273,9 @@ def main():
                             elif pv_args.module.casefold() == 'get-netshare':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     if temp_powerview:
-                                        temp_powerview.get_netshare(pv_args)
+                                       entries =  temp_powerview.get_netshare(pv_args)
                                     else:
-                                        powerview.get_netshare(pv_args)
+                                        entries = powerview.get_netshare(pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'get-netsession':
@@ -521,7 +521,10 @@ def main():
                                         else:
                                             formatter.print_select(entries)
                                     else:
-                                        formatter.print(entries)
+                                        if isinstance(entries, dict) and entries.get("headers") and entries.get("rows"):
+                                            formatter.print_table(entries["rows"], entries["headers"])
+                                        else:
+                                            formatter.print(entries)
 
                             temp_powerview = None
                             conn.set_ldap_address(init_ldap_address)
