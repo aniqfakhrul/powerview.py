@@ -27,11 +27,14 @@ class FORMATTER:
 
     def print_table(self, entries: list, headers: list, align: str = None):
         print()
-        print(table(
+        table_res = table(
             entries,
             headers,
             numalign="left" if not align else align
-            ))
+            )
+        if self.args.outfile:
+            LOG.write_to_file(self.args.outfile, table_res)
+        print(table_res)
         print()
 
     def print_index(self, entries):
@@ -137,6 +140,49 @@ class FORMATTER:
                         if self.args.outfile:
                             LOG.write_to_file(self.args.outfile, "")
                         print()
+
+    def table_view(self, entries):
+        headers = []
+        rows = []
+        if not self.args.select:
+            if isinstance(entries[0]["attributes"], dict):
+                headers = entries[0]["attributes"].keys()
+            elif isinstance(entries[0]["attributes"], list):
+                headers = entries[0]["attributes"][0].keys()
+        else:
+            self.args.select.split(",")
+        if isinstance(entries, list):
+            for entry in entries:
+                row = []
+                for head in headers: #fix getdomainobjectacl
+                    val = entry["attributes"].get(head)
+
+                    if isinstance(val,list):
+                        temp = ""
+                        for attr in val:
+                            if isinstance(attr, bytes):
+                                temp += base64.b64encode(attr).decode("utf-8") + "\n"
+                            elif isinstance(attr, int):
+                                temp = str(attr)
+                            elif isinstance(attr, datetime.datetime):
+                                temp = str(attr.strftime('%m/%d/%Y'))
+                            else:
+                                temp += attr + "\n"
+                        val = temp
+                    elif isinstance(val, int):
+                        val = str(val)
+                    elif isinstance(val, bytes):
+                        val = base64.b64encode(val).decode("utf-8")
+                    elif isinstance(val, datetime.datetime):
+                        val = str(val.strftime('%m/%d/%Y'))
+
+                    row.append(
+                            val 
+                            )
+
+                rows.append(row)
+
+        self.print_table(entries=rows, headers=headers)
 
     def print(self,entries):
         for entry in entries:

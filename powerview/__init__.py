@@ -513,10 +513,12 @@ def main():
                                 if entries is None:
                                     logging.error(f'Key not available')
                                 else:
-                                    if pv_args.count:
+                                    if hasattr(pv_args, "count") and pv_args.count:
                                         formatter.count(entries)
-                                    elif pv_args.select is not None:
-                                        if pv_args.select.isdecimal():
+                                    elif hasattr(pv_args, "tableview") and pv_args.tableview:
+                                        formatter.table_view(entries)
+                                    elif hasattr(pv_args, "select") and pv_args.select is not None:
+                                        if hasattr(pv_args, "select") and pv_args.select.isdecimal():
                                             formatter.print_index(entries)
                                         else:
                                             formatter.print_select(entries)
@@ -554,8 +556,8 @@ def main():
             except ldap3.core.exceptions.LDAPInvalidDnError as e:
                 logging.error(f"LDAPInvalidDnError: {str(e)}")
                 continue
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
 
             if args.query:
                 sys.exit(0)
