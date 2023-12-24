@@ -481,3 +481,136 @@ class GETTGT:
                                                                 unhexlify(self.__lmhash), unhexlify(self.__nthash), self.__auth_aes_key,
                                                                 self.__kdcHost)
         self.saveTicket(tgt,oldSessionKey)
+
+class IStr(str):
+    def __hash__(self):
+        return hash(self.lower())
+    
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return self.lower() == other.lower()
+        return NotImplemented
+    
+    def __ne__(self, other):
+        return not (self == other)
+    
+    def __lt__(self, other):
+        if isinstance(other, str):
+            return self.lower() < other.lower()
+        return NotImplemented
+    
+    def __ge__(self, other):
+        return not (self < other)
+    
+    def __gt__(self, other):
+        if isinstance(other, str):
+            return self.lower() > other.lower()
+        return NotImplemented
+    
+    def __le__(self, other):
+        return not (self > other)
+    
+    def __contains__(self, other: str):
+        return other.lower() in self.lower()
+
+class IDict(dict):
+    @staticmethod
+    def _key(k):
+        return IStr(k) if isinstance(k, str) else k
+    
+    @classmethod
+    def fromkeys(cls, keys, val=None):
+        dic = cls()
+        for i in keys:
+            dic[i] = val
+        return dic
+    
+    def __init__(self, *args, **kwargs):
+        super(IDict, self).__init__(*args, **kwargs)
+        if self.keys():
+            for k in list(self.keys()):
+                v = super(IDict, self).pop(k)
+                self.__setitem__(k, v)
+    
+    def __contains__(self, key):
+        key = IDict._key(key)
+        return super(IDict, self).__contains__(key)
+    
+    def __delitem__(self, key):
+        key = IDict._key(key)
+        if key in self:
+            super(IDict, self).__delitem__(key)
+    
+    def __getitem__(self, key):
+        key = IDict._key(key)
+        if key in self:
+            return super(IDict, self).__getitem__(key)
+    
+    def __setitem__(self, key, val):
+        key = IDict._key(key)
+        super(IDict, self).__setitem__(key, val)
+    
+    def at(self, i: int):
+        if i not in range(len(self)):
+            return None
+        key = list(self.keys())[i]
+        val = list(self.values())[i]
+        return (key, val)
+    
+    def copy(self):
+        return IDict(self.items())
+    
+    def get(self, key, *args, **kwargs):
+        key = IDict._key(key)
+        if key in self:
+            return super(IDict, self).get(key, *args, **kwargs)
+        return None
+    
+    def index(self, key):
+        k = IDict._key(key)
+        if k not in self:
+            return None
+        return list(self.keys()).index(k)
+    
+    def key_at(self, i: int):
+        if i not in range(len(self)):
+            return None
+        k = list(self.keys())[i]
+        return k
+    
+    def multiget(self, keys=None):
+        if not keys:
+            return None
+        return [self.get(i) for i in keys]
+    
+    def multipop(self, keys):
+        if not keys:
+            return None
+        for i in keys:
+            self.pop(i)
+    
+    def pop(self, key, *args, **kwargs):
+        key = IDict._key(key)
+        if key in self:
+            return super(IDict, self).pop(key, *args, **kwargs)
+        return None
+    
+    def setdefault(self, key, val=None):
+        key = IDict._key(key)
+        return super(IDict, self).setdefault(key, val)
+    
+    def update(self, obj=None):
+        if not obj:
+            return None
+        
+        if isinstance(obj, dict):
+            obj = obj.items()
+        
+        for key, val in obj:
+            key = IDict._key(key)
+            super(IDict, self).update({key: val})
+    
+    def value_at(self, i: int):
+        if i not in range(len(self)):
+            return None
+        return list(self.values())[i]

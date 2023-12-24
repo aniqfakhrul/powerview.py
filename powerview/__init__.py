@@ -548,7 +548,7 @@ def main():
                 sys.exit(0)
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("LDAPSocketSendError: Connection dead")
-                conn.reset_connection()
+                sys.exit(0)
             except ldap3.core.exceptions.LDAPSessionTerminatedByServerError as e:
                 logging.warning("LDAPSessionTerminatedByServerError: Server connection terminated. Trying to reconnect")
                 conn.reset_connection()
@@ -556,8 +556,8 @@ def main():
             except ldap3.core.exceptions.LDAPInvalidDnError as e:
                 logging.error(f"LDAPInvalidDnError: {str(e)}")
                 continue
-            #except Exception as e:
-            #    logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
 
             if args.query:
                 sys.exit(0)

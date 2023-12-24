@@ -7,6 +7,7 @@ from powerview.lib.resolver import (
 )
 from powerview import PowerView as PV
 from powerview.utils.logging import LOG
+from powerview.utils.helpers import IDict
 
 import ldap3
 import json
@@ -144,18 +145,53 @@ class FORMATTER:
     def table_view(self, entries):
         headers = []
         rows = []
-        if not self.args.select:
-            if isinstance(entries[0]["attributes"], dict):
+        nested_list = False
+        if (hasattr(self.args, "select") and self.args.select) or (hasattr(self.args, "properties") and self.args.properties):
+            if self.args.select:
+                headers = self.args.select.split(",")
+            elif self.args.properties:
+                headers = self.args.properties.split(",")
+        else:
+            if isinstance(entries[0]["attributes"], dict) or isinstance(entries[0]["attributes"], ldap3.utils.ciDict.CaseInsensitiveDict):
                 headers = entries[0]["attributes"].keys()
             elif isinstance(entries[0]["attributes"], list):
                 headers = entries[0]["attributes"][0].keys()
+                nested_list = True
+
+        if isinstance(entries[0]["attributes"], list):
+            for entry in entries:
+                for ent in entry["attributes"]:
+                    row = []
+                    for head in headers:
+                        val = IDict(ent).get(head) # IDict give get() with case-insensitive capabilities :)
+                        if isinstance(val,list):
+                            temp = ""
+                            for attr in val:
+                                if isinstance(attr, bytes):
+                                    temp += base64.b64encode(attr).decode("utf-8") + "\n"
+                                elif isinstance(attr, int):
+                                    temp = str(attr)
+                                elif isinstance(attr, datetime.datetime):
+                                    temp = str(attr.strftime('%m/%d/%Y'))
+                                else:
+                                    temp += attr + "\n"
+                            val = temp
+                        elif isinstance(val, int):
+                            val = str(val)
+                        elif isinstance(val, bytes):
+                            val = base64.b64encode(val).decode("utf-8")
+                        elif isinstance(val, datetime.datetime):
+                            val = str(val.strftime('%m/%d/%Y'))
+
+                        row.append(
+                                val 
+                                )
+                    rows.append(row)
         else:
-            self.args.select.split(",")
-        if isinstance(entries, list):
             for entry in entries:
                 row = []
-                for head in headers: #fix getdomainobjectacl
-                    val = entry["attributes"].get(head)
+                for head in headers:
+                    val = IDict(entry["attributes"]).get(head) # IDict give get() with case-insensitive capabilities :)
 
                     if isinstance(val,list):
                         temp = ""
