@@ -244,6 +244,15 @@ def main():
                                     entries = temp_powerview.get_domaintrust(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domaintrust(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'convertfrom-uacvalue':
+                                if pv_args.value:
+                                    value = pv_args.value.strip()
+                                    if temp_powerview:
+                                        entries = temp_powerview.convertfrom_uacvalue(value=value, output=True)
+                                    else:
+                                        entries = powerview.convertfrom_uacvalue(value=value, output=True)
+                                else:
+                                    logging.error("-Value flag is required")
                             elif pv_args.module.casefold() == 'convertfrom-sid':
                                 if pv_args.objectsid:
                                     objectsid = pv_args.objectsid.strip()
@@ -264,9 +273,9 @@ def main():
                             elif pv_args.module.casefold() == 'get-netshare':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     if temp_powerview:
-                                        temp_powerview.get_netshare(pv_args)
+                                       entries =  temp_powerview.get_netshare(pv_args)
                                     else:
-                                        powerview.get_netshare(pv_args)
+                                        entries = powerview.get_netshare(pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'get-netsession':
@@ -504,15 +513,20 @@ def main():
                                 if entries is None:
                                     logging.error(f'Key not available')
                                 else:
-                                    if pv_args.count:
+                                    if hasattr(pv_args, "count") and pv_args.count:
                                         formatter.count(entries)
-                                    elif pv_args.select is not None:
-                                        if pv_args.select.isdecimal():
+                                    elif hasattr(pv_args, "tableview") and pv_args.tableview:
+                                        formatter.table_view(entries)
+                                    elif hasattr(pv_args, "select") and pv_args.select is not None:
+                                        if hasattr(pv_args, "select") and pv_args.select.isdecimal():
                                             formatter.print_index(entries)
                                         else:
                                             formatter.print_select(entries)
                                     else:
-                                        formatter.print(entries)
+                                        if isinstance(entries, dict) and entries.get("headers") and entries.get("rows"):
+                                            formatter.print_table(entries["rows"], entries["headers"])
+                                        else:
+                                            formatter.print(entries)
 
                             temp_powerview = None
                             conn.set_ldap_address(init_ldap_address)
@@ -534,7 +548,7 @@ def main():
                 sys.exit(0)
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("LDAPSocketSendError: Connection dead")
-                conn.reset_connection()
+                sys.exit(0)
             except ldap3.core.exceptions.LDAPSessionTerminatedByServerError as e:
                 logging.warning("LDAPSessionTerminatedByServerError: Server connection terminated. Trying to reconnect")
                 conn.reset_connection()

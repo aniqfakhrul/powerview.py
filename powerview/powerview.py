@@ -27,7 +27,8 @@ from powerview.lib.dns import (
     DNS_UTIL,
 )
 from powerview.lib.resolver import (
-    TRUST
+    TRUST,
+    UAC
 )
 
 import chardet
@@ -907,6 +908,13 @@ class PowerView:
 
             entries.append({"attributes":_entries["attributes"]})
         return entries
+
+    def convertfrom_uacvalue(self, value, args=None, output=False):
+        result = {
+                "headers": ["Name", "Value"],
+                "rows": UAC.parse_value_tolist(value)
+                }
+        return result
 
     def convertfrom_sid(self, objectsid, args=None, output=False):
         identity = WELL_KNOWN_SIDS.get(objectsid)
@@ -1993,11 +2001,39 @@ class PowerView:
             logging.error('[Add-DomainUser] Users parent DN not found in domain')
             return
         logging.debug(f"[Add-DomainUser] Adding user in {parent_dn_entries}")
-        au = ADUser(self.ldap_session, self.root_dn, parent = parent_dn_entries)
-        if au.addUser(username, userpass):
-            return True
+        
+        if self.use_ldaps:
+            logging.warning("[Add-DomainUser] Adding user through LDAPS")
+            au = ADUser(self.ldap_session, self.root_dn, parent = parent_dn_entries)
+            succeed = au.addUser(username, userpass)
         else:
+            logging.warning("[Add-DomainUser] Adding user through LDAP")
+            udn = "CN=%s,%s" % (
+                        username,
+                        parent_dn_entries
+                    )
+            ucd = {
+                'displayName': username,
+                'sAMAccountName': username,
+                'userPrincipalName': f"{username}@{self.root_dn}",
+                'name': username,
+                'givenName': username,
+                'sn': username,
+                'userAccountControl': ['66080'],
+            }
+            succeed = self.ldap_session.add(udn, ['top', 'person', 'organizationalPerson', 'user'], ucd)
+            
+        if not succeed:
+            logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainUser] Failed adding {username} to domain ({self.ldap_session.result['description']})")
             return False
+        else:
+            logging.info('[Add-DomainUser] Success! Created new user with dn %s' % udn)
+
+            if not self.use_ldaps:
+                logging.info("[Add-DomainUser] Adding password to account")
+                self.set_domainuserpassword(udn, userpass)
+            
+            return True
 
     def add_domainobjectacl(self, args):
         c = NTLMRelayxConfig()
@@ -2358,7 +2394,10 @@ class PowerView:
             logging.error('[Get-NamedPipes] Host not found')
             return
 
-        available_pipes = []
+        result = {
+                "headers":["Name", "Protocol", "Description", "Authenticated"],
+                "rows":[]
+                }
         binding_params = {
             	'lsarpc': {
                 	'stringBinding': r'ncacn_np:%s[\PIPE\lsarpc]' % host,
@@ -2412,11 +2451,9 @@ class PowerView:
                 pipe = args.name
                 if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False):
                     #logging.info(f"Found named pipe: {args.name}")
-                    pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':f'{bcolors.WARNING}No{bcolors.ENDC}'}}
-                    available_pipes.append(pipe_attr)
+                    result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.WARNING}No{bcolors.ENDC}'])
                 elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
-                    pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'}}
-                    available_pipes.append(pipe_attr)
+                    result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
             else:
                 logging.error(f"Invalid pipe name")
                 return
@@ -2424,15 +2461,12 @@ class PowerView:
             pipes = [ 'netdfs','netlogon', 'lsarpc', 'samr', 'browser', 'spoolss', 'atsvc', 'DAV RPC SERVICE', 'epmapper', 'eventlog', 'InitShutdown', 'keysvc', 'lsass', 'LSM_API_service', 'ntsvcs', 'plugplay', 'protected_storage', 'router', 'SapiServerPipeS-1-5-5-0-70123', 'scerpc', 'srvsvc', 'tapsrv', 'trkwks', 'W32TIME_ALT', 'wkssvc','PIPE_EVENTROOT\CIMV2SCM EVENT PROVIDER', 'db2remotecmd']
             for pipe in binding_params.keys():
                 # TODO: Return entries
-                pipe_attr = {}
                 if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False):
-                    # logging.info(f"Found named pipe: {pipe}")
-                    pipe_attr['attributes'] = {'Name':pipe, 'Protocol': binding_params[pipe]['protocol'], 'Description':binding_params[pipe]['description'], 'Authenticated': f'{bcolors.WARNING}No{bcolors.ENDC}'}
-                    available_pipes.append(pipe_attr.copy())
+                    #logging.debug(f"Found named pipe: {pipe}")
+                    result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.WARNING}No{bcolors.ENDC}'])
                 elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
-                    pipe_attr = {'attributes': {'Name': pipe, 'Protocol':binding_params[pipe]['protocol'],'Description':binding_params[pipe]['description'],'Authenticated':f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'}}
-                    available_pipes.append(pipe_attr.copy())
-        return available_pipes
+                    result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
+        return result
 
     def set_domainuserpassword(self, identity, accountpassword, oldpassword=None, args=None):
         entries = self.get_domainuser(identity=identity, properties=['distinguishedName','sAMAccountName'])
@@ -2830,18 +2864,17 @@ class PowerView:
             return
 
         shares = client.listShares()
-        share_infos = []
+        result = {
+                "headers": ["Name", "Remark", "Address"],
+                "rows": []
+                }
 
-        print(f'{"Name".ljust(15)}{"Remark".ljust(25)}Address')
-        print(f'{"----".ljust(15)}{"-------".ljust(25)}------------')
         for i in range(len(shares)):
             share_name = shares[i]['shi1_netname'][:-1]
             share_remark = shares[i]['shi1_remark'][:-1]
-            share_info = {'name': share_name, 'remark': share_remark}
-            share_infos.append(share_info)
+            result["rows"].append([share_name, share_remark, host])
 
-            print(f'{share_info["name"].ljust(15)}{share_info["remark"].ljust(25)}{host}')
-        print()
+        return result
 
     def get_netsession(self, args):
         is_fqdn = False

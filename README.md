@@ -110,6 +110,7 @@ Set-DomainObject -Identity "adminuser" -Clear 'servicePrincipalname'
 |Invoke-Kerberoast|||
 |New-GPLink|||
 |ConvertFrom-SID|||
+|ConvertFrom-UACValue|||
 
 ### To-Do
 * Add --certificate flag to support ldap bind with certificate

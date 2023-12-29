@@ -7,6 +7,7 @@ from powerview.lib.resolver import (
 )
 from powerview import PowerView as PV
 from powerview.utils.logging import LOG
+from powerview.utils.helpers import IDict
 
 import ldap3
 import json
@@ -14,6 +15,7 @@ import re
 import logging
 import base64
 import datetime
+from tabulate import tabulate as table
 
 class FORMATTER:
     def __init__(self, pv_args, use_kerberos=False):
@@ -23,6 +25,18 @@ class FORMATTER:
 
     def count(self, entries):
         print(len(entries))
+
+    def print_table(self, entries: list, headers: list, align: str = None):
+        print()
+        table_res = table(
+            entries,
+            headers,
+            numalign="left" if not align else align
+            )
+        if self.args.outfile:
+            LOG.write_to_file(self.args.outfile, table_res)
+        print(table_res)
+        print()
 
     def print_index(self, entries):
         i = int(self.args.select)
@@ -127,6 +141,84 @@ class FORMATTER:
                         if self.args.outfile:
                             LOG.write_to_file(self.args.outfile, "")
                         print()
+
+    def table_view(self, entries):
+        headers = []
+        rows = []
+        nested_list = False
+        if (hasattr(self.args, "select") and self.args.select) or (hasattr(self.args, "properties") and self.args.properties):
+            if self.args.select:
+                headers = self.args.select.split(",")
+            elif self.args.properties:
+                headers = self.args.properties.split(",")
+        else:
+            if isinstance(entries[0]["attributes"], dict) or isinstance(entries[0]["attributes"], ldap3.utils.ciDict.CaseInsensitiveDict):
+                headers = entries[0]["attributes"].keys()
+            elif isinstance(entries[0]["attributes"], list):
+                headers = entries[0]["attributes"][0].keys()
+                nested_list = True
+
+        if isinstance(entries[0]["attributes"], list):
+            for entry in entries:
+                for ent in entry["attributes"]:
+                    row = []
+                    for head in headers:
+                        val = IDict(ent).get(head) # IDict give get() with case-insensitive capabilities :)
+                        if isinstance(val,list):
+                            temp = ""
+                            for attr in val:
+                                if isinstance(attr, bytes):
+                                    temp += base64.b64encode(attr).decode("utf-8") + "\n"
+                                elif isinstance(attr, int):
+                                    temp = str(attr)
+                                elif isinstance(attr, datetime.datetime):
+                                    temp = str(attr.strftime('%m/%d/%Y'))
+                                else:
+                                    temp += attr + "\n"
+                            val = temp
+                        elif isinstance(val, int):
+                            val = str(val)
+                        elif isinstance(val, bytes):
+                            val = base64.b64encode(val).decode("utf-8")
+                        elif isinstance(val, datetime.datetime):
+                            val = str(val.strftime('%m/%d/%Y'))
+
+                        row.append(
+                                val 
+                                )
+                    rows.append(row)
+        else:
+            for entry in entries:
+                row = []
+                for head in headers:
+                    val = IDict(entry["attributes"]).get(head) # IDict give get() with case-insensitive capabilities :)
+
+                    if isinstance(val,list):
+                        temp = ""
+                        for attr in val:
+                            if isinstance(attr, bytes):
+                                temp += base64.b64encode(attr).decode("utf-8") + "\n"
+                            elif isinstance(attr, int):
+                                temp = str(attr)
+                            elif isinstance(attr, datetime.datetime):
+                                temp = str(attr.strftime('%m/%d/%Y'))
+                            else:
+                                temp += attr + "\n"
+                        val = temp
+                    elif isinstance(val, int):
+                        val = str(val)
+                    elif isinstance(val, bytes):
+                        val = base64.b64encode(val).decode("utf-8")
+                    elif isinstance(val, datetime.datetime):
+                        val = str(val.strftime('%m/%d/%Y'))
+
+                    row.append(
+                            val 
+                            )
+
+                rows.append(row)
+
+        self.print_table(entries=rows, headers=headers)
 
     def print(self,entries):
         for entry in entries:
