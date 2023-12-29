@@ -1311,14 +1311,20 @@ class PowerView:
         for link in gplinks:
             if guid.lower() not in link.lower():
                 new_gplink += "[%s]" % (link)
-                
-        succeed = self.set_domainobject(  
-                                targetidentity_dn,
-                                _set = {
-                                        'attribute': 'gPLink',
-                                        'value': [new_gplink]
-                                    },
-                              )
+        
+        if new_gplink:
+            succeed = self.set_domainobject(  
+                                    targetidentity_dn,
+                                    _set = {
+                                            'attribute': 'gPLink',
+                                            'value': [new_gplink]
+                                        },
+                                  )
+        else:
+            succeed = self.set_domainobject(  
+                                    targetidentity_dn,
+                                    clear = "gPLink"
+                                  )
 
         if succeed:
             logging.info(f"[Remove-GPLink] Successfully modified gPLink on {targetidentity_dn} OU")
@@ -2924,7 +2930,6 @@ class PowerView:
             if is_ipaddress(args.computer) or is_ipaddress(args.computername):
                 logging.error('[Get-NetSession] FQDN must be used for kerberos authentication')
                 return
-            host = args.computer if args.computer else args.computereturne
         else:
             if is_fqdn and self.nameserver:
                 host = host2ip(host, self.nameserver, 3, True)
