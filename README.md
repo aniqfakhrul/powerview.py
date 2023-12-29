@@ -166,11 +166,11 @@ Find-ForeignGroup              Get-DomainGroupMember          Get-NetShare      
 
 | Module | Alias | Description |
 | ------ | ----- | ---- |
-|ConvertFrom-SID|||
-|ConvertFrom-UACValue|||
-|Get-NamedPipes|||
-|Invoke-Kerberoast|||
-|Find-LocalAdminAccess|||
+|ConvertFrom-SID||Convert a given security identifier (SID) to user/group name|
+|ConvertFrom-UACValue||Converts a UAC int value to human readable form|
+|Get-NamedPipes||List out Named Pipes for a specific computer|
+|Invoke-Kerberoast||Requests kerberos ticket for a specified service principal name (SPN)|
+|Find-LocalAdminAccess||Finds computer on the local domain where the current has a Local Administrator access|
 
 ### To-Do
 * Add logging function to track and monitor what have been run.
