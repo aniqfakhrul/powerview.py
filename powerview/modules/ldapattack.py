@@ -387,7 +387,7 @@ class LDAPAttack(ProtocolAttack):
         
         if not self.args.delete:
             if self.args.rights.lower() in list(rights.keys()):
-                for guid in rights[self.args.rights]:
+                for guid in rights[self.args.rights.lower()]:
                     secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
             else:
                 LOG.error(f'{self.args.rights} right is not valid')
@@ -1198,7 +1198,7 @@ class ACLEnum:
             parsed_ace['ACEFlags'] = ", ".join(_ace_flags) or "None"
             if ace['TypeName'] in [ "ACCESS_ALLOWED_ACE", "ACCESS_DENIED_ACE" ]:
                 parsed_ace['ActiveDirectoryRights'] = ",".join(self.parsePerms(ace["Ace"]["Mask"]["Mask"]))
-                parsed_ace['Access mask'] = "0x%x" % (ace['Ace']['Mask']['Mask'])
+                parsed_ace['AccessMask'] = "0x%x" % (ace['Ace']['Mask']['Mask'])
                 parsed_ace['InheritanceType'] = "None"
                 parsed_ace['SecurityIdentifier'] = "%s (%s)" % (self.resolveSID(ace['Ace']['Sid'].formatCanonical()) or "UNKNOWN", ace['Ace']['Sid'].formatCanonical())
             elif ace['TypeName'] in [ "ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_OBJECT_ACE" ]:
@@ -1207,7 +1207,7 @@ class ACLEnum:
                 for FLAG in ALLOWED_OBJECT_ACE_MASK_FLAGS:
                     if ace['Ace']['Mask'].hasPriv(FLAG.value):
                         _access_mask_flags.append(FLAG.name)
-                parsed_ace['Access mask'] = ", ".join(_access_mask_flags)
+                parsed_ace['AccessMask'] = ", ".join(_access_mask_flags)
                 # Extracts the ACE flag values and the trusted SID
                 _object_flags = []
                 for FLAG in OBJECT_ACE_FLAGS:

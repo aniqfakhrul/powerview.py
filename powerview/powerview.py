@@ -68,18 +68,39 @@ class PowerView:
         self.root_dn = self.domain_dumper.getRoot()
         self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
         self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
-
-        # check if the user is domain admin
-        self.is_domainadmin = self.domain_dumper.isDomainAdmin(self.username)
-        self.is_admincount = False
-        if self.is_domainadmin:
-            logging.info(f"User {self.username} is a Domain Admin")
-        else:
-            self.is_admincount = bool(self.get_domainuser(identity=self.username, properties=["adminCount"])[0]["attributes"]["adminCount"])
-            if self.is_admincount:
-                logging.info(f"User {self.username} has adminCount attribute set to 1. Might be admin somewhere somehow :)")
+        self.is_admin = self.is_admin()
 
     def get_admin_status(self):
+        return self.is_admin
+
+    def is_admin(self):
+        self.is_domainadmin = False
+        self.is_admincount = False
+        groups = []
+
+        try:
+            curUserDetails = self.get_domainuser(identity=self.username, properties=["adminCount","memberOf"])[0]
+           
+            userGroup = curUserDetails.get("attributes").get("memberOf")
+            if isinstance(userGroup, str):
+                groups.append(userGroup)
+            elif isinstance(userGroup, list):
+                groups = userGroup 
+
+            for group in groups:
+                if "CN=Domain Admins".casefold() in group.casefold():
+                    self.is_domainadmin = True
+                    break
+
+            if self.is_domainadmin:
+                logging.info(f"User {self.username} is a Domain Admin")
+            else:
+                self.is_admincount = bool(curUserDetails["attributes"]["adminCount"])
+                if self.is_admincount:
+                    logging.info(f"User {self.username} has adminCount attribute set to 1. Might be admin somewhere somehow :)")
+        except:
+            logging.debug("Failed to check user admin status")
+
         return self.is_domainadmin or self.is_admincount
 
     def get_domainuser(self, args=None, properties=[], identity=None, searchbase=None):
@@ -340,6 +361,7 @@ class PowerView:
                     'nTSecurityDescriptor'
                 ]
             )
+
         return objects
 
     def get_domainou(self, args=None, properties=['*'], identity=None, searchbase=None):
@@ -1920,7 +1942,7 @@ class PowerView:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainGroupMember] Failed to add {members} to group {identity}")
         return succeeded
 
-    def remove_domaindnsrecord(self, identity=None, args=None):
+    def remove_domaindnsrecord(self, recordname=None, args=None):
         if args.zonename:
             zonename = args.zonename.lower()
         else:
@@ -1933,7 +1955,7 @@ class PowerView:
             return
 
 
-        entry = self.get_domaindnsrecord(identity=identity, zonename=zonename)
+        entry = self.get_domaindnsrecord(identity=recordname, zonename=zonename)
 
         if len(entry) == 0:
             logging.info("[Remove-DomainDNSRecord] No record found")
@@ -2280,7 +2302,7 @@ class PowerView:
                     dr = DNS_RECORD(record)
                     if dr['Type'] == 1:
                         address = DNS_RPC_RECORD_A(dr['Data'])
-                        logging.info("Record %s in zone %s pointing to %s already exists" % (recordname, zonename, address.formatCanonical()))
+                        logging.warning("Record %s in zone %s pointing to %s already exists" % (recordname, zonename, address.formatCanonical()))
                         return
 
         # addtype is A record = 1
@@ -2634,7 +2656,7 @@ class PowerView:
                                     logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
                                     return
                         except KeyError as e:
-                            logging.debug(f"[Set-DomainObject] Attribute {attrs['attribute']} not exists in object. Modifying anyway...")
+                            logging.warning(f"[Set-DomainObject] Attribute {attrs['attribute']} not exists in object. Modifying anyway...")
             except ldap3.core.exceptions.LDAPKeyError as e:
                 logging.error(f"[Set-DomainObject] Key {attrs['attribute']} not found in template attribute. Adding anyway...")
 

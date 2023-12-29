@@ -122,6 +122,9 @@ class CONNECTION:
     def reset_connection(self):
         self.ldap_session.rebind()
 
+    def close(self):
+        self.ldap_session.unbind()
+
     def init_ldap_session(self, ldap_address=None, use_ldap=False, use_gc_ldap=False):
         
         if self.targetDomain and self.targetDomain != self.domain and self.kdcHost:

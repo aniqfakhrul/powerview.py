@@ -462,15 +462,15 @@ def main():
                                 else:
                                     logging.error("-Identity is required")
                             elif pv_args.module.casefold() == 'remove-domaindnsrecord':
-                                if pv_args.identity:
-                                    identity = pv_args.identity.strip()
+                                if pv_args.recordname:
+                                    recordname = pv_args.recordname.strip()
                                 else:
-                                    logging.error("-Identity flag is required")
+                                    logging.error("-RecordName flag is required")
                                     continue
                                 if temp_powerview:
-                                    temp_powerview.remove_domaindnsrecord(identity, args=pv_args)
+                                    temp_powerview.remove_domaindnsrecord(recordname, args=pv_args)
                                 else:
-                                    powerview.remove_domaindnsrecord(identity, args=pv_args)
+                                    powerview.remove_domaindnsrecord(recordname, args=pv_args)
                             elif pv_args.module.casefold() == 'remove-domaincomputer' or pv_args.module.casefold() == 'remove-adcomputer':
                                 if pv_args.computername is not None:
                                     if temp_powerview:
@@ -545,10 +545,11 @@ def main():
                 print()
             except EOFError:
                 print("Exiting...")
+                conn.close()
                 sys.exit(0)
             except ldap3.core.exceptions.LDAPSocketSendError as e:
                 logging.info("LDAPSocketSendError: Connection dead")
-                sys.exit(0)
+                conn.reset_connection()
             except ldap3.core.exceptions.LDAPSessionTerminatedByServerError as e:
                 logging.warning("LDAPSessionTerminatedByServerError: Server connection terminated. Trying to reconnect")
                 conn.reset_connection()
@@ -560,6 +561,7 @@ def main():
                 logging.error(str(e))
 
             if args.query:
+                conn.close()
                 sys.exit(0)
 
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
