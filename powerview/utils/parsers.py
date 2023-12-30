@@ -1,11 +1,12 @@
 import argparse
+import argcomplete
 import sys
 
 from impacket import version
 from powerview.utils.completer import COMMANDS
 from powerview.utils.colors import bcolors
 from powerview.utils.helpers import escape_filter_chars_except_asterisk
-from powerview._version import BANNER
+from powerview._version import BANNER,__version__
 from powerview.utils.logging import setup_logger
 
 # https://stackoverflow.com/questions/14591168/argparse-dont-show-usage-on-h
@@ -15,7 +16,7 @@ class PowerViewParser(argparse.ArgumentParser):
         sys.exit(0)
 
 def arg_parse():
-    parser = PowerViewParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE}0.1.2{bcolors.ENDC}")
+    parser = PowerViewParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE + __version__ + bcolors.ENDC}")
     parser.add_argument('target', action='store', metavar='target', help='[[domain/]username[:password]@]<targetName or address>')
     parser.add_argument('-p','--port', dest='port', action='store', help='LDAP server port. (Default: 389|636)', type=int)
     parser.add_argument('-d','--debug', dest='debug', action='store_true', help='Enable debug output')
@@ -552,7 +553,7 @@ def powerview_arg_parse(cmd):
     # remove dns record
     remove_domaindnsrecord_parser = subparsers.add_parser('Remove-DomainDNSRecord', exit_on_error=False)
     remove_domaindnsrecord_parser.add_argument('-ZoneName', action='store', dest='zonename')
-    remove_domaindnsrecord_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+    remove_domaindnsrecord_parser.add_argument('-RecordName', action='store', dest='recordname', type=lambda value: escape_filter_chars_except_asterisk(value))
     remove_domaindnsrecord_parser.add_argument('-Domain', action='store', dest='server')
     remove_domaindnsrecord_parser.add_argument('-OutFile', action='store', dest='outfile')
 
