@@ -90,7 +90,7 @@ def main():
                                     entries = powerview.get_domain(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainobject' or pv_args.module.casefold() == 'get-adobject':
                                 properties = pv_args.properties.strip(" ").split(',')
-                                identity = pv_args.identity.strip()
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainobject(pv_args, properties, identity)
                                 else:
@@ -196,6 +196,13 @@ def main():
                                     entries = temp_powerview.get_domainsccm(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domainsccm(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domainrbcd' or pv_args.module.casefold() == 'get-rbcd':
+                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domainrbcd(identity, pv_args)
+                                else:
+                                    entries = powerview.get_domainrbcd(identity, pv_args)
                             elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-ca':
                                 properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 if temp_powerview:
@@ -557,8 +564,8 @@ def main():
             except ldap3.core.exceptions.LDAPInvalidDnError as e:
                 logging.error(f"LDAPInvalidDnError: {str(e)}")
                 continue
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
 
             if args.query:
                 conn.close()

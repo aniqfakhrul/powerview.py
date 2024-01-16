@@ -79,9 +79,13 @@ class PowerView:
         groups = []
 
         try:
-            curUserDetails = self.get_domainuser(identity=self.username, properties=["adminCount","memberOf"])[0]
+            curUserDetails = self.get_domainobject(identity=self.username, properties=["adminCount","memberOf"])[0]
            
+            if not curUserDetails:
+                return False
+            
             userGroup = curUserDetails.get("attributes").get("memberOf")
+
             if isinstance(userGroup, str):
                 groups.append(userGroup)
             elif isinstance(userGroup, list):
@@ -256,7 +260,7 @@ class PowerView:
 
         return entries
 
-    def get_domainobject(self, args=None, properties=['*'], identity='*', identity_filter=None, searchbase=None, sd_flag=None):
+    def get_domainobject(self, args=None, properties=['*'], identity=None, identity_filter=None, searchbase=None, sd_flag=None):
         if sd_flag:
             # Set SD flags to only query for DACL and Owner
             controls = security_descriptor_control(sdflags=sd_flag)
@@ -264,8 +268,13 @@ class PowerView:
             controls = None
 
         ldap_filter = ""
-        if not identity_filter:
-            identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
+        identity_filter = "" if not identity_filter else identity_filter
+
+        if not identity:
+            ldap_filter = "(objectClass=*)"
+        else:
+            if not identity_filter:
+                identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
 
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -587,6 +596,81 @@ class PowerView:
                 continue
             strip_entry(_entries)
             entries.append({"attributes":_entries["attributes"]})
+        return entries
+
+    def get_domainrbcd(self, identity=None, args=None):
+        properties = [
+                    "sAMAccountName",
+                    "sAMAccountType",
+                    "objectSID",
+                    "userAccountControl",
+                    "distinguishedName",
+                    "servicePrincipalName",
+                    "msDS-AllowedToActOnBehalfOfOtherIdentity"
+                ] 
+
+        entries = []
+        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        # set args to have rbcd attribute
+        ldap_filter = "(msDS-AllowedToActOnBehalfOfOtherIdentity=*)"
+        setattr(args,"ldapfilter", ldap_filter)
+
+        # get source identity
+        sourceObj = self.get_domainobject(identity=identity, properties=properties, searchbase=searchbase, args=args)
+
+        for source in sourceObj:
+            entry = {
+                "SourceName": None,
+                "SourceType": None,
+                "SourceSID": None,
+                "SourceAccountControl": None,
+                "SourceDistinguishedName": None,
+                "ServicePrincipalName": None,
+                "DelegatedName": None,
+                "DelegatedType": None,
+                "DelegatedSID": None,
+                "DelegatedAccountControl": None,
+                "DelegatedDistinguishedName": None,
+            }
+
+            # resolve msDS-AllowedToActOnBehalfOfOtherIdentity
+            parser = RBCD(source)
+            sids = parser.read()
+
+            source = source.get("attributes")
+            entry["SourceName"] = source.get("sAMAccountName")
+            entry["SourceType"] = source.get("sAMAccountType")
+            entry["SourceSID"] = source.get("objectSid")
+            entry["SourceAccountControl"] = source.get("userAccountControl")
+            entry["SourceDistinguishedName"] = source.get("distinguishedName")
+            entry["ServicePrincipalName"] = source.get("servicePrincipalName")
+
+            for sid in sids:
+                # resolve sid from delegateObj
+                delegateObj = self.get_domainobject(identity=sid, properties=properties, searchbase=searchbase)
+                if len(delegateObj) == 0:
+                    logging.warning("Delegated object not found. Ignoring...")
+                elif len(delegateObj) > 1:
+                    logging.warning("More than one delegated object found. Ignoring...")
+
+                for delegate in delegateObj:
+                    try:
+                        delegate = delegate.get("attributes")
+                        entry["DelegatedName"] = delegate.get("sAMAccountName")
+                        entry["DelegatedType"] = delegate.get("sAMAccountType")
+                        entry["DelegatedSID"] = delegate.get("objectSid")
+                        entry["DelegatedAccountControl"] = delegate.get("userAccountControl")
+                        entry["DelegatedDistinguishedName"] = delegate.get("distinguishedName")
+                    except IndexError:
+                        logging.error(f"[IndexError] No object found for {sid}")
+                        pass
+                
+                entries.append(
+                            {
+                                "attributes": dict(entry)
+                            }
+                        )
         return entries
 
     def get_domaingroup(self, args=None, properties=[], identity=None):

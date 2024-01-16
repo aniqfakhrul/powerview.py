@@ -69,7 +69,7 @@ Set-DomainObject -Identity "adminuser" -Clear 'servicePrincipalname'
 ## Module available (so far?)
 
 ```cs
-PV > 
+PV >
 Add-ADComputer                 Find-ForeignUser               Get-DomainOU                   Get-NetTrust                   Remove-GPLink 
 Add-ADUser                     Find-LocalAdminAccess          Get-DomainObject               Get-NetUser                    Remove-GroupMember 
 Add-CATemplate                 Get-ADObject                   Get-DomainObjectAcl            Get-ObjectAcl                  Remove-OU 
@@ -106,6 +106,7 @@ Find-ForeignGroup              Get-DomainGroupMember          Get-NetShare      
 |Get-DomainObject|Get-ADObject|Query for all or specified domain objects in AD|
 |Get-DomainObjectAcl|Get-ObjectAcl|Query ACLs for specified AD object|
 |Get-DomainSCCM|Get-SCCM|Query for SCCM|
+|Get-DomainRBCD|Get-RBCD|Finds accounts that are configured for resource-based constrained delegation|
 |Get-DomainObjectOwner|Get-ObjectOwner|Query owner of the AD object|
 |Remove-DomainDNSRecord||Remove Domain DNS Record|
 |Remove-DomainComputer|Remove-ADComputer|Remove Domain Computer|
