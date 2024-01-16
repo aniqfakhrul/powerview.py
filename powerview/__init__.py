@@ -197,7 +197,6 @@ def main():
                                 else:
                                     entries = powerview.get_domainsccm(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainrbcd' or pv_args.module.casefold() == 'get-rbcd':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainrbcd(identity, pv_args)
