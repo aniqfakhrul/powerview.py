@@ -1332,24 +1332,41 @@ class ObjectOwner:
         return ownersid
 
 class RBCD:
-    def __init__(self, entry):
+    def __init__(self, entry, ldap_session=None):
         try:
             self.__target_samaccountname = entry["attributes"]["sAMAccountName"][0] if isinstance(entry["attributes"]["sAMAccountName"], list) else entry["attributes"]["sAMAccountName"]
         except IndexError as e:
+            self.__target_samaccountname = None
             pass
+        try:
             self.__target_sid = entry["attributes"]["objectSid"][0] if isinstance(entry["attributes"]["objectSid"], list) else entry["attributes"]["objectSid"]
         except IndexError as e:
+            self.__target_sid = None
             pass
+        try:
             self.__target_dn = entry["attributes"]["distinguishedName"][0] if isinstance(entry["attributes"]["distinguishedName"], list) else entry["attributes"]["distinguishedName"]
         except IndexError as e:
+            self.__target_dn = None
             pass
         try:
             self.__target_msds_allowedtoactonbehalfofotheridentity = entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"][0] if isinstance(entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"], list) else entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"]
         except IndexError as e:
+            self.__target_msds_allowedtoactonbehalfofotheridentity = None
             pass
-        self.__target_securitydescriptor = ldaptypes.SR_SECURITY_DESCRIPTOR(data=self.__target_msds_allowedtoactonbehalfofotheridentity)
+        try:
+            self.__target_securitydescriptor = ldaptypes.SR_SECURITY_DESCRIPTOR(data=self.__target_msds_allowedtoactonbehalfofotheridentity)
+        except:
+            self.__target_securitydescriptor = None
+            pass
+
+
+        self.ldap_session = ldap_session
 
     def read(self):
+        if self.__target_securitydescriptor is None:
+            logging.error("[RBCD] msDS-AllowedToActOnBehalfOfOtherIdentity not found in object")
+            return
+
         user_can_delegate = []
         sd = self.__target_securitydescriptor
         if len(sd['Dacl'].aces) > 0:
@@ -1357,3 +1374,25 @@ class RBCD:
                 user_can_delegate.append(ace['Ace']['Sid'].formatCanonical())
 
         return user_can_delegate
+
+    def write_to(self, objectsid):
+        logging.debug("[RBCD] Creating SDDL manually")
+        sd = create_empty_sd()
+        sd['Dacl'].aces.append(create_allow_ace(objectsid))
+        logging.debug(f"[RBCD] Appended {objectsid} to SDDL")
+        self.ldap_session.modify(
+            self.__target_dn,
+            {
+                'msDS-AllowedToActOnBehalfOfOtherIdentity':[ldap3.MODIFY_REPLACE, [sd.getData()]]
+            }
+        )
+        if self.ldap_session.result['result'] == 0:
+            return True
+        else:
+            if self.ldap_session.result['result'] == 50:
+                logging.error('Could not modify object, the server reports insufficient rights: %s', self.ldap_session.result['message'])
+            elif self.ldap_session.result['result'] == 19:
+                logging.error('Could not modify object, the server reports a constrained violation: %s', self.ldap_session.result['message'])
+            else:
+                logging.error('The server returned an error: %s', self.ldap_session.result['message'])
+            return False

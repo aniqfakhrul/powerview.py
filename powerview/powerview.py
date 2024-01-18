@@ -168,6 +168,10 @@ class PowerView:
             if args.rbcd:
                 logging.debug('[Get-DomainUser] Searching for users that are configured to allow resource-based constrained delegation')
                 ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
+            if args.shadowcred:
+                logging.debug("[Get-DomainUser] Searching for users that are configured to have msDS-KeyCredentialLink attribute set")
+                ldap_filter += f'(msDS-KeyCredentialLink=*)'
+                properties += ['msDS-KeyCredentialLink']
             if args.spn:
                 logging.debug("[Get-DomainUser] Searching for users that have SPN attribute set")
                 ldap_filter += f'(servicePrincipalName=*)'
@@ -501,6 +505,10 @@ class PowerView:
                 logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
                 ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
                 properties += ['msDS-AllowedToActOnBehalfOfOtherIdentity']
+            if args.shadowcred:
+                logging.debug("[Get-DomainComputer] Searching for computers that are configured to have msDS-KeyCredentialLink attribute set")
+                ldap_filter += f'(msDS-KeyCredentialLink=*)'
+                properties += ['msDS-KeyCredentialLink']
             if args.printers:
                 logging.debug("[Get-DomainComputer] Searching for printers")
                 ldap_filter += f'(objectCategory=printQueue)'
@@ -1874,6 +1882,65 @@ class PowerView:
         template_guids.clear()
         return entries
 
+    def set_domainrbcd(self, identity, delegatefrom, searchbase=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        # verify that the identity exists
+        _identity = self.get_domainobject(identity=identity, properties = [
+            "sAMAccountName",
+            "objectSid",
+            "distinguishedName",
+            "msDS-AllowedToActOnBehalfOfOtherIdentity"
+            ],
+            searchbase=searchbase,
+            sd_flag=0x01
+        )
+
+        if len(_identity) > 1:
+            logging.error("[Set-DomainRBCD] More then one identity found")
+            return
+        elif len(_identity) == 0:
+            logging.error(f"[Set-DomainRBCD] {identity} identity not found in domain")
+            return
+        
+        logging.debug(f"[Set-DomainRBCD] {identity} identity found")
+        targetidentity = _identity[0]
+
+        # verify that delegate identity exists
+        delegfrom_identity = self.get_domainobject(identity=delegatefrom, properties = [
+                "sAMAccountName",
+                "objectSid",
+                "distinguishedName",
+            ],
+            searchbase=searchbase
+        )
+
+        if len(delegfrom_identity) > 1:
+            logging.error("[Set-DomainRBCD] More then one identity found")
+            return
+        elif len(delegfrom_identity) == 0:
+            logging.error(f"[Set-DomainRBCD] {delegatefrom} identity not found in domain")
+            return
+        logging.debug(f"[Set-DomainRBCD] {delegatefrom} identity found")
+
+        # now time to modify
+        delegfrom_identity = delegfrom_identity[0]
+        delegfrom_sid = delegfrom_identity.get("attributes").get("objectSid")
+
+        if delegfrom_sid is None:
+            return
+
+        rbcd = RBCD(targetidentity, self.ldap_session)
+        succeed = rbcd.write_to(delegfrom_sid)
+        if succeed:
+            logging.info(f"[Set-DomainRBCD] Success! {identity} is now in {delegatefrom}'s msDS-AllowedToActOnBehalfOfOtherIdentity attribute")
+        else:
+            logging.error("[Set-DomainRBCD] Failed to write to {delegatefrom} object")
+            return False
+
+        return True
+
     def set_domainobjectowner(self, targetidentity, principalidentity, searchbase=None, args=None):
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -1892,8 +1959,9 @@ class PowerView:
             logging.error("[Set-DomainObjectOwner] More than one target identity found")
             return
         elif len(target_identity) == 0:
-            logging.error("[Set-DomainObjectOwner] Target identity not found in domain")
+            logging.error(f"[Set-DomainObjectOwner] {targetidentity} identity not found in domain")
             return
+        logging.debug(f"[Set-DomainObjectOwner] {targetidentity} identity found")
 
         # verify that the principalidentity exists
         principal_identity = self.get_domainobject(identity=principalidentity)
@@ -1901,8 +1969,9 @@ class PowerView:
             logging.error("[Set-DomainObjectOwner] More than one principal identity found")
             return
         elif len(principal_identity) == 0:
-            logging.error("[Set-DomainObjectOwner] Principal identity not found in domain")
+            logging.error(f"[Set-DomainObjectOwner] {principalidentity} identity not found in domain")
             return
+        logging.debug(f"[Set-DomainObjectOwner] {principalidentity} identity found")
 
         # create changeowner object
         chown = ObjectOwner(target_identity[0])
@@ -1926,6 +1995,7 @@ class PowerView:
 
         if not succeeded:
             logging.error(f"[Set-DomainObjectOwner] Error modifying object owner ({self.ldap_session.result['description']})")
+            return False
         else:
             logging.info(f'[Set-DomainObjectOwner] Success! modified owner for {target_identity[0]["attributes"]["distinguishedName"]}')
 

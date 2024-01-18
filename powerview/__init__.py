@@ -419,6 +419,14 @@ def main():
                                         logging.error(f'Failed password change attempt for {pv_args.identity}')
                                 else:
                                     logging.error('-Identity and -AccountPassword flags are required')
+                            elif pv_args.module.casefold() == 'set-domainrbcd' or pv_args.module.casefold() == 'set-rbcd':
+                                if pv_args.delegatefrom is not None and pv_args.identity is not None:
+                                    if temp_powerview:
+                                        temp_powerview.set_domainrbcd(pv_args.identity, pv_args.delegatefrom, args=pv_args)
+                                    else:
+                                        powerview.set_domainrbcd(pv_args.identity, pv_args.delegatefrom, args=pv_args)
+                                else:
+                                    logging.error('-Identity and -DelegateFrom flags are required')
                             elif pv_args.module.casefold() == 'set-domainobjectowner' or pv_args.module.casefold() == 'set-objectowner':
                                 if pv_args.targetidentity is not None and pv_args.principalidentity is not None:
                                     if temp_powerview:
@@ -563,8 +571,8 @@ def main():
             except ldap3.core.exceptions.LDAPInvalidDnError as e:
                 logging.error(f"LDAPInvalidDnError: {str(e)}")
                 continue
-            #except Exception as e:
-            #    logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
 
             if args.query:
                 conn.close()
