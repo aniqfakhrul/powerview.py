@@ -571,8 +571,8 @@ def main():
             except ldap3.core.exceptions.LDAPInvalidDnError as e:
                 logging.error(f"LDAPInvalidDnError: {str(e)}")
                 continue
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
 
             if args.query:
                 conn.close()

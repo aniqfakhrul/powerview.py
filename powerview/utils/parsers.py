@@ -38,6 +38,11 @@ def arg_parse():
     auth.add_argument('--aes-key', dest="auth_aes_key", action="store", metavar = "hex key", help='AES key to use for Kerberos Authentication \'(128 or 256 bits)\'')
     auth.add_argument("--dc-ip", action='store', metavar='IP address', help='IP Address of the domain controller or KDC (Key Distribution Center) for Kerberos. If omitted it will use the domain part (FQDN) specified in the identity parameter')
 
+    relay = parser.add_argument_group('relay')
+    relay.add_argument('--relay', dest='relay', action='store_true', help='Specify if you wish to turn on relay mode')
+    relay.add_argument('--relay-port', dest='relay_port', action='store', type=int, default=80, help='Relay mode custom http port (Default: 80)')
+    relay.add_argument('--relay-host', dest='relay_host', action='store', default="0.0.0.0", help='Bind interface to expose http server (Default: 0.0.0.0)')
+
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
@@ -50,6 +55,11 @@ def arg_parse():
         logging.debug(version.getInstallationPath())
     else:
         logging = setup_logger()
+
+    # check for mutually exclusive
+    if args.use_kerberos and (args.relay):
+        logging.error("Kerberos option cannot be used in relay mode. Exiting...")
+        sys.exit(0)
 
     return args
 

