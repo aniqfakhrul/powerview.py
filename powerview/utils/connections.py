@@ -50,7 +50,11 @@ class CONNECTION:
             self.use_kerberos = True
         self.no_pass = args.no_pass
         self.nameserver = args.nameserver
+        
+        # relay option
         self.relay = args.relay
+        self.relay_host = args.relay_host
+        self.relay_port = args.relay_port
 
         if is_valid_fqdn(args.ldap_address) and self.nameserver:
             _ldap_address = host2ip(args.ldap_address, nameserver=self.nameserver, dns_timeout=5)
@@ -84,6 +88,23 @@ class CONNECTION:
         self.samr = None
         self.TGT = {}
         self.TGS = {}
+
+        # stolen from https://github.com/the-useless-one/pywerview/blob/master/pywerview/requester.py#L90
+        try:
+            if ldap3.SIGN and ldap3.ENCRYPT:
+                self.sign_and_seal_supported = True
+                logging.debug('LDAP sign and seal are supported')
+        except AttributeError:
+            self.sign_and_seal_supported = False
+            logging.debug('LDAP sign and seal are not supported')
+
+        try:
+            if ldap3.TLS_CHANNEL_BINDING:
+                self.tls_channel_binding_supported = True
+                logging.debug('TLS channel binding is supported')
+        except AttributeError:
+            self.tls_channel_binding_supported = False
+            logging.debug('TLS channel binding is not supported')
 
     def set_domain(self, domain):
         self.domain = domain
@@ -165,9 +186,7 @@ class CONNECTION:
         _anonymous = False
         if not self.domain and not self.username and (not self.password or not self.nthash or not self.lmhash):
             if self.relay:
-                host = "0.0.0.0"
-                port = 80
-                relay = Relay(self.ldap_address, host, port, self.args)
+                relay = Relay(self.ldap_address, self.relay_host, self.relay_port, self.args)
                 relay.start()
 
                 self.ldap_session = relay.get_ldap_session()
@@ -280,7 +299,7 @@ class CONNECTION:
             logging.info("Server allows ANONYMOUS access!")
             return ldap_server, ldap_session
 
-    def init_ldap_connection(self, target, tls, domain, username, password, lmhash, nthash):
+    def init_ldap_connection(self, target, tls, domain, username, password, lmhash, nthash, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM):
         user = '%s\\%s' % (domain, username)
 
         ldap_server_kwargs = {
@@ -327,6 +346,18 @@ class CONNECTION:
 
         logging.debug(f"Connecting to %s, Port: %s, SSL: %s" % (ldap_server_kwargs["host"], ldap_server_kwargs["port"], ldap_server_kwargs["use_ssl"]))
         ldap_server = ldap3.Server(**ldap_server_kwargs)
+
+        ldap_connection_kwargs = {
+            "user":user,
+            "raise_exceptions": True,
+            "authentication": auth_method,
+        }
+
+        if seal_and_sign:
+            ldap_connection_kwargs["session_security"] = ldap3.ENCRYPT
+        elif tls_channel_binding:
+            ldap_connection_kwargs["channel_binding"] = ldap3.TLS_CHANNEL_BINDING
+
         if self.use_kerberos:
             ldap_session = ldap3.Connection(ldap_server, auto_referrals=False)
             bind = ldap_session.bind()
@@ -335,33 +366,57 @@ class CONNECTION:
             except Exception as e:
                 logging.error(str(e))
                 sys.exit(0)
-        elif self.hashes is not None:
-            ldap_session = ldap3.Connection(ldap_server, user=user, password=lmhash + ":" + nthash, authentication=ldap3.NTLM)
-            bind = ldap_session.bind()
         else:
-            ldap_session = ldap3.Connection(ldap_server, user=user, password=password, authentication=ldap3.NTLM)
-            bind = ldap_session.bind()
+            if auth_method == ldap3.SIMPLE:
+                ldap_connection_kwargs["user"] = '{}@{}'.format(user.split("\\")[-1], domain)
 
-        # check for channel binding
-        if not bind:
-            # check if signing is enforced
-            if "strongerAuthRequired" in str(ldap_session.result):
-                logging.warning("LDAP signing is enforced!")
-
-            error_code = ldap_session.result['message'].split(",")[2].replace("data","").strip()
-            error_status = LDAP.resolve_err_status(error_code)
-            if error_code and error_status:
-                logging.error("Bind not successful - %s [%s]" % (ldap_session.result['description'], error_status))
-                logging.debug("%s" % (ldap_session.result['message']))
+            if self.hashes is not None:
+                ldap_connection_kwargs["password"] = '{}:{}'.format(lmhash, nthash)
             else:
-                logging.error(f"Unexpected Error: {str(ldap_session.result['message'])}")
+                ldap_connection_kwargs["password"] = password
+            
+            try:
+                ldap_session = ldap3.Connection(ldap_server, **ldap_connection_kwargs)    
+                bind = ldap_session.bind()
+            except ldap3.core.exceptions.LDAPSocketOpenError as e:
+                logging.error(str(e))
+                sys.exit(-1)
+            except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
+                logging.debug("Server returns invalidCredentials")
+                if 'AcceptSecurityContext error, data 80090346' in str(ldap_session.result):
+                    logging.warning("Channel binding is enforced!")
+                    if self.tls_channel_binding_supported:
+                        logging.debug("Re-authenticate with channel binding")
+                        return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, tls_channel_binding=True)
+                    else:
+                        if lmhash and nthash:
+                            sys.exit(-1)
+                        else:
+                            logging.info("Falling back to SIMPLE authentication")
+                            return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, auth_method=ldap3.SIMPLE)
+            except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult as e:
+                logging.debug("Server returns LDAPStrongerAuthRequiredResult")
+                logging.warning("LDAP Signing is enforced!")
+                if self.sign_and_seal_supported:
+                    logging.debug("Re-authenticate with seal and sign")
+                    return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, seal_and_sign=True)
+                else:
+                    sys.exit(-1)
 
-            sys.exit(0)
-        else:
-            logging.warning("LDAP Signing NOT Enforced!")
-            logging.debug("Bind SUCCESS!")
+            if not bind:
+                error_code = ldap_session.result['message'].split(",")[2].replace("data","").strip()
+                error_status = LDAP.resolve_err_status(error_code)
+                if error_code and error_status:
+                    logging.error("Bind not successful - %s [%s]" % (ldap_session.result['description'], error_status))
+                    logging.debug("%s" % (ldap_session.result['message']))
+                else:
+                    logging.error(f"Unexpected Error: {str(ldap_session.result['message'])}")
 
-        return ldap_server, ldap_session
+                sys.exit(0)
+            else:
+                logging.debug("Bind SUCCESS!")
+
+            return ldap_server, ldap_session
 
     def ldap3_kerberos_login(self, connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True):
         from pyasn1.codec.ber import encoder, decoder

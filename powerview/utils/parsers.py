@@ -40,8 +40,8 @@ def arg_parse():
 
     relay = parser.add_argument_group('relay')
     relay.add_argument('--relay', dest='relay', action='store_true', help='Specify if you wish to turn on relay mode')
-    relay.add_argument('--relay-port', dest='relay_port', action='store', type=int, default=80, help='Relay mode custom http port (Default: 80)')
     relay.add_argument('--relay-host', dest='relay_host', action='store', default="0.0.0.0", help='Bind interface to expose http server (Default: 0.0.0.0)')
+    relay.add_argument('--relay-port', dest='relay_port', action='store', type=int, default=80, help='Relay mode custom http port (Default: 80)')
 
     if len(sys.argv) == 1:
         parser.print_help()

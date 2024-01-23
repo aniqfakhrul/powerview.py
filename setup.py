@@ -15,14 +15,17 @@ setup(name='powerview',
                 ],
       license='MIT',
       install_requires=[
-          'ldap3',
+          'ldap3 @ git+https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3#tls_cb_and_seal_for_ntlm',
           'dnspython==2.2.1',
           'future',
           'gnureadline',
           'impacket>=0.10.0',
           'validators',
           'dsinternals',
-          'pycryptodome'
+          'pycryptodome',
+          'chardet',
+          'tabulate',
+          'gssapi',
       ],
       classifiers=[
         'Intended Audience :: Information Technology',
@@ -33,6 +36,7 @@ setup(name='powerview',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
       ],
       entry_points= {
         'console_scripts': ['powerview=powerview:main']
