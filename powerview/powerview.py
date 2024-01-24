@@ -65,8 +65,10 @@ class PowerView:
         cnf = ldapdomaindump.domainDumpConfig()
         cnf.basepath = None
         self.domain_dumper = ldapdomaindump.domainDumper(self.ldap_server, self.ldap_session, cnf)
-        self.root_dn = self.domain_dumper.getRoot()
-        self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
+        self.root_dn = self.ldap_server.info.other["rootDomainNamingContext"][0]
+        self.fqdn = dn2domain(self.root_dn)
+        if not self.domain:
+            self.domain = self.fqdn
         self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
         self.is_admin = self.is_admin()
 
@@ -2172,7 +2174,7 @@ class PowerView:
 
     def add_domainuser(self, username, userpass, args=None):
         parent_dn_entries = f"CN=Users,{self.root_dn}"
-        if args.basedn:
+        if hasattr(args, 'basedn') and args.basedn:
             entries = self.get_domainobject(identity=args.basedn)
             if len(entries) <= 0:
                 logging.error(f"[Add-DomainUser] {args.basedn} could not be found in the domain")
@@ -2489,6 +2491,14 @@ class PowerView:
             return True
 
     def add_domaincomputer(self, computer_name, computer_pass, args=None):
+        parent_dn_entries = self.root_dn
+        if hasattr(args, 'basedn') and args.basedn:
+            entries = self.get_domainobject(identity=args.basedn)
+            if len(entries) <= 0:
+                logging.error(f"[Add-DomainComputer] {args.basedn} could not be found in the domain")
+                return
+            parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
+        
         if computer_name[-1] != '$':
             computer_name += '$'
         dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, self.args)
@@ -2522,12 +2532,15 @@ class PowerView:
 
         # Creating Machine Account
         addmachineaccount = ADDCOMPUTER(
-            	self.username,
-            	self.password,
-            	self.domain,
-            	self.args,
-            	computer_name,
-            	computer_pass)
+            	username=self.username,
+            	password=self.password,
+            	domain=self.domain,
+            	cmdLineOptions = self.args,
+            	computer_name = computer_name,
+            	computer_pass = computer_pass,
+            	base_dn = parent_dn_entries,
+                ldap_session = self.ldap_session
+        )
         try:
             if self.use_ldaps:
                 addmachineaccount.run_ldaps()

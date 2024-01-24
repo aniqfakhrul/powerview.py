@@ -369,7 +369,6 @@ def host2ip(hostname, nameserver, dns_timeout=10, dns_tcp=True):
         addr = None
 
         for r in q:
-            print(r)
             if addr:
                 break
             addr = r.address

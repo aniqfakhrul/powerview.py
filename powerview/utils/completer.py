@@ -59,7 +59,7 @@ COMMANDS = {
     'Get-ObjectAcl':['-Identity','-SearchBase','-Server','-ResolveGUIDs','-SecurityIdentifier','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-OutFile'],
     'Get-DomainComputer':['-Identity','-Properties','-ResolveIP','-ResolveSIDs','-LDAPFilter','-SearchBase','-Server','-Select','-Unconstrained','-TrustedToAuth', '-LAPS', '-BitLocker', '-RBCD', '-ShadowCred','-SPN','-Printers','-ExcludeDCs','-Where', '-Count', '-NoWrap', '-TableView', '-OutFile'],
     'Get-NetComputer':['-Identity','-Properties','-ResolveIP','-ResolveSIDs','-LDAPFilter','-SearchBase','-Server','-Select','-Unconstrained','-TrustedToAuth', '-LAPS','-RBCD','-ShadowCred','-SPN','-Printers','-ExcludeDCs', '-Where', '-Count', '-NoWrap', '-TableView', '-OutFile'],
-    'Add-DomainComputer':['-ComputerName','-ComputerPass','-Server', '-OutFile'],
+    'Add-DomainComputer':['-ComputerName','-ComputerPass','-BaseDN','-Server', '-OutFile'],
     'Add-DomainDNSRecord':['-ZoneName','-RecordName','-RecordAddress','-Server', '-OutFile'],
     'Add-ADComputer':['-ComputerName','-ComputerPass','-Server', '-OutFile'],
     'Add-DomainUser':['-UserName','-UserPass','-BaseDN','-Server', '-OutFile'],
