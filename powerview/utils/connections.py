@@ -368,7 +368,7 @@ class CONNECTION:
                 sys.exit(0)
         else:
             if auth_method == ldap3.SIMPLE:
-                ldap_connection_kwargs["user"] = '{}@{}'.format(user.split("\\")[-1], domain)
+                ldap_connection_kwargs["user"] = '{}@{}'.format(username, domain)
 
             if self.hashes is not None:
                 ldap_connection_kwargs["password"] = '{}:{}'.format(lmhash, nthash)
@@ -378,9 +378,6 @@ class CONNECTION:
             try:
                 ldap_session = ldap3.Connection(ldap_server, **ldap_connection_kwargs)    
                 bind = ldap_session.bind()
-            except ldap3.core.exceptions.LDAPSocketOpenError as e:
-                logging.error(str(e))
-                sys.exit(-1)
             except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
                 logging.debug("Server returns invalidCredentials")
                 if 'AcceptSecurityContext error, data 80090346' in str(ldap_session.result):
