@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='powerview',
-      version='0.5.1',
+      version='1.5.1',
       description='Python based PowerView script',
       author='Aniq Fakhrul',
       author_email='aniqfakhrull@gmail.com',
@@ -15,7 +15,7 @@ setup(name='powerview',
                 ],
       license='MIT',
       install_requires=[
-          'ldap3 @ git+https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3#tls_cb_and_seal_for_ntlm',
+          'ldap3 @ git+https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3@tls_cb_and_seal_for_ntlm',
           'dnspython==2.2.1',
           'future',
           'gnureadline',

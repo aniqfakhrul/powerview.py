@@ -106,6 +106,16 @@ class CONNECTION:
             self.tls_channel_binding_supported = False
             logging.debug('TLS channel binding is not supported')
 
+        self.use_sign_and_seal = self.args.use_sign_and_seal
+        self.use_channel_binding = self.args.use_channel_binding
+        # check sign and cb is supported
+        if self.use_sign_and_seal and not self.sign_and_seal_supported:
+            logging.warning('LDAP sign and seal are not supported. Ignoring flag')
+            self.use_sign_and_seal = False
+        elif self.use_channel_binding and not self.tls_channel_binding_supported:
+            logging.warning('Channel binding is not supported. Ignoring flag')
+            self.use_channel_binding = False
+
     def set_domain(self, domain):
         self.domain = domain
 
@@ -186,7 +196,9 @@ class CONNECTION:
         _anonymous = False
         if not self.domain and not self.username and (not self.password or not self.nthash or not self.lmhash):
             if self.relay:
-                relay = Relay(self.ldap_address, self.relay_host, self.relay_port, self.args)
+                target = "ldaps://%s" % (self.ldap_address) if self.use_ldaps else "ldap://%s" % (self.ldap_address)
+
+                relay = Relay(target, self.relay_host, self.relay_port, self.args)
                 relay.start()
 
                 self.ldap_session = relay.get_ldap_session()
@@ -353,9 +365,9 @@ class CONNECTION:
             "authentication": auth_method,
         }
 
-        if seal_and_sign:
+        if seal_and_sign or self.use_sign_and_seal:
             ldap_connection_kwargs["session_security"] = ldap3.ENCRYPT
-        elif tls_channel_binding:
+        elif tls_channel_binding or self.use_channel_binding:
             ldap_connection_kwargs["channel_binding"] = ldap3.TLS_CHANNEL_BINDING
 
         if self.use_kerberos:
@@ -399,6 +411,12 @@ class CONNECTION:
                     return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, seal_and_sign=True)
                 else:
                     sys.exit(-1)
+            except ldap3.core.exceptions.LDAPInappropriateAuthenticationResult as e:
+                logging.error("Cannot start kerberos signing/sealing when using TLS/SSL")
+                sys.exit(-1)
+            except ldap3.core.exceptions.LDAPInvalidValueError as e:
+                logging.error(str(e))
+                sys.exit(-1)
 
             if not bind:
                 error_code = ldap_session.result['message'].split(",")[2].replace("data","").strip()
@@ -820,7 +838,10 @@ class LDAPSRelayServer(LDAPRelayServer):
         self.ldap_relay.scheme = "LDAPS"
         self.server = ldap3.Server("ldaps://%s:%s" % (self.targetHost, self.targetPort), get_info=ldap3.ALL)
         self.session = ldap3.Connection(self.server, user="a", password="b", authentication=ldap3.NTLM)
-        self.session.open(False)
+        try:
+            self.session.open(False)
+        except:
+            print("hehehe")
         return True
 
 class HTTPRelayServer(HTTPRelayServer):
@@ -834,11 +855,20 @@ class HTTPRelayServer(HTTPRelayServer):
                             self.server.server_address[1], self.client_address[0]))
                         self.send_not_found()
                         return
-
+  
                     logging.info("HTTPD(%s): Connection from %s controlled, attacking target %s://%s" % (
                         self.server.server_address[1], self.client_address[0], self.target.scheme, self.target.netloc))
+                try:
+                    ntlm_nego = self.do_ntlm_negotiate(token, proxy=proxy)
+                except ldap3.core.exceptions.LDAPSocketOpenError as e:
+                    logging.debug(str(e))
+                    if self.use_ldaps:
+                        logging.warning("LDAPS port is not open")
+                    elif self.use_ldap:
+                        logging.warning("LDAP port is not open")
+                    sys.exit(-1)
 
-                if not self.do_ntlm_negotiate(token, proxy=proxy):
+                if not ntlm_nego:
                     # Connection failed
                     if self.server.config.disableMulti:
                         logging.error('HTTPD(%s): Negotiating NTLM with %s://%s failed' % (self.server.server_address[1],
@@ -891,7 +921,7 @@ class HTTPRelayServer(HTTPRelayServer):
                         # No anonymous login, go to next host and avoid triggering a popup
                         self.target = self.server.config.target.getTarget(identity=self.authUser)
                         if self.target is None:
-                            LOG.info("HTTPD(%s): Connection from %s@%s controlled, but there are no more targets left!" %
+                            logging.info("HTTPD(%s): Connection from %s@%s controlled, but there are no more targets left!" %
                                 (self.server.server_address[1], self.authUser, self.client_address[0]))
                             self.send_not_found()
                             return
@@ -943,7 +973,7 @@ class HTTPRelayServer(HTTPRelayServer):
 
 class Relay:
     def __init__(self, target, interface="0.0.0.0", port=80, args=None):
-        self.target = "ldaps://%s" % (target)
+        self.target = target
         self.interface = interface
         self.port = port
         self.args = args
