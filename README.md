@@ -30,11 +30,20 @@ Running LDAP query tools through proxies (i.e. SOCKS) is quite overwhelming sinc
 python3 setup.py install
 ```
 
+_Sign and seal and channel binding functionalities would require ldap3 installed from this [fork](https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3@tls_cb_and_seal_for_ntlm) and [gssapi](https://pypi.org/project/gssapi/) library. But no worries, all are already implemented in setup.py. (Note: Addinional libkrb5-dev package need to be installed on the OS level)_
+```
+sudo apt install libkrb5-dev
+```
+
 ## Simple Usage
 _Note that some of the kerberos functions are still not functioning well just yet but it still do most of the works. More information can be found in [Wiki](https://github.com/aniqfakhrul/powerview.py/wiki) section_
 * Init connection
 ```
-powerview range.net/lowpriv:Password123@192.168.86.192 [--dc-ip 192.168.86.192] [-k]
+powerview range.net/lowpriv:Password123@192.168.86.192 [--dc-ip 192.168.86.192] [-k] [--use-ldap | --use-ldaps]
+```
+* Init connection with _special_ authentication
+```
+powerview range.net/lowpriv:Password123@192.168.86.192 [--use-channel-binding | --use-sign-and-seal]
 ```
 [![asciicast](https://asciinema.org/a/hR3Ejy3yK9q5qsjnEV953vG4Y.svg)](https://asciinema.org/a/hR3Ejy3yK9q5qsjnEV953vG4Y)
 

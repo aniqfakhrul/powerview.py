@@ -116,6 +116,13 @@ class CONNECTION:
             logging.warning('Channel binding is not supported. Ignoring flag')
             self.use_channel_binding = False
 
+        if self.use_sign_and_seal and self.use_ldaps:
+            logging.error('Sign and seal not supported with LDAPS')
+            sys.exit(-1)
+        elif self.use_channel_binding and self.use_ldap:
+            logging.error('Channel binding not supported with LDAP')
+            sys.exit(-1)
+
     def set_domain(self, domain):
         self.domain = domain
 
@@ -394,7 +401,7 @@ class CONNECTION:
                 logging.debug("Server returns invalidCredentials")
                 if 'AcceptSecurityContext error, data 80090346' in str(ldap_session.result):
                     logging.warning("Channel binding is enforced!")
-                    if self.tls_channel_binding_supported and self.use_ldaps:
+                    if self.tls_channel_binding_supported and (self.use_ldaps or self.use_gc_ldaps):
                         logging.debug("Re-authenticate with channel binding")
                         return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, tls_channel_binding=True)
                     else:
