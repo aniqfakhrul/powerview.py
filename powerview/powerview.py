@@ -486,6 +486,8 @@ class PowerView:
         properties = def_prop if not properties else properties
         searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
+        logging.debug(f"[Get-DomainUser] Using search base: {searchbase}")
+        
         ldap_filter = ""
         identity_filter = ""
 

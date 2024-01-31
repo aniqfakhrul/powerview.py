@@ -673,6 +673,7 @@ def powerview_arg_parse(cmd):
                         return None
                     return args
             return parser.parse_args(cmd)
+
         return args
     except argparse.ArgumentError as e:
         try:
@@ -682,6 +683,8 @@ def powerview_arg_parse(cmd):
                     return parser.parse_args(cmd)
         except:
             pass
-
+        
         print(str(e).split("(")[0])
+        return None
+    except SystemExit:
         return None

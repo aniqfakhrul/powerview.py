@@ -15,7 +15,7 @@ setup(name='powerview',
                 ],
       license='MIT',
       install_requires=[
-          'ldap3 @ git+https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3@tls_cb_and_seal_for_ntlm',
+          'ldap3 @ git+https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3.git@tls_cb_and_seal_for_ntlm',
           'dnspython==2.2.1',
           'future',
           'gnureadline',
