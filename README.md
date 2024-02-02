@@ -75,6 +75,11 @@ Set-DomainObject -Identity "adminuser" -Append 'servicePrincipalname=http/web.ws
 Set-DomainObject -Identity "adminuser" -Clear 'servicePrincipalname'
 ```
 
+* Relay mode
+```
+powerview 10.10.10.10 --relay [--use-ldap | --use-ldaps]
+```
+
 ## Module available (so far?)
 
 ```cs

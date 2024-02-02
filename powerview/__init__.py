@@ -38,9 +38,14 @@ def main():
         powerview = PowerView(conn, args)
         is_admin = powerview.get_admin_status()
         init_proto = conn.get_proto()
-        cur_user = conn.who_am_i() if not is_admin else "%s%s%s" % (bcolors.WARNING, conn.who_am_i(), bcolors.ENDC)
         server_ip = conn.get_ldap_address()
         temp_powerview = None
+        
+        try:
+            cur_user = conn.who_am_i() if not is_admin else "%s%s%s" % (bcolors.WARNING, conn.who_am_i(), bcolors.ENDC)
+        except:
+            logging.debug("ERROR: Failed getting current user with who_am_i()")
+            cur_user = "%s\\%s" % (conn.get_domain(), conn.get_username())
 
         while True:
             try:
