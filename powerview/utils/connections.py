@@ -204,6 +204,7 @@ class CONNECTION:
         if not self.domain and not self.username and (not self.password or not self.nthash or not self.lmhash):
             if self.relay:
                 target = "ldaps://%s" % (self.ldap_address) if self.use_ldaps else "ldap://%s" % (self.ldap_address)
+                logging.info(f"Targeting {target}")
 
                 relay = Relay(target, self.relay_host, self.relay_port, self.args)
                 relay.start()
@@ -848,7 +849,7 @@ class LDAPSRelayServer(LDAPRelayServer):
         try:
             self.session.open(False)
         except:
-            print("hehehe")
+            pass
         return True
 
 class HTTPRelayServer(HTTPRelayServer):
@@ -869,10 +870,6 @@ class HTTPRelayServer(HTTPRelayServer):
                     ntlm_nego = self.do_ntlm_negotiate(token, proxy=proxy)
                 except ldap3.core.exceptions.LDAPSocketOpenError as e:
                     logging.debug(str(e))
-                    if self.use_ldaps:
-                        logging.warning("LDAPS port is not open")
-                    elif self.use_ldap:
-                        logging.warning("LDAP port is not open")
                     sys.exit(-1)
 
                 if not ntlm_nego:

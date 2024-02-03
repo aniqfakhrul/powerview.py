@@ -1,5 +1,4 @@
 import argparse
-import argcomplete
 import sys
 
 from impacket import version
