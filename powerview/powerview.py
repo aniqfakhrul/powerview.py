@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
-from impacket.dcerpc.v5 import srvs
+from impacket.dcerpc.v5 import srvs, wkst
 from impacket.dcerpc.v5.ndr import NULL
 
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
@@ -2345,10 +2345,10 @@ class PowerView:
         c_key = 0
         dcs = list(dcinfo.keys())
         if len(dcs) > 1:
-            logging.info('We have more than one target, Pls choices the hostname of the -dc-ip you input.')
+            logging.info('We have more than one target, Pls choices the hostname')
             cnt = 0
             for name in dcs:
-                logging.info(f"{cnt}: {name}")
+                print(f"{cnt}: {name}")
                 cnt += 1
             while True:
                 try:
@@ -2499,6 +2499,10 @@ class PowerView:
             if len(entries) <= 0:
                 logging.error(f"[Add-DomainComputer] {args.basedn} could not be found in the domain")
                 return
+            elif len(entries) > 1:
+                logging.error("[Add-DomainComputer] More then one computer found in domain")
+                return
+
             parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
         
         if computer_name[-1] != '$':
@@ -2544,10 +2548,7 @@ class PowerView:
                 ldap_session = self.ldap_session
         )
         try:
-            if self.use_ldaps:
-                addmachineaccount.run_ldaps()
-            else:
-                addmachineaccount.run_samr()
+            addmachineaccount.run_ldaps()
         except Exception as e:
             logging.error(str(e))
             return False
@@ -3017,6 +3018,73 @@ class PowerView:
             except:
                 pass
         return local_admin_pcs
+
+    def get_netloggedon(self, computer_name, port=445, args=None):
+        ip_address = ""
+        KNOWN_PROTOCOLS = {
+                139: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
+                445: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
+                }
+
+        if not is_ipaddress(computer_name):
+            # check if computer exists
+            computer = self.get_domaincomputer(identity=computer_name, properties = ["dNSHostName","distinguishedName"])
+            
+            if len(computer) == 0:
+                logging.error("[Get-NetLoggedOn] No computer found")
+                return
+            elif len(computer) > 1:
+                logging.error("[Get-NetLoggedOn] More then one computer found")
+                return
+            
+            logging.info("[Get-NetLoggedOn] Computer found in domain")
+
+            computer_dns = computer[0].get("attributes").get("dNSHostName")
+
+            ip_address = host2ip(computer_dns, self.nameserver, 3, True)
+        else:
+            ip_address = computer_name
+
+        stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % ip_address
+        dce = self.conn.connectRPCTransport(host=ip_address, stringBindings=stringBinding)
+        dce.bind(wkst.MSRPC_UUID_WKST)
+        try:
+            resp = wkst.hNetrWkstaUserEnum(dce,1)
+        except Exception as e:
+            if str(e).find('Broken pipe') >= 0:
+                # The connection timed-out. Let's try to bring it back next round
+                logging.error('Connection failed - skipping host!')
+                return
+            elif str(e).upper().find('ACCESS_DENIED'):
+                # We're not admin, bye
+                logging.error('Access denied - you must be admin to enumerate sessions this way')
+                dce.disconnect()
+                return
+            else:
+                raise
+        try:
+            entries = []
+            users = set()
+            # Easy way to uniq them
+            for i in resp['UserInfo']['WkstaUserInfo']['Level1']['Buffer']:
+                if i['wkui1_username'][-2] == '$':
+                    continue
+                users.add((ip_address, i['wkui1_logon_domain'][:-1], i['wkui1_username'][:-1], i['wkui1_logon_server'][:-1]))
+            for user in list(users):
+                entries.append({
+                    "attributes": {
+                        "UserName": user[2],
+                        "LogonDomain": user[1],
+                        "AuthDomains": None,
+                        "LogonServer": user[3],
+                        "ComputerName": computer_dns if computer_dns else ip_address,
+                    }
+                })
+        except IndexError:
+            logging.info('No sessions found!')
+
+        dce.disconnect()
+        return entries
 
     def get_netshare(self, args):
         is_fqdn = False

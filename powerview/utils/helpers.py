@@ -366,14 +366,33 @@ def host2ip(hostname, nameserver, dns_timeout=10, dns_tcp=True):
     dnsresolver.lifetime = float(dns_timeout)
     try:
         q = dnsresolver.query(hostname, 'A', tcp=dns_tcp)
-        addr = None
+        addr = []
+        ip = None
 
         for r in q:
-            if addr:
-                break
-            addr = r.address
-        STORED_ADDR[hostname] = addr
-        return addr
+            addr.append(r.address)
+
+        if len(addr) == 1:
+            STORED_ADDR[hostname] = addr
+            ip = addr[0] 
+        elif len(addr) > 1:
+            c_key = 0
+            logging.info('We have more than one ip. Please choose one that is reachable')
+            cnt = 0
+            for name in addr:
+                print(f"{cnt}: {name}")
+                cnt += 1
+            while True:
+                try:
+                    c_key = int(input(">>> Your choice: "))
+                    if c_key in range(len(addr)):
+                        break
+                except Exception:
+                    pass
+            ip = addr[c_key]
+
+        return ip
+
     except resolver.NXDOMAIN as e:
         logging.debug("Resolved Failed: %s" % e)
         return None

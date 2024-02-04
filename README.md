@@ -27,12 +27,18 @@ Running LDAP query tools through proxies (i.e. SOCKS) is quite overwhelming sinc
 
 ## Installation
 _Sign and seal and channel binding functionalities would require ldap3 installed from this [fork](https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3@tls_cb_and_seal_for_ntlm) and [gssapi](https://pypi.org/project/gssapi/) library. But no worries, all are already implemented in setup.py. (Note: Addinional libkrb5-dev package need to be installed on the OS level)_
+
+1. Install `libkrb5-dev` apt package 
 ```
 sudo apt install libkrb5-dev
 ```
-Next, run this.
+2. Install python libraries
 ```
-pip3 install .
+pip3 install -r requirements
+```
+3. Install powerview.py
+```
+python3 setup.py install
 ```
 
 ## Simple Usage
@@ -157,6 +163,7 @@ Find-ForeignGroup              Get-DomainGroupMember          Get-NetShare      
 | ------ | ----- | ---- |
 |Get-NetSession||Query session information for the local or a remote computer|
 |Get-NetShare||Query open shares on the local or a remote computer|
+|Get-NetLoggedOn||Query logged on users on the local or a remote computer|
 
 ### ADCS Functions
 

@@ -409,6 +409,15 @@ def powerview_arg_parse(cmd):
     get_netshare_parser.add_argument('-Count', action='store_true', dest='count')
     get_netshare_parser.add_argument('-OutFile', action='store', dest='outfile')
 
+    # get-netloggedon
+    get_netloggedon_parser = subparsers.add_parser('Get-NetLoggedOn', exit_on_error=False)
+    get_netloggedon_group = get_netloggedon_parser.add_mutually_exclusive_group()
+    get_netloggedon_group.add_argument('-Computer', action='store', const=None, dest='computer')
+    get_netloggedon_group.add_argument('-ComputerName', action='store', const=None, dest='computername')
+    get_netloggedon_parser.add_argument('-Server', action='store', dest='server')
+    get_netloggedon_parser.add_argument('-Count', action='store_true', dest='count')
+    get_netloggedon_parser.add_argument('-OutFile', action='store', dest='outfile')
+
     # get-netsession
     get_netsession_parser = subparsers.add_parser('Get-NetSession', exit_on_error=False)
     get_netsession_group = get_netsession_parser.add_mutually_exclusive_group()

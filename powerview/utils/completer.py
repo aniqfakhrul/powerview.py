@@ -47,6 +47,7 @@ COMMANDS = {
     'Get-NamedPipes':['-Name','-Computer','-ComputerName','-Server', '-NoWrap', '-Count', '-OutFile'],
     'Get-NetShare':['-Computer','-ComputerName','-Server', '-NoWrap', '-Count', '-OutFile'],
     'Get-NetSession':['-Computer','-ComputerName','-Server', '-Count', '-OutFile'],
+    'Get-NetLoggedOn':['-Computer','-ComputerName','-Server', '-Count', '-OutFile'],
     'Find-LocalAdminAccess':['-Computer','-ComputerName','-Server', '-Count', '-OutFile'],
     'Invoke-Kerberoast':['-Identity', '-Properties', '-Opsec','-LDAPFilter','-Server', '-Select', '-NoWrap','-OutFile'],
     'Get-DomainObject':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView','-OutFile'],
