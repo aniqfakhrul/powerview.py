@@ -737,6 +737,7 @@ class CONNECTION:
             dce.connect()
             return dce
         except Exception as e:
+            logging.error("Error connecting to RPC with error: %s" % str(e))
             return None
 
     # stolen from pywerview
