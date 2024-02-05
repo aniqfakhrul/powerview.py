@@ -707,7 +707,7 @@ class CONNECTION:
 
     # stole from PetitPotam.py
     # TODO: FIX kerberos auth
-    def connectRPCTransport(self, host=None, stringBindings=None, auth=True):
+    def connectRPCTransport(self, host=None, stringBindings=None, auth=True, set_authn=False):
         if not host:
             host = self.dc_ip
         if not stringBindings:
@@ -728,8 +728,10 @@ class CONNECTION:
             rpctransport.setRemoteHost(host)
 
         dce = rpctransport.get_dce_rpc()
-        dce.set_auth_type(RPC_C_AUTHN_WINNT)
-        dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+
+        if set_authn:
+            dce.set_auth_type(RPC_C_AUTHN_WINNT)
+            dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
 
         logging.debug("Connecting to %s" % stringBindings)
 
@@ -737,7 +739,6 @@ class CONNECTION:
             dce.connect()
             return dce
         except Exception as e:
-            logging.error("Error connecting to RPC with error: %s" % str(e))
             return None
 
     # stolen from pywerview

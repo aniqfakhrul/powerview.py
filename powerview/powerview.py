@@ -2647,10 +2647,10 @@ class PowerView:
         if args.name:
             if args.name in list(binding_params.keys()):
                 pipe = args.name
-                if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False):
+                if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False, set_authn=True):
                     #logging.info(f"Found named pipe: {args.name}")
                     result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.WARNING}No{bcolors.ENDC}'])
-                elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
+                elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], set_authn=True):
                     result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
             else:
                 logging.error(f"Invalid pipe name")
@@ -2659,10 +2659,10 @@ class PowerView:
             pipes = [ 'netdfs','netlogon', 'lsarpc', 'samr', 'browser', 'spoolss', 'atsvc', 'DAV RPC SERVICE', 'epmapper', 'eventlog', 'InitShutdown', 'keysvc', 'lsass', 'LSM_API_service', 'ntsvcs', 'plugplay', 'protected_storage', 'router', 'SapiServerPipeS-1-5-5-0-70123', 'scerpc', 'srvsvc', 'tapsrv', 'trkwks', 'W32TIME_ALT', 'wkssvc','PIPE_EVENTROOT\CIMV2SCM EVENT PROVIDER', 'db2remotecmd']
             for pipe in binding_params.keys():
                 # TODO: Return entries
-                if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False):
+                if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False, set_authn=True):
                     #logging.debug(f"Found named pipe: {pipe}")
                     result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.WARNING}No{bcolors.ENDC}'])
-                elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
+                elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], set_authn=True):
                     result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
         return result
 
@@ -3021,6 +3021,7 @@ class PowerView:
 
     def get_netloggedon(self, computer_name, port=445, args=None):
         ip_address = ""
+        computer_dns = ""
         KNOWN_PROTOCOLS = {
                 139: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
                 445: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
