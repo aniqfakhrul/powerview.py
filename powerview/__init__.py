@@ -64,7 +64,7 @@ def main():
                     pv_args = powerview_arg_parse(cmd)
 
                     if pv_args:
-                        if pv_args.server and pv_args.server != args.domain or pv_args.server != conn.get_ldap_address():
+                        if pv_args.server and pv_args.server != args.domain:
                             if args.use_kerberos or not args.nameserver:
                                 ldap_address = pv_args.server
                             else:
