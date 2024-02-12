@@ -11,10 +11,6 @@ from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.examples.ntlmrelayx.utils.targetsutils import TargetsProcessor
 from impacket.ntlm import NTLMAuthChallenge, NTLMSSP_AV_FLAGS, AV_PAIRS, NTLMAuthNegotiate, NTLMSSP_NEGOTIATE_SIGN, NTLMSSP_NEGOTIATE_ALWAYS_SIGN, NTLMAuthChallengeResponse, NTLMSSP_NEGOTIATE_KEY_EXCH, NTLMSSP_NEGOTIATE_VERSION, NTLMSSP_NEGOTIATE_UNICODE
 from impacket.nt_errors import STATUS_SUCCESS, STATUS_ACCESS_DENIED
-from ldap3.operation import bind
-from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
-from struct import unpack
-from time import sleep
 
 from powerview.utils.helpers import (
     get_machine_name,
@@ -29,6 +25,10 @@ import ssl
 import ldap3
 import logging
 import sys
+from struct import unpack
+from time import sleep
+from ldap3.operation import bind
+from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
 
 class CONNECTION:
     def __init__(self, args):
@@ -117,11 +117,19 @@ class CONNECTION:
             self.use_channel_binding = False
 
         if self.use_sign_and_seal and self.use_ldaps:
-            logging.error('Sign and seal not supported with LDAPS')
-            sys.exit(-1)
+            if self.args.use_ldaps:
+                logging.error('Sign and seal not supported with LDAPS')
+                sys.exit(-1)
+            logging.warning('Sign and seal not supported with LDAPS. Falling back to LDAP')
+            self.use_ldap = True
+            self.use_ldaps = False
         elif self.use_channel_binding and self.use_ldap:
-            logging.error('Channel binding not supported with LDAP')
-            sys.exit(-1)
+            if self.args.use_ldap:
+                logging.error('TLS channel binding not supported with LDAP')
+                sys.exit(-1)
+            logging.warning('Channel binding not supported with LDAP. Proceed with LDAPS')
+            self.use_ldaps = True
+            self.use_ldap = False
 
     def set_domain(self, domain):
         self.domain = domain
@@ -166,8 +174,13 @@ class CONNECTION:
         self.proto = proto
 
     def who_am_i(self):
-        whoami = self.ldap_session.extend.standard.who_am_i()
-        return whoami.split(":")[-1] if whoami else "ANONYMOUS"
+        try:
+            whoami = self.ldap_session.extend.standard.who_am_i()
+            if whoami:
+                whoami = whoami.split(":")[-1]
+        except ldap3.core.exceptions.LDAPExtensionError:
+            whoami = "%s\\%s" % (self.get_domain(), self.get_username())
+        return whoami if whoami else "ANONYMOUS"
 
     def reset_connection(self):
         self.ldap_session.rebind()

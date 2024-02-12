@@ -40,12 +40,7 @@ def main():
         init_proto = conn.get_proto()
         server_ip = conn.get_ldap_address()
         temp_powerview = None
-        
-        try:
-            cur_user = conn.who_am_i() if not is_admin else "%s%s%s" % (bcolors.WARNING, conn.who_am_i(), bcolors.ENDC)
-        except:
-            logging.debug("ERROR: Failed getting current user with who_am_i()")
-            cur_user = "%s\\%s" % (conn.get_domain(), conn.get_username())
+        cur_user = conn.who_am_i() if not is_admin else "%s%s%s" % (bcolors.WARNING, conn.who_am_i(), bcolors.ENDC)
 
         while True:
             try:
@@ -69,7 +64,7 @@ def main():
                     pv_args = powerview_arg_parse(cmd)
 
                     if pv_args:
-                        if pv_args.server and pv_args.server != args.domain:
+                        if pv_args.server and pv_args.server != args.domain or pv_args.server != conn.get_ldap_address():
                             if args.use_kerberos or not args.nameserver:
                                 ldap_address = pv_args.server
                             else:
