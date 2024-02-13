@@ -58,6 +58,9 @@ class PowerView:
         self.use_kerberos = args.use_kerberos
 
         self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
+        if self.ldap_server and not is_valid_fqdn(self.domain):
+            conn.refresh_domain()
+            self.domain = conn.get_domain()
 
         if self.ldap_session.server.ssl:
             self.use_ldaps = True
@@ -2548,7 +2551,12 @@ class PowerView:
                 ldap_session = self.ldap_session
         )
         try:
-            addmachineaccount.run_ldaps()
+            if self.use_ldaps:
+                logging.debug("[Add-DomainComputer] Adding computer via LDAPS")
+                addmachineaccount.run_ldaps()
+            else:
+                logging.debug("[Add-DomainComputer] Adding computer via SAMR")
+                addmachineaccount.run_samr()
         except Exception as e:
             logging.error(str(e))
             return False

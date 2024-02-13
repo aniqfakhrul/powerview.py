@@ -16,6 +16,7 @@ from powerview.utils.helpers import (
     get_machine_name,
     host2ip,
     is_valid_fqdn,
+    dn2domain
 )
 from powerview.lib.resolver import (
     LDAP,
@@ -130,6 +131,12 @@ class CONNECTION:
             logging.warning('Channel binding not supported with LDAP. Proceed with LDAPS')
             self.use_ldaps = True
             self.use_ldap = False
+
+    def refresh_domain(self):
+        try:
+            self.domain = dn2domain(self.ldap_server.info.other.get('rootDomainNamingContext')[0])
+        except:
+            pass
 
     def set_domain(self, domain):
         self.domain = domain
@@ -493,7 +500,7 @@ class CONNECTION:
         import datetime
         import os
 
-        if self.TGT or self.TGS:
+        if self.TGT and self.TGS:
             useCache = False
 
         if useCache:
