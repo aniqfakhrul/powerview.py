@@ -1,21 +1,9 @@
 #!/usr/bin/env python3
 import os
 import logging
+from datetime import date
 
-def setup_logger(level=logging.INFO):
-    # logger properties
-    if level == "DEBUG":
-        level == logging.DEBUG
-    logger = logging.getLogger()
-    logger.setLevel(level)
-    fmt = '[%(asctime)s] %(message)s'
-
-    stdout_handler = logging.StreamHandler()
-    stdout_handler.setLevel(level)
-    stdout_handler.setFormatter(CustomFormatter(fmt))
-
-    logger.addHandler(stdout_handler)
-    return logger
+DEBUG = 'DEBUG'
 
 class CustomFormatter(logging.Formatter):
     grey = '\033[2;37m'
@@ -43,13 +31,50 @@ class CustomFormatter(logging.Formatter):
 
 class LOG:
     def __init__(self, folder_name, root_folder=None):
-        folder_name = os.path.join("dumps", folder_name)
         if not root_folder:
-            self.root_folder = os.path.dirname(os.path.abspath(__file__))
+            self.root_folder = os.path.join(os.path.expanduser('~'), ".powerview")
         else:
             self.root_folder = root_folder
+        
+        self.folder_name = folder_name
 
-        self.root_folder = os.path.join(self.root_folder, folder_name)
+        self.logs_folder = os.path.join(self.root_folder, "logs", self.folder_name)
+        
+        if not os.path.exists(self.logs_folder):
+            self.create_folder()
+
+        self.file_name = "%s.log" % date.today()
+
+        print("Logging directory is set to %s" % (self.logs_folder))
+
+    def create_folder(self, folder=None):
+        folder = folder if folder else self.logs_folder
+        return os.makedirs(folder, exist_ok=True)
+
+    def setup_logger(self, level=logging.INFO):
+        # logger properties
+        if level == DEBUG:
+            level == logging.DEBUG
+       
+        logger = logging.getLogger()
+        logger.setLevel(logging.DEBUG)
+
+        file_path = os.path.join(self.logs_folder, self.file_name)
+        fileh = logging.FileHandler(file_path, 'a')
+        # set time format
+        formatter = logging.Formatter('[%(asctime)s] %(name)s %(levelname)s %(message)s')
+        fileh.setFormatter(formatter)
+        # set file handler
+        logger.addHandler(fileh)
+
+        # set stdout format
+        fmt = '[%(asctime)s] %(message)s'
+        stdout_handler = logging.StreamHandler()
+        stdout_handler.setLevel(level)
+        stdout_handler.setFormatter(CustomFormatter(fmt))
+
+        logger.addHandler(stdout_handler)
+        return logger
 
     def write(self, file_name, text):
         if not os.path.exists(self.root_folder):

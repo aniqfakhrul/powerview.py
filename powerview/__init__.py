@@ -6,6 +6,7 @@ from powerview.utils.formatter import FORMATTER
 from powerview.utils.completer import Completer
 from powerview.utils.colors import bcolors
 from powerview.utils.connections import CONNECTION
+from powerview.utils.logging import LOG
 from powerview.utils.parsers import powerview_arg_parse, arg_parse
 
 import ldap3
@@ -31,6 +32,16 @@ def main():
     setattr(args,'nthash', nthash)
     setattr(args, 'ldap_address', ldap_address)
 
+    # setup debugging properties
+    log_handler = LOG(args.domain)
+
+    if args.debug:
+        logging = log_handler.setup_logger("DEBUG")
+        # Print the Library's installation path
+        logging.debug(version.getInstallationPath())
+    else:
+        logging = log_handler.setup_logger()
+    
     try:
         conn = CONNECTION(args)
         init_ldap_address = args.ldap_address

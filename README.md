@@ -41,7 +41,7 @@ pip3 install -r requirements
 python3 setup.py install
 ```
 
-## Simple Usage
+## Basic Usage
 _Note that some of the kerberos functions are still not functioning well just yet but it still do most of the works. More information can be found in [Wiki](https://github.com/aniqfakhrul/powerview.py/wiki) section_
 * Init connection
 ```
@@ -193,6 +193,10 @@ Find-ForeignGroup              Get-DomainGroupMember          Get-NetShare      
 |Get-NamedPipes||List out Named Pipes for a specific computer|
 |Invoke-Kerberoast||Requests kerberos ticket for a specified service principal name (SPN)|
 |Find-LocalAdminAccess||Finds computer on the local domain where the current has a Local Administrator access|
+
+### Logging
+We will never miss logging to keep track of the actions done. By default, powerview creates a `.powerview` folder in current user home directory _(~)_. Each log file is generated based on current date.
+Example path: `/root/.powerview/logs/bionic.local/2024-02-13.log`
 
 ### To-Do
 * Add logging function to track and monitor what have been run.

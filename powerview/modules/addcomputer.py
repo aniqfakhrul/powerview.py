@@ -136,42 +136,8 @@ class ADDCOMPUTER:
         self.doSAMRAdd(rpctransport)
 
     def run_ldaps(self):
-        #connectTo = self.__target
-        #if self.__targetIp is not None:
-        #    connectTo = self.__targetIp
-        #user = '%s\\%s' % (self.__domain, self.__username)
-        #tls = ldap3.Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1_2)
-        #try:
-        #    ldapServer = ldap3.Server(connectTo, use_ssl=True, port=self.__port, get_info=ldap3.ALL, tls=tls)
-        #    if self.__doKerberos:
-        #        ldapConn = ldap3.Connection(ldapServer)
-        #        self.LDAP3KerberosLogin(ldapConn, self.__username, self.__password, self.__domain, self.__lmhash, self.__nthash,
-        #                                     self.__aesKey, kdcHost=self.__kdcHost)
-        #    elif self.__hashes is not None:
-        #        ldapConn = ldap3.Connection(ldapServer, user=user, password=self.__hashes, authentication=ldap3.NTLM)
-        #        ldapConn.bind()
-        #    else:
-        #        ldapConn = ldap3.Connection(ldapServer, user=user, password=self.__password, authentication=ldap3.NTLM)
-        #        ldapConn.bind()
-
-        #except ldap3.core.exceptions.LDAPSocketOpenError:
-        #    #try tlsv1
-        #    tls = ldap3.Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1)
-        #    ldapServer = ldap3.Server(connectTo, use_ssl=True, port=self.__port, get_info=ldap3.ALL, tls=tls)
-        #    if self.__doKerberos:
-        #        ldapConn = ldap3.Connection(ldapServer)
-        #        self.LDAP3KerberosLogin(ldapConn, self.__username, self.__password, self.__domain, self.__lmhash, self.__nthash,
-        #                                     self.__aesKey, kdcHost=self.__kdcHost)
-        #    elif self.__hashes is not None:
-        #        ldapConn = ldap3.Connection(ldapServer, user=user, password=self.__hashes, authentication=ldap3.NTLM)
-        #        ldapConn.bind()
-        #    else:
-        #        ldapConn = ldap3.Connection(ldapServer, user=user, password=self.__password, authentication=ldap3.NTLM)
-        #        ldapConn.bind()
-
         if not self.__ldapSession:
-            logging.error("No ldap_session. Exiting...")
-            return
+            raise Exception("No ldap_session. Exiting")
         
         ldapConn = self.__ldapSession
 

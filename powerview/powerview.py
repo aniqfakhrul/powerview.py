@@ -200,7 +200,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
@@ -265,7 +265,7 @@ class PowerView:
             except:
                 pass
 
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
 
         return entries
 
@@ -305,7 +305,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def remove_domainobject(self, identity, searchbase=None, args=None):
@@ -407,7 +407,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
@@ -579,38 +579,7 @@ class PowerView:
             except:
                 pass
 
-            entries.append({"attributes":_entries["attributes"]})
-        return entries
-
-        properties = def_prop if not properties else properties
-        identity = '*' if not identity else identity
-
-        ldap_filter = ""
-        identity_filter = f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
-        if args:
-            if args.admincount:
-                ldap_filter += f"(admincount=1)"
-            if args.ldapfilter:
-                ldap_filter += f"{args.ldapfilter}"
-                logging.debug(f'[Get-DomainGroup] Using additional LDAP filter: {args.ldapfilter}')
-            if args.memberidentity:
-                entries = self.get_domainobject(identity=args.memberidentity)
-                if len(entries) == 0:
-                    logging.info("Member identity not found. Try to use DN")
-                    return
-                memberidentity_dn = entries[0]['attributes']['distinguishedName']
-                ldap_filter += f"(member={memberidentity_dn})"
-                logging.debug(f'[Get-DomainGroup] Filter is based on member property {ldap_filter}')
-
-        ldap_filter = f'(&(objectCategory=group){identity_filter}{ldap_filter})'
-        logging.debug(f'[Get-DomainGroup] LDAP search filter: {ldap_filter}')
-        entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
-        for _entries in entry_generator:
-            if _entries['type'] != 'searchResEntry':
-                continue
-            strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def get_domainrbcd(self, identity=None, args=None):
@@ -737,7 +706,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def get_domainforeigngroupmember(self, args=None):
@@ -925,7 +894,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def get_domaingpolocalgroup(self, args=None, identity=None):
@@ -1027,7 +996,7 @@ class PowerView:
             except TypeError:
                 pass
 
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def convertfrom_uacvalue(self, value, args=None, output=False):
@@ -1085,7 +1054,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def get_domaindnszone(self, identity=None, properties=[], searchbase=None, args=None):
@@ -1120,7 +1089,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], searchbase=None, args=None):
@@ -1215,7 +1184,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def get_domainca(self, args=None, properties=None):

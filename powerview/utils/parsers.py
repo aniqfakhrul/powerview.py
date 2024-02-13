@@ -6,7 +6,6 @@ from powerview.utils.completer import COMMANDS
 from powerview.utils.colors import bcolors
 from powerview.utils.helpers import escape_filter_chars_except_asterisk
 from powerview._version import BANNER,__version__
-from powerview.utils.logging import setup_logger
 
 # https://stackoverflow.com/questions/14591168/argparse-dont-show-usage-on-h
 class PowerViewParser(argparse.ArgumentParser):
@@ -50,13 +49,6 @@ def arg_parse():
         sys.exit(1)
 
     args = parser.parse_args()
-
-    if args.debug is True:
-        logging = setup_logger("DEBUG")
-        # Print the Library's installation path
-        logging.debug(version.getInstallationPath())
-    else:
-        logging = setup_logger()
 
     # check for mutually exclusive
     if args.use_kerberos and (args.relay):
