@@ -21,6 +21,7 @@ from powerview.utils.helpers import (
 from powerview.lib.resolver import (
     LDAP,
 )
+from powerview.lib.ldap3.connection import Connection
 
 import ssl
 import ldap3
@@ -325,7 +326,7 @@ class CONNECTION:
 
         logging.debug(f"Connecting as ANONYMOUS to %s, Port: %s, SSL: %s" % (ldap_server_kwargs["host"], ldap_server_kwargs["port"], ldap_server_kwargs["use_ssl"]))
         ldap_server = ldap3.Server(**ldap_server_kwargs)
-        ldap_session = ldap3.Connection(ldap_server)
+        ldap_session = Connection(ldap_server)
 
         if not ldap_session.bind():
             logging.info(f"Error binding to {self.proto}")
@@ -399,7 +400,7 @@ class CONNECTION:
             ldap_connection_kwargs["channel_binding"] = ldap3.TLS_CHANNEL_BINDING
 
         if self.use_kerberos:
-            ldap_session = ldap3.Connection(ldap_server, auto_referrals=False)
+            ldap_session = Connection(ldap_server, auto_referrals=False)
             bind = ldap_session.bind()
             try:
                 self.ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, self.auth_aes_key, kdcHost=self.kdcHost, useCache=self.no_pass)
@@ -416,7 +417,7 @@ class CONNECTION:
                 ldap_connection_kwargs["password"] = password
             
             try:
-                ldap_session = ldap3.Connection(ldap_server, **ldap_connection_kwargs)    
+                ldap_session = Connection(ldap_server, **ldap_connection_kwargs)    
                 bind = ldap_session.bind()
             except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
                 logging.debug("Server returns invalidCredentials")
@@ -812,7 +813,7 @@ class LDAPRelayServer(LDAPRelayClient):
     def initConnection(self):
         self.ldap_relay.scheme = "LDAP"
         self.server = ldap3.Server("ldap://%s:%s" % (self.targetHost, self.targetPort), get_info=ldap3.ALL)
-        self.session = ldap3.Connection(self.server, user="a", password="b", authentication=ldap3.NTLM)
+        self.session = Connection(self.server, user="a", password="b", authentication=ldap3.NTLM)
         self.session.open(False)
         return True
 
@@ -867,7 +868,7 @@ class LDAPSRelayServer(LDAPRelayServer):
     def initConnection(self):
         self.ldap_relay.scheme = "LDAPS"
         self.server = ldap3.Server("ldaps://%s:%s" % (self.targetHost, self.targetPort), get_info=ldap3.ALL)
-        self.session = ldap3.Connection(self.server, user="a", password="b", authentication=ldap3.NTLM)
+        self.session = Connection(self.server, user="a", password="b", authentication=ldap3.NTLM)
         try:
             self.session.open(False)
         except:
