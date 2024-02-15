@@ -258,7 +258,7 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
         logging.debug(f'Querying domain controller information from DNS server {nameserver}')
         dnsresolver.nameservers = [nameserver]
     else:
-        logging.debug(f'No nameserver provided, using host\'s resolver to resolve {domain}')
+        logging.debug(f'No nameserver provided, using system\'s dns to resolve {domain}')
 
     dnsresolver.lifetime = float(3)
 
@@ -272,7 +272,7 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
         for r in q:
             dc = str(r.target).rstrip('.')
         #resolve ip for principal dc
-        answer = resolve_domain(dc, nameserver)
+        answer = host2ip(dc, nameserver)
         return answer
     except resolver.NXDOMAIN as e:
         logging.debug(str(e))
@@ -291,7 +291,7 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
         for r in q:
             dc = str(r.target).rstrip('.')
             logging.debug('Found AD Domain: %s' % dc)
-        answer = resolve_domain(dc,nameserver)
+        answer = host2ip(dc,nameserver)
         return answer
     except resolver.NXDOMAIN:
         pass

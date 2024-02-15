@@ -1057,7 +1057,7 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
-            self.store.write_to_file("get_domain.json", _entries.get("attributes"))
+            #self.store.write_to_file("get_domain.json", _entries.get("attributes"))
             strip_entry(_entries)
             entries.append(_entries)
         return entries

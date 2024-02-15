@@ -341,7 +341,11 @@ class CONNECTION:
             return ldap_server, ldap_session
 
     def init_ldap_connection(self, target, tls, domain, username, password, lmhash, nthash, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM):
-        user = '%s\\%s' % (domain, username)
+        user = ""
+        if auth_method == ldap3.NTLM:
+            user = '%s\\%s' % (domain, username)
+        elif auth_method == ldap3.SIMPLE:
+            user = '{}@{}'.format(username, domain)
 
         ldap_server_kwargs = {
             "host": target,
@@ -408,9 +412,6 @@ class CONNECTION:
                 logging.error(str(e))
                 sys.exit(0)
         else:
-            if auth_method == ldap3.SIMPLE:
-                ldap_connection_kwargs["user"] = '{}@{}'.format(username, domain)
-
             if self.hashes is not None:
                 ldap_connection_kwargs["password"] = '{}:{}'.format(lmhash, nthash)
             else:
@@ -460,7 +461,7 @@ class CONNECTION:
             else:
                 logging.debug("Bind SUCCESS!")
 
-            return ldap_server, ldap_session
+        return ldap_server, ldap_session
 
     def ldap3_kerberos_login(self, connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True):
         from pyasn1.codec.ber import encoder, decoder
@@ -501,7 +502,7 @@ class CONNECTION:
         import datetime
         import os
 
-        if self.TGT and self.TGS:
+        if self.TGT or self.TGS:
             useCache = False
 
         if useCache:
