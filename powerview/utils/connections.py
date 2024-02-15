@@ -21,7 +21,7 @@ from powerview.utils.helpers import (
 from powerview.lib.resolver import (
     LDAP,
 )
-from powerview.lib.ldap3.connection import Connection
+from powerview.lib.ldap3.core.connection import Connection
 
 import ssl
 import ldap3
