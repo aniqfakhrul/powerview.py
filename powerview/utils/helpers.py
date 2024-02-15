@@ -1,4 +1,4 @@
-import argparse
+import datetime
 import sys
 import traceback
 import ldap3
@@ -123,6 +123,16 @@ def is_admin_sid(sid: str):
         or sid == "S-1-5-32-544"
     )
 
+def convert_to_json_serializable(obj):
+    if isinstance(obj, bytes):
+        # Convert bytes to string
+        return obj.decode('utf-8')
+    elif isinstance(obj, datetime):
+        # Convert datetime to string
+        return obj.isoformat()
+    else:
+        return obj
+
 def strip_entry(entry):
     for k,v in entry["attributes"].items():
         # check if its only have 1 index,
@@ -136,6 +146,9 @@ def strip_entry(entry):
                 if not isinstance(v[0], str):
                     continue
                 entry["attributes"][k] = v[0]
+
+def from_json_to_entry(entry):
+    return json.loads(entry)
 
 def filter_entry(entry, properties):
     new_dict = {}

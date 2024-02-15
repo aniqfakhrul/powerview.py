@@ -36,7 +36,7 @@ class LOG:
         else:
             self.root_folder = root_folder
         
-        self.folder_name = folder_name
+        self.folder_name = folder_name.lower()
 
         self.logs_folder = os.path.join(self.root_folder, "logs", self.folder_name)
         

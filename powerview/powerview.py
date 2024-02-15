@@ -9,6 +9,7 @@ from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
+from powerview.utils.storage import Storage
 from powerview.modules.ldapattack import (
     LDAPAttack,
     ACLEnum,
@@ -74,6 +75,9 @@ class PowerView:
             self.domain = self.fqdn
         self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
         self.is_admin = self.is_admin()
+
+        # storage
+        self.store = Storage()
 
     def get_admin_status(self):
         return self.is_admin
@@ -1053,6 +1057,7 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            self.store.write_to_file("get_domain.json", _entries.get("attributes"))
             strip_entry(_entries)
             entries.append(_entries)
         return entries
