@@ -46,11 +46,6 @@ class PowerView:
         self.username = args.username
         self.password = args.password
 
-        if target_domain:
-            self.domain = target_domain
-        else:
-            self.domain = args.domain.lower()
-
         self.lmhash = args.lmhash
         self.nthash = args.nthash
         self.use_ldaps = args.use_ldaps
@@ -59,12 +54,13 @@ class PowerView:
         self.use_kerberos = args.use_kerberos
 
         self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
-        if self.ldap_server and not is_valid_fqdn(self.domain):
-            conn.refresh_domain()
+
+        if target_domain:
+            self.domain = target_domain
+        else:
             self.domain = conn.get_domain()
 
-        if self.ldap_session.server.ssl:
-            self.use_ldaps = True
+        self.use_ldaps = self.ldap_session.server.ssl
 
         cnf = ldapdomaindump.domainDumpConfig()
         cnf.basepath = None
@@ -2190,7 +2186,7 @@ class PowerView:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainUser] Failed adding {username} to domain ({self.ldap_session.result['description']})")
             return False
         else:
-            logging.info('[Add-DomainUser] Success! Created new user with dn %s' % udn)
+            logging.info('[Add-DomainUser] Success! Created new user with')
 
             if not self.use_ldaps:
                 logging.info("[Add-DomainUser] Adding password to account")
@@ -2638,7 +2634,6 @@ class PowerView:
                 logging.error(f"Invalid pipe name")
                 return
         else:
-            pipes = [ 'netdfs','netlogon', 'lsarpc', 'samr', 'browser', 'spoolss', 'atsvc', 'DAV RPC SERVICE', 'epmapper', 'eventlog', 'InitShutdown', 'keysvc', 'lsass', 'LSM_API_service', 'ntsvcs', 'plugplay', 'protected_storage', 'router', 'SapiServerPipeS-1-5-5-0-70123', 'scerpc', 'srvsvc', 'tapsrv', 'trkwks', 'W32TIME_ALT', 'wkssvc','PIPE_EVENTROOT\CIMV2SCM EVENT PROVIDER', 'db2remotecmd']
             for pipe in binding_params.keys():
                 # TODO: Return entries
                 if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False, set_authn=True):
@@ -3030,6 +3025,11 @@ class PowerView:
 
         stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % ip_address
         dce = self.conn.connectRPCTransport(host=ip_address, stringBindings=stringBinding)
+        
+        if not dce:
+            logging.error("Failed to connect to %s" % (ip_address))
+            return
+
         dce.bind(wkst.MSRPC_UUID_WKST)
         try:
             resp = wkst.hNetrWkstaUserEnum(dce,1)

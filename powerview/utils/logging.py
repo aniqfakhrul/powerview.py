@@ -77,6 +77,8 @@ class LOG:
         return logger
 
     def write(self, file_name, text):
+        success = False
+
         if not os.path.exists(self.root_folder):
             os.makedirs(self.root_folder)
 
@@ -84,6 +86,7 @@ class LOG:
 
         try:
             open(abspath,"a").write(text+"\n")
+            success = True
         except IOError as e:
             logging.error(
                 "Error writing to %s (%s)" % (
@@ -91,28 +94,50 @@ class LOG:
                         str(e)
                     )
                 )
-
-            logging.debug(
-                    "Log written to %s" % (
-                        abspath
+        except FileNotFoundError as e:
+            logging.error(
+                "Error writing to %s (%s)" % (
+                        abspath,
+                        str(e)
+                    )
+                )
+        except PermissionError as e:
+            logging.error(
+                "Error writing to %s (%s)" % (
+                        abspath,
+                        str(e)
                     )
                 )
 
+        return success
+
     @staticmethod
     def write_to_file(file_name, text):
-
+        success = False
+        
         try:
             open(file_name, "a").write(text+"\n")
+            success = True
         except IOError as e:
-            logging.error(
+            raise Exception(
                 "Error writing to %s (%s)" % (
                         file_name,
                         str(e)
                     )
                 )
-
-            logging.debug(
-                    "Log written to %s" % (
-                        file_name
+        except FileNotFoundError as e:
+            raise Exception(
+                "Error writing to %s (%s)" % (
+                        abspath,
+                        str(e)
                     )
                 )
+        except PermissionError as e:
+            raise Exception(
+                "Error writing to %s (%s)" % (
+                        abspath,
+                        str(e)
+                    )
+                )
+
+        return True

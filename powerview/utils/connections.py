@@ -21,10 +21,14 @@ from powerview.utils.helpers import (
 from powerview.lib.resolver import (
     LDAP,
 )
-from powerview.lib.ldap3.core.connection import Connection
 
 import ssl
 import ldap3
+try:
+    if ldap3.ENCRYPT and ldap3.SIGN and ldap3.TLS_CHANNEL_BINDING:
+        from powerview.lib.ldap3.core.connection import Connection
+except AttributeError:
+    from ldap3 import Connection
 import logging
 import sys
 from struct import unpack
@@ -140,10 +144,10 @@ class CONNECTION:
             pass
 
     def set_domain(self, domain):
-        self.domain = domain
+        self.domain = domain.lower()
 
     def get_domain(self):
-        return self.domain
+        return self.domain.lower()
 
     def set_targetDomain(self, targetDomain):
         self.targetDomain = targetDomain
@@ -256,6 +260,11 @@ class CONNECTION:
                     self.ldap_server, self.ldap_session = self.init_ldap_anonymous(target, tls)
                 else:
                     self.ldap_server, self.ldap_session = self.init_ldap_connection(target, tls, self.domain, self.username, self.password, self.lmhash, self.nthash)
+
+                # check if domain is empty
+                if not self.domain or not is_valid_fqdn(self.domain):
+                    self.refresh_domain()
+
                 return self.ldap_server, self.ldap_session
             except (ldap3.core.exceptions.LDAPSocketOpenError, ConnectionResetError):
                 try:
@@ -325,19 +334,25 @@ class CONNECTION:
                 ldap_server_kwargs["port"] = 389
 
         logging.debug(f"Connecting as ANONYMOUS to %s, Port: %s, SSL: %s" % (ldap_server_kwargs["host"], ldap_server_kwargs["port"], ldap_server_kwargs["use_ssl"]))
-        ldap_server = ldap3.Server(**ldap_server_kwargs)
-        ldap_session = Connection(ldap_server)
+        self.ldap_server = ldap3.Server(**ldap_server_kwargs)
+        self.ldap_session = Connection(self.ldap_server)
 
-        if not ldap_session.bind():
+        if not self.ldap_session.bind():
             logging.info(f"Error binding to {self.proto}")
             sys.exit(0)
 
-        base_dn = ldap_server.info.other['defaultNamingContext'][0]
-        if not ldap_session.search(base_dn,'(objectclass=*)'):
-            logging.warning("ANONYMOUS access not allowed")
+        base_dn = self.ldap_server.info.other['defaultNamingContext'][0]
+        self.domain = dn2domain(self.ldap_server.info.other['defaultNamingContext'][0])
+        if not self.ldap_session.search(base_dn,'(objectclass=*)'):
+            logging.warning("ANONYMOUS access not allowed for %s" % (self.domain))
             sys.exit(0)
         else:
             logging.info("Server allows ANONYMOUS access!")
+            
+            # check if domain is empty
+            if not self.domain or not is_valid_fqdn(self.domain):
+                self.domain = dn2domain(ldap_server.info.other.get('rootDomainNamingContext')[0])
+            
             return ldap_server, ldap_session
 
     def init_ldap_connection(self, target, tls, domain, username, password, lmhash, nthash, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM):
@@ -460,6 +475,10 @@ class CONNECTION:
                 sys.exit(0)
             else:
                 logging.debug("Bind SUCCESS!")
+
+        # check if domain is empty
+        if not self.domain or not is_valid_fqdn(self.domain):
+            self.domain = dn2domain(ldap_server.info.other.get('rootDomainNamingContext')[0])
 
         return ldap_server, ldap_session
 
