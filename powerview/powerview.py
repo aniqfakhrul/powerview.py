@@ -1498,8 +1498,8 @@ class PowerView:
         if not rights:
             if args and hasattr(args, 'rights') and args.rights:
                 rights = args.rights
-            else:
-                rights = 'all'
+        else:
+            rights = 'all'
 
         principal_identity = self.get_domainobject(identity=principalidentity, properties=[
             'objectSid',

@@ -56,6 +56,13 @@ class CONNECTION:
             self.use_kerberos = True
         self.no_pass = args.no_pass
         self.nameserver = args.nameserver
+
+        # auth method
+        self.auth_method = ldap3.NTLM
+        if args.simple_auth:
+            self.auth_method = ldap3.SIMPLE
+        elif args.pfx:
+            self.auth_method = ldap3.SASL
         
         # relay option
         self.relay = args.relay
@@ -259,7 +266,7 @@ class CONNECTION:
                 if _anonymous:
                     self.ldap_server, self.ldap_session = self.init_ldap_anonymous(target, tls)
                 else:
-                    self.ldap_server, self.ldap_session = self.init_ldap_connection(target, tls, self.domain, self.username, self.password, self.lmhash, self.nthash)
+                    self.ldap_server, self.ldap_session = self.init_ldap_connection(target, tls, self.domain, self.username, self.password, self.lmhash, self.nthash, auth_method=self.auth_method)
 
                 # check if domain is empty
                 if not self.domain or not is_valid_fqdn(self.domain):
@@ -276,7 +283,7 @@ class CONNECTION:
                     if _anonymous:
                         self.ldap_server, self.ldap_session = self.init_ldap_anonymous(target, tls)
                     else:
-                        self.ldap_server, self.ldap_session = self.init_ldap_connection(target, tls, self.domain, self.username, self.password, self.lmhash, self.nthash)
+                        self.ldap_server, self.ldap_session = self.init_ldap_connection(target, tls, self.domain, self.username, self.password, self.lmhash, self.nthash, auth_method=self.auth_method)
                     return self.ldap_server, self.ldap_session
                 except:
                     if self.use_ldaps:
@@ -292,7 +299,7 @@ class CONNECTION:
             if _anonymous:
                 self.ldap_server, self.ldap_session = self.init_ldap_anonymous(target)
             else:
-                self.ldap_server, self.ldap_session = self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash)
+                self.ldap_server, self.ldap_session = self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash, auth_method=self.auth_method)
             return self.ldap_server, self.ldap_session
 
     def init_ldap_anonymous(self, target, tls=None):
@@ -356,12 +363,6 @@ class CONNECTION:
             return ldap_server, ldap_session
 
     def init_ldap_connection(self, target, tls, domain, username, password, lmhash, nthash, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM):
-        user = ""
-        if auth_method == ldap3.NTLM:
-            user = '%s\\%s' % (domain, username)
-        elif auth_method == ldap3.SIMPLE:
-            user = '{}@{}'.format(username, domain)
-
         ldap_server_kwargs = {
             "host": target,
             "get_info": ldap3.ALL,
@@ -404,20 +405,27 @@ class CONNECTION:
         # TODO: fix target when using kerberos
         bind = False
 
-        logging.debug(f"Connecting to %s, Port: %s, SSL: %s" % (ldap_server_kwargs["host"], ldap_server_kwargs["port"], ldap_server_kwargs["use_ssl"]))
         ldap_server = ldap3.Server(**ldap_server_kwargs)
+
+        user = ""
+        if auth_method == ldap3.NTLM:
+            user = '%s\\%s' % (domain, username)
+        elif auth_method == ldap3.SIMPLE:
+            user = '{}@{}'.format(username, domain)
 
         ldap_connection_kwargs = {
             "user":user,
             "raise_exceptions": True,
             "authentication": auth_method,
         }
+        logging.debug("Authentication: {}, User: {}".format(auth_method, user))
 
         if seal_and_sign or self.use_sign_and_seal:
             ldap_connection_kwargs["session_security"] = ldap3.ENCRYPT
         elif tls_channel_binding or self.use_channel_binding:
             ldap_connection_kwargs["channel_binding"] = ldap3.TLS_CHANNEL_BINDING
 
+        logging.debug(f"Connecting to %s, Port: %s, SSL: %s" % (ldap_server_kwargs["host"], ldap_server_kwargs["port"], ldap_server_kwargs["use_ssl"]))
         if self.use_kerberos:
             ldap_session = Connection(ldap_server, auto_referrals=False)
             bind = ldap_session.bind()
@@ -441,7 +449,7 @@ class CONNECTION:
                     logging.warning("Channel binding is enforced!")
                     if self.tls_channel_binding_supported and (self.use_ldaps or self.use_gc_ldaps):
                         logging.debug("Re-authenticate with channel binding")
-                        return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, tls_channel_binding=True)
+                        return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, tls_channel_binding=True, auth_method=self.auth_method)
                     else:
                         if lmhash and nthash:
                             sys.exit(-1)
@@ -453,7 +461,7 @@ class CONNECTION:
                 logging.warning("LDAP Signing is enforced!")
                 if self.sign_and_seal_supported:
                     logging.debug("Re-authenticate with seal and sign")
-                    return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, seal_and_sign=True)
+                    return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, seal_and_sign=True, auth_method=self.auth_method)
                 else:
                     sys.exit(-1)
             except ldap3.core.exceptions.LDAPInappropriateAuthenticationResult as e:

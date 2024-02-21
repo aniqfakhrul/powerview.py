@@ -15,11 +15,20 @@ from impacket.examples import logger, utils
 from dns import resolver
 import struct
 from ldap3.utils.conv import escape_filter_chars
+from typing import Tuple
 import re
 import configparser
 import validators
 import random
 
+from cryptography import x509
+from cryptography.hazmat.primitives.serialization import (
+    PrivateFormat,
+    NoEncryption,
+    Encoding,
+    pkcs12
+)
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
 from impacket import version
@@ -299,6 +308,20 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
         logging.debug(str(e))
         pass
     return answer
+
+# https://github.com/ly4k/Certipy/blob/main/certipy/lib/certificate.py#L318
+def load_pfx(
+    pfx: bytes, password: bytes = None
+) -> Tuple[rsa.RSAPrivateKey, x509.Certificate, None]:
+    return pkcs12.load_key_and_certificates(pfx, password)[:-1]
+
+def cert_to_pem(cert: x509.Certificate) -> bytes:
+    return cert.public_bytes(Encoding.PEM)
+
+def key_to_pem(key: rsa.RSAPrivateKey) -> bytes:
+    return key.private_bytes(
+        Encoding.PEM, PrivateFormat.PKCS8, encryption_algorithm=NoEncryption()
+    )
 
 def resolve_domain(domain, nameserver):
     answer = None
