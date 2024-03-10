@@ -558,6 +558,7 @@ def powerview_arg_parse(cmd):
     # remove domain computer
     remove_domaincomputer_parser = subparsers.add_parser('Remove-DomainComputer', aliases=['Remove-ADComputer'], exit_on_error=False)
     remove_domaincomputer_parser.add_argument('-ComputerName',action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+    remove_domaincomputer_parser.add_argument('-BaseDN', action='store', default=None, const=None, dest='basedn', type=lambda value: escape_filter_chars_except_asterisk(value))
     remove_domaincomputer_parser.add_argument('-Server', action='store', dest='server')
     remove_domaincomputer_parser.add_argument('-OutFile', action='store', dest='outfile')
 

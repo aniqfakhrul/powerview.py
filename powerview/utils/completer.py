@@ -69,7 +69,7 @@ COMMANDS = {
     'Remove-ADUser':['-Identity','-Server', '-OutFile'],
     'Remove-DomainCATemplate':['-Identity','-Properties','-SearchBase','-Server','-Select','-Where', '-Count', '-NoWrap', '-OutFile'],
     'Remove-CATemplate':['-Identity','-Properties','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
-    'Remove-DomainComputer':['-ComputerName','-Server', '-OutFile'],
+    'Remove-DomainComputer':['-ComputerName','-BaseDN','-Server', '-OutFile'],
     'Remove-ADComputer':['-ComputerName','-Server','-OutFile'],
     'Add-DomainGroupMember':['-Identity','-Members','-Server','-OutFile'],
     'Add-GroupMember':['-Identity','-Members','-Server', '-OutFile'],

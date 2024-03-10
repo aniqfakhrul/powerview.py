@@ -416,7 +416,7 @@ class CONNECTION:
         ldap_connection_kwargs = {
             "user":user,
             "raise_exceptions": True,
-            "authentication": auth_method,
+            "authentication": auth_method
         }
         logging.debug("Authentication: {}, User: {}".format(auth_method, user))
 
@@ -441,7 +441,7 @@ class CONNECTION:
                 ldap_connection_kwargs["password"] = password
             
             try:
-                ldap_session = Connection(ldap_server, **ldap_connection_kwargs)    
+                ldap_session = Connection(ldap_server, **ldap_connection_kwargs)
                 bind = ldap_session.bind()
             except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
                 logging.debug("Server returns invalidCredentials")

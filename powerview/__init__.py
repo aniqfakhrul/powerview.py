@@ -508,9 +508,9 @@ def main():
                             elif pv_args.module.casefold() == 'remove-domaincomputer' or pv_args.module.casefold() == 'remove-adcomputer':
                                 if pv_args.computername is not None:
                                     if temp_powerview:
-                                        temp_powerview.remove_domaincomputer(pv_args.computername)
+                                        temp_powerview.remove_domaincomputer(pv_args.computername, args=pv_args)
                                     else:
-                                        powerview.remove_domaincomputer(pv_args.computername)
+                                        powerview.remove_domaincomputer(pv_args.computername, args=pv_args)
                                 else:
                                     logging.error('-ComputerName is required')
                             elif pv_args.module.casefold() == 'new-gplink':

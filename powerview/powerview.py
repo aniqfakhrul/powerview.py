@@ -2307,7 +2307,19 @@ class PowerView:
         la = LDAPAttack(config=c, LDAPClient=self.ldap_session, username=username, root_dn=self.root_dn, args=args)
         la.aclAttack()
 
-    def remove_domaincomputer(self,computer_name):
+    def remove_domaincomputer(self,computer_name, args=None):
+        parent_dn_entries = self.root_dn
+        if hasattr(args, 'basedn') and args.basedn:
+            entries = self.get_domainobject(identity=args.basedn)
+            if len(entries) <= 0:
+                logging.error(f"[Add-DomainComputer] {args.basedn} could not be found in the domain")
+                return
+            elif len(entries) > 1:
+                logging.error("[Add-DomainComputer] More then one computer found in domain")
+                return
+
+            parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
+        
         if computer_name[-1] != '$':
             computer_name += '$'
 
@@ -2342,11 +2354,13 @@ class PowerView:
 
         # Creating Machine Account
         addmachineaccount = ADDCOMPUTER(
-            	self.username,
-            	self.password,
-            	self.domain,
-            	self.args,
-            	computer_name,
+            	username = self.username,
+            	password = self.password,
+            	domain = self.domain,
+            	cmdLineOptions = self.args,
+            	computer_name = computer_name,
+            	base_dn = parent_dn_entries,
+                ldap_session = self.ldap_session
         		)
         try:
             if self.use_ldaps:
