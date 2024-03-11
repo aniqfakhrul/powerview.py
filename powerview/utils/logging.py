@@ -114,9 +114,12 @@ class LOG:
     @staticmethod
     def write_to_file(file_name, text):
         success = False
+
+        abspath = os.path.expanduser(file_name)
         
         try:
-            open(file_name, "a").write(text+"\n")
+            f = open(abspath, "a")
+            f.write(text+"\n")
             success = True
         except IOError as e:
             raise Exception(
@@ -139,5 +142,9 @@ class LOG:
                         str(e)
                     )
                 )
+        except ZeroDivisionError:
+            f.close()
+
+        f.close()
 
         return True

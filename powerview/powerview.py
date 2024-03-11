@@ -2325,7 +2325,7 @@ class PowerView:
 
         dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, self.args)
         if len(dcinfo)== 0:
-            logging.error("Cannot get domain info")
+            logging.error("[Remove-DomainComputer] Cannot get domain info")
             exit()
         c_key = 0
         dcs = list(dcinfo.keys())

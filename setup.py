@@ -25,7 +25,6 @@ setup(name='powerview',
           'pycryptodome',
           'chardet',
           'tabulate',
-          'gssapi',
       ],
       classifiers=[
         'Intended Audience :: Information Technology',
