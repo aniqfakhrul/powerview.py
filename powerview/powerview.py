@@ -2645,7 +2645,7 @@ class PowerView:
                 elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], set_authn=True):
                     result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
             else:
-                logging.error(f"Invalid pipe name")
+                logging.error("[Get-NamedPipes] Pipe not found")
                 return
         else:
             for pipe in binding_params.keys():
