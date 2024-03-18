@@ -10,6 +10,7 @@ try:
     )
 except ImportError as e:
     pass
+from ldap3.core.exceptions import LDAPSocketReceiveError
 
 from ldap3.utils.log import log_enabled, BASIC
 

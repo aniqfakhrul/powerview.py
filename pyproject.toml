@@ -23,6 +23,7 @@ dependencies = [
   'pycryptodome',
   'chardet',
   'tabulate',
+  'gssapi',
 ]
 requires-python = ">= 3.8"
 classifiers=[
