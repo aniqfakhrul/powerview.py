@@ -2588,6 +2588,7 @@ class PowerView:
                 "headers":["Name", "Protocol", "Description", "Authenticated"],
                 "rows":[]
                 }
+
         binding_params = {
             	'lsarpc': {
                 	'stringBinding': r'ncacn_np:%s[\PIPE\lsarpc]' % host,
@@ -2602,7 +2603,7 @@ class PowerView:
             	'samr': {
                 	'stringBinding': r'ncacn_np:%s[\PIPE\samr]' % host,
                 	'protocol': 'MS-SAMR',
-                	'description': 'Security Account Manager (SAM)',
+                	'description': 'Security Account Manager (SAM) Remote Protocol',
             		},
             	'lsass': {
                 	'stringBinding': r'ncacn_np:%s[\PIPE\lsass]' % host,
@@ -2635,12 +2636,11 @@ class PowerView:
                 	'description': 'Microsoft AT-Scheduler Service',
             		},
         		}
-        #self.rpc_conn = CONNECTION(self.args)
+
         if args.name:
             if args.name in list(binding_params.keys()):
                 pipe = args.name
                 if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False, set_authn=True):
-                    #logging.info(f"Found named pipe: {args.name}")
                     result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.WARNING}No{bcolors.ENDC}'])
                 elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], set_authn=True):
                     result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
@@ -2655,6 +2655,7 @@ class PowerView:
                     result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.WARNING}No{bcolors.ENDC}'])
                 elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], set_authn=True):
                     result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
+
         return result
 
     def set_domainuserpassword(self, identity, accountpassword, oldpassword=None, args=None):

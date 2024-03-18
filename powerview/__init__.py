@@ -290,7 +290,7 @@ def main():
                             elif pv_args.module.casefold() == 'get-netshare':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     if temp_powerview:
-                                       entries =  temp_powerview.get_netshare(pv_args)
+                                        entries =  temp_powerview.get_netshare(pv_args)
                                     else:
                                         entries = powerview.get_netshare(pv_args)
                                 else:
@@ -557,7 +557,7 @@ def main():
                                         else:
                                             formatter.print_select(entries)
                                     else:
-                                        if isinstance(entries, dict) and entries.get("headers") and entries.get("rows"):
+                                        if isinstance(entries, dict) and entries.get("headers"):
                                             formatter.print_table(entries["rows"], entries["headers"])
                                         else:
                                             formatter.print(entries)
@@ -591,8 +591,8 @@ def main():
             except ldap3.core.exceptions.LDAPInvalidDnError as e:
                 logging.error(f"LDAPInvalidDnError: {str(e)}")
                 continue
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
 
             if args.query:
                 conn.close()
@@ -600,8 +600,8 @@ def main():
 
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         print(str(e))
-    except ldap3.core.exceptions.LDAPBindError as e:
-        print(str(e))
+    #except ldap3.core.exceptions.LDAPBindError as e:
+    #    print(str(e))
 
 if __name__ == '__main__':
     main()
