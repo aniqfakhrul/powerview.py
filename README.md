@@ -28,17 +28,14 @@ Running LDAP query tools through proxies (i.e. SOCKS) is quite overwhelming sinc
 ## Installation
 _Sign and seal and channel binding functionalities would require ldap3 installed from this [fork](https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3@tls_cb_and_seal_for_ntlm) and [gssapi](https://pypi.org/project/gssapi/) library. But no worries, all are already implemented in setup.py. (Note: Addinional libkrb5-dev package need to be installed on the OS level)_
 
-1. Install `libkrb5-dev` apt package 
+1. **Optional**: Install `libkrb5-dev` apt package 
 ```
 sudo apt install libkrb5-dev
 ```
-2. Install python libraries
+2. Install powerview.py
 ```
-pip3 install -r requirements
-```
-3. Install powerview.py
-```
-python3 setup.py install
+cd powerview.py
+pip3 install .
 ```
 
 ## Basic Usage
@@ -47,9 +44,9 @@ _Note that some of the kerberos functions are still not functioning well just ye
 ```
 powerview range.net/lowpriv:Password123@192.168.86.192 [--dc-ip 192.168.86.192] [-k] [--use-ldap | --use-ldaps]
 ```
-* Init connection with _special_ authentication
+* Init connection with specific authentication. Note that `--use-sign-and-seal` and `--use-channel-binding` is only available if you install `ldap3` library directly from this [branch](https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3/tree/tls_cb_and_seal_for_ntlm) 
 ```
-powerview range.net/lowpriv:Password123@192.168.86.192 [--use-channel-binding | --use-sign-and-seal]
+powerview range.net/lowpriv:Password123@192.168.86.192 [--use-channel-binding | --use-sign-and-seal | --use-simple-auth]
 ```
 [![asciicast](https://asciinema.org/a/hR3Ejy3yK9q5qsjnEV953vG4Y.svg)](https://asciinema.org/a/hR3Ejy3yK9q5qsjnEV953vG4Y)
 
@@ -72,6 +69,11 @@ Get-DomainUser -Where 'samaccountname [contains][in][eq] admins'
 * Count results
 ```
 Get-DomainUser -Count
+```
+
+* Output result to file
+```
+Get-DomainUser -OutFile ~/domain_user.txt
 ```
 
 * Set module
@@ -199,9 +201,13 @@ We will never miss logging to keep track of the actions done. By default, powerv
 Example path: `/root/.powerview/logs/bionic.local/2024-02-13.log`
 
 ### To-Do
-* Add logging function to track and monitor what have been run.
-* Add cache functionality to minimize network interaction.
+* ~~Add logging function to track and monitor what have been run.~~
+* ~~Add cache functionality to minimize network interaction.~~
 * Support more authentication flexibility.
+    * ~~Channel Binding~~
+    * ~~Sign and Seal~~
+    * ~~Simple Authentication~~
+    * Schannel. Authentication with pfx
 
 ### Credits
 * https://github.com/SecureAuthCorp/impacket
@@ -211,3 +217,5 @@ Example path: `/root/.powerview/logs/bionic.local/2024-02-13.log`
 * https://github.com/the-useless-one/pywerview
 * https://github.com/dirkjanm/ldapdomaindump
 * https://learn.microsoft.com/en-us/powershell/module/grouppolicy/new-gplink
+* https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3/tree/tls_cb_and_seal_for_ntlm
+* https://github.com/ly4k/Certipy
