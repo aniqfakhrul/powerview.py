@@ -8,3 +8,4 @@ validators
 pycryptodome
 chardet
 tabulate
+argcomplete
