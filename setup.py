@@ -22,7 +22,10 @@ setup(name='powerview',
           'impacket>=0.10.0',
           'validators',
           'dsinternals',
-          'pycryptodome'
+          'pycryptodome',
+          'chardet',
+          'tabulate',
+          'argcomplete',
       ],
       classifiers=[
         'Intended Audience :: Information Technology',
