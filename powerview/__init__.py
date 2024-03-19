@@ -388,13 +388,13 @@ def main():
                                 else:
                                     logging.error('-Identity and [-Clear][-Set][-Append] flags required')
                             elif pv_args.module.casefold() == 'set-domainobjectdn' or pv_args.module.casefold() == 'set-adobjectdn':
-                                if pv_args.identity and pv_args.new_dn:
+                                if pv_args.identity and pv_args.new_base_dn:
                                     if temp_powerview:
-                                        succeed = temp_powerview.set_domainobjectdn(pv_args.identity, new_dn=pv_args.new_dn, args=pv_args)
+                                        succeed = temp_powerview.set_domainobjectdn(pv_args.identity, new_base_dn=pv_args.new_base_dn, args=pv_args)
                                     else:
-                                        succeed = powerview.set_domainobjectdn(pv_args.identity, new_dn=pv_args.new_dn, args=pv_args)
+                                        succeed = powerview.set_domainobjectdn(pv_args.identity, new_base_dn=pv_args.new_base_dn, args=pv_args)
                                 else:
-                                    logging.error('-Identity and -DistinguishedName flags required')
+                                    logging.error('-Identity and -BaseDN flags required')
                             elif pv_args.module.casefold() == 'set-domaindnsrecord':
                                 if pv_args.recordname is None or pv_args.recordaddress is None:
                                     logging.error("-RecordName and -RecordAddress flags are required")

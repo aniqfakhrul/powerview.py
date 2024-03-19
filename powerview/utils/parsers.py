@@ -576,7 +576,7 @@ def powerview_arg_parse(cmd):
     # set domain object distinguishednam
     set_domainobjectdn_parser = subparsers.add_parser('Set-DomainObjectDN', aliases=['Set-ADObjectDN'], exit_on_error=False)
     set_domainobjectdn_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
-    set_domainobjectdn_parser.add_argument('-DistinguishedName', action='store', dest='new_dn')
+    set_domainobjectdn_parser.add_argument('-BaseDN', action='store', dest='new_base_dn')
     set_domainobjectdn_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
     set_domainobjectdn_parser.add_argument('-Server', action='store', dest='server')
     set_domainobjectdn_parser.add_argument('-OutFile', action='store', dest='outfile')

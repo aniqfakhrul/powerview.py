@@ -2880,30 +2880,39 @@ class PowerView:
 
         return succeeded
 
-    def set_domainobjectdn(self, identity, new_dn, searchbase=None, sd_flag=None, args=None):
+    def set_domainobjectdn(self, identity, new_base_dn, searchbase=None, sd_flag=None, args=None):
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
         # verify if the identity exists
         targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['*'], sd_flag=sd_flag)
         if len(targetobject) > 1:
-            logging.error(f"[Set-DomainObjectDN] More than one object found")
+            logging.error(f"[Set-DomainObjectDN] More than one {targetobject} object found")
             return False
         elif len(targetobject) == 0:
             logging.error(f"[Set-DomainObjectDN] {identity} not found in domain")
             return False
 
+        # verify if the new_base_dn exists
+        new_dn = self.get_domainobject(identity=new_base_dn, searchbase=searchbase, properties=['*'])
+        if len(new_dn) > 1:
+            logging.error(f"[Set-DomainObjectDN] More than {new_base_dn} object DN found")
+            return False
+        elif len(new_dn) == 0:
+            logging.error(f"[Set-DomainObjectDN] Object {new_base_dn} not found in domain")
+            return False
+        
         # set the object new dn
         if isinstance(targetobject, list):
             targetobject_dn = targetobject[0]["attributes"]["distinguishedName"]
         else:
             targetobject_dn = targetobject["attributes"]["distinguishedName"]
 
-        logging.debug(f"[Set-DomainObjectDN] Modifying {targetobject_dn} object dn to {new_dn}")
+        logging.debug(f"[Set-DomainObjectDN] Modifying {targetobject_dn} object dn to {new_base_dn}")
 
         relative_dn = targetobject_dn.split(",")[0]
 
-        succeeded = self.ldap_session.modify_dn(targetobject_dn, relative_dn, new_superior=new_dn)
+        succeeded = self.ldap_session.modify_dn(targetobject_dn, relative_dn, new_superior=new_base_dn)
         if not succeeded:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Set-DomainObjectDN] Failed to modify, view debug message with --debug")
         else:
