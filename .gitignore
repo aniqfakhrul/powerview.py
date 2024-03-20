@@ -1,6 +1,7 @@
 *.swp
 __pycache__
 powerview.egg-info
+powerview.py.egg-info
 build
 dist
 powerview-venv
