@@ -450,6 +450,13 @@ def powerview_arg_parse(cmd):
     invoke_kerberoast_parser.add_argument('-Count', action='store_true', dest='count')
     invoke_kerberoast_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
+    # unlock_adaccount
+    unlock_adaccount_parser = subparsers.add_parser('Unlock-ADAccount',aliases=['Unlock-ADAccount'], exit_on_error=False)
+    unlock_adaccount_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+    unlock_adaccount_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+    unlock_adaccount_parser.add_argument('-Server', action='store', dest='server')
+    unlock_adaccount_parser.add_argument('-OutFile', action='store', dest='outfile')
+
     #trust
     get_domaintrust_parser = subparsers.add_parser('Get-DomainTrust', aliases=['Get-NetTrust'], exit_on_error=False)
     get_domaintrust_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
@@ -498,7 +505,7 @@ def powerview_arg_parse(cmd):
     # add domain ou
     add_domainou_parser = subparsers.add_parser('Add-DomainOU', aliases=['Add-OU'], exit_on_error=False)
     add_domainou_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
-    add_domainou_parser.add_argument('-DistinguishedName', action='store', const=None, dest='distinguishedname')
+    add_domainou_parser.add_argument('-BaseDN', action='store', const=None, dest='basedn')
     add_domainou_parser.add_argument('-Server', action='store', dest='server')
     add_domainou_parser.add_argument('-OutFile', action='store', dest='outfile')
 
@@ -514,6 +521,7 @@ def powerview_arg_parse(cmd):
     add_domainobjectacl_parser.add_argument('-TargetIdentity', action='store', const=None, dest='targetidentity', type=lambda value: escape_filter_chars_except_asterisk(value))
     add_domainobjectacl_parser.add_argument('-PrincipalIdentity', action='store', const=None, dest='principalidentity', type=lambda value: escape_filter_chars_except_asterisk(value))
     add_domainobjectacl_parser.add_argument('-Rights', action='store', const=None, dest='rights', choices=['all', 'dcsync', 'writemembers','resetpassword','rbcd','shadowcred'], type = str.lower)
+    add_domainobjectacl_parser.add_argument('-Inheritance', action='store_true', dest='inheritance', default=False)
     add_domainobjectacl_parser.add_argument('-Server', action='store', dest='server')
     add_domainobjectacl_parser.add_argument('-OutFile', action='store', dest='outfile')
 
@@ -575,8 +583,8 @@ def powerview_arg_parse(cmd):
 
     # set domain object distinguishednam
     set_domainobjectdn_parser = subparsers.add_parser('Set-DomainObjectDN', aliases=['Set-ADObjectDN'], exit_on_error=False)
-    set_domainobjectdn_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
-    set_domainobjectdn_parser.add_argument('-BaseDN', action='store', dest='new_base_dn')
+    set_domainobjectdn_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value), required=True)
+    set_domainobjectdn_parser.add_argument('-DestinationDN', action='store', dest='destination_dn', required=True)
     set_domainobjectdn_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
     set_domainobjectdn_parser.add_argument('-Server', action='store', dest='server')
     set_domainobjectdn_parser.add_argument('-OutFile', action='store', dest='outfile')

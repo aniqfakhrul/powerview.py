@@ -323,12 +323,20 @@ def main():
                                     entries = temp_powerview.invoke_kerberoast(pv_args, properties)
                                 else:
                                     entries = powerview.invoke_kerberoast(pv_args, properties)
+                            elif pv_args.module.casefold() == 'unlock-adaccount':
+                                if pv_args.identity is not None:
+                                    if temp_powerview:
+                                        succeed = temp_powerview.unlock_adaccount(identity=pv_args.identity, args=pv_args)
+                                    else:
+                                        succeed = powerview.unlock_adaccount(identity=pv_args.identity, args=pv_args)
+                                else:
+                                    logging.error('-Identity flag is required')
                             elif pv_args.module.casefold() == 'add-domainou' or pv_args.module.casefold() == 'add-ou':
                                 if pv_args.identity is not None:
                                     if temp_powerview:
-                                        temp_powerview.add_domainou(identity=pv_args.identity, args=pv_args)
+                                        temp_powerview.add_domainou(identity=pv_args.identity, basedn=pv_args.basedn, args=pv_args)
                                     else:
-                                        powerview.add_domainou(identity=pv_args.identity, args=pv_args)
+                                        powerview.add_domainou(identity=pv_args.identity, basedn=pv_args.basedn, args=pv_args)
                                 else:
                                     logging.error('-Identity flag is required')
                             elif pv_args.module.casefold() == 'remove-domainou' or pv_args.module.casefold() == 'remove-ou':
@@ -388,13 +396,13 @@ def main():
                                 else:
                                     logging.error('-Identity and [-Clear][-Set][-Append] flags required')
                             elif pv_args.module.casefold() == 'set-domainobjectdn' or pv_args.module.casefold() == 'set-adobjectdn':
-                                if pv_args.identity and pv_args.new_base_dn:
+                                if pv_args.identity and pv_args.destination_dn:
                                     if temp_powerview:
-                                        succeed = temp_powerview.set_domainobjectdn(pv_args.identity, new_base_dn=pv_args.new_base_dn, args=pv_args)
+                                        succeed = temp_powerview.set_domainobjectdn(pv_args.identity, destination_dn=pv_args.destination_dn, args=pv_args)
                                     else:
-                                        succeed = powerview.set_domainobjectdn(pv_args.identity, new_base_dn=pv_args.new_base_dn, args=pv_args)
+                                        succeed = powerview.set_domainobjectdn(pv_args.identity, destination_dn=pv_args.destination_dn, args=pv_args)
                                 else:
-                                    logging.error('-Identity and -BaseDN flags required')
+                                    logging.error('-Identity and -DestinationDN flags required')
                             elif pv_args.module.casefold() == 'set-domaindnsrecord':
                                 if pv_args.recordname is None or pv_args.recordaddress is None:
                                     logging.error("-RecordName and -RecordAddress flags are required")

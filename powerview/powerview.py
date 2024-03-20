@@ -1270,12 +1270,60 @@ class PowerView:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainCATemplate] Failed to delete template {identity} from certificate store")
             return False
 
-    def add_domainou(self, identity, args=None):
-        dn = "" 
-        if not args.distinguishedname:
-            dn = "OU=%s,%s" % (identity, self.root_dn)
+    def unlock_adaccount(self, identity, searchbase=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        
+        # check if identity exists
+        identity_object = self.get_domainobject(identity=identity, searchbase=searchbase, properties=["distinguishedName","sAMAccountName","lockoutTime"])
+        if len(identity_object) > 1:
+            logging.error(f"[Unlock-ADAccount] More then one identity found. Use distinguishedName instead.")
+            return False
+        elif len(identity_object) == 0:
+            logging.error(f"[Unlock-ADAccount] Identity {identity} not found in domain")
+            return False
+
+        # check if its really locked
+        identity_dn = identity_object[0].get("dn")
+        identity_san = identity_object[0].get("attributes").get("sAMAccountName")
+        identity_lockouttime = identity_object[0].get("raw_attributes").get("lockoutTime")
+
+        logging.debug(f"[Unlock-ADAccount] Identity {identity_san} found in domain")
+        
+        if isinstance(identity_lockouttime, list):
+            identity_lockouttime = identity_lockouttime[0]
+        locked = int(identity_lockouttime)
+
+        if not locked or locked == 0:
+            logging.warning(f"[Unlock-ADAccount] Account {identity_san} is not in locked state.")
+            return False
+
+        logging.debug("[Unlock-ADAccount] Modifying lockoutTime attribute")
+        succeed = self.set_domainobject(  
+                                identity_dn,
+                                _set = {
+                                        'attribute': 'lockoutTime',
+                                        'value': '0'
+                                    },
+                              )
+
+        if succeed:
+            logging.info(f"[Unlock-ADAccount] Account {identity_san} unlocked")
+            return True
         else:
-            dn = args.distinguishedname
+            logging.info(f"[Unlock-ADAccount] Failed to unlock {identity_san}")
+            return False
+
+    def add_domainou(self, identity, basedn=None, args=None):
+        basedn = self.root_dn if not basedn else basedn
+
+        dn_exist = self.get_domainobject(identity=basedn)
+        if not dn_exist:
+            logging.error(f"[Add-DomainOU] DN {basedn} not found in domain")
+            return False
+
+        dn = "OU=%s,%s" % (identity, basedn)
+        logging.debug(f"[Add-DomainOU] OU dstinguishedName: {dn}")
         
         ou_data = {
             	'objectCategory': 'CN=Organizational-Unit,CN=Schema,CN=Configuration,%s' % self.root_dn,
@@ -2767,10 +2815,10 @@ class PowerView:
 
         targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['*'], sd_flag=sd_flag)
         if len(targetobject) > 1:
-            logging.error(f"[Set-DomainObject] More than one object found")
+            logging.error(f"[Set-DomainObject] More than one identity found. Use distinguishedName instead")
             return False
         elif len(targetobject) == 0:
-            logging.error(f"[Set-DomainObject] {identity} not found in domain")
+            logging.error(f"[Set-DomainObject] Identity {identity} not found in domain")
             return False
 
         attr_clear = args.clear if hasattr(args,'clear') and args.clear else clear
@@ -2880,26 +2928,23 @@ class PowerView:
 
         return succeeded
 
-    def set_domainobjectdn(self, identity, new_base_dn, searchbase=None, sd_flag=None, args=None):
+    def set_domainobjectdn(self, identity, destination_dn, searchbase=None, sd_flag=None, args=None):
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
         # verify if the identity exists
         targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['*'], sd_flag=sd_flag)
         if len(targetobject) > 1:
-            logging.error(f"[Set-DomainObjectDN] More than one {targetobject} object found")
+            logging.error(f"[Set-DomainObjectDN] More than one {identity} object found in domain. Try using distinguishedName instead")
             return False
         elif len(targetobject) == 0:
             logging.error(f"[Set-DomainObjectDN] {identity} not found in domain")
             return False
 
-        # verify if the new_base_dn exists
-        new_dn = self.get_domainobject(identity=new_base_dn, searchbase=searchbase, properties=['*'])
-        if len(new_dn) > 1:
-            logging.error(f"[Set-DomainObjectDN] More than {new_base_dn} object DN found")
-            return False
-        elif len(new_dn) == 0:
-            logging.error(f"[Set-DomainObjectDN] Object {new_base_dn} not found in domain")
+        # verify if the destination_dn exists
+        new_dn = self.get_domainobject(identity=destination_dn, searchbase=searchbase, properties=['*'])
+        if not new_dn:
+            logging.error(f"[Set-DomainObjectDN] Object {destination_dn} not found in domain")
             return False
         
         # set the object new dn
@@ -2908,11 +2953,11 @@ class PowerView:
         else:
             targetobject_dn = targetobject["attributes"]["distinguishedName"]
 
-        logging.debug(f"[Set-DomainObjectDN] Modifying {targetobject_dn} object dn to {new_base_dn}")
+        logging.debug(f"[Set-DomainObjectDN] Modifying {targetobject_dn} object dn to {destination_dn}")
 
         relative_dn = targetobject_dn.split(",")[0]
 
-        succeeded = self.ldap_session.modify_dn(targetobject_dn, relative_dn, new_superior=new_base_dn)
+        succeeded = self.ldap_session.modify_dn(targetobject_dn, relative_dn, new_superior=destination_dn)
         if not succeeded:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Set-DomainObjectDN] Failed to modify, view debug message with --debug")
         else:
