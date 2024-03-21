@@ -33,7 +33,7 @@ pip3 install .
 
 # or remotely
 
-pip3 install -e "https://github.com/aniqfakhrul/powerview.py"
+pip3 install -e "git+https://github.com/aniqfakhrul/powerview.py.git"
 ```
 
 ### With Channel Binding Support
@@ -103,24 +103,22 @@ powerview 10.10.10.10 --relay [--use-ldap | --use-ldaps]
 
 ```cs
 PV >
-Add-ADComputer                 Find-ForeignUser               Get-DomainOU                   Get-NetTrust                   Remove-GPLink 
-Add-ADUser                     Find-LocalAdminAccess          Get-DomainObject               Get-NetUser                    Remove-GroupMember 
-Add-CATemplate                 Get-ADObject                   Get-DomainObjectAcl            Get-ObjectAcl                  Remove-OU 
-Add-CATemplateAcl              Get-CA                         Get-DomainObjectOwner          Get-ObjectOwner                Remove-ObjectAcl 
-Add-DomainCATemplate           Get-CATemplate                 Get-DomainSCCM                 Get-SCCM                       Set-CATemplate 
-Add-DomainCATemplateAcl        Get-Domain                     Get-DomainTrust                Invoke-Kerberoast              Set-DomainCATemplate 
-Add-DomainComputer             Get-DomainCA                   Get-DomainUser                 New-GPLink                     Set-DomainComputerPassword 
-Add-DomainDNSRecord            Get-DomainCATemplate           Get-GPOLocalGroup              Remove-ADComputer              Set-DomainDNSRecord 
-Add-DomainGroupMember          Get-DomainComputer             Get-NamedPipes                 Remove-ADUser                  Set-DomainObject 
-Add-DomainOU                   Get-DomainController           Get-NetComputer                Remove-CATemplate              Set-DomainObjectDN 
-Add-DomainObjectAcl            Get-DomainDNSRecord            Get-NetDomain                  Remove-DomainCATemplate        Set-DomainObjectOwner 
-Add-DomainUser                 Get-DomainDNSZone              Get-NetDomainController        Remove-DomainComputer          Set-DomainUserPassword 
-Add-GroupMember                Get-DomainForeignGroupMember   Get-NetGPO                     Remove-DomainDNSRecord         Set-Object 
-Add-OU                         Get-DomainForeignUser          Get-NetGroup                   Remove-DomainGroupMember       Set-ObjectOwner 
-Add-ObjectAcl                  Get-DomainGPO                  Get-NetGroupmember             Remove-DomainOU                clear 
-ConvertFrom-SID                Get-DomainGPOLocalGroup        Get-NetOU                      Remove-DomainObject            exit 
-ConvertFrom-UACValue           Get-DomainGroup                Get-NetSession                 Remove-DomainObjectAcl         
-Find-ForeignGroup              Get-DomainGroupMember          Get-NetShare                   Remove-DomainUser                           
+Add-ADComputer                 ConvertFrom-UACValue           Get-DomainGPO                  Get-NetDomainController        Remove-ADComputer              Set-ADObject 
+Add-ADUser                     Find-ForeignGroup              Get-DomainGPOLocalGroup        Get-NetGPO                     Remove-ADObject                Set-ADObjectDN 
+Add-CATemplate                 Find-ForeignUser               Get-DomainGroup                Get-NetGroup                   Remove-ADUser                  Set-CATemplate 
+Add-CATemplateAcl              Find-LocalAdminAccess          Get-DomainGroupMember          Get-NetGroupmember             Remove-CATemplate              Set-DomainCATemplate 
+Add-DomainCATemplate           Get-ADObject                   Get-DomainOU                   Get-NetLoggedOn                Remove-DomainCATemplate        Set-DomainComputerPassword 
+Add-DomainCATemplateAcl        Get-CA                         Get-DomainObject               Get-NetOU                      Remove-DomainComputer          Set-DomainDNSRecord 
+Add-DomainComputer             Get-CATemplate                 Get-DomainObjectAcl            Get-NetSession                 Remove-DomainDNSRecord         Set-DomainObject 
+Add-DomainDNSRecord            Get-Domain                     Get-DomainObjectOwner          Get-NetShare                   Remove-DomainGroupMember       Set-DomainObjectDN 
+Add-DomainGroupMember          Get-DomainCA                   Get-DomainRBCD                 Get-NetTrust                   Remove-DomainOU                Set-DomainObjectOwner 
+Add-DomainOU                   Get-DomainCATemplate           Get-DomainSCCM                 Get-NetUser                    Remove-DomainObject            Set-DomainRBCD 
+Add-DomainObjectAcl            Get-DomainComputer             Get-DomainTrust                Get-ObjectAcl                  Remove-DomainObjectAcl         Set-DomainUserPassword 
+Add-DomainUser                 Get-DomainController           Get-DomainUser                 Get-ObjectOwner                Remove-DomainUser              Set-ObjectOwner 
+Add-GroupMember                Get-DomainDNSRecord            Get-GPOLocalGroup              Get-RBCD                       Remove-GPLink                  Set-RBCD 
+Add-OU                         Get-DomainDNSZone              Get-NamedPipes                 Get-SCCM                       Remove-GroupMember             Unlock-ADAccount 
+Add-ObjectAcl                  Get-DomainForeignGroupMember   Get-NetComputer                Invoke-Kerberoast              Remove-OU                      clear 
+ConvertFrom-SID                Get-DomainForeignUser          Get-NetDomain                  New-GPLink                     Remove-ObjectAcl               exit
 ```
 
 ### Domain/LDAP Functions

