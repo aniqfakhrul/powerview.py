@@ -22,7 +22,7 @@ classifiers=[
         'Programming Language :: Python :: 3.11',
 ]
 dependencies = [
-  'impacket',
+  'impacket @ git+https://github.com/ThePorgs/impacket.git',
   'ldap3 @ git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements',
   'dnspython',
   'future',
