@@ -1,0 +1,13 @@
+Metadata-Version: 2.1
+Name: ldapdomaindump
+Version: 0.9.4
+Summary: Active Directory information dumper via LDAP
+Home-page: https://github.com/dirkjanm/ldapdomaindump/
+Author: Dirk-jan Mollema
+Author-email: dirkjan@sanoweb.nl
+License: MIT
+License-File: LICENSE
+Requires-Dist: dnspython
+Requires-Dist: ldap3 (!=2.5.0,!=2.5.2,!=2.6,>=2.5)
+Requires-Dist: future
+

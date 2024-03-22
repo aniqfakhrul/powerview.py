@@ -6,11 +6,11 @@ build-backend = "setuptools.build_meta"
 name = "powerview.py"
 description = "Just another powerview alternative"
 readme = "README.md"
-license = {file = "LICENSE.txt"}
+license = {file = "LICENSE"}
 version = "2024.0.0"
 authors = [
-  {name = "Aniq"},
-  {name = "Ali"},
+  {name = "Aniq Fakhrul"},
+  {name = "Ali Akbar"},
 ]
 requires-python = ">= 3.8"
 classifiers=[
@@ -22,21 +22,15 @@ classifiers=[
         'Programming Language :: Python :: 3.11',
 ]
 dependencies = [
-  'ldap3',
+  'impacket',
+  'ldap3 @ git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements',
   'dnspython',
   'future',
   'gnureadline',
-  'impacket @ git+https://github.com/ThePorgs/impacket.git',
   'validators',
   'dsinternals',
-  'pycryptodome',
   'chardet',
   'tabulate',
-]
-
-[project.optional-dependencies]
-sign_and_cb = [
-  'gssapi'
 ]
 
 [project.urls]

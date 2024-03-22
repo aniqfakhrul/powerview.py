@@ -1,0 +1,3 @@
+#!/opt/powerview.py/venv/bin/python3
+from ldapdomaindump import pretty
+pretty.main()
