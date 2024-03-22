@@ -26,12 +26,13 @@ As most of yall know, _PowerView.ps1_ is highly likely to get detected by Defend
 Running LDAP query tools through proxies (i.e. SOCKS) is quite overwhelming since it requires a lot of stuffs needed to be installed (i.e. Proxyfier). I dont think windows can support proxychains just yet (at least not on top of my head). Since powerview.py is just a python tool, wrapping it with proxychains is definitely possible. Used it most of the time and it worked like a charm!
 
 ## Installation
+Since powerview.py now supports Channel Binding, [gssapi](https://github.com/sigmaris/python-gssapi) is part of the dependencies which requires `libkrb5-dev` apt package.
 * [EASY] Run install.sh
-```
-./install.sh
+```bash
+curl https://raw.githubusercontent.com/aniqfakhrul/powerview.py/install.sh | bash
 ```
 _or_
-* Manually run these
+* Manually run these (pip3)
 ```
 sudo apt install libkrb5-dev
 pip3 install .
