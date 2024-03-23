@@ -61,32 +61,24 @@ class CONNECTION:
 
         self.pfx = args.pfx
         self.pfx_pass = None
-        self.key, self.cert = args.key, args.cert
-        self.do_certificate = self.pfx or (self.key and self.cert)
+        self.do_certificate = self.pfx
 
-        if (self.key and not self.cert) or (self.cert and not self.key):
-            logging.error("--key and --cert flags are both required")
-            sys.exit(0)
-        
         if self.pfx:
-            if not self.cert and not self.key:
-                with open(self.pfx, "rb") as f:
-                    pfx = f.read()
-                
-                try:
-                    self.key, self.cert = load_pfx(pfx)
-                except ValueError as e:
-                    if "Invalid password or PKCS12 data" in str(e):
-                        logging.warning("Certificate requires password. Supply password")
-                        from getpass import getpass
-                        self.pfx_pass = getpass("Password:").encode()
-                        self.key, self.cert = load_pfx(pfx, self.pfx_pass)
-                except Exception as e:
-                    logging.error(f"Unknown error: {str(e)}")
-                    sys.exit(0)
-                    
-            else:
-                logging.warning("--pfx is provided together with --cert and --key. Ignoring --pfx")
+            with open(self.pfx, "rb") as f:
+                pfx = f.read()
+            
+            try:
+                logging.debug("Loading certificate without password")
+                self.key, self.cert = load_pfx(pfx)
+            except ValueError as e:
+                if "Invalid password or PKCS12 data" in str(e):
+                    logging.warning("Certificate requires password. Supply password")
+                    from getpass import getpass
+                    self.pfx_pass = getpass("Password:").encode()
+                    self.key, self.cert = load_pfx(pfx, self.pfx_pass)
+            except Exception as e:
+                logging.error(f"Unknown error: {str(e)}")
+                sys.exit(0)
         
         # auth method
         self.auth_method = ldap3.NTLM
