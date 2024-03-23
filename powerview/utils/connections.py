@@ -64,9 +64,13 @@ class CONNECTION:
         self.do_certificate = True if self.pfx is not None else False
 
         if self.pfx:
-            with open(self.pfx, "rb") as f:
-                pfx = f.read()
-            
+            try:
+                with open(self.pfx, "rb") as f:
+                    pfx = f.read()
+            except FileNotFoundError as e:
+                logging.error(str(e))
+                sys.exit(0)
+
             try:
                 logging.debug("Loading certificate without password")
                 self.key, self.cert = load_pfx(pfx)
