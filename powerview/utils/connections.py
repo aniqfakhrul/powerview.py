@@ -61,7 +61,7 @@ class CONNECTION:
 
         self.pfx = args.pfx
         self.pfx_pass = None
-        self.do_certificate = self.pfx
+        self.do_certificate = True if self.pfx is not None else False
 
         if self.pfx:
             with open(self.pfx, "rb") as f:
