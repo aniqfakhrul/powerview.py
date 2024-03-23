@@ -18,8 +18,10 @@ curl -L poweview.sh | sh
 _or_
 * Manually run these (pip3)
 ```
+git clone https://github.com/aniqfakhrul/powerview.py
+cd powerview.py
 sudo apt install libkrb5-dev
-pip3 install .
+sudo pip3 install .
 ```
 
 ## Interesting Features
@@ -49,6 +51,10 @@ powerview range.net/lowpriv:Password123@192.168.86.192 [--dc-ip 192.168.86.192] 
 * Init connection with specific authentication. Note that `--use-sign-and-seal` and `--use-channel-binding` is only available if you install `ldap3` library directly from this [branch](https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3/tree/tls_cb_and_seal_for_ntlm) 
 ```
 powerview range.net/lowpriv:Password123@192.168.86.192 [--use-channel-binding | --use-sign-and-seal | --use-simple-auth]
+```
+* Init with schannel. `--pfx` flag accept pfx formatted certificate file.
+```
+powerview 10.10.10.10 --pfx administrator.pfx
 ```
 [![asciicast](https://asciinema.org/a/hR3Ejy3yK9q5qsjnEV953vG4Y.svg)](https://asciinema.org/a/hR3Ejy3yK9q5qsjnEV953vG4Y)
 
