@@ -44,7 +44,9 @@ class PowerView:
     def __init__(self, conn, args, target_server=None, target_domain=None):
         self.conn = conn
         self.args = args
-        self.username = args.username
+        
+        self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
+        self.username = args.username if args.username else self.conn.get_username()
         self.password = args.password
 
         self.lmhash = args.lmhash
@@ -53,8 +55,6 @@ class PowerView:
         self.nameserver = args.nameserver
         self.dc_ip = args.dc_ip
         self.use_kerberos = args.use_kerberos
-
-        self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
 
         if target_domain:
             self.domain = target_domain

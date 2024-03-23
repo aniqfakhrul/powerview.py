@@ -31,14 +31,14 @@ def arg_parse():
 
     auth = parser.add_argument_group('authentication')
     auth.add_argument('-H','--hashes', action="store", metavar = "LMHASH:NTHASH", help='NTLM hashes, format is LMHASH:NTHASH')
+    
     auth_type_group = auth.add_mutually_exclusive_group()
     auth_type_group.add_argument("-k", "--kerberos", dest="use_kerberos", action="store_true", help='Use Kerberos authentication. Grabs credentials from .ccache file (KRB5CCNAME) based on target parameters. If valid credentials cannot be found, it will use the ones specified in the command line')
-
-    auth_pfx_group = auth_type_group.add_argument_group('PFX Authentication')
-    auth_pfx_group.add_argument("--pfx", dest="pfx", action="store", help='Authenticate with pfx certificate')
-    auth_pfx_group.add_argument("--pfx-pass", dest="pfx_pass", action="store", default=None, help='Password to decrypt password-protected pfx certificate. (Default: None)')
-
     auth_type_group.add_argument("--simple-auth", dest="simple_auth", action="store_true", help='Authenticate with SIMPLE authentication')
+    auth_type_group.add_argument("--pfx", dest="pfx", action="store", help='Supply .pfx formatted certificate. Use --cert and --key if no pfx')
+    auth_type_certkey_group = auth_type_group.add_argument_group("Certificate Authetication")
+    auth_type_certkey_group.add_argument("--key", dest="key", action="store", help="Supply key file. Use --pfx if only have pfx")
+    auth_type_certkey_group.add_argument("--cert", dest="cert", action="store", help="Supply cert file. Use --pfx if only have pfx")
 
     auth.add_argument('--no-pass', action="store_true", help="don't ask for password (useful for -k)")
     auth.add_argument('--aes-key', dest="auth_aes_key", action="store", metavar = "hex key", help='AES key to use for Kerberos Authentication \'(128 or 256 bits)\'')

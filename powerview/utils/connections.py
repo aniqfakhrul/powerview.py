@@ -21,18 +21,19 @@ from powerview.utils.helpers import (
 from powerview.lib.resolver import (
     LDAP,
 )
+from powerview.utils.certificate import (
+    load_pfx,
+    key_to_pem,
+    cert_to_pem
+)
 
 import ssl
 import ldap3
-try:
-    if ldap3.ENCRYPT and ldap3.SIGN and ldap3.TLS_CHANNEL_BINDING:
-        from powerview.lib.ldap3.core.connection import Connection
-except AttributeError:
-    from ldap3 import Connection
 import logging
 import sys
 from struct import unpack
 from time import sleep
+import tempfile
 from ldap3.operation import bind
 from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
 
@@ -44,6 +45,7 @@ class CONNECTION:
         self.lmhash = args.lmhash
         self.nthash = args.nthash
         self.use_kerberos = args.use_kerberos
+        self.simple_auth = args.simple_auth
         self.use_ldap = args.use_ldap
         self.use_ldaps = args.use_ldaps
         self.use_gc = args.use_gc
@@ -57,13 +59,42 @@ class CONNECTION:
         self.no_pass = args.no_pass
         self.nameserver = args.nameserver
 
+        self.pfx = args.pfx
+        self.pfx_pass = None
+        self.key, self.cert = args.key, args.cert
+        self.do_certificate = self.pfx or (self.key and self.cert)
+
+        if (self.key and not self.cert) or (self.cert and not self.key):
+            logging.error("--key and --cert flags are both required")
+            sys.exit(0)
+        
+        if self.pfx:
+            if not self.cert and not self.key:
+                with open(self.pfx, "rb") as f:
+                    pfx = f.read()
+                
+                try:
+                    self.key, self.cert = load_pfx(pfx)
+                except ValueError as e:
+                    if "Invalid password or PKCS12 data" in str(e):
+                        logging.warning("Certificate requires password. Supply password")
+                        from getpass import getpass
+                        self.pfx_pass = getpass("Password:").encode()
+                        self.key, self.cert = load_pfx(pfx, self.pfx_pass)
+                except Exception as e:
+                    logging.error(f"Unknown error: {str(e)}")
+                    sys.exit(0)
+                    
+            else:
+                logging.warning("--pfx is provided together with --cert and --key. Ignoring --pfx")
+        
         # auth method
         self.auth_method = ldap3.NTLM
-        if args.simple_auth:
+        if self.simple_auth:
             self.auth_method = ldap3.SIMPLE
-        elif args.pfx:
+        elif self.do_certificate:
             self.auth_method = ldap3.SASL
-        
+
         # relay option
         self.relay = args.relay
         self.relay_host = args.relay_host
@@ -89,6 +120,7 @@ class CONNECTION:
        
         self.kdcHost = self.dc_ip
         self.targetDomain = None
+        self.flatname = None
 
         if not self.use_ldap and not self.use_ldaps and not self.use_gc and not self.use_gc_ldaps:
             self.use_ldaps = True
@@ -101,7 +133,7 @@ class CONNECTION:
         self.samr = None
         self.TGT = {}
         self.TGS = {}
-
+        
         # stolen from https://github.com/the-useless-one/pywerview/blob/master/pywerview/requester.py#L90
         try:
             if ldap3.SIGN and ldap3.ENCRYPT:
@@ -232,6 +264,35 @@ class CONNECTION:
             else:
                 target = self.domain
 
+        if self.do_certificate:
+            logging.debug("Using Schannel, trying to authenticate with provided certificate")
+            try:
+                key_file = tempfile.NamedTemporaryFile(delete=False)
+                key_file.write(key_to_pem(self.key))
+                key_file.close()
+            except AttributeError as e:
+                logging.error("Not a valid key file")
+                sys.exit(0)
+
+            try:
+                cert_file = tempfile.NamedTemporaryFile(delete=False)
+                cert_file.write(cert_to_pem(self.cert))
+                cert_file.close()
+            except AttributeError as e:
+                logging.error(str(e))
+                sys.exit(0)
+            
+            logging.debug(f"Key File: {key_file.name}")
+            logging.debug(f"Cert File: {cert_file.name}")
+            tls = ldap3.Tls(
+                    local_private_key_file=key_file.name,
+                    local_certificate_file=cert_file.name,
+                    validate=ssl.CERT_NONE,
+                )
+            self.ldap_server, self.ldap_session = self.init_ldap_schannel_connection(target, tls, seal_and_sign=self.use_sign_and_seal, tls_channel_binding=self.use_channel_binding)
+            #self.ldap_server, self.ldap_session = self.init_ldap_connection(target, tls, auth_method=ldap3.SASL)
+            return self.ldap_server, self.ldap_session
+
         _anonymous = False
         if not self.domain and not self.username and (not self.password or not self.nthash or not self.lmhash):
             if self.relay:
@@ -342,7 +403,7 @@ class CONNECTION:
 
         logging.debug(f"Connecting as ANONYMOUS to %s, Port: %s, SSL: %s" % (ldap_server_kwargs["host"], ldap_server_kwargs["port"], ldap_server_kwargs["use_ssl"]))
         self.ldap_server = ldap3.Server(**ldap_server_kwargs)
-        self.ldap_session = Connection(self.ldap_server)
+        self.ldap_session = ldap3.Connection(self.ldap_server)
 
         if not self.ldap_session.bind():
             logging.info(f"Error binding to {self.proto}")
@@ -362,7 +423,88 @@ class CONNECTION:
             
             return ldap_server, ldap_session
 
-    def init_ldap_connection(self, target, tls, domain, username, password, lmhash, nthash, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM):
+    def init_ldap_schannel_connection(self, target, tls, seal_and_sign=False, tls_channel_binding=False):
+        ldap_server_kwargs = {
+            "host": target,
+            "get_info": ldap3.ALL,
+            "use_ssl": True if self.use_gc_ldaps or self.use_ldaps else False,
+            "tls": tls,
+            "port": self.port,
+            "formatter": {
+                "lastLogon": LDAP.ldap2datetime,
+                "pwdLastSet": LDAP.ldap2datetime,
+                "badPasswordTime": LDAP.ldap2datetime,
+                "objectGUID": LDAP.bin_to_guid,
+                "objectSid": LDAP.bin_to_sid,
+                "securityIdentifier": LDAP.bin_to_sid,
+                "mS-DS-CreatorSID": LDAP.bin_to_sid,
+                "msDS-ManagedPassword": LDAP.formatGMSApass,
+                "pwdProperties": LDAP.resolve_pwdProperties,
+                "userAccountControl": LDAP.resolve_uac,
+                "msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
+            }
+        }
+
+        if self.use_ldaps:
+            self.proto = "LDAPS"
+            ldap_server_kwargs["use_ssl"] = True
+            ldap_server_kwargs["port"] = 636 if not self.port else self.port
+        elif self.use_gc_ldaps:
+            self.proto = "GCssl"
+            ldap_server_kwargs["use_ssl"] = True
+            ldap_server_kwargs["port"] = 3269 if not self.port else self.port
+
+        ldap_connection_kwargs = {
+            "user": None,
+            "authentication": ldap3.SASL,
+            "sasl_mechanism": ldap3.EXTERNAL,
+        }
+
+        ldap_server = ldap3.Server(**ldap_server_kwargs)
+        try:
+            if seal_and_sign or self.use_sign_and_seal:
+                logging.debug("Using seal and sign")
+                ldap_connection_kwargs["session_security"] = ldap3.ENCRYPT
+            elif tls_channel_binding or self.use_channel_binding:
+                logging.debug("Using channel binding")
+                ldap_connection_kwargs["channel_binding"] = ldap3.TLS_CHANNEL_BINDING
+            
+            ldap_session = ldap3.Connection(ldap_server, raise_exceptions=True, **ldap_connection_kwargs)
+            ldap_session.open()
+        except Exception as e:
+            logging.error("Error during schannel authentication with error %s", str(e))
+            sys.exit(0)
+        except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
+            logging.debug("Server returns invalidCredentials")
+            if 'AcceptSecurityContext error, data 80090346' in str(ldap_session.result):
+                logging.warning("Channel binding is enforced!")
+                if self.tls_channel_binding_supported and (self.use_ldaps or self.use_gc_ldaps):
+                    logging.debug("Re-authenticate with channel binding")
+                    return self.init_ldap_schannel_connection(target, tls)
+        except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult as e:
+            logging.debug("Server returns LDAPStrongerAuthRequiredResult")
+            logging.warning("LDAP Signing is enforced!")
+            if self.sign_and_seal_supported:
+                logging.debug("Re-authenticate with seal and sign")
+                return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, seal_and_sign=True, auth_method=self.auth_method)
+            else:
+                sys.exit(-1)
+        except ldap3.core.exceptions.LDAPInappropriateAuthenticationResult as e:
+            logging.error("Cannot start kerberos signing/sealing when using TLS/SSL")
+            sys.exit(-1)
+        except ldap3.core.exceptions.LDAPInvalidValueError as e:
+            logging.error(str(e))
+            sys.exit(-1)
+
+        # check if domain is empty
+        self.domain = dn2domain(ldap_server.info.other.get('rootDomainNamingContext')[0])
+        who_am_i = ldap_session.extend.standard.who_am_i().lstrip("u:").split("\\")
+        self.username = who_am_i[-1]
+        self.flatname = who_am_i[0]
+
+        return ldap_server, ldap_session
+
+    def init_ldap_connection(self, target, tls, domain=None, username=None, password=None, lmhash=None, nthash=None, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM):
         ldap_server_kwargs = {
             "host": target,
             "get_info": ldap3.ALL,
@@ -407,7 +549,7 @@ class CONNECTION:
 
         ldap_server = ldap3.Server(**ldap_server_kwargs)
 
-        user = ""
+        user = None
         if auth_method == ldap3.NTLM:
             user = '%s\\%s' % (domain, username)
         elif auth_method == ldap3.SIMPLE:
@@ -421,13 +563,15 @@ class CONNECTION:
         logging.debug("Authentication: {}, User: {}".format(auth_method, user))
 
         if seal_and_sign or self.use_sign_and_seal:
+            logging.debug("Using seal and sign")
             ldap_connection_kwargs["session_security"] = ldap3.ENCRYPT
         elif tls_channel_binding or self.use_channel_binding:
+            logging.debug("Using channel binding")
             ldap_connection_kwargs["channel_binding"] = ldap3.TLS_CHANNEL_BINDING
 
         logging.debug(f"Connecting to %s, Port: %s, SSL: %s" % (ldap_server_kwargs["host"], ldap_server_kwargs["port"], ldap_server_kwargs["use_ssl"]))
         if self.use_kerberos:
-            ldap_session = Connection(ldap_server, auto_referrals=False)
+            ldap_session = ldap3.Connection(ldap_server, auto_referrals=False)
             bind = ldap_session.bind()
             try:
                 self.ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, self.auth_aes_key, kdcHost=self.kdcHost, useCache=self.no_pass)
@@ -437,11 +581,11 @@ class CONNECTION:
         else:
             if self.hashes is not None:
                 ldap_connection_kwargs["password"] = '{}:{}'.format(lmhash, nthash)
-            else:
+            elif password is not None:
                 ldap_connection_kwargs["password"] = password
             
             try:
-                ldap_session = Connection(ldap_server, **ldap_connection_kwargs)
+                ldap_session = ldap3.Connection(ldap_server, **ldap_connection_kwargs)
                 bind = ldap_session.bind()
             except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
                 logging.debug("Server returns invalidCredentials")
@@ -487,7 +631,11 @@ class CONNECTION:
         # check if domain is empty
         if not self.domain or not is_valid_fqdn(self.domain):
             self.domain = dn2domain(ldap_server.info.other.get('rootDomainNamingContext')[0])
-
+        
+        who_am_i = ldap_session.extend.standard.who_am_i().lstrip("u:").split("\\")
+        self.username = who_am_i[-1]
+        self.flatname = who_am_i[0]
+        
         return ldap_server, ldap_session
 
     def ldap3_kerberos_login(self, connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True):
@@ -841,7 +989,7 @@ class LDAPRelayServer(LDAPRelayClient):
     def initConnection(self):
         self.ldap_relay.scheme = "LDAP"
         self.server = ldap3.Server("ldap://%s:%s" % (self.targetHost, self.targetPort), get_info=ldap3.ALL)
-        self.session = Connection(self.server, user="a", password="b", authentication=ldap3.NTLM)
+        self.session = ldap3.Connection(self.server, user="a", password="b", authentication=ldap3.NTLM)
         self.session.open(False)
         return True
 
@@ -896,7 +1044,7 @@ class LDAPSRelayServer(LDAPRelayServer):
     def initConnection(self):
         self.ldap_relay.scheme = "LDAPS"
         self.server = ldap3.Server("ldaps://%s:%s" % (self.targetHost, self.targetPort), get_info=ldap3.ALL)
-        self.session = Connection(self.server, user="a", password="b", authentication=ldap3.NTLM)
+        self.session = ldap3.Connection(self.server, user="a", password="b", authentication=ldap3.NTLM)
         try:
             self.session.open(False)
         except:

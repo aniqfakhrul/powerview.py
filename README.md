@@ -214,7 +214,7 @@ Example path: `/root/.powerview/logs/bionic.local/2024-02-13.log`
 * https://github.com/SecureAuthCorp/impacket
 * https://github.com/CravateRouge/bloodyAD
 * https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1
-* https://github.com/ShutdownRepo/impacket/
+* https://github.com/ThePorgs/impacket/
 * https://github.com/the-useless-one/pywerview
 * https://github.com/dirkjanm/ldapdomaindump
 * https://learn.microsoft.com/en-us/powershell/module/grouppolicy/new-gplink
