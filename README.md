@@ -13,7 +13,7 @@ This repository has nothing related to the existing [pywerview.py](https://githu
 Since powerview.py now supports Channel Binding, [gssapi](https://github.com/sigmaris/python-gssapi) is part of the dependencies which requires `libkrb5-dev` apt package.
 * **[EASY]** Run install.sh
 ```bash
-curl https://raw.githubusercontent.com/aniqfakhrul/powerview.py/install.sh | bash
+curl -L poweview.sh | sh
 ```
 _or_
 * Manually run these (pip3)
@@ -208,7 +208,7 @@ Example path: `/root/.powerview/logs/bionic.local/2024-02-13.log`
     * ~~Channel Binding~~
     * ~~Sign and Seal~~
     * ~~Simple Authentication~~
-    * Schannel. Authentication with pfx
+    * ~~Schannel. Authentication with pfx~~
 
 ### Credits
 * https://github.com/SecureAuthCorp/impacket
