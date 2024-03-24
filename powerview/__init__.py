@@ -37,8 +37,6 @@ def main():
 
     if args.debug:
         logging = log_handler.setup_logger("DEBUG")
-        # Print the Library's installation path
-        logging.debug(version.getInstallationPath())
     else:
         logging = log_handler.setup_logger()
     

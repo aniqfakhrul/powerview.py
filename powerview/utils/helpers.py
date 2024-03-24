@@ -11,7 +11,6 @@ import os
 import json
 import logging
 from impacket import version
-from impacket.examples import logger, utils
 from dns import resolver
 import struct
 from ldap3.utils.conv import escape_filter_chars
@@ -355,12 +354,13 @@ def get_machine_name(domain, args=None):
 
 def parse_identity(args):
     #domain, username, password = utils.parse_credentials(args.account)
-    domain, username, password, address = utils.parse_target(args.target)
-
+    domain, username, password, address = parse_target(args.target)
     if password == '' and username != '' and args.hashes is None and args.no_pass is False and args.auth_aes_key is None:
-        from getpass import getpass
-        logging.info("No credentials supplied, supply password")
-        password = getpass("Password:")
+        if args.pfx is not None:
+            pasword = None
+        else:
+            from getpass import getpass
+            password = getpass("Password:")
 
     if args.auth_aes_key is not None:
         args.k = True

@@ -262,6 +262,10 @@ class CONNECTION:
 
         if self.do_certificate:
             logging.debug("Using Schannel, trying to authenticate with provided certificate")
+
+            if self.username is not None or self.password is not None:
+                logging.debug("Credentials provided along with --pfx. Ignoring credentials")
+
             try:
                 key_file = tempfile.NamedTemporaryFile(delete=False)
                 key_file.write(key_to_pem(self.key))
@@ -285,7 +289,7 @@ class CONNECTION:
                     local_certificate_file=cert_file.name,
                     validate=ssl.CERT_NONE,
                 )
-            self.ldap_server, self.ldap_session = self.init_ldap_schannel_connection(target, tls, seal_and_sign=self.use_sign_and_seal, tls_channel_binding=self.use_channel_binding)
+            self.ldap_server, self.ldap_session = self.init_ldap_schannel_connection(target, tls)
             #self.ldap_server, self.ldap_session = self.init_ldap_connection(target, tls, auth_method=ldap3.SASL)
             return self.ldap_server, self.ldap_session
 
@@ -476,13 +480,13 @@ class CONNECTION:
                 logging.warning("Channel binding is enforced!")
                 if self.tls_channel_binding_supported and (self.use_ldaps or self.use_gc_ldaps):
                     logging.debug("Re-authenticate with channel binding")
-                    return self.init_ldap_schannel_connection(target, tls)
+                    return self.init_ldap_schannel_connection(target, tls, tls_channel_binding=True)
         except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult as e:
             logging.debug("Server returns LDAPStrongerAuthRequiredResult")
             logging.warning("LDAP Signing is enforced!")
             if self.sign_and_seal_supported:
                 logging.debug("Re-authenticate with seal and sign")
-                return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, seal_and_sign=True, auth_method=self.auth_method)
+                return self.init_ldap_schannel_connection(target, tls, seal_and_sign=True)
             else:
                 sys.exit(-1)
         except ldap3.core.exceptions.LDAPInappropriateAuthenticationResult as e:
@@ -491,6 +495,10 @@ class CONNECTION:
         except ldap3.core.exceptions.LDAPInvalidValueError as e:
             logging.error(str(e))
             sys.exit(-1)
+
+        if ldap_server.info is None:
+            logging.error("Failed to authenticate")
+            sys.exit(0)
 
         # check if domain is empty
         self.domain = dn2domain(ldap_server.info.other.get('rootDomainNamingContext')[0])
