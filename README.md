@@ -23,7 +23,9 @@ sudo pip3 install .
 > `pipx install 'git+https://github.com/aniqfakhrul/powerview.py`
 
 ## Basic Usage
-_Note that some of the kerberos functions are still not functioning well just yet but it still do most of the works. More information can be found in [Wiki](https://github.com/aniqfakhrul/powerview.py/wiki) section_
+> [!NOTE]
+> Note that some of the kerberos functions are still not functioning well just yet but it'll still do most of the works. Detailed usage can be found in [Wiki](https://github.com/aniqfakhrul/powerview.py/wiki) section_
+
 * Init connection
 ```
 powerview range.net/lowpriv:Password123@192.168.86.192 [--dc-ip 192.168.86.192] [-k] [--use-ldap | --use-ldaps]
