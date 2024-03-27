@@ -43,88 +43,11 @@ from ldap3.utils.conv import escape_filter_chars
 from ldap3.protocol.microsoft import security_descriptor_control
 from impacket.uuid import string_to_bin, bin_to_string
 
+from powerview.utils.constants import WELL_KNOWN_SIDS
+
 OBJECT_TYPES_GUID = {}
 OBJECT_TYPES_GUID.update(SCHEMA_OBJECTS)
 OBJECT_TYPES_GUID.update(EXTENDED_RIGHTS)
-
-# Universal SIDs
-WELL_KNOWN_SIDS = {
-    'S-1-0': 'Null Authority',
-    'S-1-0-0': 'Nobody',
-    'S-1-1': 'World Authority',
-    'S-1-1-0': 'Everyone',
-    'S-1-2': 'Local Authority',
-    'S-1-2-0': 'Local',
-    'S-1-2-1': 'Console Logon',
-    'S-1-3': 'Creator Authority',
-    'S-1-3-0': 'Creator Owner',
-    'S-1-3-1': 'Creator Group',
-    'S-1-3-2': 'Creator Owner Server',
-    'S-1-3-3': 'Creator Group Server',
-    'S-1-3-4': 'Owner Rights',
-    'S-1-5-80-0': 'All Services',
-    'S-1-4': 'Non-unique Authority',
-    'S-1-5': 'NT Authority',
-    'S-1-5-1': 'Dialup',
-    'S-1-5-2': 'Network',
-    'S-1-5-3': 'Batch',
-    'S-1-5-4': 'Interactive',
-    'S-1-5-6': 'Service',
-    'S-1-5-7': 'Anonymous',
-    'S-1-5-8': 'Proxy',
-    'S-1-5-9': 'Enterprise Domain Controllers',
-    'S-1-5-10': 'Principal Self',
-    'S-1-5-11': 'Authenticated Users',
-    'S-1-5-12': 'Restricted Code',
-    'S-1-5-13': 'Terminal Server Users',
-    'S-1-5-14': 'Remote Interactive Logon',
-    'S-1-5-15': 'This Organization',
-    'S-1-5-17': 'This Organization',
-    'S-1-5-18': 'Local System',
-    'S-1-5-19': 'NT Authority',
-    'S-1-5-20': 'NT Authority',
-    'S-1-5-32-544': 'Administrators',
-    'S-1-5-32-545': 'Users',
-    'S-1-5-32-546': 'Guests',
-    'S-1-5-32-547': 'Power Users',
-    'S-1-5-32-548': 'Account Operators',
-    'S-1-5-32-549': 'Server Operators',
-    'S-1-5-32-550': 'Print Operators',
-    'S-1-5-32-551': 'Backup Operators',
-    'S-1-5-32-552': 'Replicators',
-    'S-1-5-64-10': 'NTLM Authentication',
-    'S-1-5-64-14': 'SChannel Authentication',
-    'S-1-5-64-21': 'Digest Authority',
-    'S-1-5-80': 'NT Service',
-    'S-1-5-83-0': 'NT VIRTUAL MACHINE\Virtual Machines',
-    'S-1-16-0': 'Untrusted Mandatory Level',
-    'S-1-16-4096': 'Low Mandatory Level',
-    'S-1-16-8192': 'Medium Mandatory Level',
-    'S-1-16-8448': 'Medium Plus Mandatory Level',
-    'S-1-16-12288': 'High Mandatory Level',
-    'S-1-16-16384': 'System Mandatory Level',
-    'S-1-16-20480': 'Protected Process Mandatory Level',
-    'S-1-16-28672': 'Secure Process Mandatory Level',
-    'S-1-5-32-554': 'BUILTIN\Pre-Windows 2000 Compatible Access',
-    'S-1-5-32-555': 'BUILTIN\Remote Desktop Users',
-    'S-1-5-32-557': 'BUILTIN\Incoming Forest Trust Builders',
-    'S-1-5-32-556': 'BUILTIN\\Network Configuration Operators',
-    'S-1-5-32-558': 'BUILTIN\Performance Monitor Users',
-    'S-1-5-32-559': 'BUILTIN\Performance Log Users',
-    'S-1-5-32-560': 'BUILTIN\Windows Authorization Access Group',
-    'S-1-5-32-561': 'BUILTIN\Terminal Server License Servers',
-    'S-1-5-32-562': 'BUILTIN\Distributed COM Users',
-    'S-1-5-32-569': 'BUILTIN\Cryptographic Operators',
-    'S-1-5-32-573': 'BUILTIN\Event Log Readers',
-    'S-1-5-32-574': 'BUILTIN\Certificate Service DCOM Access',
-    'S-1-5-32-575': 'BUILTIN\RDS Remote Access Servers',
-    'S-1-5-32-576': 'BUILTIN\RDS Endpoint Servers',
-    'S-1-5-32-577': 'BUILTIN\RDS Management Servers',
-    'S-1-5-32-578': 'BUILTIN\Hyper-V Administrators',
-    'S-1-5-32-579': 'BUILTIN\Access Control Assistance Operators',
-    'S-1-5-32-580': 'BUILTIN\Remote Management Users',
-}
-
 
 # GUID rights enum
 # GUID thats permits to identify extended rights in an ACE
@@ -147,7 +70,6 @@ class ACE_FLAGS(Enum):
     NO_PROPAGATE_INHERIT_ACE = ldaptypes.ACE.NO_PROPAGATE_INHERIT_ACE
     OBJECT_INHERIT_ACE = ldaptypes.ACE.OBJECT_INHERIT_ACE
     SUCCESSFUL_ACCESS_ACE_FLAG = ldaptypes.ACE.SUCCESSFUL_ACCESS_ACE_FLAG
-
 
 # ACE flags enum
 # For an ACE, flags that indicate if the ObjectType and the InheritedObjecType are set with a GUID
@@ -222,27 +144,27 @@ class ALLOWED_OBJECT_ACE_MASK_FLAGS(Enum):
 class DACLedit(object):
     """docstring for setrbcd"""
 
-    def __init__(self, ldap_server, ldap_session, base_dn, args):
+    def __init__(self, ldap_server, ldap_session, base_dn, target_sAMAccountName, target_SID, target_DN, target_sd, principal_sAMAccountName, principal_SID, principal_DN, ace_type, rights, rights_guid, inheritance):
         super(DACLedit, self).__init__()
         self.ldap_server = ldap_server
         self.ldap_session = ldap_session
         self.base_dn = base_dn
 
-        self.target_sAMAccountName = args.target_sAMAccountName if hasattr(args, 'target_sAMAccountName') else None
-        self.target_SID = args.target_SID if hasattr(args, 'target_SID') else None
-        self.target_DN = args.target_DN
-        self.principal_raw_security_descriptor = args.target_security_descriptor
+        self.target_sAMAccountName = target_sAMAccountName 
+        self.target_SID = target_SID
+        self.target_DN = target_DN
+        self.principal_raw_security_descriptor = target_sd
         self.principal_security_descriptor = ldaptypes.SR_SECURITY_DESCRIPTOR(data=self.principal_raw_security_descriptor)
 
 
-        self.principal_sAMAccountName = args.principal_sAMAccountName if hasattr(args, 'principal_sAMAccountName') else None
-        self.principal_SID = args.principal_SID if hasattr(args, 'principal_SID') else None
-        self.principal_DN = args.principal_DN if hasattr(args, 'principal_DN') else None
+        self.principal_sAMAccountName = principal_sAMAccountName
+        self.principal_SID = principal_SID
+        self.principal_DN = principal_DN
 
-        self.ace_type = args.ace_type if hasattr(args, 'ace_type') else "allowed"
-        self.rights = args.rights if hasattr(args, 'rights') else "fullcontrol"
-        self.rights_guid = args.rights_guid if hasattr(args, 'rights_guid') else None
-        self.inheritance = args.inheritance if hasattr(args, 'inheritance') else False
+        self.ace_type = ace_type
+        self.rights = rights
+        self.rights_guid = rights_guid
+        self.inheritance = inheritance
         if self.inheritance:
             logging.info("NB: objects with adminCount=1 will not inherit ACEs from their parent container/OU")
 
@@ -262,7 +184,6 @@ class DACLedit(object):
         #        logging.error('Principal SID not found in LDAP (%s)' % _lookedup_principal)
         #        exit(1)
 
-
     # Main read funtion
     # Prints the parsed DACL
     def read(self):
@@ -270,15 +191,17 @@ class DACLedit(object):
         self.printparsedDACL(parsed_dacl)
         return
 
-
     # Main write function
     # Attempts to add a new ACE to a DACL
     def write(self):
         # Creates ACEs with the specified GUIDs and the SID, or FullControl if no GUID is specified
         # Append the ACEs in the DACL locally
         if self.rights == "fullcontrol" and self.rights_guid is None:
-            logging.warning(f"Adding FullControl to %s" % (self.target_SID))
+            logging.warning(f"Adding FullControl to %s" % (self.target_SID if self.target_SID else self.target_DN))
             self.principal_security_descriptor['Dacl'].aces.append(self.create_ace(SIMPLE_PERMISSIONS.FullControl.value, self.principal_SID, self.ace_type))
+        elif self.rights == "immutable" and self.rights_guid is None:
+            logging.warning(f"Adding Delete and DeleteTree to %s" % (self.target_SID if self.target_SID else self.target_DN))
+            self.principal_security_descriptor['Dacl'].aces.append(self.create_ace(ACCESS_MASK.Delete.value + ACCESS_MASK.DeleteTree.value, "S-1-1-0", ace_type="denied"))
         else:
             for rights_guid in self.build_guids_for_rights():
                 logging.debug("Adding %s (%s) to %s)" % (self.principal_SID, rights_guid, format_sid(self.target_SID)))

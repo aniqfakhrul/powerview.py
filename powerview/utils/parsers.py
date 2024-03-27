@@ -501,7 +501,8 @@ def powerview_arg_parse(cmd):
     # add domain ou
     add_domainou_parser = subparsers.add_parser('Add-DomainOU', aliases=['Add-OU'], exit_on_error=False)
     add_domainou_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
-    add_domainou_parser.add_argument('-BaseDN', action='store', const=None, dest='basedn')
+    add_domainou_parser.add_argument('-ProtectedFromAccidentalDeletion', action='store_true', default=False, dest='protectedfromaccidentaldeletion')
+    add_domainou_parser.add_argument('-BaseDN', action='store', const=None, dest='basedn', help="[Optional] (Default: root DN)")
     add_domainou_parser.add_argument('-Server', action='store', dest='server')
     add_domainou_parser.add_argument('-OutFile', action='store', dest='outfile')
 
@@ -516,7 +517,7 @@ def powerview_arg_parse(cmd):
     add_domainobjectacl_parser = subparsers.add_parser('Add-DomainObjectAcl', aliases=['Add-ObjectAcl'], exit_on_error=False)
     add_domainobjectacl_parser.add_argument('-TargetIdentity', action='store', required=True, const=None, dest='targetidentity', type=lambda value: escape_filter_chars_except_asterisk(value))
     add_domainobjectacl_parser.add_argument('-PrincipalIdentity', action='store', required=True, const=None, dest='principalidentity', type=lambda value: escape_filter_chars_except_asterisk(value))
-    add_domainobjectacl_parser.add_argument('-Rights', action='store',  dest='rights', choices=['fullcontrol', 'resetpassword', 'writemembers', 'dcsync'], nargs='?', default='fullcontrol', type=str.lower)
+    add_domainobjectacl_parser.add_argument('-Rights', action='store',  dest='rights', choices=['immutable','fullcontrol', 'resetpassword', 'writemembers', 'dcsync'], nargs='?', default='fullcontrol', type=str.lower)
     add_domainobjectacl_parser.add_argument('-RightGUID', action='store', dest='rights_guid', type = str.lower)
     add_domainobjectacl_parser.add_argument('-ACEType', action='store', dest='ace_type', choices=['allowed', 'denied'], nargs='?', default='allowed', type = str.lower)
     add_domainobjectacl_parser.add_argument('-Inheritance', action='store_true', dest='inheritance', default=False)
@@ -527,7 +528,7 @@ def powerview_arg_parse(cmd):
     remove_domainobjectacl_parser = subparsers.add_parser('Remove-DomainObjectAcl', aliases=['Remove-ObjectAcl'], exit_on_error=False)
     remove_domainobjectacl_parser.add_argument('-TargetIdentity', action='store', required=True, const=None, dest='targetidentity', type=lambda value: escape_filter_chars_except_asterisk(value))
     remove_domainobjectacl_parser.add_argument('-PrincipalIdentity', action='store', required=True, const=None, dest='principalidentity', type=lambda value: escape_filter_chars_except_asterisk(value))
-    remove_domainobjectacl_parser.add_argument('-Rights', action='store',  dest='rights', choices=['fullcontrol', 'resetpassword', 'writemembers', 'dcsync'], nargs='?', default='fullcontrol', type=str.lower)
+    remove_domainobjectacl_parser.add_argument('-Rights', action='store',  dest='rights', choices=['immutable', 'resetpassword', 'writemembers', 'dcsync'], nargs='?', default='fullcontrol', type=str.lower)
     remove_domainobjectacl_parser.add_argument('-RightGUID', action='store', dest='rights_guid', type = str.lower)
     remove_domainobjectacl_parser.add_argument('-ACEType', action='store', dest='ace_type', choices=['allowed', 'denied'], nargs='?', default='allowed', type = str.lower)
     remove_domainobjectacl_parser.add_argument('-Inheritance', action='store_true', dest='inheritance', default=False)

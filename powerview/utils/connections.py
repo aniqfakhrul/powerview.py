@@ -178,6 +178,12 @@ class CONNECTION:
         except:
             pass
 
+    def set_flatname(self, flatname):
+        self.flatname = flatname
+
+    def get_flatname(self):
+        return self.flatname
+
     def set_domain(self, domain):
         self.domain = domain.lower()
 
@@ -262,9 +268,6 @@ class CONNECTION:
 
         if self.do_certificate:
             logging.debug("Using Schannel, trying to authenticate with provided certificate")
-
-            if self.username is not None or self.password is not None:
-                logging.debug("Credentials provided along with --pfx. Ignoring credentials")
 
             try:
                 key_file = tempfile.NamedTemporaryFile(delete=False)
@@ -420,6 +423,7 @@ class CONNECTION:
             # check if domain is empty
             if not self.domain or not is_valid_fqdn(self.domain):
                 self.domain = dn2domain(ldap_server.info.other.get('rootDomainNamingContext')[0])
+                self.username = "ANONYMOUS"
             
             return ldap_server, ldap_session
 
@@ -472,7 +476,7 @@ class CONNECTION:
             ldap_session = ldap3.Connection(ldap_server, raise_exceptions=True, **ldap_connection_kwargs)
             ldap_session.open()
         except Exception as e:
-            logging.error("Error during schannel authentication with error %s", str(e))
+            logging.error("Error during schannel authentication with error: %s", str(e))
             sys.exit(0)
         except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
             logging.debug("Server returns invalidCredentials")
@@ -495,9 +499,9 @@ class CONNECTION:
         except ldap3.core.exceptions.LDAPInvalidValueError as e:
             logging.error(str(e))
             sys.exit(-1)
-
-        if ldap_server.info is None:
-            logging.error("Failed to authenticate")
+        
+        if ldap_session.result is not None:
+            logging.error(f"AuthError: {str(ldap_session.result['message'])}")
             sys.exit(0)
 
         # check if domain is empty

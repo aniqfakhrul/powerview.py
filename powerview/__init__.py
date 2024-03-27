@@ -33,7 +33,7 @@ def main():
     setattr(args, 'ldap_address', ldap_address)
 
     # setup debugging properties
-    log_handler = LOG(args.domain)
+    log_handler = LOG(args)
 
     if args.debug:
         logging = log_handler.setup_logger("DEBUG")
@@ -348,9 +348,23 @@ def main():
                             elif pv_args.module.casefold() == 'add-domainobjectacl' or pv_args.module.casefold() == 'add-objectacl':
                                 if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
                                     if temp_powerview:
-                                        temp_powerview.add_domainobjectacl(pv_args)
+                                        temp_powerview.add_domainobjectacl(
+                                            targetidentity=pv_args.targetidentity,
+                                            principalidentity=pv_args.principalidentity,
+                                            rights=pv_args.rights,
+                                            rights_guid=pv_args.rights_guid,
+                                            ace_type=pv_args.ace_type,
+                                            inheritance=pv_args.inheritance
+                                        )
                                     else:
-                                        powerview.add_domainobjectacl(pv_args)
+                                        powerview.add_domainobjectacl(
+                                            targetidentity=pv_args.targetidentity,
+                                            principalidentity=pv_args.principalidentity,
+                                            rights=pv_args.rights,
+                                            rights_guid=pv_args.rights_guid,
+                                            ace_type=pv_args.ace_type,
+                                            inheritance=pv_args.inheritance
+                                        )
                                 else:
                                     logging.error('-TargetIdentity , -PrincipalIdentity flags are required')
                             elif pv_args.module.casefold() == 'remove-domainobjectacl' or pv_args.module.casefold() == 'remove-objectacl':

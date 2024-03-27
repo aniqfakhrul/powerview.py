@@ -30,13 +30,16 @@ class CustomFormatter(logging.Formatter):
         return formatter.format(record)
 
 class LOG:
-    def __init__(self, folder_name, root_folder=None):
+    def __init__(self, args, root_folder=None):
         if not root_folder:
             self.root_folder = os.path.join(os.path.expanduser('~'), ".powerview")
         else:
             self.root_folder = root_folder
         
-        self.folder_name = folder_name.lower()
+        self.folder_name = "%s-%s" % (
+            args.domain if args.domain else "UNKNOWN",
+            args.ldap_address
+        )
 
         self.logs_folder = os.path.join(self.root_folder, "logs", self.folder_name)
         
@@ -50,7 +53,7 @@ class LOG:
     def create_folder(self, folder=None):
         folder = folder if folder else self.logs_folder
         return os.makedirs(folder, exist_ok=True)
-
+    
     def setup_logger(self, level=logging.INFO):
         # logger properties
         if level == DEBUG:
