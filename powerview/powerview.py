@@ -2255,16 +2255,19 @@ class PowerView:
             
             return True
 
-    def remove_domainobjectacl(self, args):
+    def remove_domainobjectacl(self, targetidentity, principalidentity, rights="fullcontrol", rights_guid=None, ace_type="allowed", inheritance=False):
         # verify if target identity exists
-        target_entries = self.get_domainobject(identity=args.targetidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName','nTSecurityDescriptor'], sd_flag=0x04)
-
+        target_entries = self.get_domainobject(identity=targetidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName','nTSecurityDescriptor'], sd_flag=0x04)
+        
+        target_dn = None
+        target_sAMAccountName = None
+        target_SID = None
+        
         if len(target_entries) == 0:
-            logging.error('[Add-DomainObjectACL] Target Identity object not found in domain')
+            logging.error('[Remove-DomainObjectACL] Target Identity object not found in domain')
             return
-
-        if len(target_entries) > 1:
-            logging.error("[Add-DomainObjectACL] More then one target identity found")
+        elif len(target_entries) > 1:
+            logging.error("[Remove-DomainObjectACL] More then one target identity found")
             return
 
         target_dn = target_entries[0].get("dn") #target_DN
@@ -2272,33 +2275,51 @@ class PowerView:
         target_SID = target_entries[0].get("attributes").get("objectSid") #target_SID
         target_security_descriptor = target_entries[0].get("raw_attributes").get("nTSecurityDescriptor")[0]
 
-        logging.info(f'[Add-DomainObjectACL] Found principal identity dn {target_dn}')
-        setattr(args,'target_DN', target_dn)
-        setattr(args, 'target_sAMAccountName', target_sAMAccountName)
-        setattr(args, 'target_SID', target_SID)
-        setattr(args, 'target_security_descriptor', target_security_descriptor)
+        logging.info(f'[Remove-DomainObjectACL] Found target identity: {target_dn if target_dn else target_sAMAccountName}')
         
         # verify if principalidentity exists
-        principal_entries = self.get_domainobject(identity=args.principalidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName'])
+        principal_entries = self.get_domainobject(identity=principalidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName'])
+        
+        principal_dn = None
+        principal_sAMAccountName = None
+        principal_SID = None
 
         if len(principal_entries) == 0:
-            logging.error('[Add-DomainObjectACL] Principal Identity object not found in domain')
+            logging.debug('[Remove-DomainObjectAcl] Principal not found. Searching in Well Known SIDs...')
+            well_known_obj = resolve_WellKnownSID(principalidentity)
+            principal_sAMAccountName = well_known_obj.get("sAMAccountName")
+            principal_SID = well_known_obj.get("objectSid")
+            if principal_SID:
+                logging.debug("[Remove-DomainObjectAcl] Found in well known SID: %s" % principal_SID)
+            else:
+                logging.error('[Remove-DomainObjectACL] Principal Identity object not found in domain')
+                return
+        elif len(principal_entries) > 1:
+            logging.error("[Remove-DomainObjectACL] More then one principal identity found")
             return
 
-        if len(principal_entries) > 1:
-            logging.error("[Add-DomainObjectACL] More then one principal identity found")
-            return
+        principal_dn = principal_entries[0].get("dn") if principal_entries else principal_dn #principal_DN
+        principal_sAMAccountName = principal_entries[0].get("attributes").get("sAMAccountName") if principal_entries else principal_sAMAccountName #principal_sAMAccountName
+        principal_SID = principal_entries[0].get("attributes").get("objectSid") if principal_entries else principal_SID #principal_SID
 
-        principal_dn = principal_entries[0].get("dn") #principal_DN
-        principal_sAMAccountName = principal_entries[0].get("attributes").get("sAMAccountName") #principal_sAMAccountName
-        principal_SID = principal_entries[0].get("attributes").get("objectSid") #principal_SID
-
-        logging.info(f'Found principal identity dn {principal_dn}')
-        setattr(args,'principal_DN', principal_dn)
-        setattr(args, 'principal_sAMAccountName', principal_sAMAccountName)
-        setattr(args, 'principal_SID', principal_SID)
-
-        dacledit = DACLedit(self.ldap_server, self.ldap_session, self.root_dn, args)
+        logging.info(f'[Remove-DomainObjectACL] Found principal identity: {principal_dn if principal_dn else principal_sAMAccountName}')
+        
+        dacledit = DACLedit(
+                self.ldap_server,
+                self.ldap_session,
+                self.root_dn,
+                target_sAMAccountName,
+                target_SID,
+                target_dn,
+                target_security_descriptor,
+                principal_sAMAccountName,
+                principal_SID,
+                principal_dn,
+                ace_type,
+                rights,
+                rights_guid,
+                inheritance
+            )
         dacledit.remove()
 
     def add_domainobjectacl(self, targetidentity, principalidentity, rights="fullcontrol", rights_guid=None, ace_type="allowed", inheritance=False):
@@ -2321,7 +2342,7 @@ class PowerView:
         target_SID = target_entries[0].get("attributes").get("objectSid") #target_SID
         target_security_descriptor = target_entries[0].get("raw_attributes").get("nTSecurityDescriptor")[0]
 
-        logging.info(f'[Add-DomainObjectACL] Found principal identity dn {target_dn}')
+        logging.info(f'[Add-DomainObjectACL] Found target identity: {target_dn if target_dn else target_sAMAccountName}')
         
         # verify if principalidentity exists
         principal_entries = self.get_domainobject(identity=principalidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName'])
@@ -2348,7 +2369,7 @@ class PowerView:
         principal_sAMAccountName = principal_entries[0].get("attributes").get("sAMAccountName") if principal_entries else principal_sAMAccountName #principal_sAMAccountName
         principal_SID = principal_entries[0].get("attributes").get("objectSid") if principal_entries else principal_SID #principal_SID
 
-        logging.info(f'Found principal identity: {principal_dn if principal_dn else principal_sAMAccountName}')
+        logging.info(f'[Add-DomainObjectACL] Found principal identity: {principal_dn if principal_dn else principal_sAMAccountName}')
         
         dacledit = DACLedit(
                 self.ldap_server,
