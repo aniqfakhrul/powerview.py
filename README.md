@@ -1,46 +1,26 @@
 # PowerView.py
 
-[Disclaimer](#disclaimer) | [Installation](#installation) | [Basic Usage](#basic-usage) | [Modules](#module-available-so-far) | [Logging](#logging)
+[Installation](#installation) | [Basic Usage](#basic-usage) | [Modules](#module-available-so-far) | [Logging](#logging)
 
-PowerView.py is an alternative for the awesome original [PowerView.ps1](https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1) script. Most of the modules used in PowerView are available in this project ( some of the flags are changed ). There are also some major improvements to the features and functionality since we added ADCS enumeration features and some other great features_(more below)_.
-
-We are not *professional* developers, bugs and errors are very likely to happen during execution. Please submit issue if you encounter any issues with the tool.
-
-## Disclaimer
-This repository has nothing related to the existing [pywerview.py](https://github.com/the-useless-one/pywerview) project that is already publicly available. This is only meant for my personal learning purpose and would like to share the efforts with everyone interested. This project will be supported by the collaborators from time to time, so don't worry.
+PowerView.py is an alternative for the awesome original [PowerView.ps1](https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1) script. Most of the modules used in PowerView are available here ( some of the flags are changed ). Main goal is to achieve interactive session without having to repeatedly authenticate to ldap.
 
 ## Installation
 Since powerview.py now supports Channel Binding, [gssapi](https://github.com/sigmaris/python-gssapi) is part of the dependencies which requires `libkrb5-dev` apt package.
-* **[EASY]** Run install.sh
+* **[EASY] Run install.sh**
 ```bash
 curl -L poweview.sh | sh
 ```
 _or_
-* Manually run these (pip3)
+* Manual (pip3)
 ```
 git clone https://github.com/aniqfakhrul/powerview.py
 cd powerview.py
 sudo apt install libkrb5-dev
 sudo pip3 install .
 ```
-
-## Interesting Features
-* Embeded user session
-* Binding with multiple protocols (ldap, ldaps, gc, gc-ssl), trial and error approach. SSL connection is prioritized.
-* Mini Powerview.py console to make you feel like home when using PowerView.ps1
-* Auto-completer, so no more remembering commands
-* Cross-Domain interactions (might or might not work)
-* Check if current user has Domain Admin or adminCount attribute set to 1
-* Table format feature mirroring the output style of PowerShell's `Format-Table`.
-* Unlock locked ad accounts
-_Maybe more?_
-
-## Why not just stick with the ps1 script?
-1. Detections
-As most of yall know, _PowerView.ps1_ is highly likely to get detected by Defender or AV vendors once downloaded onto the PC. An offensive tool to get detected by AV is a red flag during engagement. Maybe some of you thinking, why not just bypass AMSI and import the script undetected? Well, some of the big companies normally have EDR installed on most endpoints and EDRs are normally hook amsi patching and also most likely would get detected during AMSI patching. So, PowerView.py FTW!
-
-2. Proxy with ease
-Running LDAP query tools through proxies (i.e. SOCKS) is quite overwhelming since it requires a lot of stuffs needed to be installed (i.e. Proxyfier). I dont think windows can support proxychains just yet (at least not on top of my head). Since powerview.py is just a python tool, wrapping it with proxychains is definitely possible. Used it most of the time and it worked like a charm!
+> [!TIP]
+> Use pipx to remotely fetch and install locally
+> `pipx install 'git+https://github.com/aniqfakhrul/powerview.py`
 
 ## Basic Usage
 _Note that some of the kerberos functions are still not functioning well just yet but it still do most of the works. More information can be found in [Wiki](https://github.com/aniqfakhrul/powerview.py/wiki) section_
@@ -53,6 +33,8 @@ powerview range.net/lowpriv:Password123@192.168.86.192 [--dc-ip 192.168.86.192] 
 powerview range.net/lowpriv:Password123@192.168.86.192 [--use-channel-binding | --use-sign-and-seal | --use-simple-auth]
 ```
 * Init with schannel. `--pfx` flag accept pfx formatted certificate file.
+> [!NOTE]  
+> powerview will try to load certificate without password on the first attempt. If it fails, it'll prompt for password. So, no password parameter needed
 ```
 powerview 10.10.10.10 --pfx administrator.pfx
 ```
@@ -93,7 +75,7 @@ Set-DomainObject -Identity "adminuser" -Clear 'servicePrincipalname'
 
 * Relay mode
 ```
-powerview 10.10.10.10 --relay [--use-ldap | --use-ldaps]
+powerview 10.10.10.10 --relay [--relay-host] [--relay-port] [--use-ldap | --use-ldaps]
 ```
 
 ## Module available (so far?)
