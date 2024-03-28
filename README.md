@@ -168,6 +168,11 @@ ConvertFrom-SID                Get-DomainForeignUser          Get-NetDomain     
 |Add-DomainCATemplate|Add-CATemplate|Add new Domain CA Template|
 |Add-DomainCATemplateAcl|Add-CATemplateAcl|Add ACL to a certificate template. Supported rights so far are All, Enroll, Write|
 
+### Exchange Functions
+| Module | Alias | Description |
+| ------ | ----- | ----------- |
+|Get-ExchangeServer||Retrieve list of available exchange servers in the domain|
+
 ### Domain Trust Functions
 
 | Module | Alias | Description |
