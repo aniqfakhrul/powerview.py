@@ -185,7 +185,10 @@ class DACLedit(object):
             self.principal_security_descriptor['Dacl'].aces.append(self.create_ace(SIMPLE_PERMISSIONS.FullControl.value, self.principal_SID, self.ace_type))
         elif self.rights == "immutable" and self.rights_guid is None:
             logging.debug(f"Adding Delete and DeleteTree to %s" % (self.target_SID if self.target_SID else self.target_DN))
-            self.principal_security_descriptor['Dacl'].aces.append(self.create_ace(ACCESS_MASK.Delete.value + ACCESS_MASK.DeleteTree.value, self.principal_SID, ace_type="denied"))
+            self.principal_security_descriptor['Dacl'].aces.insert(0,self.create_ace(ACCESS_MASK.Delete.value + ACCESS_MASK.DeleteTree.value, self.principal_SID, ace_type="denied"))
+        elif self.rights == "deletechild" and self.rights_guid is None:
+            logging.debug(f"Adding DeleteChild to %s" % (self.target_SID if self.target_SID else self.target_DN))
+            self.principal_security_descriptor['Dacl'].aces.insert(0,self.create_ace(ACCESS_MASK.DeleteChild.value, self.principal_SID, ace_type="denied"))
         else:
             for rights_guid in self.build_guids_for_rights():
                 logging.debug("Adding %s (%s) to %s)" % (self.principal_SID, rights_guid, format_sid(self.target_SID)))
@@ -207,6 +210,9 @@ class DACLedit(object):
         elif self.rights == "immutable" and self.rights_guid is None:
             logging.debug(f"Removing Delete and DeleteTree to %s" % (self.target_SID if self.target_SID else self.target_DN))
             compare_aces.append(self.create_ace(ACCESS_MASK.Delete.value + ACCESS_MASK.DeleteTree.value, self.principal_SID, ace_type="denied"))
+        elif self.rights == "deletechild" and self.rights_guid is None:
+            logging.debug(f"Removing DeleteChild to %s" % (self.target_SID if self.target_SID else self.target_DN))
+            compare_aces.append(self.create_ace(ACCESS_MASK.DeleteChild.value, self.principal_SID, ace_type="denied"))
         else:
             for rights_guid in self.build_guids_for_rights():
                 compare_aces.append(self.create_object_ace(rights_guid, self.principal_SID, self.ace_type))
