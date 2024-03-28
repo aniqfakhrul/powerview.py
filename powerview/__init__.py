@@ -321,6 +321,13 @@ def main():
                                     entries = temp_powerview.invoke_kerberoast(pv_args, properties)
                                 else:
                                     entries = powerview.invoke_kerberoast(pv_args, properties)
+                            elif pv_args.module.casefold() == 'get-exchangeserver':
+                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                if temp_powerview:
+                                    entries = temp_powerview.get_exchangeserver(identity=identity, properties=properties, args=pv_args)
+                                else:
+                                    entries = powerview.get_exchangeserver(identity=identity, properties=properties, args=pv_args)
                             elif pv_args.module.casefold() == 'unlock-adaccount':
                                 if pv_args.identity is not None:
                                     if temp_powerview:

@@ -467,7 +467,7 @@ class PowerView:
         entries_dacl = enum.read_dacl()
         return entries_dacl
 
-    def get_domaincomputer(self, args=None, properties=[], identity=None, resolveip=False, resolvesids=False):
+    def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolveip=False, resolvesids=False, ldapfilter=None):
         def_prop = [
             'lastLogonTimestamp',
             'objectCategory',
@@ -495,15 +495,19 @@ class PowerView:
         ]
 
         properties = def_prop if not properties else properties
-        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
-        logging.debug(f"[Get-DomainUser] Using search base: {searchbase}")
+        logging.debug(f"[Get-DomainComputer] Using search base: {searchbase}")
         
         ldap_filter = ""
         identity_filter = ""
 
         if identity:
             identity_filter += f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
+
+        if ldapfilter:
+            ldap_filter += ldapfilter
 
         if args:
             if args.unconstrained:
@@ -665,7 +669,7 @@ class PowerView:
                         )
         return entries
 
-    def get_domaingroup(self, args=None, properties=[], identity=None):
+    def get_domaingroup(self, args=None, properties=[], identity=None, searchbase=None):
         def_prop = [
             'adminCount',
             'cn',
@@ -683,8 +687,11 @@ class PowerView:
         ]
 
         properties = def_prop if not properties else properties
-        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
+        logging.debug(f"[Get-DomainGroup] Using search base: {searchbase}")
+        
         ldap_filter = ""
         identity_filter = ""
 
@@ -1277,6 +1284,28 @@ class PowerView:
         else:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainCATemplate] Failed to delete template {identity} from certificate store")
             return False
+
+    def get_exchangeserver(self, identity, properties=[], searchbase=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        logging.debug(f"[Get-ExchangeServer] Using search base: {searchbase}")
+        
+        # query if Exchange Servers group exists
+        exc_group = self.get_domaingroup(identity="Exchange Servers", searchbase=searchbase)
+
+        if len(exc_group) == 0:
+            logging.error("[Get-ExchangeServer] Exchange Servers group not found in domain")
+            return
+
+        logging.debug("[Get-ExchangeServer] Exchange Servers group found in domain")
+        exc_group_dn = exc_group[0].get("dn")
+        if not exc_group_dn:
+            logging.error("[Get-ExchangeServer] Failed to get Exchange Servers group dn")
+            return
+
+        exc_ldapfilter = "(memberOf=%s)" % (exc_group_dn)
+        return self.get_domaincomputer(identity=identity, properties=properties, searchbase=searchbase, ldapfilter=exc_ldapfilter)
 
     def unlock_adaccount(self, identity, searchbase=None, args=None):
         if not searchbase:
@@ -2262,6 +2291,7 @@ class PowerView:
         target_dn = None
         target_sAMAccountName = None
         target_SID = None
+        target_security_descriptor = None
         
         if len(target_entries) == 0:
             logging.error('[Remove-DomainObjectACL] Target Identity object not found in domain')

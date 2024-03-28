@@ -24,7 +24,7 @@ sudo pip3 install .
 
 ## Basic Usage
 > [!NOTE]
-> Note that some of the kerberos functions are still not functioning well just yet but it'll still do most of the works. Detailed usage can be found in [Wiki](https://github.com/aniqfakhrul/powerview.py/wiki) section_
+> Note that some of the kerberos functions are still not functioning well just yet but it'll still do most of the works. Detailed usage can be found in [Wiki](https://github.com/aniqfakhrul/powerview.py/wiki) section
 
 * Init connection
 ```

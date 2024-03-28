@@ -446,6 +446,19 @@ def powerview_arg_parse(cmd):
     invoke_kerberoast_parser.add_argument('-Count', action='store_true', dest='count')
     invoke_kerberoast_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
+    # get exchange server
+    get_exchangeserver_parser = subparsers.add_parser('Get-ExchangeServer',aliases=['Get-ExchangeServer'], exit_on_error=False)
+    get_exchangeserver_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_exchangeserver_parser.add_argument('-Properties', action='store', dest='properties')
+    get_exchangeserver_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
+    get_exchangeserver_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_exchangeserver_parser.add_argument('-Server', action='store', dest='server')
+    get_exchangeserver_parser.add_argument('-Select', action='store', dest='select')
+    get_exchangeserver_parser.add_argument('-Where', action='store', dest='where')
+    get_exchangeserver_parser.add_argument('-TableView', action='store_true', dest='tableview')
+    get_exchangeserver_parser.add_argument('-Count', action='store_true', dest='count')
+    get_exchangeserver_parser.add_argument('-OutFile', action='store', dest='outfile')
+
     # unlock_adaccount
     unlock_adaccount_parser = subparsers.add_parser('Unlock-ADAccount',aliases=['Unlock-ADAccount'], exit_on_error=False)
     unlock_adaccount_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))

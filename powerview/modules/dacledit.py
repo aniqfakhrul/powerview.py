@@ -168,22 +168,6 @@ class DACLedit(object):
         if self.inheritance:
             logging.info("NB: objects with adminCount=1 will not inherit ACEs from their parent container/OU")
 
-        # Searching for the principal SID if any principal argument was given and principal_SID wasn't
-        #if self.principal_SID is None and self.principal_sAMAccountName is not None or self.principal_DN is not None:
-        #    _lookedup_principal = ""
-        #    if self.principal_sAMAccountName is not None:
-        #        _lookedup_principal = self.principal_sAMAccountName
-        #        self.ldap_session.search(self.base_dn, '(sAMAccountName=%s)' % escape_filter_chars(_lookedup_principal), attributes=['objectSid'])
-        #    elif self.principal_DN is not None:
-        #        _lookedup_principal = self.principal_DN
-        #        self.ldap_session.search(self.base_dn, '(distinguishedName=%s)' % _lookedup_principal, attributes=['objectSid'])
-        #    try:
-        #        self.principal_SID = format_sid(self.ldap_session.entries[0]['objectSid'].raw_values[0])
-        #        logging.debug("Found principal SID: %s" % self.principal_SID)
-        #    except IndexError:
-        #        logging.error('Principal SID not found in LDAP (%s)' % _lookedup_principal)
-        #        exit(1)
-
     # Main read funtion
     # Prints the parsed DACL
     def read(self):
