@@ -2457,6 +2457,8 @@ class PowerView:
                     pass
         dc_host = dcs[c_key].lower()
 
+        setattr(self.args, "TGT", self.conn.get_TGT())
+        setattr(self.args, "TGS", self.conn.get_TGS())
         setattr(self.args, "dc_host", dc_host)
         setattr(self.args, "delete", True)
 
@@ -2628,6 +2630,8 @@ class PowerView:
                     pass
         dc_host = dcs[c_key].lower()
 
+        setattr(self.args, "TGT", self.conn.get_TGT())
+        setattr(self.args, "TGS", self.conn.get_TGS())
         setattr(self.args, "dc_host", dc_host)
         setattr(self.args, "delete", False)
 

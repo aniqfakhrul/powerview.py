@@ -127,8 +127,8 @@ class CONNECTION:
 
         self.rpc_conn = None
         self.samr = None
-        self.TGT = {}
-        self.TGS = {}
+        self.TGT = None
+        self.TGS = None
         
         # stolen from https://github.com/the-useless-one/pywerview/blob/master/pywerview/requester.py#L90
         try:
@@ -207,6 +207,18 @@ class CONNECTION:
 
     def get_password(self):
         return self.password
+
+    def get_TGT(self):
+        return self.TGT
+
+    def set_TGT(self, TGT):
+        self.TGT = TGT
+
+    def get_TGS(self):
+        return self.TGS
+
+    def set_TGS(self, TGS):
+        self.TGS = TGS
 
     def set_dc_ip(self, dc_ip):
         self.dc_ip = dc_ip

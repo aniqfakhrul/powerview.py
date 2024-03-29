@@ -54,6 +54,8 @@ class ADDCOMPUTER:
         self.__hashes = cmdLineOptions.hashes
         self.__aesKey = cmdLineOptions.auth_aes_key
         self.__doKerberos = cmdLineOptions.use_kerberos
+        self.__TGT = cmdLineOptions.TGT
+        self.__TGS = cmdLineOPtions.TGS
         self.__target = cmdLineOptions.dc_host
         self.__kdcHost = cmdLineOptions.dc_ip
         self.__computerName = computer_name
@@ -130,7 +132,7 @@ class ADDCOMPUTER:
         if hasattr(rpctransport, 'set_credentials'):
             # This method exists only for selected protocol sequences.
             rpctransport.set_credentials(self.__username, self.__password, self.__domain, self.__lmhash,
-                                         self.__nthash, self.__aesKey)
+                                         self.__nthash, self.__aesKey, TGT=self.__TGT, TGS=self.__TGS)
 
         rpctransport.set_kerberos(self.__doKerberos, self.__kdcHost)
         self.doSAMRAdd(rpctransport)
