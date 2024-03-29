@@ -745,6 +745,7 @@ class CONNECTION:
         # First of all, we need to get a TGT for the user
         userName = Principal(user, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
         if not self.TGT:
+            self.TGT = dict()
             if not self.TGS:
                 tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, password, domain, lmhash, nthash, aesKey, kdcHost)
                 self.TGT['KDC_REP'] = tgt
@@ -757,6 +758,7 @@ class CONNECTION:
             sessionKey = self.TGT['sessionKey']
 
         if not self.TGS:
+            self.TGS = dict()
             serverName = Principal('ldap/%s' % target, type=constants.PrincipalNameType.NT_SRV_INST.value)
             tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey)
             self.TGS['KDC_REP'] = tgs
@@ -907,7 +909,7 @@ class CONNECTION:
         rpctransport = transport.SMBTransport(self.dc_ip, filename=r'\samr')
 
         if hasattr(rpctransport, 'set_credentials'):
-            rpctransport.set_credentials(self.username, self.password, self.domain, lmhash=self.lmhash, nthash=self.nthash, aesKey=self.auth_aes_key)
+            rpctransport.set_credentials(self.username, self.password, self.domain, lmhash=self.lmhash, nthash=self.nthash, aesKey=self.auth_aes_key, TGT=self.TGT, TGS=self.TGS)
 
         rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.kdcHost)
 
@@ -936,7 +938,7 @@ class CONNECTION:
         #rpctransport.set_dport(445)
 
         if hasattr(rpctransport, 'set_credentials') and auth:
-            rpctransport.set_credentials(self.username, self.password, self.domain, self.lmhash, self.nthash)
+            rpctransport.set_credentials(self.username, self.password, self.domain, self.lmhash, self.nthash, TGT=self.TGT, TGS=self.TGS)
 
         if hasattr(rpctransport, 'set_kerberos') and self.use_kerberos and auth:
             rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.kdcHost)
@@ -974,12 +976,12 @@ class CONNECTION:
             rpctransport = transport.DCERPCTransportFactory(string_binding)
             rpctransport.set_credentials(username=self.username, password=self.password,
                                          domain=self.domain, lmhash=self.lmhash,
-                                         nthash=self.nthash)
+                                         nthash=self.nthash, TGT=self.TGT, TGS=self.TGS)
         else:
             rpctransport = transport.SMBTransport(host, 445, pipe,
                                                   username=self.username, password=self.password,
                                                   domain=self.domain, lmhash=self.lmhash,
-                                                  nthash=self.nthash, doKerberos=self.use_kerberos)
+                                                  nthash=self.nthash, doKerberos=self.use_kerberos, TGT=self.TGT, TGS=self.TGS)
 
         rpctransport.set_connect_timeout(10)
         dce = rpctransport.get_dce_rpc()

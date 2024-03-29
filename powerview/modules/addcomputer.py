@@ -55,7 +55,7 @@ class ADDCOMPUTER:
         self.__aesKey = cmdLineOptions.auth_aes_key
         self.__doKerberos = cmdLineOptions.use_kerberos
         self.__TGT = cmdLineOptions.TGT
-        self.__TGS = cmdLineOPtions.TGS
+        self.__TGS = cmdLineOptions.TGS
         self.__target = cmdLineOptions.dc_host
         self.__kdcHost = cmdLineOptions.dc_ip
         self.__computerName = computer_name
