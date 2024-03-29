@@ -40,7 +40,7 @@ powerview range.net/lowpriv:Password123@192.168.86.192 [--use-channel-binding | 
 ```
 powerview 10.10.10.10 --pfx administrator.pfx
 ```
-[![asciicast](https://asciinema.org/a/hR3Ejy3yK9q5qsjnEV953vG4Y.svg)](https://asciinema.org/a/hR3Ejy3yK9q5qsjnEV953vG4Y)
+![](./src/intro.gif)
 
 * Query for specific user
 ```
@@ -80,26 +80,32 @@ Set-DomainObject -Identity "adminuser" -Clear 'servicePrincipalname'
 powerview 10.10.10.10 --relay [--relay-host] [--relay-port] [--use-ldap | --use-ldaps]
 ```
 
+![](./src/relay.gif)
+
+> [!NOTE]  
+> This demonstration shows coerced authentication was made using `printerbug.py`. You may use other methods that coerce HTTP authentication.
+
 ## Module available (so far?)
 
 ```cs
 PV >
-Add-ADComputer                 ConvertFrom-UACValue           Get-DomainGPO                  Get-NetDomainController        Remove-ADComputer              Set-ADObject 
-Add-ADUser                     Find-ForeignGroup              Get-DomainGPOLocalGroup        Get-NetGPO                     Remove-ADObject                Set-ADObjectDN 
-Add-CATemplate                 Find-ForeignUser               Get-DomainGroup                Get-NetGroup                   Remove-ADUser                  Set-CATemplate 
-Add-CATemplateAcl              Find-LocalAdminAccess          Get-DomainGroupMember          Get-NetGroupmember             Remove-CATemplate              Set-DomainCATemplate 
-Add-DomainCATemplate           Get-ADObject                   Get-DomainOU                   Get-NetLoggedOn                Remove-DomainCATemplate        Set-DomainComputerPassword 
-Add-DomainCATemplateAcl        Get-CA                         Get-DomainObject               Get-NetOU                      Remove-DomainComputer          Set-DomainDNSRecord 
-Add-DomainComputer             Get-CATemplate                 Get-DomainObjectAcl            Get-NetSession                 Remove-DomainDNSRecord         Set-DomainObject 
-Add-DomainDNSRecord            Get-Domain                     Get-DomainObjectOwner          Get-NetShare                   Remove-DomainGroupMember       Set-DomainObjectDN 
-Add-DomainGroupMember          Get-DomainCA                   Get-DomainRBCD                 Get-NetTrust                   Remove-DomainOU                Set-DomainObjectOwner 
-Add-DomainOU                   Get-DomainCATemplate           Get-DomainSCCM                 Get-NetUser                    Remove-DomainObject            Set-DomainRBCD 
-Add-DomainObjectAcl            Get-DomainComputer             Get-DomainTrust                Get-ObjectAcl                  Remove-DomainObjectAcl         Set-DomainUserPassword 
-Add-DomainUser                 Get-DomainController           Get-DomainUser                 Get-ObjectOwner                Remove-DomainUser              Set-ObjectOwner 
-Add-GroupMember                Get-DomainDNSRecord            Get-GPOLocalGroup              Get-RBCD                       Remove-GPLink                  Set-RBCD 
-Add-OU                         Get-DomainDNSZone              Get-NamedPipes                 Get-SCCM                       Remove-GroupMember             Unlock-ADAccount 
-Add-ObjectAcl                  Get-DomainForeignGroupMember   Get-NetComputer                Invoke-Kerberoast              Remove-OU                      clear 
-ConvertFrom-SID                Get-DomainForeignUser          Get-NetDomain                  New-GPLink                     Remove-ObjectAcl               exit
+Add-ADComputer                 Find-ForeignGroup              Get-DomainGroup                Get-NetGroup                   Remove-CATemplate              Set-DomainComputerPassword 
+Add-ADUser                     Find-ForeignUser               Get-DomainGroupMember          Get-NetGroupmember             Remove-DomainCATemplate        Set-DomainDNSRecord 
+Add-CATemplate                 Find-LocalAdminAccess          Get-DomainOU                   Get-NetLoggedOn                Remove-DomainComputer          Set-DomainObject 
+Add-CATemplateAcl              Get-ADObject                   Get-DomainObject               Get-NetOU                      Remove-DomainDNSRecord         Set-DomainObjectDN 
+Add-DomainCATemplate           Get-CA                         Get-DomainObjectAcl            Get-NetSession                 Remove-DomainGroupMember       Set-DomainObjectOwner 
+Add-DomainCATemplateAcl        Get-CATemplate                 Get-DomainObjectOwner          Get-NetShare                   Remove-DomainOU                Set-DomainRBCD 
+Add-DomainComputer             Get-Domain                     Get-DomainRBCD                 Get-NetTrust                   Remove-DomainObject            Set-DomainUserPassword 
+Add-DomainDNSRecord            Get-DomainCA                   Get-DomainSCCM                 Get-NetUser                    Remove-DomainObjectAcl         Set-ObjectOwner 
+Add-DomainGroupMember          Get-DomainCATemplate           Get-DomainTrust                Get-ObjectAcl                  Remove-DomainUser              Set-RBCD 
+Add-DomainOU                   Get-DomainComputer             Get-DomainUser                 Get-ObjectOwner                Remove-GPLink                  Unlock-ADAccount 
+Add-DomainObjectAcl            Get-DomainController           Get-ExchangeServer             Get-RBCD                       Remove-GroupMember             clear 
+Add-DomainUser                 Get-DomainDNSRecord            Get-GPOLocalGroup              Get-SCCM                       Remove-OU                      exit 
+Add-GroupMember                Get-DomainDNSZone              Get-NamedPipes                 Invoke-Kerberoast              Remove-ObjectAcl               
+Add-OU                         Get-DomainForeignGroupMember   Get-NetComputer                New-GPLink                     Set-ADObject                   
+Add-ObjectAcl                  Get-DomainForeignUser          Get-NetDomain                  Remove-ADComputer              Set-ADObjectDN                 
+ConvertFrom-SID                Get-DomainGPO                  Get-NetDomainController        Remove-ADObject                Set-CATemplate                 
+ConvertFrom-UACValue           Get-DomainGPOLocalGroup        Get-NetGPO                     Remove-ADUser                  Set-DomainCATemplate           
 ```
 
 ### Domain/LDAP Functions
@@ -169,6 +175,7 @@ ConvertFrom-SID                Get-DomainForeignUser          Get-NetDomain     
 |Add-DomainCATemplateAcl|Add-CATemplateAcl|Add ACL to a certificate template. Supported rights so far are All, Enroll, Write|
 
 ### Exchange Functions
+
 | Module | Alias | Description |
 | ------ | ----- | ----------- |
 |Get-ExchangeServer|Get-Exchange|Retrieve list of available exchange servers in the domain|
@@ -193,6 +200,7 @@ ConvertFrom-SID                Get-DomainForeignUser          Get-NetDomain     
 |Find-LocalAdminAccess||Finds computer on the local domain where the current has a Local Administrator access|
 
 ### Logging
+
 We will never miss logging to keep track of the actions done. By default, powerview creates a `.powerview` folder in current user home directory _(~)_. Each log file is generated based on current date.
 Example path: `/root/.powerview/logs/bionic.local/2024-02-13.log`
 
@@ -204,6 +212,7 @@ Example path: `/root/.powerview/logs/bionic.local/2024-02-13.log`
     * ~~Sign and Seal~~
     * ~~Simple Authentication~~
     * ~~Schannel. Authentication with pfx~~
+* Add `ProtectedFromAccidentalDeletion` attribute to `Get-DomainOU`
 
 ### Credits
 * https://github.com/SecureAuthCorp/impacket
