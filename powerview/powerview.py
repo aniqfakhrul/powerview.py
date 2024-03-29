@@ -1178,6 +1178,7 @@ class PowerView:
         ]
         properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
+
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
 

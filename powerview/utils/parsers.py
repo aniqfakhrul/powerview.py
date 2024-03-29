@@ -447,7 +447,7 @@ def powerview_arg_parse(cmd):
     invoke_kerberoast_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
     # get exchange server
-    get_exchangeserver_parser = subparsers.add_parser('Get-ExchangeServer',aliases=['Get-ExchangeServer'], exit_on_error=False)
+    get_exchangeserver_parser = subparsers.add_parser('Get-ExchangeServer',aliases=['Get-Exchange'], exit_on_error=False)
     get_exchangeserver_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
     get_exchangeserver_parser.add_argument('-Properties', action='store', dest='properties')
     get_exchangeserver_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
@@ -717,7 +717,7 @@ def powerview_arg_parse(cmd):
         except:
             pass
         
-        print(str(e).split("(")[0])
+        print(str(e))
         return None
     except SystemExit:
         return None

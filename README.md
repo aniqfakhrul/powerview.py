@@ -171,7 +171,7 @@ ConvertFrom-SID                Get-DomainForeignUser          Get-NetDomain     
 ### Exchange Functions
 | Module | Alias | Description |
 | ------ | ----- | ----------- |
-|Get-ExchangeServer||Retrieve list of available exchange servers in the domain|
+|Get-ExchangeServer|Get-Exchange|Retrieve list of available exchange servers in the domain|
 
 ### Domain Trust Functions
 
