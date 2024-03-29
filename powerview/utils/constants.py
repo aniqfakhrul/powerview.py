@@ -312,6 +312,17 @@ WELL_KNOWN_SIDS = {
     'S-1-5-32-580': 'BUILTIN\Remote Management Users',
 }
 
+def resolve_WellKnownSID(identifier):
+    for key, value in WELL_KNOWN_SIDS.items():
+        if identifier.casefold() == value.casefold():
+            return dict(
+                    {
+                        "objectSid": key,
+                        "sAMAccountName": value
+                    }
+                )
+    return None
+
 # store discovered sids
 KNOWN_SIDS = {}
 

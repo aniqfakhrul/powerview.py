@@ -1,4 +1,4 @@
-import argparse
+import datetime
 import sys
 import traceback
 import ldap3
@@ -11,10 +11,10 @@ import os
 import json
 import logging
 from impacket import version
-from impacket.examples import logger, utils
 from dns import resolver
 import struct
 from ldap3.utils.conv import escape_filter_chars
+from typing import Tuple
 import re
 import configparser
 import validators
@@ -123,6 +123,16 @@ def is_admin_sid(sid: str):
         or sid == "S-1-5-32-544"
     )
 
+def convert_to_json_serializable(obj):
+    if isinstance(obj, bytes):
+        # Convert bytes to string
+        return obj.decode('utf-8')
+    elif isinstance(obj, datetime):
+        # Convert datetime to string
+        return obj.isoformat()
+    else:
+        return obj
+
 def strip_entry(entry):
     for k,v in entry["attributes"].items():
         # check if its only have 1 index,
@@ -136,6 +146,9 @@ def strip_entry(entry):
                 if not isinstance(v[0], str):
                     continue
                 entry["attributes"][k] = v[0]
+
+def from_json_to_entry(entry):
+    return json.loads(entry)
 
 def filter_entry(entry, properties):
     new_dict = {}
@@ -245,7 +258,7 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
         logging.debug(f'Querying domain controller information from DNS server {nameserver}')
         dnsresolver.nameservers = [nameserver]
     else:
-        logging.debug(f'No nameserver provided, using host\'s resolver to resolve {domain}')
+        logging.debug(f'No nameserver provided, using system\'s dns to resolve {domain}')
 
     dnsresolver.lifetime = float(3)
 
@@ -259,7 +272,7 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
         for r in q:
             dc = str(r.target).rstrip('.')
         #resolve ip for principal dc
-        answer = resolve_domain(dc, nameserver)
+        answer = host2ip(dc, nameserver)
         return answer
     except resolver.NXDOMAIN as e:
         logging.debug(str(e))
@@ -278,7 +291,7 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
         for r in q:
             dc = str(r.target).rstrip('.')
             logging.debug('Found AD Domain: %s' % dc)
-        answer = resolve_domain(dc,nameserver)
+        answer = host2ip(dc,nameserver)
         return answer
     except resolver.NXDOMAIN:
         pass
@@ -319,12 +332,13 @@ def get_machine_name(domain, args=None):
 
 def parse_identity(args):
     #domain, username, password = utils.parse_credentials(args.account)
-    domain, username, password, address = utils.parse_target(args.target)
-
+    domain, username, password, address = parse_target(args.target)
     if password == '' and username != '' and args.hashes is None and args.no_pass is False and args.auth_aes_key is None:
-        from getpass import getpass
-        logging.info("No credentials supplied, supply password")
-        password = getpass("Password:")
+        if args.pfx is not None:
+            pasword = None
+        else:
+            from getpass import getpass
+            password = getpass("Password:")
 
     if args.auth_aes_key is not None:
         args.k = True
@@ -366,13 +380,33 @@ def host2ip(hostname, nameserver, dns_timeout=10, dns_tcp=True):
     dnsresolver.lifetime = float(dns_timeout)
     try:
         q = dnsresolver.query(hostname, 'A', tcp=dns_tcp)
-        addr = None
+        addr = []
+        ip = None
+
         for r in q:
-            if addr:
-                break
-            addr = r.address
-        STORED_ADDR[hostname] = addr
-        return addr
+            addr.append(r.address)
+
+        if len(addr) == 1:
+            STORED_ADDR[hostname] = addr
+            ip = addr[0] 
+        elif len(addr) > 1:
+            c_key = 0
+            logging.info('We have more than one ip. Please choose one that is reachable')
+            cnt = 0
+            for name in addr:
+                print(f"{cnt}: {name}")
+                cnt += 1
+            while True:
+                try:
+                    c_key = int(input(">>> Your choice: "))
+                    if c_key in range(len(addr)):
+                        break
+                except Exception:
+                    pass
+            ip = addr[c_key]
+
+        return ip
+
     except resolver.NXDOMAIN as e:
         logging.debug("Resolved Failed: %s" % e)
         return None

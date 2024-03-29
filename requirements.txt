@@ -1,11 +1,10 @@
+impacket @ git+https://github.com/ThePorgs/impacket.git
+ldap3 @ git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements
 dnspython
-dsinternals
-gnureadline
-impacket>=0.10.0
-ldap3
 future
+gnureadline
 validators
-pycryptodome
+dsinternals
 chardet
 tabulate
 argcomplete

@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.ldap import ldaptypes
-from impacket.dcerpc.v5 import srvs
+from impacket.dcerpc.v5 import srvs, wkst
 from impacket.dcerpc.v5.ndr import NULL
 
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
+from powerview.modules.dacledit import DACLedit
 from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
+from powerview.utils.storage import Storage
 from powerview.modules.ldapattack import (
     LDAPAttack,
     ACLEnum,
@@ -20,6 +22,7 @@ from powerview.utils.colors import bcolors
 from powerview.utils.constants import (
     WELL_KNOWN_SIDS,
     KNOWN_SIDS,
+    resolve_WellKnownSID
 )
 from powerview.lib.dns import (
     DNS_RECORD,
@@ -42,13 +45,10 @@ class PowerView:
     def __init__(self, conn, args, target_server=None, target_domain=None):
         self.conn = conn
         self.args = args
-        self.username = args.username
+        
+        self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
+        self.username = args.username if args.username else self.conn.get_username()
         self.password = args.password
-
-        if target_domain:
-            self.domain = target_domain
-        else:
-            self.domain = args.domain.lower()
 
         self.lmhash = args.lmhash
         self.nthash = args.nthash
@@ -57,18 +57,25 @@ class PowerView:
         self.dc_ip = args.dc_ip
         self.use_kerberos = args.use_kerberos
 
-        self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
+        if target_domain:
+            self.domain = target_domain
+        else:
+            self.domain = conn.get_domain()
 
-        if self.ldap_session.server.ssl:
-            self.use_ldaps = True
+        self.use_ldaps = self.ldap_session.server.ssl
 
         cnf = ldapdomaindump.domainDumpConfig()
         cnf.basepath = None
         self.domain_dumper = ldapdomaindump.domainDumper(self.ldap_server, self.ldap_session, cnf)
-        self.root_dn = self.domain_dumper.getRoot()
-        self.fqdn = ".".join(self.root_dn.replace("DC=","").split(","))
+        self.root_dn = self.ldap_server.info.other["rootDomainNamingContext"][0]
+        self.fqdn = dn2domain(self.root_dn)
+        if not self.domain:
+            self.domain = self.fqdn
         self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
         self.is_admin = self.is_admin()
+
+        # storage
+        self.store = Storage()
 
     def get_admin_status(self):
         return self.is_admin
@@ -79,9 +86,13 @@ class PowerView:
         groups = []
 
         try:
-            curUserDetails = self.get_domainuser(identity=self.username, properties=["adminCount","memberOf"])[0]
+            curUserDetails = self.get_domainobject(identity=self.username, properties=["adminCount","memberOf"])[0]
            
+            if not curUserDetails:
+                return False
+            
             userGroup = curUserDetails.get("attributes").get("memberOf")
+
             if isinstance(userGroup, str):
                 groups.append(userGroup)
             elif isinstance(userGroup, list):
@@ -164,6 +175,10 @@ class PowerView:
             if args.rbcd:
                 logging.debug('[Get-DomainUser] Searching for users that are configured to allow resource-based constrained delegation')
                 ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
+            if args.shadowcred:
+                logging.debug("[Get-DomainUser] Searching for users that are configured to have msDS-KeyCredentialLink attribute set")
+                ldap_filter += f'(msDS-KeyCredentialLink=*)'
+                properties += ['msDS-KeyCredentialLink']
             if args.spn:
                 logging.debug("[Get-DomainUser] Searching for users that have SPN attribute set")
                 ldap_filter += f'(servicePrincipalName=*)'
@@ -187,7 +202,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
@@ -252,11 +267,11 @@ class PowerView:
             except:
                 pass
 
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
 
         return entries
 
-    def get_domainobject(self, args=None, properties=['*'], identity='*', identity_filter=None, searchbase=None, sd_flag=None):
+    def get_domainobject(self, args=None, properties=['*'], identity=None, identity_filter=None, searchbase=None, sd_flag=None):
         if sd_flag:
             # Set SD flags to only query for DACL and Owner
             controls = security_descriptor_control(sdflags=sd_flag)
@@ -264,8 +279,13 @@ class PowerView:
             controls = None
 
         ldap_filter = ""
-        if not identity_filter:
-            identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
+        identity_filter = "" if not identity_filter else identity_filter
+
+        if not identity:
+            ldap_filter = "(objectClass=*)"
+        else:
+            if not identity_filter:
+                identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
 
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -287,7 +307,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def remove_domainobject(self, identity, searchbase=None, args=None):
@@ -389,7 +409,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
         #return self.ldap_session.entries
@@ -405,15 +425,21 @@ class PowerView:
             guids_dict[entry['rightsGuid'].value] = entry['displayName'].value
         setattr(args,"guids_map_dict",guids_dict)
 
+        principal_SID = None
         if args.security_identifier:
             principalsid_entry = self.get_domainobject(identity=args.security_identifier,properties=['objectSid'])
             if not principalsid_entry:
-                logging.error(f'[Get-DomainObjectAcl] Principal {args.security_identifier} not found. Try to use DN')
-                return
+                logging.debug('[Get-DomainObjectAcl] Principal not found. Searching in Well Known SIDs...')
+                principal_SID = resolve_WellKnownSID(args.security_identifier).get("objectSid")
+                if principal_SID:
+                    logging.debug("[Get-DomainObjectAcl] Found in well known SID: %s" % principal_SID)
+                else:
+                    logging.error(f'[Get-DomainObjectAcl] Principal {args.security_identifier} not found. Try to use DN')
+                    return
             elif len(principalsid_entry) > 1:
                 logging.error(f'[Get-DomainObjectAcl] Multiple identities found. Use exact match')
                 return
-            args.security_identifier = principalsid_entry[0]['attributes']['objectSid']
+            args.security_identifier = principalsid_entry[0]['attributes']['objectSid'] if not principal_SID else principal_SID
 
         identity = args.identity
         if identity != "*":
@@ -441,7 +467,7 @@ class PowerView:
         entries_dacl = enum.read_dacl()
         return entries_dacl
 
-    def get_domaincomputer(self, args=None, properties=[], identity=None, resolveip=False, resolvesids=False):
+    def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolveip=False, resolvesids=False, ldapfilter=None):
         def_prop = [
             'lastLogonTimestamp',
             'objectCategory',
@@ -469,13 +495,19 @@ class PowerView:
         ]
 
         properties = def_prop if not properties else properties
-        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
+        logging.debug(f"[Get-DomainComputer] Using search base: {searchbase}")
+        
         ldap_filter = ""
         identity_filter = ""
 
         if identity:
             identity_filter += f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
+
+        if ldapfilter:
+            ldap_filter += ldapfilter
 
         if args:
             if args.unconstrained:
@@ -492,6 +524,10 @@ class PowerView:
                 logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
                 ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
                 properties += ['msDS-AllowedToActOnBehalfOfOtherIdentity']
+            if args.shadowcred:
+                logging.debug("[Get-DomainComputer] Searching for computers that are configured to have msDS-KeyCredentialLink attribute set")
+                ldap_filter += f'(msDS-KeyCredentialLink=*)'
+                properties += ['msDS-KeyCredentialLink']
             if args.printers:
                 logging.debug("[Get-DomainComputer] Searching for printers")
                 ldap_filter += f'(objectCategory=printQueue)'
@@ -555,41 +591,85 @@ class PowerView:
             except:
                 pass
 
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
-        properties = def_prop if not properties else properties
-        identity = '*' if not identity else identity
+    def get_domainrbcd(self, identity=None, args=None):
+        properties = [
+                    "sAMAccountName",
+                    "sAMAccountType",
+                    "objectSID",
+                    "userAccountControl",
+                    "distinguishedName",
+                    "servicePrincipalName",
+                    "msDS-AllowedToActOnBehalfOfOtherIdentity"
+                ] 
 
-        ldap_filter = ""
-        identity_filter = f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
-        if args:
-            if args.admincount:
-                ldap_filter += f"(admincount=1)"
-            if args.ldapfilter:
-                ldap_filter += f"{args.ldapfilter}"
-                logging.debug(f'[Get-DomainGroup] Using additional LDAP filter: {args.ldapfilter}')
-            if args.memberidentity:
-                entries = self.get_domainobject(identity=args.memberidentity)
-                if len(entries) == 0:
-                    logging.info("Member identity not found. Try to use DN")
-                    return
-                memberidentity_dn = entries[0]['attributes']['distinguishedName']
-                ldap_filter += f"(member={memberidentity_dn})"
-                logging.debug(f'[Get-DomainGroup] Filter is based on member property {ldap_filter}')
-
-        ldap_filter = f'(&(objectCategory=group){identity_filter}{ldap_filter})'
-        logging.debug(f'[Get-DomainGroup] LDAP search filter: {ldap_filter}')
         entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
-        for _entries in entry_generator:
-            if _entries['type'] != 'searchResEntry':
-                continue
-            strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        # set args to have rbcd attribute
+        ldap_filter = "(msDS-AllowedToActOnBehalfOfOtherIdentity=*)"
+        setattr(args,"ldapfilter", ldap_filter)
+
+        # get source identity
+        sourceObj = self.get_domainobject(identity=identity, properties=properties, searchbase=searchbase, args=args)
+
+        for source in sourceObj:
+            entry = {
+                "SourceName": None,
+                "SourceType": None,
+                "SourceSID": None,
+                "SourceAccountControl": None,
+                "SourceDistinguishedName": None,
+                "ServicePrincipalName": None,
+                "DelegatedName": None,
+                "DelegatedType": None,
+                "DelegatedSID": None,
+                "DelegatedAccountControl": None,
+                "DelegatedDistinguishedName": None,
+            }
+
+            # resolve msDS-AllowedToActOnBehalfOfOtherIdentity
+            parser = RBCD(source)
+            sids = parser.read()
+
+            source = source.get("attributes")
+            entry["SourceName"] = source.get("sAMAccountName")
+            entry["SourceType"] = source.get("sAMAccountType")
+            entry["SourceSID"] = source.get("objectSid")
+            entry["SourceAccountControl"] = source.get("userAccountControl")
+            entry["SourceDistinguishedName"] = source.get("distinguishedName")
+            entry["ServicePrincipalName"] = source.get("servicePrincipalName")
+
+            for sid in sids:
+                # resolve sid from delegateObj
+                delegateObj = self.get_domainobject(identity=sid, properties=properties, searchbase=searchbase)
+                if len(delegateObj) == 0:
+                    logging.warning("Delegated object not found. Ignoring...")
+                elif len(delegateObj) > 1:
+                    logging.warning("More than one delegated object found. Ignoring...")
+
+                for delegate in delegateObj:
+                    try:
+                        delegate = delegate.get("attributes")
+                        entry["DelegatedName"] = delegate.get("sAMAccountName")
+                        entry["DelegatedType"] = delegate.get("sAMAccountType")
+                        entry["DelegatedSID"] = delegate.get("objectSid")
+                        entry["DelegatedAccountControl"] = delegate.get("userAccountControl")
+                        entry["DelegatedDistinguishedName"] = delegate.get("distinguishedName")
+                    except IndexError:
+                        logging.error(f"[IndexError] No object found for {sid}")
+                        pass
+                
+                entries.append(
+                            {
+                                "attributes": dict(entry)
+                            }
+                        )
         return entries
 
-    def get_domaingroup(self, args=None, properties=[], identity=None):
+    def get_domaingroup(self, args=None, properties=[], identity=None, searchbase=None):
         def_prop = [
             'adminCount',
             'cn',
@@ -607,8 +687,11 @@ class PowerView:
         ]
 
         properties = def_prop if not properties else properties
-        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
+        logging.debug(f"[Get-DomainGroup] Using search base: {searchbase}")
+        
         ldap_filter = ""
         identity_filter = ""
 
@@ -638,7 +721,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def get_domainforeigngroupmember(self, args=None):
@@ -826,7 +909,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def get_domaingpolocalgroup(self, args=None, identity=None):
@@ -928,7 +1011,7 @@ class PowerView:
             except TypeError:
                 pass
 
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def convertfrom_uacvalue(self, value, args=None, output=False):
@@ -985,8 +1068,9 @@ class PowerView:
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
+            #self.store.write_to_file("get_domain.json", _entries.get("attributes"))
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def get_domaindnszone(self, identity=None, properties=[], searchbase=None, args=None):
@@ -1021,7 +1105,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], searchbase=None, args=None):
@@ -1094,6 +1178,7 @@ class PowerView:
         ]
         properties = def_prop if not properties else properties
         identity = '*' if not identity else identity
+
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
 
@@ -1116,7 +1201,7 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
-            entries.append({"attributes":_entries["attributes"]})
+            entries.append(_entries)
         return entries
 
     def get_domainca(self, args=None, properties=None):
@@ -1201,19 +1286,94 @@ class PowerView:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainCATemplate] Failed to delete template {identity} from certificate store")
             return False
 
-    def add_domainou(self, identity, args=None):
-        dn = "" 
-        if not args.distinguishedname:
-            dn = "OU=%s,%s" % (identity, self.root_dn)
+    def get_exchangeserver(self, identity, properties=[], searchbase=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        logging.debug(f"[Get-ExchangeServer] Using search base: {searchbase}")
+        
+        # query if Exchange Servers group exists
+        exc_group = self.get_domaingroup(identity="Exchange Servers", searchbase=searchbase)
+
+        if len(exc_group) == 0:
+            logging.error("[Get-ExchangeServer] Exchange Servers group not found in domain")
+            return
+
+        logging.debug("[Get-ExchangeServer] Exchange Servers group found in domain")
+        exc_group_dn = exc_group[0].get("dn")
+        if not exc_group_dn:
+            logging.error("[Get-ExchangeServer] Failed to get Exchange Servers group dn")
+            return
+
+        exc_ldapfilter = "(memberOf=%s)" % (exc_group_dn)
+        return self.get_domaincomputer(identity=identity, properties=properties, searchbase=searchbase, ldapfilter=exc_ldapfilter)
+
+    def unlock_adaccount(self, identity, searchbase=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+        
+        # check if identity exists
+        identity_object = self.get_domainobject(identity=identity, searchbase=searchbase, properties=["distinguishedName","sAMAccountName","lockoutTime"])
+        if len(identity_object) > 1:
+            logging.error(f"[Unlock-ADAccount] More then one identity found. Use distinguishedName instead.")
+            return False
+        elif len(identity_object) == 0:
+            logging.error(f"[Unlock-ADAccount] Identity {identity} not found in domain")
+            return False
+
+        # check if its really locked
+        identity_dn = identity_object[0].get("dn")
+        identity_san = identity_object[0].get("attributes").get("sAMAccountName")
+        identity_lockouttime = identity_object[0].get("raw_attributes").get("lockoutTime")
+
+        logging.debug(f"[Unlock-ADAccount] Identity {identity_san} found in domain")
+        
+        if isinstance(identity_lockouttime, list):
+            identity_lockouttime = identity_lockouttime[0]
+        locked = int(identity_lockouttime)
+
+        if not locked or locked == 0:
+            logging.warning(f"[Unlock-ADAccount] Account {identity_san} is not in locked state.")
+            return False
+
+        logging.debug("[Unlock-ADAccount] Modifying lockoutTime attribute")
+        succeed = self.set_domainobject(  
+                                identity_dn,
+                                _set = {
+                                        'attribute': 'lockoutTime',
+                                        'value': '0'
+                                    },
+                              )
+
+        if succeed:
+            logging.info(f"[Unlock-ADAccount] Account {identity_san} unlocked")
+            return True
         else:
-            dn = args.distinguishedname
+            logging.info(f"[Unlock-ADAccount] Failed to unlock {identity_san}")
+            return False
+
+    def add_domainou(self, identity, basedn=None, args=None):
+        basedn = self.root_dn if not basedn else basedn
+
+        dn_exist = self.get_domainobject(identity=basedn)
+        if not dn_exist:
+            logging.error(f"[Add-DomainOU] DN {basedn} not found in domain")
+            return False
+
+        dn = "OU=%s,%s" % (identity, basedn)
+        logging.debug(f"[Add-DomainOU] OU dstinguishedName: {dn}")
+
         
         ou_data = {
             	'objectCategory': 'CN=Organizational-Unit,CN=Schema,CN=Configuration,%s' % self.root_dn,
-            	'name': identity
+            	'name': identity,
         		}
-        
+
         self.ldap_session.add(dn, ['top','organizationalUnit'], ou_data)
+        
+        if args.protectedfromaccidentaldeletion:
+            logging.info("[Add-DomainOU] Protect accidental deletion enabled")
+            self.add_domainobjectacl(identity, "Everyone", rights="immutable", ace_type="denied")
         
         if self.ldap_session.result['result'] == 0:
             logging.info(f"[Add-DomainOU] Added new {identity} OU")
@@ -1429,8 +1589,8 @@ class PowerView:
         if not rights:
             if args and hasattr(args, 'rights') and args.rights:
                 rights = args.rights
-            else:
-                rights = 'all'
+        else:
+            rights = 'all'
 
         principal_identity = self.get_domainobject(identity=principalidentity, properties=[
             'objectSid',
@@ -1790,6 +1950,65 @@ class PowerView:
         template_guids.clear()
         return entries
 
+    def set_domainrbcd(self, identity, delegatefrom, searchbase=None, args=None):
+        if not searchbase:
+            searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        # verify that the identity exists
+        _identity = self.get_domainobject(identity=identity, properties = [
+            "sAMAccountName",
+            "objectSid",
+            "distinguishedName",
+            "msDS-AllowedToActOnBehalfOfOtherIdentity"
+            ],
+            searchbase=searchbase,
+            sd_flag=0x01
+        )
+
+        if len(_identity) > 1:
+            logging.error("[Set-DomainRBCD] More then one identity found")
+            return
+        elif len(_identity) == 0:
+            logging.error(f"[Set-DomainRBCD] {identity} identity not found in domain")
+            return
+        
+        logging.debug(f"[Set-DomainRBCD] {identity} identity found")
+        targetidentity = _identity[0]
+
+        # verify that delegate identity exists
+        delegfrom_identity = self.get_domainobject(identity=delegatefrom, properties = [
+                "sAMAccountName",
+                "objectSid",
+                "distinguishedName",
+            ],
+            searchbase=searchbase
+        )
+
+        if len(delegfrom_identity) > 1:
+            logging.error("[Set-DomainRBCD] More then one identity found")
+            return
+        elif len(delegfrom_identity) == 0:
+            logging.error(f"[Set-DomainRBCD] {delegatefrom} identity not found in domain")
+            return
+        logging.debug(f"[Set-DomainRBCD] {delegatefrom} identity found")
+
+        # now time to modify
+        delegfrom_identity = delegfrom_identity[0]
+        delegfrom_sid = delegfrom_identity.get("attributes").get("objectSid")
+
+        if delegfrom_sid is None:
+            return
+
+        rbcd = RBCD(targetidentity, self.ldap_session)
+        succeed = rbcd.write_to(delegfrom_sid)
+        if succeed:
+            logging.info(f"[Set-DomainRBCD] Success! {identity} is now in {delegatefrom}'s msDS-AllowedToActOnBehalfOfOtherIdentity attribute")
+        else:
+            logging.error("[Set-DomainRBCD] Failed to write to {delegatefrom} object")
+            return False
+
+        return True
+
     def set_domainobjectowner(self, targetidentity, principalidentity, searchbase=None, args=None):
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -1808,8 +2027,9 @@ class PowerView:
             logging.error("[Set-DomainObjectOwner] More than one target identity found")
             return
         elif len(target_identity) == 0:
-            logging.error("[Set-DomainObjectOwner] Target identity not found in domain")
+            logging.error(f"[Set-DomainObjectOwner] {targetidentity} identity not found in domain")
             return
+        logging.debug(f"[Set-DomainObjectOwner] {targetidentity} identity found")
 
         # verify that the principalidentity exists
         principal_identity = self.get_domainobject(identity=principalidentity)
@@ -1817,8 +2037,9 @@ class PowerView:
             logging.error("[Set-DomainObjectOwner] More than one principal identity found")
             return
         elif len(principal_identity) == 0:
-            logging.error("[Set-DomainObjectOwner] Principal identity not found in domain")
+            logging.error(f"[Set-DomainObjectOwner] {principalidentity} identity not found in domain")
             return
+        logging.debug(f"[Set-DomainObjectOwner] {principalidentity} identity found")
 
         # create changeowner object
         chown = ObjectOwner(target_identity[0])
@@ -1842,6 +2063,7 @@ class PowerView:
 
         if not succeeded:
             logging.error(f"[Set-DomainObjectOwner] Error modifying object owner ({self.ldap_session.result['description']})")
+            return False
         else:
             logging.info(f'[Set-DomainObjectOwner] Success! modified owner for {target_identity[0]["attributes"]["distinguishedName"]}')
 
@@ -2018,7 +2240,7 @@ class PowerView:
 
     def add_domainuser(self, username, userpass, args=None):
         parent_dn_entries = f"CN=Users,{self.root_dn}"
-        if args.basedn:
+        if hasattr(args, 'basedn') and args.basedn:
             entries = self.get_domainobject(identity=args.basedn)
             if len(entries) <= 0:
                 logging.error(f"[Add-DomainUser] {args.basedn} could not be found in the domain")
@@ -2055,7 +2277,7 @@ class PowerView:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainUser] Failed adding {username} to domain ({self.ldap_session.result['description']})")
             return False
         else:
-            logging.info('[Add-DomainUser] Success! Created new user with dn %s' % udn)
+            logging.info('[Add-DomainUser] Success! Created new user with')
 
             if not self.use_ldaps:
                 logging.info("[Add-DomainUser] Adding password to account")
@@ -2063,134 +2285,168 @@ class PowerView:
             
             return True
 
-    def add_domainobjectacl(self, args):
-        c = NTLMRelayxConfig()
-        c.addcomputer = 'idk lol'
-        c.target = self.dc_ip
-
-        setattr(args, "delete", False)
-
-        if '\\' not in args.principalidentity or '/' not in args.principalidentity:
-            username = f'{self.domain}/{args.principalidentity}'
-        else:
-            username = args.principalidentity
-
-        principal_entries = self.get_domainobject(identity=args.principalidentity, properties=['objectSid', 'distinguishedName'])
-
-        if len(principal_entries) == 0:
-            logging.error('Principal Identity object not found in domain')
-            return
-
-        if len(principal_entries) > 1:
-            logging.error("More then one objects found")
-            return
-
-        principalidentity_dn = principal_entries[0]["attributes"]["distinguishedName"]
-        setattr(args,'principalidentity_dn', principalidentity_dn)
-        if principalidentity_dn.upper().startswith("OU="):
-            logging.debug('[Add-DomainObjectAcl] Principal identity is an OU')
-        else:
-            principalidentity_sid = principal_entries[0]['attributes']['objectSid']
-            setattr(args,'principalidentity_sid', principalidentity_sid)
-
-        logging.info(f'Found principal identity dn {principalidentity_dn}')
-
-        target_entries = self.get_domainobject(identity=args.targetidentity, properties=['objectSid', 'distinguishedName'])
-        if len(target_entries) == 0:
-            logging.error('Target Identity object not found in domain')
-            return
-
-        targetidentity_dn = target_entries[0]["attributes"]["distinguishedName"]
-        setattr(args,'targetidentity_dn', targetidentity_dn)
-        if targetidentity_dn.upper().startswith("OU="):
-            logging.info('[Add-DomainObjectAcl] Target identity is an OU')
-        elif targetidentity_dn.upper().startswith("CN={"):
-            logging.info('Target identity is a GPO')
-        else:
-            targetidentity_sid = target_entries[0]['attributes']['objectSid']
-            setattr(args,'targetidentity_sid', targetidentity_sid)
-
-        logging.info(f'Found target identity dn {targetidentity_dn}')
-
-        logging.info(f'Adding {args.rights} privilege to {args.targetidentity}')
-        la = LDAPAttack(config=c, LDAPClient=self.ldap_session, username=username, root_dn=self.root_dn, args=args)
-        if args.rights in ['all','dcsync','writemembers','resetpassword']:
-            la.aclAttack()
-        elif args.rights in ['rbcd']:
-            la.delegateAttack()
-        elif args.rights in ['shadowcred']:
-            la.shadowCredentialsAttack()
-
-    def remove_domainobjectacl(self, args):
-        c = NTLMRelayxConfig()
-        c.addcomputer = 'idk lol'
-        c.target = self.dc_ip
-
-        setattr(args, "delete", True)
-
-        if '\\' not in args.principalidentity or '/' not in args.principalidentity:
-            username = f'{self.domain}/{args.principalidentity}'
-        else:
-            username = args.principalidentity
-
-        principal_entries = self.get_domainobject(identity=args.principalidentity, properties=['objectSid', 'distinguishedName'])
-        if len(principal_entries) == 0:
-            logging.error('Principal Identity object not found in domain')
-            return
-
-        if len(principal_entries) > 1:
-            logging.error("More then one objects found")
-            return
-
-        principalidentity_dn = principal_entries[0]['attributes']['distinguishedName']
-        setattr(args,'principalidentity_dn', principalidentity_dn)
-        if principalidentity_dn.upper().startswith("OU="):
-            logging.debug('[Remove-DomainObjectAcl] Principal identity is an OU')
-        else:
-            principalidentity_sid = principal_entries[0]['attributes']['objectSid']
-            setattr(args,'principalidentity_sid', principalidentity_sid)
-        logging.info(f'Found principal identity dn {principalidentity_dn}')
-
-        target_entries = self.get_domainobject(identity=args.targetidentity)
+    def remove_domainobjectacl(self, targetidentity, principalidentity, rights="fullcontrol", rights_guid=None, ace_type="allowed", inheritance=False):
+        # verify if target identity exists
+        target_entries = self.get_domainobject(identity=targetidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName','nTSecurityDescriptor'], sd_flag=0x04)
+        
+        target_dn = None
+        target_sAMAccountName = None
+        target_SID = None
+        target_security_descriptor = None
         
         if len(target_entries) == 0:
-            logging.error('Target Identity object not found in domain')
+            logging.error('[Remove-DomainObjectACL] Target Identity object not found in domain')
+            return
+        elif len(target_entries) > 1:
+            logging.error("[Remove-DomainObjectACL] More then one target identity found")
             return
 
-        targetidentity_dn = target_entries[0]['attributes']['distinguishedName']
-        setattr(args,'targetidentity_dn', targetidentity_dn)
-        if targetidentity_dn.upper().startswith("OU="):
-            logging.debug('[Remove-DomainObjectACL] Target identity is an OU')
-        elif targetidentity_dn.upper().startswith("CN={"):
-            logging.debug('[Remove-DomainObjectACL] Target identity is a GPO')
-        else:
-            targetidentity_sid = target_entries[0]['attributes']['objectSid']
-            setattr(args,'targetidentity_sid', targetidentity_sid)
-        logging.info(f'Found target identity dn {targetidentity_dn}')
-        entries = self.get_domainobject(identity=args.principalidentity)
-        if len(entries) == 0:
-            logging.error('Target object not found in domain')
+        target_dn = target_entries[0].get("dn") #target_DN
+        target_sAMAccountName = target_entries[0].get("attributes").get("sAMAccountName") #target_sAMAccountName
+        target_SID = target_entries[0].get("attributes").get("objectSid") #target_SID
+        target_security_descriptor = target_entries[0].get("raw_attributes").get("nTSecurityDescriptor")[0]
+
+        logging.info(f'[Remove-DomainObjectACL] Found target identity: {target_dn if target_dn else target_sAMAccountName}')
+        
+        # verify if principalidentity exists
+        principal_entries = self.get_domainobject(identity=principalidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName'])
+        
+        principal_dn = None
+        principal_sAMAccountName = None
+        principal_SID = None
+
+        if len(principal_entries) == 0:
+            logging.debug('[Remove-DomainObjectAcl] Principal not found. Searching in Well Known SIDs...')
+            well_known_obj = resolve_WellKnownSID(principalidentity)
+            principal_sAMAccountName = well_known_obj.get("sAMAccountName")
+            principal_SID = well_known_obj.get("objectSid")
+            if principal_SID:
+                logging.debug("[Remove-DomainObjectAcl] Found in well known SID: %s" % principal_SID)
+            else:
+                logging.error('[Remove-DomainObjectACL] Principal Identity object not found in domain')
+                return
+        elif len(principal_entries) > 1:
+            logging.error("[Remove-DomainObjectACL] More then one principal identity found")
             return
 
-        logging.info(f'Restoring {args.rights} privilege on {args.targetidentity}')
-        la = LDAPAttack(config=c, LDAPClient=self.ldap_session, username=username, root_dn=self.root_dn, args=args)
-        la.aclAttack()
+        principal_dn = principal_entries[0].get("dn") if principal_entries else principal_dn #principal_DN
+        principal_sAMAccountName = principal_entries[0].get("attributes").get("sAMAccountName") if principal_entries else principal_sAMAccountName #principal_sAMAccountName
+        principal_SID = principal_entries[0].get("attributes").get("objectSid") if principal_entries else principal_SID #principal_SID
 
-    def remove_domaincomputer(self,computer_name):
+        logging.info(f'[Remove-DomainObjectACL] Found principal identity: {principal_dn if principal_dn else principal_sAMAccountName}')
+        
+        dacledit = DACLedit(
+                self.ldap_server,
+                self.ldap_session,
+                self.root_dn,
+                target_sAMAccountName,
+                target_SID,
+                target_dn,
+                target_security_descriptor,
+                principal_sAMAccountName,
+                principal_SID,
+                principal_dn,
+                ace_type,
+                rights,
+                rights_guid,
+                inheritance
+            )
+        dacledit.remove()
+
+    def add_domainobjectacl(self, targetidentity, principalidentity, rights="fullcontrol", rights_guid=None, ace_type="allowed", inheritance=False):
+        # verify if target identity exists
+        target_entries = self.get_domainobject(identity=targetidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName','nTSecurityDescriptor'], sd_flag=0x04)
+        
+        target_dn = None
+        target_sAMAccountName = None
+        target_SID = None
+        
+        if len(target_entries) == 0:
+            logging.error('[Add-DomainObjectACL] Target Identity object not found in domain')
+            return
+        elif len(target_entries) > 1:
+            logging.error("[Add-DomainObjectACL] More then one target identity found")
+            return
+
+        target_dn = target_entries[0].get("dn") #target_DN
+        target_sAMAccountName = target_entries[0].get("attributes").get("sAMAccountName") #target_sAMAccountName
+        target_SID = target_entries[0].get("attributes").get("objectSid") #target_SID
+        target_security_descriptor = target_entries[0].get("raw_attributes").get("nTSecurityDescriptor")[0]
+
+        logging.info(f'[Add-DomainObjectACL] Found target identity: {target_dn if target_dn else target_sAMAccountName}')
+        
+        # verify if principalidentity exists
+        principal_entries = self.get_domainobject(identity=principalidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName'])
+        
+        principal_dn = None
+        principal_sAMAccountName = None
+        principal_SID = None
+
+        if len(principal_entries) == 0:
+            logging.debug('[Add-DomainObjectAcl] Principal not found. Searching in Well Known SIDs...')
+            well_known_obj = resolve_WellKnownSID(principalidentity)
+            principal_sAMAccountName = well_known_obj.get("sAMAccountName")
+            principal_SID = well_known_obj.get("objectSid")
+            if principal_SID:
+                logging.debug("[Add-DomainObjectAcl] Found in well known SID: %s" % principal_SID)
+            else:
+                logging.error('[Add-DomainObjectACL] Principal Identity object not found in domain')
+                return
+        elif len(principal_entries) > 1:
+            logging.error("[Add-DomainObjectACL] More then one principal identity found")
+            return
+
+        principal_dn = principal_entries[0].get("dn") if principal_entries else principal_dn #principal_DN
+        principal_sAMAccountName = principal_entries[0].get("attributes").get("sAMAccountName") if principal_entries else principal_sAMAccountName #principal_sAMAccountName
+        principal_SID = principal_entries[0].get("attributes").get("objectSid") if principal_entries else principal_SID #principal_SID
+
+        logging.info(f'[Add-DomainObjectACL] Found principal identity: {principal_dn if principal_dn else principal_sAMAccountName}')
+        
+        dacledit = DACLedit(
+                self.ldap_server,
+                self.ldap_session,
+                self.root_dn,
+                target_sAMAccountName,
+                target_SID,
+                target_dn,
+                target_security_descriptor,
+                principal_sAMAccountName,
+                principal_SID,
+                principal_dn,
+                ace_type,
+                rights,
+                rights_guid,
+                inheritance
+            )
+        dacledit.write()
+
+    def remove_domaincomputer(self,computer_name, args=None):
+        parent_dn_entries = self.root_dn
+        if hasattr(args, 'basedn') and args.basedn:
+            entries = self.get_domainobject(identity=args.basedn)
+            if len(entries) <= 0:
+                logging.error(f"[Add-DomainComputer] {args.basedn} could not be found in the domain")
+                return
+            elif len(entries) > 1:
+                logging.error("[Add-DomainComputer] More then one computer found in domain")
+                return
+
+            parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
+        
         if computer_name[-1] != '$':
             computer_name += '$'
 
         dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, self.args)
         if len(dcinfo)== 0:
-            logging.error("Cannot get domain info")
+            logging.error("[Remove-DomainComputer] Cannot get domain info")
             exit()
         c_key = 0
         dcs = list(dcinfo.keys())
         if len(dcs) > 1:
-            logging.info('We have more than one target, Pls choices the hostname of the -dc-ip you input.')
+            logging.info('We have more than one target, Pls choices the hostname')
             cnt = 0
             for name in dcs:
-                logging.info(f"{cnt}: {name}")
+                print(f"{cnt}: {name}")
                 cnt += 1
             while True:
                 try:
@@ -2211,11 +2467,13 @@ class PowerView:
 
         # Creating Machine Account
         addmachineaccount = ADDCOMPUTER(
-            	self.username,
-            	self.password,
-            	self.domain,
-            	self.args,
-            	computer_name,
+            	username = self.username,
+            	password = self.password,
+            	domain = self.domain,
+            	cmdLineOptions = self.args,
+            	computer_name = computer_name,
+            	base_dn = parent_dn_entries,
+                ldap_session = self.ldap_session
         		)
         try:
             if self.use_ldaps:
@@ -2335,6 +2593,18 @@ class PowerView:
             return True
 
     def add_domaincomputer(self, computer_name, computer_pass, args=None):
+        parent_dn_entries = self.root_dn
+        if hasattr(args, 'basedn') and args.basedn:
+            entries = self.get_domainobject(identity=args.basedn)
+            if len(entries) <= 0:
+                logging.error(f"[Add-DomainComputer] {args.basedn} could not be found in the domain")
+                return
+            elif len(entries) > 1:
+                logging.error("[Add-DomainComputer] More then one computer found in domain")
+                return
+
+            parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
+        
         if computer_name[-1] != '$':
             computer_name += '$'
         dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, self.args)
@@ -2368,16 +2638,21 @@ class PowerView:
 
         # Creating Machine Account
         addmachineaccount = ADDCOMPUTER(
-            	self.username,
-            	self.password,
-            	self.domain,
-            	self.args,
-            	computer_name,
-            	computer_pass)
+            	username=self.username,
+            	password=self.password,
+            	domain=self.domain,
+            	cmdLineOptions = self.args,
+            	computer_name = computer_name,
+            	computer_pass = computer_pass,
+            	base_dn = parent_dn_entries,
+                ldap_session = self.ldap_session
+        )
         try:
             if self.use_ldaps:
+                logging.debug("[Add-DomainComputer] Adding computer via LDAPS")
                 addmachineaccount.run_ldaps()
             else:
+                logging.debug("[Add-DomainComputer] Adding computer via SAMR")
                 addmachineaccount.run_samr()
         except Exception as e:
             logging.error(str(e))
@@ -2426,6 +2701,7 @@ class PowerView:
                 "headers":["Name", "Protocol", "Description", "Authenticated"],
                 "rows":[]
                 }
+
         binding_params = {
             	'lsarpc': {
                 	'stringBinding': r'ncacn_np:%s[\PIPE\lsarpc]' % host,
@@ -2440,7 +2716,7 @@ class PowerView:
             	'samr': {
                 	'stringBinding': r'ncacn_np:%s[\PIPE\samr]' % host,
                 	'protocol': 'MS-SAMR',
-                	'description': 'Security Account Manager (SAM)',
+                	'description': 'Security Account Manager (SAM) Remote Protocol',
             		},
             	'lsass': {
                 	'stringBinding': r'ncacn_np:%s[\PIPE\lsass]' % host,
@@ -2473,27 +2749,26 @@ class PowerView:
                 	'description': 'Microsoft AT-Scheduler Service',
             		},
         		}
-        #self.rpc_conn = CONNECTION(self.args)
+
         if args.name:
             if args.name in list(binding_params.keys()):
                 pipe = args.name
-                if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False):
-                    #logging.info(f"Found named pipe: {args.name}")
+                if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False, set_authn=True):
                     result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.WARNING}No{bcolors.ENDC}'])
-                elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
+                elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], set_authn=True):
                     result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
             else:
-                logging.error(f"Invalid pipe name")
+                logging.error("[Get-NamedPipes] Pipe not found")
                 return
         else:
-            pipes = [ 'netdfs','netlogon', 'lsarpc', 'samr', 'browser', 'spoolss', 'atsvc', 'DAV RPC SERVICE', 'epmapper', 'eventlog', 'InitShutdown', 'keysvc', 'lsass', 'LSM_API_service', 'ntsvcs', 'plugplay', 'protected_storage', 'router', 'SapiServerPipeS-1-5-5-0-70123', 'scerpc', 'srvsvc', 'tapsrv', 'trkwks', 'W32TIME_ALT', 'wkssvc','PIPE_EVENTROOT\CIMV2SCM EVENT PROVIDER', 'db2remotecmd']
             for pipe in binding_params.keys():
                 # TODO: Return entries
-                if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False):
+                if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False, set_authn=True):
                     #logging.debug(f"Found named pipe: {pipe}")
                     result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.WARNING}No{bcolors.ENDC}'])
-                elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding']):
+                elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], set_authn=True):
                     result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
+
         return result
 
     def set_domainuserpassword(self, identity, accountpassword, oldpassword=None, args=None):
@@ -2605,10 +2880,10 @@ class PowerView:
 
         targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['*'], sd_flag=sd_flag)
         if len(targetobject) > 1:
-            logging.error(f"[Set-DomainObject] More than one object found")
+            logging.error(f"[Set-DomainObject] More than one identity found. Use distinguishedName instead")
             return False
         elif len(targetobject) == 0:
-            logging.error(f"[Set-DomainObject] {identity} not found in domain")
+            logging.error(f"[Set-DomainObject] Identity {identity} not found in domain")
             return False
 
         attr_clear = args.clear if hasattr(args,'clear') and args.clear else clear
@@ -2718,30 +2993,36 @@ class PowerView:
 
         return succeeded
 
-    def set_domainobjectdn(self, identity, new_dn, searchbase=None, sd_flag=None, args=None):
+    def set_domainobjectdn(self, identity, destination_dn, searchbase=None, sd_flag=None, args=None):
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
         # verify if the identity exists
         targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['*'], sd_flag=sd_flag)
         if len(targetobject) > 1:
-            logging.error(f"[Set-DomainObjectDN] More than one object found")
+            logging.error(f"[Set-DomainObjectDN] More than one {identity} object found in domain. Try using distinguishedName instead")
             return False
         elif len(targetobject) == 0:
             logging.error(f"[Set-DomainObjectDN] {identity} not found in domain")
             return False
 
+        # verify if the destination_dn exists
+        new_dn = self.get_domainobject(identity=destination_dn, searchbase=searchbase, properties=['*'])
+        if not new_dn:
+            logging.error(f"[Set-DomainObjectDN] Object {destination_dn} not found in domain")
+            return False
+        
         # set the object new dn
         if isinstance(targetobject, list):
             targetobject_dn = targetobject[0]["attributes"]["distinguishedName"]
         else:
             targetobject_dn = targetobject["attributes"]["distinguishedName"]
 
-        logging.debug(f"[Set-DomainObjectDN] Modifying {targetobject_dn} object dn to {new_dn}")
+        logging.debug(f"[Set-DomainObjectDN] Modifying {targetobject_dn} object dn to {destination_dn}")
 
         relative_dn = targetobject_dn.split(",")[0]
 
-        succeeded = self.ldap_session.modify_dn(targetobject_dn, relative_dn, new_superior=new_dn)
+        succeeded = self.ldap_session.modify_dn(targetobject_dn, relative_dn, new_superior=destination_dn)
         if not succeeded:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Set-DomainObjectDN] Failed to modify, view debug message with --debug")
         else:
@@ -2848,6 +3129,79 @@ class PowerView:
             except:
                 pass
         return local_admin_pcs
+
+    def get_netloggedon(self, computer_name, port=445, args=None):
+        ip_address = ""
+        computer_dns = ""
+        KNOWN_PROTOCOLS = {
+                139: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
+                445: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
+                }
+
+        if not is_ipaddress(computer_name):
+            # check if computer exists
+            computer = self.get_domaincomputer(identity=computer_name, properties = ["dNSHostName","distinguishedName"])
+            
+            if len(computer) == 0:
+                logging.error("[Get-NetLoggedOn] No computer found")
+                return
+            elif len(computer) > 1:
+                logging.error("[Get-NetLoggedOn] More then one computer found")
+                return
+            
+            logging.info("[Get-NetLoggedOn] Computer found in domain")
+
+            computer_dns = computer[0].get("attributes").get("dNSHostName")
+
+            ip_address = host2ip(computer_dns, self.nameserver, 3, True)
+        else:
+            ip_address = computer_name
+
+        stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % ip_address
+        dce = self.conn.connectRPCTransport(host=ip_address, stringBindings=stringBinding)
+        
+        if not dce:
+            logging.error("Failed to connect to %s" % (ip_address))
+            return
+
+        dce.bind(wkst.MSRPC_UUID_WKST)
+        try:
+            resp = wkst.hNetrWkstaUserEnum(dce,1)
+        except Exception as e:
+            if str(e).find('Broken pipe') >= 0:
+                # The connection timed-out. Let's try to bring it back next round
+                logging.error('Connection failed - skipping host!')
+                return
+            elif str(e).upper().find('ACCESS_DENIED'):
+                # We're not admin, bye
+                logging.error('Access denied - you must be admin to enumerate sessions this way')
+                dce.disconnect()
+                return
+            else:
+                raise
+        try:
+            entries = []
+            users = set()
+            # Easy way to uniq them
+            for i in resp['UserInfo']['WkstaUserInfo']['Level1']['Buffer']:
+                if i['wkui1_username'][-2] == '$':
+                    continue
+                users.add((ip_address, i['wkui1_logon_domain'][:-1], i['wkui1_username'][:-1], i['wkui1_logon_server'][:-1]))
+            for user in list(users):
+                entries.append({
+                    "attributes": {
+                        "UserName": user[2],
+                        "LogonDomain": user[1],
+                        "AuthDomains": None,
+                        "LogonServer": user[3],
+                        "ComputerName": computer_dns if computer_dns else ip_address,
+                    }
+                })
+        except IndexError:
+            logging.info('No sessions found!')
+
+        dce.disconnect()
+        return entries
 
     def get_netshare(self, args):
         is_fqdn = False
