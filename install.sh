@@ -13,7 +13,7 @@ echo "Uninstalling previous powerview.py"
 sudo pip3 uninstall -y powerview.py
 
 echo "Installing powerview.py"
-sudo pip3 install "git+https://github.com/aniqfakhrul/powerview.py" --force
+sudo pip3 install "git+https://github.com/aniqfakhrul/powerview.py" --upgrade
 
 if ! command -v -- "powerview" > /dev/null 2>&1; then
   echo "'powerview' command not found"
