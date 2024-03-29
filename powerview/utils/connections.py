@@ -744,7 +744,7 @@ class CONNECTION:
             cipher = self.TGT['cipher']
             sessionKey = self.TGT['sessionKey']
 
-        if TGS is None:
+        if not self.TGS:
             serverName = Principal('ldap/%s' % target, type=constants.PrincipalNameType.NT_SRV_INST.value)
             tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey)
             self.TGS['KDC_REP'] = tgs
