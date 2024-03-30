@@ -516,6 +516,7 @@ class PowerView:
             if args.trustedtoauth:
                 logging.debug("[Get-DomainComputer] Searching for computers that are trusted to authenticate for other principals")
                 ldap_filter += f'(msds-allowedtodelegateto=*)'
+                properties = ['msds-AllowedToDelegateTo']
             if args.laps:
                 logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
                 ldap_filter += f'(ms-Mcs-AdmPwd=*)'
