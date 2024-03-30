@@ -543,7 +543,7 @@ class PowerView:
                 properties += ["msFVE-KeyPackage", "msFVE-RecoveryGuid", "msFVE-RecoveryPassword", "msFVE-VolumeGuid"]
             if args.gmsapassword:
                 logging.debug("[Get-DomainComputer] Searching for computers with GSMA password stored")
-                ldap_filter += f'(msDS-GroupManagedServiceAccount=*)'
+                ldap_filter += f'(objectClass=msDS-GroupManagedServiceAccount)'
                 properties += ["msDS-ManagedPassword"]
             if args.ldapfilter:
                 logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
