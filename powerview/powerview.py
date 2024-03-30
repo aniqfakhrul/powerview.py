@@ -307,6 +307,17 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
+            # resolve msDS-AllowedToActOnBehalfOfOtherIdentity
+            try:
+                if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(_entries["attributes"].keys()):
+                    parser = RBCD(_entries)
+                    sids = parser.read()
+                    if args.resolvesids:
+                        for i in range(len(sids)):
+                            sids[i] = self.convertfrom_sid(sids[i])
+                    _entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = sids
+            except:
+                pass
             entries.append(_entries)
         return entries
 
