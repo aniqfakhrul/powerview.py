@@ -216,6 +216,7 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
     get_domaincomputer_parser.add_argument('-LAPS', action='store_true', default=False, dest='laps')
     get_domaincomputer_parser.add_argument('-BitLocker', action='store_true', default=False, dest='bitlocker')
+    get_domaincomputer_parser.add_argument('-ReadGMSAPassword', action='store_true', default=False, dest='readgmsapassword')
     get_domaincomputer_parser.add_argument('-RBCD', action='store_true', default=False, dest='rbcd')
     get_domaincomputer_parser.add_argument('-ShadowCred', action='store_true', default=False, dest='shadowcred')
     get_domaincomputer_parser.add_argument('-SPN', action='store_true', dest='spn')

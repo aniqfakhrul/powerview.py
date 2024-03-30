@@ -541,6 +541,9 @@ class PowerView:
                 logging.debug("[Get-DomainComputer] Searching for computers with BitLocker keys")
                 ldap_filter += f'(objectClass=msFVE-RecoveryInformation)'
                 properties += ["msFVE-KeyPackage", "msFVE-RecoveryGuid", "msFVE-RecoveryPassword", "msFVE-VolumeGuid"]
+			if args.readgmsapassword:
+				logging.debug("[Get-DomainComputer] Searching for computers with GSMA password stored")
+				properties += ["msDS-ManagedPassword"]
             if args.ldapfilter:
                 logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f"{args.ldapfilter}"

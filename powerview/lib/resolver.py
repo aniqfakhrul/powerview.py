@@ -3,7 +3,7 @@ import binascii
 
 from impacket.uuid import bin_to_string
 from ldap3.protocol.formatters.formatters import format_sid
-
+from Cryptodome.Hash import MD4
 
 from powerview.utils.constants import (
     UAC_DICT,
