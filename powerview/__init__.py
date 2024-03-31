@@ -33,7 +33,7 @@ def main():
     setattr(args, 'ldap_address', ldap_address)
 
     # setup debugging properties
-    log_handler = LOG(args)
+    log_handler = LOG(ldap_address)
 
     if args.debug:
         logging = log_handler.setup_logger("DEBUG")
