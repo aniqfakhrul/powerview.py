@@ -718,7 +718,11 @@ def powerview_arg_parse(cmd):
         except:
             pass
         
-        print(str(e))
+        if "module" in str(e):
+            print("Invalid command")
+        else:
+            print(str(e))
+        
         return None
     except SystemExit:
         return None
