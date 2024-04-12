@@ -166,7 +166,7 @@ class DACLedit(object):
         self.rights_guid = rights_guid
         self.inheritance = inheritance
         if self.inheritance:
-            logging.info("NB: objects with adminCount=1 will not inherit ACEs from their parent container/OU")
+            logging.warning("Objects with adminCount=1 will not inherit ACEs from their parent container/OU")
 
     # Main read funtion
     # Prints the parsed DACL

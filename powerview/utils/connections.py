@@ -634,6 +634,9 @@ class CONNECTION:
             except ldap3.core.exceptions.LDAPInvalidValueError as e:
                 logging.error(str(e))
                 sys.exit(-1)
+            except ldap3.core.exceptions.LDAPOperationsErrorResult as e:
+            	logging.error("Failed to bind with error: %s" % (str(e)))
+            	sys.exit(-1)
 
             if not bind:
                 error_code = ldap_session.result['message'].split(",")[2].replace("data","").strip()

@@ -333,6 +333,7 @@ def get_machine_name(domain, args=None):
 def parse_identity(args):
     #domain, username, password = utils.parse_credentials(args.account)
     domain, username, password, address = parse_target(args.target)
+
     if password == '' and username != '' and args.hashes is None and args.no_pass is False and args.auth_aes_key is None:
         if args.pfx is not None:
             pasword = None

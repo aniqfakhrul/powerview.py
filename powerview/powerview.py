@@ -516,6 +516,7 @@ class PowerView:
             if args.trustedtoauth:
                 logging.debug("[Get-DomainComputer] Searching for computers that are trusted to authenticate for other principals")
                 ldap_filter += f'(msds-allowedtodelegateto=*)'
+                properties += ['msds-AllowedToDelegateTo']
             if args.laps:
                 logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
                 ldap_filter += f'(ms-Mcs-AdmPwd=*)'
@@ -541,6 +542,10 @@ class PowerView:
                 logging.debug("[Get-DomainComputer] Searching for computers with BitLocker keys")
                 ldap_filter += f'(objectClass=msFVE-RecoveryInformation)'
                 properties += ["msFVE-KeyPackage", "msFVE-RecoveryGuid", "msFVE-RecoveryPassword", "msFVE-VolumeGuid"]
+            if args.gmsapassword:
+                logging.debug("[Get-DomainComputer] Searching for computers with GSMA password stored")
+                ldap_filter += f'(objectClass=msDS-GroupManagedServiceAccount)'
+                properties += ["msDS-ManagedPassword"]
             if args.ldapfilter:
                 logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f"{args.ldapfilter}"

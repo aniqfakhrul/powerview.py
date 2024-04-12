@@ -16,7 +16,7 @@ _or_
 git clone https://github.com/aniqfakhrul/powerview.py
 cd powerview.py
 sudo apt install libkrb5-dev
-sudo pip3 setup.py install
+sudo python3 setup.py install
 ```
 > [!TIP]
 > Use pipx to remotely fetch and install locally
