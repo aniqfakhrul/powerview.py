@@ -82,6 +82,8 @@ COMMANDS = {
     'Add-ObjectAcl':['-PrincipalIdentity','-TargetIdentity','-Rights','-RightsGUID','-Inheritance','-ACEType','-Server','-OutFile'],
     'Add-DomainOU':['-Identity','-ProtectedFromAccidentalDeletion','-BaseDN','-Server','-OutFile'],
     'Add-OU':['-Identity','-ProtectedFromAccidentalDeletion','-BaseDN','-Server','-OutFile'],
+    'Add-DomainGPO':['-Identity','-Description','-ProtectedFromAccidentalDeletion','-BaseDN','-Server','-OutFile'],
+    'Add-GPO':['-Identity','-Description','-ProtectedFromAccidentalDeletion','-BaseDN','-Server','-OutFile'],
     'Remove-DomainOU':['-Identity','-DistinguishedName','-Server','-OutFile'],
     'Remove-OU':['-Identity','-DistinguishedName','-Server','-OutFile'],
     'Remove-DomainObjectAcl':['-PrincipalIdentity','-TargetIdentity','-Rights','-RightsGUID','-Inheritance','-ACEType','-Server','-OutFile'],

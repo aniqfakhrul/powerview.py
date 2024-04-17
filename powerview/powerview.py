@@ -1357,6 +1357,38 @@ class PowerView:
             logging.info(f"[Unlock-ADAccount] Failed to unlock {identity_san}")
             return False
 
+    def add_domaingpo(self, identity, description=None, basedn=None, args=None):
+        name = '{%s}' % get_uuid(upper=True)
+        gpo_data = {
+            'displayName':identity,
+            'name': name
+        }
+
+        basedn = "CN=Policies,CN=System,%s" % (self.root_dn) if not basedn else basedn
+
+        dn_exist = self.get_domainobject(identity=basedn)
+        if not dn_exist:
+            logging.error(f"[Add-DomainGPO] DN {basedn} not found in domain")
+            return False
+
+        dn = "CN=%s,%s" % (name, basedn)
+        logging.debug(f"[Add-DomainGPO] GPO distinguishedName: {dn}")
+
+        self.ldap_session.add(dn, ['top','container','groupPolicyContainer'], gpo_data)
+
+        if args.protectedfromaccidentaldeletion:
+            logging.info("[Add-DomainGPO] Protect accidental deletion enabled")
+            self.add_domainobjectacl(dn, "Everyone", rights="immutable", ace_type="denied")
+
+        if self.ldap_session.result['result'] == 0:
+            logging.info(f"[Add-DomainGPO] Added new {identity} GPO")
+            return True
+        else:
+            logging.error(f"[Add-DomainGPO] Failed to create {identity} GPO ({self.ldap_session.result['description']})")
+            return False
+
+        return True
+
     def add_domainou(self, identity, basedn=None, args=None):
         basedn = self.root_dn if not basedn else basedn
 
@@ -1366,7 +1398,7 @@ class PowerView:
             return False
 
         dn = "OU=%s,%s" % (identity, basedn)
-        logging.debug(f"[Add-DomainOU] OU dstinguishedName: {dn}")
+        logging.debug(f"[Add-DomainOU] OU distinguishedName: {dn}")
 
         
         ou_data = {

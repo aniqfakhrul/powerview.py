@@ -5,6 +5,7 @@ import ldap3
 import ssl
 import ldapdomaindump
 import ipaddress
+import uuid
 import dns.resolver
 from binascii import unhexlify
 import os
@@ -33,6 +34,12 @@ from impacket.krb5.kerberosv5 import getKerberosTGT
 from powerview.lib.dns import (
     STORED_ADDR
 )
+
+def get_uuid(upper=False):
+    if upper:
+        return str(uuid.uuid4()).upper()
+    else:
+        return str(uuid.uuid4())
 
 def get_random_hex(length):
     hex_string = '0123456789ABCDEF'

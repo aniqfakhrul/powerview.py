@@ -520,6 +520,15 @@ def powerview_arg_parse(cmd):
     add_domainou_parser.add_argument('-Server', action='store', dest='server')
     add_domainou_parser.add_argument('-OutFile', action='store', dest='outfile')
 
+    # add domain gpo
+    add_domaingpo_parser = subparsers.add_parser('Add-DomainGPO', aliases=['Add-GPO'], exit_on_error=False)
+    add_domaingpo_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=str)
+    add_domaingpo_parser.add_argument('-Description', action='store', dest='description', type=str)
+    add_domaingpo_parser.add_argument('-ProtectedFromAccidentalDeletion', action='store_true', default=False, dest='protectedfromaccidentaldeletion')
+    add_domaingpo_parser.add_argument('-BaseDN', action='store', const=None, dest='basedn', help="[Optional] (Default: root DN)")
+    add_domaingpo_parser.add_argument('-Server', action='store', dest='server')
+    add_domaingpo_parser.add_argument('-OutFile', action='store', dest='outfile')
+
     # remove domain ou
     remove_domainou_parser = subparsers.add_parser('Remove-DomainOU', aliases=['Remove-OU'], exit_on_error=False)
     remove_domainou_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
