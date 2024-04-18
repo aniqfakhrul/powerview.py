@@ -1,4 +1,6 @@
 *.swp
+*.ccache
+*.pfx
 __pycache__
 powerview.egg-info
 powerview.py.egg-info

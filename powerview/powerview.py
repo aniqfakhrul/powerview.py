@@ -384,12 +384,12 @@ class PowerView:
 
         return objects
 
-    def get_domainou(self, args=None, properties=['*'], identity=None, searchbase=None):
+    def get_domainou(self, args=None, properties=['*'], identity=None, searchbase=None, resolve_gplink=False):
         ldap_filter = ""
         identity_filter = "" 
 
         if identity:
-            identity_filter += f"(|(name={identity}))"
+            identity_filter += f"(|(name={identity})(distinguishedName={identity}))"
 
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -409,6 +409,23 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
+
+            if resolve_gplink:
+                gplinks = re.findall(r"(\{{0,1}([0-9a-fA-F]){8}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){12}\}{0,1})",_entries["attributes"]["gPLink"],re.M)
+                if gplinks:
+                    gplink_list = []
+                    for guid in [guids[0] for guids in gplinks]:
+                        gpo = self.get_domaingpo(identity=guid, properties=["displayName"])
+                        if len(gpo) == 0:
+                            logging.debug("[Get-DomainOU] gPLink not found. Cant resolve %s" % (guid))
+                        elif len(gpo) > 1:
+                            logging.debug("[Get-DomainOU] More than one gPLink found for %s. Ignoring..." % (guid))
+                        else:
+                            gplink_list.append("{} ({})".format(guid, gpo[0].get("attributes").get("displayName")))
+                    
+                    if len(gplink_list) != 0:
+                        _entries["attributes"]["gPLink"] = gplink_list
+
             entries.append(_entries)
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
@@ -1376,9 +1393,17 @@ class PowerView:
 
         self.ldap_session.add(dn, ['top','container','groupPolicyContainer'], gpo_data)
 
-        if args.protectedfromaccidentaldeletion:
-            logging.info("[Add-DomainGPO] Protect accidental deletion enabled")
-            self.add_domainobjectacl(dn, "Everyone", rights="immutable", ace_type="denied")
+        if args.linkto is not None:
+            ou = self.get_domainou(identity=args.linkto, properties=["distinguishedName"])
+
+            if len(ou) == 0:
+                logging.error("[Add-DomainGPO] OU not found in domain.")
+                return
+            elif len(ou) > 1:
+                logging.error("[Add-DomainGPO] More than one OU found in domain.")
+                return
+
+            self.add_gplink(guid=name, targetidentity=ou[0].get("dn"))
 
         if self.ldap_session.result['result'] == 0:
             logging.info(f"[Add-DomainGPO] Added new {identity} GPO")
@@ -1530,7 +1555,7 @@ class PowerView:
             logging.error(f"[Remove-GPLink] Failed to modify gPLink on {targetidentity_dn} OU")
             return False
 
-    def new_gplink(self, guid, targetidentity, link_enabled="Yes", enforced="No", searchbase=None, sd_flag=None, args=None):
+    def add_gplink(self, guid, targetidentity, link_enabled="Yes", enforced="No", searchbase=None, sd_flag=None, args=None):
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 

@@ -180,9 +180,9 @@ def main():
                                 properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainou(pv_args, properties, identity)
+                                    entries = temp_powerview.get_domainou(pv_args, properties, identity, resolve_gplink=pv_args.resolve_gplink)
                                 else:
-                                    entries = powerview.get_domainou(pv_args, properties, identity)
+                                    entries = powerview.get_domainou(pv_args, properties, identity, resolve_gplink=pv_args.resolve_gplink)
                             elif pv_args.module.casefold() == 'get-domaindnszone':
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
@@ -562,12 +562,12 @@ def main():
                                         powerview.remove_domaincomputer(pv_args.computername, args=pv_args)
                                 else:
                                     logging.error('-ComputerName is required')
-                            elif pv_args.module.casefold() == 'new-gplink':
+                            elif pv_args.module.casefold() == 'add-gplink':
                                 if pv_args.guid is not None and pv_args.targetidentity is not None:
                                     if temp_powerview:
-                                        powerview.new_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, link_enabled=pv_args.link_enabled, enforced=pv_args.enforced, args=pv_args)
+                                        powerview.add_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, link_enabled=pv_args.link_enabled, enforced=pv_args.enforced, args=pv_args)
                                     else:
-                                        powerview.new_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, link_enabled=pv_args.link_enabled, enforced=pv_args.enforced, args=pv_args)
+                                        powerview.add_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, link_enabled=pv_args.link_enabled, enforced=pv_args.enforced, args=pv_args)
                                 else:
                                     logging.error("-GUID and -TargetIdentity flags are required")
                             elif pv_args.module.casefold() == 'remove-gplink':

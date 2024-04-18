@@ -143,7 +143,8 @@ ConvertFrom-UACValue           Get-DomainGPOLocalGroup        Get-NetGPO        
 |Add-DomainUser|Add-ADUser|Add new Domain User in AD|
 |Add-DomainComputer|Add-ADComputer|Add new Domain Computer in AD|
 |Add-DomainGroupMember|Add-GroupMember|Add new member in specified Domain Group in AD|
-|Add-DomainOU|Add-OU|Add new OU objects in AD|
+|Add-DomainOU|Add-OU|Add new OU object in AD|
+|Add-DomainGPO|Add-GPO|Add new GPO object in AD|
 |Add-DomainObjectAcl|Add-ObjectAcl|Supported rights so far are All, DCsync, RBCD, ShadowCred, WriteMembers|
 
 ### GPO Functions
@@ -152,7 +153,7 @@ ConvertFrom-UACValue           Get-DomainGPOLocalGroup        Get-NetGPO        
 | ------ | ----- | ---- |
 |Get-DomainGPO|Get-NetGPO| Query for domain group policy objects |
 |Get-DomainGPOLocalGroup|Get-GPOLocalGroup|Query all GPOs in a domain that modify local group memberships through `Restricted Groups` or `Group Policy preferences`|
-|New-GPLink||Create new GPO link to an OU|
+|Add-GPLink||Create new GPO link to an OU|
 |Remove-GPLink||Remove GPO link from an OU|
 
 ### Computer Enumeration Functions
