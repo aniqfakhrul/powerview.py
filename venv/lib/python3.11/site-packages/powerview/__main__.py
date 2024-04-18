@@ -1,3 +1,0 @@
-import powerview
-
-powerview.main()

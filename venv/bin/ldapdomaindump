@@ -1,3 +1,0 @@
-#!/opt/powerview.py/venv/bin/python3
-import ldapdomaindump
-ldapdomaindump.main()
