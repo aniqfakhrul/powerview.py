@@ -146,7 +146,7 @@ class FORMATTER:
         headers = []
         rows = []
         nested_list = False
-        if (hasattr(self.args, "select") and self.args.select) or (hasattr(self.args, "properties") and self.args.properties):
+        if (hasattr(self.args, "select") and self.args.select) or (hasattr(self.args, "properties") and self.args.properties and not self.args.properties == '*'):
             if self.args.select:
                 headers = self.args.select.split(",")
             elif self.args.properties:

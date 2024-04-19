@@ -73,7 +73,7 @@ def powerview_arg_parse(cmd):
     #domain
     get_domain_parser = subparsers.add_parser('Get-Domain', aliases=['Get-NetDomain'], exit_on_error=False)
     get_domain_parser.add_argument('-Identity', action='store',default='*', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
-    get_domain_parser.add_argument('-Properties', action='store', default='*', dest='properties')
+    get_domain_parser.add_argument('-Properties', action='store', dest='properties')
     get_domain_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domain_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
     get_domain_parser.add_argument('-Server', action='store', dest='server')
@@ -87,7 +87,7 @@ def powerview_arg_parse(cmd):
     #domainobject
     get_domainobject_parser = subparsers.add_parser('Get-DomainObject', aliases=['Get-ADObject'] ,exit_on_error=False)
     get_domainobject_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
-    get_domainobject_parser.add_argument('-Properties', action='store', default='*', dest='properties')
+    get_domainobject_parser.add_argument('-Properties', action='store', dest='properties')
     get_domainobject_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domainobject_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
     get_domainobject_parser.add_argument('-Server', action='store', dest='server')
@@ -242,7 +242,7 @@ def powerview_arg_parse(cmd):
     #gpo
     get_domaingpo_parser = subparsers.add_parser('Get-DomainGPO', aliases=['Get-NetGPO'], exit_on_error=False)
     get_domaingpo_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
-    get_domaingpo_parser.add_argument('-Properties', action='store', default='*', dest='properties')
+    get_domaingpo_parser.add_argument('-Properties', action='store', dest='properties')
     get_domaingpo_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domaingpo_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
     get_domaingpo_parser.add_argument('-Server', action='store', dest='server')
@@ -268,7 +268,7 @@ def powerview_arg_parse(cmd):
     # OU
     get_domainou_parser = subparsers.add_parser('Get-DomainOU', aliases=['Get-NetOU'], exit_on_error=False)
     get_domainou_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
-    get_domainou_parser.add_argument('-Properties', action='store', default='*', dest='properties')
+    get_domainou_parser.add_argument('-Properties', action='store', dest='properties')
     get_domainou_parser.add_argument('-GPLink', action='store', dest='gplink')
     get_domainou_parser.add_argument('-ResolveGPLink', action='store_true', default=False, dest='resolve_gplink')
     get_domainou_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))

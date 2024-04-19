@@ -271,7 +271,12 @@ class PowerView:
 
         return entries
 
-    def get_domainobject(self, args=None, properties=['*'], identity=None, identity_filter=None, searchbase=None, sd_flag=None):
+    def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, searchbase=None, sd_flag=None):
+        def_prop = [
+            '*'
+        ]
+        properties = def_prop if not properties else properties
+
         if sd_flag:
             # Set SD flags to only query for DACL and Owner
             controls = security_descriptor_control(sdflags=sd_flag)
@@ -384,7 +389,24 @@ class PowerView:
 
         return objects
 
-    def get_domainou(self, args=None, properties=['*'], identity=None, searchbase=None, resolve_gplink=False):
+    def get_domainou(self, args=None, properties=[], identity=None, searchbase=None, resolve_gplink=False):
+        def_prop = [
+            'objectClass',
+            'ou',
+            'distinguishedName',
+            'instanceType',
+            'whenCreated',
+            'whenChanged',
+            'uSNCreated',
+            'uSNChanged',
+            'name',
+            'objectGUID',
+            'objectCategory',
+            'gPLink',
+            'dSCorePropagationData'
+        ]
+
+        properties = def_prop if not properties else properties
         ldap_filter = ""
         identity_filter = "" 
 
@@ -909,7 +931,32 @@ class PowerView:
 
         return new_entries
 
-    def get_domaingpo(self, args=None, properties=['*'], identity=None, searchbase=None):
+    def get_domaingpo(self, args=None, properties=[], identity=None, searchbase=None):
+        def_prop = [
+            'objectClass',
+            'cn',
+            'distinguishedName',
+            'instanceType',
+            'whenCreated',
+            'whenChanged',
+            'displayName',
+            'uSNCreated',
+            'uSNChanged',
+            'showInAdvancedViewOnly',
+            'name',
+            'objectGUID',
+            'flags',
+            'versionNumber',
+            'systemFlags',
+            'objectCategory',
+            'isCriticalSystemObject',
+            'gPCFunctionalityVersion',
+            'gPCFileSysPath',
+            'gPCMachineExtensionNames',
+            'dSCorePropagationData'
+        ]
+
+        properties = def_prop if not properties else properties
         ldap_filter = ""
         identity_filter = ""
         if identity:
@@ -932,6 +979,7 @@ class PowerView:
                 continue
             strip_entry(_entries)
             entries.append(_entries)
+
         return entries
 
     def get_domaingpolocalgroup(self, args=None, identity=None):
@@ -1069,7 +1117,8 @@ class PowerView:
             print("%s" % identity)
         return identity
 
-    def get_domain(self, args=None, properties=['*'], identity=None, searchbase=None):
+    def get_domain(self, args=None, properties=[], identity=None, searchbase=None):
+        properties = ['*'] if not properties else properties
         identity = '*' if not identity else identity
 
         identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
