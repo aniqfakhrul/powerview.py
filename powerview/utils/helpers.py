@@ -255,7 +255,7 @@ def is_ipaddress(address):
     except ValueError:
         return False
 
-def get_principal_dc_address(domain, nameserver, dns_tcp=True):
+def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_ns=True):
     answer = None
 
     basequery = f'_ldap._tcp.pdc._msdcs.{domain}'
@@ -279,7 +279,7 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
         for r in q:
             dc = str(r.target).rstrip('.')
         #resolve ip for principal dc
-        answer = host2ip(dc, nameserver)
+        answer = host2ip(dc, nameserver, 3, dns_tcp, use_system_ns)
         return answer
     except resolver.NXDOMAIN as e:
         logging.debug(str(e))
@@ -298,7 +298,7 @@ def get_principal_dc_address(domain, nameserver, dns_tcp=True):
         for r in q:
             dc = str(r.target).rstrip('.')
             logging.debug('Found AD Domain: %s' % dc)
-        answer = host2ip(dc,nameserver)
+        answer = host2ip(dc, nameserver, 3, dns_tcp, use_system_ns)
         return answer
     except resolver.NXDOMAIN:
         pass
@@ -373,7 +373,7 @@ def get_user_info(samname, ldap_session, domain_dumper):
         return False
 
 
-def host2ip(hostname, nameserver, dns_timeout=10, dns_tcp=True):
+def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_ns=True):
     hostname = str(hostname)
     if hostname in list(STORED_ADDR.keys()):
         return STORED_ADDR[hostname]
@@ -382,8 +382,10 @@ def host2ip(hostname, nameserver, dns_timeout=10, dns_tcp=True):
     if nameserver:
         logging.debug(f"Querying {hostname} from DNS server {nameserver}")
         dnsresolver.nameservers = [nameserver]
+    elif use_system_ns:
+        logging.debug(f"Using host's resolver to resolve {hostname}")
     else:
-        logging.debug(f"No nameserver provided, using host's resolver to resolve {hostname}")
+        return hostname
 
     dnsresolver.lifetime = float(dns_timeout)
     try:
@@ -433,7 +435,7 @@ def get_dc_host(ldap_session, domain_dumper, options):
         for host in ldap_session.entries:
             dc_host[str(host['name'])] = {}
             dc_host[str(host['name'])]['dNSHostName'] = str(host['dNSHostName'])
-            host_ip = host2ip(str(host['dNSHostName']), options.nameserver, 3, True)
+            host_ip = host2ip(str(host['dNSHostName']), options.nameserver, 3, True, use_system_ns=options.use_system_nameserver)
             if host_ip:
                 dc_host[str(host['name'])]['HostIP'] = host_ip
             else:

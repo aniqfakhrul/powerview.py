@@ -54,6 +54,7 @@ class PowerView:
         self.nthash = args.nthash
         self.use_ldaps = args.use_ldaps
         self.nameserver = args.nameserver
+        self.use_system_nameserver = args.use_system_ns
         self.dc_ip = args.dc_ip
         self.use_kerberos = args.use_kerberos
 
@@ -606,16 +607,7 @@ class PowerView:
             #if not dnshostname:
             #    continue
             if resolveip and _entries['attributes']['dnsHostName']:
-                if self.nameserver:
-                    ns = self.nameserver
-                elif self.dc_ip and is_ipaddress(self.dc_ip):
-                    ns = self.dc_ip
-                elif self.ldap_server and is_ipaddress(self.ldap_server):
-                    ns = self.ldap_server
-                else:
-                    ns = None
-
-                ip = host2ip(_entries['attributes']['dnsHostName'], ns, 3, True)
+                ip = host2ip(_entries['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
                 if ip:
                     _entries = modify_entry(
                         _entries,
@@ -1296,11 +1288,11 @@ class PowerView:
             # check for web enrollment
             for i in range(len(entries)):
                 target_name = entries[i]['dnsHostName'].value
-                web_enrollment = ca_fetch.check_web_enrollment(target_name,self.nameserver)
+                web_enrollment = ca_fetch.check_web_enrollment(target_name,self.nameserver, use_system_ns=self.use_system_nameserver)
 
-                if not web_enrollment and self.nameserver:
+                if not web_enrollment:
                     logging.debug("Trying to check web enrollment with IP")
-                    web_enrollment = ca_fetch.check_web_enrollment(target_name,self.nameserver,use_ip=True)
+                    web_enrollment = ca_fetch.check_web_enrollment(target_name,self.nameserver, use_ip=True, use_system_ns=self.use_system_nameserver)
 
                 entries[i] = modify_entry(
                     entries[i],
@@ -2805,8 +2797,8 @@ class PowerView:
                 logging.error('[Get-NamedPipes] FQDN must be used for kerberos authentication')
                 return
         else:
-            if is_fqdn and self.nameserver:
-                host = host2ip(host, self.nameserver, 3, True)
+            if is_fqdn:
+                host = host2ip(host, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
         if not host:
             logging.error('[Get-NamedPipes] Host not found')
@@ -3204,10 +3196,7 @@ class PowerView:
             if is_ipaddress(computer):
                 hosts['address'] = computer
             else:
-                if self.nameserver:
-                    hosts['address'] = host2ip(computer, self.nameserver, 3, True)
-                else:
-                    host['address'] = computer
+                hosts['address'] = host2ip(computer, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
                 hosts['hostname'] = computer
             host_entries.append(hosts)
         else:
@@ -3222,7 +3211,7 @@ class PowerView:
                     if len(entry['attributes']['dnsHostName']) <= 0:
                         continue
 
-                    hosts['address'] = host2ip(entry['attributes']['dnsHostName'], self.nameserver, 3, True)
+                    hosts['address'] = host2ip(entry['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
                     hosts['hostname'] = entry['attributes']['dnsHostname']
                     host_entries.append(hosts.copy())
                 except IndexError:
@@ -3268,7 +3257,7 @@ class PowerView:
 
             computer_dns = computer[0].get("attributes").get("dNSHostName")
 
-            ip_address = host2ip(computer_dns, self.nameserver, 3, True)
+            ip_address = host2ip(computer_dns, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
         else:
             ip_address = computer_name
 
@@ -3345,8 +3334,8 @@ class PowerView:
                 logging.error('[Get-NetShare] FQDN must be used for kerberos authentication')
                 return
         else:
-            if is_fqdn and self.nameserver:
-                host = host2ip(host, self.nameserver, 3, True)
+            if is_fqdn:
+                host = host2ip(host, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
         if not host:
             logging.error(f"[Get-NetShare] Host not found")
@@ -3400,8 +3389,8 @@ class PowerView:
                 logging.error('[Get-NetSession] FQDN must be used for kerberos authentication')
                 return
         else:
-            if is_fqdn and self.nameserver:
-                host = host2ip(host, self.nameserver, 3, True)
+            if is_fqdn:
+                host = host2ip(host, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
         if not host:
             logging.error(f"[Get-NetSession] Host not found")

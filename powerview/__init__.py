@@ -74,10 +74,10 @@ def main():
 
                     if pv_args:
                         if pv_args.server and pv_args.server.casefold() != args.domain.casefold():
-                            if args.use_kerberos or not args.nameserver:
+                            if args.use_kerberos:
                                 ldap_address = pv_args.server
                             else:
-                                ldap_address = get_principal_dc_address(pv_args.server, args.nameserver)
+                                ldap_address = get_principal_dc_address(pv_args.server, args.nameserver, use_system_ns=args.use_system_nameserver)
                             
                             conn.set_ldap_address(ldap_address)
                             conn.set_targetDomain(pv_args.server)
