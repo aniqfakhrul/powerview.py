@@ -608,7 +608,7 @@ class PowerView:
             #    continue
             if resolveip and _entries['attributes']['dnsHostName']:
                 ip = host2ip(_entries['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
-                if ip:
+                if is_ipaddress(ip):
                     _entries = modify_entry(
                         _entries,
                         new_attributes = {
@@ -952,7 +952,7 @@ class PowerView:
         ldap_filter = ""
         identity_filter = ""
         if identity:
-            identity_filter = f"(cn=*{identity}*)"
+            identity_filter = f"(|(cn=*{identity}*)(displayName={identity}))"
         
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -1417,20 +1417,76 @@ class PowerView:
 
     def add_domaingpo(self, identity, description=None, basedn=None, args=None):
         name = '{%s}' % get_uuid(upper=True)
-        gpo_data = {
-            'displayName':identity,
-            'name': name
-        }
 
         basedn = "CN=Policies,CN=System,%s" % (self.root_dn) if not basedn else basedn
-
         dn_exist = self.get_domainobject(identity=basedn)
         if not dn_exist:
             logging.error(f"[Add-DomainGPO] DN {basedn} not found in domain")
             return False
 
+        # adding new folder policy folder in sysvol share
+        dc = None
+        dcs = self.get_domaincontroller(properties=['dnsHostName'])
+        if len(dcs) == 0:
+            logging.warning("[Add-DomainGPO] No domain controller found in ldap. Using domain as address")
+        elif dcs[0].get("attributes").get("dnsHostName"):
+            logging.debug("[Add-DomainGPO] Found %d domain controller(s). Using the first one" % len(dcs))
+            dc = dcs[0].get("attributes").get("dnsHostName")
+
+        if not dc:
+            dc = self.domain
+        
+        logging.debug("[Add-DomainGPO] Resolving hostname to IP")
+        dc = host2ip(dc, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+
+        share = "SYSVOL"
+        policy_path = "/%s/Policies/%s" % (
+            self.domain,
+            name
+        )
+        smbconn = self.conn.init_smb_session(dc)
+        try:
+            tid = smbconn.connectTree(share)
+        except Exception as e:
+            logging.error("[Add-DomainGPO] Failed to connect to SYSVOL share")
+            return False
+
+        logging.debug("[Add-DomainGPO] Creating directories in %s" % (policy_path))
+        smbconn.createDirectory(share, policy_path)
+        smbconn.createDirectory(share, policy_path + "/Machine")
+        smbconn.createDirectory(share, policy_path + "/User")
+
+        logging.debug("[Add-DomainGPO] Putting default GPT.INI file")
+        gpt_ini_content = """[General]
+Version=0
+displayName=New Group Policy Object
+
+"""
+        """
+        try:
+            fid = smbconn.createFile(tid, policy_path + "/GPT.ini")
+        except Exception as e:
+            logging.error("[Add-DomainGPO] Failed to create gpt.ini file in %s" % (policy_path))
+            return False
+        try:
+            smbconn.writeFile(tid, fid, gpt_ini_content)
+        except Exception as e:
+            logging.error("[Add-DomainGPO] Failed to write gpt.ini file in %s" % (policy_path))
+            return False
+
+        smbconn.closeFile(tid, fid)
+        """
+        logging.info("[Add-DomainGPO] SYSVOL policy folder successfully created!")
+
         dn = "CN=%s,%s" % (name, basedn)
-        logging.debug(f"[Add-DomainGPO] GPO distinguishedName: {dn}")
+        logging.debug(f"[Add-DomainGPO] Adding GPO with dn: {dn}")
+
+        gpo_data = {
+            'displayName':identity,
+            'name': name,
+            'gPCFunctionalityVersion': 2,
+            'gPCFileSysPath': "\\\\%s\\SysVol%s" % (self.domain, policy_path.replace("/","\\"))
+        }
 
         self.ldap_session.add(dn, ['top','container','groupPolicyContainer'], gpo_data)
 
@@ -1447,13 +1503,11 @@ class PowerView:
             self.add_gplink(guid=name, targetidentity=ou[0].get("dn"))
 
         if self.ldap_session.result['result'] == 0:
-            logging.info(f"[Add-DomainGPO] Added new {identity} GPO")
+            logging.info(f"[Add-DomainGPO] Added new {identity} GPO object")
             return True
         else:
             logging.error(f"[Add-DomainGPO] Failed to create {identity} GPO ({self.ldap_session.result['description']})")
             return False
-
-        return True
 
     def add_domainou(self, identity, basedn=None, args=None):
         basedn = self.root_dn if not basedn else basedn
