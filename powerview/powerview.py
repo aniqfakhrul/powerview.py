@@ -1451,18 +1451,22 @@ class PowerView:
             logging.error("[Add-DomainGPO] Failed to connect to SYSVOL share")
             return False
 
-        logging.debug("[Add-DomainGPO] Creating directories in %s" % (policy_path))
-        smbconn.createDirectory(share, policy_path)
-        smbconn.createDirectory(share, policy_path + "/Machine")
-        smbconn.createDirectory(share, policy_path + "/User")
+        try:
+            logging.debug("[Add-DomainGPO] Creating directories in %s" % (policy_path))
+            smbconn.createDirectory(share, policy_path)
+            smbconn.createDirectory(share, policy_path + "/Machine")
+            smbconn.createDirectory(share, policy_path + "/User")
+        except Exception as e:
+            logging.error("[Add-DomainGPO] Failed to create policy directory in SYSVOL")
+            logging.error(str(e))
+            return False
 
-        logging.debug("[Add-DomainGPO] Putting default GPT.INI file")
+        logging.debug("[Add-DomainGPO] Writing default GPT.INI file")
         gpt_ini_content = """[General]
 Version=0
 displayName=New Group Policy Object
 
 """
-        """
         try:
             fid = smbconn.createFile(tid, policy_path + "/GPT.ini")
         except Exception as e:
@@ -1475,7 +1479,6 @@ displayName=New Group Policy Object
             return False
 
         smbconn.closeFile(tid, fid)
-        """
         logging.info("[Add-DomainGPO] SYSVOL policy folder successfully created!")
 
         dn = "CN=%s,%s" % (name, basedn)
