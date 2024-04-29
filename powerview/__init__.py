@@ -62,11 +62,17 @@ def main():
 
         cur_user = conn.who_am_i()
 
-        # Determine the style for the current user
-        if is_admin:
-            user_style = [(Token.Warning, cur_user)]
-        else:
-            user_style = [(Token.User, cur_user)]
+        # Define styles including a special style for admin
+        user_style = (
+            "ansiyellow" if not is_admin else "ansired"
+        )  # Admins in red, others in yellow
+        style_dict = {
+            "protocol": "ansiblue bold",  # init_proto should appear in bold blue.
+            "server_ip": "ansiwhite",  # server IP should appear in white.
+            "user": user_style,  # User color changes based on admin status.
+            "brackets": "ansiblue",  # Brackets and other decorations in blue.
+            "prompt": "ansiblue",  # The command prompt ("PV > ") in blue.
+        }
 
         prompt_session = PromptSession(
             cursor=CursorShape.BLINKING_BEAM,
@@ -75,15 +81,7 @@ def main():
             wrap_lines=True,
             auto_suggest=ThreadedAutoSuggest(auto_suggest=AutoSuggestFromHistory()),
             history=ThreadedHistory(history=InMemoryHistory()),
-            style=Style.from_dict(
-                {
-                    "protocol": "ansiblue bold",  # Your init_proto should appear in bold blue.
-                    "server_ip": "ansiwhite",  # Your server IP should appear in white.
-                    "user": "ansiyellow",  # Your user should appear in yellow.
-                    "brackets": "ansiblue",  # Brackets and other decorations in blue.
-                    "prompt": "ansiblue",  # The command prompt ("PV > ") in blue.
-                }
-            ),
+            style=Style.from_dict(style_dict),
         )
 
         prompt_text = FormattedText(
