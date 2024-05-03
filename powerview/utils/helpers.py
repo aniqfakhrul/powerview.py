@@ -373,7 +373,7 @@ def get_user_info(samname, ldap_session, domain_dumper):
         return False
 
 
-def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_ns=True):
+def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_ns=True, type=str):
     hostname = str(hostname)
     if hostname in list(STORED_ADDR.keys()):
         return STORED_ADDR[hostname]
@@ -399,7 +399,7 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
         if len(addr) == 1:
             STORED_ADDR[hostname] = addr
             ip = addr[0] 
-        elif len(addr) > 1:
+        elif len(addr) > 1 and type == str:
             c_key = 0
             logging.info('We have more than one ip. Please choose one that is reachable')
             cnt = 0
@@ -414,6 +414,10 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
                 except Exception:
                     pass
             ip = addr[c_key]
+        elif len(addr) > 1 and type == list:
+            return addr
+        else:
+            logging.error("Error resolving address with unknown error")
 
         return ip
 

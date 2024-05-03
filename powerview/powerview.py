@@ -607,14 +607,13 @@ class PowerView:
             #if not dnshostname:
             #    continue
             if resolveip and _entries['attributes']['dnsHostName']:
-                ip = host2ip(_entries['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
-                if is_ipaddress(ip):
-                    _entries = modify_entry(
-                        _entries,
-                        new_attributes = {
-                            'IPAddress':ip
-                        }
-                    )
+                ip = host2ip(_entries['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver, type=list)
+                _entries = modify_entry(
+                    _entries,
+                    new_attributes = {
+                        'IPAddress':ip
+                    }
+                )
             # resolve msDS-AllowedToActOnBehalfOfOtherIdentity
             try:
                 if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(_entries["attributes"].keys()):
@@ -1359,7 +1358,7 @@ class PowerView:
         exc_group = self.get_domaingroup(identity="Exchange Servers", searchbase=searchbase)
 
         if len(exc_group) == 0:
-            logging.error("[Get-ExchangeServer] Exchange Servers group not found in domain")
+            logging.debug("[Get-ExchangeServer] Exchange Servers group not found in domain")
             return
 
         logging.debug("[Get-ExchangeServer] Exchange Servers group found in domain")
