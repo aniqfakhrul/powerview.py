@@ -205,6 +205,12 @@ def main():
                                     entries = temp_powerview.get_domainsccm(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domainsccm(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domaingmsa' or pv_args.module.casefold() == 'get-gmsa':
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaingmsa(identity, pv_args)
+                                else:
+                                    entries = powerview.get_domaingmsa(identity, pv_args)
                             elif pv_args.module.casefold() == 'get-domainrbcd' or pv_args.module.casefold() == 'get-rbcd':
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
@@ -640,8 +646,8 @@ def main():
             except ldap3.core.exceptions.LDAPInvalidDnError as e:
                 logging.error(f"LDAPInvalidDnError: {str(e)}")
                 continue
-            #except Exception as e:
-            #    logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
 
             if args.query:
                 conn.close()

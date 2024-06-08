@@ -324,6 +324,19 @@ def powerview_arg_parse(cmd):
     get_domainsccm_parser.add_argument('-Count', action='store_true', dest='count')
     get_domainsccm_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
+    # Get-DomainGMSA
+    get_domaingmsa_parser = subparsers.add_parser('Get-DomainGMSA', aliases=['Get-GMSA'], exit_on_error=False)
+    get_domaingmsa_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_domaingmsa_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
+    get_domaingmsa_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_domaingmsa_parser.add_argument('-Server', action='store', dest='server')
+    get_domaingmsa_parser.add_argument('-Select', action='store', dest='select')
+    get_domaingmsa_parser.add_argument('-Where', action='store', dest='where')
+    get_domaingmsa_parser.add_argument('-TableView', action='store_true', dest='tableview')
+    get_domaingmsa_parser.add_argument('-OutFile', action='store', dest='outfile')
+    get_domaingmsa_parser.add_argument('-Count', action='store_true', dest='count')
+    get_domaingmsa_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+
     # Get-DomainRBCD
     get_domainrbcd_parser = subparsers.add_parser('Get-DomainRBCD', aliases=['Get-RBCD'], exit_on_error=False)
     get_domainrbcd_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))

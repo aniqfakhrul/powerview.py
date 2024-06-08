@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
-from impacket.ldap import ldaptypes
 from impacket.dcerpc.v5 import srvs, wkst
 from impacket.dcerpc.v5.ndr import NULL
 
+from powerview.modules.gmsa import GMSA
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
@@ -468,18 +468,22 @@ class PowerView:
 
         principal_SID = None
         if args.security_identifier:
-            principalsid_entry = self.get_domainobject(identity=args.security_identifier,properties=['objectSid'])
+            principalsid_entry = self.get_domainobject(identity=args.security_identifier, properties=['objectSid'])
             if not principalsid_entry:
                 logging.debug('[Get-DomainObjectAcl] Principal not found. Searching in Well Known SIDs...')
-                principal_SID = resolve_WellKnownSID(args.security_identifier).get("objectSid")
+                principal_SID = resolve_WellKnownSID(args.security_identifier)
+
                 if principal_SID:
+                    principal_SID = principal_SID.get("objectSid")
                     logging.debug("[Get-DomainObjectAcl] Found in well known SID: %s" % principal_SID)
                 else:
                     logging.error(f'[Get-DomainObjectAcl] Principal {args.security_identifier} not found. Try to use DN')
                     return
+
             elif len(principalsid_entry) > 1:
                 logging.error(f'[Get-DomainObjectAcl] Multiple identities found. Use exact match')
                 return
+
             args.security_identifier = principalsid_entry[0]['attributes']['objectSid'] if not principal_SID else principal_SID
 
         identity = args.identity
@@ -607,7 +611,7 @@ class PowerView:
             #    dnshostname = _entries['attributes']['dnsHostName']
             #if not dnshostname:
             #    continue
-            if resolveip and _entries['attributes']['dnsHostName']:
+            if resolveip and _entries.get('attributes').get('dnsHostName'):
                 ip = host2ip(_entries['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver, type=list)
                 _entries = modify_entry(
                     _entries,
@@ -630,6 +634,55 @@ class PowerView:
             entries.append(_entries)
         return entries
 
+    def get_domaingmsa(self, identity=None, args=None):
+        properties = [
+            "sAMAccountName",
+            "objectSid",
+            "dnsHostName",
+            "msDS-GroupMSAMembership",
+            "msDS-ManagedPassword"
+        ]
+
+        entries = []
+        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        setattr(args, "ldapfilter", "(&(objectClass=msDS-GroupManagedServiceAccount))")
+
+        # get source identity
+        sourceObj = self.get_domainobject(identity=identity, properties=properties, searchbase=searchbase, args=args, sd_flag=0x04)
+
+        logging.debug("[Get-DomainGMSA] Found %d object with gmsa attributes" % (len(sourceObj)))
+
+        if not sourceObj:
+            return
+
+        for source in sourceObj:
+            source = source.get("attributes")
+
+            # parse dacl value
+            principal_sids = GMSA.read_acl(source)
+            
+            # resolve sid
+            if principal_sids:
+                for i in range(len(principal_sids)):
+                    principal_sids[i] = self.convertfrom_sid(principal_sids[i])
+
+            entry = {
+                "ObjectDnsHostname": source.get("dnsHostname"),
+                "ObjectSAN": source.get("sAMAccountName"),
+                "ObjectSID": source.get("objectSid"),
+                "PrincipallAllowedToRead": principal_sids,
+                "GMSAPassword": source.get("msDS-ManagedPassword")
+            }
+
+            entries.append(
+                {
+                    "attributes": dict(entry)
+                }
+            )
+
+        return entries
+
     def get_domainrbcd(self, identity=None, args=None):
         properties = [
                     "sAMAccountName",
@@ -645,11 +698,15 @@ class PowerView:
         searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
         # set args to have rbcd attribute
-        ldap_filter = "(msDS-AllowedToActOnBehalfOfOtherIdentity=*)"
-        setattr(args,"ldapfilter", ldap_filter)
+        setattr(args, "ldapfilter", "(msDS-AllowedToActOnBehalfOfOtherIdentity=*)")
 
         # get source identity
         sourceObj = self.get_domainobject(identity=identity, properties=properties, searchbase=searchbase, args=args)
+
+        logging.debug("[Get-DomainRBCD] Found %d object with gmsa attributes" % (len(sourceObj)))
+
+        if not sourceObj:
+            return
 
         for source in sourceObj:
             entry = {

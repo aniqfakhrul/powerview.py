@@ -20,6 +20,8 @@ COMMANDS = {
     'Get-CA':['-CheckWebEnrollment','-Properties','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-OutFile'],
     'Get-DomainSCCM':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView','-OutFile'],
     'Get-SCCM':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView','-OutFile'],
+    'Get-DomainGMSA':['-Identity','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView','-OutFile'],
+    'Get-GMSA':['-Identity','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView','-OutFile'],
     'Get-DomainRBCD':['-Identity','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView','-OutFile'],
     'Get-RBCD':['-Identity','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView','-OutFile'],
     'Get-DomainCATemplate':['-Identity','-Vulnerable','-Enabled','-ResolveSIDs','-Properties','-SearchBase','-Server','-Select','-Where', '-Count', '-NoWrap', '-OutFile'],
