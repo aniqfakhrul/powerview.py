@@ -73,6 +73,7 @@ class PowerView:
         if not self.domain:
             self.domain = self.fqdn
         self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
+        self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"]
         self.is_admin = self.is_admin()
 
         # storage
@@ -2595,30 +2596,9 @@ displayName=New Group Policy Object
         if computer_name[-1] != '$':
             computer_name += '$'
 
-        dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, self.args)
-        if len(dcinfo)== 0:
-            logging.error("[Remove-DomainComputer] Cannot get domain info")
-            exit()
-        c_key = 0
-        dcs = list(dcinfo.keys())
-        if len(dcs) > 1:
-            logging.info('We have more than one target, Pls choices the hostname')
-            cnt = 0
-            for name in dcs:
-                print(f"{cnt}: {name}")
-                cnt += 1
-            while True:
-                try:
-                    c_key = int(input(">>> Your choice: "))
-                    if c_key in range(len(dcs)):
-                        break
-                except Exception:
-                    pass
-        dc_host = dcs[c_key].lower()
-
         setattr(self.args, "TGT", self.conn.get_TGT())
         setattr(self.args, "TGS", self.conn.get_TGS())
-        setattr(self.args, "dc_host", dc_host)
+        setattr(self.args, "dc_host", self.dc_dnshostname)
         setattr(self.args, "delete", True)
 
         if self.use_ldaps:
@@ -2768,30 +2748,10 @@ displayName=New Group Policy Object
         
         if computer_name[-1] != '$':
             computer_name += '$'
-        dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, self.args)
-        if len(dcinfo)== 0:
-            logging.error("[Add-DomainComputer] Cannot get domain info")
-            exit()
-        c_key = 0
-        dcs = list(dcinfo.keys())
-        if len(dcs) > 1:
-            logging.info('We have more than one target, Pls choices the hostname of the -dc-ip you input.')
-            cnt = 0
-            for name in dcs:
-                logging.info(f"{cnt}: {name}")
-                cnt += 1
-            while True:
-                try:
-                    c_key = int(input(">>> Your choice: "))
-                    if c_key in range(len(dcs)):
-                        break
-                except Exception:
-                    pass
-        dc_host = dcs[c_key].lower()
 
         setattr(self.args, "TGT", self.conn.get_TGT())
         setattr(self.args, "TGS", self.conn.get_TGS())
-        setattr(self.args, "dc_host", dc_host)
+        setattr(self.args, "dc_host", self.dc_dnshostname)
         setattr(self.args, "delete", False)
 
         if self.use_ldaps:
