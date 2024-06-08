@@ -17,12 +17,11 @@ class GMSA:
 		return passwd
 
 	@staticmethod
-	def read_acl(entry):
+	def read_acl(secDesc):
 		sids = []
-		secDesc = entry.get("msDS-GroupMSAMembership")
 		if not secDesc:
 			return
-			
+
 		for dacl in SR_SECURITY_DESCRIPTOR(data=secDesc)['Dacl']['Data']:
 			sids.append(dacl['Ace']['Sid'].formatCanonical())
 
