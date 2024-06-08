@@ -86,6 +86,9 @@ class LDAP:
     def formatGMSApass(managedPassword):
         return GMSA.decrypt(managedPassword)
 
+    def parseGMSAMembership(secDesc):
+        return GMSA.read_acl(secDesc)
+
     def resolve_pwdProperties(flag):
         prop =  PWD_FLAGS.get(int(flag))
         return f"({flag.decode()}) {prop}" if prop else flag

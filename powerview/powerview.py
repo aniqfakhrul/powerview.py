@@ -590,7 +590,12 @@ class PowerView:
             if args.gmsapassword:
                 logging.debug("[Get-DomainComputer] Searching for computers with GSMA password stored")
                 ldap_filter += f'(objectClass=msDS-GroupManagedServiceAccount)'
-                properties += ["msDS-ManagedPassword"]
+                properties += [
+                        "msDS-ManagedPassword",
+                        "msDS-GroupMSAMembership",
+                        "msDS-ManagedPasswordInterval",
+                        "msDS-ManagedPasswordId"
+                    ]
             if args.ldapfilter:
                 logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f"{args.ldapfilter}"
@@ -631,6 +636,13 @@ class PowerView:
             except:
                 pass
 
+            # resolve msDS-GroupMSAMembership
+            try:
+                if "msDS-GroupMSAMembership" in list(_entries["attributes"].keys()):
+                    _entries["attributes"]["msDS-GroupMSAMembership"] = self.convertfrom_sid(_entries["attributes"]["msDS-GroupMSAMembership"])
+            except:
+                pass
+
             entries.append(_entries)
         return entries
 
@@ -659,19 +671,18 @@ class PowerView:
         for source in sourceObj:
             source = source.get("attributes")
 
-            # parse dacl value
-            principal_sids = GMSA.read_acl(source)
-            
             # resolve sid
-            if principal_sids:
-                for i in range(len(principal_sids)):
-                    principal_sids[i] = self.convertfrom_sid(principal_sids[i])
+            if isinstance(source.get("msDS-GroupMSAMembership"), list):
+                for i in range(len(source.get("msDS-GroupMSAMembership"))):
+                    source["msDS-GroupMSAMembership"][i] = self.convertfrom_sid(source["msDS-GroupMSAMembership"][i])
+            else:
+                source["msDS-GroupMSAMembership"] = self.convertfrom_sid(source["msDS-GroupMSAMembership"])
 
             entry = {
                 "ObjectDnsHostname": source.get("dnsHostname"),
                 "ObjectSAN": source.get("sAMAccountName"),
                 "ObjectSID": source.get("objectSid"),
-                "PrincipallAllowedToRead": principal_sids,
+                "PrincipallAllowedToRead": source.get("msDS-GroupMSAMembership"),
                 "GMSAPassword": source.get("msDS-ManagedPassword")
             }
 
