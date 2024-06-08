@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
-from impacket.ldap import ldaptypes
 from impacket.dcerpc.v5 import srvs, wkst
 from impacket.dcerpc.v5.ndr import NULL
 
+from powerview.modules.gmsa import GMSA
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
@@ -54,6 +54,7 @@ class PowerView:
         self.nthash = args.nthash
         self.use_ldaps = args.use_ldaps
         self.nameserver = args.nameserver
+        self.use_system_nameserver = args.use_system_ns
         self.dc_ip = args.dc_ip
         self.use_kerberos = args.use_kerberos
 
@@ -72,6 +73,7 @@ class PowerView:
         if not self.domain:
             self.domain = self.fqdn
         self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
+        self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"]
         self.is_admin = self.is_admin()
 
         # storage
@@ -271,7 +273,12 @@ class PowerView:
 
         return entries
 
-    def get_domainobject(self, args=None, properties=['*'], identity=None, identity_filter=None, searchbase=None, sd_flag=None):
+    def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, searchbase=None, sd_flag=None):
+        def_prop = [
+            '*'
+        ]
+        properties = def_prop if not properties else properties
+
         if sd_flag:
             # Set SD flags to only query for DACL and Owner
             controls = security_descriptor_control(sdflags=sd_flag)
@@ -384,12 +391,29 @@ class PowerView:
 
         return objects
 
-    def get_domainou(self, args=None, properties=['*'], identity=None, searchbase=None):
+    def get_domainou(self, args=None, properties=[], identity=None, searchbase=None, resolve_gplink=False):
+        def_prop = [
+            'objectClass',
+            'ou',
+            'distinguishedName',
+            'instanceType',
+            'whenCreated',
+            'whenChanged',
+            'uSNCreated',
+            'uSNChanged',
+            'name',
+            'objectGUID',
+            'objectCategory',
+            'gPLink',
+            'dSCorePropagationData'
+        ]
+
+        properties = def_prop if not properties else properties
         ldap_filter = ""
         identity_filter = "" 
 
         if identity:
-            identity_filter += f"(|(name={identity}))"
+            identity_filter += f"(|(name={identity})(distinguishedName={identity}))"
 
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -409,6 +433,23 @@ class PowerView:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
+
+            if resolve_gplink:
+                gplinks = re.findall(r"(\{{0,1}([0-9a-fA-F]){8}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){12}\}{0,1})",_entries["attributes"]["gPLink"],re.M)
+                if gplinks:
+                    gplink_list = []
+                    for guid in [guids[0] for guids in gplinks]:
+                        gpo = self.get_domaingpo(identity=guid, properties=["displayName"])
+                        if len(gpo) == 0:
+                            logging.debug("[Get-DomainOU] gPLink not found. Cant resolve %s" % (guid))
+                        elif len(gpo) > 1:
+                            logging.debug("[Get-DomainOU] More than one gPLink found for %s. Ignoring..." % (guid))
+                        else:
+                            gplink_list.append("{} ({})".format(guid, gpo[0].get("attributes").get("displayName")))
+                    
+                    if len(gplink_list) != 0:
+                        _entries["attributes"]["gPLink"] = gplink_list
+
             entries.append(_entries)
         return entries
         #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
@@ -427,18 +468,22 @@ class PowerView:
 
         principal_SID = None
         if args.security_identifier:
-            principalsid_entry = self.get_domainobject(identity=args.security_identifier,properties=['objectSid'])
+            principalsid_entry = self.get_domainobject(identity=args.security_identifier, properties=['objectSid'])
             if not principalsid_entry:
                 logging.debug('[Get-DomainObjectAcl] Principal not found. Searching in Well Known SIDs...')
-                principal_SID = resolve_WellKnownSID(args.security_identifier).get("objectSid")
+                principal_SID = resolve_WellKnownSID(args.security_identifier)
+
                 if principal_SID:
+                    principal_SID = principal_SID.get("objectSid")
                     logging.debug("[Get-DomainObjectAcl] Found in well known SID: %s" % principal_SID)
                 else:
                     logging.error(f'[Get-DomainObjectAcl] Principal {args.security_identifier} not found. Try to use DN')
                     return
+
             elif len(principalsid_entry) > 1:
                 logging.error(f'[Get-DomainObjectAcl] Multiple identities found. Use exact match')
                 return
+
             args.security_identifier = principalsid_entry[0]['attributes']['objectSid'] if not principal_SID else principal_SID
 
         identity = args.identity
@@ -566,24 +611,14 @@ class PowerView:
             #    dnshostname = _entries['attributes']['dnsHostName']
             #if not dnshostname:
             #    continue
-            if resolveip and _entries['attributes']['dnsHostName']:
-                if self.nameserver:
-                    ns = self.nameserver
-                elif self.dc_ip and is_ipaddress(self.dc_ip):
-                    ns = self.dc_ip
-                elif self.ldap_server and is_ipaddress(self.ldap_server):
-                    ns = self.ldap_server
-                else:
-                    ns = None
-
-                ip = host2ip(_entries['attributes']['dnsHostName'], ns, 3, True)
-                if ip:
-                    _entries = modify_entry(
-                        _entries,
-                        new_attributes = {
-                            'IPAddress':ip
-                        }
-                    )
+            if resolveip and _entries.get('attributes').get('dnsHostName'):
+                ip = host2ip(_entries['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver, type=list)
+                _entries = modify_entry(
+                    _entries,
+                    new_attributes = {
+                        'IPAddress':ip
+                    }
+                )
             # resolve msDS-AllowedToActOnBehalfOfOtherIdentity
             try:
                 if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(_entries["attributes"].keys()):
@@ -597,6 +632,55 @@ class PowerView:
                 pass
 
             entries.append(_entries)
+        return entries
+
+    def get_domaingmsa(self, identity=None, args=None):
+        properties = [
+            "sAMAccountName",
+            "objectSid",
+            "dnsHostName",
+            "msDS-GroupMSAMembership",
+            "msDS-ManagedPassword"
+        ]
+
+        entries = []
+        searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+        setattr(args, "ldapfilter", "(&(objectClass=msDS-GroupManagedServiceAccount))")
+
+        # get source identity
+        sourceObj = self.get_domainobject(identity=identity, properties=properties, searchbase=searchbase, args=args, sd_flag=0x04)
+
+        logging.debug("[Get-DomainGMSA] Found %d object with gmsa attributes" % (len(sourceObj)))
+
+        if not sourceObj:
+            return
+
+        for source in sourceObj:
+            source = source.get("attributes")
+
+            # parse dacl value
+            principal_sids = GMSA.read_acl(source)
+            
+            # resolve sid
+            if principal_sids:
+                for i in range(len(principal_sids)):
+                    principal_sids[i] = self.convertfrom_sid(principal_sids[i])
+
+            entry = {
+                "ObjectDnsHostname": source.get("dnsHostname"),
+                "ObjectSAN": source.get("sAMAccountName"),
+                "ObjectSID": source.get("objectSid"),
+                "PrincipallAllowedToRead": principal_sids,
+                "GMSAPassword": source.get("msDS-ManagedPassword")
+            }
+
+            entries.append(
+                {
+                    "attributes": dict(entry)
+                }
+            )
+
         return entries
 
     def get_domainrbcd(self, identity=None, args=None):
@@ -614,11 +698,15 @@ class PowerView:
         searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
         # set args to have rbcd attribute
-        ldap_filter = "(msDS-AllowedToActOnBehalfOfOtherIdentity=*)"
-        setattr(args,"ldapfilter", ldap_filter)
+        setattr(args, "ldapfilter", "(msDS-AllowedToActOnBehalfOfOtherIdentity=*)")
 
         # get source identity
         sourceObj = self.get_domainobject(identity=identity, properties=properties, searchbase=searchbase, args=args)
+
+        logging.debug("[Get-DomainRBCD] Found %d object with gmsa attributes" % (len(sourceObj)))
+
+        if not sourceObj:
+            return
 
         for source in sourceObj:
             entry = {
@@ -892,11 +980,36 @@ class PowerView:
 
         return new_entries
 
-    def get_domaingpo(self, args=None, properties=['*'], identity=None, searchbase=None):
+    def get_domaingpo(self, args=None, properties=[], identity=None, searchbase=None):
+        def_prop = [
+            'objectClass',
+            'cn',
+            'distinguishedName',
+            'instanceType',
+            'whenCreated',
+            'whenChanged',
+            'displayName',
+            'uSNCreated',
+            'uSNChanged',
+            'showInAdvancedViewOnly',
+            'name',
+            'objectGUID',
+            'flags',
+            'versionNumber',
+            'systemFlags',
+            'objectCategory',
+            'isCriticalSystemObject',
+            'gPCFunctionalityVersion',
+            'gPCFileSysPath',
+            'gPCMachineExtensionNames',
+            'dSCorePropagationData'
+        ]
+
+        properties = def_prop if not properties else properties
         ldap_filter = ""
         identity_filter = ""
         if identity:
-            identity_filter = f"(cn=*{identity}*)"
+            identity_filter = f"(|(cn=*{identity}*)(displayName={identity}))"
         
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -915,6 +1028,7 @@ class PowerView:
                 continue
             strip_entry(_entries)
             entries.append(_entries)
+
         return entries
 
     def get_domaingpolocalgroup(self, args=None, identity=None):
@@ -1052,7 +1166,8 @@ class PowerView:
             print("%s" % identity)
         return identity
 
-    def get_domain(self, args=None, properties=['*'], identity=None, searchbase=None):
+    def get_domain(self, args=None, properties=[], identity=None, searchbase=None):
+        properties = ['*'] if not properties else properties
         identity = '*' if not identity else identity
 
         identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
@@ -1230,11 +1345,11 @@ class PowerView:
             # check for web enrollment
             for i in range(len(entries)):
                 target_name = entries[i]['dnsHostName'].value
-                web_enrollment = ca_fetch.check_web_enrollment(target_name,self.nameserver)
+                web_enrollment = ca_fetch.check_web_enrollment(target_name,self.nameserver, use_system_ns=self.use_system_nameserver)
 
-                if not web_enrollment and self.nameserver:
+                if not web_enrollment:
                     logging.debug("Trying to check web enrollment with IP")
-                    web_enrollment = ca_fetch.check_web_enrollment(target_name,self.nameserver,use_ip=True)
+                    web_enrollment = ca_fetch.check_web_enrollment(target_name,self.nameserver, use_ip=True, use_system_ns=self.use_system_nameserver)
 
                 entries[i] = modify_entry(
                     entries[i],
@@ -1301,7 +1416,7 @@ class PowerView:
         exc_group = self.get_domaingroup(identity="Exchange Servers", searchbase=searchbase)
 
         if len(exc_group) == 0:
-            logging.error("[Get-ExchangeServer] Exchange Servers group not found in domain")
+            logging.debug("[Get-ExchangeServer] Exchange Servers group not found in domain")
             return
 
         logging.debug("[Get-ExchangeServer] Exchange Servers group found in domain")
@@ -1357,6 +1472,103 @@ class PowerView:
             logging.info(f"[Unlock-ADAccount] Failed to unlock {identity_san}")
             return False
 
+    def add_domaingpo(self, identity, description=None, basedn=None, args=None):
+        name = '{%s}' % get_uuid(upper=True)
+
+        basedn = "CN=Policies,CN=System,%s" % (self.root_dn) if not basedn else basedn
+        dn_exist = self.get_domainobject(identity=basedn)
+        if not dn_exist:
+            logging.error(f"[Add-DomainGPO] DN {basedn} not found in domain")
+            return False
+
+        # adding new folder policy folder in sysvol share
+        dc = None
+        dcs = self.get_domaincontroller(properties=['dnsHostName'])
+        if len(dcs) == 0:
+            logging.warning("[Add-DomainGPO] No domain controller found in ldap. Using domain as address")
+        elif dcs[0].get("attributes").get("dnsHostName"):
+            logging.debug("[Add-DomainGPO] Found %d domain controller(s). Using the first one" % len(dcs))
+            dc = dcs[0].get("attributes").get("dnsHostName")
+
+        if not dc:
+            dc = self.domain
+        
+        logging.debug("[Add-DomainGPO] Resolving hostname to IP")
+        dc = host2ip(dc, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+
+        share = "SYSVOL"
+        policy_path = "/%s/Policies/%s" % (
+            self.domain,
+            name
+        )
+        smbconn = self.conn.init_smb_session(dc)
+        try:
+            tid = smbconn.connectTree(share)
+        except Exception as e:
+            logging.error("[Add-DomainGPO] Failed to connect to SYSVOL share")
+            return False
+
+        try:
+            logging.debug("[Add-DomainGPO] Creating directories in %s" % (policy_path))
+            smbconn.createDirectory(share, policy_path)
+            smbconn.createDirectory(share, policy_path + "/Machine")
+            smbconn.createDirectory(share, policy_path + "/User")
+        except Exception as e:
+            logging.error("[Add-DomainGPO] Failed to create policy directory in SYSVOL")
+            logging.error(str(e))
+            return False
+
+        logging.debug("[Add-DomainGPO] Writing default GPT.INI file")
+        gpt_ini_content = """[General]
+Version=0
+displayName=New Group Policy Object
+
+"""
+        try:
+            fid = smbconn.createFile(tid, policy_path + "/GPT.ini")
+        except Exception as e:
+            logging.error("[Add-DomainGPO] Failed to create gpt.ini file in %s" % (policy_path))
+            return False
+        try:
+            smbconn.writeFile(tid, fid, gpt_ini_content)
+        except Exception as e:
+            logging.error("[Add-DomainGPO] Failed to write gpt.ini file in %s" % (policy_path))
+            return False
+
+        smbconn.closeFile(tid, fid)
+        logging.info("[Add-DomainGPO] SYSVOL policy folder successfully created!")
+
+        dn = "CN=%s,%s" % (name, basedn)
+        logging.debug(f"[Add-DomainGPO] Adding GPO with dn: {dn}")
+
+        gpo_data = {
+            'displayName':identity,
+            'name': name,
+            'gPCFunctionalityVersion': 2,
+            'gPCFileSysPath': "\\\\%s\\SysVol%s" % (self.domain, policy_path.replace("/","\\"))
+        }
+
+        self.ldap_session.add(dn, ['top','container','groupPolicyContainer'], gpo_data)
+
+        if args.linkto is not None:
+            ou = self.get_domainou(identity=args.linkto, properties=["distinguishedName"])
+
+            if len(ou) == 0:
+                logging.error("[Add-DomainGPO] OU not found in domain.")
+                return
+            elif len(ou) > 1:
+                logging.error("[Add-DomainGPO] More than one OU found in domain.")
+                return
+
+            self.add_gplink(guid=name, targetidentity=ou[0].get("dn"))
+
+        if self.ldap_session.result['result'] == 0:
+            logging.info(f"[Add-DomainGPO] Added new {identity} GPO object")
+            return True
+        else:
+            logging.error(f"[Add-DomainGPO] Failed to create {identity} GPO ({self.ldap_session.result['description']})")
+            return False
+
     def add_domainou(self, identity, basedn=None, args=None):
         basedn = self.root_dn if not basedn else basedn
 
@@ -1366,7 +1578,7 @@ class PowerView:
             return False
 
         dn = "OU=%s,%s" % (identity, basedn)
-        logging.debug(f"[Add-DomainOU] OU dstinguishedName: {dn}")
+        logging.debug(f"[Add-DomainOU] OU distinguishedName: {dn}")
 
         
         ou_data = {
@@ -1498,7 +1710,7 @@ class PowerView:
             logging.error(f"[Remove-GPLink] Failed to modify gPLink on {targetidentity_dn} OU")
             return False
 
-    def new_gplink(self, guid, targetidentity, link_enabled="Yes", enforced="No", searchbase=None, sd_flag=None, args=None):
+    def add_gplink(self, guid, targetidentity, link_enabled="Yes", enforced="No", searchbase=None, sd_flag=None, args=None):
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
@@ -2441,30 +2653,9 @@ class PowerView:
         if computer_name[-1] != '$':
             computer_name += '$'
 
-        dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, self.args)
-        if len(dcinfo)== 0:
-            logging.error("[Remove-DomainComputer] Cannot get domain info")
-            exit()
-        c_key = 0
-        dcs = list(dcinfo.keys())
-        if len(dcs) > 1:
-            logging.info('We have more than one target, Pls choices the hostname')
-            cnt = 0
-            for name in dcs:
-                print(f"{cnt}: {name}")
-                cnt += 1
-            while True:
-                try:
-                    c_key = int(input(">>> Your choice: "))
-                    if c_key in range(len(dcs)):
-                        break
-                except Exception:
-                    pass
-        dc_host = dcs[c_key].lower()
-
         setattr(self.args, "TGT", self.conn.get_TGT())
         setattr(self.args, "TGS", self.conn.get_TGS())
-        setattr(self.args, "dc_host", dc_host)
+        setattr(self.args, "dc_host", self.dc_dnshostname)
         setattr(self.args, "delete", True)
 
         if self.use_ldaps:
@@ -2614,30 +2805,10 @@ class PowerView:
         
         if computer_name[-1] != '$':
             computer_name += '$'
-        dcinfo = get_dc_host(self.ldap_session, self.domain_dumper, self.args)
-        if len(dcinfo)== 0:
-            logging.error("[Add-DomainComputer] Cannot get domain info")
-            exit()
-        c_key = 0
-        dcs = list(dcinfo.keys())
-        if len(dcs) > 1:
-            logging.info('We have more than one target, Pls choices the hostname of the -dc-ip you input.')
-            cnt = 0
-            for name in dcs:
-                logging.info(f"{cnt}: {name}")
-                cnt += 1
-            while True:
-                try:
-                    c_key = int(input(">>> Your choice: "))
-                    if c_key in range(len(dcs)):
-                        break
-                except Exception:
-                    pass
-        dc_host = dcs[c_key].lower()
 
         setattr(self.args, "TGT", self.conn.get_TGT())
         setattr(self.args, "TGS", self.conn.get_TGS())
-        setattr(self.args, "dc_host", dc_host)
+        setattr(self.args, "dc_host", self.dc_dnshostname)
         setattr(self.args, "delete", False)
 
         if self.use_ldaps:
@@ -2699,8 +2870,8 @@ class PowerView:
                 logging.error('[Get-NamedPipes] FQDN must be used for kerberos authentication')
                 return
         else:
-            if is_fqdn and self.nameserver:
-                host = host2ip(host, self.nameserver, 3, True)
+            if is_fqdn:
+                host = host2ip(host, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
         if not host:
             logging.error('[Get-NamedPipes] Host not found')
@@ -3098,10 +3269,7 @@ class PowerView:
             if is_ipaddress(computer):
                 hosts['address'] = computer
             else:
-                if self.nameserver:
-                    hosts['address'] = host2ip(computer, self.nameserver, 3, True)
-                else:
-                    host['address'] = computer
+                hosts['address'] = host2ip(computer, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
                 hosts['hostname'] = computer
             host_entries.append(hosts)
         else:
@@ -3116,7 +3284,7 @@ class PowerView:
                     if len(entry['attributes']['dnsHostName']) <= 0:
                         continue
 
-                    hosts['address'] = host2ip(entry['attributes']['dnsHostName'], self.nameserver, 3, True)
+                    hosts['address'] = host2ip(entry['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
                     hosts['hostname'] = entry['attributes']['dnsHostname']
                     host_entries.append(hosts.copy())
                 except IndexError:
@@ -3162,7 +3330,7 @@ class PowerView:
 
             computer_dns = computer[0].get("attributes").get("dNSHostName")
 
-            ip_address = host2ip(computer_dns, self.nameserver, 3, True)
+            ip_address = host2ip(computer_dns, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
         else:
             ip_address = computer_name
 
@@ -3239,8 +3407,8 @@ class PowerView:
                 logging.error('[Get-NetShare] FQDN must be used for kerberos authentication')
                 return
         else:
-            if is_fqdn and self.nameserver:
-                host = host2ip(host, self.nameserver, 3, True)
+            if is_fqdn:
+                host = host2ip(host, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
         if not host:
             logging.error(f"[Get-NetShare] Host not found")
@@ -3294,8 +3462,8 @@ class PowerView:
                 logging.error('[Get-NetSession] FQDN must be used for kerberos authentication')
                 return
         else:
-            if is_fqdn and self.nameserver:
-                host = host2ip(host, self.nameserver, 3, True)
+            if is_fqdn:
+                host = host2ip(host, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
         if not host:
             logging.error(f"[Get-NetSession] Host not found")

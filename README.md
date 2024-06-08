@@ -89,23 +89,32 @@ powerview 10.10.10.10 --relay [--relay-host] [--relay-port] [--use-ldap | --use-
 
 ```cs
 PV >
-Add-ADComputer                 Find-ForeignGroup              Get-DomainGroup                Get-NetGroup                   Remove-CATemplate              Set-DomainComputerPassword 
-Add-ADUser                     Find-ForeignUser               Get-DomainGroupMember          Get-NetGroupmember             Remove-DomainCATemplate        Set-DomainDNSRecord 
-Add-CATemplate                 Find-LocalAdminAccess          Get-DomainOU                   Get-NetLoggedOn                Remove-DomainComputer          Set-DomainObject 
-Add-CATemplateAcl              Get-ADObject                   Get-DomainObject               Get-NetOU                      Remove-DomainDNSRecord         Set-DomainObjectDN 
-Add-DomainCATemplate           Get-CA                         Get-DomainObjectAcl            Get-NetSession                 Remove-DomainGroupMember       Set-DomainObjectOwner 
-Add-DomainCATemplateAcl        Get-CATemplate                 Get-DomainObjectOwner          Get-NetShare                   Remove-DomainOU                Set-DomainRBCD 
-Add-DomainComputer             Get-Domain                     Get-DomainRBCD                 Get-NetTrust                   Remove-DomainObject            Set-DomainUserPassword 
-Add-DomainDNSRecord            Get-DomainCA                   Get-DomainSCCM                 Get-NetUser                    Remove-DomainObjectAcl         Set-ObjectOwner 
-Add-DomainGroupMember          Get-DomainCATemplate           Get-DomainTrust                Get-ObjectAcl                  Remove-DomainUser              Set-RBCD 
-Add-DomainOU                   Get-DomainComputer             Get-DomainUser                 Get-ObjectOwner                Remove-GPLink                  Unlock-ADAccount 
-Add-DomainObjectAcl            Get-DomainController           Get-ExchangeServer             Get-RBCD                       Remove-GroupMember             clear 
-Add-DomainUser                 Get-DomainDNSRecord            Get-GPOLocalGroup              Get-SCCM                       Remove-OU                      exit 
-Add-GroupMember                Get-DomainDNSZone              Get-NamedPipes                 Invoke-Kerberoast              Remove-ObjectAcl               
-Add-OU                         Get-DomainForeignGroupMember   Get-NetComputer                New-GPLink                     Set-ADObject                   
-Add-ObjectAcl                  Get-DomainForeignUser          Get-NetDomain                  Remove-ADComputer              Set-ADObjectDN                 
-ConvertFrom-SID                Get-DomainGPO                  Get-NetDomainController        Remove-ADObject                Set-CATemplate                 
-ConvertFrom-UACValue           Get-DomainGPOLocalGroup        Get-NetGPO                     Remove-ADUser                  Set-DomainCATemplate           
+Add-ADComputer                 Get-Domain                     Get-NamedPipes                 Remove-DomainOU 
+Add-ADUser                     Get-DomainCA                   Get-NetComputer                Remove-DomainObject 
+Add-CATemplate                 Get-DomainCATemplate           Get-NetDomain                  Remove-DomainObjectAcl 
+Add-CATemplateAcl              Get-DomainComputer             Get-NetDomainController        Remove-DomainUser 
+Add-DomainCATemplate           Get-DomainController           Get-NetGPO                     Remove-GPLink 
+Add-DomainCATemplateAcl        Get-DomainDNSRecord            Get-NetGroup                   Remove-GroupMember 
+Add-DomainComputer             Get-DomainDNSZone              Get-NetGroupmember             Remove-OU 
+Add-DomainDNSRecord            Get-DomainForeignGroupMember   Get-NetLoggedOn                Remove-ObjectAcl 
+Add-DomainGPO                  Get-DomainForeignUser          Get-NetOU                      Set-ADObject 
+Add-DomainGroupMember          Get-DomainGMSA                 Get-NetSession                 Set-ADObjectDN 
+Add-DomainOU                   Get-DomainGPO                  Get-NetShare                   Set-CATemplate 
+Add-DomainObjectAcl            Get-DomainGPOLocalGroup        Get-NetTrust                   Set-DomainCATemplate 
+Add-DomainUser                 Get-DomainGroup                Get-NetUser                    Set-DomainComputerPassword 
+Add-GPLink                     Get-DomainGroupMember          Get-ObjectAcl                  Set-DomainDNSRecord 
+Add-GPO                        Get-DomainOU                   Get-ObjectOwner                Set-DomainObject 
+Add-GroupMember                Get-DomainObject               Get-RBCD                       Set-DomainObjectDN 
+Add-OU                         Get-DomainObjectAcl            Get-SCCM                       Set-DomainObjectOwner 
+Add-ObjectAcl                  Get-DomainObjectOwner          Invoke-Kerberoast              Set-DomainRBCD 
+ConvertFrom-SID                Get-DomainRBCD                 Remove-ADComputer              Set-DomainUserPassword 
+ConvertFrom-UACValue           Get-DomainSCCM                 Remove-ADObject                Set-ObjectOwner 
+Find-ForeignGroup              Get-DomainTrust                Remove-ADUser                  Set-RBCD 
+Find-ForeignUser               Get-DomainUser                 Remove-CATemplate              Unlock-ADAccount 
+Find-LocalAdminAccess          Get-Exchange                   Remove-DomainCATemplate        clear 
+Get-ADObject                   Get-ExchangeServer             Remove-DomainComputer          exit 
+Get-CA                         Get-GMSA                       Remove-DomainDNSRecord         
+Get-CATemplate                 Get-GPOLocalGroup              Remove-DomainGroupMember       
 ```
 
 ### Domain/LDAP Functions
@@ -143,7 +152,8 @@ ConvertFrom-UACValue           Get-DomainGPOLocalGroup        Get-NetGPO        
 |Add-DomainUser|Add-ADUser|Add new Domain User in AD|
 |Add-DomainComputer|Add-ADComputer|Add new Domain Computer in AD|
 |Add-DomainGroupMember|Add-GroupMember|Add new member in specified Domain Group in AD|
-|Add-DomainOU|Add-OU|Add new OU objects in AD|
+|Add-DomainOU|Add-OU|Add new OU object in AD|
+|Add-DomainGPO|Add-GPO|Add new GPO object in AD|
 |Add-DomainObjectAcl|Add-ObjectAcl|Supported rights so far are All, DCsync, RBCD, ShadowCred, WriteMembers|
 
 ### GPO Functions
@@ -152,7 +162,7 @@ ConvertFrom-UACValue           Get-DomainGPOLocalGroup        Get-NetGPO        
 | ------ | ----- | ---- |
 |Get-DomainGPO|Get-NetGPO| Query for domain group policy objects |
 |Get-DomainGPOLocalGroup|Get-GPOLocalGroup|Query all GPOs in a domain that modify local group memberships through `Restricted Groups` or `Group Policy preferences`|
-|New-GPLink||Create new GPO link to an OU|
+|Add-GPLink||Create new GPO link to an OU|
 |Remove-GPLink||Remove GPO link from an OU|
 
 ### Computer Enumeration Functions

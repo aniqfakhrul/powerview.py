@@ -140,7 +140,6 @@ class ALLOWED_OBJECT_ACE_MASK_FLAGS(Enum):
     WriteProperty = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_WRITE_PROP
     Self = ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_SELF
 
-
 class DACLedit(object):
     """docstring for setrbcd"""
 

@@ -74,10 +74,10 @@ def main():
 
                     if pv_args:
                         if pv_args.server and pv_args.server.casefold() != args.domain.casefold():
-                            if args.use_kerberos or not args.nameserver:
+                            if args.use_kerberos:
                                 ldap_address = pv_args.server
                             else:
-                                ldap_address = get_principal_dc_address(pv_args.server, args.nameserver)
+                                ldap_address = get_principal_dc_address(pv_args.server, args.nameserver, use_system_ns=args.use_system_nameserver)
                             
                             conn.set_ldap_address(ldap_address)
                             conn.set_targetDomain(pv_args.server)
@@ -91,14 +91,14 @@ def main():
                         try:
                             entries = None
                             if pv_args.module.casefold() == 'get-domain' or pv_args.module.casefold() == 'get-netdomain':
-                                properties = pv_args.properties.strip(" ").split(',')
-                                identity = pv_args.identity.strip()
+                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domain(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domain(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainobject' or pv_args.module.casefold() == 'get-adobject':
-                                properties = pv_args.properties.strip(" ").split(',')
+                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainobject(pv_args, properties, identity)
@@ -164,7 +164,7 @@ def main():
                                 else:
                                     entries = powerview.get_domaincontroller(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaingpo' or pv_args.module.casefold() == 'get-netgpo':
-                                properties = pv_args.properties.strip(" ").split(',')
+                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaingpo(pv_args, properties, identity)
@@ -180,9 +180,9 @@ def main():
                                 properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainou(pv_args, properties, identity)
+                                    entries = temp_powerview.get_domainou(pv_args, properties, identity, resolve_gplink=pv_args.resolve_gplink)
                                 else:
-                                    entries = powerview.get_domainou(pv_args, properties, identity)
+                                    entries = powerview.get_domainou(pv_args, properties, identity, resolve_gplink=pv_args.resolve_gplink)
                             elif pv_args.module.casefold() == 'get-domaindnszone':
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
@@ -205,6 +205,12 @@ def main():
                                     entries = temp_powerview.get_domainsccm(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domainsccm(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-domaingmsa' or pv_args.module.casefold() == 'get-gmsa':
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaingmsa(identity, pv_args)
+                                else:
+                                    entries = powerview.get_domaingmsa(identity, pv_args)
                             elif pv_args.module.casefold() == 'get-domainrbcd' or pv_args.module.casefold() == 'get-rbcd':
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
@@ -334,6 +340,14 @@ def main():
                                         succeed = temp_powerview.unlock_adaccount(identity=pv_args.identity, args=pv_args)
                                     else:
                                         succeed = powerview.unlock_adaccount(identity=pv_args.identity, args=pv_args)
+                                else:
+                                    logging.error('-Identity flag is required')
+                            elif pv_args.module.casefold() == 'add-domaingpo' or pv_args.module.casefold() == 'add-gpo':
+                                if pv_args.identity is not None:
+                                    if temp_powerview:
+                                        succeed = temp_powerview.add_domaingpo(identity=pv_args.identity, description=pv_args.description, basedn=pv_args.basedn, args=pv_args)
+                                    else:
+                                        succeed = powerview.add_domaingpo(identity=pv_args.identity, description=pv_args.description, basedn=pv_args.basedn, args=pv_args)
                                 else:
                                     logging.error('-Identity flag is required')
                             elif pv_args.module.casefold() == 'add-domainou' or pv_args.module.casefold() == 'add-ou':
@@ -554,12 +568,12 @@ def main():
                                         powerview.remove_domaincomputer(pv_args.computername, args=pv_args)
                                 else:
                                     logging.error('-ComputerName is required')
-                            elif pv_args.module.casefold() == 'new-gplink':
+                            elif pv_args.module.casefold() == 'add-gplink':
                                 if pv_args.guid is not None and pv_args.targetidentity is not None:
                                     if temp_powerview:
-                                        powerview.new_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, link_enabled=pv_args.link_enabled, enforced=pv_args.enforced, args=pv_args)
+                                        powerview.add_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, link_enabled=pv_args.link_enabled, enforced=pv_args.enforced, args=pv_args)
                                     else:
-                                        powerview.new_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, link_enabled=pv_args.link_enabled, enforced=pv_args.enforced, args=pv_args)
+                                        powerview.add_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, link_enabled=pv_args.link_enabled, enforced=pv_args.enforced, args=pv_args)
                                 else:
                                     logging.error("-GUID and -TargetIdentity flags are required")
                             elif pv_args.module.casefold() == 'remove-gplink':
