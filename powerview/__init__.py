@@ -76,9 +76,14 @@ def main():
                         if pv_args.server and pv_args.server.casefold() != args.domain.casefold():
                             if args.use_kerberos:
                                 ldap_address = pv_args.server
+                            elif is_valid_fqdn(pv_args.server):
+                                ldap_address = get_principal_dc_address(pv_args.server, args.nameserver, use_system_ns=args.use_system_ns)
+                            elif is_ipaddress(pv_args.server):
+                                ldap_address = pv_args.server
                             else:
-                                ldap_address = get_principal_dc_address(pv_args.server, args.nameserver, use_system_ns=args.use_system_nameserver)
-                            
+                                logging.error("Invalid server address. It accepts either FQDN or IP address of the target server")
+                                continue
+
                             conn.set_ldap_address(ldap_address)
                             conn.set_targetDomain(pv_args.server)
                             
@@ -646,8 +651,8 @@ def main():
             except ldap3.core.exceptions.LDAPInvalidDnError as e:
                 logging.error(f"LDAPInvalidDnError: {str(e)}")
                 continue
-            except Exception as e:
-                logging.error(str(e))
+            #except Exception as e:
+            #    logging.error(str(e))
 
             if args.query:
                 conn.close()
