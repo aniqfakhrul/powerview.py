@@ -300,7 +300,7 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
         for r in q:
             dc = str(r.target).rstrip('.')
             logging.debug('Found AD Domain: %s' % dc)
-            
+
         answer = host2ip(dc, nameserver, 3, dns_tcp, use_system_ns)
         return answer
     except resolver.NXDOMAIN:
@@ -381,18 +381,20 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
     if hostname in list(STORED_ADDR.keys()):
         return STORED_ADDR[hostname]
 
-    dnsresolver = resolver.Resolver()
+    dnsresolver = None
     if nameserver:
         logging.debug(f"Querying {hostname} from DNS server {nameserver}")
+        dnsresolver = resolver.Resolver(configure=False)
         dnsresolver.nameservers = [nameserver]
     elif use_system_ns:
         logging.debug(f"Using host's resolver to resolve {hostname}")
+        dnsresolver = resolver.Resolver()
     else:
         return hostname
 
     dnsresolver.lifetime = float(dns_timeout)
     try:
-        q = dnsresolver.query(hostname, 'A', tcp=dns_tcp)
+        q = dnsresolver.resolve(hostname, 'A', tcp=dns_tcp)
         addr = []
         ip = None
 
