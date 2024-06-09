@@ -84,6 +84,9 @@ def main():
                                 logging.error("Invalid server address. It accepts either FQDN or IP address of the target server")
                                 continue
 
+                            if not ldap_address:
+                                continue
+
                             conn.set_ldap_address(ldap_address)
                             conn.set_targetDomain(pv_args.server)
                             
