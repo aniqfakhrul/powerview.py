@@ -73,7 +73,7 @@ class PowerView:
         if not self.domain:
             self.domain = self.fqdn
         self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
-        self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"]
+        self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
         self.is_admin = self.is_admin()
 
         # storage
@@ -81,6 +81,9 @@ class PowerView:
 
     def get_admin_status(self):
         return self.is_admin
+
+    def get_server_dns(self):
+        return self.dc_dnshostname
 
     def is_admin(self):
         self.is_domainadmin = False

@@ -46,6 +46,7 @@ def main():
 
         powerview = PowerView(conn, args)
         is_admin = powerview.get_admin_status()
+        server_dns = powerview.get_server_dns()
         init_proto = conn.get_proto()
         server_ip = conn.get_ldap_address()
         temp_powerview = None
@@ -61,7 +62,7 @@ def main():
                 if args.query:
                     cmd = args.query
                 else:
-                    cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{server_ip}{bcolors.OKBLUE}]-[{bcolors.ENDC}{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV > {bcolors.ENDC}')
+                    cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{server_dns}{bcolors.OKBLUE}]-[{bcolors.ENDC}{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV > {bcolors.ENDC}')
 
                 if cmd:
                     try:
@@ -82,6 +83,9 @@ def main():
                                 ldap_address = pv_args.server
                             else:
                                 logging.error("Invalid server address. It accepts either FQDN or IP address of the target server")
+                                continue
+
+                            if not ldap_address:
                                 continue
 
                             conn.set_ldap_address(ldap_address)
@@ -651,8 +655,8 @@ def main():
             except ldap3.core.exceptions.LDAPInvalidDnError as e:
                 logging.error(f"LDAPInvalidDnError: {str(e)}")
                 continue
-            #except Exception as e:
-            #    logging.error(str(e))
+            except Exception as e:
+                logging.error(str(e))
 
             if args.query:
                 conn.close()

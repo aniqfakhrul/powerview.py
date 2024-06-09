@@ -58,6 +58,7 @@ class CONNECTION:
             self.use_kerberos = True
         self.no_pass = args.no_pass
         self.nameserver = args.nameserver
+        self.use_system_ns = args.use_system_ns
 
         self.pfx = args.pfx
         self.pfx_pass = None
@@ -96,8 +97,8 @@ class CONNECTION:
         self.relay_host = args.relay_host
         self.relay_port = args.relay_port
 
-        if is_valid_fqdn(args.ldap_address) and self.nameserver:
-            _ldap_address = host2ip(args.ldap_address, nameserver=self.nameserver, dns_timeout=5)
+        if is_valid_fqdn(args.ldap_address) and not self.use_kerberos:
+            _ldap_address = host2ip(args.ldap_address, nameserver=self.nameserver, dns_timeout=5, use_system_ns = self.use_system_ns)
             if not _ldap_address:
                 logging.error("Couldn't resolve %s" % args.ldap_address)
                 sys.exit(0)
@@ -263,14 +264,25 @@ class CONNECTION:
             self.use_gc_ldaps = False
 
         if self.use_kerberos:
-            if ldap_address:
-                target = get_machine_name(ldap_address)
-            else:
-                target = get_machine_name(self.ldap_address)
+            try:
+                if not is_valid_fqdn(ldap_address):
+                    if ldap_address:
+                        target = get_machine_name(ldap_address)
+                    else:
+                        target = get_machine_name(self.ldap_address)
+                else:
+                    target = ldap_address
+            except SessionError as e:
+                if "STATUS_NOT_SUPPORTED" in str(e):
+                    logging.warning("The domain probably does not support NTLM authentication. Skipping...")
+
+                if not is_valid_fqdn(ldap_address):
+                    logging.error("Kerberos authentication requires FQDN instead of IP")
+                    sys.exit(0)
         else:
             if ldap_address:
-                if is_valid_fqdn(ldap_address) and self.nameserver:
-                    target = host2ip(ldap_address, nameserver=self.nameserver)
+                if is_valid_fqdn(ldap_address):
+                    target = host2ip(ldap_address, nameserver=self.nameserver, use_system_ns=use_system_ns)
                 else:
                     target = ldap_address
             elif self.ldap_address is not None:
