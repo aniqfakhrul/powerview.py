@@ -273,7 +273,7 @@ class CONNECTION:
                 else:
                     target = self.ldap_address
             except Exception as e:
-                logging.warning("Failed to get computer hostname. The domain probably does not support NTLM authentication. Skipping...")
+                logging.warning(f"Failed to get computer hostname. The domain probably does not support NTLM authentication. Skipping...")
                 target = self.ldap_address
 
             if not is_valid_fqdn(target):
@@ -282,7 +282,7 @@ class CONNECTION:
         else:
             if ldap_address:
                 if is_valid_fqdn(ldap_address):
-                    target = host2ip(ldap_address, nameserver=self.nameserver, use_system_ns=use_system_ns)
+                    target = host2ip(ldap_address, nameserver=self.nameserver, use_system_ns=self.use_system_ns)
                 else:
                     target = ldap_address
             elif self.ldap_address is not None:
