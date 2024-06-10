@@ -16,7 +16,8 @@ from powerview.utils.helpers import (
     get_machine_name,
     host2ip,
     is_valid_fqdn,
-    dn2domain
+    dn2domain,
+    is_ipaddress
 )
 from powerview.lib.resolver import (
     LDAP,
@@ -265,24 +266,23 @@ class CONNECTION:
 
         if self.use_kerberos:
             try:
-                if not is_valid_fqdn(ldap_address):
-                    if ldap_address:
-                        target = get_machine_name(ldap_address)
-                    else:
-                        target = get_machine_name(self.ldap_address)
+                if ldap_address and is_ipaddress(ldap_address):
+                    target = get_machine_name(ldap_address)
+                elif self.ldap_address is not None and is_ipaddress(self.ldap_address):
+                    target = get_machine_name(self.ldap_address)
                 else:
-                    target = ldap_address
-            except SessionError as e:
-                if "STATUS_NOT_SUPPORTED" in str(e):
-                    logging.warning("The domain probably does not support NTLM authentication. Skipping...")
+                    target = self.ldap_address
+            except Exception as e:
+                logging.warning(f"Failed to get computer hostname. The domain probably does not support NTLM authentication. Skipping...")
+                target = self.ldap_address
 
-                if not is_valid_fqdn(ldap_address):
-                    logging.error("Kerberos authentication requires FQDN instead of IP")
-                    sys.exit(0)
+            if not is_valid_fqdn(target):
+                logging.error("Keberos authentication requires FQDN instead of IP")
+                sys.exit(0)
         else:
             if ldap_address:
                 if is_valid_fqdn(ldap_address):
-                    target = host2ip(ldap_address, nameserver=self.nameserver, use_system_ns=use_system_ns)
+                    target = host2ip(ldap_address, nameserver=self.nameserver, use_system_ns=self.use_system_ns)
                 else:
                     target = ldap_address
             elif self.ldap_address is not None:

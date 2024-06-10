@@ -135,6 +135,7 @@ Get-CATemplate                 Get-GPOLocalGroup              Remove-DomainGroup
 |Get-DomainSCCM|Get-SCCM|Query for SCCM|
 |Get-DomainRBCD|Get-RBCD|Finds accounts that are configured for resource-based constrained delegation|
 |Get-DomainObjectOwner|Get-ObjectOwner|Query owner of the AD object|
+|Get-DomainGMSA|Get-GMSA|Query objects with GMSA attributes and decode the password blob|
 |Remove-DomainDNSRecord||Remove Domain DNS Record|
 |Remove-DomainComputer|Remove-ADComputer|Remove Domain Computer|
 |Remove-DomainGroupMember|Remove-GroupMember|Remove member of a specific Domain Group|
