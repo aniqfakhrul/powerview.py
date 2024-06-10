@@ -16,7 +16,8 @@ from powerview.utils.helpers import (
     get_machine_name,
     host2ip,
     is_valid_fqdn,
-    dn2domain
+    dn2domain,
+    is_ipaddress
 )
 from powerview.lib.resolver import (
     LDAP,
