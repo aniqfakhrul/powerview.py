@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
 	name='powerview',
-	version='2024.6.2',
+	version='2024.6.1',
 	description='Python based PowerView script',
 	author='Aniq Fakhrul',
 	author_email='aniqfakhrull@gmail.com',
@@ -20,7 +20,7 @@ setup(
 	license='MIT',
 	install_requires=[
 		'impacket',
-		'ldap3',
+		'ldap3 @ git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements',
 		'dnspython',
 		'future',
 		'gnureadline',
