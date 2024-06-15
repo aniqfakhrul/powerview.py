@@ -207,6 +207,18 @@ def ini_to_dict(obj):
             d['value'] = t.getlist('dummy_section', k)
     return d
 
+def read_file(path, mode="r"):
+    path = os.path.expanduser(path)
+    if not os.path.isfile(path):
+        raise Exception(f"File {path} not found")
+
+    content = None
+    with open(path, mode) as f:
+        content = f.read()
+        f.close()
+
+    return content
+
 def parse_object(obj):
     if '{' not in obj and '}' not in obj:
         logging.error('Error format retrieve, (e.g. {dnsHostName=temppc.contoso.local})')

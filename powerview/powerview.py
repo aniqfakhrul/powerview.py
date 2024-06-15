@@ -3107,6 +3107,16 @@ displayName=New Group Policy Object
                 logging.error(f"[Set-DomainObject] Parsing {'-Set' if args.set else '-Append'} value failed")
                 return
 
+            # check if value is a file
+            if len(attrs['value']) == 1 and not isinstance(attrs['value'][0], bytes) and attrs['value'][0].startswith("@"):
+                path = attrs['value'][0].lstrip("@")
+                try:
+                    logging.debug("[Set-DomainObject] Reading from file")
+                    attrs['value'][0] = read_file(path, mode ="rb")
+                except Exception as e:
+                    logging.error("[Set-DomainObject] %s" % str(e))
+                    return
+
             try:
                 if isinstance(attrs['value'], list):
                     for val in attrs['value']:
