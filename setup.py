@@ -9,6 +9,8 @@ setup(
 	maintainer='Aniq Fakhrul',
 	maintainer_email='aniqfakhrull@gmail.com',
 	url='https://github.com/aniqfakhrul/powerview.py',
+	long_description=open('README.md').read(),
+	long_description_content_type='text/markdown',
 	packages=[
 		'powerview',
         'powerview.utils',
