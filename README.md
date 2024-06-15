@@ -6,17 +6,17 @@ PowerView.py is an alternative for the awesome original [PowerView.ps1](https://
 
 ## Installation
 Since powerview.py now supports Channel Binding, [gssapi](https://github.com/sigmaris/python-gssapi) is part of the dependencies which requires `libkrb5-dev` apt package.
-* **[EASY] Run install.sh**
+* Pypi
 ```bash
-curl -L powerview.sh | sh
+pip install powerview
 ```
 _or_
-* Manual (pip3)
+* Manual
 ```
 git clone https://github.com/aniqfakhrul/powerview.py
 cd powerview.py
 sudo apt install libkrb5-dev
-sudo python3 setup.py install
+sudo pip3 install .
 ```
 > [!TIP]
 > Use pipx to remotely fetch and install locally

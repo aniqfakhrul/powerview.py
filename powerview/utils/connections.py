@@ -139,7 +139,7 @@ class CONNECTION:
                 logging.debug('LDAP sign and seal are supported')
         except AttributeError:
             self.sign_and_seal_supported = False
-            logging.debug('LDAP sign and seal are not supported')
+            logging.debug('LDAP sign and seal are not supported. Install with "pip install \"git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements\""')
 
         try:
             if ldap3.TLS_CHANNEL_BINDING:
@@ -147,7 +147,7 @@ class CONNECTION:
                 logging.debug('TLS channel binding is supported')
         except AttributeError:
             self.tls_channel_binding_supported = False
-            logging.debug('TLS channel binding is not supported')
+            logging.debug('TLS channel binding is not supported Install with "pip install \"git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements\""')
 
         self.use_sign_and_seal = self.args.use_sign_and_seal
         self.use_channel_binding = self.args.use_channel_binding
@@ -510,6 +510,9 @@ class CONNECTION:
                 if self.tls_channel_binding_supported and (self.use_ldaps or self.use_gc_ldaps):
                     logging.debug("Re-authenticate with channel binding")
                     return self.init_ldap_schannel_connection(target, tls, tls_channel_binding=True)
+                else:
+                    logging.warning('ldap3 library doesn\'t support CB. Install with "pip install \"git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements\""')
+                    sys.exit(-1)
         except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult as e:
             logging.debug("Server returns LDAPStrongerAuthRequiredResult")
             logging.warning("LDAP Signing is enforced!")
@@ -517,6 +520,7 @@ class CONNECTION:
                 logging.debug("Re-authenticate with seal and sign")
                 return self.init_ldap_schannel_connection(target, tls, seal_and_sign=True)
             else:
+                logging.warning('ldap3 library doesn\'t support CB. Install with "pip install \"git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements\""')
                 sys.exit(-1)
         except ldap3.core.exceptions.LDAPInappropriateAuthenticationResult as e:
             logging.error("Cannot start kerberos signing/sealing when using TLS/SSL")

@@ -36,7 +36,10 @@ from ldap3.protocol.formatters.formatters import format_sid
 from impacket import version
 from impacket.examples import logger, utils
 from impacket.ldap import ldaptypes
-from impacket.msada_guids import SCHEMA_OBJECTS, EXTENDED_RIGHTS
+from powerview.utils.constants import (
+    SCHEMA_OBJECTS,
+    EXTENDED_RIGHTS
+)
 from impacket.smbconnection import SMBConnection
 from impacket.spnego import SPNEGO_NegTokenInit, TypesMech
 from ldap3.utils.conv import escape_filter_chars

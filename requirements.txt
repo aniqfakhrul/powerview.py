@@ -1,5 +1,5 @@
-impacket @ git+https://github.com/ThePorgs/impacket.git
-ldap3 @ git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements
+impacket
+ldap3-custom-requirements[kerberos]
 dnspython
 future
 gnureadline

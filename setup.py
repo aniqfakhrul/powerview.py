@@ -2,13 +2,15 @@ from setuptools import setup
 
 setup(
 	name='powerview',
-	version='2024.6.1',
+	version='2024.6.3',
 	description='Python based PowerView script',
 	author='Aniq Fakhrul',
 	author_email='aniqfakhrull@gmail.com',
 	maintainer='Aniq Fakhrul',
 	maintainer_email='aniqfakhrull@gmail.com',
 	url='https://github.com/aniqfakhrul/powerview.py',
+	long_description=open('README.md').read(),
+	long_description_content_type='text/markdown',
 	packages=[
 		'powerview',
         'powerview.utils',
@@ -17,8 +19,8 @@ setup(
     ],
 	license='MIT',
 	install_requires=[
-		'impacket @ git+https://github.com/ThePorgs/impacket.git',
-		'ldap3 @ git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements',
+		'impacket',
+		'ldap3-custom-requirements[kerberos]',
 		'dnspython',
 		'future',
 		'gnureadline',
