@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
 	name='powerview',
-	version='2024.0.0',
+	version='2024.6.1',
 	description='Python based PowerView script',
 	author='Aniq Fakhrul',
 	author_email='aniqfakhrull@gmail.com',
