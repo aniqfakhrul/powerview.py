@@ -1,4 +1,4 @@
-__version__ = "2024.6.1"
+__version__ = "2024.6.2"
 __year__ = "2024"
 __author__ = [
     "Aniq Fakhrul",
