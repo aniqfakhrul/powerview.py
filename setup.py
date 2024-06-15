@@ -18,17 +18,7 @@ setup(
         'powerview.lib'
     ],
 	license='MIT',
-	install_requires=[
-		'impacket',
-		'ldap3 @ git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements',
-		'dnspython',
-		'future',
-		'gnureadline',
-		'validators',
-		'dsinternals',
-		'chardet',
-		'tabulate',    
-	],
+	install_requires=[i.strip() for i in open('requirements.txt').readlines()],
 	classifiers=[
 		'Intended Audience :: Information Technology',
 		'License :: OSI Approved :: MIT License',
