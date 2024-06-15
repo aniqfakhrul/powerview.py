@@ -73,6 +73,10 @@ Get-DomainUser -OutFile ~/domain_user.txt
 Set-DomainObject -Identity "adminuser" -Set 'servicePrincipalname=http/web.ws.local'
 Set-DomainObject -Identity "adminuser" -Append 'servicePrincipalname=http/web.ws.local'
 Set-DomainObject -Identity "adminuser" -Clear 'servicePrincipalname'
+
+# Reading from local file
+Set-DomainObject -Identity "adminuser" -Set 'servicePrincipalname=@/path/to/local/file'
+Set-DomainObject -Identity "adminuser" -Append 'servicePrincipalname=@/path/to/local/file'
 ```
 
 * Relay mode
