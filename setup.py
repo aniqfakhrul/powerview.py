@@ -18,7 +18,17 @@ setup(
         'powerview.lib'
     ],
 	license='MIT',
-	install_requires=[i.strip() for i in open('requirements.txt').readlines()],
+	install_requires=[
+		'impacket',
+		'ldap3-custom-requirements[kerberos]',
+		'dnspython',
+		'future',
+		'gnureadline',
+		'validators',
+		'dsinternals',
+		'chardet',
+		'tabulate',    
+	],
 	classifiers=[
 		'Intended Audience :: Information Technology',
 		'License :: OSI Approved :: MIT License',
