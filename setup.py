@@ -19,8 +19,8 @@ setup(
     ],
 	license='MIT',
 	install_requires=[
-		'impacket @ git+https://github.com/ThePorgs/impacket.git',
-		'ldap3 @ git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements',
+		'-e impacket @ git+https://github.com/ThePorgs/impacket.git',
+		'-e ldap3 @ git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements',
 		'dnspython',
 		'future',
 		'gnureadline',
