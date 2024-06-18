@@ -5,7 +5,7 @@
 PowerView.py is an alternative for the awesome original [PowerView.ps1](https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1) script. Most of the modules used in PowerView are available here ( some of the flags are changed ). Main goal is to achieve interactive session without having to repeatedly authenticate to ldap.
 
 ## Installation
-Since powerview.py now supports Channel Binding, [gssapi](https://github.com/sigmaris/python-gssapi) is part of the dependencies which requires `libkrb5-dev` apt package.
+Since powerview.py now supports Channel Binding and Seal and Sign, [gssapi](https://github.com/sigmaris/python-gssapi) is part of the dependencies which requires `libkrb5-dev` package from apt.
 * Pypi
 ```bash
 pip3 install powerview
@@ -20,6 +20,7 @@ curl -L powerview.sh | sh
 ```
 git clone https://github.com/aniqfakhrul/powerview.py
 cd powerview.py
+sudo apt install libkrb5-dev
 ./intall.sh
 ```
 > [!NOTE]
