@@ -8,19 +8,23 @@ PowerView.py is an alternative for the awesome original [PowerView.ps1](https://
 Since powerview.py now supports Channel Binding, [gssapi](https://github.com/sigmaris/python-gssapi) is part of the dependencies which requires `libkrb5-dev` apt package.
 * Pypi
 ```bash
-pip install powerview
+pip3 install powerview
 ```
-_or_
+
+* curl
+```
+curl -L powerview.sh | sh
+```
+
 * Manual
 ```
 git clone https://github.com/aniqfakhrul/powerview.py
 cd powerview.py
-sudo apt install libkrb5-dev
-sudo pip3 install .
+./intall.sh
 ```
-> [!TIP]
-> Use pipx to remotely fetch and install locally
-> `pipx install 'git+https://github.com/aniqfakhrul/powerview.py`
+> [!NOTE]
+> In case the installation throws error regarding `gssapi` library. You might need to install `libkrb5-dev` (Debian/Ubuntu) or `krb5-devel` (CentOS)
+> `sudo apt install libkrb5-dev`
 
 ## Basic Usage
 > [!NOTE]
@@ -66,6 +70,11 @@ Get-DomainUser -Count
 * Output result to file
 ```
 Get-DomainUser -OutFile ~/domain_user.txt
+```
+
+* Format output in a table
+```
+Get-DomainUser -Properties samaccountname,memberof -TableView
 ```
 
 * Set module
@@ -227,7 +236,7 @@ Example path: `/root/.powerview/logs/bionic.local/2024-02-13.log`
     * ~~Sign and Seal~~
     * ~~Simple Authentication~~
     * ~~Schannel. Authentication with pfx~~
-* Add `ProtectedFromAccidentalDeletion` attribute to `Get-DomainOU`
+* ~~Add `ProtectedFromAccidentalDeletion` attribute to `Get-DomainOU`~~
 
 ### Credits
 * https://github.com/SecureAuthCorp/impacket
