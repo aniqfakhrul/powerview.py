@@ -1,5 +1,5 @@
 __year__ = "2024"
-__version__ = f"{__year__}.6.3"
+__version__ = f"{__year__}.6.4"
 __author__ = [
     "Aniq Fakhrul",
     "Ali Radzali"

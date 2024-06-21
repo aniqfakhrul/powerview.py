@@ -425,8 +425,8 @@ def powerview_arg_parse(cmd):
     # get-netloggedon
     get_netloggedon_parser = subparsers.add_parser('Get-NetLoggedOn', exit_on_error=False)
     get_netloggedon_group = get_netloggedon_parser.add_mutually_exclusive_group()
-    get_netloggedon_group.add_argument('-Computer', action='store', const=None, dest='computer')
-    get_netloggedon_group.add_argument('-ComputerName', action='store', const=None, dest='computername')
+    get_netloggedon_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_netloggedon_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
     get_netloggedon_parser.add_argument('-TableView', action='store_true', dest='tableview')
     get_netloggedon_parser.add_argument('-Server', action='store', dest='server')
     get_netloggedon_parser.add_argument('-Count', action='store_true', dest='count')
@@ -435,11 +435,26 @@ def powerview_arg_parse(cmd):
     # get-netsession
     get_netsession_parser = subparsers.add_parser('Get-NetSession', exit_on_error=False)
     get_netsession_group = get_netsession_parser.add_mutually_exclusive_group()
-    get_netsession_group.add_argument('-Computer', action='store', const=None, dest='computer')
-    get_netsession_group.add_argument('-ComputerName', action='store', const=None, dest='computername')
+    get_netsession_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_netsession_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_netsession_parser.add_argument('-TableView', action='store_true', dest='tableview')
     get_netsession_parser.add_argument('-Server', action='store', dest='server')
     get_netsession_parser.add_argument('-Count', action='store_true', dest='count')
     get_netsession_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+    # get-netservice
+    get_netservice_parser = subparsers.add_parser('Get-NetService', exit_on_error=False)
+    get_netservice_parser.add_argument('-Name', action='store', dest='name', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_netservice_group = get_netservice_parser.add_mutually_exclusive_group()
+    get_netservice_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_netservice_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_netservice_status_group = get_netservice_parser.add_mutually_exclusive_group(required=False)
+    get_netservice_status_group.add_argument('-IsRunning', action='store_true', default=False, dest='isrunning')
+    get_netservice_status_group.add_argument('-IsStopped', action='store_true', default=False, dest='isstopped')
+    get_netservice_parser.add_argument('-TableView', action='store_true', dest='tableview')
+    get_netservice_parser.add_argument('-Server', action='store', dest='server')
+    get_netservice_parser.add_argument('-Count', action='store_true', dest='count')
+    get_netservice_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # shares
     find_localadminaccess_parser = subparsers.add_parser('Find-LocalAdminAccess', exit_on_error=False)

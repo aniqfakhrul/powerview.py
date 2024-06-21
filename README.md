@@ -8,6 +8,7 @@ PowerView.py is an alternative for the awesome original [PowerView.ps1](https://
 Since powerview.py now supports Channel Binding and Seal and Sign, [gssapi](https://github.com/sigmaris/python-gssapi) is part of the dependencies which requires `libkrb5-dev` package from apt.
 * Pypi
 ```bash
+sudo apt install libkrb5-dev
 pip3 install powerview
 ```
 
