@@ -75,6 +75,10 @@ EDRS = [
 	    {
 	      "name": "WdNisSvc",
 	      "description": "Windows Defender Antivirus Network Inspection Service"
+	    },
+	    {
+	    	"name": "WdNisDrv",
+	    	"description": "Windows Defender Antivirus Network Inspection System Driver"
 	    }
 	  ],
 	  "pipes": []
@@ -309,6 +313,32 @@ EDRS = [
 	    }
 	  ],
 	  "pipes": []
+	},
+	{
+		"name": "Cylance",
+		"services": [
+			{
+				"name": "CylanceDrv",
+				"description": "CylanceDrv"
+			},
+			{
+				"name": "CylanceSvc",
+				"description": "Cylance Unified Agent"
+			},
+			{
+				"name": "CyOptics",
+				"description": "Cylance Optics"
+			},
+			{
+				"name": "CyOpticsDrv",
+				"description": "CyOpticsDrv"
+			},
+			{
+				"name": "CyProtectDrv",
+				"description": "CyProtectDrv"
+			}
+		],
+		"pipes": []
 	}
 ]
 

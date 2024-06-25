@@ -959,7 +959,7 @@ class CONNECTION:
         #rpctransport.set_dport(445)
 
         if hasattr(rpctransport, 'set_credentials') and auth:
-            rpctransport.set_credentials(self.username, self.password, self.domain, self.lmhash, self.nthash, TGT=self.TGT, TGS=self.TGS)
+            rpctransport.set_credentials(self.username, self.password, self.domain, self.lmhash, self.nthash, TGT=self.TGT)
 
         if hasattr(rpctransport, 'set_kerberos') and self.use_kerberos and auth:
             rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.kdcHost)
@@ -979,7 +979,8 @@ class CONNECTION:
             dce.connect()
             return dce
         except Exception as e:
-            return None
+            logging.error(str(e))
+            return
 
     # stolen from pywerview
     def create_rpc_connection(self, host, pipe):

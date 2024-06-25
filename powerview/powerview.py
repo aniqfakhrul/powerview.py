@@ -3341,21 +3341,7 @@ displayName=New Group Policy Object
                 }
 
         if not is_ipaddress(computer_name):
-            # check if computer exists
-            computer = self.get_domaincomputer(identity=computer_name, properties = ["dNSHostName","distinguishedName"])
-            
-            if len(computer) == 0:
-                logging.error("[Get-NetLoggedOn] No computer found")
-                return
-            elif len(computer) > 1:
-                logging.error("[Get-NetLoggedOn] More then one computer found")
-                return
-            
-            logging.info("[Get-NetLoggedOn] Computer found in domain")
-
-            computer_dns = computer[0].get("attributes").get("dNSHostName")
-
-            ip_address = host2ip(computer_dns, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+            ip_address = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
         else:
             ip_address = computer_name
 
@@ -3466,21 +3452,7 @@ displayName=New Group Policy Object
                 }
 
         if not is_ipaddress(computer_name):
-            # check if computer exists
-            computer = self.get_domaincomputer(identity=computer_name, properties = ["dNSHostName","distinguishedName"])
-            
-            if len(computer) == 0:
-                logging.error("[Get-NetLoggedOn] No computer found")
-                return
-            elif len(computer) > 1:
-                logging.error("[Get-NetLoggedOn] More then one computer found")
-                return
-            
-            logging.info("[Get-NetLoggedOn] Computer found in domain")
-
-            computer_dns = computer[0].get("attributes").get("dNSHostName")
-
-            ip_address = host2ip(computer_dns, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+            ip_address = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
         else:
             ip_address = computer_name
 
@@ -3507,7 +3479,6 @@ displayName=New Group Policy Object
             elif str(e).upper().find('ACCESS_DENIED'):
                 # We're not admin, bye
                 logging.error('Access denied - you must be admin to enumerate sessions this way')
-                scmr.hRCloseServiceHandle(dce, scManagerHandle)
                 dce.disconnect()
                 return
             else:
@@ -3564,7 +3535,6 @@ displayName=New Group Policy Object
             logging.error("[Get-NetService] Error enumerating service")
             return
 
-        scmr.hRCloseServiceHandle(dce, scManagerHandle)
         dce.disconnect()
         return entries
 
