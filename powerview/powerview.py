@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
-from impacket.dcerpc.v5 import srvs, wkst
+from impacket.dcerpc.v5 import srvs, wkst, scmr
 from impacket.dcerpc.v5.ndr import NULL
 
 from powerview.modules.gmsa import GMSA
@@ -8,6 +8,7 @@ from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.modules.dacledit import DACLedit
+from powerview.modules.products import EDR
 from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
 from powerview.utils.storage import Storage
@@ -3340,21 +3341,7 @@ displayName=New Group Policy Object
                 }
 
         if not is_ipaddress(computer_name):
-            # check if computer exists
-            computer = self.get_domaincomputer(identity=computer_name, properties = ["dNSHostName","distinguishedName"])
-            
-            if len(computer) == 0:
-                logging.error("[Get-NetLoggedOn] No computer found")
-                return
-            elif len(computer) > 1:
-                logging.error("[Get-NetLoggedOn] More then one computer found")
-                return
-            
-            logging.info("[Get-NetLoggedOn] Computer found in domain")
-
-            computer_dns = computer[0].get("attributes").get("dNSHostName")
-
-            ip_address = host2ip(computer_dns, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+            ip_address = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
         else:
             ip_address = computer_name
 
@@ -3438,10 +3425,7 @@ displayName=New Group Policy Object
             logging.error(f"[Get-NetShare] Host not found")
             return
 
-        if self.use_kerberos:
-            client = self.conn.init_smb_session(host)
-        else:
-            client = self.conn.init_smb_session(host)
+        client = self.conn.init_smb_session(host)
 
         if not client:
             return
@@ -3458,6 +3442,101 @@ displayName=New Group Policy Object
             result["rows"].append([share_name, share_remark, host])
 
         return result
+
+    def get_netservice(self, computer_name, port=445, args=None):
+        ip_address = ""
+        computer_dns = ""
+        KNOWN_PROTOCOLS = {
+                139: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
+                445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
+                }
+
+        if not is_ipaddress(computer_name):
+            ip_address = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+        else:
+            ip_address = computer_name
+
+        stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % ip_address
+        dce = self.conn.connectRPCTransport(host=ip_address, stringBindings=stringBinding)
+        
+        if not dce:
+            logging.error("Failed to connect to %s" % (ip_address))
+            return
+
+        dce.bind(scmr.MSRPC_UUID_SCMR)
+
+        try:
+            # open service handle
+            res = scmr.hROpenSCManagerW(dce)
+            scManagerHandle = res['lpScHandle']
+
+            resp = scmr.hREnumServicesStatusW(dce, scManagerHandle)
+        except Exception as e:
+            if str(e).find('Broken pipe') >= 0:
+                # The connection timed-out. Let's try to bring it back next round
+                logging.error('Connection failed - skipping host!')
+                return
+            elif str(e).upper().find('ACCESS_DENIED'):
+                # We're not admin, bye
+                logging.error('Access denied - you must be admin to enumerate sessions this way')
+                dce.disconnect()
+                return
+            else:
+                raise
+        
+        edr = EDR()
+        entries = []
+        try:
+            for i in range(len(resp)):
+                state = resp[i]['ServiceStatus']['dwCurrentState']
+                name = resp[i]['lpServiceName'][:-1]
+                displayname = resp[i]['lpDisplayName'][:-1]
+
+                if args.name and args.name.lower() not in name.lower():
+                    continue
+
+                if args.isrunning and not state == scmr.SERVICE_RUNNING:
+                    continue
+                elif args.isstopped and not state == scmr.SERVICE_STOPPED:
+                    continue
+
+                if edr.service_exist(name):
+                    name = f"{bcolors.WARNING}{name}{bcolors.ENDC}"
+                    displayname = f"{bcolors.WARNING}{displayname}{bcolors.ENDC}"
+
+                entry = {
+                    "Name": name,
+                    "DisplayName": displayname,
+                    "Status": "UNKNOWN",
+                }
+                if state == scmr.SERVICE_CONTINUE_PENDING:
+                   entry["Status"] = "CONTINUE PENDING"
+                elif state == scmr.SERVICE_PAUSE_PENDING:
+                   entry["Status"] = "PAUSE PENDING"
+                elif state == scmr.SERVICE_PAUSED:
+                    entry["Status"] = "PAUSED"
+                elif state == scmr.SERVICE_RUNNING:
+                   entry["Status"] = f"{bcolors.OKGREEN}RUNNING{bcolors.ENDC}"
+                elif state == scmr.SERVICE_START_PENDING:
+                   entry["Status"] = "START PENDING"
+                elif state == scmr.SERVICE_STOP_PENDING:
+                   entry["Status"] = "STOP PENDING"
+                elif state == scmr.SERVICE_STOPPED:
+                   entry["Status"] = f"{bcolors.FAIL}STOPPED{bcolors.ENDC}"
+
+                entries.append(
+                    {
+                        "attributes": dict(entry)
+                    }
+                )
+
+            logging.debug("[Get-NetService] Total services found: %d" % len(resp))
+        except IndexError:
+            logging.error("[Get-NetService] Error enumerating service")
+            return
+
+        dce.disconnect()
+        return entries
 
     def get_netsession(self, args):
         is_fqdn = False
