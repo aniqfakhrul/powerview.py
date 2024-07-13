@@ -979,7 +979,7 @@ class CONNECTION:
             dce.connect()
             return dce
         except Exception as e:
-            logging.error(str(e))
+            logging.debug(str(e))
             return
 
     # stolen from pywerview
