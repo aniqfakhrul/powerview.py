@@ -7,3 +7,4 @@ validators
 dsinternals
 chardet
 tabulate
+argparse

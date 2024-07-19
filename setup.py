@@ -27,7 +27,8 @@ setup(
 		'validators',
 		'dsinternals',
 		'chardet',
-		'tabulate',    
+		'tabulate',
+		'argparse',
 	],
 	classifiers=[
 		'Intended Audience :: Information Technology',
