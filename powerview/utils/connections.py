@@ -1078,7 +1078,7 @@ class LDAPRelayServer(LDAPRelayClient):
             return None, STATUS_SUCCESS
         else:
             if result['result'] == RESULT_STRONGER_AUTH_REQUIRED and self.PLUGIN_NAME != 'LDAPS':
-                raise LDAPRelayClientException('Server rejected authentication because LDAP signing is enabled. Try connecting with TLS enabled (specify target as ldaps://hostname )')
+                logging.error('Server rejected authentication because LDAP signing is enabled. Try connecting with TLS enabled (specify target as ldaps://hostname )')
         return None, STATUS_ACCESS_DENIED
 
 class LDAPSRelayServer(LDAPRelayServer):
