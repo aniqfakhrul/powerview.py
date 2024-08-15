@@ -614,9 +614,12 @@ def main():
                                         continue
 
                                 formatter = FORMATTER(pv_args, args.use_kerberos)
-                                if pv_args.where is not None:
-                                    # Alter entries
+                                if hasattr(pv_args, 'where') and pv_args.where is not None:
                                     entries = formatter.alter_entries(entries,pv_args.where)
+
+                                if hasattr(pv_args, 'sort_by') and pv_args.sort_by is not None:
+                                    entries = formatter.sort_entries(entries,pv_args.sort_by)
+
                                 if entries is None:
                                     logging.error(f'Key not available')
                                 else:

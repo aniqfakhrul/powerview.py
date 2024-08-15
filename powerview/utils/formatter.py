@@ -274,6 +274,28 @@ class FORMATTER:
                     LOG.write_to_file(self.args.outfile, entry)
                 print(entry)
 
+    def sort_entries(self, entries, sort_option):
+        try:
+            def sort_key(entry):
+                value = entry['attributes'].get(sort_option)
+                if isinstance(value, str):
+                    return value.lower()
+                elif isinstance(value, list):
+                    if sort_option.lower() in ["badpasswordtime", "lastlogoff", "lastlogon", "pwdlastset", "lastlogontimestamp"]:
+                        return datetime.datetime.min
+                    else:
+                        return value
+                else:
+                    return value
+
+            sorted_users = sorted(entries, key=sort_key)
+            return sorted_users
+        except AttributeError:
+            logging.warning("Failed to sort. Probably value is not a string. Skipping...")
+            return entries
+        except KeyError as e:
+            raise KeyError("%s key not found" % str(e))
+
     def alter_entries(self,entries,cond):
         temp_alter_entries = []
         try:
