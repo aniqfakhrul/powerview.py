@@ -906,7 +906,7 @@ class CONNECTION:
                         elif self.username == '' and len(ccache.principal.components) > 0:
                             self.user = ccache.principal.components[0]['data'].decode('utf-8')
                             logging.debug('Username retrieved from CCache: %s' % self.username)
-
+                
                 conn.kerberosLogin(self.username,self.password,self.domain, self.lmhash, self.nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
                 #conn.kerberosLogin(self.username,self.password,self.domain, self.lmhash, self.nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
                 # havent support kerberos authentication yet

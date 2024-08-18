@@ -277,7 +277,14 @@ class FORMATTER:
     def sort_entries(self, entries, sort_option):
         try:
             def sort_key(entry):
+                if not isinstance(entry["attributes"], ldap3.utils.ciDict.CaseInsensitiveDict):
+                    entry["attributes"] = IDict(entry["attributes"])
+
                 value = entry['attributes'].get(sort_option)
+
+                if not value:
+                    raise Exception("%s key not found" % (sort_option))
+
                 if isinstance(value, str):
                     return value.lower()
                 elif isinstance(value, list):

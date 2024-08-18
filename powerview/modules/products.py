@@ -339,6 +339,32 @@ EDRS = [
 			}
 		],
 		"pipes": []
+	},
+	{
+		"name": "Trend Micro",
+		"services": [
+			{
+				"name": "TmPreFilter",
+				"description": "Trend Micro PreFilter"
+			},
+			{
+				"name": "tmumh",
+				"description": "Trend Micro User Mode Hook Driver"
+			},
+			{
+				"name": "tmusa",
+				"description": "Trend Micro Osprey Driver"
+			},
+			{
+				"name": "tmWfp",
+				"description": "Trend Micro WFP Callout Driver"
+			},
+			{
+				"name": "TmWSCSvc",
+				"description": "Apex One NT WSC Service"
+			}
+		],
+		"pipes": []
 	}
 ]
 
