@@ -274,6 +274,39 @@ class FORMATTER:
                     LOG.write_to_file(self.args.outfile, entry)
                 print(entry)
 
+    def sort_entries(self, entries, sort_option):
+        try:
+            def sort_key(entry):
+                if sort_option.lower() not in [v.lower() for v in entry["attributes"].keys()]:
+                    raise Exception("%s key not found" % (sort_option))
+
+                if not isinstance(entry["attributes"], ldap3.utils.ciDict.CaseInsensitiveDict):
+                    entry["attributes"] = IDict(entry["attributes"])
+
+                value = entry['attributes'].get(sort_option)
+
+                if isinstance(value, str):
+                    return value.lower()
+                elif isinstance(value, list):
+                    if sort_option.lower() in ["badpasswordtime", "lastlogoff", "lastlogon", "pwdlastset", "lastlogontimestamp"]:
+                        return datetime.datetime.min
+                    else:
+                        return value
+                else:
+                    logging.warning("Value not compatible for sorting. Skipping...")
+                    return value
+
+            sorted_users = sorted(entries, key=sort_key)
+            return sorted_users
+        except AttributeError:
+            logging.warning("Failed to sort. Probably value is not a string. Skipping...")
+            return entries
+        except KeyError as e:
+            raise KeyError("%s key not found" % str(e))
+        finally:
+            logging.warning("Failed sort to with unknown error")
+            return entries
+
     def alter_entries(self,entries,cond):
         temp_alter_entries = []
         try:

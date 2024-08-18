@@ -72,7 +72,7 @@ class GetUserSPNs:
         for row in items:
             print(outputFormat.format(*row))
 
-    def __init__(self, username, password, user_domain, target_domain, cmdLineOptions, identity=None, options=None, encType=None):
+    def __init__(self, username, password, user_domain, target_domain, cmdLineOptions, identity=None, options=None, encType=None, TGT=None):
         self.__username = username
         self.__password = password
         self.__domain = user_domain
@@ -83,6 +83,7 @@ class GetUserSPNs:
         self.__doKerberos = cmdLineOptions.use_kerberos
         self.__requestTGS = True
         self.__kdcHost = cmdLineOptions.dc_ip
+        self.__TGT = TGT
         self.__requestUser = identity
         if cmdLineOptions.hashes is not None:
             self.__lmhash, self.__nthash = cmdLineOptions.hashes.split(':')
@@ -213,14 +214,6 @@ class GetUserSPNs:
                 decodedTGS['ticket']['enc-part']['etype']))
 
     def run(self, entries):
-        if self.__doKerberos:
-            target = self.getMachineName()
-        else:
-            if self.__kdcHost is not None and self.__targetDomain == self.__domain:
-                target = self.__kdcHost
-            else:
-                target = self.__targetDomain
-
         answers = []
         entries_out = []
         entry_out = {}
@@ -269,11 +262,15 @@ class GetUserSPNs:
                 # Let's get unique user names and a SPN to request a TGS for
                 users = dict( (vals[1], vals[0]) for vals in answers)
 
+                TGT = None
+
                 # Check for forced encryption
                 enctype = self.__encryption
 
-                # Get a TGT for the current user
-                TGT = self.getTGT(enctype)
+                if self.__TGT and not enctype:
+                    TGT = self.__TGT
+                else:
+                    TGT = self.getTGT(enctype)
 
                 # convert hex to binary
                 kdcopt = self.__options

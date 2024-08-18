@@ -3261,7 +3261,7 @@ displayName=New Group Policy Object
             enctype = 18 # aes
             kdc_options = "0x40810000"
 
-        userspn = GetUserSPNs(self.username, self.password, self.domain, target_domain, self.args, identity=args.identity, options=kdc_options, encType=enctype)
+        userspn = GetUserSPNs(self.username, self.password, self.domain, target_domain, self.args, identity=args.identity, options=kdc_options, encType=enctype, TGT=self.conn.get_TGT())
         entries_out = userspn.run(entries)
 
         # properly formatted for output
