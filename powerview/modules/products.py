@@ -362,6 +362,14 @@ EDRS = [
 			{
 				"name": "TmWSCSvc",
 				"description": "Apex One NT WSC Service"
+			},
+			{
+				"name": "Trend Micro Endpoint Basecamp",
+				"description": "Trend Micro Endpoint Basecamp"
+			},
+			{
+				"name": "Trend Micro Web Service Communicator",
+				"description": "Trend Micro Web Service Communicator"
 			}
 		],
 		"pipes": []
