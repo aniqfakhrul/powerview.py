@@ -284,7 +284,6 @@ class FORMATTER:
                     entry["attributes"] = IDict(entry["attributes"])
 
                 value = entry['attributes'].get(sort_option)
-
                 if isinstance(value, str):
                     return value.lower()
                 elif isinstance(value, list):

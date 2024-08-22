@@ -43,9 +43,11 @@ def main():
     try:
         conn = CONNECTION(args)
         init_ldap_address = args.ldap_address
+        is_admin = False
 
         powerview = PowerView(conn, args)
-        is_admin = powerview.get_admin_status()
+        if not args.no_admin_check:
+            is_admin = powerview.get_admin_status()
         server_dns = powerview.get_server_dns()
         init_proto = conn.get_proto()
         server_ip = conn.get_ldap_address()
