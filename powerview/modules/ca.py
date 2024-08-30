@@ -82,11 +82,13 @@ class CAEnum:
         self.ldap_session.search(ca_search_base, enroll_filter,attributes='*')
         return self.ldap_session.entries
 
-    def fetch_enrollment_services(self, properties=['*']):
+    def fetch_enrollment_services(self, properties=['*'], searchbase=None):
         enroll_filter = "(objectCategory=pKIEnrollmentService)"
-        conf_base = "CN=Configuration,{}".format(self.root_dn)
 
-        self.ldap_session.search(conf_base,enroll_filter,attributes=properties)
+        if not searchbase:
+            searchbase = "CN=Configuration,{}".format(self.root_dn)
+
+        self.ldap_session.search(searchbase,enroll_filter,attributes=properties)
 
         return self.ldap_session.entries
 
