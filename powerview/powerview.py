@@ -1300,6 +1300,9 @@ class PowerView:
         return entries
 
     def get_domainsccm(self, args=None, properties=[], identity=None, searchbase=None):
+        logging.info("[Get-DomainSCCM] To be implemented...")
+        return
+        
         def_prop = [
             "cn",
             "distinguishedname",
