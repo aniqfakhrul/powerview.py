@@ -2824,7 +2824,7 @@ displayName=New Group Policy Object
         node_data = {
             	# Schema is in the root domain (take if from schemaNamingContext to be sure)
             	'objectCategory': 'CN=Dns-Node,CN=Schema,CN=Configuration,%s' % self.root_dn,
-            	'dNSTombstoned': False,
+            	'dNSTombstoned': "FALSE", # Need to hardcoded because of Kerberos issue, will revisit.
             	'name': recordname
         		}
         logging.debug("[Add-DomainDNSRecord] Creating DNS record structure")
@@ -2832,7 +2832,7 @@ displayName=New Group Policy Object
         search_base = f"DC={zonename},CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
         record_dn = 'DC=%s,%s' % (recordname, search_base)
         node_data['dnsRecord'] = [record.getData()]
-
+        
         succeeded = self.ldap_session.add(record_dn, ['top', 'dnsNode'], node_data)
         if not succeeded:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainDNSRecord] Failed adding DNS record to domain ({self.ldap_session.result['description']})")
