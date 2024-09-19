@@ -131,7 +131,7 @@ class CONNECTION:
         self.samr = None
         self.TGT = None
         self.TGS = None
-        
+
         # stolen from https://github.com/the-useless-one/pywerview/blob/master/pywerview/requester.py#L90
         try:
             if ldap3.SIGN and ldap3.ENCRYPT:
@@ -139,7 +139,7 @@ class CONNECTION:
                 logging.debug('LDAP sign and seal are supported')
         except AttributeError:
             self.sign_and_seal_supported = False
-            logging.debug('LDAP sign and seal are not supported. Install with "pip install \"git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements\""')
+            logging.debug('LDAP sign and seal are not supported. Install with "pip install ldap3-custom-requirements[kerberos]"')
 
         try:
             if ldap3.TLS_CHANNEL_BINDING:
@@ -147,7 +147,7 @@ class CONNECTION:
                 logging.debug('TLS channel binding is supported')
         except AttributeError:
             self.tls_channel_binding_supported = False
-            logging.debug('TLS channel binding is not supported Install with "pip install \"git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements\""')
+            logging.debug('TLS channel binding is not supported Install with "pip install ldap3-custom-requirements[kerberos]"')
 
         self.use_sign_and_seal = self.args.use_sign_and_seal
         self.use_channel_binding = self.args.use_channel_binding
@@ -176,7 +176,7 @@ class CONNECTION:
 
     def refresh_domain(self):
         try:
-            self.domain = dn2domain(self.ldap_server.info.other.get('rootDomainNamingContext')[0])
+            self.domain = dn2domain(self.ldap_server.info.other.get('defaultNamingContext')[0])
         except:
             pass
 

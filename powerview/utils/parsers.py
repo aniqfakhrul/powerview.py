@@ -230,6 +230,7 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-LAPS', action='store_true', default=False, dest='laps')
     get_domaincomputer_parser.add_argument('-BitLocker', action='store_true', default=False, dest='bitlocker')
     get_domaincomputer_parser.add_argument('-GMSAPassword', action='store_true', default=False, dest='gmsapassword')
+    get_domaincomputer_parser.add_argument('-Pre2K', action='store_true', default=False, dest='pre2k')
     get_domaincomputer_parser.add_argument('-RBCD', action='store_true', default=False, dest='rbcd')
     get_domaincomputer_parser.add_argument('-ShadowCred', action='store_true', default=False, dest='shadowcred')
     get_domaincomputer_parser.add_argument('-SPN', action='store_true', dest='spn')
@@ -330,6 +331,7 @@ def powerview_arg_parse(cmd):
     # Get SCCM
     get_domainsccm_parser = subparsers.add_parser('Get-DomainSCCM', aliases=['Get-SCCM'], exit_on_error=False)
     get_domainsccm_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_domainsccm_parser.add_argument('-CheckDatalib', action='store_true', default=False, dest='check_datalib')
     get_domainsccm_parser.add_argument('-Properties', action='store', dest='properties')
     get_domainsccm_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domainsccm_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))

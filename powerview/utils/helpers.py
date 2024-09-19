@@ -463,8 +463,6 @@ def get_dc_host(ldap_session, domain_dumper, options):
                 dc_host[str(host['name'])]['HostIP'] = ''
     return dc_host
 
-
-
 def get_domain_admins(ldap_session, domain_dumper):
     admins = []
     ldap_session.search(domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars("Domain Admins"),

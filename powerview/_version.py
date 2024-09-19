@@ -1,5 +1,7 @@
-__year__ = "2024"
-__version__ = f"{__year__}.6.6"
+import datetime
+
+__year__ = datetime.date.today().year
+__version__ = f"{__year__}.6.7"
 __author__ = [
     "Aniq Fakhrul",
     "Ali Radzali"

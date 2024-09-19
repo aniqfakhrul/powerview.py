@@ -1,8 +1,9 @@
 from setuptools import setup
+from powerview._version import __version__
 
 setup(
 	name='powerview',
-	version='2024.6.6',
+	version=__version__,
 	description='Python based PowerView script',
 	author='Aniq Fakhrul',
 	author_email='aniqfakhrull@gmail.com',
@@ -29,6 +30,7 @@ setup(
 		'chardet',
 		'tabulate',
 		'argparse',
+		'requests_ntlm',
 	],
 	classifiers=[
 		'Intended Audience :: Information Technology',

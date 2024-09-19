@@ -5,6 +5,7 @@ from impacket.dcerpc.v5.ndr import NULL
 
 from powerview.modules.gmsa import GMSA
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
+from powerview.modules.sccm import SCCM
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.modules.dacledit import DACLedit
@@ -70,9 +71,8 @@ class PowerView:
         cnf.basepath = None
         self.domain_dumper = ldapdomaindump.domainDumper(self.ldap_server, self.ldap_session, cnf)
         self.root_dn = self.ldap_server.info.other["defaultNamingContext"][0]
-        self.fqdn = dn2domain(self.root_dn)
         if not self.domain:
-            self.domain = self.fqdn
+            self.domain = dn2domain(self.root_dn)
         self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
         self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
         self.is_admin = self.is_admin()
@@ -600,6 +600,9 @@ class PowerView:
                         "msDS-ManagedPasswordInterval",
                         "msDS-ManagedPasswordId"
                     ]
+            if args.pre2k:
+                logging.debug("[Get-DomainComputer] Search for Pre-Created Windows 2000 computer")
+                ldap_filter += f'(userAccountControl=4128)(logonCount=0)'
             if args.ldapfilter:
                 logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f"{args.ldapfilter}"
@@ -1337,6 +1340,44 @@ class PowerView:
                 continue
             strip_entry(_entries)
             entries.append(_entries)
+
+        if args.check_datalib:
+            if not entries:
+                logging.info("[Get-DomainSCCM] No server found in domain. Skipping...")
+                return entries
+
+            target = entries['attributes']['dnsHostName']
+            logging.debug("[Get-DomainSCCM] Verifying SCCM HTTP endpoint")
+
+            sccm = SCCM(target)
+            sccm.check_datalib_endpoint()
+            
+            if not sccm.http_enabled():
+                logging.info("[Get-DomainSCCM] Failed to check with hostname, resolving dnsHostName attribute to IP and retrying...")
+                target = host2ip(entries['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+                sccm.check_datalib_endpoint()
+
+            entries = modify_entry(
+                entries,
+                new_attributes = {
+                    "DatalibEndpoint": sccm.http_enabled(),
+                    "DatalibEndpointAllowAnonymous": sccm.http_anonymous_enabled()
+                }
+            )
+
+        return entries
+
+    def get_domainsccmdatalib(self):
+        entries = []
+        if not sccm.http_enabled():
+            logging.warning("[Get-DomainSCCM] Datalib endpoint not accessible. Skipping...")
+            return entries
+
+        # parse datalib
+        logging.debug("[Get-DomainSCCMDatalib] Parsing SCCM Datalib HTTP endpoint")
+
+        urls = sccm.parse_datalib(self.username, self.password)
+
         return entries
 
     def get_domainca(self, args=None, properties=None):
@@ -1565,17 +1606,9 @@ displayName=New Group Policy Object
 
         self.ldap_session.add(dn, ['top','container','groupPolicyContainer'], gpo_data)
 
+        # adding new gplink
         if args.linkto is not None:
-            ou = self.get_domainou(identity=args.linkto, properties=["distinguishedName"])
-
-            if len(ou) == 0:
-                logging.error("[Add-DomainGPO] OU not found in domain.")
-                return
-            elif len(ou) > 1:
-                logging.error("[Add-DomainGPO] More than one OU found in domain.")
-                return
-
-            self.add_gplink(guid=name, targetidentity=ou[0].get("dn"))
+            self.add_gplink(guid=name, targetidentity=args.linkto)
 
         if self.ldap_session.result['result'] == 0:
             logging.info(f"[Add-DomainGPO] Added new {identity} GPO object")
@@ -1656,10 +1689,10 @@ displayName=New Group Policy Object
             searchbase=searchbase,
         )
         if len(gpo) > 1:
-            logging.error("[New-GPLink] More than one GPO found")
+            logging.error("[Remove-GPLink] More than one GPO found")
             return
         elif len(gpo) == 0:
-            logging.error("[New-GPLink] GPO not found in domain")
+            logging.error("[Remove-GPLink] GPO not found in domain")
             return
 
         if isinstance(gpo, list):
@@ -1667,7 +1700,7 @@ displayName=New Group Policy Object
         else:
             gpidentity = gpo["attributes"]["distinguishedName"]
 
-        logging.debug(f"Found GPO with GUID {gpidentity}")
+        logging.debug(f"[Remove-GPLink] Found GPO with GUID {gpidentity}")
 
         # verify that the target identity exists
         target_identity = self.get_domainobject(identity=targetidentity, properties=[
@@ -1737,10 +1770,10 @@ displayName=New Group Policy Object
             searchbase=searchbase,
         )
         if len(gpo) > 1:
-            logging.error("[New-GPLink] More than one GPO found")
+            logging.error("[Add-GPLink] More than one GPO found")
             return
         elif len(gpo) == 0:
-            logging.error("[New-GPLink] GPO not found in domain")
+            logging.error("[Add-GPLink] GPO not found in domain")
             return
 
         if isinstance(gpo, list):
@@ -1748,7 +1781,7 @@ displayName=New Group Policy Object
         else:
             gpidentity_dn = gpo["attributes"]["distinguishedName"]
 
-        logging.debug(f"Found GPO with GUID {gpidentity_dn}")
+        logging.debug(f"[Add-GPLink] Found GPO with GUID {gpidentity_dn}")
 
         # verify that the target identity exists
         target_identity = self.get_domainobject(identity=targetidentity, properties=[
@@ -1758,10 +1791,10 @@ displayName=New Group Policy Object
             sd_flag=sd_flag
             )
         if len(target_identity) > 1:
-            logging.error("[New-GPLink] More than one principal identity found")
+            logging.error("[Add-GPLink] More than one principal identity found")
             return
         elif len(target_identity) == 0:
-            logging.error("[New-GPLink] Principal identity not found in domain")
+            logging.error("[Add-GPLink] Principal identity not found in domain")
             return
 
         if isinstance(target_identity, list):
@@ -1771,9 +1804,9 @@ displayName=New Group Policy Object
             targetidentity_dn = target_identity["attributes"]["distinguishedName"]
             targetidentity_gplink = target_identity["attributes"].get("gPLink")
 
-        logging.debug(f"[New-GPLink] Found target identity {targetidentity_dn}")
+        logging.debug(f"[Add-GPLink] Found target identity {targetidentity_dn}")
         
-        logging.warning(f"[New-GPLink] Adding new GPLink to {targetidentity_dn}")
+        logging.warning(f"[Add-GPLink] Adding new GPLink to {targetidentity_dn}")
 
         attr = "0"
         if enforced.casefold() == "Yes".casefold():
@@ -1791,16 +1824,16 @@ displayName=New Group Policy Object
 
         if targetidentity_gplink:
             if gpidentity_dn in targetidentity_gplink:
-                logging.error("gPLink attribute already exists")
+                logging.error("[Add-GPLink] gPLink attribute already exists")
                 return
 
-            logging.debug("[New-GPLink] gPLink attribute already populated. Appending new gPLink...")
+            logging.debug("[Add-GPLink] gPLink attribute already populated. Appending new gPLink...")
             targetidentity_gplink += gpidentity
         else:
             targetidentity_gplink = gpidentity
 
         if self.args.debug:
-            logging.debug(f"[New-GPLink] gPLink value: {gpidentity}")
+            logging.debug(f"[Add-GPLink] gPLink value: {gpidentity}")
 
         succeed = self.set_domainobject(  
                                 targetidentity_dn,
@@ -1811,10 +1844,10 @@ displayName=New Group Policy Object
                               )
 
         if succeed:
-            logging.info(f"[New-GPLink] Successfully added gPLink to {targetidentity_dn} OU")
+            logging.info(f"[Add-GPLink] Successfully added gPLink to {targetidentity_dn} OU")
             return True
         else:
-            logging.error(f"[New-GPLink] Failed to add gPLink to {targetidentity_dn} OU")
+            logging.error(f"[Add-GPLink] Failed to add gPLink to {targetidentity_dn} OU")
             return False
 
     def add_domaincatemplateacl(self, name, principalidentity, rights=None, ca_fetch=None, args=None):

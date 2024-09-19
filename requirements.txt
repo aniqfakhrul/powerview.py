@@ -8,3 +8,4 @@ dsinternals
 chardet
 tabulate
 argparse
+requests_ntlm
