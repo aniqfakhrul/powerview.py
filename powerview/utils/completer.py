@@ -97,6 +97,7 @@ COMMANDS = {
     'Set-ADObjectDN':['-Identity','-DistinguishedName','-SearchBase','-Server','-OutFile'],
     'Set-DomainDNSRecord':['-ZoneName','-RecordName','-RecordAddress','-Server', '-OutFile'],
     'Remove-DomainDNSRecord':['-ZoneName','-RecordName','-Server', '-OutFile'],
+    'Disable-DomainDNSRecord':['-ZoneName','-RecordName','-Server', '-OutFile'],
     'Set-DomainCATemplate':['-Identity','-Clear','-Set','-Append','-Server', '-OutFile'],
     'Set-CATemplate':['-Identity','-Clear','-Set','-Append','-Server', '-OutFile'],
     'Add-DomainCATemplateAcl':['-Template','-PrincipalIdentity','-Rights','-Server', '-OutFile'],

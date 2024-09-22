@@ -41,6 +41,7 @@ from io import BytesIO
 import ldap3
 from ldap3.protocol.microsoft import security_descriptor_control
 from ldap3.extend.microsoft import addMembersToGroups, modifyPassword, removeMembersFromGroups
+from ldap3.utils.conv import escape_filter_chars
 import re
 
 class PowerView:
@@ -1258,11 +1259,15 @@ class PowerView:
         ]
 
         zonename = '*' if not zonename else zonename
-        identity = '*' if not identity else identity
+        identity = escape_filter_chars('*' if not identity else identity)
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}" 
 
         zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'], searchbase=searchbase)
+        if not zones:
+            logging.error(f"[Get-DomainDNSRecord] Zone {zonename} not found")
+            return
+
         entries = []
         identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
         ldap_filter = f'(&(objectClass=dnsNode){identity_filter})'
@@ -2438,6 +2443,20 @@ displayName=New Group Policy Object
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainGroupMember] Failed to add {members} to group {identity}")
         return succeeded
 
+    def disable_domaindnsrecord(self, recordname, zonename=None):
+        succeed = self.set_domaindnsrecord(
+            recordname=recordname,
+            recordaddress="0.0.0.0",
+            zonename=zonename,
+        )
+
+        if succeed:
+            logging.info(f"[Disable-DomainDNSRecord] {recordname} dns record disabled")
+            return True
+        else:
+            logging.error("[Disable-DomainDNSRecord] Failed to disable dns record")
+            return False
+
     def remove_domaindnsrecord(self, recordname=None, args=None):
         if args.zonename:
             zonename = args.zonename.lower()
@@ -2450,14 +2469,14 @@ displayName=New Group Policy Object
             logging.info("[Remove-DomainDNSRecord] Zone %s not found" % zonename)
             return
 
-
         entry = self.get_domaindnsrecord(identity=recordname, zonename=zonename)
 
         if len(entry) == 0:
             logging.info("[Remove-DomainDNSRecord] No record found")
             return
         elif len(entry) > 1:
-            logging.info("[Remove-DomainDNSRecord] More than one record found")
+            logging.error("[Remove-DomainDNSRecord] More than one record found")
+            return
 
         record_dn = entry[0]["attributes"]["distinguishedName"]
 
@@ -2738,29 +2757,26 @@ displayName=New Group Policy Object
         else:
             return False
 
-    def set_domaindnsrecord(self, args):
-        if args.zonename:
-            zonename = args.zonename.lower()
+    def set_domaindnsrecord(self, recordname, recordaddress, zonename=None):
+        if zonename:
+            zonename = zonename.lower()
         else:
             zonename = self.domain.lower()
-            logging.debug("Using current domain %s as zone name" % zonename)
-
-        zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
-        if zonename not in zones:
-            logging.info("Zone %s not found" % zonename)
-            return
-
-        recordname = args.recordname
-        recordaddress = args.recordaddress
+            logging.debug("[Set-DomainDNSRecord] Using current domain %s as zone name" % zonename)
 
         entry = self.get_domaindnsrecord(identity=recordname, zonename=zonename, properties=['dnsRecord', 'distinguishedName', 'name'])
 
-        if len(entry) == 0:
-            logging.info("No record found")
+        if not entry:
+            return
+        elif len(entry) == 0:
+            logging.info("[Set-DomainDNSRecord] No record found")
             return
         elif len(entry) > 1:
-            logging.info("More than one record found")
+            logging.info("[Set-DomainDNSRecord] More than one record found")
             return
+
+        if self.args.debug:
+            logging.debug(f"[Set-DomainDNSRecord] Updating dns record {recordname} to {recordaddress}")
 
         targetrecord = None
         records = []
@@ -2772,7 +2788,7 @@ displayName=New Group Policy Object
                 records.append(record)
 
         if not targetrecord:
-            logging.error("No A record exists yet. Nothing to modify")
+            logging.error("[Set-DomainDNSRecord] No A record exists yet. Nothing to modify")
             return
 
         targetrecord["Serial"] = DNS_UTIL.get_next_serial(self.dc_ip, zonename, True)
@@ -2786,37 +2802,23 @@ displayName=New Group Policy Object
             logging.error(self.ldap_session.result['message'])
             return False
         else:
-            logging.info('Success! modified attribute for target record %s' % entry[0]['attributes']['distinguishedName'])
+            logging.info('[Set-DomainDNSRecord] Success! modified attribute for target record %s' % entry[0]['attributes']['distinguishedName'])
             return True
 
-    def add_domaindnsrecord(self, args):
-        if args.zonename:
-            zonename = args.zonename.lower()
+    def add_domaindnsrecord(self, recordname, recordaddress, zonename=None):
+        if zonename:
+            zonename = zonename.lower()
         else:
             zonename = self.domain.lower()
-            logging.debug("Using current domain %s as zone name" % zonename)
-
-        recordname = args.recordname
-        recordaddress = args.recordaddress
+            logging.debug("[Add-DomainDNSRecord] Using current domain %s as zone name" % zonename)
 
         zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
         if zonename not in zones:
-            logging.info("Zone %s not found" % zonename)
+            logging.info("[Add-DomainDNSRecord] Zone %s not found" % zonename)
             return
 
         if recordname.lower().endswith(zonename.lower()):
             recordname = recordname[:-(len(zonename)+1)]
-
-        entries = self.get_domaindnsrecord(identity=recordname, zonename=zonename, properties=['dnsRecord','dNSTombstoned','name'])
-
-        if entries:
-            for e in entries:
-                for record in e['attributes']['dnsRecord']:
-                    dr = DNS_RECORD(record)
-                    if dr['Type'] == 1:
-                        address = DNS_RPC_RECORD_A(dr['Data'])
-                        logging.warning("Record %s in zone %s pointing to %s already exists" % (recordname, zonename, address.formatCanonical()))
-                        return
 
         # addtype is A record = 1
         addtype = 1

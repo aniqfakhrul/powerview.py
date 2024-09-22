@@ -693,6 +693,13 @@ def powerview_arg_parse(cmd):
     remove_domaindnsrecord_parser.add_argument('-Server', action='store', dest='server')
     remove_domaindnsrecord_parser.add_argument('-OutFile', action='store', dest='outfile')
 
+    # disable dns record
+    disable_domaindnsrecord_parser = subparsers.add_parser('Disable-DomainDNSRecord', exit_on_error=False)
+    disable_domaindnsrecord_parser.add_argument('-ZoneName', action='store', dest='zonename')
+    disable_domaindnsrecord_parser.add_argument('-RecordName', action='store', dest='recordname', type=lambda value: escape_filter_chars_except_asterisk(value))
+    disable_domaindnsrecord_parser.add_argument('-Server', action='store', dest='server')
+    disable_domaindnsrecord_parser.add_argument('-OutFile', action='store', dest='outfile')
+
     # set domain ca template properties
     set_domaincatemplate_parser = subparsers.add_parser('Set-DomainCATemplate', aliases=['Set-CATemplate'], exit_on_error=False)
     set_domaincatemplate_parser.add_argument('-Identity', action='store', dest='identity')
