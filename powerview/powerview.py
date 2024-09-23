@@ -1305,9 +1305,6 @@ class PowerView:
         return entries
 
     def get_domainsccm(self, args=None, properties=[], identity=None, searchbase=None):
-        logging.info("[Get-DomainSCCM] To be implemented...")
-        return
-        
         def_prop = [
             "cn",
             "distinguishedname",
@@ -2457,9 +2454,9 @@ displayName=New Group Policy Object
             logging.error("[Disable-DomainDNSRecord] Failed to disable dns record")
             return False
 
-    def remove_domaindnsrecord(self, recordname=None, args=None):
-        if args.zonename:
-            zonename = args.zonename.lower()
+    def remove_domaindnsrecord(self, recordname=None, zonename=None):
+        if zonename:
+            zonename = zonename.lower()
         else:
             zonename = self.domain.lower()
             logging.debug("[Remove-DomainDNSRecord] Using current domain %s as zone name" % zonename)
