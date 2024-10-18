@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
-from impacket.dcerpc.v5 import srvs, wkst, scmr
+from impacket.dcerpc.v5 import srvs, wkst, scmr, rrp
 from impacket.dcerpc.v5.ndr import NULL
 
 from powerview.modules.gmsa import GMSA
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
+from powerview.modules.sccm import SCCM
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.modules.dacledit import DACLedit
@@ -30,16 +31,21 @@ from powerview.lib.dns import (
     DNS_RPC_RECORD_A,
     DNS_UTIL,
 )
+from powerview.lib.reg import (
+    RemoteOperations
+)
 from powerview.lib.resolver import (
     TRUST,
     UAC
 )
 
 import chardet
+import time
 from io import BytesIO
 import ldap3
 from ldap3.protocol.microsoft import security_descriptor_control
 from ldap3.extend.microsoft import addMembersToGroups, modifyPassword, removeMembersFromGroups
+from ldap3.utils.conv import escape_filter_chars
 import re
 
 class PowerView:
@@ -70,9 +76,8 @@ class PowerView:
         cnf.basepath = None
         self.domain_dumper = ldapdomaindump.domainDumper(self.ldap_server, self.ldap_session, cnf)
         self.root_dn = self.ldap_server.info.other["defaultNamingContext"][0]
-        self.fqdn = dn2domain(self.root_dn)
         if not self.domain:
-            self.domain = self.fqdn
+            self.domain = dn2domain(self.root_dn)
         self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
         self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
         self.is_admin = self.is_admin()
@@ -600,6 +605,9 @@ class PowerView:
                         "msDS-ManagedPasswordInterval",
                         "msDS-ManagedPasswordId"
                     ]
+            if args.pre2k:
+                logging.debug("[Get-DomainComputer] Search for Pre-Created Windows 2000 computer")
+                ldap_filter += f'(userAccountControl=4128)(logonCount=0)'
             if args.ldapfilter:
                 logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f"{args.ldapfilter}"
@@ -1255,11 +1263,15 @@ class PowerView:
         ]
 
         zonename = '*' if not zonename else zonename
-        identity = '*' if not identity else identity
+        identity = escape_filter_chars('*' if not identity else identity)
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}" 
 
         zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'], searchbase=searchbase)
+        if not zones:
+            logging.error(f"[Get-DomainDNSRecord] Zone {zonename} not found")
+            return
+
         entries = []
         identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
         ldap_filter = f'(&(objectClass=dnsNode){identity_filter})'
@@ -1331,12 +1343,50 @@ class PowerView:
 
         # in case need more then 1000 entries
         entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, ldap_filter, attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
             strip_entry(_entries)
             entries.append(_entries)
+
+        if args.check_datalib:
+            if not entries:
+                logging.info("[Get-DomainSCCM] No server found in domain. Skipping...")
+                return entries
+
+            target = entries['attributes']['dnsHostName']
+            logging.debug("[Get-DomainSCCM] Verifying SCCM HTTP endpoint")
+
+            sccm = SCCM(target)
+            sccm.check_datalib_endpoint()
+            
+            if not sccm.http_enabled():
+                logging.info("[Get-DomainSCCM] Failed to check with hostname, resolving dnsHostName attribute to IP and retrying...")
+                target = host2ip(entries['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+                sccm.check_datalib_endpoint()
+
+            entries = modify_entry(
+                entries,
+                new_attributes = {
+                    "DatalibEndpoint": sccm.http_enabled(),
+                    "DatalibEndpointAllowAnonymous": sccm.http_anonymous_enabled()
+                }
+            )
+
+        return entries
+
+    def get_domainsccmdatalib(self):
+        entries = []
+        if not sccm.http_enabled():
+            logging.warning("[Get-DomainSCCM] Datalib endpoint not accessible. Skipping...")
+            return entries
+
+        # parse datalib
+        logging.debug("[Get-DomainSCCMDatalib] Parsing SCCM Datalib HTTP endpoint")
+
+        urls = sccm.parse_datalib(self.username, self.password)
+
         return entries
 
     def get_domainca(self, args=None, properties=None):
@@ -1565,17 +1615,9 @@ displayName=New Group Policy Object
 
         self.ldap_session.add(dn, ['top','container','groupPolicyContainer'], gpo_data)
 
+        # adding new gplink
         if args.linkto is not None:
-            ou = self.get_domainou(identity=args.linkto, properties=["distinguishedName"])
-
-            if len(ou) == 0:
-                logging.error("[Add-DomainGPO] OU not found in domain.")
-                return
-            elif len(ou) > 1:
-                logging.error("[Add-DomainGPO] More than one OU found in domain.")
-                return
-
-            self.add_gplink(guid=name, targetidentity=ou[0].get("dn"))
+            self.add_gplink(guid=name, targetidentity=args.linkto)
 
         if self.ldap_session.result['result'] == 0:
             logging.info(f"[Add-DomainGPO] Added new {identity} GPO object")
@@ -1656,10 +1698,10 @@ displayName=New Group Policy Object
             searchbase=searchbase,
         )
         if len(gpo) > 1:
-            logging.error("[New-GPLink] More than one GPO found")
+            logging.error("[Remove-GPLink] More than one GPO found")
             return
         elif len(gpo) == 0:
-            logging.error("[New-GPLink] GPO not found in domain")
+            logging.error("[Remove-GPLink] GPO not found in domain")
             return
 
         if isinstance(gpo, list):
@@ -1667,7 +1709,7 @@ displayName=New Group Policy Object
         else:
             gpidentity = gpo["attributes"]["distinguishedName"]
 
-        logging.debug(f"Found GPO with GUID {gpidentity}")
+        logging.debug(f"[Remove-GPLink] Found GPO with GUID {gpidentity}")
 
         # verify that the target identity exists
         target_identity = self.get_domainobject(identity=targetidentity, properties=[
@@ -1737,10 +1779,10 @@ displayName=New Group Policy Object
             searchbase=searchbase,
         )
         if len(gpo) > 1:
-            logging.error("[New-GPLink] More than one GPO found")
+            logging.error("[Add-GPLink] More than one GPO found")
             return
         elif len(gpo) == 0:
-            logging.error("[New-GPLink] GPO not found in domain")
+            logging.error("[Add-GPLink] GPO not found in domain")
             return
 
         if isinstance(gpo, list):
@@ -1748,7 +1790,7 @@ displayName=New Group Policy Object
         else:
             gpidentity_dn = gpo["attributes"]["distinguishedName"]
 
-        logging.debug(f"Found GPO with GUID {gpidentity_dn}")
+        logging.debug(f"[Add-GPLink] Found GPO with GUID {gpidentity_dn}")
 
         # verify that the target identity exists
         target_identity = self.get_domainobject(identity=targetidentity, properties=[
@@ -1758,10 +1800,10 @@ displayName=New Group Policy Object
             sd_flag=sd_flag
             )
         if len(target_identity) > 1:
-            logging.error("[New-GPLink] More than one principal identity found")
+            logging.error("[Add-GPLink] More than one principal identity found")
             return
         elif len(target_identity) == 0:
-            logging.error("[New-GPLink] Principal identity not found in domain")
+            logging.error("[Add-GPLink] Principal identity not found in domain")
             return
 
         if isinstance(target_identity, list):
@@ -1771,9 +1813,9 @@ displayName=New Group Policy Object
             targetidentity_dn = target_identity["attributes"]["distinguishedName"]
             targetidentity_gplink = target_identity["attributes"].get("gPLink")
 
-        logging.debug(f"[New-GPLink] Found target identity {targetidentity_dn}")
+        logging.debug(f"[Add-GPLink] Found target identity {targetidentity_dn}")
         
-        logging.warning(f"[New-GPLink] Adding new GPLink to {targetidentity_dn}")
+        logging.warning(f"[Add-GPLink] Adding new GPLink to {targetidentity_dn}")
 
         attr = "0"
         if enforced.casefold() == "Yes".casefold():
@@ -1791,16 +1833,16 @@ displayName=New Group Policy Object
 
         if targetidentity_gplink:
             if gpidentity_dn in targetidentity_gplink:
-                logging.error("gPLink attribute already exists")
+                logging.error("[Add-GPLink] gPLink attribute already exists")
                 return
 
-            logging.debug("[New-GPLink] gPLink attribute already populated. Appending new gPLink...")
+            logging.debug("[Add-GPLink] gPLink attribute already populated. Appending new gPLink...")
             targetidentity_gplink += gpidentity
         else:
             targetidentity_gplink = gpidentity
 
         if self.args.debug:
-            logging.debug(f"[New-GPLink] gPLink value: {gpidentity}")
+            logging.debug(f"[Add-GPLink] gPLink value: {gpidentity}")
 
         succeed = self.set_domainobject(  
                                 targetidentity_dn,
@@ -1811,10 +1853,10 @@ displayName=New Group Policy Object
                               )
 
         if succeed:
-            logging.info(f"[New-GPLink] Successfully added gPLink to {targetidentity_dn} OU")
+            logging.info(f"[Add-GPLink] Successfully added gPLink to {targetidentity_dn} OU")
             return True
         else:
-            logging.error(f"[New-GPLink] Failed to add gPLink to {targetidentity_dn} OU")
+            logging.error(f"[Add-GPLink] Failed to add gPLink to {targetidentity_dn} OU")
             return False
 
     def add_domaincatemplateacl(self, name, principalidentity, rights=None, ca_fetch=None, args=None):
@@ -2402,9 +2444,23 @@ displayName=New Group Policy Object
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainGroupMember] Failed to add {members} to group {identity}")
         return succeeded
 
-    def remove_domaindnsrecord(self, recordname=None, args=None):
-        if args.zonename:
-            zonename = args.zonename.lower()
+    def disable_domaindnsrecord(self, recordname, zonename=None):
+        succeed = self.set_domaindnsrecord(
+            recordname=recordname,
+            recordaddress="0.0.0.0",
+            zonename=zonename,
+        )
+
+        if succeed:
+            logging.info(f"[Disable-DomainDNSRecord] {recordname} dns record disabled")
+            return True
+        else:
+            logging.error("[Disable-DomainDNSRecord] Failed to disable dns record")
+            return False
+
+    def remove_domaindnsrecord(self, recordname=None, zonename=None):
+        if zonename:
+            zonename = zonename.lower()
         else:
             zonename = self.domain.lower()
             logging.debug("[Remove-DomainDNSRecord] Using current domain %s as zone name" % zonename)
@@ -2414,14 +2470,14 @@ displayName=New Group Policy Object
             logging.info("[Remove-DomainDNSRecord] Zone %s not found" % zonename)
             return
 
-
         entry = self.get_domaindnsrecord(identity=recordname, zonename=zonename)
 
         if len(entry) == 0:
             logging.info("[Remove-DomainDNSRecord] No record found")
             return
         elif len(entry) > 1:
-            logging.info("[Remove-DomainDNSRecord] More than one record found")
+            logging.error("[Remove-DomainDNSRecord] More than one record found")
+            return
 
         record_dn = entry[0]["attributes"]["distinguishedName"]
 
@@ -2702,29 +2758,26 @@ displayName=New Group Policy Object
         else:
             return False
 
-    def set_domaindnsrecord(self, args):
-        if args.zonename:
-            zonename = args.zonename.lower()
+    def set_domaindnsrecord(self, recordname, recordaddress, zonename=None):
+        if zonename:
+            zonename = zonename.lower()
         else:
             zonename = self.domain.lower()
-            logging.debug("Using current domain %s as zone name" % zonename)
-
-        zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
-        if zonename not in zones:
-            logging.info("Zone %s not found" % zonename)
-            return
-
-        recordname = args.recordname
-        recordaddress = args.recordaddress
+            logging.debug("[Set-DomainDNSRecord] Using current domain %s as zone name" % zonename)
 
         entry = self.get_domaindnsrecord(identity=recordname, zonename=zonename, properties=['dnsRecord', 'distinguishedName', 'name'])
 
-        if len(entry) == 0:
-            logging.info("No record found")
+        if not entry:
+            return
+        elif len(entry) == 0:
+            logging.info("[Set-DomainDNSRecord] No record found")
             return
         elif len(entry) > 1:
-            logging.info("More than one record found")
+            logging.info("[Set-DomainDNSRecord] More than one record found")
             return
+
+        if self.args.debug:
+            logging.debug(f"[Set-DomainDNSRecord] Updating dns record {recordname} to {recordaddress}")
 
         targetrecord = None
         records = []
@@ -2736,7 +2789,7 @@ displayName=New Group Policy Object
                 records.append(record)
 
         if not targetrecord:
-            logging.error("No A record exists yet. Nothing to modify")
+            logging.error("[Set-DomainDNSRecord] No A record exists yet. Nothing to modify")
             return
 
         targetrecord["Serial"] = DNS_UTIL.get_next_serial(self.dc_ip, zonename, True)
@@ -2750,37 +2803,23 @@ displayName=New Group Policy Object
             logging.error(self.ldap_session.result['message'])
             return False
         else:
-            logging.info('Success! modified attribute for target record %s' % entry[0]['attributes']['distinguishedName'])
+            logging.info('[Set-DomainDNSRecord] Success! modified attribute for target record %s' % entry[0]['attributes']['distinguishedName'])
             return True
 
-    def add_domaindnsrecord(self, args):
-        if args.zonename:
-            zonename = args.zonename.lower()
+    def add_domaindnsrecord(self, recordname, recordaddress, zonename=None):
+        if zonename:
+            zonename = zonename.lower()
         else:
             zonename = self.domain.lower()
-            logging.debug("Using current domain %s as zone name" % zonename)
-
-        recordname = args.recordname
-        recordaddress = args.recordaddress
+            logging.debug("[Add-DomainDNSRecord] Using current domain %s as zone name" % zonename)
 
         zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
         if zonename not in zones:
-            logging.info("Zone %s not found" % zonename)
+            logging.info("[Add-DomainDNSRecord] Zone %s not found" % zonename)
             return
 
         if recordname.lower().endswith(zonename.lower()):
             recordname = recordname[:-(len(zonename)+1)]
-
-        entries = self.get_domaindnsrecord(identity=recordname, zonename=zonename, properties=['dnsRecord','dNSTombstoned','name'])
-
-        if entries:
-            for e in entries:
-                for record in e['attributes']['dnsRecord']:
-                    dr = DNS_RECORD(record)
-                    if dr['Type'] == 1:
-                        address = DNS_RPC_RECORD_A(dr['Data'])
-                        logging.warning("Record %s in zone %s pointing to %s already exists" % (recordname, zonename, address.formatCanonical()))
-                        return
 
         # addtype is A record = 1
         addtype = 1
@@ -2788,7 +2827,7 @@ displayName=New Group Policy Object
         node_data = {
             	# Schema is in the root domain (take if from schemaNamingContext to be sure)
             	'objectCategory': 'CN=Dns-Node,CN=Schema,CN=Configuration,%s' % self.root_dn,
-            	'dNSTombstoned': False,
+            	'dNSTombstoned': "FALSE", # Need to hardcoded because of Kerberos issue, will revisit.
             	'name': recordname
         		}
         logging.debug("[Add-DomainDNSRecord] Creating DNS record structure")
@@ -2796,7 +2835,7 @@ displayName=New Group Policy Object
         search_base = f"DC={zonename},CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
         record_dn = 'DC=%s,%s' % (recordname, search_base)
         node_data['dnsRecord'] = [record.getData()]
-
+        
         succeeded = self.ldap_session.add(record_dn, ['top', 'dnsNode'], node_data)
         if not succeeded:
             logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainDNSRecord] Failed adding DNS record to domain ({self.ldap_session.result['description']})")
@@ -3332,37 +3371,66 @@ displayName=New Group Policy Object
                 pass
         return local_admin_pcs
 
-    def get_netloggedon(self, computer_name, port=445, args=None):
-        ip_address = ""
-        computer_dns = ""
-        KNOWN_PROTOCOLS = {
-                139: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
-                445: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
-                }
-
-        if not is_ipaddress(computer_name):
-            ip_address = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
-        else:
-            ip_address = computer_name
-
-        stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % ip_address
-        dce = self.conn.connectRPCTransport(host=ip_address, stringBindings=stringBinding)
-        
-        if not dce:
-            logging.error("Failed to connect to %s" % (ip_address))
+    def get_regloggedon(self, computer_name, port=445, args=None):
+        entries = []
+        if is_ipaddress(computer_name) and self.use_kerberos:
+            logging.error("[Get-NetLoggedOn] Use FQDN when using kerberos")
             return
 
-        dce.bind(wkst.MSRPC_UUID_WKST)
+        _rrp = RemoteOperations(
+            connection = self.conn,
+            port = port
+        )
+        dce = _rrp.connect(computer_name)
+
+        if not dce:
+            logging.error("[Get-RegLoggedOn] Failed to connect to %s" % (computer_name))
+            return
+
+        users = _rrp.query_logged_on(dce)
+        logging.debug("[Get-RegLoggedOn] Found {} logged on user(s)".format(len(users)))
+        for user in users:
+            user_sid = user
+            username = self.convertfrom_sid(user_sid)
+            userdomain, username = username.split("\\")
+            entries.append({
+                "attributes": {
+                    "ComputerName": computer_name,
+                    "UserSID": user_sid,
+                    "UserName": username,
+                    "UserDomain": userdomain
+                }
+            })
+
+        return entries
+
+    def get_netloggedon(self, computer_name, port=445, args=None):
+        KNOWN_PROTOCOLS = {
+            139: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
+            445: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
+        }
+
+        if is_ipaddress(computer_name) and self.use_kerberos:
+            logging.error("[Get-NetLoggedOn] Use FQDN when using kerberos")
+            return
+
+        stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
+        dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding, interface_uuid = wkst.MSRPC_UUID_WKST)
+        
+        if not dce:
+            logging.error("[Get-NetLoggedOn] Failed to connect to %s" % (computer_name))
+            return
+
         try:
             resp = wkst.hNetrWkstaUserEnum(dce,1)
         except Exception as e:
-            if str(e).find('Broken pipe') >= 0:
+            if str(e).find('[Get-NetLoggedOn] Broken pipe') >= 0:
                 # The connection timed-out. Let's try to bring it back next round
-                logging.error('Connection failed - skipping host!')
+                logging.error('[Get-NetLoggedOn] Connection failed - skipping host!')
                 return
             elif str(e).upper().find('ACCESS_DENIED'):
                 # We're not admin, bye
-                logging.error('Access denied - you must be admin to enumerate sessions this way')
+                logging.error('[Get-NetLoggedOn] Access denied - you must be admin to enumerate sessions this way')
                 dce.disconnect()
                 return
             else:
@@ -3370,23 +3438,23 @@ displayName=New Group Policy Object
         try:
             entries = []
             users = set()
-            # Easy way to uniq them
+
             for i in resp['UserInfo']['WkstaUserInfo']['Level1']['Buffer']:
                 if i['wkui1_username'][-2] == '$':
                     continue
-                users.add((ip_address, i['wkui1_logon_domain'][:-1], i['wkui1_username'][:-1], i['wkui1_logon_server'][:-1]))
+                users.add((host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver), i['wkui1_logon_domain'][:-1], i['wkui1_username'][:-1], i['wkui1_oth_domains'][:-1], i['wkui1_logon_server'][:-1]))
             for user in list(users):
                 entries.append({
                     "attributes": {
                         "UserName": user[2],
                         "LogonDomain": user[1],
-                        "AuthDomains": None,
-                        "LogonServer": user[3],
-                        "ComputerName": computer_dns if computer_dns else ip_address,
+                        "AuthDomains": user[3],
+                        "LogonServer": user[4],
+                        "ComputerName": user[0],
                     }
                 })
         except IndexError:
-            logging.info('No sessions found!')
+            logging.info('[Get-NetLoggedOn] No sessions found!')
 
         dce.disconnect()
         return entries

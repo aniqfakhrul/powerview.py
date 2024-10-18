@@ -230,6 +230,7 @@ def powerview_arg_parse(cmd):
     get_domaincomputer_parser.add_argument('-LAPS', action='store_true', default=False, dest='laps')
     get_domaincomputer_parser.add_argument('-BitLocker', action='store_true', default=False, dest='bitlocker')
     get_domaincomputer_parser.add_argument('-GMSAPassword', action='store_true', default=False, dest='gmsapassword')
+    get_domaincomputer_parser.add_argument('-Pre2K', action='store_true', default=False, dest='pre2k')
     get_domaincomputer_parser.add_argument('-RBCD', action='store_true', default=False, dest='rbcd')
     get_domaincomputer_parser.add_argument('-ShadowCred', action='store_true', default=False, dest='shadowcred')
     get_domaincomputer_parser.add_argument('-SPN', action='store_true', dest='spn')
@@ -330,6 +331,7 @@ def powerview_arg_parse(cmd):
     # Get SCCM
     get_domainsccm_parser = subparsers.add_parser('Get-DomainSCCM', aliases=['Get-SCCM'], exit_on_error=False)
     get_domainsccm_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_domainsccm_parser.add_argument('-CheckDatalib', action='store_true', default=False, dest='check_datalib')
     get_domainsccm_parser.add_argument('-Properties', action='store', dest='properties')
     get_domainsccm_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
     get_domainsccm_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
@@ -445,6 +447,17 @@ def powerview_arg_parse(cmd):
     get_netshare_parser.add_argument('-Server', action='store', dest='server')
     get_netshare_parser.add_argument('-Count', action='store_true', dest='count')
     get_netshare_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+    # get-regloggedon
+    get_regloggedon_parser = subparsers.add_parser('Get-RegLoggedOn', exit_on_error=False)
+    get_regloggedon_group = get_regloggedon_parser.add_mutually_exclusive_group()
+    get_regloggedon_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_regloggedon_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_regloggedon_parser.add_argument('-TableView', action='store_true', dest='tableview')
+    get_regloggedon_parser.add_argument('-SortBy', action='store', dest='sort_by')
+    get_regloggedon_parser.add_argument('-Server', action='store', dest='server')
+    get_regloggedon_parser.add_argument('-Count', action='store_true', dest='count')
+    get_regloggedon_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # get-netloggedon
     get_netloggedon_parser = subparsers.add_parser('Get-NetLoggedOn', exit_on_error=False)
@@ -690,6 +703,13 @@ def powerview_arg_parse(cmd):
     remove_domaindnsrecord_parser.add_argument('-RecordName', action='store', dest='recordname', type=lambda value: escape_filter_chars_except_asterisk(value))
     remove_domaindnsrecord_parser.add_argument('-Server', action='store', dest='server')
     remove_domaindnsrecord_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+    # disable dns record
+    disable_domaindnsrecord_parser = subparsers.add_parser('Disable-DomainDNSRecord', exit_on_error=False)
+    disable_domaindnsrecord_parser.add_argument('-ZoneName', action='store', dest='zonename')
+    disable_domaindnsrecord_parser.add_argument('-RecordName', action='store', dest='recordname', type=lambda value: escape_filter_chars_except_asterisk(value))
+    disable_domaindnsrecord_parser.add_argument('-Server', action='store', dest='server')
+    disable_domaindnsrecord_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     # set domain ca template properties
     set_domaincatemplate_parser = subparsers.add_parser('Set-DomainCATemplate', aliases=['Set-CATemplate'], exit_on_error=False)
