@@ -1,7 +1,7 @@
 import datetime
 
 __year__ = datetime.date.today().year
-__version__ = f"{__year__}.6.7"
+__version__ = f"{__year__}.6.8"
 __author__ = [
     "Aniq Fakhrul",
     "Ali Radzali"
