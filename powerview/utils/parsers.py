@@ -448,6 +448,17 @@ def powerview_arg_parse(cmd):
     get_netshare_parser.add_argument('-Count', action='store_true', dest='count')
     get_netshare_parser.add_argument('-OutFile', action='store', dest='outfile')
 
+    # get-regloggedon
+    get_regloggedon_parser = subparsers.add_parser('Get-RegLoggedOn', exit_on_error=False)
+    get_regloggedon_group = get_regloggedon_parser.add_mutually_exclusive_group()
+    get_regloggedon_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_regloggedon_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_regloggedon_parser.add_argument('-TableView', action='store_true', dest='tableview')
+    get_regloggedon_parser.add_argument('-SortBy', action='store', dest='sort_by')
+    get_regloggedon_parser.add_argument('-Server', action='store', dest='server')
+    get_regloggedon_parser.add_argument('-Count', action='store_true', dest='count')
+    get_regloggedon_parser.add_argument('-OutFile', action='store', dest='outfile')
+
     # get-netloggedon
     get_netloggedon_parser = subparsers.add_parser('Get-NetLoggedOn', exit_on_error=False)
     get_netloggedon_group = get_netloggedon_parser.add_mutually_exclusive_group()

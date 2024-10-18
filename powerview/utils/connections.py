@@ -950,7 +950,7 @@ class CONNECTION:
 
     # stole from PetitPotam.py
     # TODO: FIX kerberos auth
-    def connectRPCTransport(self, host=None, stringBindings=None, auth=True, set_authn=False):
+    def connectRPCTransport(self, host=None, stringBindings=None, interface_uuid=None, auth=True, set_authn=False, raise_exceptions=False):
         if not host:
             host = self.dc_ip
         if not stringBindings:
@@ -980,10 +980,15 @@ class CONNECTION:
 
         try:
             dce.connect()
+            if interface_uuid:
+                dce.bind(interface_uuid)
             return dce
-        except Exception as e:
+        except SessionError as e:
             logging.debug(str(e))
-            return
+            if raise_exceptions:
+                raise e
+            else:
+                return 
 
     # stolen from pywerview
     def create_rpc_connection(self, host, pipe):

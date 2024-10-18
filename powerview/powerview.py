@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
-from impacket.dcerpc.v5 import srvs, wkst, scmr
+from impacket.dcerpc.v5 import srvs, wkst, scmr, rrp
 from impacket.dcerpc.v5.ndr import NULL
 
 from powerview.modules.gmsa import GMSA
@@ -31,12 +31,16 @@ from powerview.lib.dns import (
     DNS_RPC_RECORD_A,
     DNS_UTIL,
 )
+from powerview.lib.reg import (
+    RemoteOperations
+)
 from powerview.lib.resolver import (
     TRUST,
     UAC
 )
 
 import chardet
+import time
 from io import BytesIO
 import ldap3
 from ldap3.protocol.microsoft import security_descriptor_control
@@ -1339,7 +1343,7 @@ class PowerView:
 
         # in case need more then 1000 entries
         entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True)
+        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, ldap_filter, attributes=properties, paged_size = 1000, generator=True)
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
                 continue
@@ -3367,37 +3371,66 @@ displayName=New Group Policy Object
                 pass
         return local_admin_pcs
 
-    def get_netloggedon(self, computer_name, port=445, args=None):
-        ip_address = ""
-        computer_dns = ""
-        KNOWN_PROTOCOLS = {
-                139: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
-                445: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
-                }
-
-        if not is_ipaddress(computer_name):
-            ip_address = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
-        else:
-            ip_address = computer_name
-
-        stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % ip_address
-        dce = self.conn.connectRPCTransport(host=ip_address, stringBindings=stringBinding)
-        
-        if not dce:
-            logging.error("Failed to connect to %s" % (ip_address))
+    def get_regloggedon(self, computer_name, port=445, args=None):
+        entries = []
+        if is_ipaddress(computer_name) and self.use_kerberos:
+            logging.error("[Get-NetLoggedOn] Use FQDN when using kerberos")
             return
 
-        dce.bind(wkst.MSRPC_UUID_WKST)
+        _rrp = RemoteOperations(
+            connection = self.conn,
+            port = port
+        )
+        dce = _rrp.connect(computer_name)
+
+        if not dce:
+            logging.error("[Get-RegLoggedOn] Failed to connect to %s" % (computer_name))
+            return
+
+        users = _rrp.query_logged_on(dce)
+        logging.debug("[Get-RegLoggedOn] Found {} logged on user(s)".format(len(users)))
+        for user in users:
+            user_sid = user
+            username = self.convertfrom_sid(user_sid)
+            userdomain, username = username.split("\\")
+            entries.append({
+                "attributes": {
+                    "ComputerName": computer_name,
+                    "UserSID": user_sid,
+                    "UserName": username,
+                    "UserDomain": userdomain
+                }
+            })
+
+        return entries
+
+    def get_netloggedon(self, computer_name, port=445, args=None):
+        KNOWN_PROTOCOLS = {
+            139: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
+            445: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
+        }
+
+        if is_ipaddress(computer_name) and self.use_kerberos:
+            logging.error("[Get-NetLoggedOn] Use FQDN when using kerberos")
+            return
+
+        stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
+        dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding, interface_uuid = wkst.MSRPC_UUID_WKST)
+        
+        if not dce:
+            logging.error("[Get-NetLoggedOn] Failed to connect to %s" % (computer_name))
+            return
+
         try:
             resp = wkst.hNetrWkstaUserEnum(dce,1)
         except Exception as e:
-            if str(e).find('Broken pipe') >= 0:
+            if str(e).find('[Get-NetLoggedOn] Broken pipe') >= 0:
                 # The connection timed-out. Let's try to bring it back next round
-                logging.error('Connection failed - skipping host!')
+                logging.error('[Get-NetLoggedOn] Connection failed - skipping host!')
                 return
             elif str(e).upper().find('ACCESS_DENIED'):
                 # We're not admin, bye
-                logging.error('Access denied - you must be admin to enumerate sessions this way')
+                logging.error('[Get-NetLoggedOn] Access denied - you must be admin to enumerate sessions this way')
                 dce.disconnect()
                 return
             else:
@@ -3405,23 +3438,23 @@ displayName=New Group Policy Object
         try:
             entries = []
             users = set()
-            # Easy way to uniq them
+
             for i in resp['UserInfo']['WkstaUserInfo']['Level1']['Buffer']:
                 if i['wkui1_username'][-2] == '$':
                     continue
-                users.add((ip_address, i['wkui1_logon_domain'][:-1], i['wkui1_username'][:-1], i['wkui1_logon_server'][:-1]))
+                users.add((host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver), i['wkui1_logon_domain'][:-1], i['wkui1_username'][:-1], i['wkui1_oth_domains'][:-1], i['wkui1_logon_server'][:-1]))
             for user in list(users):
                 entries.append({
                     "attributes": {
                         "UserName": user[2],
                         "LogonDomain": user[1],
-                        "AuthDomains": None,
-                        "LogonServer": user[3],
-                        "ComputerName": computer_dns if computer_dns else ip_address,
+                        "AuthDomains": user[3],
+                        "LogonServer": user[4],
+                        "ComputerName": user[0],
                     }
                 })
         except IndexError:
-            logging.info('No sessions found!')
+            logging.info('[Get-NetLoggedOn] No sessions found!')
 
         dce.disconnect()
         return entries

@@ -165,6 +165,7 @@ Get-CA                         Get-GMSA                       Remove-DomainCompu
 |Set-DomainObjectDN|Set-ADObjectDN| Modify object's distinguishedName attribute as well as changing OU|
 |Set-DomainObjectOwner|Set-ObjectOwner|Set owner of the AD object|
 |Add-DomainDNSRecord||Add Domain DNS Record|
+|Disable-DomainDNSRecord||Disabling DNS Record by pointing to invalid address|
 |Add-DomainUser|Add-ADUser|Add new Domain User in AD|
 |Add-DomainComputer|Add-ADComputer|Add new Domain Computer in AD|
 |Add-DomainGroupMember|Add-GroupMember|Add new member in specified Domain Group in AD|
