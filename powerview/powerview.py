@@ -3148,7 +3148,7 @@ displayName=New Group Policy Object
                 return
 
             # check if value is a file
-            if len(attrs['value']) == 1 and not isinstance(attrs['value'][0], bytes) and attrs['value'][0].startswith("@"):
+            if len(attrs['value']) == 1 and isinstance(attrs['value'][0], str) and not isinstance(attrs['value'][0], bytes) and attrs['value'][0].startswith("@"):
                 path = attrs['value'][0].lstrip("@")
                 try:
                     logging.debug("[Set-DomainObject] Reading from file")
