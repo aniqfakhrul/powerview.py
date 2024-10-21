@@ -395,6 +395,7 @@ class CONNECTION:
             "host": target,
             "get_info": ldap3.ALL,
             "formatter": {
+                "sAMAccountType": LDAP.resolve_samaccounttype,
                 "lastLogon": LDAP.ldap2datetime,
                 "pwdLastSet": LDAP.ldap2datetime,
                 "badPasswordTime": LDAP.ldap2datetime,
@@ -460,6 +461,7 @@ class CONNECTION:
             "tls": tls,
             "port": self.port,
             "formatter": {
+                "sAMAccountType": LDAP.resolve_samaccounttype,
                 "lastLogon": LDAP.ldap2datetime,
                 "pwdLastSet": LDAP.ldap2datetime,
                 "badPasswordTime": LDAP.ldap2datetime,
@@ -550,6 +552,7 @@ class CONNECTION:
             "allowed_referral_hosts": [('*', True)],
             "mode": ldap3.IP_V4_PREFERRED,
             "formatter": {
+                "sAMAccountType": LDAP.resolve_samaccounttype,
                 "lastLogon": LDAP.ldap2datetime,
                 "pwdLastSet": LDAP.ldap2datetime,
                 "badPasswordTime": LDAP.ldap2datetime,

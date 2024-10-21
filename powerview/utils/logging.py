@@ -116,35 +116,14 @@ class LOG:
         success = False
 
         abspath = os.path.expanduser(file_name)
-        
+
         try:
-            f = open(abspath, "a")
-            f.write(text+"\n")
-            success = True
-        except IOError as e:
+            with open(abspath, "a") as f:
+                f.write(text + "\n")
+                success = True
+        except (IOError, FileNotFoundError, PermissionError) as e:
             raise Exception(
-                "Error writing to %s (%s)" % (
-                        file_name,
-                        str(e)
-                    )
-                )
-        except FileNotFoundError as e:
-            raise Exception(
-                "Error writing to %s (%s)" % (
-                        abspath,
-                        str(e)
-                    )
-                )
-        except PermissionError as e:
-            raise Exception(
-                "Error writing to %s (%s)" % (
-                        abspath,
-                        str(e)
-                    )
-                )
-        except ZeroDivisionError:
-            f.close()
+                f"Error writing to {abspath} ({str(e)})"
+            )
 
-        f.close()
-
-        return True
+        return success
