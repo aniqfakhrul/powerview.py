@@ -255,6 +255,20 @@ def parse_inicontent(filecontent=None, filepath=None):
     return False, infobject
     #return sections, comments, keys
 
+def getUnixTime(t):
+    t -= 116444736000000000
+    t /= 10000000
+    return t
+
+def get_time_string(large_integer):
+    time = (large_integer['HighPart'] << 32) + large_integer['LowPart']
+    if time == 0 or time == 0x7FFFFFFFFFFFFFFF:
+        time = 'Never'
+    else:
+        time = datetime.datetime.fromtimestamp(getUnixTime(time))
+        time = time.strftime("%m/%d/%Y %H:%M:%S %p")
+    return time
+
 def list_to_str(_input):
     if isinstance(_input, list):
         _input = ''.join(_input)

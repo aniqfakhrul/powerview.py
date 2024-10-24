@@ -18,6 +18,7 @@ def arg_parse():
     parser.add_argument('target', action='store', metavar='target', help='[[domain/]username[:password]@]<targetName or address>')
     parser.add_argument('-p','--port', dest='port', action='store', help='LDAP server port. (Default: 389|636)', type=int)
     parser.add_argument('-d','--debug', dest='debug', action='store_true', help='Enable debug output')
+    parser.add_argument('--stack-trace', dest='stack_trace', action='store_true', help='raise exceptions and exit if unhandled errors')
     parser.add_argument('-q','--query', dest='query', action='store', help='PowerView query to be executed one-time')
     parser.add_argument('--no-admin-check', dest='no_admin_check', action='store_true', help='Skip admin check when first logging in')
     ns_group_parser = parser.add_mutually_exclusive_group()
@@ -106,7 +107,6 @@ def powerview_arg_parse(cmd):
     #domainobjectowner
     get_domainobjectowner_parser = subparsers.add_parser('Get-DomainObjectOwner', aliases=['Get-ObjectOwner'] ,exit_on_error=False)
     get_domainobjectowner_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
-    get_domainobjectowner_parser.add_argument('-ResolveSID', action='store_true', default=False, dest='resolvesid')
     get_domainobjectowner_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
     get_domainobjectowner_parser.add_argument('-Server', action='store', dest='server')
     get_domainobjectowner_parser.add_argument('-Select', action='store', dest='select')
@@ -209,6 +209,20 @@ def powerview_arg_parse(cmd):
     get_domainuser_parser.add_argument('-DisallowDelegation', action='store_true', default=False, dest='disallowdelegation')
     get_domainuser_parser.add_argument('-Unconstrained', action='store_true', default=False, dest='unconstrained')
     get_domainuser_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+
+    # get-localuser
+    get_localuser_parser = subparsers.add_parser('Get-LocalUser', exit_on_error=False)
+    get_localuser_group = get_localuser_parser.add_mutually_exclusive_group()
+    get_localuser_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_localuser_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_localuser_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+    get_localuser_parser.add_argument('-Properties', action='store', dest='properties')
+    get_localuser_parser.add_argument('-TableView', action='store_true', dest='tableview')
+    get_localuser_parser.add_argument('-SortBy', action='store', dest='sort_by')
+    get_localuser_parser.add_argument('-Server', action='store', dest='server')
+    get_localuser_parser.add_argument('-Select', action='store', dest='select')
+    get_localuser_parser.add_argument('-Count', action='store_true', dest='count')
+    get_localuser_parser.add_argument('-OutFile', action='store', dest='outfile')
 
     #computers
     get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer', aliases=['Get-NetComputer'], exit_on_error=False)

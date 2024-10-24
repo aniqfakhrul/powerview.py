@@ -134,6 +134,13 @@ def main():
                                     entries = temp_powerview.get_domainuser(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domainuser(pv_args, properties, identity)
+                            elif pv_args.module.casefold() == 'get-localuser':
+                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                if temp_powerview:
+                                    entries = temp_powerview.get_localuser(computer_name=computername, identity=pv_args.identity, properties=properties, args=pv_args)
+                                else:
+                                    entries = powerview.get_localuser(computer_name=computername, identity=pv_args.identity, properties=properties, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domaincomputer' or pv_args.module.casefold() == 'get-netcomputer':
                                 if pv_args.resolveip and not pv_args.identity:
                                     logging.error("-ResolveIP can only be used with -Identity")
@@ -685,7 +692,10 @@ def main():
                 logging.error(f"LDAPInvalidDnError: {str(e)}")
                 continue
             except Exception as e:
-                logging.error(str(e))
+                if args.stack_trace:
+                    raise
+                else:
+                    logging.error(str(e))
 
             if args.query:
                 conn.close()

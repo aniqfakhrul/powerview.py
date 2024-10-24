@@ -682,7 +682,6 @@ class CONNECTION:
         who_am_i = ldap_session.extend.standard.who_am_i().lstrip("u:").split("\\")
         self.username = who_am_i[-1]
         self.flatname = who_am_i[0]
-        
         return ldap_server, ldap_session
 
     def ldap3_kerberos_login(self, connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True):

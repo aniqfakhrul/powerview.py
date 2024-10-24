@@ -31,9 +31,8 @@ from powerview.lib.dns import (
     DNS_RPC_RECORD_A,
     DNS_UTIL,
 )
-from powerview.lib.reg import (
-    RemoteOperations
-)
+from powerview.lib.reg import RemoteOperations
+from powerview.lib.samr import SamrObject
 from powerview.lib.resolver import (
     TRUST,
     UAC
@@ -215,8 +214,87 @@ class PowerView:
             strip_entry(_entries)
             entries.append(_entries)
         return entries
-        #self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
-        #return self.ldap_session.entries
+
+    def get_localuser(self, computer_name, identity=None, properties=[], port=445, args=None):
+        entries = list()
+
+        if computer_name is None:
+            #computer_name = host2ip(self.get_server_dns(), self.nameserver, 3, True, use_system_ns=self.use_system_nameserver, type=list)
+            computer_name = self.get_server_dns()
+
+        default_properties = ['username', 'userrid', 'fullname', 'homedirectory', 'allowedworkstation', 'comment', 
+                              'accountactive', 'passwordlastset', 'passwordexpires', 'lastlogon', 
+                              'logoncount', 'localgroupmemberships', 'globalgroupmemberships']
+        if not properties:
+            properties = default_properties
+        else:
+            properties = [prop.lower() for prop in properties]
+
+        if [prop for prop in properties if prop not in default_properties]:
+            logging.error("[Get-LocalUser] Invalid properties")
+            return
+
+        if is_ipaddress(computer_name) and self.use_kerberos:
+            logging.error("[Get-NetLoggedOn] Use FQDN when using kerberos")
+            return
+
+        samrobj = SamrObject(
+            connection = self.conn,
+            port = port
+        )
+
+        dce = samrobj.connect(computer_name)
+        samrh = samrobj.open_handle(dce)
+
+        rids = list()
+        if identity:
+            rid = samrobj.get_object_rid(dce, samrh, identity)
+            if rid is None:
+                return
+            rids.append(rid)
+        else:
+            users = samrobj.get_all_local_users(dce, samrh)
+            rids = [user['RelativeId'] for user in users]
+
+        logging.debug("[Get-LocalAccount] Found RIDs {}".format(rids))
+
+
+        for rid in rids:
+            entry = dict({
+                "attributes": dict()
+            })
+            samrh = samrobj.open_handle(dce)
+            user_info = samrobj.get_local_user(dce, samrh, rid)
+
+            if 'username' in properties:
+                entry['attributes']['userName'] = user_info['UserName']
+            if 'userrid' in properties:
+                entry['attributes']['userRID'] = rid
+            if 'fullname' in properties:
+                entry['attributes']['fullName'] = user_info['FullName']
+            if 'homedirectory' in properties:
+                entry['attributes']['homeDirectory'] = user_info['HomeDirectory']
+            if 'allowedworkstation' in properties:
+                entry['attributes']['allowedWorkstation'] = "All" if not user_info['WorkStations'] else user_info['WorkStations']
+            if 'comment' in properties:
+                entry['attributes']['comment'] = user_info['AdminComment']
+            if 'accountactive' in properties:
+                entry['attributes']['accountActive'] = user_info['UserAccountControl'] & samr.USER_ACCOUNT_DISABLED != samr.USER_ACCOUNT_DISABLED
+            if 'passwordlastset' in properties:
+                entry['attributes']['passwordLastSet'] = get_time_string(user_info['PasswordLastSet'])
+            if 'passwordexpires' in properties:
+                entry['attributes']['passwordExpires'] = get_time_string(user_info['PasswordMustChange'])
+            if 'lastlogon' in properties:
+                entry['attributes']['lastLogon'] = get_time_string(user_info['LastLogon'])
+            if 'logoncount' in properties:
+                entry['attributes']['logonCount'] = user_info['LogonCount']
+            if 'localgroupmemberships' in properties:
+                entry['attributes']['localGroupMemberships'] = user_info['LocalGroups']
+            if 'globalgroupmemberships' in properties:
+                entry['attributes']['globalGroupMemberships'] = user_info['GlobalGroups']
+
+            entries.append(entry)
+        return entries
 
     def get_domaincontroller(self, args=None, properties=[], identity=None, searchbase=None):
         def_prop = [
@@ -362,7 +440,7 @@ class PowerView:
         
         return succeeded
 
-    def get_domainobjectowner(self, identity=None, searchbase=None, args=None):
+    def get_domainobjectowner(self, identity=None, searchbase=None, resolve_sid=True, args=None):
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
         
@@ -386,8 +464,7 @@ class PowerView:
             ownersid = None
             parser = ObjectOwner(objects[i])
             ownersid = parser.read()
-            if args.resolvesid:
-                ownersid = "%s (%s)" % (self.convertfrom_sid(ownersid), ownersid)
+            ownersid = "%s (%s)" % (self.convertfrom_sid(ownersid), ownersid)
             objects[i] = modify_entry(
                 objects[i],
                 new_attributes = {
@@ -2284,6 +2361,18 @@ displayName=New Group Policy Object
         return True
 
     def set_domainobjectowner(self, targetidentity, principalidentity, searchbase=None, args=None):
+        """
+        Change the owner of a domain object to a new principal identity in the LDAP directory.
+
+        Parameters:
+            targetidentity: Identity of the object whose ownership is to be changed.
+            principalidentity: Identity of the new owner.
+            searchbase: Optional. The search base for looking up the target identity.
+            args: Additional arguments, mainly used to determine the search base if not provided.
+
+        Returns:
+        bool: True if successful, False otherwise.
+        """
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
         
@@ -3026,8 +3115,6 @@ displayName=New Group Policy Object
         else:
             logging.debug("[Set-DomainUserPassword] Using SAMR to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
             try:
-                #self.samr_conn = CONNECTION(self.args)
-                #dce = self.samr_conn.init_samr_session()
                 dce = self.conn.init_samr_session()
                 if not dce:
                     logging.error('Error binding with SAMR')
@@ -3107,7 +3194,7 @@ displayName=New Group Policy Object
 
     def set_domainobject(self, identity, clear=None, _set=None, append=None, searchbase=None, sd_flag=None, args=None):
         if _set and clear and append:
-            raise Exception("Set, Clear and Append couldn't be together")
+            raise ValueError("Cannot use 'clear', 'set', and 'append' options simultaneously. Choose one operation.")
 
         if not searchbase:
             searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -3225,9 +3312,12 @@ displayName=New Group Policy Object
                     (ldap3.MODIFY_REPLACE,attr_val)
                 	]
             	}, controls=security_descriptor_control(sdflags=sd_flag) if sd_flag else None)
+        except ldap3.core.exceptions.LDAPInsufficientAccessRightsResult as e:
+            logging.error(f"[Set-DomainObject] Insufficient access rights to modify {attr_key}: {str(e)}")
+            return False
         except ldap3.core.exceptions.LDAPInvalidValueError as e:
-            logging.error(f"[Set-DomainObject] {str(e)}")
-            succeeded = False
+            logging.error(f"[Set-DomainObject] Invalid value for {attr_key}: {str(e)}")
+            return False
 
         if not succeeded:
             logging.error(f"[Set-DomainObject] Failed to modify attribute {attr_key} for {targetobject[0]['attributes']['distinguishedName']}")
@@ -3372,7 +3462,7 @@ displayName=New Group Policy Object
         return local_admin_pcs
 
     def get_regloggedon(self, computer_name, port=445, args=None):
-        entries = []
+        entries = list()
         if is_ipaddress(computer_name) and self.use_kerberos:
             logging.error("[Get-NetLoggedOn] Use FQDN when using kerberos")
             return
@@ -3389,18 +3479,22 @@ displayName=New Group Policy Object
 
         users = _rrp.query_logged_on(dce)
         logging.debug("[Get-RegLoggedOn] Found {} logged on user(s)".format(len(users)))
-        for user in users:
-            user_sid = user
-            username = self.convertfrom_sid(user_sid)
-            userdomain, username = username.split("\\")
-            entries.append({
+        for user_sid in users:
+            entry = dict({
                 "attributes": {
                     "ComputerName": computer_name,
-                    "UserSID": user_sid,
-                    "UserName": username,
-                    "UserDomain": userdomain
+                    "UserSID": None,
+                    "UserName": None,
+                    "UserDomain": None
                 }
             })
+            entry["attributes"]["UserSID"] = user_sid
+            username = self.convertfrom_sid(user_sid)
+            if username != user_sid:
+                userdomain, username = username.split("\\")
+                entry["attributes"]["UserDomain"] = userdomain
+                entry["attributes"]["UserName"] = username
+            entries.append(entry)
 
         return entries
 
