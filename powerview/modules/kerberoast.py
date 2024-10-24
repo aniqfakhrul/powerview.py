@@ -125,12 +125,6 @@ class GetUserSPNs:
                 pass
         return "%s.%s" % (s.getServerName(), s.getServerDNSDomainName())
 
-    @staticmethod
-    def getUnixTime(t):
-        t -= 116444736000000000
-        t /= 10000000
-        return t
-
     def getTGT(self, encType):
         if self.__doKerberos:
             domain, _, TGT, _ = CCache.parseFile(self.__domain)

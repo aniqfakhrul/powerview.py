@@ -45,6 +45,7 @@ COMMANDS = {
     'Get-DomainTrust':['-Identity','-Properties','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile'],
     'Get-NetTrust':['-Identity','-Properties','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-DomainUser':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-RBCD', '-ShadowCred', '-Unconstrained','-PassNotRequired','-PreAuthNotRequired','-AllowDelegation','-DisallowDelegation','-AdminCount','-TrustedToAuth','-SPN', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
+    'Get-LocalUser':['-Computer','-ComputerName', '-Identity', '-Properties', '-Select', '-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Get-NetUser':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-RBCD','-ShadowCred','-Unconstrained','-PassNotRequired','-PreAuthNotRequired','-AllowDelegation','-DisallowDelegation','-AdminCount','-TrustedToAuth','-SPN', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-NamedPipes':['-Name','-Computer','-ComputerName','-Server', '-NoWrap', '-Count', '-OutFile'],
     'Get-NetShare':['-Computer','-ComputerName','-Server', '-NoWrap', '-Count', '-OutFile'],
@@ -61,7 +62,7 @@ COMMANDS = {
     'Remove-DomainObject':['-Identity','-SearchBase','-Server','-OutFile'],
     'Remove-ADObject':['-Identity','-SearchBase','-Server','-OutFile'],
     'Get-ADObject':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
-    'Get-DomainObjectOwner':['-Identity','-ResolveSID','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
+    'Get-DomainObjectOwner':['-Identity','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-ObjectOwner':['-Identity','-ResolveSID','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile'],
     'Get-DomainObjectAcl':['-Identity','-SearchBase','-Server','-SecurityIdentifier','-ResolveGUIDs','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-OutFile'],
     'Get-ObjectAcl':['-Identity','-SearchBase','-Server','-ResolveGUIDs','-SecurityIdentifier','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-OutFile'],
@@ -154,24 +155,27 @@ class Completer(object):
         return self._complete_path(args[-1])
 
     def complete(self, text, state):
-        "Generic readline completion entry point."
         buffer = readline.get_line_buffer()
-        line = shlex.split(readline.get_line_buffer())
-        # show all commands
+        line = shlex.split(buffer)
+        
         if not line:
-           return [c + ' ' for c in list(COMMANDS.keys())][state]
-        # account for last argument ending in a space
+            return [c + ' ' for c in list(COMMANDS.keys())][state]
+        
         if RE_SPACE.match(buffer):
             line.append('')
-
-        # resolve command to the implementation function
-        cmd = line[0].strip()
-        results = [c + ' ' for c in list(COMMANDS.keys()) if c.casefold().startswith(cmd.casefold())] + [None]
-
-        if len(line) > 1:
-            for c in list(COMMANDS.keys()):
-                if cmd.casefold() == c.casefold():
-                    args = line[-1].strip()
-                    results = [c + ' ' for c in COMMANDS[c] if c.casefold().startswith(args.casefold()) and c not in line] + [None]
-                    return results[state]
-        return results[state]
+        
+        cmd = line[0].strip().casefold()
+        
+        if len(line) == 1:
+            results = [c + ' ' for c in list(COMMANDS.keys()) if c.casefold().startswith(cmd)] + [None]
+            return results[state]
+        
+        if cmd in (c.casefold() for c in COMMANDS.keys()):
+            args = line[-1].strip()
+            full_cmd = [c for c in list(COMMANDS.keys()) if c.casefold() == cmd][0]  # Resolve exact case-sensitive match
+            
+            if len(line) > 1:
+                results = [arg + ' ' for arg in COMMANDS[full_cmd] if arg.casefold().startswith(args.casefold()) and arg not in line] + [None]
+                return results[state]
+        
+        return None

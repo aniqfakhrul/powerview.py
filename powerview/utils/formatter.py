@@ -27,9 +27,10 @@ class FORMATTER:
         print(len(entries))
 
     def print_table(self, entries: list, headers: list, align: str = None):
+        filtered_entries = [entry for entry in entries if not all(e == '' for e in entry)]
         print()
         table_res = table(
-            entries,
+            filtered_entries,
             headers,
             numalign="left" if not align else align
             )

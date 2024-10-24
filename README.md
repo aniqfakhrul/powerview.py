@@ -12,6 +12,12 @@ sudo apt install libkrb5-dev
 pip3 install powerview
 ```
 
+* Pipx
+```bash
+sudo apt install libkrb5-dev
+pipx install "git+https://github.com/aniqfakhrul/powerview.py"
+```
+
 * curl
 ```
 curl -L powerview.sh | sh

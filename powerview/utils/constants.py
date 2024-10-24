@@ -468,6 +468,20 @@ SUPPORTED_ENCRYPTION_TYPES = dict([
     (0x00000010, "AES256")
 ])
 
+SUPPORTED_sAMAccountType = dict([
+    (0x0, "SAM_DOMAIN_OBJECT"),
+    (0x10000000, "SAM_GROUP_OBJECT"),
+    (0x10000001, "SAM_NON_SECURITY_GROUP_OBJECT"),
+    (0x20000000, "SAM_ALIAS_OBJECT"),
+    (0x20000001, "SAM_NON_SECURITY_ALIAS_OBJECT"),
+    (0x30000000, "SAM_USER_OBJECT"),  # Correction here
+    (0x30000001, "SAM_MACHINE_ACCOUNT"),
+    (0x30000002, "SAM_TRUST_ACCOUNT"),
+    (0x40000000, "SAM_APP_BASIC_GROUP"),
+    (0x40000001, "SAM_APP_QUERY_GROUP"),
+    (0x7fffffff, "SAM_ACCOUNT_TYPE_MAX")
+])
+
 switcher_trustDirection = {
     0: "Disabled",
     1: "Inbound",
@@ -478,6 +492,8 @@ switcher_trustType = {
     1: "WINDOWS_NON_ACTIVE_DIRECTORY",
     2: "WINDOWS_ACTIVE_DIRECTORY",
     3: "MIT",
+    4: "DCE",
+    5: "AZURE_ACTIVE_DIRECTORY"
 }
 switcher_trustAttributes = {
     1 : "NON_TRANSITIVE",

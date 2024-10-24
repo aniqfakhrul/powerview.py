@@ -395,6 +395,7 @@ class CONNECTION:
             "host": target,
             "get_info": ldap3.ALL,
             "formatter": {
+                "sAMAccountType": LDAP.resolve_samaccounttype,
                 "lastLogon": LDAP.ldap2datetime,
                 "pwdLastSet": LDAP.ldap2datetime,
                 "badPasswordTime": LDAP.ldap2datetime,
@@ -460,6 +461,7 @@ class CONNECTION:
             "tls": tls,
             "port": self.port,
             "formatter": {
+                "sAMAccountType": LDAP.resolve_samaccounttype,
                 "lastLogon": LDAP.ldap2datetime,
                 "pwdLastSet": LDAP.ldap2datetime,
                 "badPasswordTime": LDAP.ldap2datetime,
@@ -550,6 +552,7 @@ class CONNECTION:
             "allowed_referral_hosts": [('*', True)],
             "mode": ldap3.IP_V4_PREFERRED,
             "formatter": {
+                "sAMAccountType": LDAP.resolve_samaccounttype,
                 "lastLogon": LDAP.ldap2datetime,
                 "pwdLastSet": LDAP.ldap2datetime,
                 "badPasswordTime": LDAP.ldap2datetime,
@@ -679,7 +682,6 @@ class CONNECTION:
         who_am_i = ldap_session.extend.standard.who_am_i().lstrip("u:").split("\\")
         self.username = who_am_i[-1]
         self.flatname = who_am_i[0]
-        
         return ldap_server, ldap_session
 
     def ldap3_kerberos_login(self, connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True):
