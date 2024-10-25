@@ -37,6 +37,7 @@ from powerview.lib.resolver import (
     TRUST,
     UAC
 )
+from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 
 import chardet
 import time
@@ -53,6 +54,12 @@ class PowerView:
         self.args = args
         
         self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
+
+        _paged_search = CustomExtendedOperationsRoot(self.ldap_session)
+        def obf_paged_search(*args, **kwargs):
+            return _paged_search.standard.paged_search(*args, **kwargs)
+        self.ldap_session.extend.standard.paged_search = obf_paged_search
+
         self.username = args.username if args.username else self.conn.get_username()
         self.password = args.password
 
