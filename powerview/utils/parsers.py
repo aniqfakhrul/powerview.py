@@ -21,6 +21,7 @@ def arg_parse():
     parser.add_argument('--stack-trace', dest='stack_trace', action='store_true', help='raise exceptions and exit if unhandled errors')
     parser.add_argument('-q','--query', dest='query', action='store', help='PowerView query to be executed one-time')
     parser.add_argument('--no-admin-check', dest='no_admin_check', action='store_true', help='Skip admin check when first logging in')
+    parser.add_argument('--obfuscate', dest='obfuscate', action='store_true', help='Obfuscate search filter')
     ns_group_parser = parser.add_mutually_exclusive_group()
     ns_group_parser.add_argument('--use-system-nameserver', action='store_true', default=False, dest='use_system_ns', help='Use system nameserver to resolve hostname/domain')
     ns_group_parser.add_argument('-ns','--nameserver', dest='nameserver', action='store', help='Specify custom nameserver. If not specified, domain controller will be used instead')
