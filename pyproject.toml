@@ -1,0 +1,44 @@
+[tool.poetry]
+name = "powerview"
+version = "2024.6.8" 
+description = "Python based PowerView script"
+authors = ["Aniq Fakhrul <aniqfakhrull@gmail.com>"]
+readme = "README.md"
+homepage = "https://github.com/aniqfakhrul/powerview.py"
+repository = "https://github.com/aniqfakhrul/powerview.py"
+license = "MIT"
+classifiers = [
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.5",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11"
+]
+packages = [
+    { include = "powerview" }
+]
+
+[tool.poetry.scripts]
+powerview = 'powerview:main'
+
+[tool.poetry.dependencies]
+python = "^3.5"
+impacket = "*"
+ldap3-custom-requirements = { version = "*", extras = ["kerberos"] }
+dnspython = "*"
+future = "*"
+gnureadline = "*"
+validators = "*"
+dsinternals = "*"
+chardet = "*"
+tabulate = "*"
+argparse = "*"
+requests_ntlm = "*"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
