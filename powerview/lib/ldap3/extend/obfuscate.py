@@ -6,6 +6,7 @@ import re
 import binascii
 
 WILDCARD = "*"
+MAX_RAND = 10
 
 EXCEPTION_ATTRIBUTES = [
 	"objectClass",
@@ -16,6 +17,11 @@ EXCEPTION_ATTRIBUTES = [
 EXCEPTION_CHARS = [
 	WILDCARD
 ]
+
+class Operators:
+	NOT = '!'
+	AND = '&'
+	OR = '|'
 
 class LdapToken:
 	def __init__(self, content, token_type):
@@ -139,16 +145,34 @@ class LdapParser:
 		return ''.join(ldap_string)
 
 	def modify_token(self, token_type, old_value, new_value, parsed_structure=None):
-		"""Recursively modify the value of a specific token type."""
 		if parsed_structure is None:
 			parsed_structure = self.parsed_structure
 
 		for token in parsed_structure:
 			if isinstance(token, list):
-				# Recurse into nested group
 				self.modify_token(token_type, old_value, new_value, token)
 			elif token["type"] == token_type and token["content"] == old_value:
 				token["content"] = new_value
+
+	def remove_token(self, attribute, operator, value, parsed_structure=None):
+		if parsed_structure is None:
+			parsed_structure = self.parsed_structure
+
+		for i in range(len(parsed_structure)):
+			if isinstance(parsed_structure[i], list):
+				self.remove_token(attribute, operator, value, parsed_structure[i])
+			elif parsed_structure[i]["type"] == "Attribute" and parsed_structure[i]["content"].casefold() == attribute.casefold() and parsed_structure[i+1]["type"] == "BooleanOperator" and parsed_structure[i+1]["content"].casefold() == operator.casefold() and parsed_structure[i+2]["type"] == "Value" and parsed_structure[i+2]["content"].casefold() == value.casefold():
+				parsed_structure.pop(i)
+
+	def append_token(self, new_token, parsed_structure=None):
+		if parsed_structure is None:
+			parsed_structure = self.parsed_structure
+
+		current = parsed_structure
+		while isinstance(current[0], list):
+			current = current[0]
+
+		current.append(new_token)
 
 	def random_casing(self, parsed_structure=None):
 		if parsed_structure is None:
@@ -157,7 +181,9 @@ class LdapParser:
 		for token in parsed_structure:
 			if isinstance(token, list):
 				self.random_casing(token)
-			elif token["type"] == "Value":
+			elif (token["type"] == "Attribute" and any(e in token["content"] for e in EXCEPTION_ATTRIBUTES)) or (token["type"] == "Value" and token["content"] == WILDCARD) or LdapObfuscate.is_number(token["content"]):
+				break
+			elif token["type"] == "Value" or token["type"] == "Attribute":
 				token["content"] = LdapObfuscate.casing(token["content"])
 
 	def random_spacing(self, parsed_structure=None):
@@ -184,9 +210,9 @@ class LdapParser:
 		for token in parsed_structure:
 			if isinstance(token, list):
 				self.random_hex(token)
-			elif (token["type"] == "Attribute" and token["content"] in EXCEPTION_ATTRIBUTES) or (token["type"] == "Value" and token["content"] == WILDCARD):
+			elif (token["type"] == "Attribute" and any(e in token["content"] for e in EXCEPTION_ATTRIBUTES)) or (token["type"] == "Value" and token["content"] == WILDCARD) or LdapObfuscate.is_number(token["content"]):
 				break
-			elif token["type"] == "Value" and not token["content"].isdigit():
+			elif token["type"] == "Value":
 				token["content"] = LdapObfuscate.randhex(token["content"])
 
 	def random_wildcards(self, parsed_structure=None):
@@ -196,11 +222,84 @@ class LdapParser:
 		for token in parsed_structure:
 			if isinstance(token, list):
 				self.random_wildcards(token)
-			elif token["type"] == "Attribute" and token["content"] in EXCEPTION_ATTRIBUTES or (token["type"] == "Value" and token["content"] == WILDCARD):
+			elif (token["type"] == "Attribute" and any(e in token["content"] for e in EXCEPTION_ATTRIBUTES)) or (token["type"] == "Value" and token["content"] == WILDCARD) or LdapObfuscate.is_number(token["content"]):
 				break
 			elif token["type"] == "Value":
 				token["content"] = LdapObfuscate.randwildcards(token["content"])
 
+	def boolean_operator_obfuscation(self, parsed_structure=None):
+		if parsed_structure is None:
+			parsed_structure = self.parsed_structure
+
+		new_structure = parsed_structure[0]
+		nested_boolean_count = random.randint(1, MAX_RAND)
+		not_operator_count = 0
+
+		for _ in range(nested_boolean_count):
+			random_operator = random.choice([Operators.AND, Operators.OR, Operators.NOT])
+			if random_operator == Operators.NOT:
+				not_operator_count += 1
+			new_structure = [{'type': 'BooleanOperator', 'content': random_operator}, new_structure]
+
+		if not_operator_count % 2 != 0:
+			new_structure = [{'type': 'BooleanOperator', 'content': Operators.NOT}, new_structure]
+
+		self.parsed_structure = [new_structure]
+
+	def comparison_operator_obfuscation(self, parsed_structure=None):
+		if parsed_structure is None:
+			parsed_structure = self.parsed_structure
+
+		for i in range(len(parsed_structure)):
+			token = parsed_structure[i]
+			if isinstance(token, list):
+				self.comparison_operator_obfuscation(token)
+			elif token["type"] == "Attribute" and any(e in token["content"] for e in EXCEPTION_ATTRIBUTES):
+				break
+			elif token["type"] == "ComparisonOperator":
+				attribute = parsed_structure[i-1]["content"]
+				value = parsed_structure[i+1]["content"]
+				if token["content"] == "=" and value == WILDCARD:
+					token["content"] = random.choice(
+						[
+							'>' + '=' * random.randint(2, MAX_RAND),
+							'>' + '=' * random.randint(2, MAX_RAND) + '!' * random.randint(2, MAX_RAND),
+							'<' + '=' * random.randint(2, MAX_RAND) + ''.join(random.choice(['z', 'Z']) for _ in range(random.randint(1, MAX_RAND))) + ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(random.randint(5, MAX_RAND)))
+						]
+					)
+					parsed_structure[i+1]["content"] = ""
+
+				if value.isdigit():
+					new = [
+						{'content': 'objectCategory', 'type': 'Attribute'},
+						{'content': '>=', 'type': 'ComparisonOperator'},
+						{'content': 'person', 'type': 'Value'}
+					]
+					numbers = LdapObfuscate.generate_random_number(int(value))
+					for condition in numbers.keys():
+						for number in numbers[condition]:
+							new_token = []
+							if condition == "lower":
+								# Extend the list with multiple dictionaries at once
+								new_token.extend([
+									{'content': attribute, 'type': 'Attribute'},
+									{'content': '>=', 'type': 'ComparisonOperator'},
+									{'content': number, 'type': 'Value'}
+								])
+							elif condition == "greater":
+								# Extend the list with multiple dictionaries at once
+								new_token.extend([
+									{'content': attribute, 'type': 'Attribute'},
+									{'content': '<=', 'type': 'ComparisonOperator'},
+									{'content': number, 'type': 'Value'}
+								])
+							# Append the new token to the structure
+							self.remove_token(
+								attribute="adminCount",
+								operator="=",
+								value="1"
+							)
+							self.append_token(new_token)
 
 class LdapObfuscate:
 	@staticmethod
@@ -211,12 +310,16 @@ class LdapObfuscate:
 			next_char = chars[i+1] if i < len(chars) - 1 else None
 
 			if chars[i] not in string.ascii_letters and next_char not in EXCEPTION_CHARS and prev_char not in EXCEPTION_CHARS:
-				spaces = " " * random.randint(0, 2)
+				spaces = " " * random.randint(0, MAX_RAND)
 				result.append(chars[i] + spaces)
 			else:
 				result.append(chars[i])
 
 		return ''.join(result)
+
+	@staticmethod
+	def is_number(value):
+		return value.lstrip('-').isdigit()
 
 	@staticmethod
 	def randhex(chars):
@@ -248,20 +351,19 @@ class LdapObfuscate:
 		return ''.join(result)
 
 	@staticmethod
-	def parenthesis():
-		print("perenthesis")
-
-	@staticmethod
-	def extensible_match_filter():
-		print("random case")
-
-	@staticmethod
-	def boolean_operator():
-		print("random case")
-
-	@staticmethod
-	def boolean_operator_inverted():
-		print("boolean_operator_inverted")
+	def generate_random_number(value: int) -> dict[str, list[int]]:
+		random_numbers = {
+			"lower": [],
+			"greater": []
+		}
+		
+		for _ in range(random.randint(1, 3)):
+			random_numbers["lower"].append(str(random.randrange(-random.randint(1, 100000), value - 1)))
+		
+		for _ in range(random.randint(1, 3)):
+			random_numbers["greater"].append(str(random.randrange(value + 1, value + random.randint(1, 100000))))
+		
+		return random_numbers
 
 	@staticmethod
 	def randwildcards(chars):
@@ -269,6 +371,8 @@ class LdapObfuscate:
 		length = len(chars)
 		for i in range(length):
 			if i == 0 or i == length - 1:
+				result.append(chars[i])
+			elif chars[i-1] == WILDCARD or chars[i+1] == WILDCARD:
 				result.append(chars[i])
 			else:
 				result.append(random.choice([chars[i], WILDCARD + chars[i]]))

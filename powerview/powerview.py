@@ -650,7 +650,7 @@ class PowerView:
 
         if args:
             if args.unconstrained:
-                logging.debug("[Get-DomainComputer] Searching for computers with for unconstrained delegation")
+                logging.debug("[Get-DomainComputer] Searching for computers with unconstrained delegation")
                 ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
             if args.trustedtoauth:
                 logging.debug("[Get-DomainComputer] Searching for computers that are trusted to authenticate for other principals")
