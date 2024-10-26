@@ -161,7 +161,7 @@ class LdapParser:
 		for i in range(len(parsed_structure)):
 			if isinstance(parsed_structure[i], list):
 				self.remove_token(attribute, operator, value, parsed_structure[i])
-			elif parsed_structure[i]["type"] == "Attribute" and parsed_structure[i]["content"].casefold() == attribute.casefold() and parsed_structure[i+1]["type"] == "BooleanOperator" and parsed_structure[i+1]["content"].casefold() == operator.casefold() and parsed_structure[i+2]["type"] == "Value" and parsed_structure[i+2]["content"].casefold() == value.casefold():
+			elif parsed_structure[i]["type"] == "Attribute" and parsed_structure[i]["content"].lower() == attribute.lower() and parsed_structure[i+1]["type"] == "BooleanOperator" and parsed_structure[i+1]["content"].lower() == operator.lower() and parsed_structure[i+2]["type"] == "Value" and parsed_structure[i+2]["content"].lower() == value.lower():
 				parsed_structure.pop(i)
 
 	def append_token(self, new_token, parsed_structure=None):
@@ -264,7 +264,7 @@ class LdapParser:
 						[
 							'>' + '=' * random.randint(2, MAX_RAND),
 							'>' + '=' * random.randint(2, MAX_RAND) + '!' * random.randint(2, MAX_RAND),
-							'<' + '=' * random.randint(2, MAX_RAND) + ''.join(random.choice(['z', 'Z']) for _ in range(random.randint(1, MAX_RAND))) + ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(random.randint(5, MAX_RAND)))
+							'<=' + ''.join(random.choice(['z', 'Z']) for _ in range(random.randint(1, MAX_RAND))) + ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(random.randint(5, MAX_RAND)))
 						]
 					)
 					parsed_structure[i+1]["content"] = ""
@@ -295,9 +295,9 @@ class LdapParser:
 								])
 							# Append the new token to the structure
 							self.remove_token(
-								attribute="adminCount",
-								operator="=",
-								value="1"
+								attribute=attribute,
+								operator=token["content"],
+								value=value
 							)
 							self.append_token(new_token)
 

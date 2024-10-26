@@ -28,7 +28,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		
 		parser = LdapParser(search_filter)
 		tokenized_filter = parser.parse()
-		pprint(tokenized_filter)
+		#pprint(tokenized_filter)
 		#parser.modify_token("Value", "admin", "modifiedSamAccountName")
 		parser.comparison_operator_obfuscation()
 		parser.random_casing()
