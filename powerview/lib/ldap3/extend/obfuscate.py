@@ -224,13 +224,6 @@ class LdapParser:
 			elif token["type"] == "Value" or token["type"] == "Attribute":
 				token["content"] = LdapObfuscate.casing(token["content"])
 
-	def random_spacing(self, parsed_structure=None):
-		if parsed_structure is None:
-			parsed_structure = self.parsed_structure
-
-		def random_spaces():
-			return ' ' * random.randint(0, 3)
-
 	def prepend_zeros(self, parsed_structure=None):
 		if parsed_structure is None:
 			parsed_structure = self.parsed_structure
