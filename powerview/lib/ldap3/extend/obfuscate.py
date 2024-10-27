@@ -41,7 +41,8 @@ class LdapParser:
 		'group_end': re.compile(r'\)'),
 		'boolean_operator': re.compile(r'[&|!]'),
 		'comparison_operator': re.compile(r'([<>]?=|:=)'),  # Capture = and :=
-		'attribute': re.compile(r'([a-zA-Z0-9:.\-]+)'),  # Updated to match attributes with colon and dot
+		'attribute': re.compile(r'([a-zA-Z0-9]+)'),  # Match base attributes
+		'extensible_match': re.compile(r':([0-9.]+):'),  # Match OID pattern with colons as ExtensibleMatchFilter
 		'value': re.compile(r'([^\)]*)')  # Value part (anything not a closing parenthesis)
 	}
 
@@ -60,42 +61,71 @@ class LdapParser:
 		while cursor < len(self.ldap_filter):
 			char = self.ldap_filter[cursor]
 
+			# Match the start of a group
 			if self.TOKEN_PATTERNS['group_start'].match(char):
 				self.tokens.append(LdapToken(char, 'GroupStart'))
 				cursor += 1
+			# Match the end of a group
 			elif self.TOKEN_PATTERNS['group_end'].match(char):
 				self.tokens.append(LdapToken(char, 'GroupEnd'))
 				cursor += 1
+			# Match boolean operators (&, |, !)
 			elif self.TOKEN_PATTERNS['boolean_operator'].match(char):
 				self.tokens.append(LdapToken(char, 'BooleanOperator'))
 				cursor += 1
 			else:
-				# Handle attributes with extended comparison operators
+				# Handle attributes with potential extensible match
 				attribute_match = self.TOKEN_PATTERNS['attribute'].match(self.ldap_filter[cursor:])
 				if attribute_match:
 					attribute = attribute_match.group(1)
-					self.tokens.append(LdapToken(attribute, 'Attribute'))
-
-					# Move the cursor forward
 					cursor += len(attribute)
 
-					# Now match the comparison operator
-					comparison_match = self.TOKEN_PATTERNS['comparison_operator'].match(self.ldap_filter[cursor:])
-					if comparison_match:
-						comparison = comparison_match.group(1)
-						self.tokens.append(LdapToken(comparison, 'ComparisonOperator'))
-						cursor += len(comparison)
+					# Check if there's an extensible match filter (OID with colons)
+					extensible_match = self.TOKEN_PATTERNS['extensible_match'].match(self.ldap_filter[cursor:])
+					if extensible_match:
+						oid = extensible_match.group(1)
+						self.tokens.append(LdapToken(attribute, 'Attribute'))
+						self.tokens.append(LdapToken(oid, 'ExtensibleMatchFilter'))
+						cursor += len(extensible_match.group(0))  # Move cursor past the OID and colons
 
-						# Now match the value
-						value_match = self.TOKEN_PATTERNS['value'].match(self.ldap_filter[cursor:])
-						if value_match:
-							value = value_match.group(1)
-							self.tokens.append(LdapToken(value.strip(), 'Value'))
-							cursor += len(value)
+						# Match the comparison operator
+						comparison_match = self.TOKEN_PATTERNS['comparison_operator'].match(self.ldap_filter[cursor:])
+						if comparison_match:
+							comparison = comparison_match.group(1)
+							self.tokens.append(LdapToken(comparison, 'ComparisonOperator'))
+							cursor += len(comparison)
 
+							# Match the value
+							value_match = self.TOKEN_PATTERNS['value'].match(self.ldap_filter[cursor:])
+							if value_match:
+								value = value_match.group(1).strip()
+								self.tokens.append(LdapToken(value, 'Value'))
+								cursor += len(value)
+							else:
+								raise ValueError(f"Malformed LDAP filter: value missing after {attribute}")
+					else:
+						# Handle regular attributes with = or similar comparison operator
+						self.tokens.append(LdapToken(attribute, 'Attribute'))
+
+						# Match comparison operator for regular attributes
+						comparison_match = self.TOKEN_PATTERNS['comparison_operator'].match(self.ldap_filter[cursor:])
+						if comparison_match:
+							comparison = comparison_match.group(1)
+							self.tokens.append(LdapToken(comparison, 'ComparisonOperator'))
+							cursor += len(comparison)
+
+							# Match the value
+							value_match = self.TOKEN_PATTERNS['value'].match(self.ldap_filter[cursor:])
+							if value_match:
+								value = value_match.group(1).strip()
+								self.tokens.append(LdapToken(value, 'Value'))
+								cursor += len(value)
+							else:
+								raise ValueError(f"Malformed LDAP filter: value missing after {attribute}")
+					
 					continue
 
-				cursor += 1  # move forward if nothing matches
+				cursor += 1  # move forward if no match is found
 
 	def build_filter_structure(self):
 		stack = []
@@ -115,30 +145,38 @@ class LdapParser:
 					"content": token.content
 				})
 
+		if stack:
+			raise ValueError("Malformed LDAP filter: unmatched parentheses")
+
 		return current_filter
 
 	def convert_to_ldap(self, parsed_structure=None):
-		"""Recursively convert the parsed filter structure back into its original LDAP string form."""
 		if parsed_structure is None:
 			parsed_structure = self.parsed_structure
 
 		ldap_string = []
 		previous_token_type = None
+		skip_random_spacing = False
 
 		for token in parsed_structure:
 			if isinstance(token, list):
-				# Recurse into nested group
-				ldap_string.append(f"({self.convert_to_ldap(token)})")
+				ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing else ''}({self.convert_to_ldap(token)}){LdapObfuscate.random_spaces() if not skip_random_spacing else ''}")
 			else:
-				# Avoid appending an extra "=" after attributes
-				if token["type"] == "Attribute" and previous_token_type != "ComparisonOperator":
-					ldap_string.append(f"{token['content']}")
+				if token["type"] == "Attribute":
+					if token["content"] in EXCEPTION_ATTRIBUTES:
+						skip_random_spacing = True
+					else:
+						skip_random_spacing = False
+
+					ldap_string.append(f"{LdapObfuscate.random_spaces()}{token['content']}{LdapObfuscate.random_spaces()}")
 				elif token["type"] == "ComparisonOperator":
-					ldap_string.append(f"{token['content']}")
+					ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing else ''}{token['content']}{LdapObfuscate.random_spaces() if not skip_random_spacing else ''}")
 				elif token["type"] == "Value":
-					ldap_string.append(f"{token['content']}")
+					ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing else ''}{token['content']}{LdapObfuscate.random_spaces() if not skip_random_spacing else ''}")
+				elif token["type"] == "ExtensibleMatchFilter":
+					ldap_string.append(f":{token['content']}:")
 				else:
-					ldap_string.append(f"{token['content']}")
+					ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing else ''}{token['content']}{LdapObfuscate.random_spaces() if not skip_random_spacing else ''}")
 
 				previous_token_type = token["type"]
 
@@ -246,6 +284,17 @@ class LdapParser:
 
 		self.parsed_structure = [new_structure]
 
+	def append_garbage(self, parsed_structure=None):
+		if parsed_structure is None:
+			parsed_structure = self.parsed_structure
+
+		new = [
+			{'content': '$}_', 'type': 'Attribute'},
+			{'content': '=', 'type': 'ComparisonOperator'},
+			{'content': '+;/@-', 'type': 'Value'}
+		]
+		self.append_token(new)
+
 	def comparison_operator_obfuscation(self, parsed_structure=None):
 		if parsed_structure is None:
 			parsed_structure = self.parsed_structure
@@ -318,6 +367,10 @@ class LdapObfuscate:
 		return ''.join(result)
 
 	@staticmethod
+	def random_spaces(min_spaces=0, max_spaces=3):
+		return ' ' * random.randint(min_spaces, max_spaces)
+
+	@staticmethod
 	def is_number(value):
 		return value.lstrip('-').isdigit()
 
@@ -325,7 +378,7 @@ class LdapObfuscate:
 	def randhex(chars):
 		result = []
 		for i in range(len(chars)):
-			if chars[i] == WILDCARD:
+			if chars[i] == WILDCARD or LdapObfuscate.is_number(chars[i]):
 				result.append(chars[i])
 			else:
 				result.append(
