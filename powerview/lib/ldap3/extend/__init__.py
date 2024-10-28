@@ -28,18 +28,22 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		
 		parser = LdapParser(search_filter)
 		tokenized_filter = parser.parse()
-		pprint(tokenized_filter)
+		#pprint(tokenized_filter)
 		#parser.modify_token("Value", "admin", "modifiedSamAccountName")
 		parser.comparison_operator_obfuscation()
 		parser.random_casing()
 		parser.prepend_zeros()
-		parser.random_wildcards() # or parser.random_hex()
+		parser.random_wildcards()
 		parser.random_hex()
 		parser.boolean_operator_obfuscation()
-		#parser.append_garbage()
-
+		parser.append_garbage()
+		parser.random_spacing()
 		modified_filter = parser.convert_to_ldap()
 		logging.debug("Obfuscated Filter: {}".format(modified_filter))
+
+		parser = LdapParser(search_base)
+		tokenized_basedn = parser.parse_dn()
+
 
 		if generator:
 			return paged_search_generator(self._connection,

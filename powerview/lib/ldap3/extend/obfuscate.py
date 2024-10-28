@@ -5,7 +5,10 @@ import string
 import re
 import binascii
 
+from powerview.utils.helpers import is_valid_dn
+
 WILDCARD = "*"
+COMMA = ","
 MAX_RAND = 10
 
 EXCEPTION_ATTRIBUTES = [
@@ -15,7 +18,8 @@ EXCEPTION_ATTRIBUTES = [
 ]
 
 EXCEPTION_CHARS = [
-	WILDCARD
+	WILDCARD,
+	COMMA
 ]
 
 class Operators:
@@ -50,6 +54,7 @@ class LdapParser:
 		self.ldap_filter = ldap_filter
 		self.tokens = []
 		self.parsed_structure = []
+		self.enable_spacing = False
 
 	def parse(self):
 		self.tokenize()
@@ -150,6 +155,9 @@ class LdapParser:
 
 		return current_filter
 
+	def random_spacing(self):
+		self.enable_spacing = True
+
 	def convert_to_ldap(self, parsed_structure=None):
 		if parsed_structure is None:
 			parsed_structure = self.parsed_structure
@@ -160,7 +168,7 @@ class LdapParser:
 
 		for token in parsed_structure:
 			if isinstance(token, list):
-				ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing else ''}({self.convert_to_ldap(token)}){LdapObfuscate.random_spaces() if not skip_random_spacing else ''}")
+				ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}({self.convert_to_ldap(token)}){LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}")
 			else:
 				if token["type"] == "Attribute":
 					if token["content"] in EXCEPTION_ATTRIBUTES:
@@ -168,15 +176,15 @@ class LdapParser:
 					else:
 						skip_random_spacing = False
 
-					ldap_string.append(f"{LdapObfuscate.random_spaces()}{token['content']}{LdapObfuscate.random_spaces()}")
+					ldap_string.append(f"{LdapObfuscate.random_spaces() if self.enable_spacing else ''}{token['content']}{LdapObfuscate.random_spaces() if self.enable_spacing else ''}")
 				elif token["type"] == "ComparisonOperator":
-					ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing else ''}{token['content']}{LdapObfuscate.random_spaces() if not skip_random_spacing else ''}")
+					ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}{token['content']}{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}")
 				elif token["type"] == "Value":
-					ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing else ''}{token['content']}{LdapObfuscate.random_spaces() if not skip_random_spacing else ''}")
+					ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}{token['content']}{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}")
 				elif token["type"] == "ExtensibleMatchFilter":
 					ldap_string.append(f":{token['content']}:")
 				else:
-					ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing else ''}{token['content']}{LdapObfuscate.random_spaces() if not skip_random_spacing else ''}")
+					ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}{token['content']}{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}")
 
 				previous_token_type = token["type"]
 
@@ -211,6 +219,20 @@ class LdapParser:
 			current = current[0]
 
 		current.append(new_token)
+
+	def append_inner_token(self, new_token, parsed_structure=None):
+		if parsed_structure is None:
+			parsed_structure = self.parsed_structure
+
+		current = parsed_structure
+		second_last_list = None
+
+		while isinstance(current[-1], list):
+			second_last_list = current
+			current = current[-1]
+
+		if second_last_list is not None:
+			second_last_list.append(new_token)
 
 	def random_casing(self, parsed_structure=None):
 		if parsed_structure is None:
@@ -253,7 +275,7 @@ class LdapParser:
 		for token in parsed_structure:
 			if isinstance(token, list):
 				self.random_wildcards(token)
-			elif (token["type"] == "Attribute" and any(e in token["content"] for e in EXCEPTION_ATTRIBUTES)) or (token["type"] == "Value" and token["content"] == WILDCARD) or LdapObfuscate.is_number(token["content"]):
+			elif (token["type"] == "Attribute" and any(e in token["content"] for e in EXCEPTION_ATTRIBUTES)) or (token["type"] == "Value" and token["content"] == WILDCARD) or LdapObfuscate.is_number(token["content"]) or is_valid_dn(token["content"]):
 				break
 			elif token["type"] == "Value":
 				token["content"] = LdapObfuscate.randwildcards(token["content"])
@@ -281,12 +303,24 @@ class LdapParser:
 		if parsed_structure is None:
 			parsed_structure = self.parsed_structure
 
-		new = [
-			{'content': '$}_', 'type': 'Attribute'},
-			{'content': '=', 'type': 'ComparisonOperator'},
-			{'content': '+;/@-', 'type': 'Value'}
-		]
-		self.append_token(new)
+		for i in range(len(parsed_structure)):
+			duplicate = random.choice([True, False])
+			if isinstance(parsed_structure[i], list):
+				self.append_garbage(parsed_structure[i])
+			elif (parsed_structure[i]["type"] == "Attribute" and any(e in parsed_structure[i]["content"] for e in EXCEPTION_ATTRIBUTES)) or (parsed_structure[i]["type"] == "Value" and parsed_structure[i]["content"] == WILDCARD):
+				break
+			elif parsed_structure[i]["type"] == "Attribute" and duplicate:
+				attribute = parsed_structure[i]["content"]
+				operator = parsed_structure[i+1]["content"]
+				value = parsed_structure[i+2]["content"]
+				if LdapObfuscate.is_number(value):
+					break
+				new_token = [
+					{"type":"Attribute", "content": attribute},
+					{"type":"ComparisonOperator", "content": operator},
+					{"type":"Value", "content": LdapObfuscate.random_string()}
+				]
+				self.append_inner_token(new_token)
 
 	def comparison_operator_obfuscation(self, parsed_structure=None):
 		if parsed_structure is None:
@@ -341,7 +375,7 @@ class LdapParser:
 								operator=token["content"],
 								value=value
 							)
-							self.append_token(new_token)
+							self.append_inner_token(new_token)
 
 class LdapObfuscate:
 	@staticmethod
@@ -362,6 +396,10 @@ class LdapObfuscate:
 	@staticmethod
 	def random_spaces(min_spaces=0, max_spaces=3):
 		return ' ' * random.randint(min_spaces, max_spaces)
+
+	@staticmethod
+	def random_string(N=7):
+		return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
 
 	@staticmethod
 	def is_number(value):
@@ -418,7 +456,7 @@ class LdapObfuscate:
 		for i in range(length):
 			if i == 0 or i == length - 1:
 				result.append(chars[i])
-			elif chars[i-1] == WILDCARD or chars[i+1] == WILDCARD:
+			elif chars[i] in EXCEPTION_CHARS or chars[i-1] in EXCEPTION_CHARS or chars[i+1] in EXCEPTION_CHARS:
 				result.append(chars[i])
 			else:
 				result.append(random.choice([chars[i], WILDCARD + chars[i]]))
