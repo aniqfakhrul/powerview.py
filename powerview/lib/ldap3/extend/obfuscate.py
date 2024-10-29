@@ -5,7 +5,11 @@ import string
 import re
 import binascii
 
-from powerview.utils.helpers import is_valid_dn
+from powerview.utils.helpers import (
+	is_valid_dn, 
+	IDict
+)
+from powerview.utils.constants import ATTRIBUTE_OID
 
 WILDCARD = "*"
 COMMA = ","
@@ -39,13 +43,52 @@ class LdapParserException(Exception):
 	def __init__(self, message):
 		super().__init__(message)
 
+class AttributeParser:
+	def __init__(self, attributes):
+		self.attributes = attributes
+
+class DNParser:
+	def __init__(self, dn):
+		self.dn = dn
+		self.enable_spacing = False
+
+	def parse(self):
+		pattern = re.compile(r'([A-Za-z]+)=([^,]+)')
+		matches = pattern.findall(self.dn)
+		self.parsed_structure = [{"attribute": attr, "value": val} for attr, val in matches]
+		return self.parsed_structure
+
+	def dn_hex(self, parsed_structure=None):
+		if parsed_structure is None:
+			parsed_structure = self.parsed_structure
+
+		for i in range(len(parsed_structure)):
+			parsed_structure[i]["value"] = LdapObfuscate.randhex(parsed_structure[i]["value"])
+
+	def dn_randomcase(self, parsed_structure=None):
+		if parsed_structure is None:
+			parsed_structure = self.parsed_structure
+
+		for i in range(len(parsed_structure)):
+			parsed_structure[i]["attribute"] = LdapObfuscate.casing(parsed_structure[i]["attribute"])
+			parsed_structure[i]["value"] = LdapObfuscate.casing(parsed_structure[i]["value"])
+
+	def convert_to_dn(self, parsed_structure=None):
+		if parsed_structure is None:
+			parsed_structure = self.parsed_structure
+
+		return ','.join([f"{item['attribute']}={item['value']}" for item in parsed_structure])
+
+	def random_spacing(self):
+		self.enable_spacing = True
+
 class LdapParser:
 	TOKEN_PATTERNS = {
 		'group_start': re.compile(r'\('),
 		'group_end': re.compile(r'\)'),
 		'boolean_operator': re.compile(r'[&|!]'),
 		'comparison_operator': re.compile(r'([<>]?=|:=)'),  # Capture = and :=
-		'attribute': re.compile(r'([a-zA-Z0-9]+)'),  # Match base attributes
+		'attribute': re.compile(r'([a-zA-Z0-9-]+)'),  # Match base attributes, including hyphen
 		'extensible_match': re.compile(r':([0-9.]+):'),  # Match OID pattern with colons as ExtensibleMatchFilter
 		'value': re.compile(r'([^\)]*)')  # Value part (anything not a closing parenthesis)
 	}
@@ -254,7 +297,7 @@ class LdapParser:
 			if isinstance(token, list):
 				self.prepend_zeros(token)
 			elif token["type"] == "Value" and token["content"].isdigit():
-				token["content"] = '0' * random.randint(1, 10) + token["content"]
+				token["content"] = '0' * random.randint(1, MAX_RAND) + token["content"]
 
 	def random_hex(self, parsed_structure=None):
 		if parsed_structure is None:
@@ -321,6 +364,22 @@ class LdapParser:
 					{"type":"Value", "content": LdapObfuscate.random_string()}
 				]
 				self.append_inner_token(new_token)
+
+	def randomize_oid(self, parsed_structure=None):
+		if parsed_structure is None:
+			parsed_structure = self.parsed_structure
+
+		for i in range(len(parsed_structure)):
+			token = parsed_structure[i]
+			if isinstance(token, list):
+				self.randomize_oid(token)
+			elif token['type'] == 'Attribute':
+				if random.choice([True, False]):
+					break
+				attribute = token['content']
+				oid = IDict(ATTRIBUTE_OID).get(attribute)
+				if oid and random.choice([True, False]):
+					token['content'] = oid
 
 	def comparison_operator_obfuscation(self, parsed_structure=None):
 		if parsed_structure is None:

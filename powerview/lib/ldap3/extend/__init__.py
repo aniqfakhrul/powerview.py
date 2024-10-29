@@ -4,6 +4,7 @@ from ldap3.extend import StandardExtendedOperations, ExtendedOperationsRoot
 from ldap3 import SUBTREE, DEREF_ALWAYS
 from .obfuscate import (
 	LdapParser,
+	DNParser,
 	LdapObfuscate
 )
 
@@ -37,17 +38,24 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		parser.random_hex()
 		parser.boolean_operator_obfuscation()
 		parser.append_garbage()
+		parser.randomize_oid()
 		parser.random_spacing()
 		modified_filter = parser.convert_to_ldap()
-		logging.debug("Obfuscated Filter: {}".format(modified_filter))
+		logging.debug("Modified Filter: {}".format(modified_filter))
 
-		parser = LdapParser(search_base)
-		tokenized_basedn = parser.parse_dn()
+		dn_parser = DNParser(search_base)
+		tokenized_dn = dn_parser.parse()
+		dn_parser.dn_hex()
+		dn_parser.dn_randomcase()
+		dn_parser.random_spacing()
+		mofidied_dn = dn_parser.convert_to_dn()
+		logging.debug("Modified DN: {}".format(mofidied_dn))
+		#pprint(mofidied_dn)
 
 
 		if generator:
 			return paged_search_generator(self._connection,
-										  search_base,
+										  mofidied_dn,
 										  modified_filter,
 										  search_scope,
 										  dereference_aliases,
