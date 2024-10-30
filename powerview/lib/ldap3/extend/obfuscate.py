@@ -495,8 +495,9 @@ class LdapObfuscate:
 		return ' ' * random.randint(min_spaces, max_spaces)
 
 	@staticmethod
-	def random_string(N=7):
-		return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
+	def random_string(N=10):
+		characters = string.ascii_letters + string.digits + string.punctuation
+		return ''.join(random.choice(characters) for _ in range(N))
 
 	@staticmethod
 	def is_number(value):
