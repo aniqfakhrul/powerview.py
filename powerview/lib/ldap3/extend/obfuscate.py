@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import logging
 import random
 import string
 import re
@@ -13,18 +12,30 @@ from powerview.utils.constants import ATTRIBUTE_OID
 
 WILDCARD = "*"
 COMMA = ","
+COLON = ":"
 MAX_RAND = 10
 
+ATTRIBUTE_OID = IDict(ATTRIBUTE_OID)
 EXCEPTION_ATTRIBUTES = [
 	"objectClass",
 	"objectCategory",
-	"userAccountControl"
+	"userAccountControl",
+	"msDS-AllowedToActOnBehalfOfOtherIdentity"
 ]
 
 EXCEPTION_CHARS = [
 	WILDCARD,
-	COMMA
+	COMMA,
+	COLON
 ]
+
+def in_exception(attribute):
+	attribute_casefolded = attribute.casefold()
+
+	in_exception_attributes = attribute_casefolded in (e.casefold() for e in EXCEPTION_ATTRIBUTES)
+	in_exception_oid = attribute_casefolded in (val.casefold() for val in ATTRIBUTE_OID.values())
+
+	return in_exception_attributes or in_exception_oid
 
 class Operators:
 	NOT = '!'
@@ -46,6 +57,19 @@ class LdapParserException(Exception):
 class AttributeParser:
 	def __init__(self, attributes):
 		self.attributes = attributes
+
+	def get_attributes(self):
+		return self.attributes
+
+	def random_oid(self):
+		for i in range(len(self.attributes)):
+			if random.choice([True, False]):
+				oid = ATTRIBUTE_OID.get(self.attributes[i])
+				self.attributes[i] = oid if oid else self.attributes[i]
+
+	def random_casing(self):
+		for i in range(len(self.attributes)):
+			self.attributes[i] = LdapObfuscate.casing(self.attributes[i])
 
 class DNParser:
 	def __init__(self, dn):
@@ -73,6 +97,13 @@ class DNParser:
 			parsed_structure[i]["attribute"] = LdapObfuscate.casing(parsed_structure[i]["attribute"])
 			parsed_structure[i]["value"] = LdapObfuscate.casing(parsed_structure[i]["value"])
 
+	def dn_random_oid(self, parsed_structure=None):
+		if parsed_structure is None:
+			parsed_structure = self.parsed_structure
+
+		for i in range(len(parsed_structure)):
+			parsed_structure[i]["attribute"] = ATTRIBUTE_OID.get(parsed_structure[i]["attribute"])
+
 	def convert_to_dn(self, parsed_structure=None):
 		if parsed_structure is None:
 			parsed_structure = self.parsed_structure
@@ -98,6 +129,9 @@ class LdapParser:
 		self.tokens = []
 		self.parsed_structure = []
 		self.enable_spacing = False
+
+	def get_parsed_structure(self):
+		return self.parsed_structure
 
 	def parse(self):
 		self.tokenize()
@@ -209,12 +243,13 @@ class LdapParser:
 		previous_token_type = None
 		skip_random_spacing = False
 
-		for token in parsed_structure:
+		for i in range(len(parsed_structure)):
+			token = parsed_structure[i]
 			if isinstance(token, list):
 				ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}({self.convert_to_ldap(token)}){LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}")
 			else:
 				if token["type"] == "Attribute":
-					if token["content"] in EXCEPTION_ATTRIBUTES:
+					if in_exception(token["content"]) or parsed_structure[i+1]["type"] == "ExtensibleMatchFilter":
 						skip_random_spacing = True
 					else:
 						skip_random_spacing = False
@@ -275,7 +310,13 @@ class LdapParser:
 			current = current[-1]
 
 		if second_last_list is not None:
-			second_last_list.append(new_token)
+			valid_indices = [i for i, token in enumerate(second_last_list) if isinstance(token, dict) and token['type'] != 'BooleanOperator']
+
+			if valid_indices:
+				random_index = random.choice(valid_indices)
+				second_last_list.insert(random_index + 1, new_token) 
+			else:
+				second_last_list.append(new_token)
 
 	def random_casing(self, parsed_structure=None):
 		if parsed_structure is None:
@@ -284,7 +325,7 @@ class LdapParser:
 		for token in parsed_structure:
 			if isinstance(token, list):
 				self.random_casing(token)
-			elif (token["type"] == "Attribute" and any(e in token["content"] for e in EXCEPTION_ATTRIBUTES)) or (token["type"] == "Value" and token["content"] == WILDCARD) or LdapObfuscate.is_number(token["content"]):
+			elif (token["type"] == "Attribute" and in_exception(token["content"])) or (token["type"] == "Value" and token["content"] == WILDCARD) or LdapObfuscate.is_number(token["content"]):
 				break
 			elif token["type"] == "Value" or token["type"] == "Attribute":
 				token["content"] = LdapObfuscate.casing(token["content"])
@@ -306,7 +347,7 @@ class LdapParser:
 		for token in parsed_structure:
 			if isinstance(token, list):
 				self.random_hex(token)
-			elif (token["type"] == "Attribute" and any(e in token["content"] for e in EXCEPTION_ATTRIBUTES)) or (token["type"] == "Value" and token["content"] == WILDCARD) or LdapObfuscate.is_number(token["content"]):
+			elif (token["type"] == "Attribute" and in_exception(token["content"])) or (token["type"] == "Value" and token["content"] == WILDCARD) or LdapObfuscate.is_number(token["content"]):
 				break
 			elif token["type"] == "Value":
 				token["content"] = LdapObfuscate.randhex(token["content"])
@@ -318,7 +359,7 @@ class LdapParser:
 		for token in parsed_structure:
 			if isinstance(token, list):
 				self.random_wildcards(token)
-			elif (token["type"] == "Attribute" and any(e in token["content"] for e in EXCEPTION_ATTRIBUTES)) or (token["type"] == "Value" and token["content"] == WILDCARD) or LdapObfuscate.is_number(token["content"]) or is_valid_dn(token["content"]):
+			elif (token["type"] == "Attribute" and in_exception(token["content"])) or (token["type"] == "Value" and token["content"] == WILDCARD) or LdapObfuscate.is_number(token["content"]) or is_valid_dn(token["content"]):
 				break
 			elif token["type"] == "Value":
 				token["content"] = LdapObfuscate.randwildcards(token["content"])
@@ -350,7 +391,7 @@ class LdapParser:
 			duplicate = random.choice([True, False])
 			if isinstance(parsed_structure[i], list):
 				self.append_garbage(parsed_structure[i])
-			elif (parsed_structure[i]["type"] == "Attribute" and any(e in parsed_structure[i]["content"] for e in EXCEPTION_ATTRIBUTES)) or (parsed_structure[i]["type"] == "Value" and parsed_structure[i]["content"] == WILDCARD):
+			elif (parsed_structure[i]["type"] == "Attribute" and in_exception(parsed_structure[i]["content"])) or (parsed_structure[i]["type"] == "Value" and parsed_structure[i]["content"] == WILDCARD):
 				break
 			elif parsed_structure[i]["type"] == "Attribute" and duplicate:
 				attribute = parsed_structure[i]["content"]
@@ -377,7 +418,7 @@ class LdapParser:
 				if random.choice([True, False]):
 					break
 				attribute = token['content']
-				oid = IDict(ATTRIBUTE_OID).get(attribute)
+				oid = ATTRIBUTE_OID.get(attribute)
 				if oid and random.choice([True, False]):
 					token['content'] = oid
 
@@ -389,7 +430,7 @@ class LdapParser:
 			token = parsed_structure[i]
 			if isinstance(token, list):
 				self.comparison_operator_obfuscation(token)
-			elif token["type"] == "Attribute" and any(e in token["content"] for e in EXCEPTION_ATTRIBUTES):
+			elif token["type"] == "Attribute" and in_exception(token["content"]):
 				break
 			elif token["type"] == "ComparisonOperator":
 				attribute = parsed_structure[i-1]["content"]
@@ -404,7 +445,7 @@ class LdapParser:
 					)
 					parsed_structure[i+1]["content"] = ""
 
-				if value.isdigit():
+				if LdapObfuscate.is_number(value):
 					new = [
 						{'content': 'objectCategory', 'type': 'Attribute'},
 						{'content': '>=', 'type': 'ComparisonOperator'},
@@ -415,20 +456,17 @@ class LdapParser:
 						for number in numbers[condition]:
 							new_token = []
 							if condition == "lower":
-								# Extend the list with multiple dictionaries at once
 								new_token.extend([
 									{'content': attribute, 'type': 'Attribute'},
 									{'content': '>=', 'type': 'ComparisonOperator'},
 									{'content': number, 'type': 'Value'}
 								])
 							elif condition == "greater":
-								# Extend the list with multiple dictionaries at once
 								new_token.extend([
 									{'content': attribute, 'type': 'Attribute'},
 									{'content': '<=', 'type': 'ComparisonOperator'},
 									{'content': number, 'type': 'Value'}
 								])
-							# Append the new token to the structure
 							self.remove_token(
 								attribute=attribute,
 								operator=token["content"],

@@ -760,7 +760,7 @@ class PowerView:
         # get source identity
         sourceObj = self.get_domainobject(identity=identity, properties=properties, searchbase=searchbase, args=args, sd_flag=0x04)
 
-        logging.debug("[Get-DomainGMSA] Found %d object with gmsa attributes" % (len(sourceObj)))
+        logging.debug("[Get-DomainGMSA] Found %d object(s) with gmsa attribute" % (len(sourceObj)))
 
         if not sourceObj:
             return
@@ -811,7 +811,7 @@ class PowerView:
         # get source identity
         sourceObj = self.get_domainobject(identity=identity, properties=properties, searchbase=searchbase, args=args)
 
-        logging.debug("[Get-DomainRBCD] Found %d object with gmsa attributes" % (len(sourceObj)))
+        logging.debug("[Get-DomainRBCD] Found %d object(s) with msDS-AllowedToActOnBehalfOfOtherIdentity attribute" % (len(sourceObj)))
 
         if not sourceObj:
             return

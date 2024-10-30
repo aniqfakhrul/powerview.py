@@ -5,6 +5,7 @@ from ldap3 import SUBTREE, DEREF_ALWAYS
 from .obfuscate import (
 	LdapParser,
 	DNParser,
+	AttributeParser,
 	LdapObfuscate
 )
 
@@ -29,17 +30,18 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		
 		parser = LdapParser(search_filter)
 		tokenized_filter = parser.parse()
-		#pprint(tokenized_filter)
+		pprint(tokenized_filter)
 		#parser.modify_token("Value", "admin", "modifiedSamAccountName")
 		parser.comparison_operator_obfuscation()
-		parser.random_casing()
 		parser.prepend_zeros()
 		parser.random_wildcards()
 		parser.random_hex()
 		parser.boolean_operator_obfuscation()
 		parser.append_garbage()
 		parser.randomize_oid()
+		parser.random_casing()
 		parser.random_spacing()
+		pprint(parser.get_parsed_structure())
 		modified_filter = parser.convert_to_ldap()
 		logging.debug("Modified Filter: {}".format(modified_filter))
 
@@ -48,10 +50,16 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		dn_parser.dn_hex()
 		dn_parser.dn_randomcase()
 		dn_parser.random_spacing()
+		#dn_parser.dn_random_oid()
 		mofidied_dn = dn_parser.convert_to_dn()
 		logging.debug("Modified DN: {}".format(mofidied_dn))
 		#pprint(mofidied_dn)
 
+		attribute_parser = AttributeParser(attributes)
+		attribute_parser.random_oid()
+		attribute_parser.random_casing()
+		modified_attributes = attribute_parser.get_attributes()
+		logging.debug("Modified Attributes: {}".format(modified_attributes))
 
 		if generator:
 			return paged_search_generator(self._connection,
