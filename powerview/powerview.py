@@ -180,6 +180,9 @@ class PowerView:
             if args.admincount:
                 logging.debug('[Get-DomainUser] Searching for adminCount=1')
                 ldap_filter += f'(admincount=1)'
+            if args.lockout:
+                logging.debug('[Get-DomainUser] Searching for locked out user')
+                ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=16)'
             if args.allowdelegation:
                 logging.debug('[Get-DomainUser] Searching for users who can be delegated')
                 ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=1048574))'
@@ -188,7 +191,7 @@ class PowerView:
                 ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=1048576)'
             if args.trustedtoauth:
                 logging.debug('[Get-DomainUser] Searching for users that are trusted to authenticate for other principals')
-                ldap_filter += f'(msds-allowedtodelegateto=*)'
+                ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=16777216)'
                 properties += ['msds-AllowedToDelegateTo']
             if args.rbcd:
                 logging.debug('[Get-DomainUser] Searching for users that are configured to allow resource-based constrained delegation')
@@ -203,6 +206,15 @@ class PowerView:
             if args.unconstrained:
                 logging.debug("[Get-DomainUser] Searching for users configured for unconstrained delegation")
                 ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
+            if args.enabled:
+                logging.debug("[Get-DomainUser] Searching for enabled user")
+                ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=2))'
+            if args.disabled:
+                logging.debug("[Get-DomainUser] Searching for disabled user")
+                ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=2)'
+            if args.password_expired:
+                logging.debug("[Get-DomainUser] Searching for user with expired password")
+                ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=8388608)'
             if args.ldapfilter:
                 logging.debug(f'[Get-DomainUser] Using additional LDAP filter: {args.ldapfilter}')
                 ldap_filter += f'{args.ldapfilter}'
@@ -652,6 +664,12 @@ class PowerView:
             if args.unconstrained:
                 logging.debug("[Get-DomainComputer] Searching for computers with unconstrained delegation")
                 ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
+            if args.enabled:
+                logging.debug("[Get-DomainComputer] Searching for enabled computer")
+                ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=2))'
+            if args.disabled:
+                logging.debug("[Get-DomainComputer] Searching for disabled computer")
+                ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=2)'
             if args.trustedtoauth:
                 logging.debug("[Get-DomainComputer] Searching for computers that are trusted to authenticate for other principals")
                 ldap_filter += f'(msds-allowedtodelegateto=*)'

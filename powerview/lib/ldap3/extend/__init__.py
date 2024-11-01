@@ -30,7 +30,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		
 		parser = LdapParser(search_filter)
 		tokenized_filter = parser.parse()
-		pprint(tokenized_filter)
+		#pprint(tokenized_filter)
 		#parser.modify_token("Value", "admin", "modifiedSamAccountName")
 		parser.comparison_operator_obfuscation()
 		parser.prepend_zeros()
@@ -41,7 +41,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		parser.randomize_oid()
 		parser.random_casing()
 		parser.random_spacing()
-		pprint(parser.get_parsed_structure())
+		#pprint(parser.get_parsed_structure())
 		modified_filter = parser.convert_to_ldap()
 		logging.debug("Modified Filter: {}".format(modified_filter))
 

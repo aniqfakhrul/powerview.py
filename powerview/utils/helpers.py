@@ -306,11 +306,11 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
 		q = dnsresolver.resolve(basequery, 'SRV', tcp=dns_tcp)
 
 		if str(q.qname).lower().startswith('_ldap._tcp.pdc._msdcs'):
-			ad_domain = str(q.qname).lower().lstrip("_ldap._tcp.pdc._msdcs").rstrip(".")
+			ad_domain = str(q.qname).lower().removeprefix("_ldap._tcp.pdc._msdcs.").removesuffix(".")
 			logging.debug('Found AD domain: %s' % ad_domain)
 
 		for r in q:
-			dc = str(r.target).rstrip('.')
+			dc = str(r.target).removesuffix('.')
 		#resolve ip for principal dc
 		answer = host2ip(dc, nameserver, 3, dns_tcp, use_system_ns)
 		return answer

@@ -496,7 +496,7 @@ class LdapObfuscate:
 
 	@staticmethod
 	def random_string(N=10):
-		characters = string.ascii_letters + string.digits + string.punctuation
+		characters = string.ascii_letters + string.digits
 		return ''.join(random.choice(characters) for _ in range(N))
 
 	@staticmethod

@@ -4,21 +4,17 @@ from powerview.utils.helpers import *
 from powerview.utils.native import *
 from powerview.utils.formatter import FORMATTER
 from powerview.utils.completer import Completer
-from powerview.utils.colors import bcolors
 from powerview.utils.connections import CONNECTION
 from powerview.utils.logging import LOG
 from powerview.utils.parsers import powerview_arg_parse, arg_parse
+from powerview.utils.shell import get_prompt
+from powerview.utils.colors import bcolors
 
 import ldap3
 import json
 import random
 import string
 import shlex
-from sys import platform
-if platform in ["linux","linux2"]:
-    import gnureadline as readline
-else:
-    import readline
 
 def main():
     args = arg_parse()
@@ -54,17 +50,15 @@ def main():
         temp_powerview = None
         cur_user = conn.who_am_i() if not is_admin else "%s%s%s" % (bcolors.WARNING, conn.who_am_i(), bcolors.ENDC)
 
+        comp = Completer()
+        comp.setup_completer()
+
         while True:
             try:
-                comp = Completer()
-                readline.set_completer_delims(' \t\n;')
-                readline.parse_and_bind("tab: complete")
-                readline.set_completer(comp.complete)
-
                 if args.query:
                     cmd = args.query
                 else:
-                    cmd = input(f'{bcolors.OKBLUE}({bcolors.ENDC}{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}{bcolors.OKBLUE})-[{bcolors.ENDC}{server_dns}{bcolors.OKBLUE}]-[{bcolors.ENDC}{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}\n{bcolors.OKBLUE}PV > {bcolors.ENDC}')
+                    cmd = input(get_prompt(init_proto,server_dns,cur_user))
 
                 if cmd:
                     try:
@@ -77,21 +71,7 @@ def main():
 
                     if pv_args:
                         if pv_args.server and pv_args.server.casefold() != args.domain.casefold():
-                            if args.use_kerberos:
-                                ldap_address = pv_args.server
-                            elif is_valid_fqdn(pv_args.server):
-                                ldap_address = get_principal_dc_address(pv_args.server, args.nameserver, use_system_ns=args.use_system_ns)
-                            elif is_ipaddress(pv_args.server):
-                                ldap_address = pv_args.server
-                            else:
-                                logging.error("Invalid server address. It accepts either FQDN or IP address of the target server")
-                                continue
-
-                            if not ldap_address:
-                                continue
-
-                            conn.set_ldap_address(ldap_address)
-                            conn.set_targetDomain(pv_args.server)
+                            conn.update_temp_ldap_address(pv_args.server)
                             
                             try:
                                 temp_powerview = PowerView(conn, args, target_domain=pv_args.server)
