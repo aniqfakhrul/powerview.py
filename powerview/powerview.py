@@ -242,16 +242,15 @@ class PowerView:
             #computer_name = host2ip(self.get_server_dns(), self.nameserver, 3, True, use_system_ns=self.use_system_nameserver, type=list)
             computer_name = self.get_server_dns()
 
-        default_properties = ['username', 'userrid', 'fullname', 'homedirectory', 'allowedworkstation', 'comment', 
-                              'accountactive', 'passwordlastset', 'passwordexpires', 'lastlogon', 
-                              'logoncount', 'localgroupmemberships', 'globalgroupmemberships']
-        if not properties:
-            properties = default_properties
-        else:
-            properties = [prop.lower() for prop in properties]
+        default_properties = {'username', 'userrid', 'fullname', 'homedirectory', 'allowedworkstation', 
+                          'comment', 'accountactive', 'passwordlastset', 'passwordexpires', 
+                          'lastlogon', 'logoncount', 'localgroupmemberships', 'globalgroupmemberships'}
+    
+        properties = set(prop.lower() for prop in (properties or default_properties))
 
-        if [prop for prop in properties if prop not in default_properties]:
-            logging.error("[Get-LocalUser] Invalid properties")
+        invalid_properties = properties - default_properties
+        if invalid_properties:
+            logging.error(f"[Get-LocalUser] Invalid properties: {', '.join(invalid_properties)}")
             return
 
         if is_ipaddress(computer_name) and self.use_kerberos:
@@ -275,6 +274,10 @@ class PowerView:
         else:
             users = samrobj.get_all_local_users(dce, samrh)
             rids = [user['RelativeId'] for user in users]
+
+        if not rids:
+            logging.error("No RIDs found. Skipping...")
+            return
 
         logging.debug("[Get-LocalAccount] Found RIDs {}".format(rids))
 
@@ -2179,6 +2182,7 @@ displayName=New Group Policy Object
         ca_fetch = CAEnum(self.ldap_session, self.root_dn)
 
         templates = ca_fetch.get_certificate_templates(def_prop,searchbase,identity)
+        print(type(templates))
         cas = ca_fetch.fetch_enrollment_services()
 
         if len(cas) <= 0:
