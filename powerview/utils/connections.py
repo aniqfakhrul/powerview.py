@@ -22,6 +22,7 @@ from powerview.utils.helpers import (
 )
 from powerview.lib.resolver import (
 	LDAP,
+	TRUST
 )
 from powerview.utils.certificate import (
 	load_pfx,
@@ -431,6 +432,9 @@ class CONNECTION:
 				"pwdProperties": LDAP.resolve_pwdProperties,
 				"userAccountControl": LDAP.resolve_uac,
 				"msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
+				"trustAttributes": TRUST.resolve_trustAttributes,
+				"trustType": TRUST.resolve_trustType,
+				"trustDirection": TRUST.resolve_trustDirection
 			}
 		}
 
@@ -498,6 +502,9 @@ class CONNECTION:
 				"pwdProperties": LDAP.resolve_pwdProperties,
 				"userAccountControl": LDAP.resolve_uac,
 				"msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
+				"trustAttributes": TRUST.resolve_trustAttributes,
+				"trustType": TRUST.resolve_trustType,
+				"trustDirection": TRUST.resolve_trustDirection
 			}
 		}
 
@@ -589,6 +596,9 @@ class CONNECTION:
 				"pwdProperties": LDAP.resolve_pwdProperties,
 				"userAccountControl": LDAP.resolve_uac,
 				"msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
+				"trustAttributes": TRUST.resolve_trustAttributes,
+				"trustType": TRUST.resolve_trustType,
+				"trustDirection": TRUST.resolve_trustDirection
 			}
 		}
 

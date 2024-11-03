@@ -13,16 +13,6 @@ class PowerViewParser(argparse.ArgumentParser):
 		print(message)
 		sys.exit(0)
 
-	def print_banner(self):
-		# Banner with a subtle blue gradient
-		banner = """
-    |\__/,|   (`\\
-  _.|o o  |_   ) )
--(((---(((--------⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
-"""
-
-		print(Gradient.fire(banner))
-
 def arg_parse():
 	parser = PowerViewParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE + __version__ + bcolors.ENDC}")
 	parser.add_argument('target', action='store', metavar='target', help='[[domain/]username[:password]@]<targetName or address>')
@@ -58,13 +48,19 @@ def arg_parse():
 	auth.add_argument('--aes-key', dest="auth_aes_key", action="store", metavar = "hex key", help='AES key to use for Kerberos Authentication \'(128 or 256 bits)\'')
 	auth.add_argument("--dc-ip", action='store', metavar='IP address', help='IP Address of the domain controller or KDC (Key Distribution Center) for Kerberos. If omitted it will use the domain part (FQDN) specified in the identity parameter')
 
-	relay = parser.add_argument_group('relay')
-	relay.add_argument('--relay', dest='relay', action='store_true', help='Specify if you wish to turn on relay mode')
-	relay.add_argument('--relay-host', dest='relay_host', action='store', default="0.0.0.0", help='Bind interface to expose http server (Default: 0.0.0.0)')
-	relay.add_argument('--relay-port', dest='relay_port', action='store', type=int, default=80, help='Relay mode custom http port (Default: 80)')
+	mode_group = parser.add_mutually_exclusive_group()
+	mode_group.add_argument('--relay', dest='relay', action='store_true', help='Enable relay mode')
+	mode_group.add_argument('--web', dest='web', action='store_true', help='Enable web interface for LDAP queries')
 
+	relay = parser.add_argument_group('relay')
+	relay.add_argument('--relay-host', dest='relay_host', action='store', default="0.0.0.0", help='Bind interface to expose HTTP server (Default: 0.0.0.0)')
+	relay.add_argument('--relay-port', dest='relay_port', action='store', type=int, default=80, help='Relay mode custom HTTP port (Default: 80)')
+
+	web = parser.add_argument_group('web')
+	web.add_argument('--web-host', dest='web_host', action='store', default='127.0.0.1', help='Specify custom bind interface (Default: 127.0.0.1)')
+	web.add_argument('--web-port', dest='web_port', action='store', type=int, default=5000, help='Specify custom port for web interface (Default: 80)')
+	
 	if len(sys.argv) == 1:
-		parser.print_banner()
 		parser.print_help()
 		sys.exit(1)
 

@@ -128,13 +128,16 @@ class LDAP:
 class TRUST:
     @staticmethod
     def resolve_trustDirection(flag):
+        flag = int(flag)
         return switcher_trustDirection.get(flag)
 
     @staticmethod
     def resolve_trustType(flag):
+        flag = int(flag)
         return switcher_trustType.get(flag)
 
     @staticmethod
     def resolve_trustAttributes(flag):
+        flag = int(flag)
         return switcher_trustAttributes.get(flag)
 

@@ -42,6 +42,7 @@ def main():
         is_admin = False
 
         powerview = PowerView(conn, args)
+        
         if not args.no_admin_check:
             is_admin = powerview.get_admin_status()
         server_dns = powerview.get_server_dns()
