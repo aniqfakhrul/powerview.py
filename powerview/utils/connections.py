@@ -140,7 +140,7 @@ class CONNECTION:
 				logging.debug('LDAP sign and seal are supported')
 		except AttributeError:
 			self.sign_and_seal_supported = False
-			logging.debug('LDAP sign and seal are not supported. Install with "pip install ldap3-custom-requirements[kerberos]"')
+			logging.debug('LDAP sign and seal are not supported. Install with "pip install ldap3-bleeding-edge"')
 
 		try:
 			if ldap3.TLS_CHANNEL_BINDING:
@@ -148,7 +148,7 @@ class CONNECTION:
 				logging.debug('TLS channel binding is supported')
 		except AttributeError:
 			self.tls_channel_binding_supported = False
-			logging.debug('TLS channel binding is not supported Install with "pip install ldap3-custom-requirements[kerberos]"')
+			logging.debug('TLS channel binding is not supported Install with "pip install ldap3-bleeding-edge"')
 
 		self.use_sign_and_seal = self.args.use_sign_and_seal
 		self.use_channel_binding = self.args.use_channel_binding

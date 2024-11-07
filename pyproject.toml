@@ -28,7 +28,7 @@ powerview = 'powerview:main'
 [tool.poetry.dependencies]
 python = "^3.5"
 impacket = "*"
-ldap3-custom-requirements = { version = "*", extras = ["kerberos"] }
+ldap3-bleeding-edge = "*"
 dnspython = "*"
 future = "*"
 gnureadline = "*"
