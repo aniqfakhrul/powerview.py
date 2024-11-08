@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "powerview"
-version = "2024.6.8" 
+version = "2024.6.9" 
 description = "Python based PowerView script"
 authors = ["Aniq Fakhrul <aniqfakhrull@gmail.com>"]
 readme = "README.md"
@@ -28,7 +28,7 @@ powerview = 'powerview:main'
 [tool.poetry.dependencies]
 python = "^3.5"
 impacket = "*"
-ldap3-custom-requirements = { version = "*", extras = ["kerberos"] }
+ldap3-bleeding-edge = "*"
 dnspython = "*"
 future = "*"
 gnureadline = "*"

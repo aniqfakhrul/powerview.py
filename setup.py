@@ -21,7 +21,7 @@ setup(
 	license='MIT',
 	install_requires=[
 		'impacket',
-		'ldap3-custom-requirements[kerberos]',
+		'ldap3-bleeding-edge',
 		'dnspython',
 		'future',
 		'gnureadline',
