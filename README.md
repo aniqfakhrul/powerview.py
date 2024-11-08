@@ -54,7 +54,7 @@ powerview 10.10.10.10 --pfx administrator.pfx
 ```
 ![](./src/intro.gif)
 
-* Enable LDAP Filter Obfuscate 
+* Enable LDAP Filter Obfuscation.
 ```
 powerview range.net/lowpriv:Password123@192.168.86.192 [--obfuscate]
 ```
@@ -263,3 +263,4 @@ Example path: `/root/.powerview/logs/bionic.local/2024-02-13.log`
 * https://learn.microsoft.com/en-us/powershell/module/grouppolicy/new-gplink
 * https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3/tree/tls_cb_and_seal_for_ntlm
 * https://github.com/ly4k/Certipy
+* https://github.com/MaLDAPtive/Invoke-Maldaptive
