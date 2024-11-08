@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "powerview"
-version = "2024.6.8" 
+version = "2024.6.9" 
 description = "Python based PowerView script"
 authors = ["Aniq Fakhrul <aniqfakhrull@gmail.com>"]
 readme = "README.md"
