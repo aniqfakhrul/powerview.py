@@ -35,7 +35,7 @@ class FORMATTER:
         print()
         if table_format == "csv":
             output = StringIO()
-            csv_writer = csv.writer(output)
+            csv_writer = csv.writer(output,quoting=csv.QUOTE_ALL)
             if headers:
                 csv_writer.writerow(headers)
             csv_writer.writerows(filtered_entries)
@@ -48,12 +48,6 @@ class FORMATTER:
                 numalign="left" if not align else align,
                 tablefmt=table_format
             )
-        #table_res = table(
-        #    filtered_entries,
-        #    headers,
-        #    numalign="left" if not align else align,
-        #    tablefmt=table_format
-        #    )
         if self.args.outfile:
             LOG.write_to_file(self.args.outfile, table_res)
         print(table_res)
