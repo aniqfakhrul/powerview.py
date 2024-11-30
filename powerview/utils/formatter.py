@@ -8,6 +8,7 @@ from powerview.lib.resolver import (
 from powerview import PowerView as PV
 from powerview.utils.logging import LOG
 from powerview.utils.helpers import IDict
+from powerview.utils.constants import TABLE_FMT_MAP
 
 import ldap3
 import json
@@ -16,6 +17,8 @@ import logging
 import base64
 import datetime
 from tabulate import tabulate as table
+from io import StringIO
+import csv
 
 class FORMATTER:
     def __init__(self, pv_args, use_kerberos=False):
@@ -27,13 +30,30 @@ class FORMATTER:
         print(len(entries))
 
     def print_table(self, entries: list, headers: list, align: str = None):
+        table_format = TABLE_FMT_MAP.get(self.args.tableview, "simple")
         filtered_entries = [entry for entry in entries if not all(e == '' for e in entry)]
         print()
-        table_res = table(
-            filtered_entries,
-            headers,
-            numalign="left" if not align else align
+        if table_format == "csv":
+            output = StringIO()
+            csv_writer = csv.writer(output)
+            if headers:
+                csv_writer.writerow(headers)
+            csv_writer.writerows(filtered_entries)
+            table_res = output.getvalue()
+            output.close()
+        else:
+            table_res = table(
+                filtered_entries,
+                headers,
+                numalign="left" if not align else align,
+                tablefmt=table_format
             )
+        #table_res = table(
+        #    filtered_entries,
+        #    headers,
+        #    numalign="left" if not align else align,
+        #    tablefmt=table_format
+        #    )
         if self.args.outfile:
             LOG.write_to_file(self.args.outfile, table_res)
         print(table_res)

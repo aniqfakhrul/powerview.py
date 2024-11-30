@@ -1220,11 +1220,19 @@ class PowerView:
 		return entries
 
 	def convertfrom_uacvalue(self, value, args=None, output=False):
-		result = {
-				"headers": ["Name", "Value"],
-				"rows": UAC.parse_value_tolist(value)
+		values = UAC.parse_value_tolist(value)
+		entries = []
+		for v in values:
+			entry = {
+				"Name": v[0],
+				"Value": v[1],
+			}
+			entries.append(
+				{
+					"attributes": dict(entry)
 				}
-		return result
+			)
+		return entries
 
 	def convertfrom_sid(self, objectsid, args=None, output=False):
 		identity = WELL_KNOWN_SIDS.get(objectsid)
@@ -2139,7 +2147,6 @@ displayName=New Group Policy Object
 		ca_fetch = CAEnum(self.ldap_session, self.root_dn)
 
 		templates = ca_fetch.get_certificate_templates(def_prop,searchbase,identity)
-		print(type(templates))
 		cas = ca_fetch.fetch_enrollment_services()
 
 		if len(cas) <= 0:
@@ -3011,7 +3018,13 @@ displayName=New Group Policy Object
 				"headers":["Name", "Protocol", "Description", "Authenticated"],
 				"rows":[]
 				}
-
+		entries = []
+		entry = {
+			"Name": None,
+			"Protocol": None,
+			"Description": None,
+			"Authenticated": None
+		}
 		binding_params = {
 				'lsarpc': {
 					'stringBinding': r'ncacn_np:%s[\PIPE\lsarpc]' % host,
@@ -3063,23 +3076,43 @@ displayName=New Group Policy Object
 		if args.name:
 			if args.name in list(binding_params.keys()):
 				pipe = args.name
+				entry["Name"] = pipe
+				entry["Protocol"] = binding_params[pipe]['protocol']
+				entry["Description"] = binding_params[pipe]['description']
 				if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False, set_authn=True):
-					result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.WARNING}No{bcolors.ENDC}'])
+					#result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.WARNING}No{bcolors.ENDC}'])
+					entry ["Authenticated"] = f'{bcolors.WARNING}No{bcolors.ENDC}'
 				elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], set_authn=True):
-					result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
+					#result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
+					entry ["Authenticated"] = f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'
+				entries.append(
+					{
+						"attributes": dict(entry)
+					}
+				)
 			else:
 				logging.error("[Get-NamedPipes] Pipe not found")
 				return
 		else:
 			for pipe in binding_params.keys():
 				# TODO: Return entries
+				entry["Name"] = pipe
+				entry["Protocol"] = binding_params[pipe]['protocol']
+				entry["Description"] = binding_params[pipe]['description']
 				if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False, set_authn=True):
 					#logging.debug(f"Found named pipe: {pipe}")
-					result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.WARNING}No{bcolors.ENDC}'])
+					#result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.WARNING}No{bcolors.ENDC}'])
+					entry ["Authenticated"] = f'{bcolors.WARNING}No{bcolors.ENDC}'
 				elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], set_authn=True):
-					result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
+					#result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
+					entry ["Authenticated"] = f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'
+				entries.append(
+					{
+						"attributes": dict(entry)
+					}
+				)
 
-		return result
+		return entries
 
 	def set_domainuserpassword(self, identity, accountpassword, oldpassword=None, args=None):
 		entries = self.get_domainuser(identity=identity, properties=['distinguishedName','sAMAccountName'])
@@ -3580,17 +3613,23 @@ displayName=New Group Policy Object
 			return
 
 		shares = client.listShares()
-		result = {
-				"headers": ["Name", "Remark", "Address"],
-				"rows": []
-				}
-
+		entries = []
 		for i in range(len(shares)):
-			share_name = shares[i]['shi1_netname'][:-1]
-			share_remark = shares[i]['shi1_remark'][:-1]
-			result["rows"].append([share_name, share_remark, host])
+			entry = {
+				"Name": None,
+				"Remark": None,
+				"Address": None,
+			}
+			entry["Name"] = shares[i]['shi1_netname'][:-1]
+			entry["Remark"] = shares[i]['shi1_remark'][:-1]
+			entry["Address"] = host
+			entries.append(
+				{
+					"attributes": dict(entry)
+				}
+			)
 
-		return result
+		return entries
 
 	def get_netservice(self, computer_name, port=445, args=None):
 		ip_address = ""

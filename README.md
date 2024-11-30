@@ -85,9 +85,11 @@ Get-DomainUser -Count
 Get-DomainUser -OutFile ~/domain_user.txt
 ```
 
-* Format output in a table
+* Format output in a table.
+
 ```
 Get-DomainUser -Properties samaccountname,memberof -TableView
+Get-DomainUser -Properties samaccountname,memberof -TableView [csv,md,html,latex]
 ```
 
 * Set module
