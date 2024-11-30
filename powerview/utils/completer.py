@@ -11,7 +11,7 @@ COMMANDS = {
     'Get-Domain':['-Identity','-Properties', '-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-NetDomain':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'ConvertFrom-SID':['-ObjectSID','-Server', '-Outfile'],
-    'ConvertFrom-UACValue':['-Value','-Server', '-Outfile'],
+    'ConvertFrom-UACValue':['-Value','-TableView','-Outfile'],
     'Get-DomainController':['-Identity','-ResolveSIDs','-SearchBase','-LDAPFilter','-Properties','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-NetDomainController':['-Identity','-ResolveSIDs','-SearchBase','-LDAPFilter','-Properties','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-DomainDNSZone':['-Identity','-Properties','-SearchBase','-Server','-Select','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile'],
@@ -47,8 +47,8 @@ COMMANDS = {
     'Get-DomainUser':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Enabled','-Disabled','-RBCD', '-ShadowCred', '-Unconstrained','-PassNotRequired','-PreAuthNotRequired','-AllowDelegation','-DisallowDelegation','-AdminCount','-Lockout','-PassExpired','-TrustedToAuth','-SPN', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-NetUser':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-RBCD','-ShadowCred','-Unconstrained','-PassNotRequired','-PreAuthNotRequired','-AllowDelegation','-DisallowDelegation','-AdminCount','-Lockout','-PassExpired','-TrustedToAuth','-SPN', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-LocalUser':['-Computer','-ComputerName', '-Identity', '-Properties', '-Select','-Enabled','-Disabled', '-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
-    'Get-NamedPipes':['-Name','-Computer','-ComputerName','-Server', '-NoWrap', '-Count', '-OutFile'],
-    'Get-NetShare':['-Computer','-ComputerName','-Server', '-NoWrap', '-Count', '-OutFile'],
+    'Get-NamedPipes':['-Name','-Computer','-ComputerName','-Server', '-NoWrap', '-Count', '-TableView', '-OutFile'],
+    'Get-NetShare':['-Computer','-ComputerName','-TableView','-Server', '-NoWrap', '-Count', '-OutFile'],
     'Get-NetSession':['-Computer','-ComputerName','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Get-NetLoggedOn':['-Computer','-ComputerName','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Get-RegLoggedOn':['-Computer','-ComputerName','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
@@ -116,7 +116,7 @@ COMMANDS = {
     'exit':'',
 }
 
-RE_SPACE = re.compile('.*\s+$', re.M)
+RE_SPACE = re.compile(r'.*\s+$', re.M)
 
 class Completer(object):
 
