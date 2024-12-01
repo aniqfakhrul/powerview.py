@@ -106,7 +106,7 @@ class LDAP:
 			ts = int(ts)
 			dt = datetime.datetime(1601, 1, 1) + datetime.timedelta(seconds=ts / 10000000)
 		#return datetime.datetime(1601, 1, 1) + datetime.timedelta(seconds=ts/10000000)
-		return f"{dt.strftime('%d/%m/%Y')} ({LDAP.human_readable_time_diff(dt)})"
+		return f"{dt.strftime('%d/%m/%Y %H:%M:%S')} ({LDAP.human_readable_time_diff(dt)})"
 
 	@staticmethod
 	def human_readable_time_diff(past_date):
@@ -131,7 +131,7 @@ class LDAP:
 				ldap_time = ldap_time.decode()
 			dt = datetime.datetime.strptime(ldap_time, "%Y%m%d%H%M%S.%fZ")
 		
-		return f"{dt.strftime('%d/%m/%Y')} ({LDAP.human_readable_time_diff(dt)})"
+		return f"{dt.strftime('%d/%m/%Y %H:%M:%S')} ({LDAP.human_readable_time_diff(dt)})"
 
 	@staticmethod
 	def bin_to_guid(guid):

@@ -31,6 +31,7 @@ setup(
 		'tabulate',
 		'argparse',
 		'requests_ntlm',
+		'python-dateutil',
 	],
 	classifiers=[
 		'Intended Audience :: Information Technology',
