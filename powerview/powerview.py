@@ -2347,7 +2347,7 @@ displayName=New Group Policy Object
 		rbcd = RBCD(targetidentity, self.ldap_session)
 		succeed = rbcd.write_to(delegfrom_sid)
 		if succeed:
-			logging.info(f"[Set-DomainRBCD] Success! {identity} is now in {delegatefrom}'s msDS-AllowedToActOnBehalfOfOtherIdentity attribute")
+			logging.info(f"[Set-DomainRBCD] Success! {delegatefrom} is now in {identity}'s msDS-AllowedToActOnBehalfOfOtherIdentity attribute")
 		else:
 			logging.error("[Set-DomainRBCD] Failed to write to {delegatefrom} object")
 			return False
