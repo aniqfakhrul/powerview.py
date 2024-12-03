@@ -35,6 +35,9 @@ from powerview.lib.dns import (
 	STORED_ADDR
 )
 
+def sanitize_component(component):
+	return re.sub(r'[<>:"/\\|?*]', '', component) if component else None
+
 def get_uuid(upper=False):
 	if upper:
 		return str(uuid.uuid4()).upper()

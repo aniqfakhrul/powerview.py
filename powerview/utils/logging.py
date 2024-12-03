@@ -2,6 +2,11 @@
 import os
 import logging
 from datetime import date
+from sys import platform
+if platform == "linux" or platform == "linux2":
+    import gnureadline as readline
+else:
+    import readline
 
 DEBUG = 'DEBUG'
 
@@ -29,6 +34,32 @@ class CustomFormatter(logging.Formatter):
         formatter = logging.Formatter(log_fmt, "%Y-%m-%d %H:%M:%S")
         return formatter.format(record)
 
+class HistoryConsole:
+    def __init__(self, histfile="~/.powerview/.powerview_history"):
+        self.histfile = os.path.expanduser(histfile)
+        self.init_history(histfile)
+
+    def init_history(self, histfile=None):
+        if not histfile:
+            histfile = self.histfile
+
+        try:
+            if os.path.exists(histfile):
+                readline.read_history_file(histfile)
+        except FileNotFoundError:
+            logging.error(f"History file not found: {histfile}")
+        except IOError as e:
+            logging.error(f"Error reading history file {histfile}: {e}")
+
+    def save_history(self, histfile=None):
+        if not histfile:
+            histfile = self.histfile
+
+        try:
+            readline.write_history_file(histfile)
+        except IOError as e:
+            logging.error(f"Error writing history file {histfile}: {e}")
+
 class LOG:
     def __init__(self, folder_name, root_folder=None):
         if not root_folder:
@@ -47,12 +78,17 @@ class LOG:
 
         print("Logging directory is set to %s" % (self.logs_folder))
 
+        self.history_file = os.path.join(self.logs_folder, ".powerview_history")
+        self.history_console = HistoryConsole(self.history_file)
+
+    def save_history(self):
+        self.history_console.save_history()
+
     def create_folder(self, folder=None):
         folder = folder if folder else self.logs_folder
         return os.makedirs(folder, exist_ok=True)
     
     def setup_logger(self, level=logging.INFO):
-        # logger properties
         if level == DEBUG:
             level == logging.DEBUG
        
@@ -61,13 +97,10 @@ class LOG:
 
         file_path = os.path.join(self.logs_folder, self.file_name)
         fileh = logging.FileHandler(file_path, 'a')
-        # set time format
         formatter = logging.Formatter('[%(asctime)s] %(name)s %(levelname)s %(message)s')
         fileh.setFormatter(formatter)
-        # set file handler
         logger.addHandler(fileh)
 
-        # set stdout format
         fmt = '[%(asctime)s] %(message)s'
         stdout_handler = logging.StreamHandler()
         stdout_handler.setLevel(level)

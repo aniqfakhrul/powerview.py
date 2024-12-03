@@ -29,7 +29,15 @@ def main():
     setattr(args, 'ldap_address', ldap_address)
 
     # setup debugging properties
-    log_handler = LOG(ldap_address)
+    flat_domain = domain.split('.')[0] if '.' in domain else domain
+    flat_domain = sanitize_component(flat_domain.lower())
+    username = sanitize_component(username.lower())
+    ldap_address = sanitize_component(ldap_address.lower())
+
+    components = [flat_domain, username, ldap_address]
+    folder_name = '-'.join(filter(None, components)) or "default-log"
+
+    log_handler = LOG(folder_name)
 
     if args.debug:
         logging = log_handler.setup_logger("DEBUG")
@@ -608,6 +616,7 @@ def main():
                                 else:
                                     logging.error("-GUID and -TargetIdentity flags are required")
                             elif pv_args.module.casefold() == 'exit':
+                                log_handler.save_history()
                                 sys.exit(0)
                             elif pv_args.module.casefold() == 'clear':
                                 clear_screen()
@@ -659,6 +668,7 @@ def main():
             except KeyboardInterrupt:
                 print()
             except EOFError:
+                log_handler.save_history()
                 print("Exiting...")
                 conn.close()
                 sys.exit(0)
