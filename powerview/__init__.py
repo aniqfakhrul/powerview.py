@@ -28,7 +28,6 @@ def main():
     setattr(args,'nthash', nthash)
     setattr(args, 'ldap_address', ldap_address)
 
-    # setup debugging properties
     flat_domain = domain.split('.')[0] if '.' in domain else domain
     flat_domain = sanitize_component(flat_domain.lower())
     username = sanitize_component(username.lower())
