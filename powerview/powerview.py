@@ -1311,10 +1311,11 @@ class PowerView:
 		identity_filter = f"(name={identity})"
 		ldap_filter = f"(&(objectClass=dnsZone){identity_filter})"
 
-		logging.debug(f"[Get-DomainDNSZone] LDAP filter string: {ldap_filter}")
+		logging.debug(f"[Get-DomainDNSZone] Search base: {searchbase}")
+		logging.debug(f"[Get-DomainDNSZone] LDAP Filter string: {ldap_filter}")
 
 		entries = []
-		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties,paged_size = 1000,generator=True)
+		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, ldap_filter, attributes=properties, paged_size = 1000, generator=True)
 		for _entries in entry_generator:
 			if _entries['type'] != 'searchResEntry':
 				continue
@@ -1334,7 +1335,7 @@ class PowerView:
 		]
 
 		zonename = '*' if not zonename else zonename
-		identity = escape_filter_chars('*' if not identity else identity)
+		identity = escape_filter_chars(identity) if identity else None
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}" 
 
@@ -1344,12 +1345,15 @@ class PowerView:
 			return
 
 		entries = []
-		identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
+		identity_filter = ""
+		if identity:
+			identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
 		ldap_filter = f'(&(objectClass=dnsNode){identity_filter})'
+
 		for zone in zones:
 			logging.debug(f"[Get-DomainDNSRecord] Search base: {zone['attributes']['distinguishedName']}")
-
-			entry_generator = self.ldap_session.extend.standard.paged_search(zone['attributes']['distinguishedName'],ldap_filter,attributes=def_prop, paged_size = 1000, generator=True)
+			logging.debug(f"[Get-DomainDNSRecord] LDAP Filter string: {ldap_filter}")
+			entry_generator = self.ldap_session.extend.standard.paged_search(zone['attributes']['distinguishedName'], ldap_filter, attributes=def_prop, paged_size = 1000, generator=True)
 			for _entries in entry_generator:
 				if _entries['type'] != 'searchResEntry':
 					continue
