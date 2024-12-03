@@ -1,5 +1,6 @@
 import argparse
 import sys
+import logging
 
 from impacket import version
 from powerview.utils.completer import COMMANDS
