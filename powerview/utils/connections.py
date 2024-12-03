@@ -421,6 +421,8 @@ class CONNECTION:
 			"formatter": {
 				"sAMAccountType": LDAP.resolve_samaccounttype,
 				"lastLogon": LDAP.ldap2datetime,
+				"whenCreated": LDAP.resolve_generalized_time,
+				"whenChanged": LDAP.resolve_generalized_time,
 				"pwdLastSet": LDAP.ldap2datetime,
 				"badPasswordTime": LDAP.ldap2datetime,
 				"lastLogonTimestamp": LDAP.ldap2datetime,
@@ -490,6 +492,8 @@ class CONNECTION:
 			"formatter": {
 				"sAMAccountType": LDAP.resolve_samaccounttype,
 				"lastLogon": LDAP.ldap2datetime,
+				"whenCreated": LDAP.resolve_generalized_time,
+				"whenChanged": LDAP.resolve_generalized_time,
 				"pwdLastSet": LDAP.ldap2datetime,
 				"badPasswordTime": LDAP.ldap2datetime,
 				"lastLogonTimestamp": LDAP.ldap2datetime,
@@ -584,6 +588,8 @@ class CONNECTION:
 			"formatter": {
 				"sAMAccountType": LDAP.resolve_samaccounttype,
 				"lastLogon": LDAP.ldap2datetime,
+				"whenCreated": LDAP.resolve_generalized_time,
+				"whenChanged": LDAP.resolve_generalized_time,
 				"pwdLastSet": LDAP.ldap2datetime,
 				"badPasswordTime": LDAP.ldap2datetime,
 				"lastLogonTimestamp": LDAP.ldap2datetime,

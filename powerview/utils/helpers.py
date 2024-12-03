@@ -35,6 +35,9 @@ from powerview.lib.dns import (
 	STORED_ADDR
 )
 
+def sanitize_component(component):
+	return re.sub(r'[<>:"/\\|?*]', '', component) if component else None
+
 def get_uuid(upper=False):
 	if upper:
 		return str(uuid.uuid4()).upper()
@@ -170,7 +173,7 @@ def filter_entry(entry, properties):
 
 def modify_entry(entry, new_attributes=[], remove=[]):
 	entries = {}
-	if isinstance(entry,ldap3.abstract.entry.Entry):
+	if isinstance(entry, ldap3.abstract.entry.Entry):
 		entry = json.loads(entry.entry_to_json())
 	j = entry['attributes']
 
@@ -182,7 +185,7 @@ def modify_entry(entry, new_attributes=[], remove=[]):
 		for attr in new_attributes:
 			entries[attr]= new_attributes[attr]
 
-	return {"attributes":entries}
+	return {"attributes": entries}
 
 def is_valid_fqdn(hostname: str) -> bool:
 	if validators.domain(hostname):

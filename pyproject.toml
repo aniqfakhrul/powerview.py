@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "powerview"
-version = "2024.7.0" 
+version = "2024.7.1" 
 description = "Python based PowerView script"
 authors = ["Aniq Fakhrul <aniqfakhrull@gmail.com>"]
 readme = "README.md"
@@ -38,6 +38,7 @@ chardet = "*"
 tabulate = "*"
 argparse = "*"
 requests_ntlm = "*"
+python-dateutil = "*"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
