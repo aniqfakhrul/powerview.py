@@ -25,6 +25,7 @@ class APIServer:
 		self.app.add_url_rule('/api/add/<method_name>', 'add_operation', self.handle_add_operation, methods=['POST'])
 		self.app.add_url_rule('/api/invoke/<method_name>', 'invoke_operation', self.handle_invoke_operation, methods=['POST'])
 		self.app.add_url_rule('/api/remove/<method_name>', 'remove_operation', self.handle_remove_operation, methods=['POST'])
+		self.app.add_url_rule('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, methods=['GET'])
 		self.app.add_url_rule('/health', 'health', self.handle_health, methods=['GET'])
 
 	def render_index(self):
@@ -44,6 +45,16 @@ class APIServer:
 
 	def handle_remove_operation(self, method_name):
 		return self.handle_operation(f"remove_{method_name}")
+
+	def handle_domaininfo(self):
+		domain_info = {
+			'domain': self.powerview.domain,
+			'root_dn': self.powerview.root_dn,
+			'dc_dnshostname': self.powerview.dc_dnshostname,
+			'flatName': self.powerview.flatName,
+			'is_admin': self.powerview.is_admin,
+		}
+		return jsonify(domain_info)
 
 	def handle_health(self):
 		return jsonify({'status': 'ok'})

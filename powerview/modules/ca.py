@@ -4,6 +4,7 @@ from impacket.ldap import ldaptypes
 from impacket.uuid import bin_to_string, string_to_bin
 from ldap3.protocol.formatters.formatters import format_sid
 from ldap3.protocol.microsoft import security_descriptor_control
+from ldap3 import SUBTREE, BASE, LEVEL
 import socket
 
 from powerview.utils.helpers import (
@@ -82,13 +83,13 @@ class CAEnum:
         self.ldap_session.search(ca_search_base, enroll_filter,attributes='*')
         return self.ldap_session.entries
 
-    def fetch_enrollment_services(self, properties=['*'], searchbase=None):
+    def fetch_enrollment_services(self, properties=['*'], searchbase=None, search_scope=SUBTREE):
         enroll_filter = "(objectCategory=pKIEnrollmentService)"
 
         if not searchbase:
             searchbase = "CN=Configuration,{}".format(self.root_dn)
 
-        self.ldap_session.search(searchbase,enroll_filter,attributes=properties)
+        self.ldap_session.search(searchbase,enroll_filter,attributes=properties, search_scope=search_scope)
 
         return self.ldap_session.entries
 
