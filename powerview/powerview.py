@@ -373,14 +373,13 @@ class PowerView:
 
 		return entries
 
-	def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, ldap_filter=None, searchbase=None, sd_flag=None):
+	def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, ldap_filter="", searchbase=None, sd_flag=None):
 		def_prop = [
 			'*'
 		]
 		properties = set(properties or def_prop)
 
 		if sd_flag:
-			# Set SD flags to only query for DACL and Owner
 			controls = security_descriptor_control(sdflags=sd_flag)
 		else:
 			controls = None
@@ -394,7 +393,7 @@ class PowerView:
 				identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
 
 		if not searchbase:
-			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dnr
+			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
 		logging.debug(f"[Get-DomainObject] Using search base: {searchbase}")
 		if not ldap_filter and args and args.ldapfilter:
@@ -984,7 +983,7 @@ class PowerView:
 		return entries
 
 
-	def get_domaingroupmember(self, args=None, identity='*', multiple=False):
+	def get_domaingroupmember(self, identity, args=None, multiple=False):
 		# get the identity group information
 		entries = self.get_domaingroup(identity=identity)
 
@@ -1483,7 +1482,7 @@ class PowerView:
 		ca_fetch = CAEnum(self.ldap_session, self.root_dn)
 		entries = ca_fetch.fetch_enrollment_services(properties)
 
-		if args and args.check_web_enrollment:
+		if args.check_web_enrollment:
 			# check for web enrollment
 			for i in range(len(entries)):
 				target_name = entries[i]['dnsHostName'].value
