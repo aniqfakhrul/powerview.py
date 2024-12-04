@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PowerView.py</title>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.6.0/css/fontawesome.min.css" integrity="sha384-NvKbDTEnL+A8F/AA5Tc5kmMLSJHUO868P+lDtTpJIeQdGYaUIuLr4lVGOEA1OcMy" crossorigin="anonymous">
+</head>
+<body>
+    <div class="flex h-screen bg-gray-100">
+        <!-- Sidebar -->
+        <div class="w-64 bg-gray-900 text-white h-screen p-4">
+            <div class="flex items-center gap-2 mb-8">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v4a1 1 0 001 1h3m10 0h3a1 1 0 001-1V7m-4 0V5a2 2 0 00-2-2H8a2 2 0 00-2 2v2m0 0h12"></path>
+                </svg>
+                <h1 class="text-xl font-bold">PowerView.py</h1>
+            </div>
+            <nav>
+                <ul class="space-y-2">
+                    <li>
+                        <button class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-3-3h-4a3 3 0 00-3 3v2h5zM9 20H4v-2a3 3 0 013-3h4a3 3 0 013 3v2H9zM7 10a3 3 0 100-6 3 3 0 000 6zm10 0a3 3 0 100-6 3 3 0 000 6z"></path>
+                            </svg>
+                            <span>Domain Users</span>
+                        </button>
+                    </li>
+                    <li>
+                        <button class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v4a1 1 0 001 1h3m10 0h3a1 1 0 001-1V7m-4 0V5a2 2 0 00-2-2H8a2 2 0 00-2 2v2m0 0h12"></path>
+                            </svg>
+                            <span>Groups</span>
+                        </button>
+                    </li>
+                    <li>
+                        <button class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v4a1 1 0 001 1h3m10 0h3a1 1 0 001-1V7m-4 0V5a2 2 0 00-2-2H8a2 2 0 00-2 2v2m0 0h12"></path>
+                            </svg>
+                            <span>Organizational Units</span>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Command Bar -->
+            <div class="border-b border-gray-200 bg-white p-4">
+                <div class="flex gap-4">
+                    <div class="flex-1 relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <polyline points="4 17 10 11 4 5"></polyline>
+                                <line x1="12" x2="20" y1="19" y2="19"></line>
+                            </svg>
+                        </div>
+                        <input type="text" placeholder="Enter PowerView command (e.g., Get-DomainUser -Identity username)" class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <button class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.3-4.3"></path>
+                        </svg>
+                        Execute
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="flex-1 flex overflow-hidden">
+                <!-- Tree View -->
+                <div class="w-1/3 overflow-y-auto border-r bg-white">
+                    <div class="p-4">
+                        <div class="flex items-center gap-1 p-1 hover:bg-gray-100 rounded cursor-pointer dropdown-toggle">
+                            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="m6 9 6 6 6-6"></path>
+                            </svg>
+                            <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path>
+                            </svg>
+                            <span>Domain.local</span>
+                        </div>
+                        <div class="ml-6" id="tree-view">
+                            <!-- <div class="flex items-center gap-1 p-1 hover:bg-gray-100 rounded cursor-pointer dropdown-toggle">
+                                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="m6 9 6 6 6-6"></path>
+                                </svg>
+                                <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path>
+                                </svg>
+                                <span>Users</span>
+                            </div>
+                            <div class="ml-6">
+                                <div class="flex items-center gap-1 p-1 hover:bg-gray-100 rounded cursor-pointer">
+                                    <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v4a1 1 0 001 1h3m10 0h3a1 1 0 001-1V7m-4 0V5a2 2 0 00-2-2H8a2 2 0 00-2 2v2m0 0h12"></path></svg>
+                                    <span>Administrator</span>
+                                </div>
+                                <div class="flex items-center gap-1 p-1 hover:bg-gray-100 rounded cursor-pointer">
+                                    <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v4a1 1 0 001 1h3m10 0h3a1 1 0 001-1V7m-4 0V5a2 2 0 00-2-2H8a2 2 0 00-2 2v2m0 0h12"></path></svg>
+                                    <span>Guest</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1 p-1 hover:bg-gray-100 rounded cursor-pointer dropdown-toggle">
+                                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="m6 9 6 6 6-6"></path>
+                                </svg>
+                                <svg class="w-4 h-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path>
+                                </svg>
+                                <span>Groups</span>
+                            </div>
+                            <div class="ml-6">
+                                <div class="flex items-center gap-1 p-1 hover:bg-gray-100 rounded cursor-pointer">
+                                    <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v4a1 1 0 001 1h3m10 0h3a1 1 0 001-1V7m-4 0V5a2 2 0 00-2-2H8a2 2 0 00-2 2v2m0 0h12"></path></svg>
+                                    <span>Domain Admins</span>
+                                </div>
+                                <div class="flex items-center gap-1 p-1 hover:bg-gray-100 rounded cursor-pointer">
+                                    <svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v4a1 1 0 001 1h3m10 0h3a1 1 0 001-1V7m-4 0V5a2 2 0 00-2-2H8a2 2 0 00-2 2v2m0 0h12"></path></svg>
+                                    <span>Enterprise Admins</span>
+                                </div>
+                            </div> -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Panel -->
+                <div class="flex-1 overflow-y-auto">
+                    <div class="bg-white rounded-lg shadow p-6 m-4">
+                        <div class="flex items-center gap-2 mb-4">
+                            <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" x2="12" y1="8" y2="12"></line>
+                                <line x1="12" x2="12.01" y1="16" y2="16"></line>
+                            </svg>
+                            <h2 class="text-lg font-semibold">Query Results</h2>
+                        </div>
+                        <div class="border rounded-lg overflow-hidden">
+                            <div class="bg-gray-50 px-4 py-2 border-b">
+                                <h3 class="font-medium">Administrator</h3>
+                            </div>
+                            <div class="p-4">
+                                <dl class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <dt class="text-sm font-medium text-gray-500">SAM Account Name</dt>
+                                        <dd class="mt-1 text-sm text-gray-900">administrator</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-sm font-medium text-gray-500">Distinguished Name</dt>
+                                        <dd class="mt-1 text-sm text-gray-900">CN=Administrator,CN=Users,DC=domain,DC=local</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-sm font-medium text-gray-500">User Principal Name</dt>
+                                        <dd class="mt-1 text-sm text-gray-900">administrator@domain.local</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-sm font-medium text-gray-500">Last Logon</dt>
+                                        <dd class="mt-1 text-sm text-gray-900">2024-03-15 10:30:45</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-sm font-medium text-gray-500">Password Last Set</dt>
+                                        <dd class="mt-1 text-sm text-gray-900">2024-01-01 00:00:00</dd>
+                                    </div>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const toggles = document.querySelectorAll('.dropdown-toggle');
+
+            toggles.forEach(toggle => {
+                toggle.addEventListener('click', function() {
+                    const content = this.nextElementSibling;
+                    if (content.style.display === 'none' || content.style.display === '') {
+                        content.style.display = 'block';
+                    } else {
+                        content.style.display = 'none';
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

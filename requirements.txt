@@ -10,3 +10,4 @@ tabulate
 argparse
 requests_ntlm
 python-dateutil
+flask
