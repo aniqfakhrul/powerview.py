@@ -32,6 +32,7 @@ setup(
 		'argparse',
 		'requests_ntlm',
 		'python-dateutil',
+		'flask',
 	],
 	classifiers=[
 		'Intended Audience :: Information Technology',

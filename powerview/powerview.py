@@ -37,6 +37,7 @@ from powerview.lib.resolver import (
 	UAC
 )
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
+from powerview.api.server import APIServer
 
 import chardet
 import time
@@ -91,6 +92,11 @@ class PowerView:
 
 		# storage
 		self.store = Storage()
+
+		# API server
+		if self.args.web:
+			self.api_server = APIServer(self, host=self.args.web_host, port=self.args.web_port)
+			self.api_server.start()
 
 	def get_admin_status(self):
 		return self.is_admin
