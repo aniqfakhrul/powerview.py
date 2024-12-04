@@ -2,6 +2,7 @@
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.dcerpc.v5 import srvs, wkst, scmr, rrp
 from impacket.dcerpc.v5.ndr import NULL
+from typing import List
 
 from powerview.modules.gmsa import GMSA
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
@@ -2122,6 +2123,18 @@ displayName=New Group Policy Object
 		return succeed
 
 	def get_domaincatemplate(self, args=None, properties=[], identity=None, searchbase=None):
+		def list_sids(sids: List[str]):
+			sids_mapping = list(
+				map(
+					lambda sid: repr(self.convertfrom_sid(sid)),
+					sids,
+				)
+			)
+			if len(sids_mapping) == 1:
+				return sids_mapping[0]
+
+			return ", ".join(sids_mapping[:-1]) + " and " + sids_mapping[-1]
+
 		def_prop = [
 			"objectClass",
 			"cn",
@@ -2227,7 +2240,7 @@ displayName=New Group Policy Object
 					# Resolve Vulnerable (With resolvesids)
 					for y in vulns.keys():
 						try:
-							list_vuln.append(y+" - "+self.convertfrom_sid(vulns[y]))
+							list_vuln.append(y+" - "+list_sids(vulns[y]))
 						except:
 							list_vuln.append(vulns[y])
 

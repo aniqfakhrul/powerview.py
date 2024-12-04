@@ -367,7 +367,7 @@ class PARSE_TEMPLATE:
             # TODO: add another user_can_enroll logic
             self.parsed_dacl["Enrollment Rights"]
             if (user_can_enroll and self.get_enrollee_supplies_subject() and self.get_client_authentication()):
-                vulns["ESC1"] = enrollable_sids[0]
+                vulns["ESC1"] = enrollable_sids
 
             # ESC2
             if user_can_enroll and self.get_any_purpose():
