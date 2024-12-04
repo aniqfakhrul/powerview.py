@@ -37,7 +37,7 @@ from powerview.lib.resolver import (
 	UAC
 )
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
-from powerview.api.server import APIServer
+from powerview.web.api.server import APIServer
 
 import chardet
 import time
@@ -94,7 +94,7 @@ class PowerView:
 		self.store = Storage()
 
 		# API server
-		if self.args.web:
+		if self.args.web and self.ldap_session:
 			self.api_server = APIServer(self, host=self.args.web_host, port=self.args.web_port)
 			self.api_server.start()
 
@@ -373,7 +373,7 @@ class PowerView:
 
 		return entries
 
-	def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, searchbase=None, sd_flag=None):
+	def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, ldap_filter=None, searchbase=None, sd_flag=None):
 		def_prop = [
 			'*'
 		]
@@ -385,7 +385,6 @@ class PowerView:
 		else:
 			controls = None
 
-		ldap_filter = ""
 		identity_filter = "" if not identity_filter else identity_filter
 
 		if not identity:
@@ -395,16 +394,13 @@ class PowerView:
 				identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
 
 		if not searchbase:
-			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dnr
 
 		logging.debug(f"[Get-DomainObject] Using search base: {searchbase}")
+		if not ldap_filter and args and args.ldapfilter:
+			logging.debug(f'[Get-DomainObject] Using additional LDAP filter from args: {args.ldapfilter}')
+			ldap_filter = f"{args.ldapfilter}"
 
-		if args:
-			if args.ldapfilter:
-				logging.debug(f'[Get-DomainObject] Using additional LDAP filter: {args.ldapfilter}')
-				ldap_filter += f"{args.ldapfilter}"
-
-		ldap_fiter = f"(&{ldap_filter})"
 		ldap_filter = f'(&{identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
 
@@ -1487,7 +1483,7 @@ class PowerView:
 		ca_fetch = CAEnum(self.ldap_session, self.root_dn)
 		entries = ca_fetch.fetch_enrollment_services(properties)
 
-		if args.check_web_enrollment:
+		if args and args.check_web_enrollment:
 			# check for web enrollment
 			for i in range(len(entries)):
 				target_name = entries[i]['dnsHostName'].value
