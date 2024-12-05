@@ -1,0 +1,39 @@
+<div class="w-64 bg-gray-900 text-white h-screen p-4 flex flex-col justify-between">
+    <div>
+        <div class="flex items-center gap-2 mb-8">
+            <h1 class="text-xl font-bold">Powerview.py</h1>
+        </div>
+        <nav>
+            <ul class="space-y-2">
+                <li>
+                    <a href="/" class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-3-3h-4a3 3 0 00-3 3v2h5zM9 20H4v-2a3 3 0 013-3h4a3 3 0 013 3v2H9zM7 10a3 3 0 100-6 3 3 0 000 6zm10 0a3 3 0 100-6 3 3 0 000 6z"></path>
+                        </svg>
+                        <span>Tree View</span>
+                    </a>
+                </li>
+                <li>
+                    <button id="toggle-command-history" class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 8v4l3 3"></path>
+                            <circle cx="12" cy="12" r="10"></circle>
+                        </svg>
+                        <span>Command History</span>
+                    </button>
+                </li>
+                <!-- <li>
+                    <button id="toggle-details" class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 8v4l3 3"></path>
+                            <circle cx="12" cy="12" r="10"></circle>
+                        </svg>
+                        <span>Details</span>
+                    </button>
+                </li> -->
+                <!-- Add more navigation items as needed -->
+            </ul>
+        </nav>
+    </div>
+    <span id="connection-status" class="text-sm text-gray-400"></span>
+</div>

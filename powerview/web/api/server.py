@@ -3,8 +3,10 @@ from flask import Flask, jsonify, request, render_template
 import logging
 from contextlib import redirect_stdout, redirect_stderr
 import io
+import os
 import sys
 import threading
+from datetime import date
 
 from powerview.web.api.helpers import make_serializable
 
@@ -27,6 +29,9 @@ class APIServer:
 		self.app.add_url_rule('/api/remove/<method_name>', 'remove_operation', self.handle_remove_operation, methods=['POST'])
 		self.app.add_url_rule('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, methods=['GET'])
 		self.app.add_url_rule('/health', 'health', self.handle_health, methods=['GET'])
+		self.app.add_url_rule('/api/status', 'status', self.handle_status, methods=['GET'])
+		self.app.add_url_rule('/api/history', 'history', self.render_history, methods=['GET'])
+		self.app.add_url_rule('/api/ldap_rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
 
 	def render_index(self):
 		return render_template('index.html')
@@ -58,6 +63,61 @@ class APIServer:
 
 	def handle_health(self):
 		return jsonify({'status': 'ok'})
+
+	def handle_status(self):
+		return jsonify({'status': 'OK' if self.powerview.is_connection_alive() else 'KO'})
+
+	def handle_ldap_rebind(self):
+		return jsonify({'status': 'OK' if self.powerview.conn.reset_connection() else 'KO'})
+
+	def render_history(self):
+		try:
+			page = int(request.args.get('page', 1))
+			limit = int(request.args.get('limit', 10))
+
+			max_limit = 100
+			if limit > max_limit:
+				raise ValueError(f"Limit of {limit} exceeds the maximum allowed value of {max_limit}")
+
+			components = [self.powerview.flatName.lower(), self.powerview.args.username.lower(), self.powerview.args.ldap_address.lower()]
+			folder_name = '-'.join(filter(None, components)) or "default-log"
+			file_name = "%s.log" % date.today()
+			file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, file_name)
+
+			def read_logs(file_path, start, end):
+				with open(file_path, 'r') as log_file:
+					for current_line, line in enumerate(log_file):
+						if current_line >= start:
+							if current_line < end:
+								yield line
+							else:
+								break
+
+			start = (page - 1) * limit
+			end = start + limit
+
+			paginated_logs = list(read_logs(file_path, start, end))
+
+			formatted_logs = []
+			for log in paginated_logs:
+				parts = log.split(' ', 3)
+				if len(parts) >= 4:
+					timestamp = parts[0] + ' ' + parts[1]
+					user = parts[2]
+					log_type = parts[3].split(' ', 1)[0]
+					debug_message = parts[3].split(' ', 1)[1].strip() if len(parts[3].split(' ', 1)) > 1 else ''
+					formatted_logs.append({
+						'timestamp': timestamp.strip('[]'),
+						'user': user,
+						'log_type': log_type,
+						'debug_message': debug_message
+					})
+
+			total_logs = sum(1 for _ in open(file_path, 'r'))
+
+			return jsonify({'logs': formatted_logs, 'total': total_logs, 'page': page, 'limit': limit})
+		except Exception as e:
+			return jsonify({'error': str(e)}), 500
 
 	def handle_operation(self, full_method_name):
 		method = getattr(self.powerview, full_method_name, None)

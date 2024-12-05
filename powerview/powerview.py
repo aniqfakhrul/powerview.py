@@ -102,6 +102,14 @@ class PowerView:
 	def get_admin_status(self):
 		return self.is_admin
 
+	def is_connection_alive(self):
+		try:
+			self.ldap_session.search(search_base='', search_filter='(objectClass=*)', search_scope='BASE', attributes=['namingContexts'])
+			return self.ldap_session.result['result'] == 0
+		except Exception as e:
+			print(f"Connection is not alive: {e}")
+			return False
+
 	def get_server_dns(self):
 		return self.dc_dnshostname
 
