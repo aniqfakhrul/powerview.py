@@ -381,20 +381,40 @@ class PARSE_TEMPLATE:
             # ESC9
             if user_can_enroll and self.get_no_security_extension():
                 vunls["ESC9"] = "Vulnerable yayay"
+        
 
-            # ESC4
-            # for s in self.parsed_dacl["Write Owner"]:
-            #     rid = int(s.split("-")[-1])
-            #     if rid > 1000:
-            #         vulns["ESC4"] = f"{rid} have write permission"
-            # for s in self.parsed_dacl["Write Dacl"]:
-            #     rid = int(s.split("-")[-1])
-            #     if rid > 1000:
-            #         vulns["ESC4"] = f"{rid} have write permission"
-            # for s in self.parsed_dacl["Write Property"]:
-            #     rid = int(s.split("-")[-1])
-            #     if rid > 1000:
-            #         vulns["ESC4"] = f"{rid} have write permission"
+        # ESC4
+        security = CertificateSecurity(self.template["nTSecurityDescriptor"].raw_values[0])
+        owner_sid = security.owner
+
+        if owner_sid in get_user_sids(self.domain_sid, owner_sid):
+            vulns["ESC4"] = owner_sid
+        else:
+            has_vulnerable_acl = False
+            aces = security.aces
+            vulnerable_acl_sids = set()
+            
+            for sid, rights in aces.items():
+                if sid not in get_user_sids(self.domain_sid, sid):
+                    continue
+
+                ad_rights = rights["rights"] 
+                ad_extended_rights = rights["extended_rights"]
+                
+                for right in [CERTIFICATE_RIGHTS.GENERIC_ALL, CERTIFICATE_RIGHTS.WRITE_OWNER, 
+                             CERTIFICATE_RIGHTS.WRITE_DACL, CERTIFICATE_RIGHTS.WRITE_PROPERTY]:
+                    if right in ad_rights:
+                        vulnerable_acl_sids.add(sid)
+                        has_vulnerable_acl = True
+                
+                if (CERTIFICATE_RIGHTS.WRITE_PROPERTY in ad_rights and
+                    ('00000000-0000-0000-0000-000000000000' in ad_extended_rights and 
+                     ad_rights & ACTIVE_DIRECTORY_RIGHTS.EXTENDED_RIGHT)):
+                    vulnerable_acl_sids.add(sid)
+                    has_vulnerable_acl = True
+
+            if has_vulnerable_acl:
+                vulns["ESC4"] = list(vulnerable_acl_sids)
 
         return vulns
 
