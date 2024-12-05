@@ -14,6 +14,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const domainInfo = await domainInfoResponse.json();
             const rootDn = domainInfo.root_dn;
+            const domainName = domainInfo.domain;
+            const flatName = domainInfo.flatName;
+
+            const domainSpan = document.querySelector('span#domain-name');
+            if (domainSpan) {
+                domainSpan.textContent = flatName;
+            }
 
             const distinguishedNames = [
                 rootDn,
@@ -72,9 +79,17 @@ document.addEventListener('DOMContentLoaded', () => {
         div.appendChild(folderIcon);
         div.innerHTML += `<span>${dn}</span>`;
 
-        div.addEventListener('click', async () => {
+        div.addEventListener('click', async (event) => {
+            event.stopPropagation();
+
+            let subtreeContainer = div.nextElementSibling;
+            if (subtreeContainer && subtreeContainer.classList.contains('subtree')) {
+                subtreeContainer.remove();
+                return;
+            }
+
             showLoadingIndicator();
-            const itemData = await fetchItemData(dn, search_scope='BASE');
+            const itemData = await fetchItemData(dn, 'BASE');
             if (itemData) {
                 populateDetailsPanel(itemData);
                 toggleSubtree(dn, div);
