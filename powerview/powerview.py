@@ -2264,11 +2264,15 @@ displayName=New Group Policy Object
 									'ManagerApproval': requires_manager_approval,
 									'Enrollment Rights': parsed_dacl['Enrollment Rights'],
 									'Extended Rights': parsed_dacl['Extended Rights'],
+									'Client Authentication': template_ops.get_client_authentication(),
+									'Enrollment Agent': template_ops.get_enrollment_agent(),
+									'Any Purpose': template_ops.get_any_purpose(),
 									'Write Owner': parsed_dacl['Write Owner'],
 									'Write Dacl': parsed_dacl['Write Dacl'],
 									'Write Property': parsed_dacl['Write Property'],
 									'Enabled': False,
 									'Vulnerable': list_vuln
+									
 									# 'Vulnerable': ",\n".join([i+" - "+vulns[i] for i in vulns.keys()]),
 									#'Description': vulns['ESC1']
 								},

@@ -372,11 +372,11 @@ class PARSE_TEMPLATE:
 
             # ESC2
             if user_can_enroll and self.get_any_purpose():
-                vulns["ESC2"] = enrollable_sids[0]
+                vulns["ESC2"] = enrollable_sids
 
             # ESC3
             if user_can_enroll and self.get_enrollment_agent():
-                vulns["ESC3"] = enrollable_sids[0]
+                vulns["ESC3"] = enrollable_sids
 
             # ESC9
             if user_can_enroll and self.get_no_security_extension():
