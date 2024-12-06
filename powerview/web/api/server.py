@@ -7,8 +7,10 @@ import os
 import sys
 import threading
 from datetime import date
+import shlex
 
 from powerview.web.api.helpers import make_serializable
+from powerview.utils.parsers import powerview_arg_parse
 
 class APIServer:
 	def __init__(self, powerview, host="127.0.0.1", port=5000):
@@ -19,9 +21,17 @@ class APIServer:
 		self.powerview = powerview
 		self.host = host
 		self.port = port
+		
+		components = [self.powerview.flatName.lower(), self.powerview.args.username.lower(), self.powerview.args.ldap_address.lower()]
+		folder_name = '-'.join(filter(None, components)) or "default-log"
+		file_name = "%s.log" % date.today()
+		self.log_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, file_name)
+		self.history_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, '.powerview_history')
 
 		# Define routes
 		self.app.add_url_rule('/', 'index', self.render_index, methods=['GET'])
+		self.app.add_url_rule('/users', 'users', self.render_users, methods=['GET'])
+		self.app.add_url_rule('/utils', 'utils', self.render_utils, methods=['GET'])
 		self.app.add_url_rule('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		self.app.add_url_rule('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
 		self.app.add_url_rule('/api/add/<method_name>', 'add_operation', self.handle_add_operation, methods=['POST'])
@@ -30,11 +40,35 @@ class APIServer:
 		self.app.add_url_rule('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, methods=['GET'])
 		self.app.add_url_rule('/health', 'health', self.handle_health, methods=['GET'])
 		self.app.add_url_rule('/api/status', 'status', self.handle_status, methods=['GET'])
+		self.app.add_url_rule('/api/logs', 'logs', self.render_logs, methods=['GET'])
 		self.app.add_url_rule('/api/history', 'history', self.render_history, methods=['GET'])
 		self.app.add_url_rule('/api/ldap_rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
+		self.app.add_url_rule('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
+
+		self.nav_items = [
+			{"name": "Tree View", "icon": "M17 20h5v-2a3 3 0 00-3-3h-4a3 3 0 00-3 3v2h5zM9 20H4v-2a3 3 0 013-3h4a3 3 0 013 3v2H9zM7 10a3 3 0 100-6 3 3 0 000 6zm10 0a3 3 0 100-6 3 3 0 000 6z", "link": "/"},
+			{"name": "Users", "icon": "M12 8v4l3 3", "link": "/users"},
+			{"name": "Utils", "icon": "M12 8v4l3 3", "link": "/utils"},
+			{"name": "Logs", "icon": "M12 8v4l3 3", "button_id": "toggle-command-history"},
+		]
 
 	def render_index(self):
-		return render_template('index.html')
+		context = {	
+			'nav_items': self.nav_items
+		}
+		return render_template('index.html', **context)
+
+	def render_users(self):
+		context = {
+			'nav_items': self.nav_items
+		}
+		return render_template('userspage.html', **context)
+
+	def render_utils(self):
+		context = {
+			'nav_items': self.nav_items
+		}
+		return render_template('utilspage.html', **context)
 
 	def handle_get_operation(self, method_name):
 		return self.handle_operation(f"get_{method_name}")
@@ -61,6 +95,47 @@ class APIServer:
 		}
 		return jsonify(domain_info)
 
+	def execute_command(self):
+		properties = [
+			''
+		]
+		try:
+			# Get the command from the request
+			command = request.json.get('command', '')
+			if not command:
+				return jsonify({'error': 'No command provided'}), 400
+
+			# Parse the command using shlex
+			try:
+				cmd = shlex.split(command)
+			except ValueError as e:
+				logging.error(f"Command parsing error: {str(e)}")
+				return jsonify({'error': f'Command parsing error: {str(e)}'}), 400
+
+			# Parse the command arguments using PowerView's argument parser
+			pv_args = powerview_arg_parse(cmd)
+
+			# Check if the command was parsed successfully
+			if pv_args is None:
+				return jsonify({'error': 'Invalid command or arguments'}), 400
+
+			# Check if the module is specified
+			if not pv_args.module:
+				return jsonify({'error': 'No module specified in the command'}), 400
+
+			# Execute the command using PowerView
+			result = self.powerview.execute(pv_args)
+
+			# Make the result serializable
+			serializable_result = make_serializable(result)
+
+			# Return the result along with pv_args
+			return jsonify({'result': serializable_result, 'pv_args': vars(pv_args)}), 200
+
+		except Exception as e:
+			logging.error(f"Error executing command: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
 	def handle_health(self):
 		return jsonify({'status': 'ok'})
 
@@ -72,6 +147,16 @@ class APIServer:
 
 	def render_history(self):
 		try:
+			with open(self.history_file_path, 'r') as history_file:
+				history_lines = history_file.readlines()
+				last_50_lines = history_lines[-50:]
+				history = [line.strip() for line in last_50_lines]
+			return jsonify({'result': history})
+		except Exception as e:
+			return jsonify({'error': str(e)}), 500
+
+	def render_logs(self):
+		try:
 			page = int(request.args.get('page', 1))
 			limit = int(request.args.get('limit', 10))
 
@@ -79,24 +164,17 @@ class APIServer:
 			if limit > max_limit:
 				raise ValueError(f"Limit of {limit} exceeds the maximum allowed value of {max_limit}")
 
-			components = [self.powerview.flatName.lower(), self.powerview.args.username.lower(), self.powerview.args.ldap_address.lower()]
-			folder_name = '-'.join(filter(None, components)) or "default-log"
-			file_name = "%s.log" % date.today()
-			file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, file_name)
+			with open(self.log_file_path, 'r') as log_file:
+				all_logs = log_file.readlines()
 
-			def read_logs(file_path, start, end):
-				with open(file_path, 'r') as log_file:
-					for current_line, line in enumerate(log_file):
-						if current_line >= start:
-							if current_line < end:
-								yield line
-							else:
-								break
-
-			start = (page - 1) * limit
+			total_logs = len(all_logs)
+			start = total_logs - (page * limit)
 			end = start + limit
 
-			paginated_logs = list(read_logs(file_path, start, end))
+			if start < 0:
+				start = 0
+
+			paginated_logs = all_logs[start:end][::-1]  # Reverse the order to get the most recent logs first
 
 			formatted_logs = []
 			for log in paginated_logs:
@@ -112,8 +190,6 @@ class APIServer:
 						'log_type': log_type,
 						'debug_message': debug_message
 					})
-
-			total_logs = sum(1 for _ in open(file_path, 'r'))
 
 			return jsonify({'logs': formatted_logs, 'total': total_logs, 'page': page, 'limit': limit})
 		except Exception as e:

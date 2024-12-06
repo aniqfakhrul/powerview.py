@@ -54,7 +54,7 @@ class FORMATTER:
         print()
 
     def print_index(self, entries):
-        i = int(self.args.select)
+        i = self.args.select
         for entry in entries[0:i]:
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
@@ -99,7 +99,7 @@ class FORMATTER:
                     print()
 
     def print_select(self,entries):
-        select_attributes = self.args.select.split(",")
+        select_attributes = self.args.select
         for entry in entries:
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
                 if isinstance(entry, ldap3.abstract.entry.Entry):
@@ -163,9 +163,9 @@ class FORMATTER:
         nested_list = False
         if (hasattr(self.args, "select") and self.args.select) or (hasattr(self.args, "properties") and self.args.properties and not self.args.properties == '*'):
             if self.args.select:
-                headers = self.args.select.split(",")
+                headers = self.args.select
             elif self.args.properties:
-                headers = self.args.properties.split(",")
+                headers = self.args.properties
         else:
             if isinstance(entries[0]["attributes"], dict) or isinstance(entries[0]["attributes"], ldap3.utils.ciDict.CaseInsensitiveDict):
                 headers = entries[0]["attributes"].keys()
