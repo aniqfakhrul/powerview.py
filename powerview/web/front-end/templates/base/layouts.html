@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+    {% block head %}
+        {% include 'base/header.html' %}
+    {% endblock %}
+<body>
+    <div class="flex h-screen bg-gray-100">
+        <!-- Sidebar -->
+        {% include 'base/sidebar.html' %}
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Command Bar -->
+            {% include 'base/searchbar.html' %}
+            <div class="flex-1 flex overflow-hidden" id="content-area">
+                {% block content %}
+                {% endblock %}
+                {% include 'views/commandhistory.html' %}
+                {% include 'views/detailspanel.html' %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    {% block footer %}
+        {% include 'base/footer.html' %}
+    {% endblock %}
+</body>
+</html>

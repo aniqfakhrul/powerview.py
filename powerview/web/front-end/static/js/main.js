@@ -4,6 +4,39 @@ document.addEventListener('DOMContentLoaded', () => {
         footerYear.textContent = currentYear();
     }
 
+    async function executePowerViewCommand() {
+        const commandInput = document.getElementById('ldap-filter');
+        const command = commandInput.value.trim();
+
+        if (!command) {
+            alert('Please enter a PowerView command.');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/execute', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ command: command })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                const errorMessage = result.error || 'An unknown error occurred.';
+                alert(`Error: ${errorMessage}`);
+                return;
+            }
+
+            console.log('Command execution result:', result);
+        } catch (error) {
+            console.error('Error executing command:', error);
+            alert('Failed to execute command. Please check the console for more details.');
+        }
+    }
+
     async function initialize() {
         checkConnectionStatus();
         try {
@@ -257,7 +290,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         resultsPanel.innerHTML = detailsHTML;
 
-        // Attach event listeners to the new links
+        attachLdapLinkListeners();
+    }
+
+    function attachLdapLinkListeners() {
         document.querySelectorAll('.ldap-link').forEach(link => {
             link.addEventListener('click', async (event) => {
                 event.preventDefault();
@@ -265,14 +301,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const detailsPanel = document.getElementById('details-panel');
                 const commandHistoryPanel = document.getElementById('command-history-panel');
 
-                if (detailsPanel.classList.contains('hidden')) {
-                    detailsPanel.classList.remove('hidden');
-                    commandHistoryPanel.classList.add('hidden');
+                // Check if the details panel is already showing the clicked identity
+                const currentDistinguishedName = detailsPanel.getAttribute('data-distinguished-name');
+
+                if (currentDistinguishedName === identity) {
+                    // Toggle visibility if the same item is clicked again
+                    detailsPanel.classList.toggle('hidden');
+                    return;
                 }
 
+                // Fetch and populate details if a different item is clicked
                 const itemData = await fetchItemData(identity, 'BASE');
                 if (itemData) {
                     populateDetailsPanel(itemData);
+                    detailsPanel.setAttribute('data-distinguished-name', identity); // Store the current identity
+                    detailsPanel.classList.remove('hidden');
+                    commandHistoryPanel.classList.add('hidden');    
                 }
             });
         });
@@ -380,16 +424,24 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             const statusElement = document.getElementById('connection-status');
+            const iconElement = document.querySelector('.fa-wifi');
+
             if (response.ok) {
                 const data = await response.json();
                 if (data.status === 'OK') {
-                    statusElement.textContent = 'Connection Status: OK';
-                    statusElement.classList.remove('text-red-500');
-                    statusElement.classList.add('text-green-500');
+                    statusElement.textContent = 'Connected';
+                    statusElement.classList.remove('text-red-400');
+                    statusElement.classList.add('text-green-400');
+
+                    iconElement.classList.remove('text-red-400');
+                    iconElement.classList.add('text-green-400');
                 } else {
-                    statusElement.textContent = 'Connection Status: KO';
-                    statusElement.classList.remove('text-green-500');
-                    statusElement.classList.add('text-red-500');
+                    statusElement.textContent = 'Disconnected';
+                    statusElement.classList.remove('text-green-400');
+                    statusElement.classList.add('text-red-400');
+
+                    iconElement.classList.remove('text-green-400');
+                    iconElement.classList.add('text-red-400');
                 }
             } else {
                 throw new Error('Failed to fetch status');
@@ -438,4 +490,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // });
 
     initialize();
+    const executeButton = document.querySelector('button#execute-button');
+    executeButton.addEventListener('click', executePowerViewCommand);
 });

@@ -1,0 +1,39 @@
+<div class="w-64 bg-gray-900 text-white h-screen p-4 flex flex-col justify-between">
+    <div>
+        <div class="flex items-center gap-2 mb-8">
+            <h1 class="text-xl font-bold">Powerview.py</h1>
+        </div>
+        <nav>
+            <ul class="space-y-2">
+                {% for item in nav_items %}
+                    <li>
+                        {% if item.link %}
+                            <a href="{{ item.link }}" class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ item.icon }}"></path>
+                                </svg>
+                                <span>{{ item.name }}</span>
+                            </a>
+                        {% else %}
+                            <button id="{{ item.button_id }}" class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="{{ item.icon }}"></path>
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                </svg>
+                                <span>{{ item.name }}</span>
+                            </button>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </nav>
+    </div>
+    <div class="mt-auto pt-4 border-t border-gray-700 space-y-2">
+        <button
+            class="flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors w-full"
+    >
+            <i class="fa fa-wifi w-5 h-5"></i>
+            <span id="connection-status"></span>
+        </button>
+    </div>
+</div>
