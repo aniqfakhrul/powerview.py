@@ -155,3 +155,18 @@ document.addEventListener('DOMContentLoaded', function() {
     // Run fetchSingleCommandLogs in the background
     setInterval(fetchSingleCommandLogs, 10000); // Fetch every 10 seconds
 });
+
+async function handleHttpError(response) {
+    if (!response.ok) {
+        if (response.status === 400) {
+            const errorResponse = await response.json();
+            if (errorResponse.error) {
+                alert(errorResponse.error);
+            } else {
+                alert('An unknown error occurred.');
+            }
+        } else {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+    }
+}

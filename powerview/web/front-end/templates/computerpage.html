@@ -18,24 +18,6 @@
                         <button id="enabled-users-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
                             Enabled Users Only
                         </button>
-                        <button id="preauth-not-required-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Preauth Not Required
-                        </button>
-                        <button id="pass-not-required-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Password Not Required
-                        </button>
-                        <button id="admin-count-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Admin Count
-                        </button>
-                        <button id="lockout-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Lockout
-                        </button>
-                        <button id="allow-delegation-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Allow Delegation
-                        </button>
-                        <button id="disallow-delegation-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Disallow Delegation
-                        </button>
                         <button id="rbcd-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
                             RBCD
                         </button>
@@ -48,8 +30,23 @@
                         <button id="disabled-users-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
                             Disabled Users Only
                         </button>
-                        <button id="password-expired-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Password Expired
+                        <button id="laps-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
+                            LAPS
+                        </button>
+                        <button id="printers-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
+                            Printers
+                        </button>
+                        <button id="bitlocker-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
+                            Bitlocker
+                        </button>
+                        <button id="gmsapassword-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
+                            GMSA Password
+                        </button>
+                        <button id="pre2k-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
+                            Pre-2000
+                        </button>
+                        <button id="excludedcs-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
+                            Exclude Domain Controllers
                         </button>
                         <div class="flex items-center">
                             <div class="relative w-full">
@@ -61,8 +58,8 @@
                                 </button>
                             </div>
                         </div>
-                        <button id="search-users-button" class="w-full mt-2 bg-blue-700 text-white py-1 px-2 rounded-lg shadow hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300">
-                            Search Users
+                        <button id="search-computers-button" class="w-full mt-2 bg-blue-700 text-white py-1 px-2 rounded-lg shadow hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                            Search Computers
                         </button>
                     </div>
                 </div>
@@ -75,22 +72,22 @@
                             <line x1="12" x2="12" y1="8" y2="12"></line>
                             <line x1="12" x2="12.01" y1="16" y2="16"></line>
                         </svg>
-                        <h2 class="text-lg font-semibold">Users</h2>
+                        <h2 class="text-lg font-semibold">Computers</h2>
                     </div>
-                    <button data-modal-target="add-user-modal" data-modal-toggle="add-user-modal" class="block text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800" type="button">
-                        Add User
+                    <button data-modal-target="add-computer-modal" data-modal-toggle="add-computer-modal" class="block text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800" type="button">
+                        Add Computer
                     </button>
                 </div>
                 <!-- Search Bar -->
                 <div class="m-4">
-                    <input type="text" id="user-search" class="w-full p-2 border rounded" placeholder="Filter users...">
+                    <input type="text" id="computer-search" class="w-full p-2 border rounded" placeholder="Filter computers...">
                 </div>
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead>
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hostname</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">samAccountName</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Operating System</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                         </tr>
@@ -106,5 +103,5 @@
 
 {% block scripts %}
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/users.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/computer.js') }}"></script>
 {% endblock %}

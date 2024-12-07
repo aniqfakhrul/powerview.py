@@ -9,17 +9,12 @@
                     <li>
                         {% if item.link %}
                             <a href="{{ item.link }}" class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ item.icon }}"></path>
-                                </svg>
+                                <i class="fa {{ item.icon }} w-5 h-5"></i>
                                 <span>{{ item.name }}</span>
                             </a>
                         {% else %}
                             <button id="{{ item.button_id }}" class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="{{ item.icon }}"></path>
-                                    <circle cx="12" cy="12" r="10"></circle>
-                                </svg>
+                                <i class="fa {{ item.icon }} w-5 h-5"></i>
                                 <span>{{ item.name }}</span>
                             </button>
                         {% endif %}
