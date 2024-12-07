@@ -209,14 +209,14 @@ class PowerView:
 			if args.trustedtoauth:
 				logging.debug('[Get-DomainUser] Searching for users that are trusted to authenticate for other principals')
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=16777216)'
-				properties += ['msds-AllowedToDelegateTo']
+				properties.add('msds-AllowedToDelegateTo')
 			if args.rbcd:
 				logging.debug('[Get-DomainUser] Searching for users that are configured to allow resource-based constrained delegation')
 				ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
 			if args.shadowcred:
 				logging.debug("[Get-DomainUser] Searching for users that are configured to have msDS-KeyCredentialLink attribute set")
 				ldap_filter += f'(msDS-KeyCredentialLink=*)'
-				properties += ['msDS-KeyCredentialLink']
+				properties.add('msDS-KeyCredentialLink')
 			if args.spn:
 				logging.debug("[Get-DomainUser] Searching for users that have SPN attribute set")
 				ldap_filter += f'(servicePrincipalName=*)'
@@ -686,19 +686,20 @@ class PowerView:
 			if args.trustedtoauth:
 				logging.debug("[Get-DomainComputer] Searching for computers that are trusted to authenticate for other principals")
 				ldap_filter += f'(msds-allowedtodelegateto=*)'
-				properties += ['msds-AllowedToDelegateTo']
+				properties.add('msds-AllowedToDelegateTo')
 			if args.laps:
 				logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
 				ldap_filter += f'(ms-Mcs-AdmPwd=*)'
-				properties += ['ms-MCS-AdmPwd','ms-Mcs-AdmPwdExpirationTime']
+				properties.add('ms-MCS-AdmPwd')
+				properties.add('ms-Mcs-AdmPwdExpirationTime')
 			if args.rbcd:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
 				ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
-				properties += ['msDS-AllowedToActOnBehalfOfOtherIdentity']
+				properties.add('msDS-AllowedToActOnBehalfOfOtherIdentity')
 			if args.shadowcred:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to have msDS-KeyCredentialLink attribute set")
 				ldap_filter += f'(msDS-KeyCredentialLink=*)'
-				properties += ['msDS-KeyCredentialLink']
+				properties.add('msDS-KeyCredentialLink')
 			if args.printers:
 				logging.debug("[Get-DomainComputer] Searching for printers")
 				ldap_filter += f'(objectCategory=printQueue)'
@@ -711,16 +712,17 @@ class PowerView:
 			if args.bitlocker:
 				logging.debug("[Get-DomainComputer] Searching for computers with BitLocker keys")
 				ldap_filter += f'(objectClass=msFVE-RecoveryInformation)'
-				properties += ["msFVE-KeyPackage", "msFVE-RecoveryGuid", "msFVE-RecoveryPassword", "msFVE-VolumeGuid"]
+				properties.add('msFVE-KeyPackage')
+				properties.add('msFVE-RecoveryGuid')
+				properties.add('msFVE-RecoveryPassword')
+				properties.add('msFVE-VolumeGuid')
 			if args.gmsapassword:
 				logging.debug("[Get-DomainComputer] Searching for computers with GSMA password stored")
 				ldap_filter += f'(objectClass=msDS-GroupManagedServiceAccount)'
-				properties += [
-						"msDS-ManagedPassword",
-						"msDS-GroupMSAMembership",
-						"msDS-ManagedPasswordInterval",
-						"msDS-ManagedPasswordId"
-					]
+				properties.add('msDS-ManagedPassword')
+				properties.add('msDS-GroupMSAMembership')
+				properties.add('msDS-ManagedPasswordInterval')
+				properties.add('msDS-ManagedPasswordId')
 			if args.pre2k:
 				logging.debug("[Get-DomainComputer] Search for Pre-Created Windows 2000 computer")
 				ldap_filter += f'(userAccountControl=4128)(logonCount=0)'

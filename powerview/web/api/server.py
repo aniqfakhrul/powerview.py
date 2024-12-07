@@ -8,7 +8,7 @@ import sys
 import threading
 from datetime import date
 import shlex
-
+from argparse import Namespace
 from powerview.web.api.helpers import make_serializable
 from powerview.utils.parsers import powerview_arg_parse
 
@@ -31,12 +31,14 @@ class APIServer:
 		# Define routes
 		self.app.add_url_rule('/', 'index', self.render_index, methods=['GET'])
 		self.app.add_url_rule('/users', 'users', self.render_users, methods=['GET'])
+		self.app.add_url_rule('/computers', 'computers', self.render_computers, methods=['GET'])
 		self.app.add_url_rule('/utils', 'utils', self.render_utils, methods=['GET'])
 		self.app.add_url_rule('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		self.app.add_url_rule('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
 		self.app.add_url_rule('/api/add/<method_name>', 'add_operation', self.handle_add_operation, methods=['POST'])
 		self.app.add_url_rule('/api/invoke/<method_name>', 'invoke_operation', self.handle_invoke_operation, methods=['POST'])
 		self.app.add_url_rule('/api/remove/<method_name>', 'remove_operation', self.handle_remove_operation, methods=['POST'])
+		self.app.add_url_rule('/api/convert/<method_name>', 'convert_operation', self.handle_convert_operation, methods=['POST'])
 		self.app.add_url_rule('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, methods=['GET'])
 		self.app.add_url_rule('/health', 'health', self.handle_health, methods=['GET'])
 		self.app.add_url_rule('/api/status', 'status', self.handle_status, methods=['GET'])
@@ -46,10 +48,11 @@ class APIServer:
 		self.app.add_url_rule('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
 
 		self.nav_items = [
-			{"name": "Tree View", "icon": "M17 20h5v-2a3 3 0 00-3-3h-4a3 3 0 00-3 3v2h5zM9 20H4v-2a3 3 0 013-3h4a3 3 0 013 3v2H9zM7 10a3 3 0 100-6 3 3 0 000 6zm10 0a3 3 0 100-6 3 3 0 000 6z", "link": "/"},
-			{"name": "Users", "icon": "M12 8v4l3 3", "link": "/users"},
-			{"name": "Utils", "icon": "M12 8v4l3 3", "link": "/utils"},
-			{"name": "Logs", "icon": "M12 8v4l3 3", "button_id": "toggle-command-history"},
+			{"name": "Tree View", "icon": "fa-tree", "link": "/"},
+			{"name": "Users", "icon": "fa-user", "link": "/users"},
+			{"name": "Computers", "icon": "fa-server", "link": "/computers"},
+			{"name": "Utils", "icon": "fa-wrench", "link": "/utils"},
+			{"name": "Logs", "icon": "fa-file-alt", "button_id": "toggle-command-history"},
 		]
 
 	def render_index(self):
@@ -63,6 +66,12 @@ class APIServer:
 			'nav_items': self.nav_items
 		}
 		return render_template('userspage.html', **context)
+
+	def render_computers(self):
+		context = {
+			'nav_items': self.nav_items
+		}
+		return render_template('computerpage.html', **context)
 
 	def render_utils(self):
 		context = {
@@ -84,6 +93,9 @@ class APIServer:
 
 	def handle_remove_operation(self, method_name):
 		return self.handle_operation(f"remove_{method_name}")
+
+	def handle_convert_operation(self, method_name):
+		return self.handle_operation(f"convertfrom_{method_name}")
 
 	def handle_domaininfo(self):
 		domain_info = {
@@ -203,12 +215,16 @@ class APIServer:
 
 		params = request.args.to_dict() if request.method == 'GET' else request.json or {}
 
+		if 'args' in params:
+			params['args'] = Namespace(**params['args'])
+		
 		try:
 			result = method(**params)
 			serializable_result = make_serializable(result)
 			return jsonify(serializable_result)
 		except Exception as e:
-			return jsonify({'error': str(e)}), 500
+			logging.error(f"Powerview API Error: {full_method_name}: {str(e)}")
+			return jsonify({'error': str(e)}), 400
 
 	def start(self):
 		log = logging.getLogger('werkzeug')

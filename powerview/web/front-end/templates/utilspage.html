@@ -1,5 +1,84 @@
 {% extends "base/layouts.html" %}
-
+{% block head %}
+    
+{% endblock %}
 {% block content %}
-    {% include 'views/utilsview.html' %}
+    <!-- Utils Panel -->
+    <div class="flex-1 overflow-y-auto" id="utils-panel">
+        <div class="grid grid-cols-2 gap-4 m-4">
+            <!-- ConvertFrom_SID Panel -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" x2="12" y1="8" y2="12"></line>
+                        <line x1="12" x2="12.01" y1="16" y2="16"></line>
+                    </svg>
+                    <h2 class="text-lg font-semibold">ConvertFrom_SID</h2>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Enter SID
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="S-1-5-21-..."
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                    </div>
+
+                    <!-- Error message placeholder -->
+                    <p class="text-sm text-red-600 hidden">Error message here</p>
+
+                    <button class="w-full bg-blue-500 text-white py-2 rounded-md shadow-sm hover:bg-blue-600" id="convertfromsid-button">
+                        Convert
+                    </button>
+
+                    <!-- Result placeholder -->
+                    <div class="mt-4 p-4 bg-gray-50 rounded-md hidden" id="convertfromsid-result">
+                        <h3 class="text-sm font-medium text-gray-700 mb-1">Result:</h3>
+                        <p class="text-sm font-mono">Result content here</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ConvertFrom_UAC Panel -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" x2="12" y1="8" y2="12"></line>
+                        <line x1="12" x2="12.01" y1="16" y2="16"></line>
+                    </svg>
+                    <h2 class="text-lg font-semibold">ConvertFrom_UAC</h2>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Enter UAC Value
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="Enter UAC value..."
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                    </div>
+
+                    <!-- Error message placeholder -->
+                    <p class="text-sm text-red-600 hidden">Error message here</p>
+
+                    <button class="w-full bg-blue-500 text-white py-2 rounded-md shadow-sm hover:bg-blue-600" id="convertfromuac-button">
+                        Convert
+                    </button>
+
+                    <!-- Result placeholder -->
+                    <div class="mt-4 p-4 bg-gray-50 rounded-md hidden" id="convertfromuac-result">
+                        <h3 class="text-sm font-medium text-gray-700 mb-1">Result:</h3>
+                        <p class="text-sm font-mono">Result content here</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 {% endblock %}

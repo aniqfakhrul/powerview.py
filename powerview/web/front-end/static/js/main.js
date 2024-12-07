@@ -6,8 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function executePowerViewCommand() {
         const commandInput = document.getElementById('ldap-filter');
-        const command = commandInput.value.trim();
+        if (!commandInput) return;
 
+        const command = commandInput.value.trim();
         if (!command) {
             alert('Please enter a PowerView command.');
             return;
@@ -104,6 +105,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function createTreeNode(dn) {
         const treeView = document.getElementById('tree-view');
+        if (!treeView) return;
+
         const div = document.createElement('div');
         div.classList.add('flex', 'items-center', 'gap-1', 'p-1', 'hover:bg-gray-100', 'rounded', 'cursor-pointer');
 
@@ -328,7 +331,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Create header
         const headerDiv = document.createElement('div');
-        headerDiv.className = 'flex items-center justify-between gap-2 p-4 border-b';
+        headerDiv.className = 'flex items-center justify-between gap-2 p-4 border-b sticky top-0 bg-white z-10';
+
 
         const headerContentDiv = document.createElement('div');
         headerContentDiv.className = 'flex items-center gap-2';
@@ -415,12 +419,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function checkConnectionStatus() {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // Set timeout to 5 seconds
+
         try {
             const response = await fetch('/api/status', {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
-                }
+                },
+                signal: controller.signal
             });
 
             const statusElement = document.getElementById('connection-status');
@@ -447,11 +455,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error('Failed to fetch status');
             }
         } catch (error) {
+            const statusElement = document.getElementById('connection-status');
+            const iconElement = document.querySelector('.fa-wifi');
+
+            statusElement.textContent = 'Disconnected';
+            statusElement.classList.remove('text-green-400');
+            statusElement.classList.add('text-red-400');
+
+            iconElement.classList.remove('text-green-400');
+            iconElement.classList.add('text-red-400');
+
             console.error('Error checking connection status:', error);
+        } finally {
+            clearTimeout(timeoutId);
         }
     }
 
-    setInterval(checkConnectionStatus, 30000);
+    setInterval(checkConnectionStatus, 300000);
 
     // function openModal(userDetails) {
     //     const modal = document.getElementById('user-modal');
@@ -488,8 +508,73 @@ document.addEventListener('DOMContentLoaded', () => {
     //         openModal(userDetails);
     //     });
     // });
+    const convertFromSidButton = document.querySelector('#convertfromsid-button');
+    if (convertFromSidButton) {
+        convertFromSidButton.addEventListener('click', async () => {
+            const sidInput = document.querySelector('input[placeholder="S-1-5-21-..."]').value.trim();
+            if (!sidInput) {
+                alert('Please enter a SID.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/convert/sid', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ objectsid: sidInput })
+                });
+
+                const data = await response.json();
+                // console.log('ConvertFrom_SID result:', data);
+
+                // Display the result
+                const resultElement = document.getElementById('convertfromsid-result');
+                resultElement.querySelector('p').textContent = JSON.stringify(data, null, 2);
+                resultElement.classList.remove('hidden');
+            } catch (error) {
+                console.error('Error converting SID:', error);
+            }
+        });
+    }
+
+    // Check if the ConvertFrom_UAC button exists before adding an event listener
+    const convertFromUacButton = document.querySelector('#convertfromuac-button');
+    if (convertFromUacButton) {
+        convertFromUacButton.addEventListener('click', async () => {
+            const uacInput = document.querySelector('input[placeholder="Enter UAC value..."]').value.trim();
+            if (!uacInput) {
+                alert('Please enter a UAC value.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/convert/uacvalue', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ value: uacInput })
+                });
+
+                const data = await response.json();
+                // console.log('ConvertFrom_UAC result:', data);
+
+                // Display the result in a prettier format
+                const resultElement = document.getElementById('convertfromuac-result');
+                const formattedData = data.map(item => `<li>${item.attributes.Name}: ${item.attributes.Value}</li>`).join('');
+                resultElement.querySelector('p').innerHTML = `<ul>${formattedData}</ul>`;
+                resultElement.classList.remove('hidden');
+            } catch (error) {
+                console.error('Error converting UAC:', error);
+            }
+        });
+    }
 
     initialize();
     const executeButton = document.querySelector('button#execute-button');
-    executeButton.addEventListener('click', executePowerViewCommand);
+    if (executeButton) {
+        executeButton.addEventListener('click', executePowerViewCommand);
+    }
 });

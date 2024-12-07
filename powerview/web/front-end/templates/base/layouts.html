@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
-    {% block head %}
+    <head>
         {% include 'base/header.html' %}
-    {% endblock %}
+        {% block head %}
+        {% endblock %}
+    </head>
 <body>
     <div class="flex h-screen bg-gray-100">
         <!-- Sidebar -->
@@ -17,13 +19,18 @@
                 {% endblock %}
                 {% include 'views/commandhistory.html' %}
                 {% include 'views/detailspanel.html' %}
+                {% include 'views/modal.html' %}
             </div>
         </div>
     </div>
 
     <!-- Footer -->
-    {% block footer %}
+    <!-- {% block footer %}
         {% include 'base/footer.html' %}
+    {% endblock %} -->
+
+    <!-- Scripts -->
+    {% block scripts %}
     {% endblock %}
 </body>
 </html>
