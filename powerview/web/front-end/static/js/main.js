@@ -103,41 +103,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function createTreeNode(dn) {
-        const treeView = document.getElementById('tree-view');
-        if (!treeView) return;
+function createTreeNode(dn) {
+    const treeView = document.getElementById('tree-view');
+    if (!treeView) return;
 
-        const div = document.createElement('div');
-        div.classList.add('flex', 'items-center', 'gap-1', 'p-1', 'hover:bg-gray-100', 'rounded', 'cursor-pointer');
+    const div = document.createElement('div');
+    div.classList.add('flex', 'items-center', 'gap-1', 'p-1', 'hover:bg-gray-100', 'rounded', 'cursor-pointer');
 
-        const folderIcon = document.createElement('svg');
-        folderIcon.classList.add('w-4', 'h-4', 'text-yellow-500');
-        folderIcon.setAttribute('fill', 'none');
-        folderIcon.setAttribute('stroke', 'currentColor');
-        folderIcon.setAttribute('viewBox', '0 0 24 24');
-        folderIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-        folderIcon.innerHTML = '<path d="M3 7v4a1 1 0 001 1h3m10 0h3a1 1 0 001-1V7m-4 0V5a2 2 0 00-2-2H8a2 2 0 00-2 2v2m0 0h12"></path>';
+    const buildingIcon = document.createElement('i');
+    buildingIcon.classList.add('far', 'fa-folder', 'w-4', 'h-4', 'text-yellow-500');
 
-        div.appendChild(folderIcon);
-        div.innerHTML += `<span>${dn}</span>`;
+    div.appendChild(buildingIcon);
+    div.innerHTML += `<span>${dn}</span>`;
 
-        div.addEventListener('click', async (event) => {
-            event.stopPropagation();
+    div.addEventListener('click', async (event) => {
+        event.stopPropagation();
 
-            let subtreeContainer = div.nextElementSibling;
-            if (subtreeContainer && subtreeContainer.classList.contains('subtree')) {
-                subtreeContainer.remove();
-                return;
+        let subtreeContainer = div.nextElementSibling;
+        if (subtreeContainer && subtreeContainer.classList.contains('subtree')) {
+            subtreeContainer.remove();
+            return;
+        }
+
+        const itemData = await fetchItemData(dn, 'BASE');
+        if (itemData) {
+            populateResultsPanel(itemData);
+            toggleSubtree(dn, div);
+        }
+    });
+
+    treeView.appendChild(div);
+}
+
+    async function fetchGroupMembers(groupName) {
+        try {
+            const response = await fetch('/api/get/domaingroupmember', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ identity: groupName })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            const itemData = await fetchItemData(dn, 'BASE');
-            if (itemData) {
-                populateResultsPanel(itemData);
-                toggleSubtree(dn, div);
-            }
-        });
-
-        treeView.appendChild(div);
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Error fetching group members:', error);
+            return null;
+        }
     }
 
     async function fetchItemData(identity, search_scope = 'LEVEL') {
@@ -209,25 +226,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const objDiv = document.createElement('div');
             objDiv.classList.add('flex', 'items-center', 'gap-1', 'p-1', 'hover:bg-gray-100', 'rounded', 'cursor-pointer');
 
-            let iconClass = 'fa-folder'; // Default outlined icon
+            let iconClasses = ['far', 'fa-folder']; // Default outlined icon
             let iconColorClass = 'text-blue-500'; // Default color for most objects
 
             if (obj.attributes.objectClass.includes('group')) {
-                iconClass = 'fa-users'; // Use fa-users for groups
+                iconClasses = ['fas', 'fa-users']; // Use fa-users for groups
             } else if (obj.attributes.objectClass.includes('container')) {
-                iconClass = 'fa-box'; // Use fa-box-open for containers
+                iconClasses = ['fas', 'fa-folder']; // Use fa-box-open for containers
                 iconColorClass = 'text-yellow-500'; // Yellow for containers
             } else if (obj.attributes.objectClass.includes('computer')) {
-                iconClass = 'fa-desktop'; // Use fa-desktop for computers
+                iconClasses = ['fas', 'fa-desktop']; // Use fa-desktop for computers
             } else if (obj.attributes.objectClass.includes('user')) {
-                iconClass = 'fa-user-circle'; // Use fa-user-circle for users
+                iconClasses = ['far', 'fa-user']; // Use fa-user-circle for users
             } else if (obj.attributes.objectClass.includes('organizationalUnit')) {
-                iconClass = 'fa-building'; // Use fa-building for organizational units
+                iconClasses = ['far', 'fa-building']; // Use fa-building for organizational units
                 iconColorClass = 'text-yellow-500'; // Yellow for organizational units
             }
 
             const icon = document.createElement('i');
-            icon.classList.add('fas', iconClass, 'w-4', 'h-4', 'mr-1', iconColorClass);
+            icon.classList.add(...iconClasses, 'w-4', 'h-4', 'mr-1', iconColorClass);
 
             objDiv.appendChild(icon);
             objDiv.innerHTML += `<span>${obj.attributes.name || obj.dn}</span>`;

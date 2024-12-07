@@ -341,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Collect current values based on data-active attribute
         const currentArgs = {
             unconstrained: document.getElementById('unconstrained-delegation-toggle').getAttribute('data-active') === 'true',
-            enabled: document.getElementById('enabled-users-toggle').getAttribute('data-active') === 'true',
+            enabled: document.getElementById('enabled-computers-toggle').getAttribute('data-active') === 'true',
             disabled: document.getElementById('disabled-users-toggle').getAttribute('data-active') === 'true',
             trustedtoauth: document.getElementById('trusted-to-auth-toggle').getAttribute('data-active') === 'true',
             laps: document.getElementById('laps-toggle').getAttribute('data-active') === 'true',

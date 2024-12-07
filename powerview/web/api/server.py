@@ -48,11 +48,11 @@ class APIServer:
 		self.app.add_url_rule('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
 
 		self.nav_items = [
-			{"name": "Tree View", "icon": "fa-tree", "link": "/"},
-			{"name": "Users", "icon": "fa-user", "link": "/users"},
-			{"name": "Computers", "icon": "fa-server", "link": "/computers"},
-			{"name": "Utils", "icon": "fa-wrench", "link": "/utils"},
-			{"name": "Logs", "icon": "fa-file-alt", "button_id": "toggle-command-history"},
+			{"name": "Tree View", "icon": "fas fa-folder-tree", "link": "/"},
+			{"name": "Users", "icon": "far fa-user", "link": "/users"},
+			{"name": "Computers", "icon": "fas fa-display", "link": "/computers"},
+			{"name": "Utils", "icon": "fas fa-toolbox", "link": "/utils"},
+			{"name": "Logs", "icon": "far fa-file-alt", "button_id": "toggle-command-history"},
 		]
 
 	def render_index(self):
