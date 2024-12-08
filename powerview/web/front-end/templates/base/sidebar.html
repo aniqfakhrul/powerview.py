@@ -6,19 +6,38 @@
         <nav>
             <ul class="space-y-2">
                 {% for item in nav_items %}
-                    <li>
-                        {% if item.link %}
+                    {% if item.name == "Modules" %}
+                        <li>
+                            <div class="w-full flex items-center gap-2 px-4 py-2 rounded text-gray-400 cursor-default">
+                                <i class="fas fa-cubes w-5 h-5"></i>
+                                <span class="underline">{{ item.name }}</span>
+                            </div>
+                            <ul class="pl-4 space-y-2">
+                                {% for subitem in item.subitems %}
+                                    <li>
+                                        <a href="{{ subitem.link }}" class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
+                                            <i class="{{ subitem.icon }} w-5 h-5"></i>
+                                            <span>{{ subitem.name }}</span>
+                                        </a>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </li>
+                    {% elif item.link %}
+                        <li>
                             <a href="{{ item.link }}" class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
                                 <i class="{{ item.icon }} w-5 h-5"></i>
                                 <span>{{ item.name }}</span>
                             </a>
-                        {% else %}
+                        </li>
+                    {% else %}
+                        <li>
                             <button id="{{ item.button_id }}" class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
                                 <i class="{{ item.icon }} w-5 h-5"></i>
                                 <span>{{ item.name }}</span>
                             </button>
-                        {% endif %}
-                    </li>
+                        </li>
+                    {% endif %}
                 {% endfor %}
             </ul>
         </nav>

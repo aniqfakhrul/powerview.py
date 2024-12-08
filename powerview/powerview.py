@@ -179,7 +179,12 @@ class PowerView:
 			'description', 'lastLogoff', 'lastLogon', 'memberof', 'objectSid', 'userPrincipalName', 
 			'pwdLastSet', 'badPwdCount', 'badPasswordTime', 'msDS-SupportedEncryptionTypes'
 		]
-		properties = set(properties or def_prop)
+		
+		if args and hasattr(args, 'properties') and args.properties:
+			properties = set(args.properties)
+		else:
+			properties = set(properties or def_prop)
+		
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
 
@@ -190,6 +195,8 @@ class PowerView:
 
 		if identity:
 			identity_filter += f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
+		elif args and args.identity:
+			identity_filter += f"(|(sAMAccountName={args.identity})(distinguishedName={args.identity}))"
 
 		if args:
 			if args.preauthnotrequired:
@@ -662,7 +669,11 @@ class PowerView:
 			'description'
 		]
 
-		properties = set(properties or def_prop)
+		if args and hasattr(args, 'properties') and args.properties:
+			properties = set(args.properties)
+		else:
+			properties = set(properties or def_prop)
+
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
@@ -673,6 +684,8 @@ class PowerView:
 
 		if identity:
 			identity_filter += f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
+		elif args and args.identity:
+			identity_filter += f"(|(name={args.identity})(sAMAccountName={args.identity})(dnsHostName={args.identity}))"
 
 		if ldapfilter:
 			ldap_filter += ldapfilter

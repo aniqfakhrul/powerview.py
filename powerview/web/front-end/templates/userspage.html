@@ -3,96 +3,118 @@
 {% block content %}
     <!-- Modules Panel -->
     <div class="flex-1 overflow-y-auto" id="modules-panel">
-        <div class="grid grid-cols-4 gap-4 m-4">
+        <div class="grid grid-cols-6 gap-4 m-4">
             <!-- Query Builder Card -->
             <div class="col-span-1">
                 <div class="p-4 bg-white rounded-lg shadow p-4">
                     <h2 class="text-lg font-semibold mb-2">Query Parameters</h2>
                     <div class="space-y-2">
-                        <button id="spn-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            SPN
-                        </button>
-                        <button id="trusted-to-auth-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Trusted To Auth
-                        </button>
-                        <button id="enabled-users-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Enabled Users Only
-                        </button>
-                        <button id="preauth-not-required-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Preauth Not Required
-                        </button>
-                        <button id="pass-not-required-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Password Not Required
-                        </button>
-                        <button id="admin-count-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Admin Count
-                        </button>
-                        <button id="lockout-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Lockout
-                        </button>
-                        <button id="allow-delegation-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Allow Delegation
-                        </button>
-                        <button id="disallow-delegation-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Disallow Delegation
-                        </button>
-                        <button id="rbcd-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            RBCD
-                        </button>
-                        <button id="shadow-cred-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Shadow Credentials
-                        </button>
-                        <button id="unconstrained-delegation-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Unconstrained Delegation
-                        </button>
-                        <button id="disabled-users-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Disabled Users Only
-                        </button>
-                        <button id="password-expired-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
-                            Password Expired
-                        </button>
                         <div class="flex items-center">
                             <div class="relative w-full">
-                                <input type="text" id="ldap-filter-input" class="w-full border rounded p-1 pr-10 text-center" placeholder="Additional LDAP Filter">
-                                <button id="clear-ldap-filter" class="absolute inset-y-0 right-0 px-2 text-gray-400 hover:text-gray-600 focus:outline-none">
+                                <input type="text" id="identity-input" class="w-full border rounded p-1 pr-10" placeholder="Identity">
+                                <button id="clear-input" class="absolute inset-y-0 right-0 px-2 text-gray-400 hover:text-gray-600 focus:outline-none">
                                     <i class="fa-solid fa-xmark"></i>
                                 </button>
                             </div>
                         </div>
-                        <button id="search-users-button" class="w-full mt-2 bg-blue-700 text-white py-1 px-2 rounded-lg shadow hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                        <button id="spn-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
+                            SPN
+                        </button>
+                        <button id="trusted-to-auth-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
+                            Trusted To Auth
+                        </button>
+                        <button id="enabled-users-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
+                            Enabled Users Only
+                        </button>
+                        <button id="preauth-not-required-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
+                            Preauth Not Required
+                        </button>
+                        <button id="pass-not-required-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
+                            Password Not Required
+                        </button>
+                        <button id="admin-count-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
+                            Admin Count
+                        </button>
+                        <button id="lockout-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
+                            Lockout
+                        </button>
+                        <button id="allow-delegation-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
+                            Allow Delegation
+                        </button>
+                        <button id="disallow-delegation-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
+                            Disallow Delegation
+                        </button>
+                        <button id="rbcd-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
+                            RBCD
+                        </button>
+                        <button id="shadow-cred-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
+                            Shadow Credentials
+                        </button>
+                        <button id="unconstrained-delegation-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
+                            Unconstrained Delegation
+                        </button>
+                        <button id="disabled-users-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
+                            Disabled Users Only
+                        </button>
+                        <button id="password-expired-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
+                            Password Expired
+                        </button>
+                        <div class="flex items-center">
+                            <div class="relative w-full">
+                                <input type="text" id="ldap-filter-input" class="w-full border rounded p-1 pr-10" placeholder="Additional LDAP Filter">
+                                <button id="clear-input" class="absolute inset-y-0 right-0 px-2 text-gray-400 hover:text-gray-600 focus:outline-none">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="relative w-full">
+                                <input type="text" id="searchbase-input" class="w-full border rounded p-1 pr-10" placeholder="Search Base">
+                                <button id="clear-searchbase" class="absolute inset-y-0 right-0 px-2 text-gray-400 hover:text-gray-600 focus:outline-none">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <button id="search-users-button" class="w-full mt-2 bg-blue-700 text-white py-0.5 px-1.5 rounded-lg shadow hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 text-sm" data-active="false">
                             Search Users
                         </button>
                     </div>
                 </div>
+                <!-- Properties Card -->
+                <div class="p-4 bg-white rounded-lg shadow p-4 mt-4">
+                    <h2 class="text-lg font-semibold mb-2">Attributes</h2>
+                    <div class="space-y-2" id="properties-container">
+                        {% for property in ldap_properties %}
+                        <button id="{{ property.id }}" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="{{ property.active }}" data-ldap-attribute="{{ property.attribute }}">
+                            {{ property.name }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
-            <div class="col-span-3 bg-white rounded-lg shadow p-4">
+            <div class="col-span-5 bg-white rounded-lg shadow p-4">
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-user"></i>
                         <h2 class="text-lg font-semibold">Users</h2>
                     </div>
-                    <button data-modal-target="add-user-modal" data-modal-toggle="add-user-modal" class="block text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800" type="button">
+                    <button data-modal-target="add-user-modal" data-modal-toggle="add-user-modal" class="block text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-1.5 text-center dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800" type="button">
                         Add User
                     </button>
                 </div>
                 <!-- Search Bar -->
-                <div class="m-4">
+                <div>
                     <input type="text" id="user-search" class="w-full p-2 border rounded" placeholder="Filter users...">
                 </div>
-                <table class="w-full text-left text-sm text-neutral-600 dark:text-neutral-300">
-                    <thead class="border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
-                        <tr>
-                            <th scope="col" class="p-4">Name</th>
-                            <th scope="col" class="p-4">Email</th>
-                            <th scope="col" class="p-4">Role</th>
-                            <th scope="col" class="p-4">Status</th>
-                            <th scope="col" class="p-4">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        <!-- Rows will be populated by JavaScript -->
-                    </tbody>
-                </table>
+                <div class="overflow-x-auto overflow-y-auto" style="max-height: 500px;">
+                    <table class="w-full text-left text-sm text-neutral-600 dark:text-neutral-300" id="users-result-table">
+                        <thead class="border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <!-- Rows will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

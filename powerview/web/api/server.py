@@ -49,8 +49,10 @@ class APIServer:
 
 		self.nav_items = [
 			{"name": "Tree View", "icon": "fas fa-folder-tree", "link": "/"},
-			{"name": "Users", "icon": "far fa-user", "link": "/users"},
-			{"name": "Computers", "icon": "fas fa-display", "link": "/computers"},
+			{"name": "Modules", "icon": "fas fa-cubes", "subitems": [
+				{"name": "Users", "icon": "far fa-user", "link": "/users"},
+				{"name": "Computers", "icon": "fas fa-display", "link": "/computers"},
+			]},
 			{"name": "Utils", "icon": "fas fa-toolbox", "link": "/utils"},
 			{"name": "Logs", "icon": "far fa-file-alt", "button_id": "toggle-command-history"},
 		]
@@ -63,13 +65,46 @@ class APIServer:
 
 	def render_users(self):
 		context = {
-			'nav_items': self.nav_items
+			'nav_items': self.nav_items,
+			'ldap_properties': [
+				{'id': 'all-toggle', 'name': 'All', 'active': 'false', 'attribute': '*'},
+				{'id': 'samaccountname-toggle', 'name': 'sAMAccountname', 'active': 'true', 'attribute': 'sAMAccountName'},
+				{'id': 'cn-toggle', 'name': 'cn', 'active': 'true', 'attribute': 'cn'},
+				{'id': 'mail-toggle', 'name': 'mail', 'active': 'true', 'attribute': 'mail'},
+				{'id': 'admincount-toggle', 'name': 'adminCount', 'active': 'true', 'attribute': 'adminCount'},
+				{'id': 'userprincipalname-toggle', 'name': 'userPrincipalName', 'active': 'false', 'attribute': 'userPrincipalName'},
+				{'id': 'useraccountcontrol-toggle', 'name': 'userAccountControl', 'active': 'false', 'attribute': 'userAccountControl'},
+				{'id': 'objectclass-toggle', 'name': 'objectClass', 'active': 'false', 'attribute': 'objectClass'},
+				{'id': 'description-toggle', 'name': 'description', 'active': 'false', 'attribute': 'description'},
+				{'id': 'distinguishedname-toggle', 'name': 'distinguishedName', 'active': 'false', 'attribute': 'distinguishedName'},
+				{'id': 'name-toggle', 'name': 'name', 'active': 'false', 'attribute': 'name'},
+				{'id': 'objectguid-toggle', 'name': 'objectGUID', 'active': 'false', 'attribute': 'objectGUID'},
+				{'id': 'objectsid-toggle', 'name': 'objectSid', 'active': 'false', 'attribute': 'objectSid'},
+				{'id': 'title-toggle', 'name': 'title', 'active': 'false', 'attribute': 'title'},
+				{'id': 'department-toggle', 'name': 'department', 'active': 'false', 'attribute': 'department'},
+				{'id': 'company-toggle', 'name': 'company', 'active': 'false', 'attribute': 'company'},
+				{'id': 'physicaldeliveryofficename-toggle', 'name': 'physicalDeliveryOfficeName', 'active': 'false', 'attribute': 'physicalDeliveryOfficeName'},
+				{'id': 'serviceprincipalname-toggle', 'name': 'servicePrincipalName', 'active': 'false', 'attribute': 'servicePrincipalName'},
+				{'id': 'memberof-toggle', 'name': 'memberOf', 'active': 'false', 'attribute': 'memberOf'},
+				{'id': 'accountexpires-toggle', 'name': 'accountExpires', 'active': 'false', 'attribute': 'accountExpires'}
+			]
 		}
 		return render_template('userspage.html', **context)
 
 	def render_computers(self):
 		context = {
-			'nav_items': self.nav_items
+			'nav_items': self.nav_items,
+			'ldap_properties': [
+				{'id': 'all-toggle', 'name': 'All', 'active': 'false', 'attribute': '*'},
+				{'id': 'samaccountname-toggle', 'name': 'sAMAccountname', 'active': 'true', 'attribute': 'sAMAccountName'},
+				{'id': 'cn-toggle', 'name': 'cn', 'active': 'true', 'attribute': 'cn'},
+				{'id': 'operatingsystem-toggle', 'name': 'operatingSystem', 'active': 'true', 'attribute': 'operatingSystem'},
+				{'id': 'operatingsystemversion-toggle', 'name': 'operatingSystemVersion', 'active': 'true', 'attribute': 'operatingSystemVersion'},
+				{'id': 'description-toggle', 'name': 'description', 'active': 'false', 'attribute': 'description'},
+				{'id': 'useraccountcontrol-toggle', 'name': 'userAccountControl', 'active': 'false', 'attribute': 'userAccountControl'},
+				{'id': 'serviceprincipalname-toggle', 'name': 'servicePrincipalName', 'active': 'false', 'attribute': 'servicePrincipalName'},
+				{'id': 'memberof-toggle', 'name': 'memberOf', 'active': 'false', 'attribute': 'memberOf'}
+			]
 		}
 		return render_template('computerpage.html', **context)
 
