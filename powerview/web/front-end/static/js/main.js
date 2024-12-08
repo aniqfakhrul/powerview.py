@@ -108,7 +108,7 @@ function createTreeNode(dn) {
     if (!treeView) return;
 
     const div = document.createElement('div');
-    div.classList.add('flex', 'items-center', 'gap-1', 'p-1', 'hover:bg-gray-100', 'rounded', 'cursor-pointer');
+    div.classList.add('flex', 'items-center', 'gap-1', 'hover:bg-gray-100', 'rounded', 'cursor-pointer');
 
     const buildingIcon = document.createElement('i');
     buildingIcon.classList.add('far', 'fa-folder', 'w-4', 'h-4', 'text-yellow-500');
@@ -224,7 +224,7 @@ function createTreeNode(dn) {
 
         dataArray.forEach(obj => {
             const objDiv = document.createElement('div');
-            objDiv.classList.add('flex', 'items-center', 'gap-1', 'p-1', 'hover:bg-gray-100', 'rounded', 'cursor-pointer');
+            objDiv.classList.add('flex', 'items-center', 'gap-1', 'hover:bg-gray-100', 'rounded', 'cursor-pointer');
 
             let iconClasses = ['far', 'fa-folder']; // Default outlined icon
             let iconColorClass = 'text-blue-500'; // Default color for most objects

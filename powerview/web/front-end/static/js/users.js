@@ -50,44 +50,44 @@ document.addEventListener('DOMContentLoaded', () => {
             tr.onclick = (event) => handleLdapLinkClick(event);
 
             const nameTd = document.createElement('td');
-            nameTd.className = 'px-6 py-4 whitespace-nowrap';
+            nameTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
             nameTd.textContent = user.attributes.cn || 'N/A';
             tr.appendChild(nameTd);
 
             const emailTd = document.createElement('td');
-            emailTd.className = 'px-6 py-4 whitespace-nowrap';
+            emailTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
             emailTd.textContent = user.attributes.userPrincipalName || 'N/A';
             tr.appendChild(emailTd);
 
             const roleTd = document.createElement('td');
-            roleTd.className = 'px-6 py-4 whitespace-nowrap';
+            roleTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
             const isAdmin = user.attributes.adminCount && user.attributes.adminCount > 0;
             if (isAdmin) {
                 const roleSpan = document.createElement('span');
-                roleSpan.className = 'px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800';
+                roleSpan.className = 'px-1 inline-flex text-xs leading-4 font-semibold rounded-full bg-blue-100 text-blue-800'; // Adjusted padding and leading for thinner rows
                 roleSpan.textContent = 'Admin';
                 roleTd.appendChild(roleSpan);
             }
             tr.appendChild(roleTd);
 
             const statusTd = document.createElement('td');
-            statusTd.className = 'px-6 py-4 whitespace-nowrap';
+            statusTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
             const statusSpan = document.createElement('span');
             const isActive = !user.attributes.userAccountControl.includes('ACCOUNTDISABLE');
-            statusSpan.className = `px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
+            statusSpan.className = `px-1 inline-flex text-xs leading-4 font-semibold rounded-full ${isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`; // Adjusted padding and leading for thinner rows
             statusSpan.textContent = isActive ? 'Enabled' : 'Disabled';
             statusTd.appendChild(statusSpan);
             tr.appendChild(statusTd);
 
             const actionTd = document.createElement('td');
-            actionTd.className = 'px-6 py-4 whitespace-nowrap';
+            actionTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
             const editButton = document.createElement('button');
-            editButton.className = 'px-4 py-2 font-medium text-white bg-blue-600 rounded-md hover:bg-blue-500 focus:outline-none focus:shadow-outline-blue active:bg-blue-600 transition duration-150 ease-in-out';
+            editButton.className = 'px-1 py-0.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-500 focus:outline-none focus:shadow-outline-blue active:bg-blue-600 transition duration-150 ease-in-out';
             editButton.textContent = 'Edit';
             actionTd.appendChild(editButton);
 
             const deleteButton = document.createElement('button');
-            deleteButton.className = 'ml-2 px-4 py-2 font-medium text-white bg-red-600 rounded-md hover:bg-red-500 focus:outline-none focus:shadow-outline-red active:bg-red-600 transition duration-150 ease-in-out';
+            deleteButton.className = 'ml-1 px-1 py-0.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-500 focus:outline-none focus:shadow-outline-red active:bg-red-600 transition duration-150 ease-in-out';
             deleteButton.textContent = 'Delete';
             deleteButton.addEventListener('click', (event) => {
                 event.stopPropagation(); // Prevent row click event
@@ -404,10 +404,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (toggleButton.dataset.active === 'false') {
                 toggleButton.dataset.active = 'true';
                 toggleButton.classList.remove('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
-                toggleButton.classList.add('bg-green-600', 'text-white', 'hover:bg-red-600');
+                toggleButton.classList.add('bg-green-600', 'text-white', 'hover:bg-green-700');
             } else {
                 toggleButton.dataset.active = 'false';
-                toggleButton.classList.remove('bg-green-600', 'text-white', 'hover:bg-red-600');
+                toggleButton.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-700');
                 toggleButton.classList.add('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
             }   
         });

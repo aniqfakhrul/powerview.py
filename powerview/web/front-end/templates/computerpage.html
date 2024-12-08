@@ -3,7 +3,7 @@
 {% block content %}
     <!-- Modules Panel -->
     <div class="flex-1 overflow-y-auto" id="modules-panel">
-        <div class="grid grid-cols-4 gap-4 m-4">
+        <div class="grid grid-cols-6 gap-4 m-4">
             <!-- Query Builder Card -->
             <div class="col-span-1">
                 <div class="p-4 bg-white rounded-lg shadow p-4">
@@ -61,14 +61,41 @@
                         </button>
                     </div>
                 </div>
+                <!-- Properties Card -->
+                <div class="p-4 bg-white rounded-lg shadow p-4 mt-4">
+                    <h2 class="text-lg font-semibold mb-2">Properties</h2>
+                    <div class="space-y-2">
+                        <button id="all-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
+                            All
+                        </button>
+                        <button id="samaccountname-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="true">
+                            sAMAccountname
+                        </button>
+                        <button id="cn-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="true">
+                            cn
+                        </button>
+                        <button id="operatingsystem-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="true">
+                            operatingsystem
+                        </button>
+                        <button id="useraccountcontrol-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="true">
+                            userAccountControl
+                        </button>
+                        <button id="serviceprincipalname-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
+                            serviceprincipalname
+                        </button>
+                        <button id="memberof-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-black border border-gray-300 py-1 px-2 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100" data-active="false">
+                            memberof
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div class="col-span-3 bg-white rounded-lg shadow p-4">
+            <div class="col-span-5 bg-white rounded-lg shadow p-4">
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-computer"></i>
                         <h2 class="text-lg font-semibold">Computers</h2>
                     </div>
-                    <button data-modal-target="add-computer-modal" data-modal-toggle="add-computer-modal" class="block text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800" type="button">
+                    <button data-modal-target="add-computer-modal" data-modal-toggle="add-computer-modal" class="block text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-1.5 text-center dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800" type="button">
                         Add Computer
                     </button>
                 </div>
@@ -79,11 +106,11 @@
                 <table class="w-full text-left text-sm text-neutral-600 dark:text-neutral-300">
                     <thead class="border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
                         <tr>
-                            <th scope="col" class="p-4">Hostname</th>
-                            <th scope="col" class="p-4">samAccountName</th>
-                            <th scope="col" class="p-4">Operating System</th>
-                            <th scope="col" class="p-4">Status</th>
-                            <th scope="col" class="p-4">Action</th>
+                            <th scope="col" class="p-2">Hostname</th>
+                            <th scope="col" class="p-2">samAccountName</th>
+                            <th scope="col" class="p-2">Operating System</th>
+                            <th scope="col" class="p-2">Status</th>
+                            <th scope="col" class="p-2">Action</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-neutral-300 dark:divide-neutral-700">
