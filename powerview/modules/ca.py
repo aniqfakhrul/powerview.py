@@ -171,7 +171,7 @@ class CAEnum:
         return False
 
 class PARSE_TEMPLATE:
-    def __init__(self, template):
+    def __init__(self, template, current_user_sid=None):
         self.template = template
         self.owner_sid = None
         self.parsed_dacl = {}
@@ -187,6 +187,7 @@ class PARSE_TEMPLATE:
         self.authorized_signatures_required = False
         self.no_security_extension = False
         self.domain_sid = None
+        self.current_user_sid = current_user_sid
 
     def get_owner_sid(self):
         return self.owner_sid
@@ -387,15 +388,15 @@ class PARSE_TEMPLATE:
         security = CertificateSecurity(self.template["nTSecurityDescriptor"].raw_values[0])
         owner_sid = security.owner
 
-        if owner_sid in get_user_sids(self.domain_sid, owner_sid):
-            vulns["ESC4"] = owner_sid
+        if owner_sid in get_user_sids(self.domain_sid, self.current_user_sid):
+            vulns["ESC4"] = [owner_sid]
         else:
             has_vulnerable_acl = False
             aces = security.aces
             vulnerable_acl_sids = set()
             
             for sid, rights in aces.items():
-                if sid not in get_user_sids(self.domain_sid, sid):
+                if sid not in get_user_sids(self.domain_sid, self.current_user_sid):
                     continue
 
                 ad_rights = rights["rights"] 
