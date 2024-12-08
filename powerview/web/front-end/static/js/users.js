@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    initializeButtonStyles();
+
     let identityToDelete = null;
     let rowToDelete = null;
 
@@ -27,9 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
         rows.forEach(row => {
             const name = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
             const email = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-            const role = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
 
-            if (name.includes(searchInput) || email.includes(searchInput) || role.includes(searchInput)) {
+            if (name.includes(searchInput) || email.includes(searchInput)) {
                 row.style.display = '';
             } else {
                 row.style.display = 'none';
@@ -40,66 +41,90 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('user-search').addEventListener('input', filterUsers);
 
     function populateUsersTable(users) {
-        const tbody = document.querySelector('tbody');
+        const table = document.getElementById('users-result-table');
+        const thead = table.querySelector('thead');
+        const tbody = table.querySelector('tbody');
         tbody.innerHTML = '';
 
-        users.forEach(user => {
-            const tr = document.createElement('tr');
-            tr.classList.add('ldap-link', 'hover:bg-gray-100'); // Add hover class for row color change
-            tr.dataset.identity = user.attributes.distinguishedName;
-            tr.onclick = (event) => handleLdapLinkClick(event);
+        if (users.length > 0) {
+            // Get attribute keys from the first user to create table headers
+            const attributeKeys = Object.keys(users[0].attributes);
 
-            const nameTd = document.createElement('td');
-            nameTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
-            nameTd.textContent = user.attributes.cn || 'N/A';
-            tr.appendChild(nameTd);
-
-            const emailTd = document.createElement('td');
-            emailTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
-            emailTd.textContent = user.attributes.userPrincipalName || 'N/A';
-            tr.appendChild(emailTd);
-
-            const roleTd = document.createElement('td');
-            roleTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
-            const isAdmin = user.attributes.adminCount && user.attributes.adminCount > 0;
-            if (isAdmin) {
-                const roleSpan = document.createElement('span');
-                roleSpan.className = 'px-1 inline-flex text-xs leading-4 font-semibold rounded-full bg-blue-100 text-blue-800'; // Adjusted padding and leading for thinner rows
-                roleSpan.textContent = 'Admin';
-                roleTd.appendChild(roleSpan);
-            }
-            tr.appendChild(roleTd);
-
-            const statusTd = document.createElement('td');
-            statusTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
-            const statusSpan = document.createElement('span');
-            const isActive = !user.attributes.userAccountControl.includes('ACCOUNTDISABLE');
-            statusSpan.className = `px-1 inline-flex text-xs leading-4 font-semibold rounded-full ${isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`; // Adjusted padding and leading for thinner rows
-            statusSpan.textContent = isActive ? 'Enabled' : 'Disabled';
-            statusTd.appendChild(statusSpan);
-            tr.appendChild(statusTd);
-
-            const actionTd = document.createElement('td');
-            actionTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
-            const editButton = document.createElement('button');
-            editButton.className = 'px-1 py-0.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-500 focus:outline-none focus:shadow-outline-blue active:bg-blue-600 transition duration-150 ease-in-out';
-            editButton.textContent = 'Edit';
-            actionTd.appendChild(editButton);
-
-            const deleteButton = document.createElement('button');
-            deleteButton.className = 'ml-1 px-1 py-0.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-500 focus:outline-none focus:shadow-outline-red active:bg-red-600 transition duration-150 ease-in-out';
-            deleteButton.textContent = 'Delete';
-            deleteButton.addEventListener('click', (event) => {
-                event.stopPropagation(); // Prevent row click event
-                showDeleteModal(user.attributes.cn, tr);
+            // Create table headers
+            thead.innerHTML = ''; // Clear existing headers
+            const headerRow = document.createElement('tr');
+            attributeKeys.forEach(key => {
+                const th = document.createElement('th');
+                th.scope = 'col';
+                th.className = 'p-2';
+                th.textContent = key;
+                headerRow.appendChild(th);
             });
-            actionTd.appendChild(deleteButton);
 
-            tr.appendChild(actionTd);
+            // Add an extra header for actions
+            const actionTh = document.createElement('th');
+            actionTh.scope = 'col';
+            actionTh.className = 'p-2';
+            actionTh.textContent = 'Action';
+            headerRow.appendChild(actionTh);
 
-            tbody.appendChild(tr);
-        });
-        // attachLdapLinkListeners();
+            thead.appendChild(headerRow);
+
+            // Populate table rows
+            users.forEach(user => {
+                const tr = document.createElement('tr');
+                tr.classList.add('ldap-link', 'hover:bg-gray-100');
+                tr.dataset.identity = user.dn;
+                tr.onclick = (event) => handleLdapLinkClick(event);
+
+                attributeKeys.forEach(key => {
+                    const td = document.createElement('td');
+                    td.className = 'p-2 whitespace-nowrap';
+                    const value = user.attributes[key];
+                    if (key === 'adminCount') {
+                        const statusTd = document.createElement('td');
+                        statusTd.className = 'p-2 whitespace-nowrap';
+                        const statusSpan = document.createElement('span');
+                        if (value === 1) {
+                            statusSpan.className = 'px-1 inline-flex text-xs leading-4 font-semibold rounded-md bg-green-100 text-green-800';
+                            statusSpan.textContent = 'True';
+                        } else {
+                            statusSpan.textContent = '';
+                        }
+                        statusTd.appendChild(statusSpan);
+                        tr.appendChild(statusTd);
+                    } else {
+                        if (Array.isArray(value)) {
+                            td.innerHTML = value.join('<br>');
+                        } else {
+                            td.textContent = value;
+                        }
+                        tr.appendChild(td);
+                    }
+                });
+
+                // Add action buttons
+                const actionTd = document.createElement('td');
+                actionTd.className = 'p-2 whitespace-nowrap';
+                const editButton = document.createElement('button');
+                editButton.className = 'px-1 py-0.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-500 focus:outline-none focus:shadow-outline-blue active:bg-blue-600 transition duration-150 ease-in-out';
+                editButton.textContent = 'Edit';
+                actionTd.appendChild(editButton);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'ml-1 px-1 py-0.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-500 focus:outline-none focus:shadow-outline-red active:bg-red-600 transition duration-150 ease-in-out';
+                deleteButton.textContent = 'Delete';
+                deleteButton.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    showDeleteModal(user.attributes.cn, tr);
+                });
+                actionTd.appendChild(deleteButton);
+
+                tr.appendChild(actionTd);
+
+                tbody.appendChild(tr);
+            });
+        }
     }
 
     async function addUser(username, password) {
@@ -221,29 +246,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function fetchItemData(identity, search_scope = 'LEVEL') {
-        //showLoadingIndicator();
-        try {
-            const response = await fetch('/api/get/domainobject', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ searchbase: identity, search_scope: search_scope })
-            });
-
-            await handleHttpError(response);
-
-            const data = await response.json();
-            return data[0];
-        } catch (error) {
-            console.error('Error fetching item data:', error);
-            return null;
-        } finally {
-            //hideLoadingIndicator();
-        }
-    }
-
     function populateDetailsPanel(item) {
         const detailsPanel = document.getElementById("details-panel");
         detailsPanel.innerHTML = ''; // Clear existing content
@@ -325,6 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function collectQueryParams() {
         // Default values for all parameters
         const defaultArgs = {
+            identity: document.getElementById('identity-input').value || '',
             spn: false,
             admincount: false,
             lockout: false,
@@ -339,14 +342,14 @@ document.addEventListener('DOMContentLoaded', () => {
             unconstrained: false,
             enabled: false,
             disabled: false,
-            properties: [
-                'cn', 'userPrincipalName', 'adminCount', 'userAccountControl', 'distinguishedName'
-            ],
-            ldapfilter: document.getElementById('ldap-filter-input').value || ''
+            properties: [], // Initialize as empty, will be set by collectProperties
+            ldapfilter: document.getElementById('ldap-filter-input').value || '',
+            searchbase: document.getElementById('searchbase-input').value || ''
         };
 
         // Collect current values based on data-active attribute
         const currentArgs = {
+            identity: document.getElementById('identity-input').value || '',
             spn: document.getElementById('spn-toggle').getAttribute('data-active') === 'true',
             trustedtoauth: document.getElementById('trusted-to-auth-toggle').getAttribute('data-active') === 'true',
             enabled: document.getElementById('enabled-users-toggle').getAttribute('data-active') === 'true',
@@ -361,13 +364,29 @@ document.addEventListener('DOMContentLoaded', () => {
             unconstrained: document.getElementById('unconstrained-delegation-toggle').getAttribute('data-active') === 'true',
             disabled: document.getElementById('disabled-users-toggle').getAttribute('data-active') === 'true',
             password_expired: document.getElementById('password-expired-toggle').getAttribute('data-active') === 'true',
-            ldapfilter: document.getElementById('ldap-filter-input').value || ''
+            ldapfilter: document.getElementById('ldap-filter-input').value || '',
+            searchbase: document.getElementById('searchbase-input').value || '',
+            properties: collectProperties() // Use collectProperties to set the properties
         };
 
         // Merge defaultArgs with currentArgs
         const args = { ...defaultArgs, ...currentArgs };
 
         return { args };
+    }
+
+    function collectProperties() {
+        const properties = [];
+        const propertyButtons = document.querySelectorAll('.custom-toggle-switch[data-active="true"]');
+    
+        propertyButtons.forEach(button => {
+            const ldapAttribute = button.getAttribute('data-ldap-attribute');
+            if (ldapAttribute) {
+                properties.push(ldapAttribute);
+            }
+        });
+    
+        return properties;
     }
 
     async function searchUsers() {
@@ -393,25 +412,56 @@ document.addEventListener('DOMContentLoaded', () => {
     // Attach event listener to the search button
     document.getElementById('search-users-button').addEventListener('click', searchUsers);
 
-    // Add event listener for the clear button
-    document.getElementById('clear-ldap-filter').addEventListener('click', () => {
-        document.getElementById('ldap-filter-input').value = '';
+    // Add event listeners for all clear buttons
+    document.querySelectorAll('#clear-input').forEach(button => {
+        button.addEventListener('click', (event) => {
+            const input = event.target.closest('.relative').querySelector('input');
+            if (input) {
+                input.value = '';
+            }
+        });
     });
 
     const toggleButtons = document.querySelectorAll('.custom-toggle-switch');
     toggleButtons.forEach(toggleButton => {
         toggleButton.addEventListener('click', () => {
+            const isAllButton = toggleButton.id === 'all-toggle';
+
             if (toggleButton.dataset.active === 'false') {
                 toggleButton.dataset.active = 'true';
                 toggleButton.classList.remove('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
                 toggleButton.classList.add('bg-green-600', 'text-white', 'hover:bg-green-700');
+
+                if (isAllButton) {
+                    // Set all other buttons to inactive
+                    toggleButtons.forEach(otherButton => {
+                        if (otherButton !== toggleButton) {
+                            otherButton.dataset.active = 'false';
+                            otherButton.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-700');
+                            otherButton.classList.add('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
+                        }
+                    });
+                }
             } else {
                 toggleButton.dataset.active = 'false';
                 toggleButton.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-700');
                 toggleButton.classList.add('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
-            }   
+            }
         });
     });
+
+    function initializeButtonStyles() {
+        const toggleButtons = document.querySelectorAll('.custom-toggle-switch');
+        toggleButtons.forEach(toggleButton => {
+            if (toggleButton.dataset.active === 'true') {
+                toggleButton.classList.add('bg-green-600', 'text-white', 'hover:bg-green-700');
+                toggleButton.classList.remove('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
+            } else {
+                toggleButton.classList.add('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
+                toggleButton.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-700');
+            }
+        });
+    }
     
     // enable if you want to fetch users on page load
     // fetchAndPopulateUsers();

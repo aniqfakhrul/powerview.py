@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    initializeButtonStyles();
+
     let identityToDelete = null;
     let rowToDelete = null;
 
@@ -25,9 +27,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const rows = document.querySelectorAll('tbody tr');
 
         rows.forEach(row => {
-            const name = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
-            const samAccountName = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-            const operatingSystem = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+            const name = row.querySelector('td:nth-child(1)').textContent;
+            const samAccountName = row.querySelector('td:nth-child(2)').textContent;
+            const operatingSystem = row.querySelector('td:nth-child(3)').textContent;
 
             if (name.includes(searchInput) || samAccountName.includes(searchInput) || operatingSystem.includes(searchInput)) {
                 row.style.display = '';
@@ -40,60 +42,76 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('computer-search').addEventListener('input', filterComputers);
 
     function populateComputersTable(computers) {
-        const tbody = document.querySelector('tbody');
+        const table = document.getElementById('computers-result-table');
+        const thead = table.querySelector('thead');
+        const tbody = table.querySelector('tbody');
         tbody.innerHTML = '';
 
-        computers.forEach(computer => {
-            const tr = document.createElement('tr');
-            tr.classList.add('ldap-link', 'hover:bg-gray-100'); // Add hover class for row color change
-            tr.dataset.identity = computer.attributes.distinguishedName;
-            tr.onclick = (event) => handleLdapLinkClick(event);
+        if (computers.length > 0) {
+            // Get attribute keys from the first computer to create table headers
+            const attributeKeys = Object.keys(computers[0].attributes);
 
-            const nameTd = document.createElement('td');
-            nameTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
-            nameTd.textContent = computer.attributes.cn || 'N/A';
-            tr.appendChild(nameTd);
-
-            const samAccountNameTd = document.createElement('td');
-            samAccountNameTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
-            samAccountNameTd.textContent = computer.attributes.sAMAccountName || 'N/A';
-            tr.appendChild(samAccountNameTd);
-
-            const operatingSystemTd = document.createElement('td');
-            operatingSystemTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
-            operatingSystemTd.textContent = computer.attributes.operatingSystem || 'N/A';
-            tr.appendChild(operatingSystemTd);
-
-            const statusTd = document.createElement('td');
-            statusTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
-            const statusSpan = document.createElement('span');
-            const isActive = !computer.attributes.userAccountControl.includes('ACCOUNTDISABLE');
-            statusSpan.className = `px-1 inline-flex text-xs leading-4 font-semibold rounded-full ${isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`; // Adjusted padding and leading for thinner rows
-            statusSpan.textContent = isActive ? 'Enabled' : 'Disabled';
-            statusTd.appendChild(statusSpan);
-            tr.appendChild(statusTd);
-
-            const actionTd = document.createElement('td');
-            actionTd.className = 'p-2 whitespace-nowrap'; // Reduced padding for thinner rows
-            const editButton = document.createElement('button');
-            editButton.className = 'px-1 py-0.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-500 focus:outline-none focus:shadow-outline-blue active:bg-blue-600 transition duration-150 ease-in-out';
-            editButton.textContent = 'Edit';
-            actionTd.appendChild(editButton);
-
-            const deleteButton = document.createElement('button');
-            deleteButton.className = 'ml-1 px-1 py-0.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-500 focus:outline-none focus:shadow-outline-red active:bg-red-600 transition duration-150 ease-in-out';
-            deleteButton.textContent = 'Delete';
-            deleteButton.addEventListener('click', (event) => {
-                event.stopPropagation(); // Prevent row click event
-                showDeleteModal(computer.attributes.cn, tr);
+            // Create table headers
+            thead.innerHTML = ''; // Clear existing headers
+            const headerRow = document.createElement('tr');
+            attributeKeys.forEach(key => {
+                const th = document.createElement('th');
+                th.scope = 'col';
+                th.className = 'p-2';
+                th.textContent = key;
+                headerRow.appendChild(th);
             });
-            actionTd.appendChild(deleteButton);
 
-            tr.appendChild(actionTd);
+            // Add an extra header for actions
+            const actionTh = document.createElement('th');
+            actionTh.scope = 'col';
+            actionTh.className = 'p-2';
+            actionTh.textContent = 'Action';
+            headerRow.appendChild(actionTh);
 
-            tbody.appendChild(tr);
-        });
-        // attachLdapLinkListeners();
+            thead.appendChild(headerRow);
+
+            // Populate table rows
+            computers.forEach(computer => {
+                const tr = document.createElement('tr');
+                tr.classList.add('ldap-link', 'hover:bg-gray-100');
+                tr.dataset.identity = computer.dn;
+                tr.onclick = (event) => handleLdapLinkClick(event);
+
+                attributeKeys.forEach(key => {
+                    const td = document.createElement('td');
+                    td.className = 'p-2 whitespace-nowrap';
+                    const value = computer.attributes[key];
+                    if (Array.isArray(value)) {
+                        td.innerHTML = value.join('<br>');
+                    } else {
+                        td.textContent = value;
+                    }
+                    tr.appendChild(td);
+                });
+
+                // Add action buttons
+                const actionTd = document.createElement('td');
+                actionTd.className = 'p-2 whitespace-nowrap';
+                const editButton = document.createElement('button');
+                editButton.className = 'px-1 py-0.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-500 focus:outline-none focus:shadow-outline-blue active:bg-blue-600 transition duration-150 ease-in-out';
+                editButton.textContent = 'Edit';
+                actionTd.appendChild(editButton);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'ml-1 px-1 py-0.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-500 focus:outline-none focus:shadow-outline-red active:bg-red-600 transition duration-150 ease-in-out';
+                deleteButton.textContent = 'Delete';
+                deleteButton.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    showDeleteModal(computer.attributes.cn, tr);
+                });
+                actionTd.appendChild(deleteButton);
+
+                tr.appendChild(actionTd);
+
+                tbody.appendChild(tr);
+            });
+        }
     }
 
     async function addComputer(hostname, password) {
@@ -215,29 +233,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function fetchItemData(identity, search_scope = 'LEVEL') {
-        //showLoadingIndicator();
-        try {
-            const response = await fetch('/api/get/domainobject', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ searchbase: identity, search_scope: search_scope })
-            });
-
-            await handleHttpError(response);
-
-            const data = await response.json();
-            return data[0];
-        } catch (error) {
-            console.error('Error fetching item data:', error);
-            return null;
-        } finally {
-            //hideLoadingIndicator();
-        }
-    }
-
     function populateDetailsPanel(item) {
         const detailsPanel = document.getElementById("details-panel");
         detailsPanel.innerHTML = ''; // Clear existing content
@@ -319,6 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function collectQueryParams() {
         // Default values for all parameters
         const defaultArgs = {
+            identity: document.getElementById('identity-input').value || '',
             unconstrained: false,
             enabled: false,
             disabled: false,
@@ -333,13 +329,13 @@ document.addEventListener('DOMContentLoaded', () => {
             gmsapassword: false,
             pre2k: false,
             ldapfilter: document.getElementById('ldap-filter-input').value || '',
-            properties: [
-                'cn', 'sAMAccountName', 'userAccountControl', 'distinguishedName', 'operatingSystem'
-            ],
+            searchbase: document.getElementById('searchbase-input').value || '',
+            properties: collectProperties()
         };
 
         // Collect current values based on data-active attribute
         const currentArgs = {
+            identity: document.getElementById('identity-input').value || '',
             unconstrained: document.getElementById('unconstrained-delegation-toggle').getAttribute('data-active') === 'true',
             enabled: document.getElementById('enabled-computers-toggle').getAttribute('data-active') === 'true',
             disabled: document.getElementById('disabled-users-toggle').getAttribute('data-active') === 'true',
@@ -353,7 +349,8 @@ document.addEventListener('DOMContentLoaded', () => {
             bitlocker: document.getElementById('bitlocker-toggle').getAttribute('data-active') === 'true',
             gmsapassword: document.getElementById('gmsapassword-toggle').getAttribute('data-active') === 'true',
             pre2k: document.getElementById('pre2k-toggle').getAttribute('data-active') === 'true',
-            ldapfilter: document.getElementById('ldap-filter-input').value || ''
+            ldapfilter: document.getElementById('ldap-filter-input').value || '',
+            searchbase: document.getElementById('searchbase-input').value || ''
         };
 
         // Merge defaultArgs with currentArgs
@@ -362,8 +359,23 @@ document.addEventListener('DOMContentLoaded', () => {
         return { args };
     }
 
+    function collectProperties() {
+        const properties = [];
+        const propertyButtons = document.querySelectorAll('.custom-toggle-switch[data-active="true"]');
+    
+        propertyButtons.forEach(button => {
+            const ldapAttribute = button.getAttribute('data-ldap-attribute');
+            if (ldapAttribute) {
+                properties.push(ldapAttribute);
+            }
+        });
+    
+        return properties;
+    }
+
     async function searchComputers() {
         const queryParams = collectQueryParams();
+        console.log(queryParams);
         try {
             const response = await fetch('/api/get/domaincomputer', {
                 method: 'POST',
@@ -376,6 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await handleHttpError(response);
 
             const result = await response.json();
+            console.log(result);
             populateComputersTable(result);
         } catch (error) {
             console.error('Error searching computers:', error);
@@ -385,25 +398,56 @@ document.addEventListener('DOMContentLoaded', () => {
     // Attach event listener to the search button
     document.getElementById('search-computers-button').addEventListener('click', searchComputers);
 
-    // Add event listener for the clear button
-    document.getElementById('clear-ldap-filter').addEventListener('click', () => {
-        document.getElementById('ldap-filter-input').value = '';
+    // Add event listeners for all clear buttons
+    document.querySelectorAll('#clear-input').forEach(button => {
+        button.addEventListener('click', (event) => {
+            const input = event.target.closest('.relative').querySelector('input');
+            if (input) {
+                input.value = '';
+            }
+        });
     });
 
     const toggleButtons = document.querySelectorAll('.custom-toggle-switch');
     toggleButtons.forEach(toggleButton => {
         toggleButton.addEventListener('click', () => {
+            const isAllButton = toggleButton.id === 'all-toggle';
+
             if (toggleButton.dataset.active === 'false') {
                 toggleButton.dataset.active = 'true';
                 toggleButton.classList.remove('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
                 toggleButton.classList.add('bg-green-600', 'text-white', 'hover:bg-green-700');
+
+                if (isAllButton) {
+                    // Set all other buttons to inactive
+                    toggleButtons.forEach(otherButton => {
+                        if (otherButton !== toggleButton) {
+                            otherButton.dataset.active = 'false';
+                            otherButton.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-700');
+                            otherButton.classList.add('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
+                        }
+                    });
+                }
             } else {
                 toggleButton.dataset.active = 'false';
                 toggleButton.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-700');
                 toggleButton.classList.add('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
-            }   
+            }
         });
     });
+
+    function initializeButtonStyles() {
+        const toggleButtons = document.querySelectorAll('.custom-toggle-switch');
+        toggleButtons.forEach(toggleButton => {
+            if (toggleButton.dataset.active === 'true') {
+                toggleButton.classList.add('bg-green-600', 'text-white', 'hover:bg-green-700');
+                toggleButton.classList.remove('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
+            } else {
+                toggleButton.classList.add('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
+                toggleButton.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-700');
+            }
+        });
+    }
     
     // enable if you want to fetch users on page load
     // fetchAndPopulateUsers();

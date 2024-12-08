@@ -1,41 +1,172 @@
+async function executePowerViewCommand() {
+    const commandInput = document.getElementById('ldap-filter');
+    if (!commandInput) return;
+
+    const command = commandInput.value.trim();
+    if (!command) {
+        alert('Please enter a PowerView command.');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/execute', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ command: command })
+        });
+
+        const result = await response.json();
+
+        await handleHttpError(response);
+
+        console.log('Command execution result:', result);
+
+        // Unhide the tableview and populate the table
+        const tableView = document.getElementById('tableview');
+        const contentArea = document.getElementById('content-area');
+        if (tableView) {
+            tableView.removeAttribute('hidden');
+            contentArea.setAttribute('hidden', true);
+        }
+        populateTableView(result.result, tableView); // Assuming result.users contains the user data
+    } catch (error) {
+        console.error('Error executing command:', error);
+        alert('Failed to execute command. Please check the console for more details.');
+    }
+}
+
+async function fetchItemData(identity, search_scope = 'LEVEL') {
+    showLoadingIndicator();
+    try {
+        const response = await fetch('/api/get/domainobject', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ searchbase: identity, properties: ['*'], search_scope: search_scope })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data[0];
+    } catch (error) {
+        console.error('Error fetching item data:', error);
+        return null;
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+
+function showLoadingIndicator() {
+    const spinner = document.getElementById("loading-spinner");
+    if (spinner) {
+        spinner.removeAttribute('hidden');
+    }
+}
+
+function hideLoadingIndicator() {
+    const spinner = document.getElementById("loading-spinner");
+    if (spinner) {
+        spinner.setAttribute('hidden', true);
+    }
+}
+
+function populateTableView(entries, tableView) {
+    const thead = tableView.querySelector('thead');
+    const tbody = tableView.querySelector('tbody');
+    tbody.innerHTML = '';
+    console.log(entries);
+    if (entries.length > 0) {
+        // Get attribute keys from the first user to create table headers
+        const attributeKeys = Object.keys(entries[0].attributes);
+
+        // Create table headers
+        thead.innerHTML = ''; // Clear existing headers
+        const headerRow = document.createElement('tr');
+        attributeKeys.forEach(key => {
+            const th = document.createElement('th');
+            th.scope = 'col';
+            th.className = 'p-2';
+            th.textContent = key;
+            headerRow.appendChild(th);
+        });
+
+        // Add an extra header for actions
+        const actionTh = document.createElement('th');
+        actionTh.scope = 'col';
+        actionTh.className = 'p-2';
+        actionTh.textContent = 'Action';
+        headerRow.appendChild(actionTh);
+
+        thead.appendChild(headerRow);
+
+        // Populate table rows
+        entries.forEach(entry => {
+            const tr = document.createElement('tr');
+            tr.classList.add('ldap-link', 'hover:bg-gray-100');
+            tr.dataset.identity = entry.dn;
+            tr.onclick = (event) => handleLdapLinkClick(event);
+
+            attributeKeys.forEach(key => {
+                const td = document.createElement('td');
+                td.className = 'p-2 whitespace-nowrap';
+                const value = entry.attributes[key];
+                if (key === 'adminCount') {
+                    const statusTd = document.createElement('td');
+                    statusTd.className = 'p-2 whitespace-nowrap';
+                    const statusSpan = document.createElement('span');
+                    if (value === 1) {
+                        statusSpan.className = 'px-1 inline-flex text-xs leading-4 font-semibold rounded-md bg-green-100 text-green-800';
+                        statusSpan.textContent = 'True';
+                    } else {
+                        statusSpan.textContent = '';
+                    }
+                    statusTd.appendChild(statusSpan);
+                    tr.appendChild(statusTd);
+                } else {
+                    if (Array.isArray(value)) {
+                        td.innerHTML = value.join('<br>');
+                    } else {
+                        td.textContent = value;
+                    }
+                    tr.appendChild(td);
+                }
+            });
+
+            // Add action buttons
+            const actionTd = document.createElement('td');
+            actionTd.className = 'p-2 whitespace-nowrap';
+            const editButton = document.createElement('button');
+            editButton.className = 'px-1 py-0.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-500 focus:outline-none focus:shadow-outline-blue active:bg-blue-600 transition duration-150 ease-in-out';
+            editButton.textContent = 'Edit';
+            actionTd.appendChild(editButton);
+
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'ml-1 px-1 py-0.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-500 focus:outline-none focus:shadow-outline-red active:bg-red-600 transition duration-150 ease-in-out';
+            deleteButton.textContent = 'Delete';
+            deleteButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                showDeleteModal(entry.attributes.cn, tr);
+            });
+            actionTd.appendChild(deleteButton);
+
+            tr.appendChild(actionTd);
+
+            tbody.appendChild(tr);
+        });
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const footerYear = document.querySelector('#footer-year');
     if (footerYear) {
         footerYear.textContent = currentYear();
-    }
-
-    async function executePowerViewCommand() {
-        const commandInput = document.getElementById('ldap-filter');
-        if (!commandInput) return;
-
-        const command = commandInput.value.trim();
-        if (!command) {
-            alert('Please enter a PowerView command.');
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/execute', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ command: command })
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                const errorMessage = result.error || 'An unknown error occurred.';
-                alert(`Error: ${errorMessage}`);
-                return;
-            }
-
-            console.log('Command execution result:', result);
-        } catch (error) {
-            console.error('Error executing command:', error);
-            alert('Failed to execute command. Please check the console for more details.');
-        }
     }
 
     async function initialize() {
@@ -111,7 +242,7 @@ function createTreeNode(dn) {
     div.classList.add('flex', 'items-center', 'gap-1', 'hover:bg-gray-100', 'rounded', 'cursor-pointer');
 
     const buildingIcon = document.createElement('i');
-    buildingIcon.classList.add('far', 'fa-folder', 'w-4', 'h-4', 'text-yellow-500');
+    buildingIcon.classList.add('far', 'fa-folder', 'w-4', 'h-4', 'text-blue-500');
 
     div.appendChild(buildingIcon);
     div.innerHTML += `<span>${dn}</span>`;
@@ -157,32 +288,6 @@ function createTreeNode(dn) {
         }
     }
 
-    async function fetchItemData(identity, search_scope = 'LEVEL') {
-        console.log(identity);
-        //showLoadingIndicator();
-        try {
-            const response = await fetch('/api/get/domainobject', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ searchbase: identity, search_scope: search_scope })
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            return data[0];
-        } catch (error) {
-            console.error('Error fetching item data:', error);
-            return null;
-        } finally {
-            //hideLoadingIndicator();
-        }
-    }
-
     async function toggleSubtree(searchbase, parentElement) {
         let subtreeContainer = parentElement.nextElementSibling;
         if (subtreeContainer && subtreeContainer.classList.contains('subtree')) {
@@ -199,12 +304,9 @@ function createTreeNode(dn) {
                 body: JSON.stringify({ searchbase: searchbase, search_scope: 'LEVEL' })
             });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            await handleHttpError(response);
 
             const data = await response.json();
-            console.log('Fetched data:', data); // Log the data to inspect its structure
 
             if (Array.isArray(data)) {
                 displaySubtree(data, parentElement);
@@ -228,19 +330,32 @@ function createTreeNode(dn) {
 
             let iconClasses = ['far', 'fa-folder']; // Default outlined icon
             let iconColorClass = 'text-blue-500'; // Default color for most objects
+            let objectClassLabel = 'Object'; // Default label
 
             if (obj.attributes.objectClass.includes('group')) {
                 iconClasses = ['fas', 'fa-users']; // Use fa-users for groups
+                objectClassLabel = 'Group';
             } else if (obj.attributes.objectClass.includes('container')) {
                 iconClasses = ['fas', 'fa-folder']; // Use fa-box-open for containers
-                iconColorClass = 'text-yellow-500'; // Yellow for containers
+                iconColorClass = 'text-blue-500'; // Yellow for containers
+                objectClassLabel = 'Container';
             } else if (obj.attributes.objectClass.includes('computer')) {
                 iconClasses = ['fas', 'fa-desktop']; // Use fa-desktop for computers
+                objectClassLabel = 'Computer';
             } else if (obj.attributes.objectClass.includes('user')) {
                 iconClasses = ['far', 'fa-user']; // Use fa-user-circle for users
+                objectClassLabel = 'User';
             } else if (obj.attributes.objectClass.includes('organizationalUnit')) {
                 iconClasses = ['far', 'fa-building']; // Use fa-building for organizational units
-                iconColorClass = 'text-yellow-500'; // Yellow for organizational units
+                iconColorClass = 'text-blue-500'; // Yellow for organizational units
+                objectClassLabel = 'Organizational Unit';
+            } else {
+                objectClassLabel = obj.attributes.objectClass[obj.attributes.objectClass.length - 1];
+            }
+
+            // Change icon to yellow color if adminCount is 1
+            if (obj.attributes.adminCount === 1) {
+                iconColorClass = 'text-yellow-500';
             }
 
             const icon = document.createElement('i');
@@ -248,6 +363,9 @@ function createTreeNode(dn) {
 
             objDiv.appendChild(icon);
             objDiv.innerHTML += `<span>${obj.attributes.name || obj.dn}</span>`;
+
+            // Set the title attribute to show the object class on hover
+            objDiv.setAttribute('title', objectClassLabel);
 
             objDiv.addEventListener('click', async (event) => {
                 event.stopPropagation();
@@ -276,7 +394,7 @@ function createTreeNode(dn) {
         const attributes = item.attributes;
 
         let detailsHTML = `
-            <div class="bg-gray-50 px-4 py-2 border-b">
+            <div class="bg-gray-50 px-4 py-2 border-b sticky top-0 bg-white z-10">
                 <h3 class="font-medium">${attributes.name || 'Details'}</h3>
             </div>
             <div class="p-4">
@@ -284,12 +402,14 @@ function createTreeNode(dn) {
         `;
 
         for (const [key, value] of Object.entries(attributes)) {
-            if (key === 'member' || key === 'memberOf' || key === 'objectCategory' || key === 'distinguishedName') {
+            const isDistinguishedName = Array.isArray(value) ? value.some(isValidDistinguishedName) : isValidDistinguishedName(value);
+
+            if (key === 'member' || key === 'memberOf' || key === 'objectCategory' || key === 'distinguishedName' || isDistinguishedName) {
                 detailsHTML += `
                     <div>
                     <dt class="text-sm font-medium text-gray-500">${key}</dt>
-                    <dd class="mt-1 text-sm text-gray-900">
-                        ${Array.isArray(value) ? value.map(v => `<a href="#" class="text-blue-400 hover:text-blue-600 ldap-link" data-identity="${v}">${v}</a>`).join('<br>') : `<a href="#" class="text-blue-400 hover:text-blue-600 ldap-link" data-identity="${value}">${value}</a>`}
+                    <dd class="mt-1 text-sm text-gray-900 ldap-link">
+                        ${Array.isArray(value) ? value.map(v => `<a href="#" class="text-blue-400 hover:text-blue-600" data-identity="${v}">${v}</a>`).join('<br>') : `<a href="#" class="text-blue-400 hover:text-blue-600" data-identity="${value}">${value}</a>`}
                         </dd>
                     </div>
                 `;
@@ -420,15 +540,6 @@ function createTreeNode(dn) {
         detailsPanel.appendChild(contentDiv);
 
         detailsPanel.classList.remove('hidden'); // Ensure the details panel is visible
-    }
-
-    function showLoadingIndicator() {
-        const resultsPanel = document.getElementById("results-panel");
-        resultsPanel.innerHTML = '<div class="loading">Loading...</div>';
-    }
-
-    function hideLoadingIndicator() {
-        // Optionally clear the loading indicator if needed
     }
 
     function currentYear() {
@@ -589,9 +700,10 @@ function createTreeNode(dn) {
         });
     }
 
-    initialize();
-    const executeButton = document.querySelector('button#execute-button');
-    if (executeButton) {
-        executeButton.addEventListener('click', executePowerViewCommand);
+    function isValidDistinguishedName(value) {
+        const dnPattern = /^(CN|OU|DC)=/i; // Simple pattern to identify a DN
+        return dnPattern.test(value);
     }
+
+    initialize();
 });
