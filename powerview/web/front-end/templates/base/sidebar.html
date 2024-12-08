@@ -9,12 +9,12 @@
                     <li>
                         {% if item.link %}
                             <a href="{{ item.link }}" class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
-                                <i class="fa {{ item.icon }} w-5 h-5"></i>
+                                <i class="{{ item.icon }} w-5 h-5"></i>
                                 <span>{{ item.name }}</span>
                             </a>
                         {% else %}
                             <button id="{{ item.button_id }}" class="w-full flex items-center gap-2 px-4 py-2 rounded hover:bg-gray-800 transition-colors">
-                                <i class="fa {{ item.icon }} w-5 h-5"></i>
+                                <i class="{{ item.icon }} w-5 h-5"></i>
                                 <span>{{ item.name }}</span>
                             </button>
                         {% endif %}

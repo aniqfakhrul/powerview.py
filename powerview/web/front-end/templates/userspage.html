@@ -55,9 +55,7 @@
                             <div class="relative w-full">
                                 <input type="text" id="ldap-filter-input" class="w-full border rounded p-1 pr-10 text-center" placeholder="Additional LDAP Filter">
                                 <button id="clear-ldap-filter" class="absolute inset-y-0 right-0 px-2 text-gray-400 hover:text-gray-600 focus:outline-none">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                    </svg>
+                                    <i class="fa-solid fa-xmark"></i>
                                 </button>
                             </div>
                         </div>
@@ -70,11 +68,7 @@
             <div class="col-span-3 bg-white rounded-lg shadow p-4">
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center gap-2">
-                        <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="12" cy="12" r="10"></circle>
-                            <line x1="12" x2="12" y1="8" y2="12"></line>
-                            <line x1="12" x2="12.01" y1="16" y2="16"></line>
-                        </svg>
+                        <i class="fa-solid fa-user"></i>
                         <h2 class="text-lg font-semibold">Users</h2>
                     </div>
                     <button data-modal-target="add-user-modal" data-modal-toggle="add-user-modal" class="block text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800" type="button">
@@ -85,14 +79,14 @@
                 <div class="m-4">
                     <input type="text" id="user-search" class="w-full p-2 border rounded" placeholder="Filter users...">
                 </div>
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead>
+                <table class="w-full text-left text-sm text-neutral-600 dark:text-neutral-300">
+                    <thead class="border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                            <th scope="col" class="p-4">Name</th>
+                            <th scope="col" class="p-4">Email</th>
+                            <th scope="col" class="p-4">Role</th>
+                            <th scope="col" class="p-4">Status</th>
+                            <th scope="col" class="p-4">Action</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
