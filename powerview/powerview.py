@@ -48,7 +48,6 @@ from ldap3.protocol.microsoft import security_descriptor_control
 from ldap3.extend.microsoft import addMembersToGroups, modifyPassword, removeMembersFromGroups
 from ldap3.utils.conv import escape_filter_chars
 import re
-import inspect
 
 class PowerView:
 	def __init__(self, conn, args, target_server=None, target_domain=None):
@@ -100,36 +99,19 @@ class PowerView:
 			self.api_server = APIServer(self, host=self.args.web_host, port=self.args.web_port)
 			self.api_server.start()
 
+		# Get current user's SID from the LDAP connection
+		self.current_user_sid = None
+		whoami = self.conn.who_am_i()
+		if whoami:
+			user = self.get_domainobject(identity=whoami.split('\\')[1], properties=['objectSid'])
+			if user and len(user) > 0:
+				self.current_user_sid = user[0]['attributes']['objectSid']
+
 	def get_admin_status(self):
 		return self.is_admin
 
-	def is_connection_alive(self):
-		try:
-			self.ldap_session.search(search_base='', search_filter='(objectClass=*)', search_scope='BASE', attributes=['namingContexts'])
-			return self.ldap_session.result['result'] == 0
-		except Exception as e:
-			print(f"Connection is not alive: {e}")
-			return False
-
 	def get_server_dns(self):
 		return self.dc_dnshostname
-
-	def execute(self, args):
-		module_name = args.module
-		method_name = module_name.replace('-', '_').lower()
-		method = getattr(self, method_name, None)
-
-		if not method:
-			raise ValueError(f"Method {method_name} not found in PowerView")
-
-		# Get the method's signature
-		method_signature = inspect.signature(method)
-		method_params = method_signature.parameters
-
-		# Filter out unsupported arguments
-		method_args = {k: v for k, v in vars(args).items() if k in method_params}
-
-		return method(**method_args)
 
 	def is_admin(self):
 		self.is_domainadmin = False
@@ -209,14 +191,14 @@ class PowerView:
 			if args.trustedtoauth:
 				logging.debug('[Get-DomainUser] Searching for users that are trusted to authenticate for other principals')
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=16777216)'
-				properties.add('msds-AllowedToDelegateTo')
+				properties += ['msds-AllowedToDelegateTo']
 			if args.rbcd:
 				logging.debug('[Get-DomainUser] Searching for users that are configured to allow resource-based constrained delegation')
 				ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
 			if args.shadowcred:
 				logging.debug("[Get-DomainUser] Searching for users that are configured to have msDS-KeyCredentialLink attribute set")
 				ldap_filter += f'(msDS-KeyCredentialLink=*)'
-				properties.add('msDS-KeyCredentialLink')
+				properties += ['msDS-KeyCredentialLink']
 			if args.spn:
 				logging.debug("[Get-DomainUser] Searching for users that have SPN attribute set")
 				ldap_filter += f'(servicePrincipalName=*)'
@@ -400,7 +382,7 @@ class PowerView:
 
 		return entries
 
-	def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, ldap_filter=None, searchbase=None, sd_flag=None, search_scope=ldap3.SUBTREE):
+	def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, ldap_filter="", searchbase=None, sd_flag=None, search_scope=ldap3.SUBTREE):
 		def_prop = [
 			'*'
 		]
@@ -412,20 +394,22 @@ class PowerView:
 			controls = None
 
 		identity_filter = "" if not identity_filter else identity_filter
-		ldap_filter = "" if not ldap_filter else ldap_filter
-		identity = None if not identity else identity
-		if identity and not identity_filter:
-			identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
+
+		if not identity:
+			ldap_filter = "(objectClass=*)"
+		else:
+			if not identity_filter:
+				identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
 
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
 		logging.debug(f"[Get-DomainObject] Using search base: {searchbase}")
-		if args and args.ldapfilter:
+		if not ldap_filter and args and args.ldapfilter:
 			logging.debug(f'[Get-DomainObject] Using additional LDAP filter from args: {args.ldapfilter}')
 			ldap_filter = f"{args.ldapfilter}"
 
-		ldap_filter = f'(&(objectClass=*){identity_filter}{ldap_filter})'
+		ldap_filter = f'(&{identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
 
 		entries = []
@@ -686,20 +670,19 @@ class PowerView:
 			if args.trustedtoauth:
 				logging.debug("[Get-DomainComputer] Searching for computers that are trusted to authenticate for other principals")
 				ldap_filter += f'(msds-allowedtodelegateto=*)'
-				properties.add('msds-AllowedToDelegateTo')
+				properties += ['msds-AllowedToDelegateTo']
 			if args.laps:
 				logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
 				ldap_filter += f'(ms-Mcs-AdmPwd=*)'
-				properties.add('ms-MCS-AdmPwd')
-				properties.add('ms-Mcs-AdmPwdExpirationTime')
+				properties += ['ms-MCS-AdmPwd','ms-Mcs-AdmPwdExpirationTime']
 			if args.rbcd:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
 				ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
-				properties.add('msDS-AllowedToActOnBehalfOfOtherIdentity')
+				properties += ['msDS-AllowedToActOnBehalfOfOtherIdentity']
 			if args.shadowcred:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to have msDS-KeyCredentialLink attribute set")
 				ldap_filter += f'(msDS-KeyCredentialLink=*)'
-				properties.add('msDS-KeyCredentialLink')
+				properties += ['msDS-KeyCredentialLink']
 			if args.printers:
 				logging.debug("[Get-DomainComputer] Searching for printers")
 				ldap_filter += f'(objectCategory=printQueue)'
@@ -712,17 +695,16 @@ class PowerView:
 			if args.bitlocker:
 				logging.debug("[Get-DomainComputer] Searching for computers with BitLocker keys")
 				ldap_filter += f'(objectClass=msFVE-RecoveryInformation)'
-				properties.add('msFVE-KeyPackage')
-				properties.add('msFVE-RecoveryGuid')
-				properties.add('msFVE-RecoveryPassword')
-				properties.add('msFVE-VolumeGuid')
+				properties += ["msFVE-KeyPackage", "msFVE-RecoveryGuid", "msFVE-RecoveryPassword", "msFVE-VolumeGuid"]
 			if args.gmsapassword:
 				logging.debug("[Get-DomainComputer] Searching for computers with GSMA password stored")
 				ldap_filter += f'(objectClass=msDS-GroupManagedServiceAccount)'
-				properties.add('msDS-ManagedPassword')
-				properties.add('msDS-GroupMSAMembership')
-				properties.add('msDS-ManagedPasswordInterval')
-				properties.add('msDS-ManagedPasswordId')
+				properties += [
+						"msDS-ManagedPassword",
+						"msDS-GroupMSAMembership",
+						"msDS-ManagedPasswordInterval",
+						"msDS-ManagedPasswordId"
+					]
 			if args.pre2k:
 				logging.debug("[Get-DomainComputer] Search for Pre-Created Windows 2000 computer")
 				ldap_filter += f'(userAccountControl=4128)(logonCount=0)'
@@ -1492,7 +1474,7 @@ class PowerView:
 
 		return entries
 
-	def get_domainca(self, args=None, identity=None, check_web_enrollment=False, properties=None, search_scope=ldap3.SUBTREE):
+	def get_domainca(self, args=None, properties=None, search_scope=ldap3.SUBTREE):
 		def_prop = [
 			"cn",
 			"name",
@@ -1505,13 +1487,11 @@ class PowerView:
 			"displayName",
 		]
 		properties = def_prop if not properties else properties
-		if check_web_enrollment is not None:
-			check_web_enrollment = args.check_web_enrollment
 
 		ca_fetch = CAEnum(self.ldap_session, self.root_dn)
 		entries = ca_fetch.fetch_enrollment_services(properties, search_scope=search_scope)
 
-		if check_web_enrollment:
+		if args.check_web_enrollment:
 			# check for web enrollment
 			for i in range(len(entries)):
 				target_name = entries[i]['dnsHostName'].value
@@ -1999,7 +1979,7 @@ displayName=New Group Policy Object
 
 		logging.debug(f"[Add-DomainCATemplateAcle] Template {name} exists")
 
-		template_parser = PARSE_TEMPLATE(template[0])
+		template_parser = PARSE_TEMPLATE(template[0],current_user_sid=self.current_user_sid)
 		secDesc = template_parser.modify_dacl(principal_identity[0].get('attributes').get('objectSid'), rights)
 		succeed = self.set_domainobject(  
 								name,
@@ -2218,7 +2198,7 @@ displayName=New Group Policy Object
 					template_guids.append(template["objectGUID"])
 
 				# get enrollment rights
-				template_ops = PARSE_TEMPLATE(template)
+				template_ops = PARSE_TEMPLATE(template, current_user_sid=self.current_user_sid)
 				parsed_dacl = template_ops.parse_dacl()
 				template_ops.resolve_flags()
 				template_owner = template_ops.get_owner_sid()
