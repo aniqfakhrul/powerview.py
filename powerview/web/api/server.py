@@ -41,7 +41,7 @@ class APIServer:
 		self.app.add_url_rule('/api/convert/<method_name>', 'convert_operation', self.handle_convert_operation, methods=['POST'])
 		self.app.add_url_rule('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, methods=['GET'])
 		self.app.add_url_rule('/health', 'health', self.handle_health, methods=['GET'])
-		self.app.add_url_rule('/api/status', 'status', self.handle_status, methods=['GET'])
+		self.app.add_url_rule('/api/connectioninfo', 'connectioninfo', self.handle_connection_info, methods=['GET'])
 		self.app.add_url_rule('/api/logs', 'logs', self.render_logs, methods=['GET'])
 		self.app.add_url_rule('/api/history', 'history', self.render_history, methods=['GET'])
 		self.app.add_url_rule('/api/ldap_rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
@@ -138,9 +138,17 @@ class APIServer:
 			'root_dn': self.powerview.root_dn,
 			'dc_dnshostname': self.powerview.dc_dnshostname,
 			'flatName': self.powerview.flatName,
-			'is_admin': self.powerview.is_admin,
 		}
 		return jsonify(domain_info)
+	
+	def handle_connection_info(self):
+		return jsonify({
+			'domain': self.powerview.domain,
+			'username': self.powerview.whoami,
+			'sid': self.powerview.current_user_sid,
+			'is_admin': self.powerview.is_admin,
+			'status': 'OK' if self.powerview.is_connection_alive() else 'KO'
+		})
 
 	def execute_command(self):
 		properties = [
@@ -185,9 +193,6 @@ class APIServer:
 
 	def handle_health(self):
 		return jsonify({'status': 'ok'})
-
-	def handle_status(self):
-		return jsonify({'status': 'OK' if self.powerview.is_connection_alive() else 'KO'})
 
 	def handle_ldap_rebind(self):
 		return jsonify({'status': 'OK' if self.powerview.conn.reset_connection() else 'KO'})

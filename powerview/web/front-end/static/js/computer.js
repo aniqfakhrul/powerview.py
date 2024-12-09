@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (computers.length > 0) {
             // Get attribute keys from the first computer to create table headers
+            console.log(computers[0].attributes);
             const attributeKeys = Object.keys(computers[0].attributes);
 
             // Create table headers
@@ -338,7 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
             identity: document.getElementById('identity-input').value || '',
             unconstrained: document.getElementById('unconstrained-delegation-toggle').getAttribute('data-active') === 'true',
             enabled: document.getElementById('enabled-computers-toggle').getAttribute('data-active') === 'true',
-            disabled: document.getElementById('disabled-users-toggle').getAttribute('data-active') === 'true',
+            disabled: document.getElementById('disabled-computers-toggle').getAttribute('data-active') === 'true',
             trustedtoauth: document.getElementById('trusted-to-auth-toggle').getAttribute('data-active') === 'true',
             laps: document.getElementById('laps-toggle').getAttribute('data-active') === 'true',
             rbcd: document.getElementById('rbcd-toggle').getAttribute('data-active') === 'true',

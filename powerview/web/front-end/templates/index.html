@@ -4,3 +4,6 @@
     {% include 'views/treeview.html' %}
     {% include 'views/resultspanel.html' %}
 {% endblock %}
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/tree.js') }}"></script>
+{% endblock %}
