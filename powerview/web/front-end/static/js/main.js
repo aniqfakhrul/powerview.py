@@ -215,26 +215,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const profileMenu = document.getElementById('profile-menu');
             const statusElement = profileMenu.querySelector('#connection-status-display');
+            const addressElement = profileMenu.querySelector('#connection-address-display');
+            const domainElement = profileMenu.querySelector('#connection-domain-display');
             const usernameElement = profileMenu.querySelector('#username-display');
-            const iconElement = profileMenu.querySelector('.fa-wifi');
 
             if (response.ok) {
                 const data = await response.json();
                 usernameElement.textContent = data.username;
+                addressElement.textContent = `${data.protocol}://${data.ldap_address}`;
+                domainElement.textContent = `${data.domain}`;
                 if (data.status === 'OK') {
                     statusElement.textContent = 'Connected';
                     statusElement.classList.remove('text-red-400');
                     statusElement.classList.add('text-green-400');
-
-                    iconElement.classList.remove('text-red-400');
-                    iconElement.classList.add('text-green-400');
                 } else {
                     statusElement.textContent = 'Disconnected';
                     statusElement.classList.remove('text-green-400');
                     statusElement.classList.add('text-red-400');
-
-                    iconElement.classList.remove('text-green-400');
-                    iconElement.classList.add('text-red-400');
                 }
             } else {
                 throw new Error('Failed to fetch status');

@@ -17,7 +17,7 @@
                 <!-- logo  -->
                 <a href="#" class="ml-2 w-fit text-2xl font-bold text-neutral-900 dark:text-white">
                     <span class="sr-only">homepage</span>
-                    Powerview.py
+                    <span class="text-yellow-500">P</span>ower<span class="text-yellow-500">V</span>iew.py
                 </a>
 
                 <!-- search  -->
@@ -64,9 +64,10 @@
                     <button type="button" class="flex w-full cursor-pointer items-center rounded-md gap-2 p-2 text-left text-neutral-600 hover:bg-black/5 hover:text-neutral-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:text-neutral-300 dark:hover:bg-white/5 dark:hover:text-white dark:focus-visible:outline-white" x-bind:class="menuIsOpen ? 'bg-black/10 dark:bg-white/10' : ''" aria-haspopup="true" x-on:click="menuIsOpen = ! menuIsOpen" x-bind:aria-expanded="menuIsOpen">
                         <div class="flex flex-col">
                             <span class="text-sm font-bold text-neutral-900 dark:text-white" id="username-display"></span>
+                            <span class="w-32 overflow-hidden text-ellipsis text-xs md:w-36" id="connection-domain-display"></span>
+                            <span class="w-32 overflow-hidden text-ellipsis text-xs md:w-36" id="connection-address-display"></span>
                             <div class="flex items-center">
-                                <i class="fa fa-wifi mr-1 text-xs"></i>
-                                <span class="w-32 overflow-hidden text-ellipsis text-xs md:w-36 ml-1" aria-hidden="true" id="connection-status-display"></span>
+                                <span class="w-32 overflow-hidden text-ellipsis text-xs md:w-36" aria-hidden="true" id="connection-status-display"></span>
                             </div>
                             <span class="sr-only">profile settings</span>
                         </div>
