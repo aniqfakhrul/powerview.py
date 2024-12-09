@@ -221,7 +221,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response.ok) {
                 const data = await response.json();
                 usernameElement.textContent = data.username;
-                protocolElement.textContent = data.protocol;
                 if (data.status === 'OK') {
                     statusElement.textContent = 'Connected';
                     statusElement.classList.remove('text-red-400');
