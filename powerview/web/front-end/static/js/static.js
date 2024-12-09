@@ -158,15 +158,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function handleHttpError(response) {
     if (!response.ok) {
+        const alertBox = document.querySelector('div[role="alert"]');
+        const alertMessage = document.getElementById('alert-message');
+
         if (response.status === 400) {
             const errorResponse = await response.json();
             if (errorResponse.error) {
-                alert(errorResponse.error);
+                alertMessage.textContent = errorResponse.error;
             } else {
-                alert('An unknown error occurred.');
+                alertMessage.textContent = 'An unknown error occurred.';
             }
         } else {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            alertMessage.textContent = `HTTP error! status: ${response.status}`;
         }
+
+        // Show the alert box
+        alertBox.hidden = false;
+
+        // Optionally, add a timeout to hide the alert after a few seconds
+        setTimeout(() => {
+            alertBox.hidden = true;
+        }, 5000);
     }
 }

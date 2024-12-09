@@ -2,94 +2,60 @@
 
 {% block content %}
     <!-- Modules Panel -->
-    <div class="flex-1 overflow-y-auto" id="modules-panel">
-        <div class="grid grid-cols-6 gap-4 m-4">
+    <div class="flex-1 h-screen overflow-hidden" id="modules-panel">
+        <div class="grid grid-cols-7 gap-4 h-full">
             <!-- Query Builder Card -->
-            <div class="col-span-1">
-                <div class="p-4 rounded-lg border border-neutral-300 bg-transparent text-neutral-600 dark:border-neutral-700 dark:bg-transparent dark:text-neutral-300">
-                    <h2 class="text-lg font-semibold mb-2">Query Parameters</h2>
-                    <div class="space-y-2">
-                        <div class="flex items-center">
-                            <div class="relative w-full">
-                                <input type="text" id="identity-input" class="w-full border rounded p-1 pr-10" placeholder="Identity">
-                                <button id="clear-input" class="absolute inset-y-0 right-0 px-2 text-gray-400 hover:text-gray-600 focus:outline-none">
-                                    <i class="fa-solid fa-xmark"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <button id="spn-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-neutral-600 dark:text-neutral-300 border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
-                            SPN
-                        </button>
-                        <button id="trusted-to-auth-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-neutral-600 dark:text-neutral-300 border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
-                            Trusted To Auth
-                        </button>
-                        <button id="enabled-computers-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-neutral-600 dark:text-neutral-300 border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
-                            Enabled
-                        </button>
-                        <button id="rbcd-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-neutral-600 dark:text-neutral-300 border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
-                            RBCD
-                        </button>
-                        <button id="shadow-cred-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-neutral-600 dark:text-neutral-300 border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
-                            Shadow Cred
-                        </button>
-                        <button id="unconstrained-delegation-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-neutral-600 dark:text-neutral-300 border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
-                            Unconstrained
-                        </button>
-                        <button id="disabled-computers-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-neutral-600 dark:text-neutral-300 border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
-                            Disabled
-                        </button>
-                        <button id="laps-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-neutral-600 dark:text-neutral-300 border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
-                            LAPS
-                        </button>
-                        <button id="printers-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-neutral-600 dark:text-neutral-300 border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
-                            Printers
-                        </button>
-                        <button id="bitlocker-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-neutral-600 dark:text-neutral-300 border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
-                            Bitlocker
-                        </button>
-                        <button id="gmsapassword-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-neutral-600 dark:text-neutral-300 border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
-                            GMSA Password
-                        </button>
-                        <button id="pre2k-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-neutral-600 dark:text-neutral-300 border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
-                            Pre-2k
-                        </button>
-                        <button id="excludedcs-toggle" class="custom-toggle-switch w-full mt-2 bg-transparent text-neutral-600 dark:text-neutral-300 border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="false">
-                            Exclude DC
-                        </button>
-                        <div class="flex items-center">
-                            <div class="relative w-full">
-                                <input type="text" id="ldap-filter-input" class="w-full border rounded p-1 pr-10" placeholder="Additional LDAP Filter">
-                                <button id="clear-ldap-filter" class="absolute inset-y-0 right-0 px-2 text-gray-400 hover:text-gray-600 focus:outline-none">
-                                    <i class="fa-solid fa-xmark"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="flex items-center">
-                            <div class="relative w-full">
-                                <input type="text" id="searchbase-input" class="w-full border rounded p-1 pr-10" placeholder="Search Base">
-                                <button id="clear-searchbase" class="absolute inset-y-0 right-0 px-2 text-gray-400 hover:text-gray-600 focus:outline-none">
-                                    <i class="fa-solid fa-xmark"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <button id="search-computers-button" class="w-full mt-2 bg-blue-700 text-white py-0.5 px-1.5 rounded-lg shadow hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 text-sm" data-active="false">
-                            Search Computers
-                        </button>
-                    </div>
-                </div>
-                <!-- Properties Card -->
-                <div class="p-4 rounded-lg border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            <div class="col-span-2 overflow-y-auto scrollbar">
+                <div class="bg-transparent text-neutral-600 dark:border-neutral-700 dark:bg-transparent dark:text-neutral-300 h-full">
+                    <!-- Properties Card -->
                     <h2 class="text-lg font-semibold mb-2 text-neutral-600 dark:text-neutral-300">Attributes</h2>
-                    <div class="space-y-2" id="properties-container">
+                    <div class="grid grid-cols-2 gap-2" id="properties-container">
                         {% for property in ldap_properties %}
-                        <button id="{{ property.id }}" class="custom-toggle-switch w-full mt-2 bg-transparent text-neutral-600 dark:text-neutral-300 border border-gray-300 py-0.5 px-1.5 rounded-lg shadow-sm focus:outline-none hover:bg-gray-100 text-sm" data-active="{{ property.active }}" data-ldap-attribute="{{ property.attribute }}">
+                        <button id="{{ property.id }}" class="custom-toggle-switch w-full cursor-pointer dark:bg-neutral-900 dark:text-white dark:focus-visible:outline-neutral-900 whitespace-nowrap rounded-md px-1 py-1 text-xs font-light tracking-wide transition hover:opacity-75 text-center focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-neutral-50 active:opacity-100 active:outline-offset-0 disabled:opacity-75 disabled:cursor-not-allowed" data-active="{{ property.active }}" data-ldap-attribute="{{ property.attribute }}">
                             {{ property.name }}
                         </button>
                         {% endfor %}
                     </div>
+                    <hr class="my-4 h-0.5 border-t-0 bg-neutral-100 dark:bg-white/10" />
+
+                    <h2 class="text-lg font-semibold mb-2">Query Parameters</h2>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="flex items-center col-span-2">
+                            <div class="relative w-full">
+                                <input type="text" id="identity-input" class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-1 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-white" placeholder="Identity">
+                                <button class="clear-input absolute inset-y-0 right-0 px-2 text-gray-400 hover:text-gray-600 focus:outline-none">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex items-center col-span-2">
+                            <div class="relative w-full">
+                                <input type="text" id="ldap-filter-input" class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-1 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-white" placeholder="Additional LDAP Filter">
+                                <button class="clear-input absolute inset-y-0 right-0 px-2 text-gray-400 hover:text-gray-600 focus:outline-none">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex items-center col-span-2">
+                            <div class="relative w-full">
+                                <input type="text" id="searchbase-input" class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-1 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-white" placeholder="Search Base">
+                                <button class="clear-input absolute inset-y-0 right-0 px-2 text-gray-400 hover:text-gray-600 focus:outline-none">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% for flag in powerview_flags %}
+                        <button id="{{ flag.id }}" class="custom-toggle-switch w-full cursor-pointer dark:bg-neutral-900 dark:text-white dark:focus-visible:outline-neutral-900 whitespace-nowrap rounded-md px-1 py-1 text-xs font-light tracking-wide transition hover:opacity-75 text-center focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-neutral-50 active:opacity-100 active:outline-offset-0 disabled:opacity-75 disabled:cursor-not-allowed" data-active="{{ flag.active }}">
+                            {{ flag.name }}
+                        </button>
+                        {% endfor %}
+                        <button id="search-computers-button" class="w-full col-span-2 mt-2 bg-blue-700 text-white py-0.5 px-1.5 rounded-lg shadow hover:bg-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-300 text-sm" data-active="false">
+                            Search Computers
+                        </button>
+                    </div>
                 </div>
             </div>
-            <div class="col-span-5 p-4 rounded-lg border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            <div class="col-span-5 p-4 rounded-lg border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 overflow-y-auto h-full scrollbar">
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-computer"></i>
@@ -101,9 +67,9 @@
                 </div>
                 <!-- Search Bar -->
                 <div class="mb-4">
-                    <input type="text" id="computer-search" class="w-full p-2 border rounded" placeholder="Filter computers...">
+                    <input type="text" id="computer-search" class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-white" placeholder="Filter computers...">
                 </div>
-                <div class="overflow-x-auto overflow-y-auto w-full h-screen scrollbar">
+                <div class="overflow-x-auto overflow-y-hidden w-full h-full scrollbar">
                     <table class="min-w-full text-left text-sm text-neutral-600 dark:text-neutral-300" id="computers-result-table">
                         <thead class="sticky top-0 border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
                         </thead>
@@ -118,6 +84,6 @@
 {% endblock %}
 
 {% block scripts %}
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <script src="{{ url_for('static', filename='js/computer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/modules.js') }}"></script>
 {% endblock %}

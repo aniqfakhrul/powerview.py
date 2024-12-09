@@ -1,16 +1,17 @@
 document.addEventListener('DOMContentLoaded', () => {
-    initializeButtonStyles();
-
     let identityToDelete = null;
     let rowToDelete = null;
 
     async function fetchAndPopulateComputers() {
         try {
             const response = await fetch('/api/get/domaincomputer', {
-                method: 'GET',
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                }
+                },
+                body: JSON.stringify({
+                    properties: ["sAMAccountName", "cn", "operatingSystem"]
+                })
             });
 
             await handleHttpError(response);
@@ -116,14 +117,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function addComputer(hostname, password) {
+    async function addComputer(computer_name, computer_pass) {
         try {
             const response = await fetch('/api/add/domaincomputer', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ hostname, password })
+                body: JSON.stringify({ computer_name, computer_pass })
             });
 
             await handleHttpError(response);
@@ -179,9 +180,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('add-computer-form').addEventListener('submit', (event) => {
         event.preventDefault();
-        const hostname = document.getElementById('new-hostname').value;
-        const password = document.getElementById('new-password').value;
-        addComputer(hostname, password);
+        const computer_name = document.getElementById('new-computername').value;
+        const computer_pass = document.getElementById('new-computerpass').value;
+        addComputer(computer_name, computer_pass);
         document.getElementById('add-computer-modal').classList.add('hidden');
         document.getElementById('modal-overlay').classList.add('hidden');
     });
@@ -400,57 +401,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Attach event listener to the search button
     document.getElementById('search-computers-button').addEventListener('click', searchComputers);
 
-    // Add event listeners for all clear buttons
-    document.querySelectorAll('#clear-input').forEach(button => {
-        button.addEventListener('click', (event) => {
-            const input = event.target.closest('.relative').querySelector('input');
-            if (input) {
-                input.value = '';
-            }
-        });
-    });
-
-    const toggleButtons = document.querySelectorAll('.custom-toggle-switch');
-    toggleButtons.forEach(toggleButton => {
-        toggleButton.addEventListener('click', () => {
-            const isAllButton = toggleButton.id === 'all-toggle';
-
-            if (toggleButton.dataset.active === 'false') {
-                toggleButton.dataset.active = 'true';
-                toggleButton.classList.remove('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
-                toggleButton.classList.add('bg-green-600', 'text-white', 'hover:bg-green-700');
-
-                if (isAllButton) {
-                    // Set all other buttons to inactive
-                    toggleButtons.forEach(otherButton => {
-                        if (otherButton !== toggleButton) {
-                            otherButton.dataset.active = 'false';
-                            otherButton.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-700');
-                            otherButton.classList.add('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
-                        }
-                    });
-                }
-            } else {
-                toggleButton.dataset.active = 'false';
-                toggleButton.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-700');
-                toggleButton.classList.add('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
-            }
-        });
-    });
-
-    function initializeButtonStyles() {
-        const toggleButtons = document.querySelectorAll('.custom-toggle-switch');
-        toggleButtons.forEach(toggleButton => {
-            if (toggleButton.dataset.active === 'true') {
-                toggleButton.classList.add('bg-green-600', 'text-white', 'hover:bg-green-700');
-                toggleButton.classList.remove('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
-            } else {
-                toggleButton.classList.add('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
-                toggleButton.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-700');
-            }
-        });
-    }
-    
     // enable if you want to fetch users on page load
     // fetchAndPopulateUsers();
 });

@@ -2671,7 +2671,7 @@ displayName=New Group Policy Object
 			return
 		identity_dn = entries[0]["attributes"]["distinguishedName"]
 		au = ADUser(self.ldap_session, self.root_dn)
-		au.removeUser(identity_dn)
+		return au.removeUser(identity_dn)
 
 	def add_domainuser(self, username, userpass, args=None):
 		parent_dn_entries = f"CN=Users,{self.root_dn}"

@@ -1,8 +1,8 @@
 {% extends "base/layouts.html" %}
-
 {% block content %}
-    {% include 'views/treeview.html' %}
-    {% include 'views/resultspanel.html' %}
+    <div class="grid grid-cols-3 h-full">
+        {% include 'views/treeview.html' %}
+    </div>
 {% endblock %}
 {% block scripts %}
     <script src="{{ url_for('static', filename='js/tree.js') }}"></script>

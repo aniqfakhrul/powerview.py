@@ -8,9 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            if (!domainInfoResponse.ok) {
-                throw new Error(`HTTP error! status: ${domainInfoResponse.status}`);
-            }
+            await handleHttpError(domainInfoResponse);
 
             const domainInfo = await domainInfoResponse.json();
             const rootDn = domainInfo.root_dn;
@@ -74,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
         buildingIcon.classList.add('far', 'fa-folder', 'w-4', 'h-4', 'text-blue-500');
 
         div.appendChild(buildingIcon);
-        div.innerHTML += `<span>${dn}</span>`;
+        div.innerHTML += `<span class="text-neutral-900 dark:text-white">${dn}</span>`;
 
         div.addEventListener('click', async (event) => {
             event.stopPropagation();
@@ -205,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const attributes = item.attributes;
 
         let detailsHTML = `
-            <div class="bg-neutral-50 px-4 py-2 border-b sticky top-0 z-10">
+            <div class="bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white px-4 py-2 border-b sticky top-0 z-10">
                 <h3 class="font-medium">${attributes.name || 'Details'}</h3>
             </div>
             <div class="p-4">

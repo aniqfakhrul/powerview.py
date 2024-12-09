@@ -6,7 +6,6 @@
         {% endblock %}
     </head>
     <body>
-        {% include 'base/sidebar.html' %}
         <div x-data="{ showSidebar: false }" class="relative flex w-full flex-col md:flex-row">
             <!-- This allows screen readers to skip the sidebar and go directly to the main content. -->
             <a class="sr-only" href="#main-content">skip to the main content</a>
@@ -100,6 +99,7 @@
                 {% include 'views/detailspanel.html' %}
                 {% include 'views/modal.html' %}
                 {% include 'views/tableview.html' %}
+                {% include 'views/alert.html' %}
             </div>
 
             <!-- toggle button for small screen  -->
@@ -113,6 +113,7 @@
                 <span class="sr-only">sidebar toggle</span>
             </button>
         </div>
+
         {% block scripts %}
         {% endblock %}
     </body>

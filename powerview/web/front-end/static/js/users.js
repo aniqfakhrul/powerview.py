@@ -1,18 +1,18 @@
 document.addEventListener('DOMContentLoaded', () => {
-    initializeButtonStyles();
-
     let identityToDelete = null;
     let rowToDelete = null;
 
     async function fetchAndPopulateUsers() {
         try {
             const response = await fetch('/api/get/domainuser', {
-                method: 'GET',
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                }
+                },
+                body: JSON.stringify({
+                    properties: ["cn", "sAMAccountname", "mail", "adminCount"]
+                })
             });
-
             await handleHttpError(response);
 
             const users = await response.json();
@@ -358,8 +358,6 @@ document.addEventListener('DOMContentLoaded', () => {
             passnotrequired: document.getElementById('pass-not-required-toggle').getAttribute('data-active') === 'true',
             admincount: document.getElementById('admin-count-toggle').getAttribute('data-active') === 'true',
             lockout: document.getElementById('lockout-toggle').getAttribute('data-active') === 'true',
-            allowdelegation: document.getElementById('allow-delegation-toggle').getAttribute('data-active') === 'true',
-            disallowdelegation: document.getElementById('disallow-delegation-toggle').getAttribute('data-active') === 'true',
             rbcd: document.getElementById('rbcd-toggle').getAttribute('data-active') === 'true',
             shadowcred: document.getElementById('shadow-cred-toggle').getAttribute('data-active') === 'true',
             unconstrained: document.getElementById('unconstrained-delegation-toggle').getAttribute('data-active') === 'true',
@@ -413,57 +411,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Attach event listener to the search button
     document.getElementById('search-users-button').addEventListener('click', searchUsers);
 
-    // Add event listeners for all clear buttons
-    document.querySelectorAll('#clear-input').forEach(button => {
-        button.addEventListener('click', (event) => {
-            const input = event.target.closest('.relative').querySelector('input');
-            if (input) {
-                input.value = '';
-            }
-        });
-    });
-
-    const toggleButtons = document.querySelectorAll('.custom-toggle-switch');
-    toggleButtons.forEach(toggleButton => {
-        toggleButton.addEventListener('click', () => {
-            const isAllButton = toggleButton.id === 'all-toggle';
-
-            if (toggleButton.dataset.active === 'false') {
-                toggleButton.dataset.active = 'true';
-                toggleButton.classList.remove('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
-                toggleButton.classList.add('bg-green-600', 'text-white', 'hover:bg-green-700');
-
-                if (isAllButton) {
-                    // Set all other buttons to inactive
-                    toggleButtons.forEach(otherButton => {
-                        if (otherButton !== toggleButton) {
-                            otherButton.dataset.active = 'false';
-                            otherButton.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-700');
-                            otherButton.classList.add('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
-                        }
-                    });
-                }
-            } else {
-                toggleButton.dataset.active = 'false';
-                toggleButton.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-700');
-                toggleButton.classList.add('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
-            }
-        });
-    });
-
-    function initializeButtonStyles() {
-        const toggleButtons = document.querySelectorAll('.custom-toggle-switch');
-        toggleButtons.forEach(toggleButton => {
-            if (toggleButton.dataset.active === 'true') {
-                toggleButton.classList.add('bg-green-600', 'text-white', 'hover:bg-green-700');
-                toggleButton.classList.remove('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
-            } else {
-                toggleButton.classList.add('bg-transparent', 'text-black', 'border-gray-300', 'hover:bg-gray-100');
-                toggleButton.classList.remove('bg-green-600', 'text-white', 'hover:bg-green-700');
-            }
-        });
-    }
-    
     // enable if you want to fetch users on page load
     // fetchAndPopulateUsers();
 });
