@@ -11,7 +11,6 @@ from powerview.utils.shell import get_prompt
 from powerview.utils.colors import bcolors
 
 import ldap3
-import json
 import random
 import string
 import shlex

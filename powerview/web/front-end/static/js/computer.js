@@ -75,7 +75,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Populate table rows
             computers.forEach(computer => {
                 const tr = document.createElement('tr');
-                tr.classList.add('ldap-link', 'hover:bg-gray-100');
+                tr.classList.add('ldap-link');
+                tr.classList.add('dark:hover:bg-white/5','dark:hover:text-white');
                 tr.dataset.identity = computer.dn;
                 tr.onclick = (event) => handleLdapLinkClick(event);
 

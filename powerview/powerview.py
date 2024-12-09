@@ -15,7 +15,6 @@ from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
 from powerview.utils.storage import Storage
 from powerview.modules.ldapattack import (
-	LDAPAttack,
 	ACLEnum,
 	ADUser,
 	ObjectOwner,
@@ -41,7 +40,6 @@ from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.web.api.server import APIServer
 
 import chardet
-import time
 from io import BytesIO
 import ldap3
 from ldap3.protocol.microsoft import security_descriptor_control

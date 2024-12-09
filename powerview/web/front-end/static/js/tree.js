@@ -205,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const attributes = item.attributes;
 
         let detailsHTML = `
-            <div class="bg-gray-50 px-4 py-2 border-b sticky top-0 z-10">
+            <div class="bg-neutral-50 px-4 py-2 border-b sticky top-0 z-10">
                 <h3 class="font-medium">${attributes.name || 'Details'}</h3>
             </div>
             <div class="p-4">
@@ -218,8 +218,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (key === 'member' || key === 'memberOf' || key === 'objectCategory' || key === 'distinguishedName' || isDistinguishedName) {
                 detailsHTML += `
                     <div>
-                    <dt class="text-sm font-medium text-gray-500">${key}</dt>
-                    <dd class="mt-1 text-sm text-gray-900 ldap-link">
+                    <dt class="text-sm font-medium text-neutral-600 dark:text-neutral-300">${key}</dt>
+                    <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-300 ldap-link">
                         ${Array.isArray(value) ? value.map(v => `<a href="#" class="text-blue-400 hover:text-blue-600" data-identity="${v}">${v}</a>`).join('<br>') : `<a href="#" class="text-blue-400 hover:text-blue-600" data-identity="${value}">${value}</a>`}
                         </dd>
                     </div>
@@ -227,8 +227,8 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 detailsHTML += `
                     <div>
-                        <dt class="text-sm font-medium text-gray-500">${key}</dt>
-                        <dd class="mt-1 text-sm text-gray-900">${Array.isArray(value) ? value.join('<br>') : value}</dd>
+                        <dt class="text-sm font-medium text-neutral-600 dark:text-neutral-300">${key}</dt>
+                        <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-300">${Array.isArray(value) ? value.join('<br>') : value}</dd>
                     </div>
                 `;
             }
