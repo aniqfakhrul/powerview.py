@@ -63,7 +63,7 @@ class APIServer:
 		context = {	
 			'nav_items': self.nav_items
 		}
-		return render_template('index.html', **context)
+		return render_template('explorerpage.html', **context)
 
 	def render_users(self):
 		context = {

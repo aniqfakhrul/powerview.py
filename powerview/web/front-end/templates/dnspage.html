@@ -1,27 +1,30 @@
 {% extends "base/layouts.html" %}
 
 {% block content %}
-<div class="grid grid-cols-2 p-4 h-full">
+<div class="grid grid-cols-3 gap-4 p-4 h-full">
     <!-- Left Column -->
-    <div class="grid grid-rows-3 h-full">
-        <!-- Top Left Section: Zone Name -->
-        <div class="row-span-1 p-4 border-t border-l border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 h-full overflow-y-auto scrollbar">
-            <h2 class="text-lg font-semibold mb-2">Zone Name</h2>
-            <p>example.com</p>
+    <div class="p-4 col-span-1 border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 h-full overflow-y-auto scrollbar rounded-lg">
+        <h2 class="text-lg font-semibold mb-2">Zone Name</h2>
+        <div class="zone-name-container">
         </div>
-        <!-- Bottom Left Section: Record Name -->
-        <div class="row-span-2 p-4 border-t border-l border-b border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 h-full overflow-y-auto scrollbar">
+    </div> 
+    <!-- <div class="grid grid-rows-3 col-span-1 gap-4 h-full">
+        <div class="row-span-1 p-4 border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-transparent dark:text-neutral-300 h-full overflow-y-auto scrollbar rounded-lg">
+            <h2 class="text-lg font-semibold mb-2">Zone Name</h2>
+            <div class="zone-name-container">
+            </div>
+        </div>
+        <div class="row-span-2 p-4 border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-transparent dark:text-neutral-300 h-full overflow-y-auto scrollbar rounded-lg">
             <h2 class="text-lg font-semibold mb-2">Record Name</h2>
             <p>www.example.com</p>
         </div>
-    </div>
+    </div> -->
     <!-- Right Column: DNS Record Details -->
-    <div class="p-4 border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 h-full overflow-y-auto scrollbar">
+    <div class="p-4 col-span-2 border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 h-full overflow-y-auto scrollbar rounded-lg">
         <h2 class="text-lg font-semibold mb-2">DNS Record Details</h2>
-        <p><strong>Record Type:</strong> A</p>
-        <p><strong>IP Address:</strong> 192.168.1.1</p>
-        <p><strong>TTL:</strong> 3600</p>
-        <p><strong>Additional Info:</strong> Sample data for DNS record details.</p>
+        <div class="dns-record-details-container">
+            <!-- DNS record details will be dynamically inserted here -->
+        </div>
     </div>
 </div>
 {% endblock %}

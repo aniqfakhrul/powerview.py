@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const rootNodes = [
                 { dn: rootDn, icon: icons.adIcon },
-                { dn: `CN=Configuration,${rootDn}`, icon: icons.adIvon },
+                { dn: `CN=Configuration,${rootDn}`, icon: icons.adIcon },
                 { dn: `CN=Schema,CN=Configuration,${rootDn}`, icon: icons.defaultIcon },
                 { dn: `DC=DomainDnsZones,${rootDn}`, icon: icons.adIcon },
                 { dn: `DC=ForestDnsZones,${rootDn}`, icon: icons.adIcon }
@@ -31,7 +31,11 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const node of rootNodes) {
                 const exists = await checkDistinguishedNameExists(node.dn);
                 if (exists) {
-                    createTreeNode(node.dn, node.icon);
+                    const treeNode = createTreeNode(node.dn, node.icon);
+                    if (node.dn === rootDn) {
+                        // Automatically expand the rootDn node
+                        toggleSubtree(node.dn, treeNode);
+                    }
                 }
             }
         } catch (error) {
@@ -87,6 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         treeView.appendChild(div);
+        return div; // Return the created tree node
     }
 
     
@@ -136,11 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Ensure obj.attributes.objectClass is an array before using includes
             if (Array.isArray(obj.attributes.objectClass)) {
                 if (obj.attributes.objectClass.includes('group')) {
-                    if (obj.attributes.adminCount === 1) {
-                        iconSVG = icons.groupadminIcon; // Use fa-users for groups
-                    } else {
-                        iconSVG = icons.groupIcon; // Use fa-users for groups
-                    }
+                    iconSVG = icons.groupIcon;
                     objectClassLabel = 'Group';
                 } else if (obj.attributes.objectClass.includes('container')) {
                     iconSVG = icons.containerIcon; // Use fa-box-open for containers
@@ -149,17 +150,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     iconSVG = icons.computerIcon; // Use fa-desktop for computers
                     objectClassLabel = 'Computer';
                 } else if (obj.attributes.objectClass.includes('user')) {
-                    if (obj.attributes.adminCount === 1) {
-                        iconSVG = icons.adminUserIcon; // Use fa-user-circle for users
-                    } else {
-                        iconSVG = icons.userIcon; // Use fa-user-circle for users
-                    }
+                    iconSVG = icons.userIcon;
                     objectClassLabel = 'User';
                 } else if (obj.attributes.objectClass.includes('organizationalUnit')) {
                     iconSVG = icons.ouIcon; // Use fa-building for organizational units
                     objectClassLabel = 'Organizational Unit';
+                } else if (obj.attributes.objectClass.includes('builtinDomain')) {
+                    iconSVG = icons.builtinIcon;
+                    objectClassLabel = 'Builtin';
                 } else {
                     objectClassLabel = obj.attributes.objectClass[obj.attributes.objectClass.length - 1];
+                }
+
+                if (obj.attributes.adminCount === 1) {
+                    iconSVG += icons.keyIcon;
                 }
             }
 
@@ -200,26 +204,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 <h3 class="font-medium">${attributes.name || 'Details'}</h3>
             </div>
             <div class="p-4">
-                <dl class="grid grid-cols-2 gap-4">
+                <dl class="grid grid-cols-1">
         `;
 
         for (const [key, value] of Object.entries(attributes)) {
             const isDistinguishedName = Array.isArray(value) ? value.some(isValidDistinguishedName) : isValidDistinguishedName(value);
 
-            if (key === 'member' || key === 'memberOf' || key === 'objectCategory' || key === 'distinguishedName' || isDistinguishedName) {
+            if (isDistinguishedName) {
                 detailsHTML += `
-                    <div>
-                    <dt class="text-sm font-medium text-neutral-600 dark:text-neutral-300">${key}</dt>
-                    <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-300 ldap-link">
-                        ${Array.isArray(value) ? value.map(v => `<a href="#" class="text-blue-400 hover:text-blue-600" data-identity="${v}">${v}</a>`).join('<br>') : `<a href="#" class="text-blue-400 hover:text-blue-600" data-identity="${value}">${value}</a>`}
+                    <div class="flex">
+                        <dt class="text-sm font-medium text-neutral-600 dark:text-neutral-300 w-1/3">${key}</dt>
+                        <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-300 ldap-link w-2/3">
+                            ${Array.isArray(value) ? value.map(v => `<a href="#" class="text-blue-400 hover:text-blue-600" data-identity="${v}">${v}</a>`).join('<br>') : `<a href="#" class="text-blue-400 hover:text-blue-600" data-identity="${value}">${value}</a>`}
                         </dd>
                     </div>
                 `;
             } else {
                 detailsHTML += `
-                    <div>
-                        <dt class="text-sm font-medium text-neutral-600 dark:text-neutral-300">${key}</dt>
-                        <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-300">${Array.isArray(value) ? value.join('<br>') : value}</dd>
+                    <div class="flex">
+                        <dt class="text-sm font-medium text-neutral-600 dark:text-neutral-300 w-1/3">${key}</dt>
+                        <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-300 w-2/3">${Array.isArray(value) ? value.join('<br>') : value}</dd>
                     </div>
                 `;
             }
