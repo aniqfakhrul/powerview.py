@@ -1,0 +1,12 @@
+{% extends "base/layouts.html" %}
+
+{% block content %}
+<div class="grid grid-cols-1 h-full">
+    <div class="col-span-1 overflow-y-auto rounded-lg border border-neutral-300 dark:border-neutral-700 scrollbar" style="max-height: 100vh;">
+        <h1>ADCS Page</h1>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/adcs.js') }}"></script>
+{% endblock %}

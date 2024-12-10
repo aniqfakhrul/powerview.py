@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, render_template, Response
 import logging
 from contextlib import redirect_stdout, redirect_stderr
 import io
@@ -32,6 +32,7 @@ class APIServer:
 		self.app.add_url_rule('/', 'index', self.render_index, methods=['GET'])
 		self.app.add_url_rule('/users', 'users', self.render_users, methods=['GET'])
 		self.app.add_url_rule('/computers', 'computers', self.render_computers, methods=['GET'])
+		self.app.add_url_rule('/adcs', 'adcs', self.render_adcs, methods=['GET'])
 		self.app.add_url_rule('/utils', 'utils', self.render_utils, methods=['GET'])
 		self.app.add_url_rule('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		self.app.add_url_rule('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
@@ -42,7 +43,7 @@ class APIServer:
 		self.app.add_url_rule('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, methods=['GET'])
 		self.app.add_url_rule('/health', 'health', self.handle_health, methods=['GET'])
 		self.app.add_url_rule('/api/connectioninfo', 'connectioninfo', self.handle_connection_info, methods=['GET'])
-		self.app.add_url_rule('/api/logs', 'logs', self.render_logs, methods=['GET'])
+		self.app.add_url_rule('/api/logs', 'logs', self.generate_log_stream, methods=['GET'])
 		self.app.add_url_rule('/api/history', 'history', self.render_history, methods=['GET'])
 		self.app.add_url_rule('/api/ldap_rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
 		self.app.add_url_rule('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
@@ -83,7 +84,6 @@ class APIServer:
 				{'id': 'title-toggle', 'name': 'title', 'active': 'false', 'attribute': 'title'},
 				{'id': 'department-toggle', 'name': 'department', 'active': 'false', 'attribute': 'department'},
 				{'id': 'company-toggle', 'name': 'company', 'active': 'false', 'attribute': 'company'},
-				{'id': 'physicaldeliveryofficename-toggle', 'name': 'physicalDeliveryOfficeName', 'active': 'false', 'attribute': 'physicalDeliveryOfficeName'},
 				{'id': 'serviceprincipalname-toggle', 'name': 'servicePrincipalName', 'active': 'false', 'attribute': 'servicePrincipalName'},
 				{'id': 'memberof-toggle', 'name': 'memberOf', 'active': 'false', 'attribute': 'memberOf'},
 				{'id': 'accountexpires-toggle', 'name': 'accountExpires', 'active': 'false', 'attribute': 'accountExpires'}
@@ -135,6 +135,12 @@ class APIServer:
 			]
 		}
 		return render_template('computerpage.html', **context)
+
+	def render_adcs(self):
+		context = {
+			'nav_items': self.nav_items
+		}
+		return render_template('adcspage.html', **context)
 
 	def render_utils(self):
 		context = {
@@ -237,7 +243,7 @@ class APIServer:
 		except Exception as e:
 			return jsonify({'error': str(e)}), 500
 
-	def render_logs(self):
+	def generate_log_stream(self):
 		try:
 			page = int(request.args.get('page', 1))
 			limit = int(request.args.get('limit', 10))

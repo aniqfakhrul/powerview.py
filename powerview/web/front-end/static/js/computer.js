@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
             attributeKeys.forEach(key => {
                 const th = document.createElement('th');
                 th.scope = 'col';
-                th.className = 'p-2';
+                th.className = 'p-1';
                 th.textContent = key;
                 headerRow.appendChild(th);
             });
@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add an extra header for actions
             const actionTh = document.createElement('th');
             actionTh.scope = 'col';
-            actionTh.className = 'p-2';
+            actionTh.className = 'p-1';
             actionTh.textContent = 'Action';
             headerRow.appendChild(actionTh);
 
@@ -76,14 +76,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Populate table rows
             computers.forEach(computer => {
                 const tr = document.createElement('tr');
-                tr.classList.add('ldap-link');
-                tr.classList.add('dark:hover:bg-white/5','dark:hover:text-white');
+                tr.classList.add('ldap-link', 'dark:hover:bg-white/5', 'dark:hover:text-white');
                 tr.dataset.identity = computer.dn;
                 tr.onclick = (event) => handleLdapLinkClick(event);
 
                 attributeKeys.forEach(key => {
                     const td = document.createElement('td');
-                    td.className = 'p-2 whitespace-nowrap';
+                    td.className = 'p-1 whitespace-nowrap';
                     const value = computer.attributes[key];
                     if (Array.isArray(value)) {
                         td.innerHTML = value.join('<br>');
@@ -95,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Add action buttons
                 const actionTd = document.createElement('td');
-                actionTd.className = 'p-2 whitespace-nowrap';
+                actionTd.className = 'p-1 whitespace-nowrap';
                 const editButton = document.createElement('button');
                 editButton.className = 'px-1 py-0.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-500 focus:outline-none focus:shadow-outline-blue active:bg-blue-600 transition duration-150 ease-in-out';
                 editButton.textContent = 'Edit';
@@ -377,6 +376,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function searchComputers() {
+        const searchSpinner = document.getElementById('search-spinner');
+        const boxOverlaySpinner = document.getElementById('box-overlay-spinner');
+        searchSpinner.classList.remove('hidden'); // Show the spinner
+        boxOverlaySpinner.classList.remove('hidden'); // Show the spinner
+
         const queryParams = collectQueryParams();
         console.log(queryParams);
         try {
@@ -395,6 +399,9 @@ document.addEventListener('DOMContentLoaded', () => {
             populateComputersTable(result);
         } catch (error) {
             console.error('Error searching computers:', error);
+        } finally {
+            searchSpinner.classList.add('hidden'); // Hide the spinner
+            boxOverlaySpinner.classList.add('hidden'); // Hide the spinner
         }
     }
 

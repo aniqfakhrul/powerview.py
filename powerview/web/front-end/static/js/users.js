@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
             attributeKeys.forEach(key => {
                 const th = document.createElement('th');
                 th.scope = 'col';
-                th.className = 'p-2';
+                th.className = 'p-1';
                 th.textContent = key;
                 headerRow.appendChild(th);
             });
@@ -64,7 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add an extra header for actions
             const actionTh = document.createElement('th');
             actionTh.scope = 'col';
-            actionTh.className = 'p-2';
+            actionTh.className = 'p-1';
             actionTh.textContent = 'Action';
             headerRow.appendChild(actionTh);
 
@@ -73,18 +73,15 @@ document.addEventListener('DOMContentLoaded', () => {
             // Populate table rows
             users.forEach(user => {
                 const tr = document.createElement('tr');
-                tr.classList.add('ldap-link');
-                tr.classList.add('dark:hover:bg-white/5','dark:hover:text-white');
+                tr.classList.add('ldap-link', 'dark:hover:bg-white/5', 'dark:hover:text-white');
                 tr.dataset.identity = user.dn;
                 tr.onclick = (event) => handleLdapLinkClick(event);
 
                 attributeKeys.forEach(key => {
                     const td = document.createElement('td');
-                    td.className = 'p-2 whitespace-nowrap';
+                    td.className = 'p-1 whitespace-nowrap';
                     const value = user.attributes[key];
                     if (key === 'adminCount') {
-                        const statusTd = document.createElement('td');
-                        statusTd.className = 'p-2 whitespace-nowrap';
                         const statusSpan = document.createElement('span');
                         if (value === 1) {
                             statusSpan.className = 'px-1 inline-flex text-xs leading-4 font-semibold rounded-md bg-green-100 text-green-800';
@@ -92,16 +89,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             statusSpan.textContent = '';
                         }
-                        statusTd.appendChild(statusSpan);
-                        tr.appendChild(statusTd);
+                        td.appendChild(statusSpan);
                     } else {
                         if (Array.isArray(value)) {
                             td.innerHTML = value.join('<br>');
                         } else {
                             td.textContent = value;
                         }
-                        tr.appendChild(td);
                     }
+                    tr.appendChild(td);
                 });
 
                 // Add action buttons
@@ -389,6 +385,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function searchUsers() {
+        const searchSpinner = document.getElementById('search-spinner');
+        const boxOverlaySpinner = document.getElementById('box-overlay-spinner');
+        searchSpinner.classList.remove('hidden'); // Show the spinner
+        boxOverlaySpinner.classList.remove('hidden'); // Show the spinner
+
         const queryParams = collectQueryParams();
         try {
             const response = await fetch('/api/get/domainuser', {
@@ -405,6 +406,9 @@ document.addEventListener('DOMContentLoaded', () => {
             populateUsersTable(result);
         } catch (error) {
             console.error('Error searching users:', error);
+        } finally {
+            searchSpinner.classList.add('hidden'); // Hide the spinner
+            boxOverlaySpinner.classList.add('hidden'); // Hide the spinner
         }
     }
 

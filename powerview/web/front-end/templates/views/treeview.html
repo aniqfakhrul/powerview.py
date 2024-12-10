@@ -1,19 +1,21 @@
-<!-- Tree View -->
-<div class="col-span-1 border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 scrollbar overflow-y-auto" id="tree-view-panel" style="max-height: 100vh;">
-    <div class="p-4">
-        <!-- <div class="flex items-center gap-1 p-1 hover:bg-gray-100 rounded cursor-pointer dropdown-toggle">
-            <i class="far fa-folder w-4 h-4 text-gray-500"></i>
-            <span id="domain-name" class="dark:text-white"></span>
-        </div> -->
-        <div id="tree-view">
-            <!-- Tree view content -->
+<div class="grid grid-cols-2 h-full">
+    <!-- Tree View -->
+    <div class="col-span-1 border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 scrollbar overflow-y-auto" id="tree-view-panel" style="max-height: 100vh;">
+        <div class="p-4">
+            <!-- <div class="flex items-center gap-1 p-1 hover:bg-gray-100 rounded cursor-pointer dropdown-toggle">
+                <i class="far fa-folder w-4 h-4 text-gray-500"></i>
+                <span id="domain-name" class="dark:text-white"></span>
+            </div> -->
+            <div id="tree-view">
+                <!-- Tree view content -->
+            </div>
         </div>
     </div>
-</div>
-<!-- Results Panel -->
-<div class="col-span-2 overflow-y-auto border border-neutral-300 dark:border-neutral-700 scrollbar" id="results-panel" style="max-height: 100vh;">
-    <div class="overflow-hidden">
-        {% include 'views/spinner.html' %}
-        <!-- Results content -->
+    <!-- Results Panel -->
+    <div class="col-span-1 overflow-y-auto border border-neutral-300 dark:border-neutral-700 scrollbar" id="results-panel" style="max-height: 100vh;">
+        <div class="overflow-hidden">
+            {% include 'views/spinner.html' %}
+            <!-- Results content -->
+        </div>
     </div>
 </div>
