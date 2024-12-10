@@ -20,18 +20,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 domainSpan.textContent = flatName;
             }
 
-            const distinguishedNames = [
-                rootDn,
-                `CN=Configuration,${rootDn}`,
-                `CN=Schema,CN=Configuration,${rootDn}`,
-                `DC=DomainDnsZones,${rootDn}`,
-                `DC=ForestDnsZones,${rootDn}`
+            const rootNodes = [
+                { dn: rootDn, icon: icons.adIcon },
+                { dn: `CN=Configuration,${rootDn}`, icon: icons.adIvon },
+                { dn: `CN=Schema,CN=Configuration,${rootDn}`, icon: icons.defaultIcon },
+                { dn: `DC=DomainDnsZones,${rootDn}`, icon: icons.adIcon },
+                { dn: `DC=ForestDnsZones,${rootDn}`, icon: icons.adIcon }
             ];
 
-            for (const dn of distinguishedNames) {
-                const exists = await checkDistinguishedNameExists(dn);
+            for (const node of rootNodes) {
+                const exists = await checkDistinguishedNameExists(node.dn);
                 if (exists) {
-                    createTreeNode(dn);
+                    createTreeNode(node.dn, node.icon);
                 }
             }
         } catch (error) {
@@ -61,18 +61,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function createTreeNode(dn) {
+    function createTreeNode(dn, icon) {
         const treeView = document.getElementById('tree-view');
         if (!treeView) return;
 
         const div = document.createElement('div');
         div.classList.add('flex', 'items-center', 'gap-1', 'hover:bg-white/5', 'rounded', 'cursor-pointer');
 
-        const buildingIcon = document.createElement('i');
-        buildingIcon.classList.add('far', 'fa-folder', 'w-4', 'h-4', 'text-blue-500');
-
-        div.appendChild(buildingIcon);
-        div.innerHTML += `<span class="text-neutral-900 dark:text-white">${dn}</span>`;
+        div.innerHTML += `${icon}<span class="text-neutral-900 dark:text-white">${dn}</span>`;
 
         div.addEventListener('click', async (event) => {
             event.stopPropagation();
@@ -134,28 +130,33 @@ document.addEventListener('DOMContentLoaded', () => {
             const objDiv = document.createElement('div');
             objDiv.classList.add('flex', 'items-center', 'gap-1', 'hover:bg-white/5', 'rounded', 'cursor-pointer');
 
-            let iconClasses = ['far', 'fa-folder']; // Default outlined icon
-            let iconColorClass = 'text-blue-500'; // Default color for most objects
+            let iconSVG = icons.defaultIcon;
             let objectClassLabel = 'Object'; // Default label
 
             // Ensure obj.attributes.objectClass is an array before using includes
             if (Array.isArray(obj.attributes.objectClass)) {
                 if (obj.attributes.objectClass.includes('group')) {
-                    iconClasses = ['fas', 'fa-users']; // Use fa-users for groups
+                    if (obj.attributes.adminCount === 1) {
+                        iconSVG = icons.groupadminIcon; // Use fa-users for groups
+                    } else {
+                        iconSVG = icons.groupIcon; // Use fa-users for groups
+                    }
                     objectClassLabel = 'Group';
                 } else if (obj.attributes.objectClass.includes('container')) {
-                    iconClasses = ['fas', 'fa-folder']; // Use fa-box-open for containers
-                    iconColorClass = 'text-blue-500'; // Yellow for containers
+                    iconSVG = icons.containerIcon; // Use fa-box-open for containers
                     objectClassLabel = 'Container';
                 } else if (obj.attributes.objectClass.includes('computer')) {
-                    iconClasses = ['fas', 'fa-desktop']; // Use fa-desktop for computers
+                    iconSVG = icons.computerIcon; // Use fa-desktop for computers
                     objectClassLabel = 'Computer';
                 } else if (obj.attributes.objectClass.includes('user')) {
-                    iconClasses = ['far', 'fa-user']; // Use fa-user-circle for users
+                    if (obj.attributes.adminCount === 1) {
+                        iconSVG = icons.adminUserIcon; // Use fa-user-circle for users
+                    } else {
+                        iconSVG = icons.userIcon; // Use fa-user-circle for users
+                    }
                     objectClassLabel = 'User';
                 } else if (obj.attributes.objectClass.includes('organizationalUnit')) {
-                    iconClasses = ['far', 'fa-building']; // Use fa-building for organizational units
-                    iconColorClass = 'text-blue-500'; // Yellow for organizational units
+                    iconSVG = icons.ouIcon; // Use fa-building for organizational units
                     objectClassLabel = 'Organizational Unit';
                 } else {
                     objectClassLabel = obj.attributes.objectClass[obj.attributes.objectClass.length - 1];
@@ -163,15 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Change icon to yellow color if adminCount is 1
-            if (obj.attributes.adminCount === 1) {
-                iconColorClass = 'text-yellow-500';
-            }
-
-            const icon = document.createElement('i');
-            icon.classList.add(...iconClasses, 'w-4', 'h-4', 'mr-1', iconColorClass);
-
-            objDiv.appendChild(icon);
-            objDiv.innerHTML += `<span class="text-neutral-900 dark:text-white">${obj.attributes.name || obj.dn}</span>`;
+            objDiv.innerHTML = `${iconSVG}<span class="text-neutral-900 dark:text-white">${obj.attributes.name || obj.dn}</span>`;
 
             // Set the title attribute to show the object class on hover
             objDiv.setAttribute('title', objectClassLabel);

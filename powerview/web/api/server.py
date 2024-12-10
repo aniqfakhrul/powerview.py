@@ -32,7 +32,7 @@ class APIServer:
 		self.app.add_url_rule('/', 'index', self.render_index, methods=['GET'])
 		self.app.add_url_rule('/users', 'users', self.render_users, methods=['GET'])
 		self.app.add_url_rule('/computers', 'computers', self.render_computers, methods=['GET'])
-		self.app.add_url_rule('/adcs', 'adcs', self.render_adcs, methods=['GET'])
+		self.app.add_url_rule('/dns', 'dns', self.render_dns, methods=['GET'])
 		self.app.add_url_rule('/utils', 'utils', self.render_utils, methods=['GET'])
 		self.app.add_url_rule('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		self.app.add_url_rule('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
@@ -53,6 +53,7 @@ class APIServer:
 			{"name": "Modules", "icon": "fas fa-cubes", "subitems": [
 				{"name": "Users", "icon": "far fa-user", "link": "/users"},
 				{"name": "Computers", "icon": "fas fa-display", "link": "/computers"},
+				{"name": "DNS", "icon": "fas fa-globe", "link": "/dns"},
 			]},
 			{"name": "Utils", "icon": "fas fa-toolbox", "link": "/utils"},
 			{"name": "Logs", "icon": "far fa-file-alt", "button_id": "toggle-command-history"},
@@ -136,11 +137,11 @@ class APIServer:
 		}
 		return render_template('computerpage.html', **context)
 
-	def render_adcs(self):
+	def render_dns(self):
 		context = {
 			'nav_items': self.nav_items
 		}
-		return render_template('adcspage.html', **context)
+		return render_template('dnspage.html', **context)
 
 	def render_utils(self):
 		context = {

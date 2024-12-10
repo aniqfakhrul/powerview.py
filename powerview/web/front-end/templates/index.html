@@ -1,7 +1,24 @@
 {% extends "base/layouts.html" %}
 {% block content %}
-    {% include 'views/treeview.html' %}
+<div class="grid grid-cols-2 h-full">
+    <!-- Tree View -->
+    <div class="col-span-1 border-t border-l border-b border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 scrollbar overflow-y-auto" id="tree-view-panel" style="max-height: 100vh;">
+        <div class="p-4">
+            <div id="tree-view">
+                <!-- Tree view content -->
+            </div>
+        </div>
+    </div>
+    <!-- Results Panel -->
+    <div class="col-span-1 overflow-y-auto border border-neutral-300 dark:border-neutral-700 scrollbar" id="results-panel" style="max-height: 100vh;">
+        <div class="overflow-hidden">
+            {% include 'views/spinner.html' %}
+            <!-- Results content -->
+        </div>
+    </div>
+</div>
 {% endblock %}
 {% block scripts %}
     <script src="{{ url_for('static', filename='js/tree.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/icon.js') }}"></script>
 {% endblock %}
