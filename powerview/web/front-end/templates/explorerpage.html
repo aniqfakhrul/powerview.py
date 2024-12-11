@@ -10,10 +10,10 @@
         </div>
     </div>
     <!-- Results Panel -->
-    <div class="col-span-1 border border-neutral-300 overflow-y-auto dark:border-neutral-700 scrollbar" id="results-panel" style="max-height: 100vh;">
-        <div class="overflow-hidden">
-            {% include 'views/spinner.html' %}
-            <!-- Results content -->
+    <div class="col-span-1 border border-neutral-300 overflow-y-auto dark:border-neutral-700 scrollbar relative" id="results-panel" style="max-height: 100vh;">
+        {% include 'views/spinner.html' %}
+        <!-- Results content -->
+        <div id="results-content">
         </div>
     </div>
 </div>

@@ -38,7 +38,7 @@ async function executePowerViewCommand(ldapFilter) {
 }
 
 async function fetchItemData(identity, search_scope = 'LEVEL') {
-    showLoadingIndicator();
+    // showLoadingIndicator();
     try {
         const response = await fetch('/api/get/domainobject', {
             method: 'POST',
@@ -58,28 +58,46 @@ async function fetchItemData(identity, search_scope = 'LEVEL') {
         console.error('Error fetching item data:', error);
         return null;
     } finally {
-        hideLoadingIndicator();
+        // hideLoadingIndicator();
     }
 }
 
-
 function showLoadingIndicator() {
-    const spinner = document.getElementById("loading-spinner");
-    if (spinner) {
-        spinner.removeAttribute('hidden');
-    }
+    const boxOverlaySpinner = document.getElementById('box-overlay-spinner');
+    boxOverlaySpinner.classList.remove('hidden'); // Show the spinner
 }
 
 function hideLoadingIndicator() {
-    const spinner = document.getElementById("loading-spinner");
-    if (spinner) {
-        spinner.setAttribute('hidden', true);
-    }
+    const boxOverlaySpinner = document.getElementById('box-overlay-spinner');
+    boxOverlaySpinner.classList.add('hidden'); // Hide the spinner
 }
 
 function isValidDistinguishedName(value) {
     const dnPattern = /^(CN|OU|DC)=/i; // Simple pattern to identify a DN
     return dnPattern.test(value);
+}
+
+function escapeSelector(selector) {
+    return selector.replace(/([!"#$%&'()*+,.\/:;<=>?@[\\\]^`{|}~])/g, '\\$1');
+}
+
+function convertDnToId(distinguishedName) {
+    // Replace commas and equal signs with underscores
+    return distinguishedName.replace(/[,=]/g, '_');
+}
+
+function convertToBase64(inputString) {
+    try {
+        return btoa(inputString);
+    } catch (error) {
+        console.error('Error converting to Base64:', error);
+        return null;
+    }
+}
+
+
+function stripCurlyBrackets(guid) {
+    return guid.replace(/[{}]/g, '');
 }
 
 function populateTableView(entries, tableView) {

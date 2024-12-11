@@ -15,6 +15,7 @@ from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
 from powerview.utils.storage import Storage
 from powerview.modules.ldapattack import (
+	LDAPAttack,
 	ACLEnum,
 	ADUser,
 	ObjectOwner,
@@ -40,6 +41,7 @@ from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.web.api.server import APIServer
 
 import chardet
+import time
 from io import BytesIO
 import ldap3
 from ldap3.protocol.microsoft import security_descriptor_control
@@ -2671,7 +2673,7 @@ displayName=New Group Policy Object
 			return
 		identity_dn = entries[0]["attributes"]["distinguishedName"]
 		au = ADUser(self.ldap_session, self.root_dn)
-		return au.removeUser(identity_dn)
+		au.removeUser(identity_dn)
 
 	def add_domainuser(self, username, userpass, args=None):
 		parent_dn_entries = f"CN=Users,{self.root_dn}"

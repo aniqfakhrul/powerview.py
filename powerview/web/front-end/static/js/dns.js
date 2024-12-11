@@ -1,5 +1,15 @@
 document.addEventListener('DOMContentLoaded', () => {
     async function fetchAndDisplayDnsZones() {
+        // Select the spinner element
+        const spinner = document.getElementById('box-overlay-spinner');
+        if (!spinner) {
+            console.error('Spinner element not found');
+            return;
+        }
+
+        // Show the spinner
+        spinner.classList.remove('hidden');
+
         try {
             const response = await fetch('/api/get/domaindnszone', {
                 method: 'GET',
@@ -41,6 +51,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } catch (error) {
             console.error('Error fetching DNS zones:', error);
+        } finally {
+            // Hide the spinner after fetching data
+            spinner.classList.add('hidden');
         }
     }
 
@@ -59,27 +72,61 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ zonename: zoneName })
+                body: JSON.stringify({ zonename: zoneName, properties: ['name', 'Address'] })
             });
 
             await handleHttpError(response);
 
             const data = await response.json();
-            const recordNames = data.map(obj => obj.attributes.name);
+
+            // Select the Record Name section
+            const recordNameSection = document.querySelector('.record-name-section');
+            if (!recordNameSection) {
+                console.error('Record Name section not found');
+                return;
+            }
 
             // Clear existing content
-            recordsContainer.innerHTML = '';
+            recordNameSection.innerHTML = '';
 
-            // Populate records
-            recordNames.forEach(recordName => {
-                const recordElement = document.createElement('p');
-                recordElement.textContent = recordName;
-                recordElement.classList.add('text-sm', 'text-gray-700', 'dark:text-gray-300', 'py-1', 'cursor-pointer', 'hover:text-blue-500');
-                recordElement.addEventListener('click', () => fetchAndDisplayDnsRecordDetails(recordName, zoneName));
-                recordsContainer.appendChild(recordElement);
+            // Create a table
+            const table = document.createElement('table');
+            table.classList.add('w-full', 'text-left', 'border-collapse');
+
+            // Create table header
+            const headerRow = document.createElement('tr');
+            const nameHeader = document.createElement('th');
+            nameHeader.textContent = 'Name';
+            const addressHeader = document.createElement('th');
+            addressHeader.textContent = 'Address';
+            headerRow.appendChild(nameHeader);
+            headerRow.appendChild(addressHeader);
+            table.appendChild(headerRow);
+
+            // Populate table rows
+            data.forEach(record => {
+                const row = document.createElement('tr');
+                row.classList.add('cursor-pointer', 'hover:bg-gray-100', 'dark:hover:bg-gray-700');
+
+                const nameCell = document.createElement('td');
+                nameCell.textContent = record.attributes.name;
+                const addressCell = document.createElement('td');
+                addressCell.textContent = record.attributes.Address;
+
+                row.appendChild(nameCell);
+                row.appendChild(addressCell);
+
+                // Add click event listener to the row
+                row.addEventListener('click', () => {
+                    fetchAndDisplayDnsRecordDetails(record.attributes.name, zoneName);
+                });
+
+                table.appendChild(row);
             });
 
-            recordsContainer.classList.remove('hidden');
+            // Append table to the Record Name section
+            recordNameSection.appendChild(table);
+
         } catch (error) {
             console.error('Error fetching DNS records:', error);
         }

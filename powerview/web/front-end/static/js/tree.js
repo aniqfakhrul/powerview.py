@@ -77,9 +77,13 @@ document.addEventListener('DOMContentLoaded', () => {
         div.addEventListener('click', async (event) => {
             event.stopPropagation();
 
+            // Show the spinner when a tree node is clicked
+            // showLoadingIndicator();
+
             let subtreeContainer = div.nextElementSibling;
             if (subtreeContainer && subtreeContainer.classList.contains('subtree')) {
                 subtreeContainer.remove();
+                hideLoadingIndicator(); // Hide the spinner if subtree is removed
                 return;
             }
 
@@ -88,6 +92,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 populateResultsPanel(itemData);
                 toggleSubtree(dn, div);
             }
+
+            // Hide the spinner after processing
+            // hideLoadingIndicator();
         });
 
         treeView.appendChild(div);
@@ -96,9 +103,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     
     async function toggleSubtree(searchbase, parentElement) {
+        const spinner = document.getElementById(`spinner-${convertDnToId(searchbase)}`);
+        if (spinner) {
+            spinner.classList.remove('hidden'); // Show the spinner
+        }
+
         let subtreeContainer = parentElement.nextElementSibling;
         if (subtreeContainer && subtreeContainer.classList.contains('subtree')) {
             subtreeContainer.remove();
+            if (spinner) {
+                spinner.classList.add('hidden'); // Hide the spinner if subtree is removed
+            }
             return; // Exit the function to prevent fetching data again
         }
 
@@ -124,6 +139,31 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('Error fetching subtree:', error);
+        } finally {
+            if (spinner) {
+                spinner.classList.add('hidden'); // Hide the spinner after processing
+            }
+        }
+    }
+
+    async function getDomainGroupMember(groupName) {
+        try {
+            const response = await fetch('/api/get/domaingroupmember', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ identity: groupName })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch group members');
+            }
+
+            const data = await response.json();
+            console.log('Group Members:', data);
+        } catch (error) {
+            console.error('Error fetching group members:', error);
         }
     }
 
@@ -167,8 +207,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Change icon to yellow color if adminCount is 1
-            objDiv.innerHTML = `${iconSVG}<span class="text-neutral-900 dark:text-white">${obj.attributes.name || obj.dn}</span>`;
+            const escapedDn = convertDnToId(obj.dn);
+
+            objDiv.innerHTML = `${iconSVG}<span class="text-neutral-900 dark:text-white">${obj.attributes.name || obj.dn}</span>${getSpinnerSVG(escapedDn)}`;
 
             // Set the title attribute to show the object class on hover
             objDiv.setAttribute('title', objectClassLabel);
@@ -176,17 +217,23 @@ document.addEventListener('DOMContentLoaded', () => {
             objDiv.addEventListener('click', async (event) => {
                 event.stopPropagation();
 
+                // Show the spinner on the right side of the node
+                showLoadingIndicator();
                 let childSubtreeContainer = objDiv.nextElementSibling;
                 if (childSubtreeContainer && childSubtreeContainer.classList.contains('subtree')) {
                     childSubtreeContainer.remove();
-                    return; // Exit the function to prevent fetching data again
+                    hideLoadingIndicator(); // Hide the spinner if subtree is removed
+                    return;
                 }
 
-                const itemData = await fetchItemData(obj.dn, 'BASE', no_loading = true);
+                const itemData = await fetchItemData(obj.dn, 'BASE');
                 if (itemData) {
                     populateResultsPanel(itemData);
                     toggleSubtree(obj.dn, objDiv);
                 }
+
+                // Hide the spinner after processing
+                hideLoadingIndicator();
             });
 
             subtreeContainer.appendChild(objDiv);
@@ -196,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateResultsPanel(item) {
-        const resultsPanel = document.getElementById("results-panel");
+        const resultsPanel = document.getElementById("results-content");
         const attributes = item.attributes;
 
         let detailsHTML = `
@@ -243,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.ldap-link').forEach(link => {
             link.addEventListener('click', async (event) => {
                 event.preventDefault();
+
                 const identity = event.target.dataset.identity;
                 const detailsPanel = document.getElementById('details-panel');
                 const commandHistoryPanel = document.getElementById('command-history-panel');
@@ -262,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     populateDetailsPanel(itemData);
                     detailsPanel.setAttribute('data-distinguished-name', identity); // Store the current identity
                     detailsPanel.classList.remove('hidden');
-                    commandHistoryPanel.classList.add('hidden');    
+                    commandHistoryPanel.classList.add('hidden');
                 }
             });
         });
