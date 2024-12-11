@@ -100,6 +100,111 @@ function stripCurlyBrackets(guid) {
     return guid.replace(/[{}]/g, '');
 }
 
+function handleLdapLinkClick(event) {
+    event.preventDefault();
+    const targetLink = event.currentTarget; // Use event.currentTarget to get the .ldap-link div itself
+    const identity = targetLink.dataset.identity;
+    const detailsPanel = document.getElementById('details-panel');
+    const commandHistoryPanel = document.getElementById('command-history-panel');
+
+    // Check if the details panel is already showing the clicked identity
+    const currentDistinguishedName = detailsPanel.getAttribute('data-identity');
+
+    if (currentDistinguishedName === identity) {
+        // Toggle visibility if the same item is clicked again
+        detailsPanel.classList.toggle('hidden');
+        return;
+    }
+
+    // Fetch and populate details if a different item is clicked
+    fetchItemData(identity, 'BASE').then(itemData => {
+        if (itemData) {
+            populateDetailsPanel(itemData);
+            detailsPanel.setAttribute('data-identity', identity);
+            detailsPanel.classList.remove('hidden');
+            commandHistoryPanel.classList.add('hidden');    
+        }
+    });
+}
+
+function populateDetailsPanel(item) {
+    const detailsPanel = document.getElementById("details-panel");
+    detailsPanel.innerHTML = ''; // Clear existing content
+
+    // Create header
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'flex items-center justify-between gap-2 p-4 border-b sticky top-0 bg-white z-10';
+
+    const headerContentDiv = document.createElement('div');
+    headerContentDiv.className = 'flex items-center gap-2';
+
+    const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svgIcon.setAttribute('class', 'w-5 h-5 text-blue-500');
+    svgIcon.setAttribute('fill', 'none');
+    svgIcon.setAttribute('stroke', 'currentColor');
+    svgIcon.setAttribute('viewBox', '0 0 24 24');
+    svgIcon.innerHTML = '<path d="M12 8v4l3 3"></path><circle cx="12" cy="12" r="10"></circle>';
+
+    const headerTitle = document.createElement('h2');
+    headerTitle.className = 'text-lg font-semibold';
+    headerTitle.textContent = item.attributes.name;
+
+    headerContentDiv.appendChild(svgIcon);
+    headerContentDiv.appendChild(headerTitle);
+    headerDiv.appendChild(headerContentDiv);
+
+    const closeButton = document.createElement('button');
+    closeButton.id = 'close-details-panel';
+    closeButton.className = 'text-gray-500 hover:text-gray-700';
+    closeButton.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+    closeButton.addEventListener('click', () => {
+        detailsPanel.classList.add('hidden');
+    });
+
+    headerDiv.appendChild(closeButton);
+    detailsPanel.appendChild(headerDiv);
+
+    // Create content
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'divide-y';
+
+    const attributesDiv = document.createElement('div');
+    attributesDiv.className = 'p-4';
+
+    const attributes = item.attributes;
+    for (const [key, value] of Object.entries(attributes)) {
+        const attributeDiv = document.createElement('div');
+        attributeDiv.className = 'mb-4';
+
+        const keySpan = document.createElement('span');
+        keySpan.className = 'text-sm font-medium text-gray-500 block';
+        keySpan.textContent = key;
+
+        attributeDiv.appendChild(keySpan);
+
+        if (Array.isArray(value)) {
+            value.forEach(val => {
+                const valueSpan = document.createElement('span');
+                valueSpan.className = 'text-sm text-gray-900 block';
+                valueSpan.textContent = val;
+                attributeDiv.appendChild(valueSpan);
+            });
+        } else {
+            const valueSpan = document.createElement('span');
+            valueSpan.className = 'text-sm text-gray-900 block';
+            valueSpan.textContent = value;
+            attributeDiv.appendChild(valueSpan);
+        }
+
+        attributesDiv.appendChild(attributeDiv);
+    }
+
+    contentDiv.appendChild(attributesDiv);
+    detailsPanel.appendChild(contentDiv);
+
+    detailsPanel.classList.remove('hidden'); // Ensure the details panel is visible
+}
+
 function populateTableView(entries, tableView) {
     const thead = tableView.querySelector('thead');
     const tbody = tableView.querySelector('tbody');

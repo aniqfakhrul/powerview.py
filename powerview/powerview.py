@@ -585,42 +585,47 @@ class PowerView:
 		#self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
 		#return self.ldap_session.entries
 
-	def get_domainobjectacl(self, searchbase=None, args=None, search_scope=ldap3.SUBTREE):
-		if not searchbase:
-			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+	def get_domainobjectacl(self, identity=None, security_identifier=None, resolveguids=False, targetidentity=None, principalidentity=None, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE):
+		# Use args to set defaults if not provided directly
+		if args:
+			identity = identity or getattr(args, 'identity', None)
+			security_identifier = security_identifier or getattr(args, 'security_identifier', None)
+			searchbase = searchbase or getattr(args, 'searchbase', self.root_dn)
 
-		#enumerate available guids
+		# Use the provided searchbase or default to the root DN
+		if not searchbase:
+			searchbase = self.root_dn
+
+		# Enumerate available GUIDs
 		guids_dict = {}
-		self.ldap_session.search(f"CN=Extended-Rights,CN=Configuration,{self.root_dn}", "(rightsGuid=*)",attributes=['displayName','rightsGuid'], search_scope=search_scope)
+		self.ldap_session.search(f"CN=Extended-Rights,CN=Configuration,{self.root_dn}", "(rightsGuid=*)", attributes=['displayName', 'rightsGuid'], search_scope=search_scope)
 		for entry in self.ldap_session.entries:
 			guids_dict[entry['rightsGuid'].value] = entry['displayName'].value
-		setattr(args,"guids_map_dict",guids_dict)
 
 		principal_SID = None
-		if args.security_identifier:
-			principalsid_entry = self.get_domainobject(identity=args.security_identifier, properties=['objectSid'])
+		if security_identifier:
+			principalsid_entry = self.get_domainobject(identity=security_identifier, properties=['objectSid'])
 			if not principalsid_entry:
 				logging.debug('[Get-DomainObjectAcl] Principal not found. Searching in Well Known SIDs...')
-				principal_SID = resolve_WellKnownSID(args.security_identifier)
+				principal_SID = resolve_WellKnownSID(security_identifier)
 
 				if principal_SID:
 					principal_SID = principal_SID.get("objectSid")
 					logging.debug("[Get-DomainObjectAcl] Found in well known SID: %s" % principal_SID)
 				else:
-					logging.error(f'[Get-DomainObjectAcl] Principal {args.security_identifier} not found. Try to use DN')
+					logging.error(f'[Get-DomainObjectAcl] Principal {security_identifier} not found. Try to use DN')
 					return
 
 			elif len(principalsid_entry) > 1:
 				logging.error(f'[Get-DomainObjectAcl] Multiple identities found. Use exact match')
 				return
 
-			args.security_identifier = principalsid_entry[0]['attributes']['objectSid'] if not principal_SID else principal_SID
+			security_identifier = principalsid_entry[0]['attributes']['objectSid'] if not principal_SID else principal_SID
 
-		identity = args.identity
 		if identity != "*":
-			identity_entries = self.get_domainobject(identity=identity,properties=['objectSid','distinguishedName'], searchbase=searchbase)
+			identity_entries = self.get_domainobject(identity=identity, properties=['objectSid', 'distinguishedName'], searchbase=searchbase)
 			if len(identity_entries) == 0:
-				logging.error(f'[Get-DomainObjectAcl] Identity {args.identity} not found. Try to use DN')
+				logging.error(f'[Get-DomainObjectAcl] Identity {identity} not found. Try to use DN')
 				return
 			elif len(identity_entries) > 1:
 				logging.error(f'[Get-DomainObjectAcl] Multiple identities found. Use exact match')
@@ -631,14 +636,20 @@ class PowerView:
 			logging.info('[Get-DomainObjectAcl] Recursing all domain objects. This might take a while')
 
 		logging.debug(f"[Get-DomainObjectAcl] Searching for identity %s" % (identity))
-		self.ldap_session.search(searchbase, f'(distinguishedName={identity})', attributes=['nTSecurityDescriptor','sAMAccountName','distinguishedName','objectSid'], controls=security_descriptor_control(sdflags=0x04))
-		entries = self.ldap_session.entries
+		
+		entries = []
+		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, f'(distinguishedName={identity})', attributes=['nTSecurityDescriptor', 'sAMAccountName', 'distinguishedName', 'objectSid'], controls=security_descriptor_control(sdflags=0x04), paged_size=1000, generator=True, search_scope=search_scope)
+		for _entries in entry_generator:
+			if _entries['type'] != 'searchResEntry':
+				continue
+			strip_entry(_entries)
+			entries.append(_entries)
 
 		if not entries:
 			logging.error(f'[Get-DomainObjectAcl] Identity not found in domain')
 			return
 
-		enum = ACLEnum(entries, self.ldap_session, self.root_dn, args)
+		enum = ACLEnum(entries, self.ldap_session, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=security_identifier, guids_map_dict=guids_dict)
 		entries_dacl = enum.read_dacl()
 		return entries_dacl
 

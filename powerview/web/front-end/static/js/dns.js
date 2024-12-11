@@ -159,8 +159,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 data.forEach(record => {
                     const attributes = record.attributes;
                     Object.entries(attributes).forEach(([key, value]) => {
+                        const isDistinguishedName = Array.isArray(value) ? value.some(isValidDistinguishedName) : isValidDistinguishedName(value);
+
+                        let detailHTML = `<strong>${key}:</strong> `;
+                        if (isDistinguishedName) {
+                            detailHTML += Array.isArray(value) 
+                                ? value.map(v => `<a href="#" class="text-blue-400 hover:text-blue-600" data-identity="${v}" onclick="handleLdapLinkClick(event, '${v}')">${v}</a>`).join('<br>')
+                                : `<a href="#" class="text-blue-400 hover:text-blue-600" data-identity="${value}" onclick="handleLdapLinkClick(event, '${value}')">${value}</a>`;
+                        } else {
+                            detailHTML += Array.isArray(value) ? value.join('<br>') : value;
+                        }
+
                         const detailElement = document.createElement('p');
-                        detailElement.innerHTML = `<strong>${key}:</strong> ${value}`;
+                        detailElement.innerHTML = detailHTML;
                         detailElement.classList.add('text-sm', 'text-gray-700', 'dark:text-gray-300', 'py-1');
                         detailsContainer.appendChild(detailElement);
                     });
@@ -171,6 +182,13 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error fetching DNS record details:', error);
         }
+    }
+
+    // Example function to handle the click event
+    function handleLdapLinkClick(event, identity) {
+        event.preventDefault();
+        console.log(`Clicked on identity: ${identity}`);
+        // Add your logic here to handle the click event
     }
 
     fetchAndDisplayDnsZones();

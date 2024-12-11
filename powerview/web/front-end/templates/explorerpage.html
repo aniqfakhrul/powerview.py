@@ -4,21 +4,76 @@
     <!-- Tree View -->
     <div class="col-span-1 border-l border-t border-b border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 scrollbar overflow-y-auto" id="tree-view-panel" style="max-height: 100vh;">
         <div class="p-4">
-            <div id="tree-view">
+            <!-- Search Bar with Button -->
+            <div class="relative flex w-full items-center gap-2 text-neutral-600 dark:text-neutral-300 mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true" class="absolute left-2.5 top-1/2 size-5 -translate-y-1/2 text-neutral-600/50 dark:text-neutral-300/50"> 
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                </svg>
+                <input type="search" class="flex-grow rounded-md border border-neutral-300 bg-neutral-50 py-2 pl-10 pr-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500" name="object-search" placeholder="Search" aria-label="search"/>
+                <button id="execute-button" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:focus:ring-yellow-500" onclick="executePowerViewCommand()">
+                    Search
+                </button>
+            </div>
+            <!-- End of Search Bar with Button -->
+
+            <div id="tree-view" class="mt-4">
                 <!-- Tree view content -->
             </div>
         </div>
     </div>
     <!-- Results Panel -->
-    <div class="col-span-1 border border-neutral-300 overflow-y-auto dark:border-neutral-700 scrollbar relative" id="results-panel" style="max-height: 100vh;">
-        {% include 'views/spinner.html' %}
-        <!-- Results content -->
-        <div id="results-content">
+    <div class="col-span-1 border border-neutral-300 overflow-y-auto dark:border-neutral-700 scrollbar" id="results-panel" style="max-height: 100vh;">
+        <div class="w-full">
+            <div class="flex justify-between items-center gap-2 overflow-x-auto border-b border-neutral-300 dark:border-neutral-700" role="tablist" aria-label="tab options">
+                <div class="flex gap-2">
+                    <button onclick="selectTab('general')" aria-selected="true" tabindex="0" class="h-min px-4 py-2 text-sm font-bold text-black border-b-2 border-black dark:border-yellow-500 dark:text-yellow-500" type="button" role="tab" aria-controls="tabpanelGeneral">General</button>
+                    <button onclick="selectTab('group')" aria-selected="false" tabindex="-1" class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" type="button" role="tab" aria-controls="tabpanelGroup">Group</button>
+                    <button onclick="selectTab('dacl')" aria-selected="false" tabindex="-1" class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" type="button" role="tab" aria-controls="tabpanelDacl">DACL</button>
+                </div>
+                <!-- Search Bar -->
+                <div class="relative flex items-center">
+                    <input type="text" id="tab-search" class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1 text-sm dark:text-neutral-600 hover:text-neutral-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500" placeholder="Filter results...">
+                    <button class="clear-input absolute inset-y-0 right-0 px-2 text-neutral-600 hover:text-neutral-900 focus:outline-none">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="text-neutral-600 dark:text-neutral-300 relative">
+                {% include 'views/spinner.html' %}
+                <div id="tabpanelGeneral" role="tabpanel" aria-label="general" style="display: block;">
+                    <div id="general-content" class="result-item">
+                    </div>
+                </div>
+                <div id="tabpanelGroup" role="tabpanel" aria-label="group" style="display: none;">
+                    <div id="group-content">
+                    </div>
+                </div>
+                <div id="tabpanelDacl" role="tabpanel" aria-label="dacl" style="display: none;">
+                    <div id="dacl-content">
+                        <table class="w-full text-sm text-neutral-600 dark:text-neutral-300 text-left text-xs">
+                            <thead>
+                                <tr class="h-8">
+                                    <th class="text-left">Type</th>
+                                    <th class="text-left">Principal</th>
+                                    <th class="text-left">Access</th>
+                                    <th class="text-left">Inherited From</th>
+                                    <th class="text-left">Applies to</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dacl-rows" class="result-item">
+                                <!-- Additional rows will be dynamically added here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
 {% endblock %}
 {% block scripts %}
     <script src="{{ url_for('static', filename='js/tree.js') }}"></script>
     <script src="{{ url_for('static', filename='js/icon.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/explorer.js') }}"></script>
 {% endblock %}

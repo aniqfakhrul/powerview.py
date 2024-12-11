@@ -109,11 +109,20 @@ def main():
                                 else:
                                     entries = powerview.get_domainobjectowner(identity=identity, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
-                                identity = pv_args.identity.strip()
+                                identity = pv_args.identity.strip() if hasattr(pv_args, 'identity') else None
+
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainobjectacl(args=pv_args)
+                                    entries = temp_powerview.get_domainobjectacl(
+                                        identity=identity,
+                                        security_identifier=pv_args.security_identifier,
+                                        args=pv_args
+                                    )
                                 else:
-                                    entries = powerview.get_domainobjectacl(args=pv_args)
+                                    entries = powerview.get_domainobjectacl(
+                                        identity=identity,
+                                        security_identifier=pv_args.security_identifier,
+                                        args=pv_args
+                                    )
                             elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None

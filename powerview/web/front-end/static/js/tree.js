@@ -35,11 +35,50 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (node.dn === rootDn) {
                         // Automatically expand the rootDn node
                         toggleSubtree(node.dn, treeNode);
+
+                        // Fetch and display the rootDn details in the results panel
+                        const rootDnData = await fetchItemData(rootDn, 'BASE');
+                        if (rootDnData) {
+                            populateResultsPanel(rootDnData);
+                        }
                     }
                 }
             }
         } catch (error) {
             console.error('Error during initialization:', error);
+        }
+    }
+
+    function resetToGeneralTab() {
+        const generalTabButton = document.querySelector('button[aria-controls="tabpanelGeneral"]');
+        const tabList = document.querySelector('[role="tablist"]');
+        const tabPanels = document.querySelectorAll('[role="tabpanel"]');
+    
+        if (generalTabButton) {
+            // Set the "General" tab as active
+            tabList.querySelectorAll('[role="tab"]').forEach(tab => {
+                if (tab === generalTabButton) {
+                    tab.setAttribute('aria-selected', 'true');
+                    tab.setAttribute('tabindex', '0');
+                    tab.classList.add('font-bold', 'text-black', 'border-b-2', 'border-black', 'dark:border-yellow-500', 'dark:text-yellow-500');
+                } else {
+                    tab.setAttribute('aria-selected', 'false');
+                    tab.setAttribute('tabindex', '-1');
+                    tab.classList.remove('font-bold', 'text-black', 'border-b-2', 'border-black', 'dark:border-yellow-500', 'dark:text-yellow-500');
+                    tab.classList.add('text-neutral-600', 'font-medium', 'dark:text-neutral-300', 'dark:hover:border-b-neutral-300', 'dark:hover:text-white', 'hover:border-b-2', 'hover:border-b-neutral-800', 'hover:text-neutral-900');
+                }
+            });
+    
+            // Show the "General" tab panel and hide others
+            tabPanels.forEach(panel => {
+                if (panel.id === 'tabpanelDacl') {
+                    const daclRows = panel.querySelector('#dacl-rows');
+                    if (daclRows) {
+                        daclRows.innerHTML = '';
+                    }
+                }
+                panel.style.display = panel.id === generalTabButton.getAttribute('aria-controls') ? 'block' : 'none';
+            });
         }
     }
 
@@ -76,6 +115,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         div.addEventListener('click', async (event) => {
             event.stopPropagation();
+
+            // Reset to the "General" tab
+            resetToGeneralTab();
 
             // Show the spinner when a tree node is clicked
             // showLoadingIndicator();
@@ -209,6 +251,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const escapedDn = convertDnToId(obj.dn);
 
+            // Assign a data-identifier attribute to each tree node
+            objDiv.setAttribute('data-identifier', obj.dn);
+
             objDiv.innerHTML = `${iconSVG}<span class="text-neutral-900 dark:text-white">${obj.attributes.name || obj.dn}</span>${getSpinnerSVG(escapedDn)}`;
 
             // Set the title attribute to show the object class on hover
@@ -216,6 +261,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             objDiv.addEventListener('click', async (event) => {
                 event.stopPropagation();
+
+                // Reset to the "General" tab
+                resetToGeneralTab();
+
+                // Mark this node as selected
+                document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+                objDiv.classList.add('selected');
 
                 // Show the spinner on the right side of the node
                 showLoadingIndicator();
@@ -243,158 +295,161 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateResultsPanel(item) {
-        const resultsPanel = document.getElementById("results-content");
+        const resultsPanel = document.getElementById("general-content");
         const attributes = item.attributes;
 
-        let detailsHTML = `
-            <div class="bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white px-4 py-2 border-b sticky top-0 z-10">
-                <h3 class="font-medium">${attributes.name || 'Details'}</h3>
-            </div>
-            <div class="p-4">
-                <dl class="grid grid-cols-1">
-        `;
+        // Create the header div
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white px-4 py-2 border-b sticky top-0 z-10';
+        
+        const headerH3 = document.createElement('h3');
+        headerH3.className = 'font-medium';
+        headerH3.textContent = attributes.name || 'Details';
+        headerDiv.appendChild(headerH3);
+
+        // Create the content div
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'p-4';
+
+        const dl = document.createElement('dl');
+        dl.className = 'grid grid-cols-1';
 
         for (const [key, value] of Object.entries(attributes)) {
             const isDistinguishedName = Array.isArray(value) ? value.some(isValidDistinguishedName) : isValidDistinguishedName(value);
 
+            const flexDiv = document.createElement('div');
+            flexDiv.className = 'flex';
+
+            const dt = document.createElement('dt');
+            dt.className = 'text-sm font-medium text-neutral-600 dark:text-neutral-300 w-1/3';
+            dt.textContent = key;
+            flexDiv.appendChild(dt);
+
+            const dd = document.createElement('dd');
+            dd.className = 'mt-1 text-sm text-neutral-900 dark:text-neutral-300 w-2/3';
+
             if (isDistinguishedName) {
-                detailsHTML += `
-                    <div class="flex">
-                        <dt class="text-sm font-medium text-neutral-600 dark:text-neutral-300 w-1/3">${key}</dt>
-                        <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-300 ldap-link w-2/3">
-                            ${Array.isArray(value) ? value.map(v => `<a href="#" class="text-blue-400 hover:text-blue-600" data-identity="${v}">${v}</a>`).join('<br>') : `<a href="#" class="text-blue-400 hover:text-blue-600" data-identity="${value}">${value}</a>`}
-                        </dd>
-                    </div>
-                `;
+                if (Array.isArray(value)) {
+                    value.forEach(v => {
+                        const link = document.createElement('a');
+                        link.href = '#';
+                        link.className = 'text-blue-400 hover:text-blue-600';
+                        link.dataset.identity = v;
+                        link.onclick = (event) => handleLdapLinkClick(event, v);
+                        link.textContent = v;
+                        dd.appendChild(link);
+                        dd.appendChild(document.createElement('br'));
+                    });
+                } else {
+                    const link = document.createElement('a');
+                    link.href = '#';
+                    link.className = 'text-blue-400 hover:text-blue-600';
+                    link.dataset.identity = value;
+                    link.onclick = (event) => handleLdapLinkClick(event, value);
+                    link.textContent = value;
+                    dd.appendChild(link);
+                }
             } else {
-                detailsHTML += `
-                    <div class="flex">
-                        <dt class="text-sm font-medium text-neutral-600 dark:text-neutral-300 w-1/3">${key}</dt>
-                        <dd class="mt-1 text-sm text-neutral-900 dark:text-neutral-300 w-2/3">${Array.isArray(value) ? value.join('<br>') : value}</dd>
-                    </div>
-                `;
+                dd.innerHTML = Array.isArray(value) ? value.join('<br>') : value;
             }
+
+            flexDiv.appendChild(dd);
+            dl.appendChild(flexDiv);
         }
 
-        detailsHTML += `
-                </dl>
-            </div>
-        `;
+        contentDiv.appendChild(dl);
 
-        resultsPanel.innerHTML = detailsHTML;
-
-        attachLdapLinkListeners();
+        // Clear previous content and append new elements
+        resultsPanel.innerHTML = '';
+        resultsPanel.appendChild(headerDiv);
+        resultsPanel.appendChild(contentDiv);
     }
 
-    function attachLdapLinkListeners() {
-        document.querySelectorAll('.ldap-link').forEach(link => {
-            link.addEventListener('click', async (event) => {
-                event.preventDefault();
+    async function fetchAndDisplayDacl(identity) {
+        showLoadingIndicator();
+        try {
+            const response = await fetch('/api/get/domainobjectacl', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ identity: identity })
+            });
 
-                const identity = event.target.dataset.identity;
-                const detailsPanel = document.getElementById('details-panel');
-                const commandHistoryPanel = document.getElementById('command-history-panel');
+            await handleHttpError(response);
 
-                // Check if the details panel is already showing the clicked identity
-                const currentDistinguishedName = detailsPanel.getAttribute('data-distinguished-name');
+            const daclData = await response.json();
+            updateDaclContent(daclData);
+        } catch (error) {
+            console.error('Error fetching DACL data:', error);
+        } finally {
+            hideLoadingIndicator();
+        }
+    }
 
-                if (currentDistinguishedName === identity) {
-                    // Toggle visibility if the same item is clicked again
-                    detailsPanel.classList.toggle('hidden');
-                    return;
-                }
+    function updateDaclContent(daclData) {
+        const daclRows = document.getElementById('dacl-rows');
+        daclRows.innerHTML = ''; // Clear existing rows
 
-                // Fetch and populate details if a different item is clicked
-                const itemData = await fetchItemData(identity, 'BASE');
-                if (itemData) {
-                    populateDetailsPanel(itemData);
-                    detailsPanel.setAttribute('data-distinguished-name', identity); // Store the current identity
-                    detailsPanel.classList.remove('hidden');
-                    commandHistoryPanel.classList.add('hidden');
-                }
+        daclData.forEach(entry => {
+            entry.attributes.forEach(attribute => {
+                const row = document.createElement('tr');
+                row.classList.add('h-8');
+
+                // Determine Allow or Deny based on ACEType
+                const aceType = attribute.ACEType.includes('ALLOWED') ? 'Allow' : 'Deny';
+
+                // Extract only the name from SecurityIdentifier
+                const securityIdentifierName = attribute.SecurityIdentifier.split(' (')[0];
+
+                row.innerHTML = `
+                    <td>${aceType}</td>
+                    <td>${securityIdentifierName}</td>
+                    <td>${attribute.AccessMask}</td>
+                    <td>${attribute.InheritanceType}</td>
+                    <td>${attribute.ObjectAceType || 'N/A'}</td>
+                `;
+
+                daclRows.appendChild(row);
             });
         });
     }
 
-    function populateDetailsPanel(item) {
-        const detailsPanel = document.getElementById("details-panel");
-        detailsPanel.innerHTML = ''; // Clear existing content
-
-        // Create header
-        const headerDiv = document.createElement('div');
-        headerDiv.className = 'flex items-center justify-between gap-2 p-4 border-b sticky top-0 bg-white z-10';
-
-
-        const headerContentDiv = document.createElement('div');
-        headerContentDiv.className = 'flex items-center gap-2';
-
-        const svgIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svgIcon.setAttribute('class', 'w-5 h-5 text-blue-500');
-        svgIcon.setAttribute('fill', 'none');
-        svgIcon.setAttribute('stroke', 'currentColor');
-        svgIcon.setAttribute('viewBox', '0 0 24 24');
-        svgIcon.innerHTML = '<path d="M12 8v4l3 3"></path><circle cx="12" cy="12" r="10"></circle>';
-
-        const headerTitle = document.createElement('h2');
-        headerTitle.className = 'text-lg font-semibold';
-        console.log(item)
-        headerTitle.textContent = item.attributes.name;
-
-        headerContentDiv.appendChild(svgIcon);
-        headerContentDiv.appendChild(headerTitle);
-        headerDiv.appendChild(headerContentDiv);
-
-        const closeButton = document.createElement('button');
-        closeButton.id = 'close-details-panel';
-        closeButton.className = 'text-gray-500 hover:text-gray-700';
-        closeButton.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
-        closeButton.addEventListener('click', () => {
-            detailsPanel.classList.add('hidden');
-        });
-
-        headerDiv.appendChild(closeButton);
-        detailsPanel.appendChild(headerDiv);
-
-        // Create content
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'divide-y';
-
-        const attributesDiv = document.createElement('div');
-        attributesDiv.className = 'p-4';
-
-        const attributes = item.attributes;
-        for (const [key, value] of Object.entries(attributes)) {
-            const attributeDiv = document.createElement('div');
-            attributeDiv.className = 'mb-4';
-
-            const keySpan = document.createElement('span');
-            keySpan.className = 'text-sm font-medium text-gray-500 block';
-            keySpan.textContent = key;
-
-            attributeDiv.appendChild(keySpan);
-
-            if (Array.isArray(value)) {
-                value.forEach(val => {
-                    const valueSpan = document.createElement('span');
-                    valueSpan.className = 'text-sm text-gray-900 block';
-                    valueSpan.textContent = val;
-                    attributeDiv.appendChild(valueSpan);
-                });
-            } else {
-                const valueSpan = document.createElement('span');
-                valueSpan.className = 'text-sm text-gray-900 block';
-                valueSpan.textContent = value;
-                attributeDiv.appendChild(valueSpan);
-            }
-
-            attributesDiv.appendChild(attributeDiv);
-        }
-
-        contentDiv.appendChild(attributesDiv);
-        detailsPanel.appendChild(contentDiv);
-
-        detailsPanel.classList.remove('hidden'); // Ensure the details panel is visible
+    function getSelectedIdentity() {
+        const selectedElement = document.querySelector('.selected');
+        return selectedElement ? selectedElement.getAttribute('data-identifier') : null;
     }
 
+    function setupTabEventDelegation() {
+        const tabList = document.querySelector('[role="tablist"]');
+        if (!tabList) return;
+
+        tabList.addEventListener('click', (event) => {
+            const clickedTab = event.target.closest('[role="tab"]');
+            if (!clickedTab) return;
+
+            // Check if the clicked tab is the DACL tab
+            if (clickedTab.getAttribute('aria-controls') === 'tabpanelDacl') {
+                const selectedIdentity = getSelectedIdentity();
+                if (selectedIdentity) {
+                    fetchAndDisplayDacl(selectedIdentity);
+                }
+            }
+
+            // Update the active state of tabs
+            tabList.querySelectorAll('[role="tab"]').forEach(tab => {
+                tab.setAttribute('aria-selected', tab === clickedTab ? 'true' : 'false');
+            });
+
+            // Update the visibility of tab panels
+            const tabPanels = document.querySelectorAll('[role="tabpanel"]');
+            tabPanels.forEach(panel => {
+                panel.style.display = panel.id === clickedTab.getAttribute('aria-controls') ? 'block' : 'none';
+            });
+        });
+    }
+
+    // Call this function after the DOM is fully loaded
     initialize();
+    setupTabEventDelegation();
 });
