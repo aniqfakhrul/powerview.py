@@ -47,7 +47,7 @@ from dsinternals.common.cryptography.X509Certificate2 import X509Certificate2
 from dsinternals.system.DateTime import DateTime
 from dsinternals.common.data.hello.KeyCredential import KeyCredential
 
-from powerview.utils.constants import WELL_KNOWN_SIDS, EXTENDED_RIGHTS_NAME_MAP
+from powerview.utils.constants import WELL_KNOWN_SIDS, EXTENDED_RIGHTS_NAME_MAP, EXTENDED_RIGHTS_MAP, SCHEMA_OBJECTS
 
 # This is new from ldap3 v2.5
 try:
@@ -1175,9 +1175,9 @@ class ALLOWED_OBJECT_ACE_MASK_FLAGS(Enum):
     Self = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_SELF
 
 class ACLEnum:
-    def __init__(self, entries, ldap_session, root_dn, resolveguids=None, targetidentity=None, principalidentity=None, guids_map_dict=None):
+    def __init__(self, powerview, entries, root_dn, resolveguids=None, targetidentity=None, principalidentity=None, guids_map_dict=None):
         self.entries = entries
-        self.ldap_session = ldap_session
+        self.powerview = powerview
         self.root_dn = root_dn
         self.objectdn = ''
         self.objectsid = ''
@@ -1185,7 +1185,22 @@ class ACLEnum:
         self.__resolveguids = resolveguids
         self.__targetidentity = targetidentity
         self.__principalidentity = principalidentity
-        self.__guids_map_dict = guids_map_dict
+        
+        # Combine the GUID maps
+        self.__guids_map_dict = {}
+        # Add guids_map_dict if provided
+        if guids_map_dict:
+            self.__guids_map_dict.update(guids_map_dict)
+        
+        # Add EXTENDED_RIGHTS_MAP (key: guid, value: name)
+        self.__guids_map_dict.update(EXTENDED_RIGHTS_MAP)
+        self.__guids_map_dict.update(SCHEMA_OBJECTS)
+        
+        # Add reverse mapping from EXTENDED_RIGHTS_NAME_MAP (key: guid, value: name)
+        # This is already the reverse of EXTENDED_RIGHTS_MAP, so we don't need to add it
+        
+        # Create reverse mapping for lookups by name
+        self.__rights_name_map = {v: k for k, v in self.__guids_map_dict.items()}
 
     def read_dacl(self):
         parsed_dacl = []
@@ -1230,9 +1245,9 @@ class ACLEnum:
             
             if ace['TypeName'] in ["ACCESS_ALLOWED_ACE", "ACCESS_DENIED_ACE"]:
                 parsed_ace['ActiveDirectoryRights'] = ",".join(self.parsePerms(ace["Ace"]["Mask"]["Mask"]))
-                parsed_ace['AccessMask'] = "0x%x" % (ace['Ace']['Mask']['Mask'])
+                parsed_ace['AccessMask'] = ",".join(self.parsePerms(ace['Ace']['Mask']['Mask']))
                 parsed_ace['InheritanceType'] = "None"
-                parsed_ace['SecurityIdentifier'] = "%s (%s)" % (self.resolveSID(ace['Ace']['Sid'].formatCanonical()) or "UNKNOWN", ace['Ace']['Sid'].formatCanonical())
+                parsed_ace['SecurityIdentifier'] = self.powerview.convertfrom_sid(ace['Ace']['Sid'].formatCanonical())
             
             elif ace['TypeName'] in ["ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_OBJECT_ACE"]:
                 # Parse Access Mask Flags
@@ -1241,7 +1256,7 @@ class ACLEnum:
                 
                 # Parse Object Flags
                 _object_flags = [FLAG.name for FLAG in OBJECT_ACE_FLAGS if ace['Ace'].hasFlag(FLAG.value)]
-                parsed_ace['ObjectAceFlags'] = ", ".join(_object_flags) or "None"
+                parsed_ace['ObjectAceFlags'] = ", ".join(_object_flags) or None
                 
                 # Parse ObjectType GUID
                 if ace['Ace']['ObjectTypeLen'] != 0:
@@ -1253,30 +1268,15 @@ class ACLEnum:
                     inh_obj_type = bin_to_string(ace['Ace']['InheritedObjectType']).lower()
                     parsed_ace['InheritanceType'] = self.__guids_map_dict.get(inh_obj_type, "UNKNOWN (%s)" % inh_obj_type)
                 else:
-                    parsed_ace['InheritanceType'] = "None"
+                    parsed_ace['InheritanceType'] = None
                 
                 # Parse Trustee SID
-                parsed_ace['SecurityIdentifier'] = "%s (%s)" % (self.resolveSID(ace['Ace']['Sid'].formatCanonical()) or "UNKNOWN", ace['Ace']['Sid'].formatCanonical())
+                parsed_ace['SecurityIdentifier'] = self.powerview.convertfrom_sid(ace['Ace']['Sid'].formatCanonical())
         else:
             LOG.debug("ACE Type (%s) unsupported for parsing yet, feel free to contribute" % ace['TypeName'])
             parsed_ace = {'ACEType': ace['TypeName'], 'ACEFlags': ", ".join(_ace_flags) or "None", 'DEBUG': "ACE type not supported for parsing by dacleditor.py, feel free to contribute"}
         
         return parsed_ace
-
-    def resolveSID(self, sid):
-        # Tries to resolve the SID from the well known SIDs
-        if sid in WELL_KNOWN_SIDS.keys():
-            return WELL_KNOWN_SIDS[sid]
-        # Tries to resolve the SID from the LDAP domain dump
-        else:
-            self.ldap_session.search(self.root_dn, '(objectSid=%s)' % sid, attributes=['samaccountname'])
-            try:
-                dn = self.ldap_session.entries[0].entry_dn
-                samname = self.ldap_session.entries[0]['samaccountname']
-                return samname
-            except IndexError:
-                LOG.debug('SID not found in LDAP: %s' % sid)
-                return ""
 
     def parsePerms(self, fsr):
         _perms = []

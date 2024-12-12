@@ -157,9 +157,9 @@ def main():
                             elif pv_args.module.casefold() == 'get-domaingroupmember' or pv_args.module.casefold() == 'get-netgroupmember':
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaingroupmember(pv_args, identity)
+                                    entries = temp_powerview.get_domaingroupmember(identity=identity, args=pv_args)
                                 else:
-                                    entries = powerview.get_domaingroupmember(pv_args, identity)
+                                    entries = powerview.get_domaingroupmember(identity=identity, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainforeigngroupmember' or pv_args.module.casefold() == 'find-foreigngroup':
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainforeigngroupmember(pv_args)

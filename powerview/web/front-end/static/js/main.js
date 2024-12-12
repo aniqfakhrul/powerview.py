@@ -67,14 +67,43 @@ function showLoadingIndicator() {
     boxOverlaySpinner.classList.remove('hidden'); // Show the spinner
 }
 
+function showInitLoadingIndicator() {
+    const boxOverlaySpinner = document.getElementById('box-overlay-spinner-init');
+    boxOverlaySpinner.classList.remove('hidden'); // Show the spinner
+}
+
 function hideLoadingIndicator() {
     const boxOverlaySpinner = document.getElementById('box-overlay-spinner');
+    boxOverlaySpinner.classList.add('hidden'); // Hide the spinner
+}
+
+function hideInitLoadingIndicator() {
+    const boxOverlaySpinner = document.getElementById('box-overlay-spinner-init');
     boxOverlaySpinner.classList.add('hidden'); // Hide the spinner
 }
 
 function isValidDistinguishedName(value) {
     const dnPattern = /^(CN|OU|DC)=/i; // Simple pattern to identify a DN
     return dnPattern.test(value);
+}
+
+// Helper function to detect byte data
+function isByteData(value) {
+    return typeof value === 'string' && 
+           value.includes('\u0000') && 
+           value.includes('\u0001') &&
+           value.length > 10;
+}
+
+// Helper function to create DN link
+function createDnLink(value) {
+    const link = document.createElement('a');
+    link.href = '#';
+    link.className = 'text-blue-400 hover:text-blue-600 block';
+    link.dataset.identity = value;
+    link.onclick = (event) => handleLdapLinkClick(event, value);
+    link.textContent = value;
+    return link;
 }
 
 function escapeSelector(selector) {
@@ -88,7 +117,10 @@ function convertDnToId(distinguishedName) {
 
 function convertToBase64(inputString) {
     try {
-        return btoa(inputString);
+        return btoa(encodeURIComponent(inputString).replace(/%([0-9A-F]{2})/g,
+            function (match, p1) {
+                return String.fromCharCode('0x' + p1);
+            }));
     } catch (error) {
         console.error('Error converting to Base64:', error);
         return null;

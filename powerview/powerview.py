@@ -649,7 +649,7 @@ class PowerView:
 			logging.error(f'[Get-DomainObjectAcl] Identity not found in domain')
 			return
 
-		enum = ACLEnum(entries, self.ldap_session, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=security_identifier, guids_map_dict=guids_dict)
+		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=security_identifier, guids_map_dict=guids_dict)
 		entries_dacl = enum.read_dacl()
 		return entries_dacl
 
@@ -1293,7 +1293,7 @@ class PowerView:
 		identity = WELL_KNOWN_SIDS.get(objectsid)
 		known_sid = KNOWN_SIDS.get(objectsid)
 		if identity:
-			identity = f"{self.flatName}\\{identity}"
+			identity = identity
 		elif known_sid:
 			identity = known_sid
 		else:

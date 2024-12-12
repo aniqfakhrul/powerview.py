@@ -63,20 +63,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const clearButton = document.querySelector('.clear-input');
     const tabPanels = document.querySelectorAll('[role="tabpanel"]');
 
+    // Store the current filter state
+    let currentFilter = '';
+
     if (searchInput) {
         searchInput.addEventListener('input', () => {
-            const query = searchInput.value.toLowerCase();
-            filterTabResults(query);
+            currentFilter = searchInput.value.toLowerCase();
+            filterTabResults(currentFilter);
         });
 
         clearButton.addEventListener('click', () => {
             searchInput.value = '';
+            currentFilter = '';
             filterTabResults('');
         });
     }
 
     function filterTabResults(query) {
-        // Find the active tab panel
         const activeTabButton = document.querySelector('[role="tab"][aria-selected="true"]');
         if (!activeTabButton) return;
 
@@ -84,10 +87,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const activePanel = document.getElementById(activePanelId);
 
         if (activePanel) {
-            const items = activePanel.querySelectorAll('.result-item'); // Assuming each result has a class 'result-item'
+            const items = activePanel.querySelectorAll('.result-item');
             items.forEach(item => {
                 const text = item.textContent.toLowerCase();
-                item.style.display = text.includes(query) ? '' : 'none';
+                if (text.includes(query)) {
+                    item.classList.remove('hidden');
+                } else {
+                    item.classList.add('hidden');
+                }
             });
         }
     }

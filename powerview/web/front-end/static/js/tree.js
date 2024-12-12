@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
             event.stopPropagation();
 
             // Reset to the "General" tab
-            resetToGeneralTab();
+            selectTab('general');
 
             // Show the spinner when a tree node is clicked
             // showLoadingIndicator();
@@ -254,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Assign a data-identifier attribute to each tree node
             objDiv.setAttribute('data-identifier', obj.dn);
 
-            objDiv.innerHTML = `${iconSVG}<span class="text-neutral-900 dark:text-white">${obj.attributes.name || obj.dn}</span>${getSpinnerSVG(escapedDn)}`;
+            objDiv.innerHTML = `${iconSVG}<span class="cursor-pointer text-neutral-900 dark:text-white">${obj.attributes.name || obj.dn}</span>${getSpinnerSVG(escapedDn)}`;
 
             // Set the title attribute to show the object class on hover
             objDiv.setAttribute('title', objectClassLabel);
@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 event.stopPropagation();
 
                 // Reset to the "General" tab
-                resetToGeneralTab();
+                selectTab('general');
 
                 // Mark this node as selected
                 document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
@@ -297,6 +297,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function populateResultsPanel(item) {
         const resultsPanel = document.getElementById("general-content");
         const attributes = item.attributes;
+        
+        // Store the current search query before clearing the content
+        const searchInput = document.getElementById('tab-search');
+        const currentSearchQuery = searchInput ? searchInput.value.toLowerCase() : '';
 
         // Create the header div
         const headerDiv = document.createElement('div');
@@ -318,7 +322,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const isDistinguishedName = Array.isArray(value) ? value.some(isValidDistinguishedName) : isValidDistinguishedName(value);
 
             const flexDiv = document.createElement('div');
-            flexDiv.className = 'flex';
+            flexDiv.className = 'flex result-item';
+
+            // Apply initial visibility based on current search
+            if (currentSearchQuery) {
+                const textContent = `${key}${Array.isArray(value) ? value.join(' ') : value}`.toLowerCase();
+                if (!textContent.includes(currentSearchQuery)) {
+                    flexDiv.classList.add('hidden');
+                }
+            }
 
             const dt = document.createElement('dt');
             dt.className = 'text-sm font-medium text-neutral-600 dark:text-neutral-300 w-1/3';
@@ -326,7 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
             flexDiv.appendChild(dt);
 
             const dd = document.createElement('dd');
-            dd.className = 'mt-1 text-sm text-neutral-900 dark:text-neutral-300 w-2/3';
+            dd.className = 'mt-1 text-sm text-neutral-900 dark:text-neutral-300 w-2/3 break-all';
 
             if (isDistinguishedName) {
                 if (Array.isArray(value)) {
@@ -350,7 +362,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     dd.appendChild(link);
                 }
             } else {
-                dd.innerHTML = Array.isArray(value) ? value.join('<br>') : value;
+                if (Array.isArray(value)) {
+                    dd.innerHTML = value.map(v => isByteData(v) ? convertToBase64(v) : v).join('<br>');
+                } else {
+                    dd.innerHTML = isByteData(value) ? convertToBase64(value) : value;
+                }
             }
 
             flexDiv.appendChild(dd);
@@ -394,20 +410,20 @@ document.addEventListener('DOMContentLoaded', () => {
         daclData.forEach(entry => {
             entry.attributes.forEach(attribute => {
                 const row = document.createElement('tr');
-                row.classList.add('h-8');
+                row.classList.add('h-8', 'result-item');
 
                 // Determine Allow or Deny based on ACEType
-                const aceType = attribute.ACEType.includes('ALLOWED') ? 'Allow' : 'Deny';
+                const aceType = attribute.ACEType.includes('ALLOWED') ? icons.onIcon : icons.offIcon;
 
-                // Extract only the name from SecurityIdentifier
-                const securityIdentifierName = attribute.SecurityIdentifier.split(' (')[0];
+                // Replace "Pre-Windows 2000" with "Pre2k" in SecurityIdentifier
+                const securityIdentifier = attribute.SecurityIdentifier ? attribute.SecurityIdentifier.replace('Pre-Windows 2000', 'Pre2k') : '';
 
                 row.innerHTML = `
                     <td>${aceType}</td>
-                    <td>${securityIdentifierName}</td>
-                    <td>${attribute.AccessMask}</td>
-                    <td>${attribute.InheritanceType}</td>
-                    <td>${attribute.ObjectAceType || 'N/A'}</td>
+                    <td>${securityIdentifier}</td>
+                    <td>${attribute.AccessMask || ''}</td>
+                    <td>${attribute.InheritanceType || ''}</td>
+                    <td>${attribute.ObjectAceType || ''}</td>
                 `;
 
                 daclRows.appendChild(row);

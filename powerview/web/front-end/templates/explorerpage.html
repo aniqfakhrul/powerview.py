@@ -32,8 +32,16 @@
                 </div>
                 <!-- Search Bar -->
                 <div class="relative flex items-center">
-                    <input type="text" id="tab-search" class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1 text-sm dark:text-neutral-600 hover:text-neutral-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500" placeholder="Filter results...">
-                    <button class="clear-input absolute inset-y-0 right-0 px-2 text-neutral-600 hover:text-neutral-900 focus:outline-none">
+                    <input type="text" id="tab-search" 
+                        class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1 text-sm 
+                        text-neutral-900 
+                        dark:text-neutral-300 
+                        dark:hover:text-neutral-400 
+                        hover:text-neutral-900 
+                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black 
+                        dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500" 
+                        placeholder="Filter results...">
+                    <button class="clear-input absolute inset-y-0 right-0 px-2 text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-400 focus:outline-none">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
@@ -41,7 +49,7 @@
             <div class="text-neutral-600 dark:text-neutral-300 relative">
                 {% include 'views/spinner.html' %}
                 <div id="tabpanelGeneral" role="tabpanel" aria-label="general" style="display: block;">
-                    <div id="general-content" class="result-item">
+                    <div id="general-content">
                     </div>
                 </div>
                 <div id="tabpanelGroup" role="tabpanel" aria-label="group" style="display: none;">
@@ -60,7 +68,7 @@
                                     <th class="text-left">Applies to</th>
                                 </tr>
                             </thead>
-                            <tbody id="dacl-rows" class="result-item">
+                            <tbody id="dacl-rows">
                                 <!-- Additional rows will be dynamically added here -->
                             </tbody>
                         </table>

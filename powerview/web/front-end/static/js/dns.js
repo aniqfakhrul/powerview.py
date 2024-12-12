@@ -1,14 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
+    function convertZoneToId(zoneName) {
+        return zoneName.replace(/\./g, '-');
+    }
+
     async function fetchAndDisplayDnsZones() {
         // Select the spinner element
-        const spinner = document.getElementById('box-overlay-spinner');
-        if (!spinner) {
-            console.error('Spinner element not found');
-            return;
-        }
-
-        // Show the spinner
-        spinner.classList.remove('hidden');
+        showInitLoadingIndicator();
 
         try {
             const response = await fetch('/api/get/domaindnszone', {
@@ -35,25 +32,27 @@ document.addEventListener('DOMContentLoaded', () => {
             // Create and append new zone names as dropdowns
             zoneNames.forEach(name => {
                 const zoneDiv = document.createElement('div');
-                zoneDiv.classList.add('zone-item', 'mb-4');
+                zoneDiv.classList.add('zone-item', 'flex', 'items-center');
 
-                const zoneButton = document.createElement('button');
-                zoneButton.textContent = name;
-                zoneButton.classList.add('zone-button', 'w-full', 'text-left', 'bg-gray-100', 'dark:bg-gray-800', 'p-2', 'rounded', 'font-semibold', 'hover:bg-gray-200', 'dark:hover:bg-gray-700');
-                zoneButton.addEventListener('click', () => toggleZoneRecords(name, zoneDiv));
+                const zoneSpan = document.createElement('span');
+                zoneSpan.textContent = name;
+                zoneSpan.classList.add('cursor-pointer', 'text-neutral-900', 'dark:text-white', 'mr-2','text-left', 'hover:bg-gray-200', 'dark:hover:bg-gray-700');
+                zoneSpan.addEventListener('click', () => toggleZoneRecords(name, zoneDiv));
+
+                const spinnerSVG = getSpinnerSVG(`button-${convertZoneToId(name)}`);
 
                 const recordsContainer = document.createElement('div');
                 recordsContainer.classList.add('records-container', 'ml-4', 'mt-2', 'hidden');
 
-                zoneDiv.appendChild(zoneButton);
+                zoneDiv.appendChild(zoneSpan);
+                zoneDiv.insertAdjacentHTML('beforeend', spinnerSVG);
                 zoneDiv.appendChild(recordsContainer);
                 zoneNameContainer.appendChild(zoneDiv);
             });
         } catch (error) {
             console.error('Error fetching DNS zones:', error);
         } finally {
-            // Hide the spinner after fetching data
-            spinner.classList.add('hidden');
+            hideInitLoadingIndicator();
         }
     }
 
@@ -64,6 +63,11 @@ document.addEventListener('DOMContentLoaded', () => {
             recordsContainer.classList.add('hidden');
             recordsContainer.innerHTML = ''; // Clear existing records
             return;
+        }
+
+        const zoneSpinner = document.getElementById(`spinner-button-${convertZoneToId(zoneName)}`);
+        if (zoneSpinner) {
+            zoneSpinner.classList.remove('hidden');
         }
 
         try {
@@ -129,10 +133,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error('Error fetching DNS records:', error);
+        } finally {
+            if (zoneSpinner) {
+                zoneSpinner.classList.add('hidden'); // Hide the spinner after processing
+            }
         }
     }
 
     async function fetchAndDisplayDnsRecordDetails(identity, zoneName) {
+        showLoadingIndicator();
         try {
             const response = await fetch('/api/get/domaindnsrecord', {
                 method: 'POST',
@@ -181,6 +190,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('Error fetching DNS record details:', error);
+        } finally {
+            hideLoadingIndicator();
         }
     }
 

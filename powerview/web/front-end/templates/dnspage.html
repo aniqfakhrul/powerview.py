@@ -18,7 +18,8 @@
         </div>
     </div>
     <!-- Right Column: DNS Record Details -->
-    <div class="p-4 col-span-2 border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 h-full overflow-y-auto scrollbar rounded-lg">
+    <div class="p-4 col-span-2 border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 h-full overflow-y-auto scrollbar rounded-lg relative">
+        {% include 'views/spinner.html' %}
         <h2 class="text-lg font-semibold mb-2">DNS Record Details</h2>
         <div class="dns-record-details-container">
             <!-- DNS record details will be dynamically inserted here -->
