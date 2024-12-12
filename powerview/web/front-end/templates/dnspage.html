@@ -20,7 +20,15 @@
     <!-- Right Column: DNS Record Details -->
     <div class="p-4 col-span-2 border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 h-full overflow-y-auto scrollbar rounded-lg relative">
         {% include 'views/spinner.html' %}
-        <h2 class="text-lg font-semibold mb-2">DNS Record Details</h2>
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-globe"></i>
+                <h2 class="text-lg font-semibold">DNS Record Details</h2>
+            </div>
+            <button data-modal-target="add-record-modal" data-modal-toggle="add-record-modal" class="block text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-1.5 text-center dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800" type="button">
+                Add Record
+            </button>
+        </div>
         <div class="dns-record-details-container">
             <!-- DNS record details will be dynamically inserted here -->
         </div>
