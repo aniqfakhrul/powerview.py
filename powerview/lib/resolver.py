@@ -99,6 +99,29 @@ class LDAP:
 		return val
 
 	@staticmethod
+	def parse_uac_name_to_value(uac_names, delimiter=','):
+		"""Convert UAC flag names to numeric value
+		Args:
+			uac_names (str): Comma-separated UAC flag names
+		Returns:
+			int: Combined UAC numeric value
+		"""
+		if not uac_names:
+			return 0
+			
+		uac_value = 0
+		names = [name.strip() for name in uac_names.split(delimiter)]
+		
+		# Create reverse mapping of name->value
+		reverse_uac = {value: key for key, value in UAC_DICT.items()}
+		
+		for name in names:
+			if name in reverse_uac:
+				uac_value |= reverse_uac[name]
+				
+		return uac_value
+
+	@staticmethod
 	def ldap2datetime(ts):
 		if isinstance(ts, datetime.datetime):
 			return ts

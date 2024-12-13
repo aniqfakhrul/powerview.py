@@ -11,6 +11,7 @@ import shlex
 from argparse import Namespace
 from powerview.web.api.helpers import make_serializable
 from powerview.utils.parsers import powerview_arg_parse
+from powerview.utils.constants import UAC_DICT
 
 class APIServer:
 	def __init__(self, powerview, host="127.0.0.1", port=5000):
@@ -39,7 +40,8 @@ class APIServer:
 		self.app.add_url_rule('/api/add/<method_name>', 'add_operation', self.handle_add_operation, methods=['POST'])
 		self.app.add_url_rule('/api/invoke/<method_name>', 'invoke_operation', self.handle_invoke_operation, methods=['POST'])
 		self.app.add_url_rule('/api/remove/<method_name>', 'remove_operation', self.handle_remove_operation, methods=['POST'])
-		self.app.add_url_rule('/api/convert/<method_name>', 'convert_operation', self.handle_convert_operation, methods=['POST'])
+		self.app.add_url_rule('/api/convertfrom/<method_name>', 'convert_from_operation', self.handle_convert_from_operation, methods=['POST'])
+		self.app.add_url_rule('/api/convertto/<method_name>', 'convert_to_operation', self.handle_convert_to_operation, methods=['POST'])
 		self.app.add_url_rule('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, methods=['GET'])
 		self.app.add_url_rule('/health', 'health', self.handle_health, methods=['GET'])
 		self.app.add_url_rule('/api/connectioninfo', 'connectioninfo', self.handle_connection_info, methods=['GET'])
@@ -47,6 +49,7 @@ class APIServer:
 		self.app.add_url_rule('/api/history', 'history', self.render_history, methods=['GET'])
 		self.app.add_url_rule('/api/ldap_rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
 		self.app.add_url_rule('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
+		self.app.add_url_rule('/api/constants', 'constants', self.handle_constants, methods=['GET'])
 
 		self.nav_items = [
 			{"name": "Explorer", "icon": "fas fa-folder-tree", "link": "/"},
@@ -164,8 +167,17 @@ class APIServer:
 	def handle_remove_operation(self, method_name):
 		return self.handle_operation(f"remove_{method_name}")
 
-	def handle_convert_operation(self, method_name):
+	def handle_convert_from_operation(self, method_name):
 		return self.handle_operation(f"convertfrom_{method_name}")
+
+	def handle_convert_to_operation(self, method_name):
+		return self.handle_operation(f"convertto_{method_name}")
+
+	def handle_constants(self):
+		get_param = request.args.get('get', '')
+		if get_param.lower() == 'uac':
+			return jsonify(UAC_DICT)
+		return jsonify({})
 
 	def handle_domaininfo(self):
 		domain_info = {

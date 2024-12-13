@@ -35,7 +35,8 @@ from powerview.lib.dns import (
 from powerview.lib.reg import RemoteOperations
 from powerview.lib.samr import SamrObject
 from powerview.lib.resolver import (
-	UAC
+	UAC,
+	LDAP
 )
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.web.api.server import APIServer
@@ -1272,6 +1273,22 @@ class PowerView:
 				continue
 			strip_entry(_entries)
 			entries.append(_entries)
+		return entries
+
+	def convertto_uacvalue(self, value, args=None, output=False):
+		if value.isdigit() or not isinstance(value, str):
+			raise ValueError("Value is not a string")
+
+		logging.debug(f"[ConvertTo-UACValue] Converting UAC name to value: {value}")
+		value = LDAP.parse_uac_name_to_value(value)
+		entries = [
+			{
+				"attributes": {
+					"Name": value.split(','),
+					"UACValue": value
+				}
+			}
+		]
 		return entries
 
 	def convertfrom_uacvalue(self, value, args=None, output=False):
@@ -3398,18 +3415,15 @@ displayName=New Group Policy Object
 			attr_val = attrs['value']
 
 		try:
-			print(attr_key, attr_val)
 			succeeded = self.ldap_session.modify(targetobject[0]["attributes"]["distinguishedName"], {
 				attr_key:[
 					(ldap3.MODIFY_REPLACE,attr_val)
 					]
 				}, controls=security_descriptor_control(sdflags=sd_flag) if sd_flag else None)
 		except ldap3.core.exceptions.LDAPInsufficientAccessRightsResult as e:
-			logging.error(f"[Set-DomainObject] Insufficient access rights to modify {attr_key}: {str(e)}")
-			return False
+			raise ValueError(f"[Set-DomainObject] Insufficient access rights to modify {attr_key}: {str(e)}")
 		except ldap3.core.exceptions.LDAPInvalidValueError as e:
-			logging.error(f"[Set-DomainObject] Invalid value for {attr_key}: {str(e)}")
-			return False
+			raise ValueError(f"[Set-DomainObject] Invalid value for {attr_key}: {str(e)}")
 
 		if not succeeded:
 			logging.error(f"[Set-DomainObject] Failed to modify attribute {attr_key} for {targetobject[0]['attributes']['distinguishedName']}")

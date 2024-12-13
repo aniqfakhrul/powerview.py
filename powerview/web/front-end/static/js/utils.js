@@ -1,5 +1,5 @@
 function convertFromSid(sidInput) {
-    return fetch('/api/convert/sid', {
+    return fetch('/api/convertfrom/sid', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -14,7 +14,7 @@ function convertFromSid(sidInput) {
 }
 
 function convertFromUac(uacInput) {
-    return fetch('/api/convert/uacvalue', {
+    return fetch('/api/convertfrom/uacvalue', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

@@ -465,8 +465,14 @@ function createAttributeEntry(name, value, identity) {
 
     const input = document.createElement('input');
     input.type = 'text';
-    input.className = 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white';
-    input.value = Array.isArray(value) ? value.join('\n') : value;
+    input.className = 'rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-full whitespace-pre';
+    
+    // Convert array to newline-separated string if needed
+    if (Array.isArray(value)) {
+        input.value = value.join('\n');
+    } else {
+        input.value = value;
+    }
     input.disabled = true;
 
     mainInputWrapper.appendChild(input);
@@ -482,7 +488,7 @@ function createAttributeEntry(name, value, identity) {
 
         const appendInput = document.createElement('input');
         appendInput.type = 'text';
-        appendInput.className = 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white';
+        appendInput.className = 'rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-full whitespace-pre';
         appendInput.placeholder = 'Enter value to append';
 
         const saveButton = document.createElement('button');
@@ -543,7 +549,10 @@ function createAttributeEntry(name, value, identity) {
         appendInput.focus();
     });
 
-    // Existing edit/save functionality
+    // Store the original value for reset
+    const originalValue = Array.isArray(value) ? value.join('\n') : value;
+
+    // Edit button click handler
     editButton.addEventListener('click', async () => {
         const isEditing = input.disabled;
         
@@ -551,22 +560,49 @@ function createAttributeEntry(name, value, identity) {
             // Switching to edit mode
             input.disabled = false;
             editButton.textContent = 'Save';
+            
+            // Create and add cancel button
+            const cancelButton = document.createElement('button');
+            cancelButton.type = 'button';
+            cancelButton.className = 'text-gray-600 hover:text-gray-700 text-sm font-medium';
+            cancelButton.textContent = 'Cancel';
+            
+            // Insert cancel button after edit button
+            editButton.insertAdjacentElement('afterend', cancelButton);
+            
+            // Cancel button click handler
+            cancelButton.addEventListener('click', () => {
+                input.value = originalValue;
+                input.disabled = true;
+                editButton.textContent = 'Edit';
+                cancelButton.remove();
+            });
+
             input.focus();
         } else {
             // Attempting to save
             const newValue = input.value;
-            if (newValue !== value) {
+            if (newValue !== originalValue) {
                 const success = await updateLdapAttribute(identity, name, newValue);
                 if (success) {
                     input.disabled = true;
                     editButton.textContent = 'Edit';
-                    // Update the stored value
-                    value = newValue;
+                    // Remove cancel button
+                    const cancelButton = editButton.nextElementSibling;
+                    if (cancelButton && cancelButton.textContent === 'Cancel') {
+                        cancelButton.remove();
+                    }
+                    showSuccessAlert(`Successfully updated attribute: ${name}`);
                 }
             } else {
                 // No changes made, just switch back to view mode
                 input.disabled = true;
                 editButton.textContent = 'Edit';
+                // Remove cancel button
+                const cancelButton = editButton.nextElementSibling;
+                if (cancelButton && cancelButton.textContent === 'Cancel') {
+                    cancelButton.remove();
+                }
             }
         }
     });
@@ -649,13 +685,19 @@ function closeModal(modalId) {
 }
 
 // Call this when you want to test the modal
-function showLdapAttributesModal(attributes = {}, identity) {
+async function showLdapAttributesModal(attributes = {}, identity) {
     const modal = document.getElementById('ldap-attributes-modal');
     const overlay = document.getElementById('modal-overlay');
     const container = document.getElementById('existing-attributes');
     
     if (modal && overlay) {
         container.innerHTML = '';
+
+        // Update modal title to show identity
+        const modalTitle = modal.querySelector('h3');
+        if (modalTitle) {
+            modalTitle.textContent = identity;
+        }
 
         // Show the modal and overlay
         modal.classList.remove('hidden');
@@ -668,7 +710,7 @@ function showLdapAttributesModal(attributes = {}, identity) {
         }
 
         // Populate the modal with existing attributes
-        populateLdapAttributesModal(attributes, identity);
+        await populateLdapAttributesModal(attributes, identity);
 
         // Initialize the add new attribute functionality
         handleAddNewAttribute(identity);
@@ -742,4 +784,31 @@ function showSuccessAlert(message) {
     // Implementation depends on your alert system
     console.log('Success:', message);
     // Example: You might want to show a toast notification or some other UI feedback
+}
+
+async function fetchConstants(constantType) {
+    try {
+        showLoadingIndicator();
+        const response = await fetch(`/api/constants?get=${constantType}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        await handleHttpError(response);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(`Error fetching ${constantType} constants:`, error);
+        showErrorAlert(`Failed to fetch ${constantType} constants`);
+        return null;
+    } finally {
+        hideLoadingIndicator();
+    }
 }
