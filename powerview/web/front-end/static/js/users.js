@@ -73,9 +73,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Populate table rows
             users.forEach(user => {
                 const tr = document.createElement('tr');
-                tr.classList.add('dark:hover:bg-white/5', 'dark:hover:text-white');
+                tr.classList.add('dark:hover:bg-white/5', 'dark:hover:text-white', 'cursor-pointer');
                 tr.dataset.identity = user.dn;
-                tr.onclick = (event) => handleLdapLinkClick(event);
+                tr.addEventListener('click', async (event) => {
+                    // Don't trigger if clicking action buttons
+                    if (event.target.closest('button')) return;
+                    await handleLdapLinkClick(event, user.dn);
+                });
 
                 attributeKeys.forEach(key => {
                     const td = document.createElement('td');
@@ -214,33 +218,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error deleting user:', error);
         }
-    }
-
-    function handleLdapLinkClick(event) {
-        event.preventDefault();
-        const targetLink = event.currentTarget; // Use event.currentTarget to get the .ldap-link div itself
-        const identity = targetLink.dataset.identity;
-        const detailsPanel = document.getElementById('details-panel');
-        const commandHistoryPanel = document.getElementById('command-history-panel');
-
-        // Check if the details panel is already showing the clicked identity
-        const currentDistinguishedName = detailsPanel.getAttribute('data-identity');
-
-        if (currentDistinguishedName === identity) {
-            // Toggle visibility if the same item is clicked again
-            detailsPanel.classList.toggle('hidden');
-            return;
-        }
-
-        // Fetch and populate details if a different item is clicked
-        fetchItemData(identity, 'BASE').then(itemData => {
-            if (itemData) {
-                populateDetailsPanel(itemData);
-                detailsPanel.setAttribute('data-identity', identity);
-                detailsPanel.classList.remove('hidden');
-                commandHistoryPanel.classList.add('hidden');    
-            }
-        });
     }
 
     function collectQueryParams() {

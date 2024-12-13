@@ -3326,10 +3326,8 @@ displayName=New Group Policy Object
 					attrs = attr_append
 				else:
 					attrs = ini_to_dict(attr_append)
-
 			if not attrs:
-				logging.error(f"[Set-DomainObject] Parsing {'-Set' if args.set else '-Append'} value failed")
-				return
+				raise ValueError(f"[Set-DomainObject] Parsing {'-Set' if args.set else '-Append'} value failed")
 
 			# check if value is a file
 			if len(attrs['value']) == 1 and isinstance(attrs['value'][0], str) and not isinstance(attrs['value'][0], bytes) and attrs['value'][0].startswith("@"):
@@ -3350,20 +3348,16 @@ displayName=New Group Policy Object
 								for ori_val in values:
 									if isinstance(ori_val, str) and isinstance(val, str):
 										if val.casefold() == ori_val.casefold():
-											logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-											return
+											raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
 									else:
 										if val == values:
-											logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-											return
+											raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
 							elif isinstance(values, str):
 								if val.casefold() == values.casefold():
-									logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-									return
+									raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
 							else:
 								if val == values:
-									logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-									return
+									raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
 						except KeyError as e:
 							logging.warning(f"[Set-DomainObject] Attribute {attrs['attribute']} not exists in object. Modifying anyway...")
 			except ldap3.core.exceptions.LDAPKeyError as e:
@@ -3404,6 +3398,7 @@ displayName=New Group Policy Object
 			attr_val = attrs['value']
 
 		try:
+			print(attr_key, attr_val)
 			succeeded = self.ldap_session.modify(targetobject[0]["attributes"]["distinguishedName"], {
 				attr_key:[
 					(ldap3.MODIFY_REPLACE,attr_val)

@@ -132,31 +132,40 @@ function stripCurlyBrackets(guid) {
     return guid.replace(/[{}]/g, '');
 }
 
-function handleLdapLinkClick(event) {
+async function handleLdapLinkClick(event, identity) {
     event.preventDefault();
-    const targetLink = event.currentTarget; // Use event.currentTarget to get the .ldap-link div itself
-    const identity = targetLink.dataset.identity;
-    const detailsPanel = document.getElementById('details-panel');
-    const commandHistoryPanel = document.getElementById('command-history-panel');
+    
+    try {
+        showLoadingIndicator();
+        
+        const response = await fetch('/api/get/domainobject', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                searchbase: identity, 
+                properties: ['*'],
+                search_scope: 'BASE' 
+            })
+        });
 
-    // Check if the details panel is already showing the clicked identity
-    const currentDistinguishedName = detailsPanel.getAttribute('data-identity');
-
-    if (currentDistinguishedName === identity) {
-        // Toggle visibility if the same item is clicked again
-        detailsPanel.classList.toggle('hidden');
-        return;
-    }
-
-    // Fetch and populate details if a different item is clicked
-    fetchItemData(identity, 'BASE').then(itemData => {
-        if (itemData) {
-            populateDetailsPanel(itemData);
-            detailsPanel.setAttribute('data-identity', identity);
-            detailsPanel.classList.remove('hidden');
-            commandHistoryPanel.classList.add('hidden');    
+        await handleHttpError(response);
+        
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+            const attributes = data[0].attributes;
+            showLdapAttributesModal(attributes, identity);
+        } else {
+            showErrorAlert('No data found for this identity');
         }
-    });
+    } catch (error) {
+        console.error('Error fetching LDAP attributes:', error);
+        showErrorAlert('Failed to fetch LDAP attributes');
+    } finally {
+        hideLoadingIndicator();
+    }
 }
 
 function populateDetailsPanel(item) {
@@ -241,7 +250,6 @@ function populateTableView(entries, tableView) {
     const thead = tableView.querySelector('thead');
     const tbody = tableView.querySelector('tbody');
     tbody.innerHTML = '';
-    console.log(entries);
     if (entries.length > 0) {
         // Get attribute keys from the first user to create table headers
         const attributeKeys = Object.keys(entries[0].attributes);
@@ -411,3 +419,327 @@ document.addEventListener('DOMContentLoaded', () => {
     checkConnectionStatus();
     setInterval(checkConnectionStatus, 300000);
 });
+
+function createAttributeEntry(name, value, identity) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'flex flex-col space-y-2';
+
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'flex justify-between items-center';
+
+    const label = document.createElement('label');
+    label.className = 'block text-sm font-medium text-gray-900 dark:text-white';
+    label.textContent = name;
+
+    // Create buttons container
+    const buttonsDiv = document.createElement('div');
+    buttonsDiv.className = 'flex gap-2';
+
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'text-blue-600 hover:text-blue-700 text-sm font-medium';
+    editButton.textContent = 'Edit';
+
+    const addButton = document.createElement('button');
+    addButton.type = 'button';
+    addButton.className = 'text-green-600 hover:text-green-700 text-sm font-medium';
+    addButton.textContent = 'Add';
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'text-red-600 hover:text-red-700 text-sm font-medium';
+    deleteButton.textContent = 'Delete';
+
+    buttonsDiv.appendChild(editButton);
+    buttonsDiv.appendChild(addButton);
+    buttonsDiv.appendChild(deleteButton);
+
+    labelDiv.appendChild(label);
+    labelDiv.appendChild(buttonsDiv);
+
+    const inputsContainer = document.createElement('div');
+    inputsContainer.className = 'flex flex-col gap-2';
+
+    const mainInputWrapper = document.createElement('div');
+    mainInputWrapper.className = 'flex gap-2';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white';
+    input.value = Array.isArray(value) ? value.join('\n') : value;
+    input.disabled = true;
+
+    mainInputWrapper.appendChild(input);
+    inputsContainer.appendChild(mainInputWrapper);
+    
+    wrapper.appendChild(labelDiv);
+    wrapper.appendChild(inputsContainer);
+
+    // Add button click handler
+    addButton.addEventListener('click', () => {
+        const appendWrapper = document.createElement('div');
+        appendWrapper.className = 'flex gap-2';
+
+        const appendInput = document.createElement('input');
+        appendInput.type = 'text';
+        appendInput.className = 'bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white';
+        appendInput.placeholder = 'Enter value to append';
+
+        const saveButton = document.createElement('button');
+        saveButton.type = 'button';
+        saveButton.className = 'px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700';
+        saveButton.textContent = 'Save';
+
+        const cancelButton = document.createElement('button');
+        cancelButton.type = 'button';
+        cancelButton.className = 'px-3 py-2 bg-gray-400 text-white text-sm font-medium rounded-lg hover:bg-gray-500';
+        cancelButton.textContent = 'Cancel';
+
+        saveButton.addEventListener('click', async () => {
+            const newValue = appendInput.value.trim();
+            if (!newValue) {
+                showErrorAlert('Please enter a value to append');
+                return;
+            }
+
+            try {
+                showLoadingIndicator();
+                const response = await fetch('/api/set/domainobject', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        identity: identity,
+                        append: `${name}=${newValue}`
+                    })
+                });
+
+                await handleHttpError(response);
+
+                if (response.ok) {
+                    // Update the main input value to include the new value
+                    const currentValue = input.value;
+                    input.value = currentValue ? `${currentValue}\n${newValue}` : newValue;
+                    appendWrapper.remove();
+                    showSuccessAlert(`Successfully appended value to ${name}`);
+                }
+            } catch (error) {
+                console.error('Error appending value:', error);
+                showErrorAlert(`Failed to append value to ${name}`);
+            } finally {
+                hideLoadingIndicator();
+            }
+        });
+
+        cancelButton.addEventListener('click', () => {
+            appendWrapper.remove();
+        });
+
+        appendWrapper.appendChild(appendInput);
+        appendWrapper.appendChild(saveButton);
+        appendWrapper.appendChild(cancelButton);
+        inputsContainer.appendChild(appendWrapper);
+        appendInput.focus();
+    });
+
+    // Existing edit/save functionality
+    editButton.addEventListener('click', async () => {
+        const isEditing = input.disabled;
+        
+        if (isEditing) {
+            // Switching to edit mode
+            input.disabled = false;
+            editButton.textContent = 'Save';
+            input.focus();
+        } else {
+            // Attempting to save
+            const newValue = input.value;
+            if (newValue !== value) {
+                const success = await updateLdapAttribute(identity, name, newValue);
+                if (success) {
+                    input.disabled = true;
+                    editButton.textContent = 'Edit';
+                    // Update the stored value
+                    value = newValue;
+                }
+            } else {
+                // No changes made, just switch back to view mode
+                input.disabled = true;
+                editButton.textContent = 'Edit';
+            }
+        }
+    });
+
+    // Existing delete functionality
+    deleteButton.addEventListener('click', async () => {
+        if (confirm(`Are you sure you want to delete the attribute "${name}"?`)) {
+            const success = await deleteLdapAttribute(identity, name);
+            if (success) {
+                wrapper.remove(); // Remove the attribute entry from the DOM
+            }
+        }
+    });
+
+    return wrapper;
+}
+
+// Add this new function to handle attribute deletion
+async function deleteLdapAttribute(identity, attributeName) {
+    try {
+        showLoadingIndicator();
+        const response = await fetch('/api/set/domainobject', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                identity: identity,
+                clear: attributeName
+            })
+        });
+
+        await handleHttpError(response);
+        
+        if (response.ok) {
+            console.log(`Successfully deleted ${attributeName}`);
+            return true;
+        }
+    } catch (error) {
+        console.error('Error deleting LDAP attribute:', error);
+        showErrorAlert(`Failed to delete ${attributeName}`);
+        return false;
+    } finally {
+        hideLoadingIndicator();
+    }
+    return false;
+}
+
+function populateLdapAttributesModal(attributes, identity) {
+    const container = document.getElementById('existing-attributes');
+    container.className = 'grid grid-cols-1 md:grid-cols-2 gap-4 auto-rows-auto';
+
+    // Sort attributes alphabetically
+    const sortedAttributes = Object.entries(attributes).sort((a, b) => 
+        a[0].toLowerCase().localeCompare(b[0].toLowerCase())
+    );
+
+    sortedAttributes.forEach(([name, value]) => {
+        const attributeEntry = createAttributeEntry(name, value, identity);
+        // Add classes to make long content span full width
+        if (value && value.length > 100) {  // Adjust threshold as needed
+            attributeEntry.className = 'col-span-full flex flex-col space-y-2';
+        } else {
+            attributeEntry.className = 'flex flex-col space-y-2';
+        }
+        container.appendChild(attributeEntry);
+    });
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    const overlay = document.getElementById('modal-overlay');
+    
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
+}
+
+// Call this when you want to test the modal
+function showLdapAttributesModal(attributes = {}, identity) {
+    const modal = document.getElementById('ldap-attributes-modal');
+    const overlay = document.getElementById('modal-overlay');
+    const container = document.getElementById('existing-attributes');
+    
+    if (modal && overlay) {
+        container.innerHTML = '';
+
+        // Show the modal and overlay
+        modal.classList.remove('hidden');
+        overlay.classList.remove('hidden');
+        
+        // Close button click handler
+        const closeButton = modal.querySelector('[data-modal-hide="ldap-attributes-modal"]');
+        if (closeButton) {
+            closeButton.addEventListener('click', () => closeModal('ldap-attributes-modal'));
+        }
+
+        // Populate the modal with existing attributes
+        populateLdapAttributesModal(attributes, identity);
+
+        // Initialize the add new attribute functionality
+        handleAddNewAttribute(identity);
+    }
+}
+
+// Add this new function to handle the API call
+async function updateLdapAttribute(identity, attributeName, newValue) {
+    try {
+        showLoadingIndicator();
+        const response = await fetch('/api/set/domainobject', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                identity: identity,
+                _set: `${attributeName}=${newValue}`
+            })
+        });
+
+        await handleHttpError(response);
+        
+        if (response.ok) {
+            console.log(`Successfully updated ${attributeName}`);
+            return true;
+        }
+    } catch (error) {
+        console.error('Error updating LDAP attribute:', error);
+        showErrorAlert(`Failed to update ${attributeName}`);
+        return false;
+    } finally {
+        hideLoadingIndicator();
+    }
+    return false;
+}
+
+// Add this function to handle the new attribute addition
+function handleAddNewAttribute(identity) {
+    const addButton = document.getElementById('add-new-attribute');
+    const nameInput = document.getElementById('new-attribute-name');
+    const valueInput = document.getElementById('new-attribute-value');
+
+    addButton.addEventListener('click', async () => {
+        const attributeName = nameInput.value.trim();
+        const attributeValue = valueInput.value.trim();
+
+        if (!attributeName || !attributeValue) {
+            showErrorAlert('Both attribute name and value are required');
+            return;
+        }
+        const success = await updateLdapAttribute(identity, attributeName, attributeValue);
+        
+        if (success) {
+            // Create and add the new attribute entry to the existing list
+            const newEntry = createAttributeEntry(attributeName, attributeValue, identity);
+            document.getElementById('existing-attributes').appendChild(newEntry);
+            
+            // Clear the input fields
+            nameInput.value = '';
+            valueInput.value = '';
+            
+            // Show success message
+            showSuccessAlert(`Successfully added attribute: ${attributeName}`);
+        }
+    });
+}
+
+// Add a success alert function if you don't have one
+function showSuccessAlert(message) {
+    // Implementation depends on your alert system
+    console.log('Success:', message);
+    // Example: You might want to show a toast notification or some other UI feedback
+}

@@ -158,8 +158,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function handleHttpError(response) {
     if (!response.ok) {
-        const alertBox = document.querySelector('div[role="alert"]');
-        const alertMessage = document.getElementById('alert-message');
+        const alertBox = document.querySelector('div[role="alert-error"]');
+        const alertMessage = document.getElementById('alert-message-error');
 
         if (response.status === 400) {
             const errorResponse = await response.json();
@@ -180,6 +180,24 @@ async function handleHttpError(response) {
             alertBox.hidden = true;
         }, 5000);
     }
+}
+
+async function showSuccessAlert(message) {
+    const alertBox = document.querySelector('div[role="alert-success"]');
+    const alertMessage = document.getElementById('alert-message-success');
+    alertMessage.textContent = message;
+    alertBox.hidden = false;
+
+    setTimeout(() => {
+        alertBox.hidden = true;
+    }, 5000);
+}
+
+async function showErrorAlert(message) {
+    const alertBox = document.querySelector('div[role="alert-error"]');
+    const alertMessage = document.getElementById('alert-message-error');
+    alertMessage.textContent = message;
+    alertBox.hidden = false;
 }
 
 function getSpinnerSVG(id, size = 'size-4') {

@@ -33,6 +33,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (exists) {
                     const treeNode = createTreeNode(node.dn, node.icon);
                     if (node.dn === rootDn) {
+                        // Mark the root node as selected
+                        document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+                        treeNode.classList.add('selected');
+
                         // Automatically expand the rootDn node
                         toggleSubtree(node.dn, treeNode);
 

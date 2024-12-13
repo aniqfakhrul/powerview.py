@@ -673,6 +673,7 @@ def main():
                             logging.error(str(e))
                             conn.reset_connection()
             except KeyboardInterrupt:
+                log_handler.save_history()
                 print()
             except EOFError:
                 log_handler.save_history()
@@ -691,6 +692,7 @@ def main():
                 continue
             except Exception as e:
                 if args.stack_trace:
+                    log_handler.save_history()
                     raise
                 else:
                     logging.error(str(e))

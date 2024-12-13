@@ -25,9 +25,14 @@
                 <i class="fa-solid fa-globe"></i>
                 <h2 class="text-lg font-semibold">DNS Record Details</h2>
             </div>
-            <button data-modal-target="add-record-modal" data-modal-toggle="add-record-modal" class="block text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-1.5 text-center dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800" type="button">
-                Add Record
-            </button>
+            <div class="flex items-center gap-2">
+                <button data-modal-target="delete-record-modal" data-modal-toggle="delete-dns-record-modal" class="hidden block text-white bg-red-700 hover:bg-red-800 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm px-3 py-1.5 text-center dark:bg-red-600 dark:hover:bg-red-700 dark:focus:ring-red-800" type="button">
+                    Delete Record
+                </button>
+                <button data-modal-target="add-record-modal" data-modal-toggle="add-dns-record-modal" class="block text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-1.5 text-center dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800" type="button">
+                    Add Record
+                </button>
+            </div>
         </div>
         <div class="dns-record-details-container">
             <!-- DNS record details will be dynamically inserted here -->

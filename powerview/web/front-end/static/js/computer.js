@@ -76,9 +76,15 @@ document.addEventListener('DOMContentLoaded', () => {
             // Populate table rows
             computers.forEach(computer => {
                 const tr = document.createElement('tr');
-                tr.classList.add('dark:hover:bg-white/5', 'dark:hover:text-white');
+                tr.classList.add('dark:hover:bg-white/5', 'dark:hover:text-white', 'cursor-pointer');
                 tr.dataset.identity = computer.dn;
-                tr.onclick = (event) => handleLdapLinkClick(event);
+
+                // Add click handler for the entire row
+                tr.addEventListener('click', async (event) => {
+                    // Don't trigger if clicking action buttons
+                    if (event.target.closest('button')) return;
+                    await handleLdapLinkClick(event, computer.dn);
+                });
 
                 attributeKeys.forEach(key => {
                     const td = document.createElement('td');
