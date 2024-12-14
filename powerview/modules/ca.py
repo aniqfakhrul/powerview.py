@@ -7,6 +7,8 @@ from ldap3.protocol.microsoft import security_descriptor_control
 from ldap3 import SUBTREE, BASE, LEVEL
 import socket
 
+from powerview.utils.helpers import strip_entry
+
 from powerview.utils.helpers import (
     is_admin_sid,
     filetime_to_str,
@@ -80,8 +82,15 @@ class CAEnum:
         ca_search_base = f"CN=Certification Authorities,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
         logging.debug(f'LDAP Base: {ca_search_base}')
         logging.debug(f'LDAP Filter: {enroll_filter}')
-        self.ldap_session.search(ca_search_base, enroll_filter,attributes='*')
-        return self.ldap_session.entries
+        
+        entries = []
+        entry_generator = self.ldap_session.extend.standard.paged_search(ca_search_base, enroll_filter, attributes=list(properties), paged_size=1000, generator=True)
+        for _entries in entry_generator:
+            if _entries['type'] != 'searchResEntry':
+                continue
+            strip_entry(_entries)
+            entries.append(_entries)
+        return entries
 
     def fetch_enrollment_services(self, properties=['*'], searchbase=None, search_scope=SUBTREE):
         enroll_filter = "(objectCategory=pKIEnrollmentService)"
@@ -89,9 +98,14 @@ class CAEnum:
         if not searchbase:
             searchbase = "CN=Configuration,{}".format(self.root_dn)
 
-        self.ldap_session.search(searchbase,enroll_filter,attributes=properties, search_scope=search_scope)
-
-        return self.ldap_session.entries
+        entries = []
+        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, enroll_filter, attributes=list(properties), paged_size=1000, generator=True, search_scope=search_scope)
+        for _entries in entry_generator:
+            if _entries['type'] != 'searchResEntry':
+                continue
+            strip_entry(_entries)
+            entries.append(_entries)
+        return entries
 
     def get_certificate_templates(self, properties=None, ca_search_base=None, identity=None):
         if not properties:

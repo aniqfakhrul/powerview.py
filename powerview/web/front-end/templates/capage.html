@@ -1,0 +1,63 @@
+{% extends "base/layouts.html" %}
+
+{% block content %}
+<div class="flex h-screen bg-neutral-100 dark:bg-neutral-900">
+    <!-- Left Panel -->
+    <div class="w-1/3 flex flex-col border-r border-neutral-200 dark:border-neutral-700">
+        <!-- CA Servers Section -->
+        <div class="h-1/2 flex flex-col bg-white dark:bg-neutral-800">
+            <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-certificate text-neutral-500 dark:text-neutral-400"></i>
+                    <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">CA Servers</h2>
+                </div>
+            </div>
+            <div class="ca-servers-container flex-1 overflow-y-auto p-4 scrollbar">
+                <!-- CA servers will be dynamically populated -->
+            </div>
+        </div>
+
+        <!-- Certificate Templates Section -->
+        <div class="h-1/2 flex flex-col bg-white dark:bg-neutral-800 border-t border-neutral-200 dark:border-neutral-700">
+            <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
+                <div class="flex items-center gap-2 mb-3">
+                    <i class="fa-solid fa-file-certificate text-neutral-500 dark:text-neutral-400"></i>
+                    <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Certificate Templates</h2>
+                </div>
+                <div class="relative">
+                    <input type="text" 
+                        id="template-filter" 
+                        class="w-full px-3 py-2 bg-neutral-50 dark:bg-neutral-700 border border-neutral-200 dark:border-neutral-600 rounded-lg text-sm text-neutral-700 dark:text-neutral-300 placeholder-neutral-500 dark:placeholder-neutral-400"
+                        placeholder="Filter templates...">
+                    <i class="fa-solid fa-search absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400"></i>
+                </div>
+            </div>
+            <div class="cert-templates-container flex-1 overflow-y-auto p-4 scrollbar">
+                <!-- Certificate templates will be dynamically populated -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="flex-1">
+        <div class="h-full flex flex-col">
+            <!-- Details Section -->
+            <div class="flex-1 p-4">
+                <div class="template-details-container bg-white dark:bg-neutral-800 rounded-lg h-full">
+                    <!-- Template details will be shown here -->
+                    <div class="flex items-center justify-center h-full text-neutral-500">
+                        <div class="text-center">
+                            <i class="fa-solid fa-certificate mb-2 text-2xl"></i>
+                            <p>Select a certificate template to view details</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/ca.js') }}"></script>
+{% endblock %}

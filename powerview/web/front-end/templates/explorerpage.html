@@ -1,87 +1,122 @@
 {% extends "base/layouts.html" %}
 {% block content %}
-<div class="grid grid-cols-2 h-full p-2">
-    <!-- Tree View -->
-    <div class="col-span-1 border-l border-t border-b border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 scrollbar overflow-y-auto" id="tree-view-panel" style="max-height: 100vh;">
-        <div class="p-4">
-            <!-- Search Bar with Button -->
-            <div class="relative flex w-full items-center gap-2 text-neutral-600 dark:text-neutral-300 mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true" class="absolute left-2.5 top-1/2 size-5 -translate-y-1/2 text-neutral-600/50 dark:text-neutral-300/50"> 
-                    <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-                </svg>
-                <input type="search" class="flex-grow rounded-md border border-neutral-300 bg-neutral-50 py-2 pl-10 pr-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500" name="object-search" placeholder="Search" aria-label="search"/>
-                <button id="execute-button" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:focus:ring-yellow-500" onclick="executePowerViewCommand()">
+<div class="flex h-screen bg-neutral-100 dark:bg-neutral-900">
+    <!-- Tree View (keeping original ID and structure) -->
+    <div class="w-1/3 flex flex-col border-r border-neutral-200 dark:border-neutral-700" id="tree-view-panel">
+        <!-- Search Header -->
+        <div class="p-4 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800">
+            <div class="relative flex items-center gap-2">
+                <div class="relative flex-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" 
+                         stroke="currentColor" aria-hidden="true" 
+                         class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400"> 
+                        <path stroke-linecap="round" stroke-linejoin="round" 
+                              d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                    </svg>
+                    <input type="search" 
+                           name="object-search"
+                           class="w-full rounded-lg border border-neutral-200 bg-white py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-800 dark:focus:border-yellow-500 dark:focus:ring-yellow-500"
+                           placeholder="Search objects..." />
+                </div>
+                <button id="execute-button" 
+                        class="rounded-lg px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:focus:ring-yellow-500"
+                        onclick="executePowerViewCommand()">
                     Search
                 </button>
             </div>
-            <!-- End of Search Bar with Button -->
+        </div>
 
-            <div id="tree-view" class="mt-4">
-                <!-- Tree view content -->
+        <!-- Tree View Content (keeping original ID) -->
+        <div class="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700">
+            <div id="tree-view" class="p-4">
+                <!-- Tree view content will be dynamically populated -->
             </div>
         </div>
     </div>
-    <!-- Results Panel -->
-    <div class="col-span-1 border border-neutral-300 overflow-y-auto dark:border-neutral-700 scrollbar" id="results-panel" style="max-height: 100vh;">
-        <div class="w-full">
-            <div class="flex justify-between items-center gap-2 overflow-x-auto border-b border-neutral-300 dark:border-neutral-700" role="tablist" aria-label="tab options">
-                <div class="flex gap-2">
-                    <button onclick="selectTab('general')" aria-selected="true" tabindex="0" class="h-min px-4 py-2 text-sm font-bold text-black border-b-2 border-black dark:border-yellow-500 dark:text-yellow-500" type="button" role="tab" aria-controls="tabpanelGeneral">General</button>
-                    <button onclick="selectTab('group')" aria-selected="false" tabindex="-1" class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" type="button" role="tab" aria-controls="tabpanelGroup">Group</button>
-                    <button onclick="selectTab('dacl')" aria-selected="false" tabindex="-1" class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" type="button" role="tab" aria-controls="tabpanelDacl">DACL</button>
+
+    <!-- Results Panel (keeping original ID) -->
+    <div class="flex-1 flex flex-col" id="results-panel">
+        <!-- Tab Navigation (keeping original structure) -->
+        <div class="bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700">
+            <div class="flex justify-between items-center px-4">
+                <div class="flex gap-1" role="tablist">
+                    <button onclick="selectTab('general')" 
+                            aria-selected="true" 
+                            tabindex="0" 
+                            class="px-4 py-3 text-sm text-neutral-600 font-medium dark:text-neutral-300 hover:text-neutral-900 hover:border-b-2 hover:border-neutral-300 dark:hover:border-neutral-600 dark:hover:text-white"
+                            role="tab" 
+                            aria-controls="tabpanelGeneral">General</button>
+                    <button onclick="selectTab('dacl')" 
+                            aria-selected="false" 
+                            tabindex="-1" 
+                            class="px-4 py-3 text-sm text-neutral-600 font-medium dark:text-neutral-300 hover:text-neutral-900 hover:border-b-2 hover:border-neutral-300 dark:hover:border-neutral-600 dark:hover:text-white"
+                            role="tab" 
+                            aria-controls="tabpanelDacl">DACL</button>
+                    <button onclick="selectTab('members')" 
+                            aria-selected="false" 
+                            tabindex="-1" 
+                            style="display: none;"
+                            class="px-4 py-3 text-sm text-neutral-600 font-medium dark:text-neutral-300 hover:text-neutral-900 hover:border-b-2 hover:border-neutral-300 dark:hover:border-neutral-600 dark:hover:text-white"
+                            role="tab" 
+                            aria-controls="tabpanelMembers">Members</button>
                 </div>
-                <!-- Search Bar -->
-                <div class="relative flex items-center">
-                    <input type="text" id="tab-search" 
-                        class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1 text-sm 
-                        text-neutral-900 
-                        dark:text-neutral-300 
-                        dark:hover:text-neutral-400 
-                        hover:text-neutral-900 
-                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black 
-                        dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500" 
-                        placeholder="Filter results...">
-                    <button class="clear-input absolute inset-y-0 right-0 px-2 text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-400 focus:outline-none">
-                        <i class="fa-solid fa-xmark"></i>
+
+                <!-- Filter Input (keeping original ID) -->
+                <div class="relative">
+                    <input type="text" 
+                           id="tab-search" 
+                           class="w-64 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm 
+                                  text-neutral-900 dark:text-white 
+                                  dark:border-neutral-700 dark:bg-neutral-800 
+                                  placeholder:text-neutral-500 dark:placeholder:text-neutral-400" 
+                           placeholder="Filter results..." />
+                    <button class="clear-input absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors">
+                        <i class="fa-solid fa-xmark fa-xs"></i>
                     </button>
                 </div>
             </div>
-            <div class="text-neutral-600 dark:text-neutral-300 relative">
-                {% include 'views/spinner.html' %}
-                <div id="tabpanelGeneral" role="tabpanel" aria-label="general" style="display: block;">
-                    <div id="general-content">
-                    </div>
+        </div>
+
+        <!-- Tab Panels (keeping original IDs and structure) -->
+        <div class="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 relative">
+            {% include 'views/spinner.html' %}
+            
+            <div id="tabpanelGeneral" role="tabpanel" class="h-full">
+                <div id="general-content">
+                    <!-- General content will be dynamically populated -->
                 </div>
-                <div id="tabpanelGroup" role="tabpanel" aria-label="group" style="display: none;">
-                    <div id="group-content">
-                    </div>
+            </div>
+
+            <div id="tabpanelDacl" role="tabpanel" class="h-full" style="display: none;">
+                <div id="dacl-content" class="p-4">
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="h-8 text-left text-neutral-600 dark:text-neutral-400">
+                                <th class="px-3 py-2">Type</th>
+                                <th class="px-3 py-2">Principal</th>
+                                <th class="px-3 py-2">Access</th>
+                                <th class="px-3 py-2">Inherited From</th>
+                                <th class="px-3 py-2">Applies to</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dacl-rows" class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                            <!-- DACL rows will be dynamically populated -->
+                        </tbody>
+                    </table>
                 </div>
-                <div id="tabpanelDacl" role="tabpanel" aria-label="dacl" style="display: none;">
-                    <div id="dacl-content" class="p-4">
-                        <table class="w-full text-sm text-neutral-600 dark:text-neutral-300 text-left text-xs">
-                            <thead>
-                                <tr class="h-8">
-                                    <th class="text-left">Type</th>
-                                    <th class="text-left">Principal</th>
-                                    <th class="text-left">Access</th>
-                                    <th class="text-left">Inherited From</th>
-                                    <th class="text-left">Applies to</th>
-                                </tr>
-                            </thead>
-                            <tbody id="dacl-rows">
-                                <!-- Additional rows will be dynamically added here -->
-                            </tbody>
-                        </table>
-                    </div>
+            </div>
+
+            <div id="tabpanelMembers" role="tabpanel" class="h-full" style="display: none;">
+                <div id="members-content" class="p-4">
+                    <!-- Members content will be dynamically populated -->
                 </div>
             </div>
         </div>
     </div>
 </div>
-
 {% endblock %}
+
 {% block scripts %}
     <script src="{{ url_for('static', filename='js/tree.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/icon.js') }}"></script>
     <script src="{{ url_for('static', filename='js/explorer.js') }}"></script>
 {% endblock %}

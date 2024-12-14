@@ -113,7 +113,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!treeView) return;
 
         const div = document.createElement('div');
-        div.classList.add('flex', 'items-center', 'gap-1', 'hover:bg-white/5', 'rounded', 'cursor-pointer');
+        div.classList.add(
+            'flex', 
+            'items-center', 
+            'gap-1', 
+            'hover:bg-neutral-100',
+            'dark:hover:bg-neutral-800',
+            'rounded', 
+            'cursor-pointer',
+        );
 
         div.innerHTML += `${icon}<span class="text-neutral-900 dark:text-white">${dn}</span>`;
 
@@ -215,11 +223,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function displaySubtree(dataArray, parentElement) {
         const subtreeContainer = document.createElement('div');
-        subtreeContainer.classList.add('ml-6', 'subtree');
+        subtreeContainer.classList.add(
+            'ml-6', 
+            'subtree',
+            'space-y-1'
+        );
 
         dataArray.forEach(obj => {
             const objDiv = document.createElement('div');
-            objDiv.classList.add('flex', 'items-center', 'gap-1', 'hover:bg-white/5', 'rounded', 'cursor-pointer');
+            objDiv.classList.add(
+                'flex', 
+                'items-center', 
+                'gap-1', 
+                'hover:bg-neutral-100',
+                'dark:hover:bg-neutral-800',
+                'rounded', 
+                'cursor-pointer',
+            );
 
             let iconSVG = icons.defaultIcon;
             let objectClassLabel = 'Object'; // Default label
@@ -273,6 +293,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
                 objDiv.classList.add('selected');
 
+                const membersTab = document.querySelector('[aria-controls="tabpanelMembers"]');
+                if (membersTab) {
+                    if (obj.attributes.objectClass && obj.attributes.objectClass.includes('group')) {
+                        membersTab.style.display = '';
+                    } else {
+                        membersTab.style.display = 'none';
+                    }
+                }
+
                 // Show the spinner on the right side of the node
                 showLoadingIndicator();
                 let childSubtreeContainer = objDiv.nextElementSibling;
@@ -308,7 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Create the header div
         const headerDiv = document.createElement('div');
-        headerDiv.className = 'bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white px-4 py-2 border-b sticky top-0 z-10';
+        headerDiv.className = 'bg-white dark:bg-neutral-800 text-sm text-neutral-900 dark:text-white px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10';
         
         const headerH3 = document.createElement('h3');
         headerH3.className = 'font-medium';
@@ -317,16 +346,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Create the content div
         const contentDiv = document.createElement('div');
-        contentDiv.className = 'p-4';
+        contentDiv.className = 'p-4 space-y-2';
 
         const dl = document.createElement('dl');
-        dl.className = 'grid grid-cols-1';
+        dl.className = 'grid grid-cols-1 gap-3';
 
         for (const [key, value] of Object.entries(attributes)) {
             const isDistinguishedName = Array.isArray(value) ? value.some(isValidDistinguishedName) : isValidDistinguishedName(value);
 
             const flexDiv = document.createElement('div');
-            flexDiv.className = 'flex result-item';
+            flexDiv.className = 'flex result-item hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded';
 
             // Apply initial visibility based on current search
             if (currentSearchQuery) {
@@ -337,19 +366,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const dt = document.createElement('dt');
-            dt.className = 'text-sm font-medium text-neutral-600 dark:text-neutral-300 w-1/3';
+            dt.className = 'text-sm font-medium text-neutral-600 dark:text-neutral-400 w-1/3';
             dt.textContent = key;
             flexDiv.appendChild(dt);
 
             const dd = document.createElement('dd');
-            dd.className = 'mt-1 text-sm text-neutral-900 dark:text-neutral-300 w-2/3 break-all';
+            dd.className = 'mt-1 text-sm text-neutral-900 dark:text-white w-2/3 break-all';
 
             if (isDistinguishedName) {
                 if (Array.isArray(value)) {
                     value.forEach(v => {
                         const link = document.createElement('a');
                         link.href = '#';
-                        link.className = 'text-blue-400 hover:text-blue-600';
+                        link.className = 'text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300';
                         link.dataset.identity = v;
                         link.onclick = (event) => handleLdapLinkClick(event, v);
                         link.textContent = v;
@@ -359,7 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     const link = document.createElement('a');
                     link.href = '#';
-                    link.className = 'text-blue-400 hover:text-blue-600';
+                    link.className = 'text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300';
                     link.dataset.identity = value;
                     link.onclick = (event) => handleLdapLinkClick(event, value);
                     link.textContent = value;
@@ -409,15 +438,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateDaclContent(daclData) {
         const daclRows = document.getElementById('dacl-rows');
-        daclRows.innerHTML = ''; // Clear existing rows
+        daclRows.innerHTML = '';
 
         daclData.forEach(entry => {
             entry.attributes.forEach(attribute => {
                 const row = document.createElement('tr');
-                row.classList.add('h-8', 'result-item');
+                row.classList.add(
+                    'h-8', 
+                    'result-item',
+                    'hover:bg-neutral-50',
+                    'dark:hover:bg-neutral-800',
+                    'border-b',
+                    'border-neutral-200',
+                    'dark:border-neutral-700',
+                    'dark:text-neutral-200',
+                    'text-neutral-600'
+                );
 
                 // Determine Allow or Deny based on ACEType
                 const aceType = attribute.ACEType.includes('ALLOWED') ? icons.onIcon : icons.offIcon;
+
+                // Format AccessMask to handle commas
+                const formattedAccessMask = attribute.AccessMask ? 
+                attribute.AccessMask.split(',')
+                    .map(mask => mask.trim())
+                    .join('<br>') 
+                : '';
 
                 // Replace "Pre-Windows 2000" with "Pre2k" in SecurityIdentifier
                 const securityIdentifier = attribute.SecurityIdentifier ? attribute.SecurityIdentifier.replace('Pre-Windows 2000', 'Pre2k') : '';
@@ -425,7 +471,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.innerHTML = `
                     <td>${aceType}</td>
                     <td>${securityIdentifier}</td>
-                    <td>${attribute.AccessMask || ''}</td>
+                    <td>${formattedAccessMask}</td>
                     <td>${attribute.InheritanceType || ''}</td>
                     <td>${attribute.ObjectAceType || ''}</td>
                 `;

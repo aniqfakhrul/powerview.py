@@ -158,27 +158,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function handleHttpError(response) {
     if (!response.ok) {
-        const alertBox = document.querySelector('div[role="alert-error"]');
-        const alertMessage = document.getElementById('alert-message-error');
-
         if (response.status === 400) {
             const errorResponse = await response.json();
             if (errorResponse.error) {
-                alertMessage.textContent = errorResponse.error;
+                showErrorAlert(errorResponse.error);
             } else {
-                alertMessage.textContent = 'An unknown error occurred.';
+                showErrorAlert('An unknown error occurred.');
             }
         } else {
-            alertMessage.textContent = `HTTP error! status: ${response.status}`;
+            showErrorAlert(`HTTP error! status: ${response.status}`);
         }
-
-        // Show the alert box
-        alertBox.hidden = false;
-
-        // Optionally, add a timeout to hide the alert after a few seconds
-        setTimeout(() => {
-            alertBox.hidden = true;
-        }, 5000);
     }
 }
 
@@ -198,6 +187,10 @@ async function showErrorAlert(message) {
     const alertMessage = document.getElementById('alert-message-error');
     alertMessage.textContent = message;
     alertBox.hidden = false;
+
+    setTimeout(() => {
+        alertBox.hidden = true;
+    }, 5000);
 }
 
 function getSpinnerSVG(id, size = 'size-4') {

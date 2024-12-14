@@ -1,26 +1,125 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const activeFilters = new Set();
+    const defaultProperties = ['sAMAccountName', 'cn', 'distinguishedName'];
     let identityToDelete = null;
     let rowToDelete = null;
 
-    async function fetchAndPopulateComputers() {
-        try {
-            const response = await fetch('/api/get/domaincomputer', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    properties: ["sAMAccountName", "cn", "operatingSystem"]
-                })
+    initializePropertyFilter(defaultProperties);
+    initializeQueryTemplates();
+    initializeDeleteHandlers();
+
+    function initializeQueryTemplates() {
+        const dropdownButton = document.getElementById('filter-dropdown-button');
+        const dropdownMenu = document.getElementById('filter-dropdown-menu');
+        const selectedFilters = document.getElementById('selected-filters');
+        const searchButton = document.getElementById('computer-search-button');
+
+        dropdownButton.addEventListener('click', () => {
+            dropdownMenu.classList.toggle('hidden');
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!dropdownButton.contains(event.target) && !dropdownMenu.contains(event.target)) {
+                dropdownMenu.classList.add('hidden');
+            }
+        });
+
+        dropdownMenu.querySelectorAll('button').forEach(button => {
+            button.addEventListener('click', () => {
+                const filter = button.dataset.filter;
+                if (!activeFilters.has(filter)) {
+                    activeFilters.add(filter);
+                    renderActiveFilters();
+                }
+                dropdownMenu.classList.add('hidden');
             });
+        });
 
-            await handleHttpError(response);
+        searchButton.addEventListener('click', searchComputers);
+    }
 
-            const computers = await response.json();
-            populateComputersTable(computers);
-        } catch (error) {
-            console.error('Error fetching computers:', error);
+    function renderActiveFilters() {
+        const container = document.getElementById('selected-filters');
+        container.innerHTML = Array.from(activeFilters).map(filter => `
+            <span class="px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md text-sm flex items-center gap-1">
+                ${filter}
+                <button class="hover:text-red-500" onclick="removeFilter('${filter}')">
+                    <i class="fas fa-times fa-xs"></i>
+                </button>
+            </span>
+        `).join('');
+    }
+
+    window.removeFilter = (filter) => {
+        activeFilters.delete(filter);
+        renderActiveFilters();
+    };
+
+    function getActiveFilters() {
+        const filters = {};
+        activeFilters.forEach(filter => {
+            filters[filter] = true;
+        });
+        return filters;
+    }
+
+    function getSelectedProperties() {
+        const propertyElements = document.querySelectorAll('#computer-properties span');
+        return Array.from(propertyElements).map(span => 
+            span.textContent.trim().replace(/\s*×\s*$/, '')
+        );
+    }
+
+    function initializePropertyFilter(initialProperties) {
+        const selectedProperties = [...initialProperties];
+        const container = document.getElementById('computer-properties');
+        const newPropertyInput = document.getElementById('new-computer-property');
+        
+        if (!container || !newPropertyInput) {
+            console.error('Required elements not found');
+            return;
         }
+
+        newPropertyInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const newProp = e.target.value.trim();
+                if (!newProp) return;
+                
+                if (selectedProperties.includes(newProp)) {
+                    showErrorAlert('Property already exists');
+                    return;
+                }
+
+                selectedProperties.push(newProp);
+                renderProperties();
+                e.target.value = '';
+            }
+        });
+
+        window.removeProperty = (prop) => {
+            if (selectedProperties.length <= 1) {
+                showErrorAlert('At least one property must be selected');
+                return;
+            }
+            const index = selectedProperties.indexOf(prop);
+            if (index > -1) {
+                selectedProperties.splice(index, 1);
+                renderProperties();
+            }
+        };
+
+        function renderProperties() {
+            container.innerHTML = selectedProperties.map(prop => `
+                <span class="px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md text-sm flex items-center gap-1">
+                    ${prop}
+                    <button class="hover:text-red-500" onclick="removeProperty('${prop}')">
+                        <i class="fas fa-times fa-xs"></i>
+                    </button>
+                </span>
+            `).join('');
+        }
+
+        renderProperties();
     }
 
     function filterComputers() {
@@ -40,7 +139,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    document.getElementById('computer-search').addEventListener('input', filterComputers);
+    const searchInput = document.getElementById('computer-search');
+    if (searchInput) {
+        let debounceTimeout;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(debounceTimeout);
+            debounceTimeout = setTimeout(filterComputers, 300);
+        });
+    }
 
     function populateComputersTable(computers) {
         const table = document.getElementById('computers-result-table');
@@ -48,13 +154,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const tbody = table.querySelector('tbody');
         tbody.innerHTML = '';
 
+        const counter = document.getElementById('computers-counter');
+        counter.textContent = `Total Computers: ${computers.length}`;
+
         if (computers.length > 0) {
-            // Get attribute keys from the first computer to create table headers
-            console.log(computers[0].attributes);
             const attributeKeys = Object.keys(computers[0].attributes);
 
-            // Create table headers
-            thead.innerHTML = ''; // Clear existing headers
+            thead.innerHTML = '';
             const headerRow = document.createElement('tr');
             attributeKeys.forEach(key => {
                 const th = document.createElement('th');
@@ -64,7 +170,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 headerRow.appendChild(th);
             });
 
-            // Add an extra header for actions
             const actionTh = document.createElement('th');
             actionTh.scope = 'col';
             actionTh.className = 'p-1';
@@ -73,17 +178,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             thead.appendChild(headerRow);
 
-            // Populate table rows
             computers.forEach(computer => {
                 const tr = document.createElement('tr');
                 tr.classList.add('dark:hover:bg-white/5', 'dark:hover:text-white', 'cursor-pointer');
                 tr.dataset.identity = computer.dn;
 
-                // Add click handler for the entire row
-                tr.addEventListener('click', async (event) => {
-                    // Don't trigger if clicking action buttons
+                tr.addEventListener('click', (event) => {
                     if (event.target.closest('button')) return;
-                    await handleLdapLinkClick(event, computer.dn);
+                    handleLdapLinkClick(event, computer.dn);
                 });
 
                 attributeKeys.forEach(key => {
@@ -98,27 +200,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     tr.appendChild(td);
                 });
 
-                // Add action buttons
                 const actionTd = document.createElement('td');
                 actionTd.className = 'p-1 whitespace-nowrap';
-                const editButton = document.createElement('button');
-                editButton.className = 'px-1 py-0.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-500 focus:outline-none focus:shadow-outline-blue active:bg-blue-600 transition duration-150 ease-in-out';
-                editButton.textContent = 'Edit';
-                actionTd.appendChild(editButton);
 
                 const deleteButton = document.createElement('button');
                 deleteButton.className = 'ml-1 px-1 py-0.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-500 focus:outline-none focus:shadow-outline-red active:bg-red-600 transition duration-150 ease-in-out';
                 deleteButton.textContent = 'Delete';
                 deleteButton.addEventListener('click', (event) => {
                     event.stopPropagation();
-                    showDeleteModal(computer.attributes.cn, tr);
+                    showDeleteModal(computer.dn, tr);
                 });
                 actionTd.appendChild(deleteButton);
 
                 tr.appendChild(actionTd);
-
                 tbody.appendChild(tr);
             });
+        } else {
+            tbody.innerHTML = `
+                <tr id="empty-placeholder">
+                    <td colspan="100%" class="text-center py-4">No computers found</td>
+                </tr>
+            `;
         }
     }
 
@@ -137,7 +239,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             console.log('Computer added:', result);
 
-            // Refresh the user list
             fetchAndPopulateComputers();
         } catch (error) {
             console.error('Error adding user:', error);
@@ -150,37 +251,58 @@ document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('popup-modal');
         const overlay = document.getElementById('modal-overlay');
         document.getElementById('identity-to-delete').textContent = hostname;
+        
+        modal.removeAttribute('aria-hidden');
         modal.classList.remove('hidden');
         overlay.classList.remove('hidden');
+
+        const firstButton = modal.querySelector('button');
+        if (firstButton) {
+            firstButton.focus();
+        }
     }
 
     function showAddComputerModal() {
         const modal = document.getElementById('add-computer-modal');
         const overlay = document.getElementById('modal-overlay');
+        
+        modal.removeAttribute('aria-hidden');
         modal.classList.remove('hidden');
         overlay.classList.remove('hidden');
+
+        const firstInput = modal.querySelector('input');
+        if (firstInput) {
+            firstInput.focus();
+        }
     }
 
-    document.getElementById('confirm-delete').addEventListener('click', async () => {
-        if (identityToDelete && rowToDelete) {
-            await deleteComputer(identityToDelete, rowToDelete);
-            identityToDelete = null;
-            rowToDelete = null;
-            document.getElementById('popup-modal').classList.add('hidden');
-            document.getElementById('modal-overlay').classList.add('hidden');
-        }
-    });
-
-    // Add event listener for the close button
     document.querySelectorAll('[data-modal-hide]').forEach(button => {
         button.addEventListener('click', () => {
             const modalId = button.getAttribute('data-modal-hide');
-            document.getElementById(modalId).classList.add('hidden');
+            const modal = document.getElementById(modalId);
+            
+            modal.setAttribute('aria-hidden', 'true');
+            modal.classList.add('hidden');
             document.getElementById('modal-overlay').classList.add('hidden');
+
+            const triggerElement = document.querySelector(`[data-modal-target="${modalId}"]`);
+            if (triggerElement) {
+                triggerElement.focus();
+            }
         });
     });
 
-    // Add event listener for the Add Computer button
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            const visibleModals = document.querySelectorAll('.fixed:not(.hidden)[aria-hidden]');
+            visibleModals.forEach(modal => {
+                modal.setAttribute('aria-hidden', 'true');
+                modal.classList.add('hidden');
+                document.getElementById('modal-overlay').classList.add('hidden');
+            });
+        }
+    });
+
     document.querySelector('[data-modal-toggle="add-computer-modal"]').addEventListener('click', showAddComputerModal);
 
     document.getElementById('add-computer-form').addEventListener('submit', (event) => {
@@ -207,108 +329,114 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             console.log('Computer deleted:', result);
 
-            // Remove the row from the table
+            if (result === false) {
+                showErrorAlert("Failed to delete computer. Check logs");
+                return false;
+            }
+
+            showSuccessAlert("Computer deleted successfully");
             rowElement.remove();
+            return true;
         } catch (error) {
             console.error('Error deleting computer:', error);
+            showErrorAlert("Failed to delete computer. Check logs");
+            return false;
         }
     }
 
     function collectQueryParams() {
-        // Default values for all parameters
-        const defaultArgs = {
-            identity: document.getElementById('identity-input').value || '',
-            unconstrained: false,
-            enabled: false,
-            disabled: false,
-            trustedtoauth: false,
-            laps: false,
-            rbcd: false,
-            shadowcred: false,
-            printers: false,
-            spn: false,
-            excludedcs: false,
-            bitlocker: false,
-            gmsapassword: false,
-            pre2k: false,
-            ldapfilter: document.getElementById('ldap-filter-input').value || '',
-            searchbase: document.getElementById('searchbase-input').value || '',
-            properties: collectProperties()
-        };
-
-        // Collect current values based on data-active attribute
-        const currentArgs = {
-            identity: document.getElementById('identity-input').value || '',
-            unconstrained: document.getElementById('unconstrained-delegation-toggle').getAttribute('data-active') === 'true',
-            enabled: document.getElementById('enabled-computers-toggle').getAttribute('data-active') === 'true',
-            disabled: document.getElementById('disabled-computers-toggle').getAttribute('data-active') === 'true',
-            trustedtoauth: document.getElementById('trusted-to-auth-toggle').getAttribute('data-active') === 'true',
-            laps: document.getElementById('laps-toggle').getAttribute('data-active') === 'true',
-            rbcd: document.getElementById('rbcd-toggle').getAttribute('data-active') === 'true',
-            shadowcred: document.getElementById('shadow-cred-toggle').getAttribute('data-active') === 'true',
-            printers: document.getElementById('printers-toggle').getAttribute('data-active') === 'true',
-            spn: document.getElementById('spn-toggle').getAttribute('data-active') === 'true',
-            excludedcs: document.getElementById('excludedcs-toggle').getAttribute('data-active') === 'true',
-            bitlocker: document.getElementById('bitlocker-toggle').getAttribute('data-active') === 'true',
-            gmsapassword: document.getElementById('gmsapassword-toggle').getAttribute('data-active') === 'true',
-            pre2k: document.getElementById('pre2k-toggle').getAttribute('data-active') === 'true',
-            ldapfilter: document.getElementById('ldap-filter-input').value || '',
-            searchbase: document.getElementById('searchbase-input').value || ''
-        };
-
-        // Merge defaultArgs with currentArgs
-        const args = { ...defaultArgs, ...currentArgs };
-
-        return { args };
-    }
-
-    function collectProperties() {
-        const properties = [];
-        const propertyButtons = document.querySelectorAll('.custom-toggle-switch[data-active="true"]');
-    
-        propertyButtons.forEach(button => {
-            const ldapAttribute = button.getAttribute('data-ldap-attribute');
-            if (ldapAttribute) {
-                properties.push(ldapAttribute);
+        const identityFilter = document.getElementById('computer-identity')?.value.trim() || '';
+        const ldapFilter = document.getElementById('custom-ldap-filter')?.value.trim() || '';
+        
+        return {
+            args: {
+                properties: getSelectedProperties(),
+                identity: identityFilter,
+                ldapfilter: ldapFilter,
+                unconstrained: false,
+                enabled: false,
+                disabled: false,
+                trustedtoauth: false,
+                laps: false,
+                rbcd: false,
+                shadowcred: false,
+                printers: false,
+                spn: false,
+                excludedcs: false,
+                bitlocker: false,
+                gmsapassword: false,
+                pre2k: false,
+                searchbase: '',
+                ...getActiveFilters()
             }
-        });
-    
-        return properties;
+        };
     }
 
     async function searchComputers() {
         const searchSpinner = document.getElementById('search-spinner');
         const boxOverlaySpinner = document.getElementById('box-overlay-spinner');
-        searchSpinner.classList.remove('hidden'); // Show the spinner
-        boxOverlaySpinner.classList.remove('hidden'); // Show the spinner
-
-        const queryParams = collectQueryParams();
-        console.log(queryParams);
+        
         try {
+            if (searchSpinner) searchSpinner.classList.remove('hidden');
+            if (boxOverlaySpinner) boxOverlaySpinner.classList.remove('hidden');
+
             const response = await fetch('/api/get/domaincomputer', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(queryParams)
+                body: JSON.stringify(collectQueryParams())
             });
 
             await handleHttpError(response);
-
             const result = await response.json();
-            console.log(result);
+
+            if (!Array.isArray(result)) {
+                throw new Error('Invalid response format');
+            }
+
             populateComputersTable(result);
         } catch (error) {
             console.error('Error searching computers:', error);
+            showErrorAlert('Failed to search computers. Please try again.');
         } finally {
-            searchSpinner.classList.add('hidden'); // Hide the spinner
-            boxOverlaySpinner.classList.add('hidden'); // Hide the spinner
+            if (searchSpinner) searchSpinner.classList.add('hidden');
+            if (boxOverlaySpinner) boxOverlaySpinner.classList.add('hidden');
         }
     }
 
-    // Attach event listener to the search button
-    document.getElementById('search-computers-button').addEventListener('click', searchComputers);
+    document.getElementById('computer-search-button').addEventListener('click', searchComputers);
 
-    // enable if you want to fetch users on page load
-    // fetchAndPopulateUsers();
+    // Show initial state
+    const tbody = document.querySelector('#computers-result-table tbody');
+    tbody.innerHTML = `
+        <tr id="initial-state">
+            <td colspan="100%" class="text-center py-8 text-neutral-500">
+                <i class="fa-solid fa-magnifying-glass mb-2 text-lg"></i>
+                <p>Use the search button or filters above to find computers</p>
+            </td>
+        </tr>
+    `;
+
+    // Initialize counter
+    const counter = document.getElementById('computers-counter');
+    counter.textContent = 'Total Computers Found: 0';
+
+    function initializeDeleteHandlers() {
+        const confirmDeleteButton = document.getElementById('confirm-delete');
+        
+        confirmDeleteButton.replaceWith(confirmDeleteButton.cloneNode(true));
+        
+        document.getElementById('confirm-delete').addEventListener('click', async () => {
+            if (identityToDelete && rowToDelete) {
+                await deleteComputer(identityToDelete, rowToDelete);
+                
+                document.getElementById('popup-modal').classList.add('hidden');
+                document.getElementById('modal-overlay').classList.add('hidden');
+
+                identityToDelete = null;
+                rowToDelete = null;
+            }
+        });
+    }
 });

@@ -132,6 +132,24 @@ function stripCurlyBrackets(guid) {
     return guid.replace(/[{}]/g, '');
 }
 
+async function getDomainInfo() {
+    try {
+        const response = await fetch('/api/get/domaininfo', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        await handleHttpError(response);
+
+        const domainInfo = await response.json();
+        return domainInfo;
+    } catch (error) {
+        console.error('Error fetching domain info:', error);
+    }
+}
+
 async function handleLdapLinkClick(event, identity) {
     event.preventDefault();
     
@@ -337,6 +355,36 @@ document.addEventListener('DOMContentLoaded', () => {
         footerYear.textContent = currentYear();
     }
 
+    // Initialize alert handlers
+    function initializeAlertHandlers() {
+        // Handle all alert close buttons
+        document.querySelectorAll('[data-dismiss-target]').forEach(button => {
+            button.addEventListener('click', () => {
+                const targetId = button.getAttribute('data-dismiss-target');
+                const alert = document.querySelector(targetId);
+                if (alert) {
+                    alert.classList.add('hidden');
+                }
+            });
+        });
+
+        // Handle clicking outside alerts (optional)
+        document.addEventListener('click', (event) => {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                if (alert.contains(event.target)) return;
+                if (!alert.classList.contains('hidden')) {
+                    alert.classList.add('hidden');
+                }
+            });
+        });
+    }
+
+    // Add to initialization
+    initializeAlertHandlers();
+    checkConnectionStatus();
+    setInterval(checkConnectionStatus, 300000);
+
     function currentYear() {
         return new Date().getFullYear();
     }
@@ -415,9 +463,6 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(timeoutId);
         }
     }
-
-    checkConnectionStatus();
-    setInterval(checkConnectionStatus, 300000);
 });
 
 function createAttributeEntry(name, value, identity) {
@@ -431,41 +476,17 @@ function createAttributeEntry(name, value, identity) {
     label.className = 'block text-sm font-medium text-gray-900 dark:text-white';
     label.textContent = name;
 
-    // Create buttons container
-    const buttonsDiv = document.createElement('div');
-    buttonsDiv.className = 'flex gap-2';
-
-    const editButton = document.createElement('button');
-    editButton.type = 'button';
-    editButton.className = 'text-blue-600 hover:text-blue-700 text-sm font-medium';
-    editButton.textContent = 'Edit';
-
-    const addButton = document.createElement('button');
-    addButton.type = 'button';
-    addButton.className = 'text-green-600 hover:text-green-700 text-sm font-medium';
-    addButton.textContent = 'Add';
-
-    const deleteButton = document.createElement('button');
-    deleteButton.type = 'button';
-    deleteButton.className = 'text-red-600 hover:text-red-700 text-sm font-medium';
-    deleteButton.textContent = 'Delete';
-
-    buttonsDiv.appendChild(editButton);
-    buttonsDiv.appendChild(addButton);
-    buttonsDiv.appendChild(deleteButton);
-
     labelDiv.appendChild(label);
-    labelDiv.appendChild(buttonsDiv);
 
     const inputsContainer = document.createElement('div');
     inputsContainer.className = 'flex flex-col gap-2';
 
     const mainInputWrapper = document.createElement('div');
-    mainInputWrapper.className = 'flex gap-2';
+    mainInputWrapper.className = 'relative flex gap-2';
 
     const input = document.createElement('input');
     input.type = 'text';
-    input.className = 'rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-full whitespace-pre';
+    input.className = 'rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-full whitespace-pre pr-24';
     
     // Convert array to newline-separated string if needed
     if (Array.isArray(value)) {
@@ -475,11 +496,109 @@ function createAttributeEntry(name, value, identity) {
     }
     input.disabled = true;
 
+    // Create buttons container inside input
+    const buttonsDiv = document.createElement('div');
+    buttonsDiv.className = 'absolute right-2 top-1/2 -translate-y-1/2 flex gap-3 items-center';
+
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'text-blue-600 hover:text-blue-700';
+    editButton.innerHTML = '<i class="fas fa-edit fa-xs"></i>';
+
+    const addButton = document.createElement('button');
+    addButton.type = 'button';
+    addButton.className = 'text-green-600 hover:text-green-700';
+    addButton.innerHTML = '<i class="fas fa-plus fa-xs"></i>';
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'text-red-600 hover:text-red-700';
+    deleteButton.innerHTML = icons.deleteIcon;
+
+    buttonsDiv.appendChild(editButton);
+    buttonsDiv.appendChild(addButton);
+    buttonsDiv.appendChild(deleteButton);
+
     mainInputWrapper.appendChild(input);
+    mainInputWrapper.appendChild(buttonsDiv);
     inputsContainer.appendChild(mainInputWrapper);
     
     wrapper.appendChild(labelDiv);
     wrapper.appendChild(inputsContainer);
+
+    // Edit button click handler with visibility toggle
+    editButton.addEventListener('click', async () => {
+        const isEditing = input.disabled;
+        
+        if (isEditing) {
+            // Switching to edit mode
+            input.disabled = false;
+            editButton.innerHTML = '<i class="fas fa-save fa-xs"></i>'; // Change to save icon
+            
+            // Hide add and delete buttons
+            addButton.style.display = 'none';
+            deleteButton.style.display = 'none';
+            
+            // Create and add cancel button
+            const cancelButton = document.createElement('button');
+            cancelButton.type = 'button';
+            cancelButton.className = 'text-gray-600 hover:text-gray-700';
+            cancelButton.innerHTML = '<i class="fas fa-times fa-xs"></i>';
+            
+            editButton.insertAdjacentElement('afterend', cancelButton);
+            
+            cancelButton.addEventListener('click', () => {
+                input.value = originalValue;
+                input.disabled = true;
+                editButton.innerHTML = '<i class="fas fa-edit fa-xs"></i>';
+                // Show add and delete buttons again
+                addButton.style.display = '';
+                deleteButton.style.display = '';
+                cancelButton.remove();
+            });
+
+            input.focus();
+        } else {
+            // Attempting to save
+            const newValue = input.value;
+            if (newValue !== originalValue) {
+                let success;
+                
+                // Special handling for distinguishedName
+                if (name.toLowerCase() === 'distinguishedname') {
+                    success = await updateDistinguishedName(identity, newValue);
+                } else {
+                    success = await updateLdapAttribute(identity, name, newValue);
+                }
+
+                if (success) {
+                    input.disabled = true;
+                    editButton.innerHTML = '<i class="fas fa-edit fa-xs"></i>';
+                    // Show add and delete buttons again
+                    addButton.style.display = '';
+                    deleteButton.style.display = '';
+                    // Remove cancel button
+                    const cancelButton = editButton.nextElementSibling;
+                    if (cancelButton && cancelButton.innerHTML.includes('fa-times')) {
+                        cancelButton.remove();
+                    }
+                    showSuccessAlert(`Successfully updated attribute: ${name}`);
+                }
+            } else {
+                // No changes made, just switch back to view mode
+                input.disabled = true;
+                editButton.innerHTML = '<i class="fas fa-edit fa-xs"></i>';
+                // Show add and delete buttons again
+                addButton.style.display = '';
+                deleteButton.style.display = '';
+                // Remove cancel button
+                const cancelButton = editButton.nextElementSibling;
+                if (cancelButton && cancelButton.innerHTML.includes('fa-times')) {
+                    cancelButton.remove();
+                }
+            }
+        }
+    });
 
     // Add button click handler
     addButton.addEventListener('click', () => {
@@ -551,61 +670,6 @@ function createAttributeEntry(name, value, identity) {
 
     // Store the original value for reset
     const originalValue = Array.isArray(value) ? value.join('\n') : value;
-
-    // Edit button click handler
-    editButton.addEventListener('click', async () => {
-        const isEditing = input.disabled;
-        
-        if (isEditing) {
-            // Switching to edit mode
-            input.disabled = false;
-            editButton.textContent = 'Save';
-            
-            // Create and add cancel button
-            const cancelButton = document.createElement('button');
-            cancelButton.type = 'button';
-            cancelButton.className = 'text-gray-600 hover:text-gray-700 text-sm font-medium';
-            cancelButton.textContent = 'Cancel';
-            
-            // Insert cancel button after edit button
-            editButton.insertAdjacentElement('afterend', cancelButton);
-            
-            // Cancel button click handler
-            cancelButton.addEventListener('click', () => {
-                input.value = originalValue;
-                input.disabled = true;
-                editButton.textContent = 'Edit';
-                cancelButton.remove();
-            });
-
-            input.focus();
-        } else {
-            // Attempting to save
-            const newValue = input.value;
-            if (newValue !== originalValue) {
-                const success = await updateLdapAttribute(identity, name, newValue);
-                if (success) {
-                    input.disabled = true;
-                    editButton.textContent = 'Edit';
-                    // Remove cancel button
-                    const cancelButton = editButton.nextElementSibling;
-                    if (cancelButton && cancelButton.textContent === 'Cancel') {
-                        cancelButton.remove();
-                    }
-                    showSuccessAlert(`Successfully updated attribute: ${name}`);
-                }
-            } else {
-                // No changes made, just switch back to view mode
-                input.disabled = true;
-                editButton.textContent = 'Edit';
-                // Remove cancel button
-                const cancelButton = editButton.nextElementSibling;
-                if (cancelButton && cancelButton.textContent === 'Cancel') {
-                    cancelButton.remove();
-                }
-            }
-        }
-    });
 
     // Existing delete functionality
     deleteButton.addEventListener('click', async () => {
@@ -684,11 +748,60 @@ function closeModal(modalId) {
     }
 }
 
-// Call this when you want to test the modal
+// Add this function to handle filtering
+function handleModalSearch() {
+    const searchInput = document.getElementById('modal-tab-search');
+    const clearButton = searchInput.nextElementSibling;
+
+    function filterContent() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const activeTab = document.querySelector('#ldap-attributes-modal [role="tab"][aria-selected="true"]')
+            .getAttribute('aria-controls');
+
+        if (activeTab === 'tabpanelInfo') {
+            // Filter attributes
+            const attributes = document.querySelectorAll('#existing-attributes > div');
+            attributes.forEach(attr => {
+                const label = attr.querySelector('label').textContent.toLowerCase();
+                const value = attr.querySelector('input').value.toLowerCase();
+                const matches = label.includes(searchTerm) || value.includes(searchTerm);
+                attr.style.display = matches ? '' : 'none';
+            });
+        } else if (activeTab === 'tabpanelDescendants') {
+            // Filter descendants table
+            const rows = document.querySelectorAll('#descendants-rows tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm) ? '' : 'none';
+            });
+        }
+    }
+
+    // Add event listeners
+    searchInput.addEventListener('input', filterContent);
+    
+    // Clear button functionality
+    clearButton.addEventListener('click', () => {
+        searchInput.value = '';
+        filterContent();
+    });
+
+    // Clear search when switching tabs
+    const tabButtons = document.querySelectorAll('#ldap-attributes-modal [role="tab"]');
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            searchInput.value = '';
+            filterContent();
+        });
+    });
+}
+
+// Update showLdapAttributesModal to initialize the search functionality
 async function showLdapAttributesModal(attributes = {}, identity) {
     const modal = document.getElementById('ldap-attributes-modal');
     const overlay = document.getElementById('modal-overlay');
     const container = document.getElementById('existing-attributes');
+    const spinner = modal.querySelector('#box-overlay-spinner');
     
     if (modal && overlay) {
         container.innerHTML = '';
@@ -699,9 +812,10 @@ async function showLdapAttributesModal(attributes = {}, identity) {
             modalTitle.textContent = identity;
         }
 
-        // Show the modal and overlay
+        // Show the modal, overlay, and spinner
         modal.classList.remove('hidden');
         overlay.classList.remove('hidden');
+        spinner.classList.remove('hidden');
         
         // Close button click handler
         const closeButton = modal.querySelector('[data-modal-hide="ldap-attributes-modal"]');
@@ -709,11 +823,22 @@ async function showLdapAttributesModal(attributes = {}, identity) {
             closeButton.addEventListener('click', () => closeModal('ldap-attributes-modal'));
         }
 
-        // Populate the modal with existing attributes
-        await populateLdapAttributesModal(attributes, identity);
+        try {
+            // Populate the modal with existing attributes
+            await populateLdapAttributesModal(attributes, identity);
 
-        // Initialize the add new attribute functionality
-        handleAddNewAttribute(identity);
+            // Initialize the add new attribute functionality
+            handleAddNewAttribute(identity);
+
+            // Initialize tabs
+            selectModalTab('info');
+
+            // Initialize search functionality
+            handleModalSearch();
+        } finally {
+            // Hide spinner after everything is loaded
+            spinner.classList.add('hidden');
+        }
     }
 }
 
@@ -811,4 +936,154 @@ async function fetchConstants(constantType) {
     } finally {
         hideLoadingIndicator();
     }
+}
+
+// Add this function to handle modal tab switching
+function selectModalTab(tabName) {
+    // Update tab buttons
+    const tabButtons = document.querySelectorAll('#ldap-attributes-modal [role="tab"]');
+    tabButtons.forEach(button => {
+        const isSelected = button.getAttribute('aria-controls') === `tabpanel${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`;
+        button.setAttribute('aria-selected', isSelected);
+        button.className = isSelected
+            ? 'h-min px-4 py-2 text-sm font-bold text-black border-b-2 border-black dark:border-yellow-500 dark:text-yellow-500'
+            : 'h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900';
+    });
+
+    // Update tab panels
+    document.getElementById('tabpanelInfo').style.display = tabName === 'info' ? 'block' : 'none';
+    document.getElementById('tabpanelDescendants').style.display = tabName === 'descendants' ? 'block' : 'none';
+
+    // Load descendants data if selecting descendants tab
+    if (tabName === 'descendants') {
+        loadDescendants();
+    }
+}
+
+async function fetchItemsData(identity, search_scope = 'SUBTREE', properties = ['name', 'objectClass', 'distinguishedName']) {
+    try {
+        // showLoadingIndicator();
+        const response = await fetch('/api/get/domainobject', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                searchbase: identity, 
+                properties: properties, 
+                search_scope: search_scope 
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error fetching items data:', error);
+        return null;
+    } finally {
+        // hideLoadingIndicator();
+    }
+}
+
+// Add these functions to handle property filtering
+function initializePropertyFilter() {
+    const selectedProperties = ['name', 'objectClass', 'distinguishedName'];
+    const container = document.getElementById('selected-properties');
+    const newPropertyInput = document.getElementById('new-property');
+    const searchButton = document.getElementById('search-filter');
+
+    function renderProperties() {
+        container.innerHTML = selectedProperties.map(prop => `
+            <span class="px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md text-sm flex items-center gap-1">
+                ${prop}
+                <button class="hover:text-red-500" onclick="removeProperty('${prop}')">
+                    <i class="fas fa-times fa-xs"></i>
+                </button>
+            </span>
+        `).join('');
+    }
+
+    window.removeProperty = (prop) => {
+        const index = selectedProperties.indexOf(prop);
+        if (index > -1 && selectedProperties.length > 1) {
+            selectedProperties.splice(index, 1);
+            renderProperties();
+        }
+    };
+
+    newPropertyInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && e.target.value.trim()) {
+            const newProp = e.target.value.trim();
+            if (!selectedProperties.includes(newProp)) {
+                selectedProperties.push(newProp);
+                renderProperties();
+                e.target.value = '';
+            }
+        }
+    });
+
+    searchButton.addEventListener('click', async () => {
+        const identity = document.querySelector('#ldap-attributes-modal h3').textContent;
+        await loadDescendantsWithProperties(identity, selectedProperties);
+    });
+
+    renderProperties();
+}
+
+async function loadDescendantsWithProperties(identity, properties) {
+    const tbody = document.getElementById('descendants-rows');
+    const thead = document.getElementById('descendants-header');
+    tbody.innerHTML = '';
+    thead.innerHTML = '';
+
+    try {
+        const data = await fetchItemsData(identity, 'SUBTREE', properties);
+        
+        if (data && Array.isArray(data)) {
+            // Create header row
+            const headerRow = document.createElement('tr');
+            headerRow.className = 'h-8';
+            properties.forEach(prop => {
+                const th = document.createElement('th');
+                th.className = 'text-left';
+                th.textContent = prop;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+
+            // Create data rows
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer';
+                
+                properties.forEach(prop => {
+                    const td = document.createElement('td');
+                    td.className = 'py-2';
+                    let value = item.attributes[prop];
+                    if (Array.isArray(value)) {
+                        value = value[0]; // Take first value for array properties
+                    }
+                    td.textContent = value || '';
+                    row.appendChild(td);
+                });
+                
+                row.addEventListener('click', () => handleLdapLinkClick(event, item.dn));
+                tbody.appendChild(row);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading descendants:', error);
+        showErrorAlert('Failed to load descendants');
+    }
+}
+
+// Update loadDescendants to use the new function
+async function loadDescendants() {
+    const identity = document.querySelector('#ldap-attributes-modal h3').textContent;
+    await loadDescendantsWithProperties(identity, ['name', 'objectClass', 'distinguishedName']);
+    initializePropertyFilter();
 }

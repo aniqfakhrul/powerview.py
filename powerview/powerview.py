@@ -1069,7 +1069,7 @@ class PowerView:
 				for member_dn in group_members:
 					member_root_dn = dn2rootdn(member_dn)
 					member_domain = dn2domain(member_dn)
-					ldap_filter = f"(&(objectCategory=person)(objectClass=user)(|(distinguishedName={member_dn})))"
+					ldap_filter = f"(&(objectCategory=*)(|(distinguishedName={member_dn})))"
 
 					if len(member_domain) != 0 and member_domain.casefold() != self.domain.casefold():
 						_, ldap_session = self.conn.init_ldap_session(ldap_address=member_domain)
@@ -1113,7 +1113,7 @@ class PowerView:
 						attr['attributes'] = member_infos
 						new_entries.append(attr.copy())
 			else:
-				ldap_filter = f"(&(samAccountType=805306368)(memberof:1.2.840.113556.1.4.1941:={group_identity_dn}))"
+				ldap_filter = f"(&(objectCategory=*)(memberof:1.2.840.113556.1.4.1941:={group_identity_dn}))"
 				self.ldap_session.search(self.root_dn, ldap_filter, attributes='*')
 
 				for entry in self.ldap_session.entries:
@@ -1549,8 +1549,7 @@ class PowerView:
 			"displayName",
 		]
 		properties = def_prop if not properties else properties
-		if check_web_enrollment is not None:
-			check_web_enrollment = args.check_web_enrollment
+		check_web_enrollment = args.check_web_enrollment if hasattr(args, 'check_web_enrollment') else check_web_enrollment
 
 		ca_fetch = CAEnum(self.ldap_session, self.root_dn)
 		entries = ca_fetch.fetch_enrollment_services(properties, search_scope=search_scope)
@@ -2194,7 +2193,7 @@ displayName=New Group Policy Object
 
 		return succeed
 
-	def get_domaincatemplate(self, args=None, properties=[], identity=None, searchbase=None):
+	def get_domaincatemplate(self, args=None, properties=[], identity=None, vulnerable=False, searchbase=None, resolve_sids=False):
 		def list_sids(sids: List[str]):
 			sids_mapping = list(
 				map(
@@ -2228,9 +2227,9 @@ displayName=New Group Policy Object
 		identity = '*' if not identity else identity
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
-		resolve_sids = args.resolve_sids if hasattr(args, 'resolve_sids') and args.resolve_sids else None
+		resolve_sids = args.resolve_sids if hasattr(args, 'resolve_sids') and args.resolve_sids else resolve_sids
 		args_enabled = args.enabled if hasattr(args, 'enabled') and args.enabled else False
-		args_vulnerable = args.vulnerable if hasattr(args, 'vulnerable') and args.vulnerable else False
+		args_vulnerable = args.vulnerable if hasattr(args, 'vulnerable') and args.vulnerable else vulnerable
 
 		entries = []
 		template_guids = []
@@ -2248,7 +2247,7 @@ displayName=New Group Policy Object
 		list_ca_templates = []
 		list_entries = []
 		for ca in cas:
-			list_ca_templates += ca.certificateTemplates
+			list_ca_templates += ca.get('attributes').get('certificateTemplates')
 			for template in templates:
 				#template = template.entry_writable()
 				vulnerable = False
@@ -2327,7 +2326,7 @@ displayName=New Group Policy Object
 				e = modify_entry(template,
 								 new_attributes={
 									'Owner': template_owner,
-									'Certificate Authorities': ca.name,
+									'Certificate Authorities': ca.get('attributes').get('name'),
 									'msPKI-Certificate-Name-Flag': certificate_name_flag,
 									'msPKI-Enrollment-Flag': enrollment_flag,
 									'pKIExtendedKeyUsage': extended_key_usage,
@@ -2701,10 +2700,12 @@ displayName=New Group Policy Object
 			return
 		identity_dn = entries[0]["attributes"]["distinguishedName"]
 		au = ADUser(self.ldap_session, self.root_dn)
-		au.removeUser(identity_dn)
+		return au.removeUser(identity_dn)
 
-	def add_domainuser(self, username, userpass, args=None):
+	def add_domainuser(self, username, userpass, basedn=None, args=None):
 		parent_dn_entries = f"CN=Users,{self.root_dn}"
+		if basedn:
+			parent_dn_entries = basedn
 		if hasattr(args, 'basedn') and args.basedn:
 			entries = self.get_domainobject(identity=args.basedn)
 			if len(entries) <= 0:
@@ -2885,7 +2886,7 @@ displayName=New Group Policy Object
 			)
 		dacledit.write()
 
-	def remove_domaincomputer(self,computer_name, args=None):
+	def remove_domaincomputer(self, computer_name, args=None):
 		parent_dn_entries = self.root_dn
 		if hasattr(args, 'basedn') and args.basedn:
 			entries = self.get_domainobject(identity=args.basedn)
@@ -2898,9 +2899,6 @@ displayName=New Group Policy Object
 
 			parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
 		
-		if computer_name[-1] != '$':
-			computer_name += '$'
-
 		setattr(self.args, "TGT", self.conn.get_TGT())
 		setattr(self.args, "TGS", self.conn.get_TGS())
 		setattr(self.args, "dc_host", self.dc_dnshostname)

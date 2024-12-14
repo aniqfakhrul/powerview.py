@@ -26,17 +26,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 zoneDropdown.innerHTML = ''; // Clear existing options
                 
                 // Get currently selected zone
-                const selectedZone = document.querySelector('.zone-item.bg-gray-200, .zone-item.dark\\:bg-gray-900');
+                const selectedZone = document.querySelector('.zone-item.bg-neutral-200, .zone-item.dark\\:bg-neutral-800');
                 const currentZoneName = selectedZone ? selectedZone.querySelector('span').textContent : null;
 
-                zoneNames.forEach(zoneName => {
+                zoneNames.forEach((zoneName, index) => {
                     const option = document.createElement('option');
                     option.value = zoneName;
                     option.textContent = zoneName;
-                    // Set as selected if it matches the current zone
-                    if (zoneName === currentZoneName) {
+                    
+                    // Set as selected if it matches the current zone or if it's the first item and no zone is selected
+                    if ((currentZoneName && zoneName === currentZoneName) || (!currentZoneName && index === 0)) {
                         option.selected = true;
                     }
+                    
                     zoneDropdown.appendChild(option);
                 });
             }
@@ -57,18 +59,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     'cursor-pointer',
                     'zone-item', 
                     'flex', 
-                    'items-center', 
-                    'hover:bg-gray-200', 
-                    'dark:hover:bg-gray-700'
+                    'items-center',
+                    'p-2',
+                    'rounded', 
+                    'hover:bg-neutral-100', 
+                    'dark:hover:bg-neutral-700'
                 );
                 
                 zoneDiv.addEventListener('click', () => {
                     // Remove selected classes from all zone items
                     document.querySelectorAll('.zone-item').forEach(item => {
-                        item.classList.remove('bg-gray-200', 'dark:bg-gray-900');
+                        item.classList.remove('bg-neutral-200', 'dark:bg-neutral-800');
                     });
                     // Add selected classes to clicked zone
-                    zoneDiv.classList.add('bg-gray-200', 'dark:bg-gray-900');
+                    zoneDiv.classList.add('bg-neutral-200', 'dark:bg-neutral-800');
                     toggleZoneRecords(name, zoneDiv);
                 });
 
@@ -148,8 +152,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const headerRow = document.createElement('tr');
             const nameHeader = document.createElement('th');
             nameHeader.textContent = 'Name';
+            nameHeader.classList.add('text-neutral-600', 'dark:text-neutral-400', 'px-3', 'py-2');
             const addressHeader = document.createElement('th');
             addressHeader.textContent = 'Address';
+            addressHeader.classList.add('text-neutral-600', 'dark:text-neutral-400', 'px-3', 'py-2');
             headerRow.appendChild(nameHeader);
             headerRow.appendChild(addressHeader);
             table.appendChild(headerRow);
@@ -159,24 +165,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 const row = document.createElement('tr');
                 row.classList.add(
                     'cursor-pointer', 
-                    'hover:bg-gray-100', 
-                    'dark:hover:bg-gray-700'
+                    'hover:bg-neutral-100', 
+                    'dark:hover:bg-neutral-700'
                 );
 
                 row.addEventListener('click', () => {
                     // Remove selected classes from all rows
                     table.querySelectorAll('tr').forEach(r => {
-                        r.classList.remove('bg-gray-200', 'dark:bg-gray-900');
+                        r.classList.remove('bg-neutral-200', 'dark:bg-neutral-800');
                     });
                     // Add selected classes to clicked row
-                    row.classList.add('bg-gray-200', 'dark:bg-gray-900');
+                    row.classList.add('bg-neutral-200', 'dark:bg-neutral-800');
                     fetchAndDisplayDnsRecordDetails(record.attributes.name, zoneName);
                 });
 
                 const nameCell = document.createElement('td');
                 nameCell.textContent = record.attributes.name;
+                nameCell.classList.add('text-neutral-900', 'dark:text-white', 'px-3', 'py-2');
+
                 const addressCell = document.createElement('td');
                 addressCell.textContent = record.attributes.Address || '';
+                addressCell.classList.add('text-neutral-900', 'dark:text-white', 'px-3', 'py-2');
 
                 row.appendChild(nameCell);
                 row.appendChild(addressCell);
@@ -200,13 +209,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const overlay = document.getElementById('modal-overlay');
         
         // Get currently selected zone
-        const selectedZone = document.querySelector('.zone-item.bg-gray-200, .zone-item.dark\\:bg-gray-900');
+        const selectedZone = document.querySelector('.zone-item.bg-neutral-200, .zone-item.dark\\:bg-neutral-800');
         const currentZoneName = selectedZone ? selectedZone.querySelector('span').textContent : null;
         
         // Set the dropdown's selected value
         const zoneDropdown = document.getElementById('dns-zone');
-        if (zoneDropdown && currentZoneName) {
-            zoneDropdown.value = currentZoneName;
+        if (zoneDropdown) {
+            if (currentZoneName) {
+                zoneDropdown.value = currentZoneName;
+            } else {
+                // If no zone is selected, select the first option
+                if (zoneDropdown.options.length > 0) {
+                    zoneDropdown.selectedIndex = 0;
+                }
+            }
         }
 
         modal.classList.remove('hidden');
@@ -317,11 +333,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // Add a separator before each record except the first one
             if (index > 0) {
                 const separator = document.createElement('div');
-                separator.classList.add('my-4', 'border-t', 'border-neutral-300', 'dark:border-neutral-700');
+                separator.classList.add('my-4', 'border-t', 'border-neutral-200', 'dark:border-neutral-700');
                 
                 // Add record counter
                 const recordCounter = document.createElement('div');
-                recordCounter.classList.add('mt-4', 'mb-2', 'font-semibold', 'text-neutral-700', 'dark:text-neutral-300');
+                recordCounter.classList.add(
+                    'mt-4', 
+                    'mb-2', 
+                    'font-semibold', 
+                    'text-neutral-700', 
+                    'dark:text-neutral-300'
+                );
                 
                 detailsContainer.appendChild(separator);
                 detailsContainer.appendChild(recordCounter);
@@ -348,7 +370,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const detailElement = document.createElement('p');
                 detailElement.innerHTML = detailHTML;
-                detailElement.classList.add('text-sm', 'text-gray-700', 'dark:text-gray-300', 'py-1');
+                detailElement.classList.add(
+                    'text-sm', 
+                    'text-neutral-700', 
+                    'dark:text-neutral-300', 
+                    'py-1'
+                );
                 detailsContainer.appendChild(detailElement);
             });
         });
@@ -387,44 +414,87 @@ document.addEventListener('DOMContentLoaded', () => {
             showSuccessAlert('DNS record added successfully');
 
             // Check if the currently selected zone matches the zone we added the record to
-            const selectedZone = document.querySelector('.zone-item.bg-gray-200, .zone-item.dark\\:bg-gray-900');
+            const selectedZone = document.querySelector('.zone-item.bg-neutral-200, .zone-item.dark\\:bg-neutral-800');
             const currentZoneName = selectedZone ? selectedZone.querySelector('span').textContent : null;
 
-            // Only add the new row if we're viewing the same zone
+            // If we're viewing the same zone, refresh the records list
             if (currentZoneName === zoneName) {
-                const table = document.querySelector('.record-name-section table');
-                if (table) {
-                    const row = document.createElement('tr');
-                    row.classList.add(
-                        'cursor-pointer', 
-                        'hover:bg-gray-100', 
-                        'dark:hover:bg-gray-700'
-                    );
+                // Fetch and display updated records for the current zone
+                const recordsResponse = await fetch('/api/get/domaindnsrecord', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ zonename: zoneName })
+                });
 
-                    row.addEventListener('click', () => {
-                        table.querySelectorAll('tr').forEach(r => {
-                            r.classList.remove('bg-gray-200', 'dark:bg-gray-900');
+                await handleHttpError(recordsResponse);
+                const recordsData = await recordsResponse.json();
+                
+                // Clear and repopulate the records table
+                const recordSection = document.querySelector('.record-name-section');
+                if (recordSection) {
+                    recordSection.innerHTML = '';
+                    
+                    const table = document.createElement('table');
+                    table.classList.add('w-full', 'text-left');
+                    
+                    // Add table headers
+                    const headerRow = document.createElement('tr');
+                    ['Name', 'Address'].forEach(headerText => {
+                        const th = document.createElement('th');
+                        th.textContent = headerText;
+                        th.classList.add(
+                            'text-neutral-600',
+                            'dark:text-neutral-400',
+                            'font-medium',
+                            'text-sm'
+                        );
+                        headerRow.appendChild(th);
+                    });
+                    table.appendChild(headerRow);
+
+                    // Add records
+                    recordsData.forEach(record => {
+                        const row = document.createElement('tr');
+                        row.classList.add(
+                            'cursor-pointer',
+                            'hover:bg-neutral-100',
+                            'dark:hover:bg-neutral-700'
+                        );
+
+                        row.addEventListener('click', () => {
+                            table.querySelectorAll('tr').forEach(r => {
+                                r.classList.remove('bg-neutral-200', 'dark:bg-neutral-800');
+                            });
+                            row.classList.add('bg-neutral-200', 'dark:bg-neutral-800');
+                            fetchAndDisplayDnsRecordDetails(record.attributes.name, zoneName);
                         });
-                        row.classList.add('bg-gray-200', 'dark:bg-gray-900');
-                        fetchAndDisplayDnsRecordDetails(recordName, zoneName);
+
+                        const nameCell = document.createElement('td');
+                        nameCell.textContent = record.attributes.name;
+                        nameCell.classList.add('text-neutral-900', 'dark:text-white', 'py-2');
+                        
+                        const addressCell = document.createElement('td');
+                        addressCell.textContent = record.attributes.Address || '';
+                        addressCell.classList.add('text-neutral-900', 'dark:text-white', 'py-2');
+
+                        row.appendChild(nameCell);
+                        row.appendChild(addressCell);
+                        table.appendChild(row);
                     });
 
-                    const nameCell = document.createElement('td');
-                    nameCell.textContent = recordName;
-                    const addressCell = document.createElement('td');
-                    addressCell.textContent = recordAddress;
-
-                    row.appendChild(nameCell);
-                    row.appendChild(addressCell);
-
-                    const headerRow = table.querySelector('tr');
-                    headerRow.insertAdjacentElement('afterend', row);
+                    recordSection.appendChild(table);
                 }
             }
 
+            // Close the modal
+            document.getElementById('add-dns-record-modal').classList.add('hidden');
+            document.getElementById('modal-overlay').classList.add('hidden');
+
         } catch (error) {
             console.error('Error adding DNS record:', error);
-            // showErrorAlert('Failed to add DNS record');
+            showErrorAlert('Failed to add DNS record');
         } finally {
             hideLoadingIndicator();
         }
@@ -434,8 +504,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             showLoadingIndicator();
 
-            // Get the currently selected zone
-            const selectedZone = document.querySelector('.zone-item.bg-gray-200, .zone-item.dark\\:bg-gray-900');
+            // Updated selector to match new theme colors
+            const selectedZone = document.querySelector('.zone-item.bg-neutral-200, .zone-item.dark\\:bg-neutral-800');
             const zoneName = selectedZone ? selectedZone.querySelector('span').textContent : null;
 
             if (!zoneName) {
@@ -473,7 +543,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Remove the selected row from the table
-            const selectedRow = document.querySelector('.record-name-section tr.bg-gray-200, .record-name-section tr.dark\\:bg-gray-900');
+            const selectedRow = document.querySelector('.record-name-section tr.bg-neutral-200, .record-name-section tr.dark\\:bg-neutral-800');
             if (selectedRow) {
                 selectedRow.remove();
             }

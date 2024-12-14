@@ -1069,13 +1069,9 @@ class ADUser:
         """
         if not self.__client.tls_started and not self.__client.server.ssl:
             LOG.info('Adding a user account to the domain requires TLS but ldap:// scheme provided. Switching target to LDAPS via StartTLS')
-            try:
-                if not self.__client.start_tls():
-                    LOG.error('StartTLS failed')
-                    return False
-            except ldap3.core.exceptions.LDAPStartTLSError as e:
-                    LOG.error(str(e))
-                    return False
+            if not self.__client.start_tls():
+                LOG.error('StartTLS failed')
+                return False
 
         # Random password
         if not newPassword:

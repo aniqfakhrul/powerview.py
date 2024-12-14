@@ -2,8 +2,12 @@
 <div id="modal-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-40"></div>
 
 <!-- Delete Confirmation Modal -->
-<div id="popup-modal" tabindex="-1" aria-hidden="true" class="hidden fixed inset-0 z-50 flex justify-center items-center w-full h-full">
-    <div class="relative p-4 w-full max-w-md max-h-full">
+<div id="popup-modal" 
+    tabindex="-1" 
+    role="dialog"
+    aria-labelledby="modal-title"
+    class="fixed inset-0 z-50 flex justify-center items-center w-full h-full hidden">
+    <div class="relative p-4 w-full max-w-md max-h-full" role="document">
         <!-- Modal content -->
         <div class="relative flex max-w-lg flex-col overflow-hidden rounded-md border border-neutral-300 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
             <!-- Modal header -->
@@ -54,6 +58,10 @@
             <form id="add-user-form">
                 <div class="p-4 space-y-4">
                     <div>
+                        <label for="new-basedn" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">BaseDN</label>
+                        <input type="text" name="new-basedn" id="new-basedn" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" placeholder="Enter BaseDN" required />
+                    </div>
+                    <div>
                         <label for="new-username" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Username</label>
                         <input type="text" name="new-username" id="new-username" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" placeholder="Enter username" required />
                     </div>
@@ -71,8 +79,12 @@
 </div>
 
 <!-- Add Computer Modal -->
-<div id="add-computer-modal" tabindex="-1" aria-hidden="true" class="hidden fixed inset-0 z-50 flex justify-center items-center w-full h-full">
-    <div class="relative p-4 w-full max-w-md max-h-full">
+<div id="add-computer-modal"
+    tabindex="-1"
+    role="dialog"
+    aria-labelledby="modal-title"
+    class="fixed inset-0 z-50 flex justify-center items-center w-full h-full hidden">
+    <div class="relative p-4 w-full max-w-md max-h-full" role="document">
         <!-- Modal content -->
         <div class="relative flex max-w-lg flex-col overflow-hidden rounded-md border border-neutral-300 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
             <!-- Modal header -->
@@ -151,9 +163,11 @@
 
 <!-- LDAP Attributes Modal -->
 <div id="ldap-attributes-modal" tabindex="-1" aria-hidden="true" class="hidden fixed inset-0 z-50 flex justify-center items-center w-full h-full">
-    <div class="relative p-4 w-full max-w-4xl h-[90vh]">
+    <div class="relative p-4 w-full max-w-6xl h-[90vh]">
         <!-- Modal content -->
         <div class="relative flex flex-col h-full rounded-md border border-neutral-300 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            {% include 'views/spinner.html' %}
+
             <!-- Modal header - fixed -->
             <div class="flex items-center justify-between border-b border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20">
                 <h3 class="font-semibold tracking-wide text-neutral-900 dark:text-white">
@@ -166,38 +180,104 @@
                     <span class="sr-only">Close modal</span>
                 </button>
             </div>
-            <!-- Modal body - scrollable -->
-            <div class="flex-1 overflow-y-auto p-4">
-                <form id="ldap-attributes-form" class="space-y-4">
-                    <!-- Existing Attributes Section -->
-                    <div id="existing-attributes" class="space-y-4">
-                        <!-- Attribute entries will be dynamically added here -->
-                    </div>
 
-                    <!-- Add New Attribute Section -->
-                    <div class="mt-8 pt-4 border-t border-neutral-300 dark:border-neutral-700">
-                        <h4 class="text-lg font-medium mb-4 text-neutral-900 dark:text-white">Add New Attribute</h4>
-                        <div class="flex gap-4">
-                            <div class="flex-1">
-                                <label for="new-attribute-name" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Attribute Name</label>
-                                <input type="text" id="new-attribute-name" class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-full" placeholder="Enter attribute name">
+            <!-- Tabs -->
+            <div class="flex justify-between items-center gap-2 overflow-x-auto border-b border-neutral-300 dark:border-neutral-700" role="tablist" aria-label="tab options">
+                <div class="flex gap-2">
+                    <button onclick="selectModalTab('info')" aria-selected="true" tabindex="0" 
+                        class="h-min px-4 py-2 text-sm font-bold text-black border-b-2 border-black dark:border-yellow-500 dark:text-yellow-500" 
+                        type="button" role="tab" aria-controls="tabpanelInfo">Info</button>
+                    <button onclick="selectModalTab('descendants')" aria-selected="false" tabindex="-1" 
+                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
+                        type="button" role="tab" aria-controls="tabpanelDescendants">Descendants</button>
+                </div>
+                <!-- Search Bar -->
+                <div class="relative flex items-center px-1">
+                    <input type="text" id="modal-tab-search" 
+                        class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1 text-sm 
+                        text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-400 hover:text-neutral-900 
+                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black 
+                        dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500" 
+                        placeholder="Filter results...">
+                    <button class="clear-input absolute inset-y-0 right-0 px-2 text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-400 focus:outline-none">
+                        <i class="fa-solid fa-xmark fa-xs p-1"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="flex-1 overflow-y-auto scrollbar">
+                <!-- Info Tab -->
+                <div id="tabpanelInfo" role="tabpanel" aria-label="info" class="p-4" style="display: block;">
+                    <form id="ldap-attributes-form" class="space-y-4">
+                        <!-- Existing Attributes Section -->
+                        <div id="existing-attributes" class="space-y-4">
+                            <!-- Attribute entries will be dynamically added here -->
+                        </div>
+
+                        <!-- Add New Attribute Section -->
+                        <div class="mt-8 pt-4 border-t border-neutral-300 dark:border-neutral-700">
+                            <h4 class="text-lg font-medium mb-4 text-neutral-900 dark:text-white">Add New Attribute</h4>
+                            <div class="flex gap-4">
+                                <div class="flex-1">
+                                    <label for="new-attribute-name" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Attribute Name</label>
+                                    <input type="text" id="new-attribute-name" class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-full whitespace-pre" placeholder="Enter attribute name">
+                                </div>
+                                <div class="flex-1">
+                                    <label for="new-attribute-value" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Attribute Value</label>
+                                    <input type="text" id="new-attribute-value" class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-full whitespace-pre" placeholder="Enter attribute value">
+                                </div>
+                                <div class="flex items-end">
+                                    <button type="button" id="add-new-attribute" class="cursor-pointer whitespace-nowrap rounded-md bg-black px-4 py-2 text-center text-sm font-medium tracking-wide text-neutral-100 transition hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black active:opacity-100 active:outline-offset-0 dark:bg-yellow-500 dark:text-black dark:focus-visible:outline-yellow-500">Add</button>
+                                </div>
                             </div>
-                            <div class="flex-1">
-                                <label for="new-attribute-value" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Attribute Value</label>
-                                <input type="text" id="new-attribute-value" class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-full" placeholder="Enter attribute value">
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Descendants Tab -->
+                <div id="tabpanelDescendants" role="tabpanel" aria-label="descendants" class="p-4" style="display: none;">
+                    <!-- Add Filter Section -->
+                    <div class="mb-4 p-4 border border-neutral-300 dark:border-neutral-700 rounded-md">
+                        <div class="flex items-center gap-4">
+                            <div class="flex-grow">
+                                <label class="block text-sm font-medium mb-2">Select Properties</label>
+                                <div class="flex gap-2 flex-wrap" id="selected-properties">
+                                    <span class="px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md text-sm flex items-center gap-1">
+                                        name
+                                        <button class="hover:text-red-500"><i class="fas fa-times fa-xs"></i></button>
+                                    </span>
+                                    <span class="px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md text-sm flex items-center gap-1">
+                                        objectClass
+                                        <button class="hover:text-red-500"><i class="fas fa-times fa-xs"></i></button>
+                                    </span>
+                                    <span class="px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md text-sm flex items-center gap-1">
+                                        distinguishedName
+                                        <button class="hover:text-red-500"><i class="fas fa-times fa-xs"></i></button>
+                                    </span>
+                                </div>
                             </div>
-                            <div class="flex items-end">
-                                <button type="button" id="add-new-attribute" class="cursor-pointer whitespace-nowrap rounded-md bg-black px-4 py-2 text-center text-sm font-medium tracking-wide text-neutral-100 transition hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black active:opacity-100 active:outline-offset-0 dark:bg-yellow-500 dark:text-black dark:focus-visible:outline-yellow-500">
-                                    Add
+                            <div class="flex items-end gap-2">
+                                <input type="text" id="new-property" 
+                                    class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500" 
+                                    placeholder="Add property">
+                                <button id="search-filter" 
+                                    class="cursor-pointer whitespace-nowrap rounded-md bg-black px-4 py-2 text-center text-sm font-medium tracking-wide text-neutral-100 transition hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black active:opacity-100 active:outline-offset-0 dark:bg-yellow-500 dark:text-black dark:focus-visible:outline-yellow-500">
+                                    Search
                                 </button>
                             </div>
                         </div>
                     </div>
-                </form>
-            </div>
-            <!-- Modal footer - fixed -->
-            <div class="flex justify-end border-t border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20">
-                <button data-modal-hide="ldap-attributes-modal" type="button" class="cursor-pointer whitespace-nowrap rounded-md border border-neutral-300 bg-white px-4 py-2 text-center text-sm font-medium tracking-wide text-neutral-600 transition hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:ring-offset-2 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700">Close</button>
+                    <!-- Table remains the same -->
+                    <table class="w-full text-sm text-neutral-600 dark:text-neutral-300 text-left">
+                        <thead id="descendants-header">
+                            <!-- Headers will be dynamically generated -->
+                        </thead>
+                        <tbody id="descendants-rows">
+                            <!-- Rows will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
