@@ -939,25 +939,104 @@ async function fetchConstants(constantType) {
 }
 
 // Add this function to handle modal tab switching
-function selectModalTab(tabName) {
+async function selectModalTab(tabName) {
     // Update tab buttons
     const tabButtons = document.querySelectorAll('#ldap-attributes-modal [role="tab"]');
     tabButtons.forEach(button => {
         const isSelected = button.getAttribute('aria-controls') === `tabpanel${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`;
         button.setAttribute('aria-selected', isSelected);
+        button.setAttribute('tabindex', isSelected ? '0' : '-1');
         button.className = isSelected
             ? 'h-min px-4 py-2 text-sm font-bold text-black border-b-2 border-black dark:border-yellow-500 dark:text-yellow-500'
             : 'h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900';
     });
 
     // Update tab panels
-    document.getElementById('tabpanelInfo').style.display = tabName === 'info' ? 'block' : 'none';
-    document.getElementById('tabpanelDescendants').style.display = tabName === 'descendants' ? 'block' : 'none';
+    const tabPanels = document.querySelectorAll('#ldap-attributes-modal [role="tabpanel"]');
+    tabPanels.forEach(panel => {
+        panel.style.display = panel.id === `tabpanel${tabName.charAt(0).toUpperCase() + tabName.slice(1)}` ? 'block' : 'none';
+    });
 
-    // Load descendants data if selecting descendants tab
+    // Load specific tab content
     if (tabName === 'descendants') {
         loadDescendants();
+    } else if (tabName === 'dacl') {
+        const identity = document.querySelector('#ldap-attributes-modal h3').textContent;
+        if (identity) {
+            await fetchAndDisplayModalDacl(identity);
+            updateDaclTabContent();
+        }
     }
+}
+
+async function fetchAndDisplayModalDacl(identity) {
+    showLoadingIndicator();
+    try {
+        const response = await fetch('/api/get/domainobjectacl', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ identity: identity })
+        });
+
+        await handleHttpError(response);
+        const daclData = await response.json();
+        updateModalDaclContent(daclData);
+    } catch (error) {
+        console.error('Error fetching DACL data:', error);
+        showErrorAlert('Failed to fetch DACL data');
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+function updateModalDaclContent(daclData) {
+    const daclRows = document.getElementById('modal-dacl-rows');
+    if (!daclRows) return;
+
+    daclRows.innerHTML = '';
+
+    if (!daclData || !Array.isArray(daclData)) return;
+
+    daclData.forEach(entry => {
+        if (!entry.attributes) return;
+
+        entry.attributes.forEach(attribute => {
+            const row = document.createElement('tr');
+            row.classList.add(
+                'h-8',
+                'result-item',
+                'hover:bg-neutral-50',
+                'dark:hover:bg-neutral-800',
+                'border-b',
+                'border-neutral-200',
+                'dark:border-neutral-700',
+                'dark:text-neutral-200',
+                'text-neutral-600'
+            );
+
+            const aceType = attribute.ACEType?.includes('ALLOWED') ? icons.onIcon : icons.offIcon;
+            const formattedAccessMask = attribute.AccessMask ? 
+                attribute.AccessMask.split(',')
+                    .map(mask => mask.trim())
+                    .join('<br>') 
+                : '';
+            const securityIdentifier = attribute.SecurityIdentifier ? 
+                attribute.SecurityIdentifier.replace('Pre-Windows 2000', 'Pre2k') 
+                : '';
+
+            row.innerHTML = `
+                <td class="px-3 py-2">${aceType}</td>
+                <td class="px-3 py-2">${securityIdentifier}</td>
+                <td class="px-3 py-2">${formattedAccessMask}</td>
+                <td class="px-3 py-2">${attribute.InheritanceType || ''}</td>
+                <td class="px-3 py-2">${attribute.ObjectAceType || ''}</td>
+            `;
+
+            daclRows.appendChild(row);
+        });
+    });
 }
 
 async function fetchItemsData(identity, search_scope = 'SUBTREE', properties = ['name', 'objectClass', 'distinguishedName']) {
@@ -1086,4 +1165,132 @@ async function loadDescendants() {
     const identity = document.querySelector('#ldap-attributes-modal h3').textContent;
     await loadDescendantsWithProperties(identity, ['name', 'objectClass', 'distinguishedName']);
     initializePropertyFilter();
+}
+
+// Add this function to handle opening the Add Object ACL modal
+function openAddObjectAclModal() {
+    const modal = document.getElementById('add-object-acl-modal');
+    const targetIdentityInput = document.getElementById('target-identity');
+    const overlay = document.getElementById('modal-overlay');
+    
+    // Pre-fill the target identity if it exists
+    const currentIdentity = document.querySelector('#ldap-attributes-modal h3')?.textContent;
+    
+    if (modal) {
+        if (targetIdentityInput && currentIdentity) {
+            targetIdentityInput.value = currentIdentity;
+        }
+        
+        modal.classList.remove('hidden');
+        overlay.classList.remove('hidden');
+        
+        // Initialize close handlers
+        initializeAddAclModal();
+    }
+}
+
+// Update the DACL tab panel button to use this function
+function updateDaclTabContent() {
+    const addButton = document.querySelector('[onclick="document.getElementById(\'add-object-acl-modal\').classList.remove(\'hidden\')"]');
+    if (addButton) {
+        addButton.setAttribute('onclick', 'openAddObjectAclModal()');
+    }
+}
+
+// Add this function to handle closing the Add Object ACL modal
+function closeAddObjectAclModal() {
+    const modal = document.getElementById('add-object-acl-modal');
+    const overlay = document.getElementById('modal-overlay');
+    
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
+
+    // Clear form fields
+    const form = document.getElementById('add-object-acl-form');
+    if (form) {
+        form.reset();
+    }
+}
+
+// Add this to your initialization code (e.g., in showLdapAttributesModal or a separate init function)
+function initializeAddAclModal() {
+    // Handle close button click
+    const closeButton = document.querySelector('[data-modal-hide="add-object-acl-modal"]');
+    if (closeButton) {
+        closeButton.addEventListener('click', closeAddObjectAclModal);
+    }
+
+    // Add form submit handler
+    const form = document.getElementById('add-object-acl-form');
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const targetIdentity = document.getElementById('target-identity').value;
+            const principalIdentity = document.getElementById('principal-identity').value;
+            const rights = document.getElementById('acl-rights').value;
+            const aceType = document.getElementById('ace-type').value;
+            const inheritance = document.getElementById('inheritance').checked;
+
+            await addDomainObjectAcl(targetIdentity, principalIdentity, rights, aceType, inheritance);
+        });
+    }
+
+    // Optional: Handle clicking outside the modal to close it
+    const modal = document.getElementById('add-object-acl-modal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeAddObjectAclModal();
+            }
+        });
+    }
+}
+
+// Add this function to handle the API request for adding ACL
+async function addDomainObjectAcl(targetIdentity, principalIdentity, rights, aceType, inheritance) {
+    try {
+        showLoadingIndicator();
+        const response = await fetch('/api/add/domainobjectacl', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                targetidentity: targetIdentity,
+                principalidentity: principalIdentity,
+                rights: rights,
+                ace_type: aceType,
+                inheritance: inheritance
+            })
+        });
+
+        await handleHttpError(response);
+
+        if (response.ok) {
+            showSuccessAlert('Successfully added ACL');
+            closeAddObjectAclModal();
+            
+            // Force refresh of DACL tab content
+            const identity = document.querySelector('#ldap-attributes-modal h3').textContent;
+            if (identity) {
+                // Make sure we're on the DACL tab
+                await selectModalTab('dacl');
+                // Fetch and display updated DACL data
+                await fetchAndDisplayModalDacl(identity);
+            }
+            return true;
+        }
+    } catch (error) {
+        console.error('Error adding ACL:', error);
+        showErrorAlert('Failed to add ACL');
+        return false;
+    } finally {
+        hideLoadingIndicator();
+    }
+    return false;
 }
