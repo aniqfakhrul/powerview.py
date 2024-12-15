@@ -150,6 +150,42 @@ async function getDomainInfo() {
     }
 }
 
+async function handleObjectClick(event, identity) {
+    event.preventDefault();
+    
+    try {
+        showLoadingIndicator();
+        
+        const response = await fetch('/api/get/domainobject', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                identity: identity, 
+                properties: ['*'],
+                search_scope: 'BASE' 
+            })
+        });
+
+        await handleHttpError(response);
+        
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+            const attributes = data[0].attributes;
+            showLdapAttributesModal(attributes, identity);
+        } else {
+            showErrorAlert(`No data found for ${identity}`);
+        }
+    } catch (error) {
+        console.error('Error fetching LDAP attributes:', error);
+        showErrorAlert('Failed to fetch LDAP attributes');
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
 async function handleLdapLinkClick(event, identity) {
     event.preventDefault();
     
@@ -176,7 +212,7 @@ async function handleLdapLinkClick(event, identity) {
             const attributes = data[0].attributes;
             showLdapAttributesModal(attributes, identity);
         } else {
-            showErrorAlert('No data found for this identity');
+            showErrorAlert(`No data found for ${identity}`);
         }
     } catch (error) {
         console.error('Error fetching LDAP attributes:', error);
@@ -1060,6 +1096,35 @@ function updateModalDaclContent(daclData) {
     });
 }
 
+function getObjectClassIcon(objectClasses) {
+    // Ensure objectClasses is an array and convert to lowercase for comparison
+    const classes = Array.isArray(objectClasses) 
+        ? objectClasses.map(c => c.toLowerCase())
+        : [objectClasses?.toLowerCase()].filter(Boolean);
+
+    let icon = icons.defaultIcon; // Default icon
+
+    if (classes.includes('group')) {
+        icon = icons.groupIcon;
+    } else if (classes.includes('container')) {
+        icon = icons.containerIcon;
+    } else if (classes.includes('computer')) {
+        icon = icons.computerIcon;
+    } else if (classes.includes('user')) {
+        icon = icons.userIcon;
+    } else if (classes.includes('organizationalunit')) {
+        icon = icons.ouIcon;
+    } else if (classes.includes('builtindomain')) {
+        icon = icons.builtinIcon;
+    }
+
+    // Check for adminCount attribute if needed
+    // Note: You'll need to modify this if you want to check adminCount
+    // as it's not part of the objectClass array
+    
+    return icon;
+}
+
 async function fetchItemsData(identity, search_scope = 'SUBTREE', properties = ['name', 'objectClass', 'distinguishedName']) {
     try {
         // showLoadingIndicator();
@@ -1437,4 +1502,34 @@ function displayModalGroupMembers(members) {
 
     table.appendChild(tbody);
     membersContent.appendChild(table);
+}
+
+async function deleteDomainObject(identity, searchbase) {
+    try {
+        showLoadingIndicator();
+        const response = await fetch('/api/remove/domainobject', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                identity: identity,
+                searchbase: searchbase
+            })
+        });
+
+        await handleHttpError(response);
+        
+        if (response.ok) {
+            showSuccessAlert('Successfully deleted object');
+            return true;
+        }
+    } catch (error) {
+        console.error('Error deleting domain object:', error);
+        showErrorAlert('Failed to delete object');
+        return false;
+    } finally {
+        hideLoadingIndicator();
+    }
+    return false;
 }

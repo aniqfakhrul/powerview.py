@@ -36,6 +36,7 @@ class APIServer:
 		self.app.add_url_rule('/dns', 'dns', self.render_dns, methods=['GET'])
 		self.app.add_url_rule('/groups', 'groups', self.render_groups, methods=['GET'])
 		self.app.add_url_rule('/ca', 'ca', self.render_ca, methods=['GET'])
+		self.app.add_url_rule('/ou', 'ou', self.render_ou, methods=['GET'])
 		self.app.add_url_rule('/utils', 'utils', self.render_utils, methods=['GET'])
 		self.app.add_url_rule('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		self.app.add_url_rule('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
@@ -61,6 +62,7 @@ class APIServer:
 				{"name": "DNS", "icon": "fas fa-globe", "link": "/dns"},
 				{"name": "Groups", "icon": "fas fa-users", "link": "/groups"},
 				{"name": "CA", "icon": "fas fa-certificate", "link": "/ca"},
+				{"name": "OUs", "icon": "fas fa-building", "link": "/ou"},
 			]},
 			{"name": "Utils", "icon": "fas fa-toolbox", "link": "/utils"},
 			{"name": "Logs", "icon": "far fa-file-alt", "button_id": "toggle-command-history"},
@@ -161,6 +163,12 @@ class APIServer:
 			'nav_items': self.nav_items
 		}
 		return render_template('capage.html', **context)
+
+	def render_ou(self):
+		context = {
+			'nav_items': self.nav_items
+		}
+		return render_template('oupage.html', **context)
 
 	def render_utils(self):
 		context = {

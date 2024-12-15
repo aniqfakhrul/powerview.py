@@ -7,7 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initializePropertyFilter(defaultProperties);
     initializeQueryTemplates();
     initializeDeleteHandlers();
-    initializeAddComputerModal();
+    initializeSearchBase();
+
     function initializeQueryTemplates() {
         const dropdownButton = document.getElementById('filter-dropdown-button');
         const dropdownMenu = document.getElementById('filter-dropdown-menu');
@@ -349,6 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function collectQueryParams() {
         const identityFilter = document.getElementById('computer-identity')?.value.trim() || '';
         const ldapFilter = document.getElementById('custom-ldap-filter')?.value.trim() || '';
+        const searchBase = document.getElementById('computer-search-base').value;
         
         return {
             args: {
@@ -368,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 bitlocker: false,
                 gmsapassword: false,
                 pre2k: false,
-                searchbase: '',
+                searchbase: searchBase,
                 ...getActiveFilters()
             }
         };
@@ -442,7 +444,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function initializeAddComputerModal() {
+    async function initializeSearchBase() {
+        const searchBaseInput = document.getElementById('computer-search-base');
+        if (searchBaseInput) {
+            const domainInfo = await getDomainInfo();
+            searchBaseInput.value = domainInfo.root_dn;
+        }
+
         const basednInput = document.getElementById('computer-base-dn');
         if (basednInput) {
             const domainInfo = await getDomainInfo();

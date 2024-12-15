@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializePropertyFilter(defaultProperties);
     initializeQueryTemplates();
     initializeDeleteHandlers();
-    initializeAddUserModal();
+    initializeSearchBase();
 
     function initializeQueryTemplates() {
         const dropdownButton = document.getElementById('user-filter-dropdown-button');
@@ -126,12 +126,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function collectQueryParams() {
+        const identityFilter = document.getElementById('user-identity')?.value.trim() || '';
         const customLdapFilter = document.getElementById('custom-ldap-filter')?.value.trim();
+        const searchBase = document.getElementById('user-search-base').value;
         
         return {
             args: {
                 properties: getSelectedProperties(),
-                identity: '',
+                identity: identityFilter,
                 spn: false,
                 admincount: false,
                 lockout: false,
@@ -147,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 enabled: false,
                 disabled: false,
                 ldapfilter: customLdapFilter || '',
-                searchbase: '',
+                searchbase: searchBase,
                 ...getActiveFilters()
             }
         };
@@ -160,7 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             if (searchSpinner) searchSpinner.classList.remove('hidden');
             if (boxOverlaySpinner) boxOverlaySpinner.classList.remove('hidden');
-
+            
             const response = await fetch('/api/get/domainuser', {
                 method: 'POST',
                 headers: {
@@ -437,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await handleHttpError(response);
 
             const result = await response.json();
-            console.log('User added:', result);
+            showSuccessAlert(`Added user ${username} to ${basedn}`);
 
             searchUsers(); // Refresh the user list
         } catch (error) {
@@ -461,7 +463,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const counter = document.getElementById('users-counter');
     counter.textContent = 'Total Users Found: 0';
 
-    async function initializeAddUserModal() {
+    async function initializeSearchBase() {
+        const searchBaseInput = document.getElementById('user-search-base');
+        if (searchBaseInput) {
+            const domainInfo = await getDomainInfo();
+            searchBaseInput.value = domainInfo.root_dn;
+        }
+
         const basednInput = document.getElementById('user-base-dn');
         if (basednInput) {
             const domainInfo = await getDomainInfo();

@@ -298,18 +298,62 @@ document.addEventListener('DOMContentLoaded', () => {
         const resultsPanel = document.getElementById("general-content");
         const attributes = item.attributes;
         
-        // Store the current search query before clearing the content
         const searchInput = document.getElementById('tab-search');
         const currentSearchQuery = searchInput ? searchInput.value.toLowerCase() : '';
 
-        // Create the header div
+        // Create the header div with buttons
         const headerDiv = document.createElement('div');
-        headerDiv.className = 'bg-white dark:bg-neutral-800 text-sm text-neutral-900 dark:text-white px-4 py-3 border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10';
+        headerDiv.className = 'bg-white dark:bg-neutral-800 text-sm text-neutral-900 dark:text-white px-4 py-1 border-b border-neutral-200 dark:border-neutral-700 sticky top-0 z-10';
         
+        // Create flex container for header content
+        const headerContent = document.createElement('div');
+        headerContent.className = 'flex justify-between items-center';
+        
+        // Create title
         const headerH3 = document.createElement('h3');
         headerH3.className = 'font-medium';
         headerH3.textContent = attributes.name || 'Details';
-        headerDiv.appendChild(headerH3);
+
+        // Create buttons container
+        const buttonsDiv = document.createElement('div');
+        buttonsDiv.className = 'flex gap-2';
+
+        // Add User button
+        const addUserButton = document.createElement('button');
+        addUserButton.className = 'px-2 py-1.5 text-sm font-medium rounded-md text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-yellow-500 dark:hover:text-yellow-400 dark:hover:bg-yellow-900/20 transition-colors';
+        addUserButton.innerHTML = icons.userIcon;
+        addUserButton.setAttribute('title', 'Add User');
+        addUserButton.onclick = () => handleCreateUser(item.dn);
+        buttonsDiv.appendChild(addUserButton);
+
+        // Add Group button
+        const addGroupButton = document.createElement('button');
+        addGroupButton.className = 'px-2 py-1.5 text-sm font-medium rounded-md text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-yellow-500 dark:hover:text-yellow-400 dark:hover:bg-yellow-900/20 transition-colors';
+        addGroupButton.innerHTML = icons.groupIcon;
+        addGroupButton.setAttribute('title', 'Add Group');
+        addGroupButton.onclick = () => handleCreateGroup(item.dn);
+        buttonsDiv.appendChild(addGroupButton);
+
+        // Create Details button
+        const detailsButton = document.createElement('button');
+        detailsButton.className = 'px-2 py-1.5 text-sm font-medium rounded-md text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-800 transition-colors';
+        detailsButton.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+        detailsButton.setAttribute('title', 'Edit');
+        detailsButton.onclick = (event) => handleLdapLinkClick(event, item.dn);
+
+        // Create Delete button
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'px-2 py-1.5 text-sm font-medium rounded-md text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 transition-colors';
+        deleteButton.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+        deleteButton.setAttribute('title', 'Delete');
+        deleteButton.onclick = () => showDeleteModal(item.dn);
+
+        // Assemble the header
+        buttonsDiv.appendChild(detailsButton);
+        buttonsDiv.appendChild(deleteButton);
+        headerContent.appendChild(headerH3);
+        headerContent.appendChild(buttonsDiv);
+        headerDiv.appendChild(headerContent);
 
         // Create the content div
         const contentDiv = document.createElement('div');
@@ -405,6 +449,182 @@ document.addEventListener('DOMContentLoaded', () => {
                 panel.style.display = panel.id === clickedTab.getAttribute('aria-controls') ? 'block' : 'none';
             });
         });
+    }
+
+    function showDeleteModal(identity) {
+        const modal = document.getElementById('popup-modal');
+        const overlay = document.getElementById('modal-overlay');
+        document.getElementById('identity-to-delete').textContent = identity;
+        
+        modal.removeAttribute('aria-hidden');
+        modal.classList.remove('hidden');
+        overlay.classList.remove('hidden');
+
+        const firstButton = modal.querySelector('button');
+        if (firstButton) {
+            firstButton.focus();
+        }
+    }
+
+    // Add event listener for confirm delete button
+    document.getElementById('confirm-delete')?.addEventListener('click', async () => {
+        const identity = document.getElementById('identity-to-delete').textContent;
+        if (identity) {
+            const selectedNode = document.querySelector('.selected');
+            if (selectedNode) {
+                // Get the parent subtree container
+                const subtreeContainer = selectedNode.closest('.subtree');
+                if (!subtreeContainer) {
+                    console.error('No parent subtree found');
+                    return;
+                }
+
+                // Get the parent node (the div before the subtree container)
+                const parentNode = subtreeContainer.previousElementSibling;
+                if (!parentNode) {
+                    console.error('No parent node found');
+                    return;
+                }
+
+                const parentDn = parentNode.getAttribute('data-identifier');
+
+                const success = await deleteDomainObject(identity, identity);
+                if (success && parentDn) {
+                    // Select the parent node
+                    document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+                    parentNode.classList.add('selected');
+                    
+                    // Refresh the parent's subtree
+                    await refreshCurrentSubtree();
+                }
+            }
+            
+            // Hide the modal
+            document.getElementById('popup-modal').classList.add('hidden');
+            document.getElementById('modal-overlay').classList.add('hidden');
+        }
+    });
+
+    document.querySelectorAll('[data-modal-hide]').forEach(button => {
+        button.addEventListener('click', () => {
+            const modalId = button.getAttribute('data-modal-hide');
+            const modal = document.getElementById(modalId);
+            
+            modal.setAttribute('aria-hidden', 'true');
+            modal.classList.add('hidden');
+            document.getElementById('modal-overlay').classList.add('hidden');
+
+            const triggerElement = document.querySelector(`[data-modal-target="${modalId}"]`);
+            if (triggerElement) {
+                triggerElement.focus();
+            }
+        });
+    });
+
+    
+    async function addUser(username, password, basedn) {
+        try {
+            const response = await fetch('/api/add/domainuser', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    username, 
+                    userpass: password,
+                    basedn: basedn || ''
+                })
+            });
+
+            await handleHttpError(response);
+
+            const result = await response.json();
+            showSuccessAlert(`Added user ${username} to ${basedn}`);
+            
+            // Refresh the current subtree to show the new user
+            await refreshCurrentSubtree();
+        } catch (error) {
+            console.error('Error adding user:', error);
+            showErrorAlert('Failed to add user. Please try again.');
+        }
+    }
+
+    async function showAddUserModal(containerDn) {
+        const modal = document.getElementById('add-user-modal');
+        const overlay = document.getElementById('modal-overlay');
+        const basednInput = document.getElementById('user-base-dn');
+
+        if (basednInput) {
+            basednInput.value = containerDn;
+        }
+        
+        try {
+            // Show the modal
+            modal.removeAttribute('aria-hidden');
+            modal.classList.remove('hidden');
+            overlay.classList.remove('hidden');
+
+            // Focus on the first input
+            const firstInput = modal.querySelector('input');
+            if (firstInput) {
+                firstInput.focus();
+            }
+        } catch (error) {
+            console.error('Error initializing Add User Modal:', error);
+            showErrorAlert('Failed to initialize Add User Modal');
+        }
+    }
+
+    document.querySelector('[data-modal-toggle="add-user-modal"]')?.addEventListener('click', showAddUserModal);
+
+    document.getElementById('add-user-form')?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const username = document.getElementById('new-username')?.value;
+        const password = document.getElementById('new-password')?.value;
+        const basedn = document.getElementById('user-base-dn')?.value;
+        if (!username || !password) {
+            showErrorAlert('Please fill in all fields');
+            return;
+        }
+
+        addUser(username, password, basedn);
+        document.getElementById('add-user-modal')?.classList.add('hidden');
+        document.getElementById('modal-overlay')?.classList.add('hidden');
+    });
+
+    // Add these functions to handle user and group creation
+    function handleCreateUser(containerDn) {
+        console.log('Create user in container:', containerDn);
+        showAddUserModal(containerDn);
+    }
+
+    function handleCreateGroup(containerDn) {
+        console.log('Create group in container:', containerDn);
+        // Add your group creation logic here
+    }
+
+    async function refreshCurrentSubtree() {
+        const selectedNode = document.querySelector('.selected');
+        if (!selectedNode) return;
+
+        const dn = selectedNode.getAttribute('data-identifier');
+        const parentDiv = selectedNode.closest('div');
+        
+        // Find and remove the existing subtree
+        const existingSubtree = selectedNode.nextElementSibling;
+        if (existingSubtree && existingSubtree.classList.contains('subtree')) {
+            existingSubtree.remove();
+        }
+
+        // Re-fetch and display the subtree
+        try {
+            showLoadingIndicator();
+            await toggleSubtree(dn, parentDiv);
+        } catch (error) {
+            console.error('Error refreshing subtree:', error);
+        } finally {
+            hideLoadingIndicator();
+        }
     }
 
     // Call this function after the DOM is fully loaded

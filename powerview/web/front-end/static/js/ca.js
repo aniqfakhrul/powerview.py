@@ -238,16 +238,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         </ul>
                     </div>
 
-                    <!-- Enrollment Rights -->
-                    <div>
-                        <h4 class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Enrollment Rights</h4>
-                        <ul class="space-y-1">
-                            ${template.attributes['Enrollment Rights'].map(right => 
-                                `<li class="text-sm text-neutral-700 dark:text-neutral-300">${right}</li>`
-                            ).join('')}
-                        </ul>
-                    </div>
-
                     <!-- Administrative Rights -->
                     <div>
                         <h4 class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Administrative Rights</h4>
@@ -256,7 +246,10 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Write DACL</p>
                                 <ul class="space-y-1">
                                     ${template.attributes['Write Dacl'].map(right => 
-                                        `<li class="text-sm text-neutral-700 dark:text-neutral-300">${right}</li>`
+                                        `<li class="text-sm">
+                                            <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" 
+                                                onclick="handleObjectClick(event, '${right}')">${right}</a>
+                                        </li>`
                                     ).join('')}
                                 </ul>
                             </div>
@@ -264,11 +257,27 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Write Owner</p>
                                 <ul class="space-y-1">
                                     ${template.attributes['Write Owner'].map(right => 
-                                        `<li class="text-sm text-neutral-700 dark:text-neutral-300">${right}</li>`
+                                        `<li class="text-sm">
+                                            <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" 
+                                                onclick="handleObjectClick(event, '${right}')">${right}</a>
+                                        </li>`
                                     ).join('')}
                                 </ul>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Enrollment Rights -->
+                    <div>
+                        <h4 class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Enrollment Rights</h4>
+                        <ul class="space-y-1">
+                            ${template.attributes['Enrollment Rights'].map(right => 
+                                `<li class="text-sm">
+                                    <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" 
+                                        onclick="handleObjectClick(event, '${right}')">${right}</a>
+                                </li>`
+                            ).join('')}
+                        </ul>
                     </div>
 
                     <!-- Technical Details -->
