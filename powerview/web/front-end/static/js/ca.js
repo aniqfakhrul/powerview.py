@@ -1,40 +1,94 @@
 document.addEventListener('DOMContentLoaded', function() {
     fetchCAServers();
 
-    // Add filter functionality
+    // Initialize filter buttons
+    const filterButtons = {
+        all: document.getElementById('filter-all'),
+        enabled: document.getElementById('filter-enabled'),
+        disabled: document.getElementById('filter-disabled'),
+        vulnerable: document.getElementById('filter-vulnerable')
+    };
+
+    let currentFilter = 'all';
+    let currentSearchText = '';
+
+    // Set "All" filter as active by default
+    filterButtons.all.classList.remove('bg-neutral-200', 'dark:bg-neutral-700');
+    filterButtons.all.classList.add('bg-blue-500', 'dark:bg-blue-700', 'text-white');
+
+    // Add click handlers for filter buttons
+    Object.entries(filterButtons).forEach(([type, button]) => {
+        button.addEventListener('click', () => {
+            // Update active state of buttons
+            Object.values(filterButtons).forEach(btn => {
+                btn.classList.remove('bg-blue-500', 'dark:bg-blue-700', 'text-white');
+                btn.classList.add('bg-neutral-200', 'dark:bg-neutral-700');
+            });
+            button.classList.remove('bg-neutral-200', 'dark:bg-neutral-700');
+            button.classList.add('bg-blue-500', 'dark:bg-blue-700', 'text-white');
+
+            currentFilter = type;
+            applyFilters();
+        });
+    });
+
+    // Add search filter functionality
     const filterInput = document.getElementById('template-filter');
     filterInput.addEventListener('input', function() {
-        const filterText = this.value.toLowerCase();
+        currentSearchText = this.value.toLowerCase();
+        applyFilters();
+    });
+
+    function applyFilters() {
         const templates = document.querySelectorAll('.cert-templates-container > div');
         
         templates.forEach(template => {
             const templateName = template.querySelector('span').textContent.toLowerCase();
-            if (templateName.includes(filterText)) {
-                template.classList.remove('hidden');
-            } else {
-                template.classList.add('hidden');
+            const isEnabled = template.querySelector('.bg-green-100') !== null;
+            const isVulnerable = template.querySelector('.bg-red-100') !== null;
+
+            let shouldShow = true;
+
+            // Apply type filter
+            switch(currentFilter) {
+                case 'enabled':
+                    shouldShow = isEnabled;
+                    break;
+                case 'disabled':
+                    shouldShow = !isEnabled;
+                    break;
+                case 'vulnerable':
+                    shouldShow = isVulnerable;
+                    break;
+                case 'all':
+                default:
+                    shouldShow = true;
             }
+
+            // Apply text filter
+            if (shouldShow && currentSearchText) {
+                shouldShow = templateName.includes(currentSearchText);
+            }
+
+            template.classList.toggle('hidden', !shouldShow);
         });
-    });
+    }
 
     function fetchCAServers() {
         fetch('/api/get/domainca')
             .then(response => response.json())
             .then(data => {
+                console.log(data);
                 const container = document.querySelector('.ca-servers-container');
                 container.innerHTML = '';
                 
                 data.forEach(ca => {
-                    const templateCount = ca.attributes.certificateTemplates ? ca.attributes.certificateTemplates.length : 0;
                     const caElement = document.createElement('div');
                     caElement.className = 'p-3 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg cursor-pointer mb-2';
                     caElement.innerHTML = `
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <i class="fa-solid fa-certificate text-neutral-600 dark:text-neutral-400"></i>
-                                <span class="text-neutral-700 dark:text-neutral-300">${ca.attributes.cn}</span>
-                            </div>
-                            <span class="text-xs text-neutral-500 dark:text-neutral-400">${templateCount} templates</span>
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-certificate text-neutral-600 dark:text-neutral-400"></i>
+                            <span class="text-neutral-700 dark:text-neutral-300">${ca.attributes.cn}</span>
                         </div>
                     `;
                     caElement.addEventListener('click', () => {
@@ -42,7 +96,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             el.classList.remove('bg-neutral-100', 'dark:bg-neutral-700');
                         });
                         caElement.classList.add('bg-neutral-100', 'dark:bg-neutral-700');
-                        fetchCertificateTemplates(ca.attributes.cn, null);
+                        
+                        // Show CA details first
+                        showCADetails(ca);
+                        
+                        // Then fetch and show templates
+                        fetchCertificateTemplates(ca.attributes.cn);
                     });
                     container.appendChild(caElement);
                 });
@@ -62,6 +121,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
+            console.log(data);
             const container = document.querySelector('.cert-templates-container');
             container.innerHTML = '';
 
@@ -117,6 +177,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="p-4">
                 <h3 class="text-lg font-semibold text-neutral-700 dark:text-neutral-300 mb-4">${template.attributes.displayName}</h3>
                 
+                <!-- Basic Info -->
                 <div class="grid grid-cols-2 gap-4 mb-6">
                     <div class="text-sm">
                         <p class="text-neutral-600 dark:text-neutral-400 mb-1">Status</p>
@@ -126,9 +187,26 @@ document.addEventListener('DOMContentLoaded', function() {
                             'bg-neutral-100 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-300'
                         }">${template.attributes.Enabled ? 'Enabled' : 'Disabled'}</span>
                     </div>
+                    <div class="text-sm">
+                        <p class="text-neutral-600 dark:text-neutral-400 mb-1">CA Server</p>
+                        <span class="text-neutral-700 dark:text-neutral-300">${template.attributes['Certificate Authorities']}</span>
+                    </div>
                 </div>
 
                 <div class="space-y-6">
+                    <!-- Vulnerability Section - Only show if vulnerabilities exist and array is not empty -->
+                    ${template.attributes.Vulnerable && template.attributes.Vulnerable.length > 0 ? `
+                        <div class="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg mb-4">
+                            <h4 class="text-sm font-medium text-red-800 dark:text-red-300 mb-2">Vulnerabilities</h4>
+                            <ul class="space-y-1">
+                                ${template.attributes.Vulnerable.map(vuln => 
+                                    `<li class="text-sm text-red-700 dark:text-red-400">${vuln}</li>`
+                                ).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+
+                    <!-- Authentication Settings -->
                     <div>
                         <h4 class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Authentication Settings</h4>
                         <ul class="space-y-2">
@@ -140,9 +218,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <i class="fa-solid fa-${template.attributes['Enrollment Agent'] ? 'check text-green-500' : 'times text-red-500'}"></i>
                                 Enrollment Agent
                             </li>
+                            <li class="flex items-center gap-2 text-neutral-700 dark:text-neutral-300">
+                                <i class="fa-solid fa-${template.attributes['Any Purpose'] ? 'check text-green-500' : 'times text-red-500'}"></i>
+                                Any Purpose
+                            </li>
                         </ul>
                     </div>
 
+                    <!-- Extended Key Usage -->
                     <div>
                         <h4 class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Extended Key Usage</h4>
                         <ul class="space-y-1">
@@ -155,14 +238,126 @@ document.addEventListener('DOMContentLoaded', function() {
                         </ul>
                     </div>
 
+                    <!-- Enrollment Rights -->
                     <div>
-                        <h4 class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Approval Settings</h4>
-                        <ul class="space-y-2">
-                            <li class="flex items-center gap-2 text-neutral-700 dark:text-neutral-300">
-                                <i class="fa-solid fa-${template.attributes.ManagerApproval ? 'check text-green-500' : 'times text-red-500'}"></i>
-                                Manager Approval Required
-                            </li>
+                        <h4 class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Enrollment Rights</h4>
+                        <ul class="space-y-1">
+                            ${template.attributes['Enrollment Rights'].map(right => 
+                                `<li class="text-sm text-neutral-700 dark:text-neutral-300">${right}</li>`
+                            ).join('')}
                         </ul>
+                    </div>
+
+                    <!-- Administrative Rights -->
+                    <div>
+                        <h4 class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Administrative Rights</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Write DACL</p>
+                                <ul class="space-y-1">
+                                    ${template.attributes['Write Dacl'].map(right => 
+                                        `<li class="text-sm text-neutral-700 dark:text-neutral-300">${right}</li>`
+                                    ).join('')}
+                                </ul>
+                            </div>
+                            <div>
+                                <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Write Owner</p>
+                                <ul class="space-y-1">
+                                    ${template.attributes['Write Owner'].map(right => 
+                                        `<li class="text-sm text-neutral-700 dark:text-neutral-300">${right}</li>`
+                                    ).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Technical Details -->
+                    <div>
+                        <h4 class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Technical Details</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Expiration Period</p>
+                                <p class="text-sm text-neutral-700 dark:text-neutral-300">${template.attributes.pKIExpirationPeriod}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Overlap Period</p>
+                                <p class="text-sm text-neutral-700 dark:text-neutral-300">${template.attributes.pKIOverlapPeriod}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Template OID</p>
+                                <p class="text-sm text-neutral-700 dark:text-neutral-300 break-all">${template.attributes['msPKI-Cert-Template-OID']}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Distinguished Name</p>
+                                <p class="text-sm text-neutral-700 dark:text-neutral-300 break-all">${template.attributes.distinguishedName}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function showCADetails(ca) {
+        const container = document.querySelector('.template-details-container');
+        container.innerHTML = `
+            <div class="p-4">
+                <h3 class="text-lg font-semibold text-neutral-700 dark:text-neutral-300 mb-4">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-certificate"></i>
+                        ${ca.attributes.displayName}
+                    </div>
+                </h3>
+
+                <div class="space-y-6">
+                    <!-- Basic Info -->
+                    <div>
+                        <h4 class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Basic Information</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">DNS Hostname</p>
+                                <p class="text-sm text-neutral-700 dark:text-neutral-300">${ca.attributes.dNSHostName}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Distinguished Name</p>
+                                <p class="text-sm text-neutral-700 dark:text-neutral-300 break-all">${ca.attributes.distinguishedName}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Certificate Templates -->
+                    <div>
+                        <h4 class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Available Certificate Templates</h4>
+                        <div class="grid grid-cols-2 gap-2">
+                            ${ca.attributes.certificateTemplates.map(template => `
+                                <div class="text-sm text-neutral-700 dark:text-neutral-300 bg-neutral-50 dark:bg-neutral-800 p-2 rounded">
+                                    <i class="fa-solid fa-file-certificate mr-2 text-neutral-500"></i>
+                                    ${template}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- CA Certificate Info -->
+                    <div>
+                        <h4 class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">CA Certificate</h4>
+                        <div class="space-y-2">
+                            <div>
+                                <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Certificate DN</p>
+                                <p class="text-sm text-neutral-700 dark:text-neutral-300">${ca.attributes.cACertificateDN}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Technical Details -->
+                    <div>
+                        <h4 class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Technical Details</h4>
+                        <div class="space-y-2">
+                            <div>
+                                <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Object GUID</p>
+                                <p class="text-sm text-neutral-700 dark:text-neutral-300">${ca.attributes.objectGUID}</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -112,11 +112,7 @@ class ADDCOMPUTER:
             self.__domainNetbios = self.__domain
 
         self.__baseDN = base_dn
-
-        if self.__method == 'LDAPS' and self.__computerGroup is None:
-            self.__computerGroup = 'CN=Computers,' + self.__baseDN
-
-
+        self.__computerGroup = self.__baseDN
 
     def run_samr(self):
         if self.__targetIp is not None:

@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializePropertyFilter(defaultProperties);
     initializeQueryTemplates();
     initializeDeleteHandlers();
-
+    initializeAddComputerModal();
     function initializeQueryTemplates() {
         const dropdownButton = document.getElementById('filter-dropdown-button');
         const dropdownMenu = document.getElementById('filter-dropdown-menu');
@@ -224,14 +224,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function addComputer(computer_name, computer_pass) {
+    async function addComputer(computer_name, computer_pass, basedn) {
+        console.log(computer_name, computer_pass, basedn);
         try {
             const response = await fetch('/api/add/domaincomputer', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ computer_name, computer_pass })
+                body: JSON.stringify({ computer_name: computer_name, computer_pass: computer_pass, basedn: basedn })
             });
 
             await handleHttpError(response);
@@ -239,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             console.log('Computer added:', result);
 
-            fetchAndPopulateComputers();
+            searchComputers();
         } catch (error) {
             console.error('Error adding user:', error);
         }
@@ -309,7 +310,8 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         const computer_name = document.getElementById('new-computername').value;
         const computer_pass = document.getElementById('new-computerpass').value;
-        addComputer(computer_name, computer_pass);
+        const basedn = document.getElementById('computer-base-dn').value;
+        addComputer(computer_name, computer_pass, basedn);
         document.getElementById('add-computer-modal').classList.add('hidden');
         document.getElementById('modal-overlay').classList.add('hidden');
     });
@@ -438,5 +440,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 rowToDelete = null;
             }
         });
+    }
+
+    async function initializeAddComputerModal() {
+        const basednInput = document.getElementById('computer-base-dn');
+        if (basednInput) {
+            const domainInfo = await getDomainInfo();
+            basednInput.value = `CN=Computers,${domainInfo.root_dn}`;
+        }
     }
 });

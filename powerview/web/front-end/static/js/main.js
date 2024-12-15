@@ -998,7 +998,7 @@ async function fetchAndDisplayModalDacl(identity) {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ identity: identity })
+            body: JSON.stringify({ identity: identity, searchbase: identity, search_scope: 'BASE' })
         });
 
         await handleHttpError(response);

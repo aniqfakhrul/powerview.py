@@ -547,9 +547,9 @@ def main():
                                     if pv_args.computerpass is None:
                                         pv_args.computerpass = ''.join(random.choice(list(string.ascii_letters + string.digits + "!@#$%^&*()")) for _ in range(12))
                                     if temp_powerview:
-                                        temp_powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
+                                        temp_powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass, basedn=pv_args.basedn)
                                     else:
-                                        powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
+                                        powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass, basedn=pv_args.basedn)
                                 else:
                                     logging.error(f'-ComputerName and -ComputerPass are required')
                             elif pv_args.module.casefold() == 'add-domaindnsrecord':

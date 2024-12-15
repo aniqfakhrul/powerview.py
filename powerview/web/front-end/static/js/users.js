@@ -322,17 +322,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showAddUserModal() {
+    async function showAddUserModal() {
         const modal = document.getElementById('add-user-modal');
         const overlay = document.getElementById('modal-overlay');
         
-        modal.removeAttribute('aria-hidden');
-        modal.classList.remove('hidden');
-        overlay.classList.remove('hidden');
+        try {
+            // Show the modal
+            modal.removeAttribute('aria-hidden');
+            modal.classList.remove('hidden');
+            overlay.classList.remove('hidden');
 
-        const firstInput = modal.querySelector('input');
-        if (firstInput) {
-            firstInput.focus();
+            // Focus on the first input
+            const firstInput = modal.querySelector('input');
+            if (firstInput) {
+                firstInput.focus();
+            }
+        } catch (error) {
+            console.error('Error initializing Add User Modal:', error);
+            showErrorAlert('Failed to initialize Add User Modal');
         }
     }
 
@@ -370,11 +377,13 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         const username = document.getElementById('new-username')?.value;
         const password = document.getElementById('new-password')?.value;
-        const basedn = document.getElementById('new-basedn')?.value;
+        const basedn = document.getElementById('user-base-dn')?.value;
         if (!username || !password) {
             showErrorAlert('Please fill in all fields');
             return;
         }
+
+        console.log(username, password, basedn);
 
         addUser(username, password, basedn);
         document.getElementById('add-user-modal')?.classList.add('hidden');
@@ -453,10 +462,10 @@ document.addEventListener('DOMContentLoaded', () => {
     counter.textContent = 'Total Users Found: 0';
 
     async function initializeAddUserModal() {
-        const basednInput = document.getElementById('new-basedn');
+        const basednInput = document.getElementById('user-base-dn');
         if (basednInput) {
             const domainInfo = await getDomainInfo();
-            basednInput.value = domainInfo.root_dn;
+            basednInput.value = `CN=Users,${domainInfo.root_dn}`;
         }
     }
 });

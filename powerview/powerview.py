@@ -3019,8 +3019,10 @@ displayName=New Group Policy Object
 			logging.info('[Add-DomainDNSRecord] Success! Created new record with dn %s' % record_dn)
 			return True
 
-	def add_domaincomputer(self, computer_name, computer_pass, args=None):
-		parent_dn_entries = self.root_dn
+	def add_domaincomputer(self, computer_name, computer_pass, basedn=None, args=None):
+		parent_dn_entries = f"CN=Computers,{self.root_dn}"
+		if basedn:
+			parent_dn_entries = basedn
 		if hasattr(args, 'basedn') and args.basedn:
 			entries = self.get_domainobject(identity=args.basedn)
 			if len(entries) <= 0:
