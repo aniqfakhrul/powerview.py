@@ -71,6 +71,14 @@ async function selectTab(tabName) {
                         });
                     }
                 }
+            } else if (tab === 'dacl') {
+                const selectedNode = document.querySelector('.selected');
+                if (selectedNode) {
+                    const identity = selectedNode.getAttribute('data-identifier');
+                    if (identity) {
+                        fetchAndDisplayDacl(identity);
+                    }
+                }
             }
         } else {
             // Inactive tab styling
@@ -90,6 +98,7 @@ async function selectTab(tabName) {
 }
 
 async function fetchGroupMembers(groupDn) {
+    showLoadingIndicator();
     try {
         const response = await fetch('/api/get/domaingroupmember', {
             method: 'POST',
@@ -105,6 +114,8 @@ async function fetchGroupMembers(groupDn) {
     } catch (error) {
         console.error('Error fetching group members:', error);
         return null;
+    } finally {
+        hideLoadingIndicator();
     }
 }
 
@@ -133,6 +144,74 @@ function displayGroupMembers(members) {
             </tbody>
         </table>
     `;
+}
+
+
+async function fetchAndDisplayDacl(identity) {
+    showLoadingIndicator();
+    try {
+        const response = await fetch('/api/get/domainobjectacl', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ identity: identity })
+        });
+
+        await handleHttpError(response);
+
+        const daclData = await response.json();
+        updateDaclContent(daclData);
+    } catch (error) {
+        console.error('Error fetching DACL data:', error);
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+function updateDaclContent(daclData) {
+    const daclRows = document.getElementById('dacl-rows');
+    daclRows.innerHTML = '';
+
+    daclData.forEach(entry => {
+        entry.attributes.forEach(attribute => {
+            const row = document.createElement('tr');
+            row.classList.add(
+                'h-8', 
+                'result-item',
+                'hover:bg-neutral-50',
+                'dark:hover:bg-neutral-800',
+                'border-b',
+                'border-neutral-200',
+                'dark:border-neutral-700',
+                'dark:text-neutral-200',
+                'text-neutral-600'
+            );
+
+            // Determine Allow or Deny based on ACEType
+            const aceType = attribute.ACEType.includes('ALLOWED') ? icons.onIcon : icons.offIcon;
+
+            // Format AccessMask to handle commas
+            const formattedAccessMask = attribute.AccessMask ? 
+            attribute.AccessMask.split(',')
+                .map(mask => mask.trim())
+                .join('<br>') 
+            : '';
+
+            // Replace "Pre-Windows 2000" with "Pre2k" in SecurityIdentifier
+            const securityIdentifier = attribute.SecurityIdentifier ? attribute.SecurityIdentifier.replace('Pre-Windows 2000', 'Pre2k') : '';
+
+            row.innerHTML = `
+                <td>${aceType}</td>
+                <td>${securityIdentifier}</td>
+                <td>${formattedAccessMask}</td>
+                <td>${attribute.InheritanceType || ''}</td>
+                <td>${attribute.ObjectAceType || ''}</td>
+            `;
+
+            daclRows.appendChild(row);
+        });
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {

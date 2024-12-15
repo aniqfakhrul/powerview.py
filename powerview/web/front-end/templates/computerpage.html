@@ -114,26 +114,35 @@
             </div>
 
             <!-- Table Section -->
-            <div class="p-4 flex-1 overflow-hidden">
-                <div class="h-full overflow-auto">
-                    <table class="min-w-full text-left text-sm text-neutral-600 dark:text-neutral-300" id="computers-result-table">
-                        <thead class="sticky top-0 border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
-                        </thead>
-                        <tbody>
-                            <tr id="initial-state">
-                                <td colspan="100%" class="text-center py-8 text-neutral-500">
-                                    <i class="fa-solid fa-magnifying-glass mb-2 text-lg"></i>
-                                    <p>Use the search button or filters above to find computers</p>
-                                </td>
-                            </tr>
-                            <tr id="loading-placeholder" class="hidden">
-                                <td colspan="100%" class="text-center py-4">Loading...</td>
-                            </tr>
-                            <tr id="empty-placeholder" class="hidden">
-                                <td colspan="100%" class="text-center py-4">No computers found</td>
-                            </tr>
-                        </tbody>
-                    </table>
+            <div class="flex-1 relative overflow-hidden">
+                <!-- Main scrollable content -->
+                <div class="absolute inset-0 overflow-y-auto pb-6">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-left text-sm text-neutral-600 dark:text-neutral-300" id="computers-result-table">
+                            <thead class="sticky top-0 z-10 border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
+                            </thead>
+                            <tbody>
+                                <tr id="initial-state">
+                                    <td colspan="100%" class="text-center py-8 text-neutral-500">
+                                        <i class="fa-solid fa-magnifying-glass mb-2 text-lg"></i>
+                                        <p>Use the search button or filters above to find computers</p>
+                                    </td>
+                                </tr>
+                                <tr id="loading-placeholder" class="hidden">
+                                    <td colspan="100%" class="text-center py-4">Loading...</td>
+                                </tr>
+                                <tr id="empty-placeholder" class="hidden">
+                                    <td colspan="100%" class="text-center py-4">No computers found</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- Sticky horizontal scrollbar -->
+                <div class="absolute bottom-0 left-0 right-0 h-6 bg-neutral-50 dark:bg-neutral-900 border-t border-neutral-300 dark:border-neutral-700">
+                    <div class="overflow-x-auto h-full scrollbar">
+                        <div class="min-w-full h-full"></div>
+                    </div>
                 </div>
             </div>
         </div>

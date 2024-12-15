@@ -189,6 +189,10 @@
                     <button onclick="selectModalTab('dacl')" aria-selected="false" tabindex="-1" 
                         class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
                         type="button" role="tab" aria-controls="tabpanelDacl">DACL</button>
+                    <button onclick="selectModalTab('members')" aria-selected="false" tabindex="-1" 
+                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
+                        type="button" role="tab" aria-controls="tabpanelMembers"
+                        style="display: none;">Members</button>
                 </div>
                 <!-- Search Bar -->
                 <div class="relative flex items-center px-1">
@@ -247,10 +251,6 @@
                                         <button class="hover:text-red-500"><i class="fas fa-times fa-xs"></i></button>
                                     </span>
                                     <span class="px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md text-sm flex items-center gap-1">
-                                        objectClass
-                                        <button class="hover:text-red-500"><i class="fas fa-times fa-xs"></i></button>
-                                    </span>
-                                    <span class="px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md text-sm flex items-center gap-1">
                                         distinguishedName
                                         <button class="hover:text-red-500"><i class="fas fa-times fa-xs"></i></button>
                                     </span>
@@ -300,6 +300,12 @@
                             <!-- DACL rows will be dynamically populated -->
                         </tbody>
                     </table>
+                </div>
+                <!-- In modal.html, add this after the DACL tab panel -->
+                <div id="tabpanelMembers" role="tabpanel" aria-label="members" class="p-4" style="display: none;">
+                    <div id="modal-members-content">
+                        <!-- Members content will be dynamically populated -->
+                    </div>
                 </div>
             </div>
         </div>

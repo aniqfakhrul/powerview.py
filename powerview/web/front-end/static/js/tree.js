@@ -53,39 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function resetToGeneralTab() {
-        const generalTabButton = document.querySelector('button[aria-controls="tabpanelGeneral"]');
-        const tabList = document.querySelector('[role="tablist"]');
-        const tabPanels = document.querySelectorAll('[role="tabpanel"]');
-    
-        if (generalTabButton) {
-            // Set the "General" tab as active
-            tabList.querySelectorAll('[role="tab"]').forEach(tab => {
-                if (tab === generalTabButton) {
-                    tab.setAttribute('aria-selected', 'true');
-                    tab.setAttribute('tabindex', '0');
-                    tab.classList.add('font-bold', 'text-black', 'border-b-2', 'border-black', 'dark:border-yellow-500', 'dark:text-yellow-500');
-                } else {
-                    tab.setAttribute('aria-selected', 'false');
-                    tab.setAttribute('tabindex', '-1');
-                    tab.classList.remove('font-bold', 'text-black', 'border-b-2', 'border-black', 'dark:border-yellow-500', 'dark:text-yellow-500');
-                    tab.classList.add('text-neutral-600', 'font-medium', 'dark:text-neutral-300', 'dark:hover:border-b-neutral-300', 'dark:hover:text-white', 'hover:border-b-2', 'hover:border-b-neutral-800', 'hover:text-neutral-900');
-                }
-            });
-    
-            // Show the "General" tab panel and hide others
-            tabPanels.forEach(panel => {
-                if (panel.id === 'tabpanelDacl') {
-                    const daclRows = panel.querySelector('#dacl-rows');
-                    if (daclRows) {
-                        daclRows.innerHTML = '';
-                    }
-                }
-                panel.style.display = panel.id === generalTabButton.getAttribute('aria-controls') ? 'block' : 'none';
-            });
-        }
-    }
-
     async function checkDistinguishedNameExists(identity) {
         try {
             const response = await fetch('/api/get/domainobject', {
@@ -414,73 +381,6 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsPanel.appendChild(contentDiv);
     }
 
-    async function fetchAndDisplayDacl(identity) {
-        showLoadingIndicator();
-        try {
-            const response = await fetch('/api/get/domainobjectacl', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ identity: identity })
-            });
-
-            await handleHttpError(response);
-
-            const daclData = await response.json();
-            updateDaclContent(daclData);
-        } catch (error) {
-            console.error('Error fetching DACL data:', error);
-        } finally {
-            hideLoadingIndicator();
-        }
-    }
-
-    function updateDaclContent(daclData) {
-        const daclRows = document.getElementById('dacl-rows');
-        daclRows.innerHTML = '';
-
-        daclData.forEach(entry => {
-            entry.attributes.forEach(attribute => {
-                const row = document.createElement('tr');
-                row.classList.add(
-                    'h-8', 
-                    'result-item',
-                    'hover:bg-neutral-50',
-                    'dark:hover:bg-neutral-800',
-                    'border-b',
-                    'border-neutral-200',
-                    'dark:border-neutral-700',
-                    'dark:text-neutral-200',
-                    'text-neutral-600'
-                );
-
-                // Determine Allow or Deny based on ACEType
-                const aceType = attribute.ACEType.includes('ALLOWED') ? icons.onIcon : icons.offIcon;
-
-                // Format AccessMask to handle commas
-                const formattedAccessMask = attribute.AccessMask ? 
-                attribute.AccessMask.split(',')
-                    .map(mask => mask.trim())
-                    .join('<br>') 
-                : '';
-
-                // Replace "Pre-Windows 2000" with "Pre2k" in SecurityIdentifier
-                const securityIdentifier = attribute.SecurityIdentifier ? attribute.SecurityIdentifier.replace('Pre-Windows 2000', 'Pre2k') : '';
-
-                row.innerHTML = `
-                    <td>${aceType}</td>
-                    <td>${securityIdentifier}</td>
-                    <td>${formattedAccessMask}</td>
-                    <td>${attribute.InheritanceType || ''}</td>
-                    <td>${attribute.ObjectAceType || ''}</td>
-                `;
-
-                daclRows.appendChild(row);
-            });
-        });
-    }
-
     function getSelectedIdentity() {
         const selectedElement = document.querySelector('.selected');
         return selectedElement ? selectedElement.getAttribute('data-identifier') : null;
@@ -493,14 +393,6 @@ document.addEventListener('DOMContentLoaded', () => {
         tabList.addEventListener('click', (event) => {
             const clickedTab = event.target.closest('[role="tab"]');
             if (!clickedTab) return;
-
-            // Check if the clicked tab is the DACL tab
-            if (clickedTab.getAttribute('aria-controls') === 'tabpanelDacl') {
-                const selectedIdentity = getSelectedIdentity();
-                if (selectedIdentity) {
-                    fetchAndDisplayDacl(selectedIdentity);
-                }
-            }
 
             // Update the active state of tabs
             tabList.querySelectorAll('[role="tab"]').forEach(tab => {

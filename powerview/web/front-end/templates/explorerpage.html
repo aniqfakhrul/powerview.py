@@ -27,7 +27,7 @@
         </div>
 
         <!-- Tree View Content (keeping original ID) -->
-        <div class="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700">
+        <div class="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700 scrollbar">
             <div id="tree-view" class="p-4">
                 <!-- Tree view content will be dynamically populated -->
             </div>
@@ -78,7 +78,7 @@
         </div>
 
         <!-- Tab Panels (keeping original IDs and structure) -->
-        <div class="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 relative">
+        <div class="flex-1 overflow-y-auto bg-white dark:bg-neutral-800 relative scrollbar">
             {% include 'views/spinner.html' %}
             
             <div id="tabpanelGeneral" role="tabpanel" class="h-full">

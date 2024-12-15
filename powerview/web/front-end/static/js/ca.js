@@ -25,12 +25,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 container.innerHTML = '';
                 
                 data.forEach(ca => {
+                    const templateCount = ca.attributes.certificateTemplates ? ca.attributes.certificateTemplates.length : 0;
                     const caElement = document.createElement('div');
                     caElement.className = 'p-3 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg cursor-pointer mb-2';
                     caElement.innerHTML = `
-                        <div class="flex items-center gap-2">
-                            <i class="fa-solid fa-certificate text-neutral-600 dark:text-neutral-400"></i>
-                            <span class="text-neutral-700 dark:text-neutral-300">${ca.attributes.cn}</span>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-certificate text-neutral-600 dark:text-neutral-400"></i>
+                                <span class="text-neutral-700 dark:text-neutral-300">${ca.attributes.cn}</span>
+                            </div>
+                            <span class="text-xs text-neutral-500 dark:text-neutral-400">${templateCount} templates</span>
                         </div>
                     `;
                     caElement.addEventListener('click', () => {

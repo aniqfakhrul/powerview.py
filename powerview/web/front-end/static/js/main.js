@@ -448,16 +448,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error('Failed to fetch status');
             }
         } catch (error) {
-            const statusElement = document.getElementById('connection-status-display');
-            const iconElement = document.querySelector('.fa-wifi');
-
-            statusElement.textContent = 'Disconnected';
-            statusElement.classList.remove('text-green-400');
-            statusElement.classList.add('text-red-400');
-
-            iconElement.classList.remove('text-green-400');
-            iconElement.classList.add('text-red-400');
-
+            const profileMenu = document.getElementById('profile-menu');
+            if (profileMenu) {
+                const statusElement = profileMenu.querySelector('#connection-status-display');
+                if (statusElement) {
+                    statusElement.textContent = 'Disconnected';
+                    statusElement.classList.remove('text-green-400');
+                    statusElement.classList.add('text-red-400');
+                }
+            }
             console.error('Error checking connection status:', error);
         } finally {
             clearTimeout(timeoutId);
@@ -768,8 +767,15 @@ function handleModalSearch() {
                 attr.style.display = matches ? '' : 'none';
             });
         } else if (activeTab === 'tabpanelDescendants') {
-            // Filter descendants table
+            // Filter descendants table rows without affecting the header
             const rows = document.querySelectorAll('#descendants-rows tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm) ? '' : 'none';
+            });
+        } else if (activeTab === 'tabpanelDacl') {
+            // Filter DACL table rows without affecting the header
+            const rows = document.querySelectorAll('#modal-dacl-rows tr');
             rows.forEach(row => {
                 const text = row.textContent.toLowerCase();
                 row.style.display = text.includes(searchTerm) ? '' : 'none';
@@ -812,17 +818,28 @@ async function showLdapAttributesModal(attributes = {}, identity) {
             modalTitle.textContent = identity;
         }
 
+        // Show/hide Members tab based on objectClass
+        const membersTab = modal.querySelector('[aria-controls="tabpanelMembers"]');
+        if (membersTab) {
+            if (attributes.objectClass && Array.isArray(attributes.objectClass) && 
+                attributes.objectClass.includes('group')) {
+                membersTab.style.display = '';
+            } else {
+                membersTab.style.display = 'none';
+            }
+        }
+
         // Show the modal, overlay, and spinner
         modal.classList.remove('hidden');
         overlay.classList.remove('hidden');
         spinner.classList.remove('hidden');
-        
-        // Close button click handler
+
+        // Add event listener to close the modal
         const closeButton = modal.querySelector('[data-modal-hide="ldap-attributes-modal"]');
         if (closeButton) {
             closeButton.addEventListener('click', () => closeModal('ldap-attributes-modal'));
         }
-
+        
         try {
             // Populate the modal with existing attributes
             await populateLdapAttributesModal(attributes, identity);
@@ -836,7 +853,6 @@ async function showLdapAttributesModal(attributes = {}, identity) {
             // Initialize search functionality
             handleModalSearch();
         } finally {
-            // Hide spinner after everything is loaded
             spinner.classList.add('hidden');
         }
     }
@@ -966,6 +982,11 @@ async function selectModalTab(tabName) {
             await fetchAndDisplayModalDacl(identity);
             updateDaclTabContent();
         }
+    } else if (tabName === 'members') {
+        const identity = document.querySelector('#ldap-attributes-modal h3').textContent;
+        if (identity) {
+            await fetchAndDisplayModalMembers(identity);
+        }
     }
 }
 
@@ -1070,7 +1091,7 @@ async function fetchItemsData(identity, search_scope = 'SUBTREE', properties = [
 
 // Add these functions to handle property filtering
 function initializePropertyFilter() {
-    const selectedProperties = ['name', 'objectClass', 'distinguishedName'];
+    const selectedProperties = ['name', 'distinguishedName'];
     const container = document.getElementById('selected-properties');
     const newPropertyInput = document.getElementById('new-property');
     const searchButton = document.getElementById('search-filter');
@@ -1119,18 +1140,33 @@ async function loadDescendantsWithProperties(identity, properties) {
     tbody.innerHTML = '';
     thead.innerHTML = '';
 
+    // Ensure objectClass is included in the API request
+    const apiProperties = properties.includes('objectClass') ? 
+        properties : 
+        ['objectClass', ...properties];
+
     try {
-        const data = await fetchItemsData(identity, 'SUBTREE', properties);
+        const data = await fetchItemsData(identity, 'SUBTREE', apiProperties);
         
         if (data && Array.isArray(data)) {
-            // Create header row
+            // Create header row with icon column
             const headerRow = document.createElement('tr');
             headerRow.className = 'h-8';
+            
+            // Always add icon column header
+            const iconTh = document.createElement('th');
+            iconTh.className = 'text-left w-8';
+            iconTh.textContent = ''; // Empty header for icon column
+            headerRow.appendChild(iconTh);
+
+            // Add other property headers, excluding objectClass
             properties.forEach(prop => {
-                const th = document.createElement('th');
-                th.className = 'text-left';
-                th.textContent = prop;
-                headerRow.appendChild(th);
+                if (prop !== 'objectClass') {
+                    const th = document.createElement('th');
+                    th.className = 'text-left';
+                    th.textContent = prop;
+                    headerRow.appendChild(th);
+                }
             });
             thead.appendChild(headerRow);
 
@@ -1139,15 +1175,45 @@ async function loadDescendantsWithProperties(identity, properties) {
                 const row = document.createElement('tr');
                 row.className = 'hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer';
                 
+                // Always add icon column
+                const iconTd = document.createElement('td');
+                iconTd.className = 'py-2';
+                
+                // Get objectClass array and convert to lowercase for comparison
+                const objectClasses = Array.isArray(item.attributes.objectClass) 
+                    ? item.attributes.objectClass.map(c => c.toLowerCase())
+                    : [item.attributes.objectClass?.toLowerCase()];
+
+                let icon = '';
+                if (objectClasses.includes('computer')) {
+                    icon = icons.computerIcon;
+                } else if (objectClasses.includes('user')) {
+                    icon = icons.userIcon;
+                } else if (objectClasses.includes('organizationalunit')) {
+                    icon = icons.ouIcon;
+                } else if (objectClasses.includes('group')) {
+                    icon = icons.groupIcon;
+                } else if (objectClasses.includes('container')) {
+                    icon = icons.containerIcon;
+                } else {
+                    icon = icons.defaultIcon;
+                }
+                
+                iconTd.innerHTML = icon;
+                row.appendChild(iconTd);
+                
+                // Add other property columns, excluding objectClass
                 properties.forEach(prop => {
-                    const td = document.createElement('td');
-                    td.className = 'py-2';
-                    let value = item.attributes[prop];
-                    if (Array.isArray(value)) {
-                        value = value[0]; // Take first value for array properties
+                    if (prop !== 'objectClass') {
+                        const td = document.createElement('td');
+                        td.className = 'py-2';
+                        let value = item.attributes[prop];
+                        if (Array.isArray(value)) {
+                            value = value[0]; // Take first value for array properties
+                        }
+                        td.textContent = value || '';
+                        row.appendChild(td);
                     }
-                    td.textContent = value || '';
-                    row.appendChild(td);
                 });
                 
                 row.addEventListener('click', () => handleLdapLinkClick(event, item.dn));
@@ -1163,7 +1229,7 @@ async function loadDescendantsWithProperties(identity, properties) {
 // Update loadDescendants to use the new function
 async function loadDescendants() {
     const identity = document.querySelector('#ldap-attributes-modal h3').textContent;
-    await loadDescendantsWithProperties(identity, ['name', 'objectClass', 'distinguishedName']);
+    await loadDescendantsWithProperties(identity, ['name', 'distinguishedName']);
     initializePropertyFilter();
 }
 
@@ -1293,4 +1359,82 @@ async function addDomainObjectAcl(targetIdentity, principalIdentity, rights, ace
         hideLoadingIndicator();
     }
     return false;
+}
+
+// Add new function to handle members display
+async function fetchAndDisplayModalMembers(identity) {
+    showLoadingIndicator();
+    try {
+        const response = await fetch('/api/get/domaingroupmember', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ identity: identity })
+        });
+
+        await handleHttpError(response);
+        const members = await response.json();
+        console.log(members);
+        displayModalGroupMembers(members);
+    } catch (error) {
+        console.error('Error fetching group members:', error);
+        showErrorAlert('Failed to fetch group members');
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+function displayModalGroupMembers(members) {
+    const membersContent = document.getElementById('modal-members-content');
+    if (!membersContent) return;
+
+    membersContent.innerHTML = '';
+
+    if (!members || !Array.isArray(members) || members.length === 0) {
+        membersContent.innerHTML = '<p class="text-neutral-600 dark:text-neutral-400">No members found</p>';
+        return;
+    }
+
+    const table = document.createElement('table');
+    table.className = 'w-full text-sm border-collapse';
+
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+        <tr class="h-8 text-left text-neutral-600 dark:text-neutral-400">
+            <th class="px-3 py-2">Name</th>
+            <th class="px-3 py-2">Member SID</th>
+            <th class="px-3 py-2">Distinguished Name</th>
+        </tr>
+    `;
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    tbody.className = 'divide-y divide-neutral-200 dark:divide-neutral-700';
+
+    members.forEach(member => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer';
+        row.onclick = () => handleLdapLinkClick(event, member.attributes.MemberDistinguishedName);
+        
+        const nameCell = document.createElement('td');
+        nameCell.className = 'px-3 py-2';
+        nameCell.textContent = member.attributes.MemberName || '';
+
+        const sidCell = document.createElement('td');
+        sidCell.className = 'px-3 py-2';
+        sidCell.textContent = member.attributes.MemberSID || '';
+
+        const dnCell = document.createElement('td');
+        dnCell.className = 'px-3 py-2';
+        dnCell.textContent = member.attributes.MemberDistinguishedName || '';
+
+        row.appendChild(nameCell);
+        row.appendChild(sidCell);
+        row.appendChild(dnCell);
+        tbody.appendChild(row);
+    });
+
+    table.appendChild(tbody);
+    membersContent.appendChild(table);
 }
