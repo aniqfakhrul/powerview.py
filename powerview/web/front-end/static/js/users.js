@@ -191,21 +191,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function filterUsers() {
-        const searchTerm = document.getElementById('user-search').value.toLowerCase();
+        const searchInput = document.getElementById('user-search').value.toLowerCase();
         const tbody = document.querySelector('#users-result-table tbody');
         const rows = tbody.querySelectorAll('tr:not(#initial-state):not(#loading-placeholder):not(#empty-placeholder)');
 
         rows.forEach(row => {
-            const text = Array.from(row.cells)
-                .map(cell => cell.textContent.toLowerCase())
-                .join(' ');
+            let found = false;
+            const cells = row.querySelectorAll('td');
             
-            if (text.includes(searchTerm)) {
+            cells.forEach(cell => {
+                const cellText = cell.textContent.toLowerCase();
+                if (cellText.includes(searchInput)) {
+                    found = true;
+                }
+            });
+
+            if (found) {
                 row.classList.remove('hidden');
             } else {
                 row.classList.add('hidden');
             }
         });
+
+        // Update counter to show filtered results
+        const visibleRows = tbody.querySelectorAll('tr:not(.hidden):not(#initial-state):not(#loading-placeholder):not(#empty-placeholder)').length;
+        const counter = document.getElementById('users-counter');
+        const totalRows = tbody.querySelectorAll('tr:not(#initial-state):not(#loading-placeholder):not(#empty-placeholder)').length;
+        counter.textContent = `Showing ${visibleRows} of ${totalRows} Users`;
     }
 
     // Add debounce to search filter
@@ -289,8 +301,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 actionTd.className = 'p-1 whitespace-nowrap';
 
                 const deleteButton = document.createElement('button');
-                deleteButton.className = 'ml-1 px-1 py-0.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-500 focus:outline-none focus:shadow-outline-red active:bg-red-600 transition duration-150 ease-in-out';
-                deleteButton.textContent = 'Delete';
+                deleteButton.className = 'text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors';
+                deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                deleteButton.title = 'Delete User';
                 deleteButton.addEventListener('click', (event) => {
                     event.stopPropagation();
                     showDeleteModal(user.dn, tr);

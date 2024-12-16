@@ -130,11 +130,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const rows = document.querySelectorAll('tbody tr');
 
         rows.forEach(row => {
-            const name = row.querySelector('td:nth-child(1)').textContent;
-            const samAccountName = row.querySelector('td:nth-child(2)').textContent;
-            const operatingSystem = row.querySelector('td:nth-child(3)').textContent;
+            const name = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+            const samAccountName = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+            const operatingSystem = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
 
-            if (name.includes(searchInput) || samAccountName.includes(searchInput) || operatingSystem.includes(searchInput)) {
+            if (name.includes(searchInput) || 
+                samAccountName.includes(searchInput) || 
+                operatingSystem.includes(searchInput)) {
                 row.style.display = '';
             } else {
                 row.style.display = 'none';
@@ -207,8 +209,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 actionTd.className = 'p-1 whitespace-nowrap';
 
                 const deleteButton = document.createElement('button');
-                deleteButton.className = 'ml-1 px-1 py-0.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-500 focus:outline-none focus:shadow-outline-red active:bg-red-600 transition duration-150 ease-in-out';
-                deleteButton.textContent = 'Delete';
+                deleteButton.className = 'text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors';
+                deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
+                deleteButton.title = 'Delete Computer';
                 deleteButton.addEventListener('click', (event) => {
                     event.stopPropagation();
                     showDeleteModal(computer.dn, tr);
