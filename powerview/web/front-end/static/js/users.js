@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const activeFilters = new Set();
-    const defaultProperties = ['name', 'memberOf', 'sAMAccountName'];
+    const defaultProperties = ['name', 'sAMAccountName', 'mail'];
     let identityToDelete = null;
     let rowToDelete = null;
     let allOUs = [];
