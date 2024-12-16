@@ -98,8 +98,12 @@ class PowerView:
 
 		# API server
 		if self.args.web and self.ldap_session:
-			self.api_server = APIServer(self, host=self.args.web_host, port=self.args.web_port)
-			self.api_server.start()
+			try:
+				from powerview.web.api.server import APIServer
+				self.api_server = APIServer(self, host=self.args.web_host, port=self.args.web_port)
+				self.api_server.start()
+			except ImportError:
+				logging.warning("Web interface dependencies not installed. Web interface will not be available.")
 
 		# Get current user's SID from the LDAP connection
 		self.current_user_sid = None

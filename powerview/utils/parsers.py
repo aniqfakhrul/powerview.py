@@ -59,7 +59,7 @@ def arg_parse():
 
 	web = parser.add_argument_group('web')
 	web.add_argument('--web-host', dest='web_host', action='store', default='127.0.0.1', help='Specify custom bind interface (Default: 127.0.0.1)')
-	web.add_argument('--web-port', dest='web_port', action='store', type=int, default=5000, help='Specify custom port for web interface (Default: 80)')
+	web.add_argument('--web-port', dest='web_port', action='store', type=int, default=5000, help='Specify custom port for web interface (Default: 5000)')
 	
 	if len(sys.argv) == 1:
 		parser.print_help()

@@ -69,13 +69,15 @@ class APIServer:
 		]
 
 	def render_index(self):
-		context = {	
+		context = {
+			'title': 'Powerview.py',
 			'nav_items': self.nav_items
 		}
 		return render_template('explorerpage.html', **context)
 
 	def render_users(self):
 		context = {
+			'title': 'Powerview.py - Users',
 			'nav_items': self.nav_items,
 			'ldap_properties': [
 				{'id': 'all-toggle', 'name': 'All', 'active': 'false', 'attribute': '*'},
@@ -117,6 +119,7 @@ class APIServer:
 
 	def render_computers(self):
 		context = {
+			'title': 'Powerview.py - Computers',
 			'nav_items': self.nav_items,
 			'ldap_properties': [
 				{'id': 'all-toggle', 'name': 'All', 'active': 'false', 'attribute': '*'},
@@ -148,30 +151,35 @@ class APIServer:
 
 	def render_dns(self):
 		context = {
+			'title': 'Powerview.py - DNS',
 			'nav_items': self.nav_items
 		}
 		return render_template('dnspage.html', **context)
 
 	def render_groups(self):
 		context = {
+			'title': 'Powerview.py - Groups',
 			'nav_items': self.nav_items
 		}
 		return render_template('grouppage.html', **context)
 
 	def render_ca(self):
 		context = {
+			'title': 'Powerview.py - CA',
 			'nav_items': self.nav_items
 		}
 		return render_template('capage.html', **context)
 
 	def render_ou(self):
 		context = {
+			'title': 'Powerview.py - OUs',
 			'nav_items': self.nav_items
 		}
 		return render_template('oupage.html', **context)
 
 	def render_utils(self):
 		context = {
+			'title': 'Powerview.py - Utils',
 			'nav_items': self.nav_items
 		}
 		return render_template('utilspage.html', **context)
