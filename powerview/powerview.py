@@ -2702,20 +2702,57 @@ displayName=New Group Policy Object
 		au = ADUser(self.ldap_session, self.root_dn)
 		return au.removeUser(identity_dn)
 
+	def add_domaingroup(self, groupname, basedn=None, args=None):
+		parent_dn_entries = f"CN=Users,{self.root_dn}"
+		if basedn:
+			parent_dn_entries = basedn
+		if hasattr(args, 'basedn') and args.basedn:
+			parent_dn_entries = args.basedn
+
+		entries = self.get_domainobject(identity=parent_dn_entries)
+		if len(entries) <= 0:
+			logging.error(f"[Add-DomainGroup] {args.basedn} could not be found in the domain")
+			return
+		elif len(entries) > 1:
+			logging.error("[Add-DomainGroup] More than one group found in domain")
+			return
+
+		parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
+		logging.debug(f"[Add-DomainGroup] Adding group in {parent_dn_entries}")
+
+		group_dn = f"CN={groupname},{parent_dn_entries}"
+		ucd = {
+			'displayName': groupname,
+			'sAMAccountName': groupname,
+			'objectCategory': 'CN=Group,CN=Schema,CN=Configuration,%s' % self.root_dn,
+			'objectClass': ['top', 'group'],
+		}
+
+		succeed = self.ldap_session.add(group_dn, ['top', 'group'], ucd)
+		if not succeed:
+			logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainGroup] Failed adding {groupname} to domain ({self.ldap_session.result['description']})")
+			return False
+		else:
+			logging.info('[Add-DomainGroup] Success! Created new group with')
+			return True
+
 	def add_domainuser(self, username, userpass, basedn=None, args=None):
 		parent_dn_entries = f"CN=Users,{self.root_dn}"
 		if basedn:
 			parent_dn_entries = basedn
 		if hasattr(args, 'basedn') and args.basedn:
-			entries = self.get_domainobject(identity=args.basedn)
-			if len(entries) <= 0:
-				logging.error(f"[Add-DomainUser] {args.basedn} could not be found in the domain")
-				return
-			parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
+			parent_dn_entries = args.basedn
 
-		if len(parent_dn_entries) == 0:
-			logging.error('[Add-DomainUser] Users parent DN not found in domain')
+		entries = self.get_domainobject(identity=parent_dn_entries)
+		if len(entries) <= 0:
+			logging.error(f"[Add-DomainUser] {args.basedn} could not be found in the domain")
 			return
+		elif len(entries) > 1:
+			logging.error("[Add-DomainUser] More than one group found in domain")
+			return
+
+		parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
+
 		logging.debug(f"[Add-DomainUser] Adding user in {parent_dn_entries}")
 		
 		if self.use_ldaps:

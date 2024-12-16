@@ -45,13 +45,25 @@ function showDeleteModal(identity) {
 async function loadOUDescendants(identity) {
     try {
         showLoadingIndicator();
-        const data = await fetchItemsData(identity);
+        // Add 'objectClass' to the properties as it's needed for the icon
+        const properties = ['objectClass', ...selectedProperties];
+        const data = await fetchItemsData(identity, 'SUBTREE', properties);
         
         const tbody = document.getElementById('descendants-rows');
+        const thead = document.getElementById('descendants-header');
+        
+        // Update table headers
+        const headerRow = thead.querySelector('tr');
+        headerRow.innerHTML = `
+            <th class="px-3 py-2">Type</th>
+            ${Array.from(selectedProperties).map(prop => 
+                `<th class="px-3 py-2">${prop.charAt(0).toUpperCase() + prop.slice(1)}</th>`
+            ).join('')}
+        `;
+
         tbody.innerHTML = '';
 
         if (data && Array.isArray(data)) {
-            // Filter out the searched OU from the list
             const descendants = data.filter(item => 
                 item.attributes?.distinguishedName?.toLowerCase() !== identity.toLowerCase()
             );
@@ -78,11 +90,11 @@ async function loadOUDescendants(identity) {
                 
                 row.innerHTML = `
                     <td class="px-3 py-2">${icon}</td>
-                    <td class="px-3 py-2">${item.attributes.name || ''}</td>
-                    <td class="px-3 py-2">${item.attributes.distinguishedName || ''}</td>
+                    ${Array.from(selectedProperties).map(prop => 
+                        `<td class="px-3 py-2">${item.attributes[prop] || ''}</td>`
+                    ).join('')}
                 `;
 
-                // Add click event to the entire row
                 row.addEventListener('click', () => {
                     handleLdapLinkClick(event, item.attributes.distinguishedName);
                 });
@@ -109,11 +121,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                 treeView.innerHTML = '';
             }
 
+            // Get domain info
             const domainInfo = await getDomainInfo();
             const rootDn = domainInfo.root_dn;
+            const domain = domainInfo.domain;
+            
+            // Populate property dropdown with hardcoded properties
+            populatePropertyDropdown();
             
             // Create and add root node
-            const rootNode = await createOUTreeNode(rootDn, true);
+            const rootNode = await createOUTreeNode(rootDn, domain, true);
             if (rootNode) {
                 // Automatically expand root node
                 await toggleOUSubtree(rootDn, rootNode);
@@ -146,7 +163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    async function createOUTreeNode(dn, isRoot = false) {
+    async function createOUTreeNode(dn, ouname='', isRoot = false) {
         const treeView = document.getElementById('ou-tree-view');
         if (!treeView) return null;
 
@@ -162,7 +179,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         );
 
         const icon = isRoot ? icons.adIcon : icons.ouIcon;
-        div.innerHTML = `${icon}<span class="text-neutral-900 dark:text-white">${dn}</span>`;
+        div.innerHTML = `${icon}<span class="text-neutral-900 dark:text-white">${ouname || dn}</span>`;
         div.setAttribute('data-dn', dn);
 
         div.addEventListener('click', async (event) => {
@@ -212,7 +229,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 subtreeContainer.classList.add('subtree', 'ml-6', 'space-y-1');
 
                 for (const ou of data) {
-                    const ouNode = await createOUTreeNode(ou.dn);
+                    const ouNode = await createOUTreeNode(ou.dn, ou.attributes.name);
                     if (ouNode) {
                         subtreeContainer.appendChild(ouNode);
                     }
@@ -381,4 +398,117 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     });
+
+    initializePropertySelector();
 });
+
+// Add these functions
+function initializePropertySelector() {
+    const dropdownButton = document.getElementById('property-dropdown-button');
+    const dropdownMenu = document.getElementById('property-dropdown-menu');
+
+    // Toggle dropdown
+    dropdownButton?.addEventListener('click', () => {
+        dropdownMenu.classList.toggle('hidden');
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (event) => {
+        if (!dropdownButton?.contains(event.target) && !dropdownMenu?.contains(event.target)) {
+            dropdownMenu?.classList.add('hidden');
+        }
+    });
+
+    // Handle property selection
+    document.querySelectorAll('.property-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+            if (checkbox.checked) {
+                selectedProperties.add(checkbox.value);
+            } else {
+                selectedProperties.delete(checkbox.value);
+            }
+            
+            // Refresh the descendants view if we're on that tab
+            const descendantsTab = document.querySelector('[aria-controls="tabpanelDescendants"]');
+            if (descendantsTab?.getAttribute('aria-selected') === 'true') {
+                const selectedOU = document.querySelector('.selected');
+                if (selectedOU) {
+                    const identity = selectedOU.getAttribute('data-dn');
+                    loadOUDescendants(identity);
+                }
+            }
+        });
+    });
+}
+
+// Add at the beginning of the file
+let selectedProperties = new Set(['name', 'distinguishedName']);
+
+// Add this new function
+function populatePropertyDropdown() {
+    const dropdownMenu = document.getElementById('property-dropdown-menu');
+    if (!dropdownMenu) return;
+
+    const dropdownContent = document.createElement('div');
+    dropdownContent.className = 'p-2 space-y-1';
+
+    // Define all properties
+    const properties = [
+        { name: 'name', label: 'Name', default: true },
+        { name: 'distinguishedName', label: 'Distinguished Name', default: true },
+        { name: 'sAMAccountName', label: 'SAM Account Name', default: false },
+        { name: 'description', label: 'Description', default: false },
+        { name: 'title', label: 'Title', default: false },
+        { name: 'department', label: 'Department', default: false },
+        { name: 'member', label: 'Members', default: false },
+        { name: 'memberOf', label: 'Member Of', default: false }
+    ];
+
+    // Create checkboxes for all properties
+    properties.forEach(prop => {
+        dropdownContent.appendChild(createPropertyCheckbox(prop.name, prop.label, prop.default));
+    });
+
+    // Clear existing content and append new
+    dropdownMenu.innerHTML = '';
+    dropdownMenu.appendChild(dropdownContent);
+}
+
+function createPropertyCheckbox(propertyName, labelText, isChecked) {
+    const label = document.createElement('label');
+    label.className = 'flex items-center px-2 py-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700';
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'property-checkbox mr-2';
+    checkbox.value = propertyName;
+    checkbox.checked = isChecked;
+    
+    const span = document.createElement('span');
+    span.className = 'text-sm text-neutral-700 dark:text-neutral-300';
+    span.textContent = labelText;
+    
+    label.appendChild(checkbox);
+    label.appendChild(span);
+    
+    // Add event listener for the checkbox
+    checkbox.addEventListener('change', () => {
+        if (checkbox.checked) {
+            selectedProperties.add(propertyName);
+        } else {
+            selectedProperties.delete(propertyName);
+        }
+        
+        // Refresh the descendants view if we're on that tab
+        const descendantsTab = document.querySelector('[aria-controls="tabpanelDescendants"]');
+        if (descendantsTab?.getAttribute('aria-selected') === 'true') {
+            const selectedOU = document.querySelector('.selected');
+            if (selectedOU) {
+                const identity = selectedOU.getAttribute('data-dn');
+                loadOUDescendants(identity);
+            }
+        }
+    });
+    
+    return label;
+}

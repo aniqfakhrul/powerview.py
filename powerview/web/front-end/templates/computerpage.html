@@ -95,8 +95,23 @@
                     <!-- Search Base -->
                     <div class="flex-1">
                         <label class="block text-sm font-medium mb-2">Search Base</label>
-                        <input type="text" id="computer-search-base" 
-                            class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-white">
+                        <div class="relative">
+                            <select id="computer-search-base" 
+                                class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-white">
+                                <option value="">Loading...</option>
+                            </select>
+                            <!-- Search overlay -->
+                            <div id="search-base-dropdown" class="hidden absolute left-0 right-0 mt-1 rounded-md border border-neutral-300 bg-white dark:border-neutral-700 dark:bg-neutral-800 shadow-lg z-10">
+                                <div class="p-2 border-b border-neutral-300 dark:border-neutral-700 sticky top-0 bg-white dark:bg-neutral-800">
+                                    <input type="text" id="search-base-input" 
+                                        class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500" 
+                                        placeholder="Search OUs...">
+                                </div>
+                                <div id="search-base-options" class="max-h-60 overflow-y-auto scrollbar">
+                                    <!-- Options will be dynamically populated -->
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Search Button -->
@@ -130,7 +145,7 @@
             <!-- Table Section -->
             <div class="flex-1 relative overflow-hidden">
                 <!-- Main scrollable content -->
-                <div class="absolute inset-0 overflow-y-auto pb-6">
+                <div class="absolute inset-0 overflow-y-auto pb-6 scrollbar">
                     <div class="overflow-x-auto">
                         <table class="min-w-full text-left text-sm text-neutral-600 dark:text-neutral-300" id="computers-result-table">
                             <thead class="sticky top-0 z-10 border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">

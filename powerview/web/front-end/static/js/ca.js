@@ -110,6 +110,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function fetchCertificateTemplates(caName) {
+        showLoadingIndicator();
         fetch('/api/get/domaincatemplate', {
             method: 'POST',
             headers: {
@@ -168,7 +169,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         })
-        .catch(error => console.error('Error fetching certificate templates:', error));
+        .catch(error => console.error('Error fetching certificate templates:', error))
+        .finally(() => hideLoadingIndicator());
     }
 
     function showTemplateDetails(template) {

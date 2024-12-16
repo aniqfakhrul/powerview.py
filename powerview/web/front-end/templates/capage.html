@@ -39,7 +39,8 @@
                     <i class="fa-solid fa-search absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400"></i>
                 </div>
             </div>
-            <div class="cert-templates-container flex-1 overflow-y-auto p-4 scrollbar">
+            <div class="cert-templates-container flex-1 overflow-y-auto p-4 scrollbar relative">
+                {% include "views/spinner.html" %}
                 <!-- Certificate templates will be dynamically populated -->
             </div>
         </div>

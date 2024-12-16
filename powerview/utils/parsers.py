@@ -699,6 +699,13 @@ def powerview_arg_parse(cmd):
 	add_domainuser_parser.add_argument('-Server', action='store', dest='server')
 	add_domainuser_parser.add_argument('-OutFile', action='store', dest='outfile')
 
+	# add domain group
+	add_domaingroup_parser = subparsers.add_parser('Add-DomainGroup', aliases=['Add-ADGroup'], exit_on_error=False)
+	add_domaingroup_parser.add_argument('-Identity', action='store', default=None, const=None, dest='identity')
+	add_domaingroup_parser.add_argument('-BaseDN', action='store', default=None, const=None, dest='basedn', type=lambda value: escape_filter_chars_except_asterisk(value))
+	add_domaingroup_parser.add_argument('-Server', action='store', dest='server')
+	add_domaingroup_parser.add_argument('-OutFile', action='store', dest='outfile')
+
 	# remove domain user
 	remove_domainuser_parser = subparsers.add_parser('Remove-DomainUser', aliases=['Remove-ADUser'], exit_on_error=False)
 	remove_domainuser_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))

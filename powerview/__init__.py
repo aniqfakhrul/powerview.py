@@ -565,6 +565,14 @@ def main():
                                     temp_powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
                                 else:
                                     powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
+                            elif pv_args.module.casefold() == 'add-domaingroup' or pv_args.module.casefold() == 'add-adgroup':
+                                if pv_args.identity is not None:
+                                    if temp_powerview:
+                                        temp_powerview.add_domaingroup(pv_args.identity, basedn=pv_args.basedn, args=pv_args)
+                                    else:
+                                        powerview.add_domaingroup(pv_args.identity, basedn=pv_args.basedn, args=pv_args)
+                                else:
+                                    logging.error('-Name flag is required')
                             elif pv_args.module.casefold() == 'remove-domainobject' or pv_args.module.casefold() == 'remove-adobject':
                                 if pv_args.identity:
                                     identity = pv_args.identity.strip()

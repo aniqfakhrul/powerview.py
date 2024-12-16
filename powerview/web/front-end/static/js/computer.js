@@ -3,6 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const defaultProperties = ['sAMAccountName', 'cn', 'distinguishedName'];
     let identityToDelete = null;
     let rowToDelete = null;
+    let allOUs = [];
+    let searchBaseDropdownVisible = false;
 
     initializePropertyFilter(defaultProperties);
     initializeQueryTemplates();
@@ -445,16 +447,116 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function initializeSearchBase() {
-        const searchBaseInput = document.getElementById('computer-search-base');
-        if (searchBaseInput) {
+        const searchBaseSelect = document.getElementById('computer-search-base');
+        const searchBaseDropdown = document.getElementById('search-base-dropdown');
+        const searchInput = document.getElementById('search-base-input');
+        const optionsContainer = document.getElementById('search-base-options');
+        
+        try {
+            // Get domain info for root DN
             const domainInfo = await getDomainInfo();
-            searchBaseInput.value = domainInfo.root_dn;
-        }
+            const rootDN = domainInfo.root_dn;
+            
+            // Get all OUs
+            const ous = await getDomainOU();
+            if (Array.isArray(ous)) {
+                allOUs = [
+                    { dn: rootDN, name: 'Root DN' },
+                    ...ous.map(ou => ({ 
+                        dn: ou.dn, 
+                        name: ou.dn.split(',').find(part => part.startsWith('OU='))?.substring(3) || ou.dn 
+                    }))
+                ];
+            }
 
-        const basednInput = document.getElementById('computer-base-dn');
-        if (basednInput) {
-            const domainInfo = await getDomainInfo();
-            basednInput.value = `CN=Computers,${domainInfo.root_dn}`;
+            // Initial render of select
+            searchBaseSelect.innerHTML = `<option value="${rootDN}">${rootDN}</option>`;
+            
+            // Handle click on select to show custom dropdown
+            searchBaseSelect.addEventListener('click', (e) => {
+                e.preventDefault();
+                searchBaseDropdown.classList.remove('hidden');
+                searchInput.focus();
+                searchBaseDropdownVisible = true;
+                renderFilteredOptions();
+            });
+
+            // Handle search input
+            searchInput.addEventListener('input', debounce(() => {
+                renderFilteredOptions();
+            }, 300));
+
+            // Handle clicking outside
+            document.addEventListener('click', (e) => {
+                if (!searchBaseDropdown.contains(e.target) && !searchBaseSelect.contains(e.target)) {
+                    searchBaseDropdown.classList.add('hidden');
+                    searchBaseDropdownVisible = false;
+                }
+            });
+
+            // Handle option selection
+            optionsContainer.addEventListener('click', (e) => {
+                const option = e.target.closest('.search-base-option');
+                if (option) {
+                    const value = option.dataset.value;
+                    searchBaseSelect.innerHTML = `<option value="${value}" selected>${value}</option>`;
+                    searchBaseDropdown.classList.add('hidden');
+                    searchBaseDropdownVisible = false;
+                    searchInput.value = '';
+                }
+            });
+
+        } catch (error) {
+            console.error('Error initializing search base:', error);
+            showErrorAlert('Failed to load organizational units');
+        }
+    }
+
+    function renderFilteredOptions() {
+        const searchInput = document.getElementById('search-base-input');
+        const optionsContainer = document.getElementById('search-base-options');
+        const searchTerm = searchInput.value.toLowerCase();
+
+        const filteredOUs = allOUs.filter(ou => 
+            ou.dn.toLowerCase().includes(searchTerm) || 
+            ou.name.toLowerCase().includes(searchTerm)
+        );
+
+        optionsContainer.innerHTML = filteredOUs.map(ou => `
+            <div class="search-base-option px-4 py-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer text-sm" data-value="${ou.dn}">
+                <div class="font-medium">${ou.name}</div>
+                <div class="text-xs text-neutral-500 dark:text-neutral-400">${ou.dn}</div>
+            </div>
+        `).join('');
+    }
+
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    async function getDomainOU() {
+        try {
+            const response = await fetch('/api/get/domainou', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ properties: ['name'] })
+            });
+
+            await handleHttpError(response);
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching domain OUs:', error);
+            return [];
         }
     }
 });

@@ -80,18 +80,36 @@
 
                 <!-- Descendants Tab -->
                 <div id="tabpanelDescendants" role="tabpanel" aria-label="descendants" style="display: none;">
-                    <table class="w-full text-sm text-neutral-600 dark:text-neutral-300 text-left">
-                        <thead>
-                            <tr class="h-8 text-left text-neutral-600 dark:text-neutral-400">
-                                <th class="px-3 py-2">Type</th>
-                                <th class="px-3 py-2">Name</th>
-                                <th class="px-3 py-2">Distinguished Name</th>
-                            </tr>
-                        </thead>
-                        <tbody id="descendants-rows">
-                            <!-- Rows will be dynamically generated -->
-                        </tbody>
-                    </table>
+                    <!-- Property Selector -->
+                    <div class="p-4 border-b border-neutral-200 dark:border-neutral-700 flex justify-between items-center">
+                        <div class="relative">
+                            <button id="property-dropdown-button" 
+                                    class="px-3 py-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                                Select Properties
+                                <i class="fas fa-chevron-down ml-2"></i>
+                            </button>
+                            <div id="property-dropdown-menu" 
+                                 class="hidden absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-white dark:bg-neutral-800 ring-1 ring-black ring-opacity-5 z-50">
+                                <!-- Property dropdown content -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Table -->
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-neutral-600 dark:text-neutral-300 text-left">
+                            <thead id="descendants-header">
+                                <tr class="h-8 text-left text-neutral-600 dark:text-neutral-400">
+                                    <th class="px-3 py-2">Type</th>
+                                    <th class="px-3 py-2">Name</th>
+                                    <th class="px-3 py-2">Distinguished Name</th>
+                                </tr>
+                            </thead>
+                            <tbody id="descendants-rows">
+                                <!-- Rows will be dynamically generated -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

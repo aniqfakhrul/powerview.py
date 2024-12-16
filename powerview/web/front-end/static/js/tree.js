@@ -334,6 +334,16 @@ document.addEventListener('DOMContentLoaded', () => {
         addGroupButton.onclick = () => handleCreateGroup(item.dn);
         buttonsDiv.appendChild(addGroupButton);
 
+        // Add "Add User to Group" button only if object is a group
+        if (Array.isArray(attributes.objectClass) && attributes.objectClass.includes('group')) {
+            const addUserToGroupButton = document.createElement('button');
+            addUserToGroupButton.className = 'px-2 py-1.5 text-sm font-medium rounded-md text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-yellow-500 dark:hover:text-yellow-400 dark:hover:bg-yellow-900/20 transition-colors';
+            addUserToGroupButton.innerHTML = '<i class="fa-solid fa-user-plus"></i>';
+            addUserToGroupButton.setAttribute('title', 'Add User to Group');
+            addUserToGroupButton.onclick = () => handleAddGroupMember(item.attributes.name);
+            buttonsDiv.appendChild(addUserToGroupButton);
+        }
+
         // Create Details button
         const detailsButton = document.createElement('button');
         detailsButton.className = 'px-2 py-1.5 text-sm font-medium rounded-md text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-800 transition-colors';
@@ -521,6 +531,62 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    async function addDomainGroupMember(groupname, member) {
+        try {
+            const response = await fetch('/api/add/domaingroupmember', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    identity: groupname, 
+                    members: member
+                })
+            });
+
+            await handleHttpError(response);
+
+            const result = await response.json();
+            if (result.success) {
+                showSuccessAlert(`Added ${member} to ${groupname}`);
+            } else {
+                showErrorAlert(result.message);
+            }
+        } catch (error) {
+            console.error('Error adding group member:', error);
+            showErrorAlert('Failed to add group member. Please try again.');
+        }
+    }
+
+    async function addGroup(groupname, basedn) {
+        try {
+            const response = await fetch('/api/add/domaingroup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    groupname, 
+                    basedn: basedn || ''
+                })
+            });
+
+            await handleHttpError(response);
+
+            const result = await response.json();
+            if (result.success) {
+                showSuccessAlert(`Added group ${groupname} to ${basedn}`);
+            } else {
+                showErrorAlert(result.message);
+            }
+            
+            // Refresh the current subtree to show the new group
+            await refreshCurrentSubtree();
+        } catch (error) {
+            console.error('Error adding group:', error);
+            showErrorAlert('Failed to add group. Please try again.');
+        }
+    }
     
     async function addUser(username, password, basedn) {
         try {
@@ -539,7 +605,11 @@ document.addEventListener('DOMContentLoaded', () => {
             await handleHttpError(response);
 
             const result = await response.json();
-            showSuccessAlert(`Added user ${username} to ${basedn}`);
+            if (result.success) {
+                showSuccessAlert(`Added user ${username} to ${basedn}`);
+            } else {
+                showErrorAlert(result.message);
+            }
             
             // Refresh the current subtree to show the new user
             await refreshCurrentSubtree();
@@ -549,10 +619,106 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function showAddGroupModal(containerDn) {
+        const modal = document.getElementById('add-group-modal');
+        const overlay = document.getElementById('modal-overlay');
+        const basednInput = document.getElementById('group-base-dn');
+        const groupnameInput = document.getElementById('new-groupname');
+    
+        if (basednInput) {
+            basednInput.value = containerDn;
+        }
+        
+        try {
+            // Show the modal
+            modal.removeAttribute('aria-hidden');
+            modal.classList.remove('hidden');
+            overlay.classList.remove('hidden');
+    
+            // Focus on the groupname input
+            if (groupnameInput) {
+                setTimeout(() => {
+                    groupnameInput.focus();
+                }, 100); // Small delay to ensure modal is fully visible
+            }
+        } catch (error) {
+            console.error('Error initializing Add Group Modal:', error);
+            showErrorAlert('Failed to initialize Add Group Modal');
+        }
+    }
+
+    document.getElementById('add-group-form')?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const groupname = document.getElementById('new-groupname')?.value;
+        const basedn = document.getElementById('group-base-dn')?.value;
+
+        if (!groupname || !basedn) {
+            showErrorAlert('Please fill in all fields');
+            return;
+        }
+
+        try {
+            await addGroup(groupname, basedn);
+            
+            // Close the modal
+            document.getElementById('add-group-modal').classList.add('hidden');
+            document.getElementById('modal-overlay').classList.add('hidden');
+            
+            // Clear the form
+            document.getElementById('add-group-form').reset();
+        } catch (error) {
+            console.error('Error adding group:', error);
+            showErrorAlert('Failed to add group');
+        }
+    });
+
+    async function showAddGroupMemberModal(groupName) {
+        const modal = document.getElementById('add-group-member-modal');
+        const overlay = document.getElementById('modal-overlay');
+        const groupNameInput = document.getElementById('group-name');
+        const memberInput = document.getElementById('new-member');
+
+        if (groupNameInput) {
+            groupNameInput.value = groupName;
+        }
+
+        try {
+            // Show the modal
+            modal.removeAttribute('aria-hidden');
+            modal.classList.remove('hidden');
+            overlay.classList.remove('hidden');
+
+            // Focus on the member input
+            if (memberInput) {
+                setTimeout(() => {
+                    memberInput.focus();
+                }, 100); // Small delay to ensure modal is fully visible
+            }
+        } catch (error) {
+            console.error('Error initializing Add Group Member Modal:', error);
+            showErrorAlert('Failed to initialize Add Group Member Modal');
+        }
+    }
+
+    document.getElementById('add-group-member-form')?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const groupname = document.getElementById('group-name')?.value;
+        const member = document.getElementById('new-member')?.value;
+        if (!groupname || !member) {
+            showErrorAlert('Please fill in all fields');
+            return;
+        }
+
+        addDomainGroupMember(groupname, member);
+        document.getElementById('add-group-member-modal')?.classList.add('hidden');
+        document.getElementById('modal-overlay')?.classList.add('hidden');
+    });
+
     async function showAddUserModal(containerDn) {
         const modal = document.getElementById('add-user-modal');
         const overlay = document.getElementById('modal-overlay');
         const basednInput = document.getElementById('user-base-dn');
+        const usernameInput = document.getElementById('new-username');
 
         if (basednInput) {
             basednInput.value = containerDn;
@@ -564,18 +730,17 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.classList.remove('hidden');
             overlay.classList.remove('hidden');
 
-            // Focus on the first input
-            const firstInput = modal.querySelector('input');
-            if (firstInput) {
-                firstInput.focus();
+            // Focus on the username input
+            if (usernameInput) {
+                setTimeout(() => {
+                    usernameInput.focus();
+                }, 100); // Small delay to ensure modal is fully visible
             }
         } catch (error) {
             console.error('Error initializing Add User Modal:', error);
             showErrorAlert('Failed to initialize Add User Modal');
         }
     }
-
-    document.querySelector('[data-modal-toggle="add-user-modal"]')?.addEventListener('click', showAddUserModal);
 
     document.getElementById('add-user-form')?.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -600,7 +765,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleCreateGroup(containerDn) {
         console.log('Create group in container:', containerDn);
-        // Add your group creation logic here
+        showAddGroupModal(containerDn);
+    }
+
+    function handleAddGroupMember(groupName) {
+        console.log('Add member to group:', groupName);
+        showAddGroupMemberModal(groupName);
     }
 
     async function refreshCurrentSubtree() {
