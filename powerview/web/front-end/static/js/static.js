@@ -74,13 +74,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function createLogEntry(log) {
         const entryDiv = document.createElement('div');
-        entryDiv.className = 'p-4 hover:bg-gray-50 cursor-pointer group';
+        entryDiv.className = 'p-4 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer group';
 
         const headerDiv = document.createElement('div');
         headerDiv.className = 'flex items-center justify-between mb-1';
 
         const timestampSpan = document.createElement('span');
-        timestampSpan.className = 'text-sm text-gray-500';
+        timestampSpan.className = 'text-sm text-neutral-500 dark:text-neutral-400';
         timestampSpan.textContent = log.timestamp;
 
         const statusSpan = document.createElement('span');
@@ -88,44 +88,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
         switch (log.log_type) {
             case 'INFO':
-                statusSpan.classList.add('bg-blue-100', 'text-blue-800');
+                statusSpan.classList.add('bg-blue-100', 'text-blue-800', 'dark:bg-blue-900/50', 'dark:text-blue-300');
                 break;
             case 'WARNING':
-                statusSpan.classList.add('bg-yellow-100', 'text-yellow-800');
+                statusSpan.classList.add('bg-yellow-100', 'text-yellow-800', 'dark:bg-yellow-900/50', 'dark:text-yellow-300');
                 break;
             case 'SUCCESS':
-                statusSpan.classList.add('bg-green-100', 'text-green-800');
+                statusSpan.classList.add('bg-green-100', 'text-green-800', 'dark:bg-green-900/50', 'dark:text-green-300');
                 break;
             case 'ERROR':
-                statusSpan.classList.add('bg-red-100', 'text-red-800');
+                statusSpan.classList.add('bg-red-100', 'text-red-800', 'dark:bg-red-900/50', 'dark:text-red-300');
                 break;
             default:
-                statusSpan.classList.add('bg-gray-100', 'text-gray-800');
+                statusSpan.classList.add('bg-gray-100', 'text-gray-800', 'dark:bg-gray-900/50', 'dark:text-gray-300');
         }
 
         statusSpan.textContent = log.log_type;
-
-        headerDiv.appendChild(timestampSpan);
-        headerDiv.appendChild(statusSpan);
 
         const commandDiv = document.createElement('div');
         commandDiv.className = 'flex items-center gap-2';
 
         const commandCode = document.createElement('code');
-        commandCode.className = 'text-sm font-mono text-gray-700 flex-1';
+        commandCode.className = 'text-sm font-mono text-neutral-700 dark:text-neutral-300 flex-1';
         commandCode.textContent = log.debug_message;
 
         const arrowIcon = document.createElement('svg');
-        arrowIcon.className = 'w-4 h-4 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity';
+        arrowIcon.className = 'w-4 h-4 text-blue-500 dark:text-yellow-500 opacity-0 group-hover:opacity-100 transition-opacity';
         arrowIcon.setAttribute('fill', 'none');
         arrowIcon.setAttribute('stroke', 'currentColor');
         arrowIcon.setAttribute('viewBox', '0 0 24 24');
-        arrowIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-        arrowIcon.innerHTML = '<path d="M9 5l7 7-7 7"></path>';
+        arrowIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>';
 
+        headerDiv.appendChild(timestampSpan);
+        headerDiv.appendChild(statusSpan);
         commandDiv.appendChild(commandCode);
         commandDiv.appendChild(arrowIcon);
-
         entryDiv.appendChild(headerDiv);
         entryDiv.appendChild(commandDiv);
 
@@ -136,9 +133,15 @@ document.addEventListener('DOMContentLoaded', function() {
         fetchCommandLogs();
         if (commandHistoryPanel.classList.contains('hidden')) {
             commandHistoryPanel.classList.remove('hidden');
+            setTimeout(() => {
+                commandHistoryPanel.classList.remove('translate-x-full');
+            }, 0);
             detailsPanel.classList.add('hidden');
         } else {
-            commandHistoryPanel.classList.add('hidden');
+            commandHistoryPanel.classList.add('translate-x-full');
+            setTimeout(() => {
+                commandHistoryPanel.classList.add('hidden');
+            }, 300);
         }
     });
 
@@ -147,7 +150,10 @@ document.addEventListener('DOMContentLoaded', function() {
         closeCommandHistoryButton.addEventListener('click', () => {
             const commandHistoryPanel = document.getElementById('command-history-panel');
             if (commandHistoryPanel) {
-                commandHistoryPanel.classList.add('hidden');
+                commandHistoryPanel.classList.add('translate-x-full');
+                setTimeout(() => {
+                    commandHistoryPanel.classList.add('hidden');
+                }, 300);
             }
         });
     }

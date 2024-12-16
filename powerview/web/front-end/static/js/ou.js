@@ -75,14 +75,13 @@ async function loadOUDescendants(identity) {
                 row.classList.add(
                     'h-8',
                     'result-item',
-                    'hover:bg-neutral-50',
                     'dark:hover:bg-neutral-800',
                     'border-b',
                     'border-neutral-200',
                     'dark:border-neutral-700',
                     'dark:text-neutral-200',
                     'text-neutral-600',
-                    'cursor-pointer'
+                    'cursor-pointer',
                 );
 
                 const objectClass = item.attributes.objectClass || [];
