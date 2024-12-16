@@ -78,7 +78,6 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/api/get/domainca')
             .then(response => response.json())
             .then(data => {
-                console.log(data);
                 const container = document.querySelector('.ca-servers-container');
                 container.innerHTML = '';
                 
@@ -122,7 +121,6 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
-            console.log(data);
             const container = document.querySelector('.cert-templates-container');
             container.innerHTML = '';
 
@@ -181,17 +179,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 <!-- Basic Info -->
                 <div class="grid grid-cols-2 gap-4 mb-6">
-                    <div class="text-sm">
+                    <div class="text-sm group">
                         <p class="text-neutral-600 dark:text-neutral-400 mb-1">Status</p>
-                        <span class="px-2 py-1 rounded-full text-sm ${
-                            template.attributes.Enabled ? 
-                            'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 
-                            'bg-neutral-100 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-300'
-                        }">${template.attributes.Enabled ? 'Enabled' : 'Disabled'}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-1 rounded-full text-sm ${
+                                template.attributes.Enabled ? 
+                                'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' : 
+                                'bg-neutral-100 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-300'
+                            }">${template.attributes.Enabled ? 'Enabled' : 'Disabled'}</span>
+                            <button class="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800" onclick="copyToClipboard(event, '${template.attributes.Enabled ? 'Enabled' : 'Disabled'}')" title="Copy to clipboard">
+                                <i class="fas fa-copy fa-xs"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div class="text-sm">
+                    <div class="text-sm group">
                         <p class="text-neutral-600 dark:text-neutral-400 mb-1">CA Server</p>
-                        <span class="text-neutral-700 dark:text-neutral-300">${template.attributes['Certificate Authorities']}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-neutral-700 dark:text-neutral-300">${template.attributes['Certificate Authorities']}</span>
+                            <button class="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800" onclick="copyToClipboard(event, '${template.attributes['Certificate Authorities']}')" title="Copy to clipboard">
+                                <i class="fas fa-copy fa-xs"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -286,22 +294,22 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div>
                         <h4 class="text-sm font-medium text-neutral-600 dark:text-neutral-400 mb-2">Technical Details</h4>
                         <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Expiration Period</p>
-                                <p class="text-sm text-neutral-700 dark:text-neutral-300">${template.attributes.pKIExpirationPeriod}</p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Overlap Period</p>
-                                <p class="text-sm text-neutral-700 dark:text-neutral-300">${template.attributes.pKIOverlapPeriod}</p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Template OID</p>
-                                <p class="text-sm text-neutral-700 dark:text-neutral-300 break-all">${template.attributes['msPKI-Cert-Template-OID']}</p>
-                            </div>
-                            <div>
-                                <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">Distinguished Name</p>
-                                <p class="text-sm text-neutral-700 dark:text-neutral-300 break-all">${template.attributes.distinguishedName}</p>
-                            </div>
+                            ${Object.entries({
+                                'Expiration Period': template.attributes.pKIExpirationPeriod,
+                                'Overlap Period': template.attributes.pKIOverlapPeriod,
+                                'Template OID': template.attributes['msPKI-Cert-Template-OID'],
+                                'Distinguished Name': template.attributes.distinguishedName
+                            }).map(([label, value]) => `
+                                <div class="group">
+                                    <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-1">${label}</p>
+                                    <div class="flex items-center gap-2">
+                                        <p class="text-sm text-neutral-700 dark:text-neutral-300 break-all">${value}</p>
+                                        <button class="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800" onclick="copyToClipboard(event, '${value}')" title="Copy to clipboard">
+                                            <i class="fas fa-copy fa-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('')}
                         </div>
                     </div>
                 </div>
@@ -374,4 +382,43 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
     }
+
+    // Add copyToClipboard function
+    window.copyToClipboard = async (event, text) => {
+        event.stopPropagation();
+        const button = event.currentTarget;
+        
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';
+                textArea.style.left = '-999999px';
+                textArea.style.top = '-999999px';
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                try {
+                    document.execCommand('copy');
+                    textArea.remove();
+                } catch (err) {
+                    console.error('Fallback: Oops, unable to copy', err);
+                    textArea.remove();
+                    throw new Error('Copy failed');
+                }
+            }
+            
+            // Show success feedback
+            button.innerHTML = '<i class="fas fa-check fa-xs"></i>';
+            setTimeout(() => {
+                button.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
+            }, 1000);
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+            showErrorAlert('Failed to copy to clipboard');
+        }
+    };
 });

@@ -13,7 +13,7 @@
                     <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Zone Names</h2>
                 </div>
             </div>
-            <div class="zone-name-container flex-1 overflow-y-auto p-4">
+            <div class="zone-name-container flex-1 overflow-y-auto p-4 scrollbar">
                 <!-- Zone names will be dynamically populated -->
             </div>
         </div>
@@ -26,7 +26,7 @@
                     <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Record Names</h2>
                 </div>
             </div>
-            <div class="record-name-section flex-1 overflow-y-auto p-4">
+            <div class="record-name-section flex-1 overflow-y-auto p-4 scrollbar">
                 <!-- Record names table will be dynamically populated -->
             </div>
         </div>
@@ -59,7 +59,7 @@
         </div>
 
         <!-- Details Content -->
-        <div class="flex-1 overflow-y-auto relative">
+        <div class="flex-1 overflow-y-auto relative scrollbar">
             {% include 'views/spinner.html' %}
             <div class="dns-record-details-container p-4">
                 <!-- DNS record details will be dynamically populated -->

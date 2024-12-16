@@ -87,12 +87,75 @@ async function loadOUDescendants(identity) {
                 const objectClass = item.attributes.objectClass || [];
                 const icon = getObjectClassIcon(objectClass);
                 
-                row.innerHTML = `
-                    <td class="px-3 py-2">${icon}</td>
-                    ${Array.from(selectedProperties).map(prop => 
-                        `<td class="px-3 py-2">${item.attributes[prop] || ''}</td>`
-                    ).join('')}
-                `;
+                // Add type column with icon
+                const typeCell = document.createElement('td');
+                typeCell.className = 'px-3 py-2';
+                typeCell.innerHTML = icon;
+                row.appendChild(typeCell);
+
+                // Add other property columns with copy buttons
+                selectedProperties.forEach(prop => {
+                    const td = document.createElement('td');
+                    td.className = 'px-3 py-2 relative group';
+                    
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'flex items-center gap-2';
+                    
+                    const value = item.attributes[prop] || '';
+                    const textSpan = document.createElement('span');
+                    if (Array.isArray(value)) {
+                        textSpan.innerHTML = value.join('<br>');
+                    } else {
+                        textSpan.textContent = value;
+                    }
+                    
+                    const copyButton = document.createElement('button');
+                    copyButton.className = 'opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800';
+                    copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
+                    copyButton.title = 'Copy to clipboard';
+                    
+                    copyButton.addEventListener('click', async (event) => {
+                        event.stopPropagation(); // Prevent row click
+                        const textToCopy = Array.isArray(value) ? value.join('\n') : value;
+                        
+                        try {
+                            if (navigator.clipboard && window.isSecureContext) {
+                                await navigator.clipboard.writeText(textToCopy);
+                            } else {
+                                const textArea = document.createElement('textarea');
+                                textArea.value = textToCopy;
+                                textArea.style.position = 'fixed';
+                                textArea.style.left = '-999999px';
+                                textArea.style.top = '-999999px';
+                                document.body.appendChild(textArea);
+                                textArea.focus();
+                                textArea.select();
+                                
+                                try {
+                                    document.execCommand('copy');
+                                    textArea.remove();
+                                } catch (err) {
+                                    console.error('Fallback: Oops, unable to copy', err);
+                                    textArea.remove();
+                                    throw new Error('Copy failed');
+                                }
+                            }
+                            
+                            copyButton.innerHTML = '<i class="fas fa-check fa-xs"></i>';
+                            setTimeout(() => {
+                                copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
+                            }, 1000);
+                        } catch (err) {
+                            console.error('Failed to copy text: ', err);
+                            showErrorAlert('Failed to copy to clipboard');
+                        }
+                    });
+                    
+                    wrapper.appendChild(textSpan);
+                    wrapper.appendChild(copyButton);
+                    td.appendChild(wrapper);
+                    row.appendChild(td);
+                });
 
                 row.addEventListener('click', () => {
                     handleLdapLinkClick(event, item.attributes.distinguishedName);
@@ -311,18 +374,118 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <!-- Content -->
                 <div class="p-4">
                     <dl class="grid grid-cols-1 gap-3">
-                        ${Object.entries(ou.attributes).map(([key, value]) => `
-                            <div class="flex result-item hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded">
-                                <dt class="text-sm font-medium text-neutral-600 dark:text-neutral-400 w-1/3">${key}</dt>
-                                <dd class="text-sm text-neutral-900 dark:text-white w-2/3 break-all">
-                                    ${Array.isArray(value) ? value.join('<br>') : value}
-                                </dd>
-                            </div>
-                        `).join('')}
+                        ${Object.entries(ou.attributes).map(([key, value]) => {
+                            const isDistinguishedName = Array.isArray(value) ? 
+                                value.some(isValidDistinguishedName) : 
+                                isValidDistinguishedName(value);
+
+                            if (isDistinguishedName) {
+                                if (Array.isArray(value)) {
+                                    return `
+                                        <div class="flex result-item hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded group">
+                                            <dt class="text-sm font-medium text-neutral-600 dark:text-neutral-400 w-1/3">${key}</dt>
+                                            <dd class="text-sm text-neutral-900 dark:text-white w-2/3 break-all">
+                                                ${value.map(v => `
+                                                    <div class="flex items-center gap-2 group">
+                                                        <a href="#" 
+                                                           class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                           onclick="handleLdapLinkClick(event, '${v}')"
+                                                           data-identity="${v}">
+                                                            ${v}
+                                                        </a>
+                                                        <button class="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                                                onclick="copyToClipboard(event, '${v}')"
+                                                                title="Copy to clipboard">
+                                                            <i class="fas fa-copy fa-xs"></i>
+                                                        </button>
+                                                    </div>
+                                                `).join('<br>')}
+                                            </dd>
+                                        </div>
+                                    `;
+                                } else {
+                                    return `
+                                        <div class="flex result-item hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded group">
+                                            <dt class="text-sm font-medium text-neutral-600 dark:text-neutral-400 w-1/3">${key}</dt>
+                                            <dd class="text-sm text-neutral-900 dark:text-white w-2/3 break-all">
+                                                <div class="flex items-center gap-2 group">
+                                                    <a href="#" 
+                                                       class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                       onclick="handleLdapLinkClick(event, '${value}')"
+                                                       data-identity="${value}">
+                                                        ${value}
+                                                    </a>
+                                                    <button class="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                                            onclick="copyToClipboard(event, '${value}')"
+                                                            title="Copy to clipboard">
+                                                        <i class="fas fa-copy fa-xs"></i>
+                                                    </button>
+                                                </div>
+                                            </dd>
+                                        </div>
+                                    `;
+                                }
+                            } else {
+                                return `
+                                    <div class="flex result-item hover:bg-neutral-50 dark:hover:bg-neutral-800 rounded group">
+                                        <dt class="text-sm font-medium text-neutral-600 dark:text-neutral-400 w-1/3">${key}</dt>
+                                        <dd class="text-sm text-neutral-900 dark:text-white w-2/3 break-all">
+                                            <div class="flex items-center gap-2">
+                                                <span>${Array.isArray(value) ? value.join('<br>') : value}</span>
+                                                <button class="opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                                        onclick="copyToClipboard(event, '${Array.isArray(value) ? value.join('\\n') : value}')"
+                                                        title="Copy to clipboard">
+                                                    <i class="fas fa-copy fa-xs"></i>
+                                                </button>
+                                            </div>
+                                        </dd>
+                                    </div>
+                                `;
+                            }
+                        }).join('')}
                     </dl>
                 </div>
             </div>
         `;
+
+        // Add the copyToClipboard function to window scope
+        window.copyToClipboard = async (event, text) => {
+            event.stopPropagation();
+            const button = event.currentTarget;
+            
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-999999px';
+                    textArea.style.top = '-999999px';
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    
+                    try {
+                        document.execCommand('copy');
+                        textArea.remove();
+                    } catch (err) {
+                        console.error('Fallback: Oops, unable to copy', err);
+                        textArea.remove();
+                        throw new Error('Copy failed');
+                    }
+                }
+                
+                // Show success feedback
+                button.innerHTML = '<i class="fas fa-check fa-xs"></i>';
+                setTimeout(() => {
+                    button.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
+                }, 1000);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                showErrorAlert('Failed to copy to clipboard');
+            }
+        };
 
         // Show info tab by default
         selectOUTab('info');

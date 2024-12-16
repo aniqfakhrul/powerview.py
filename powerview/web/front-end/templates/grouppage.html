@@ -1,7 +1,8 @@
 {% extends "base/layouts.html" %}
 
 {% block content %}
-<div class="p-4 h-full flex gap-4">
+<div class="p-4 h-full flex gap-4 relative">
+    {% include 'views/spinner.html' %}
     <!-- Groups Panel -->
     <div class="w-1/3 flex flex-col rounded-lg border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
         <!-- Header -->
@@ -17,8 +18,7 @@
         </div>
 
         <!-- Groups Table Container -->
-        <div class="flex-1 p-4 overflow-hidden relative">
-            {% include 'views/spinner.html' %}
+        <div class="flex-1 p-4 overflow-hidden">
             <div class="groups-container h-full overflow-auto scrollbar">
                 <!-- Groups will be dynamically populated -->
             </div>

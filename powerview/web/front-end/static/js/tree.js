@@ -397,30 +397,60 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isDistinguishedName) {
                 if (Array.isArray(value)) {
                     value.forEach(v => {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'flex items-center gap-2 group';
+
                         const link = document.createElement('a');
                         link.href = '#';
                         link.className = 'text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300';
                         link.dataset.identity = v;
                         link.onclick = (event) => handleLdapLinkClick(event, v);
                         link.textContent = v;
-                        dd.appendChild(link);
+                        
+                        const copyButton = createCopyButton(v);
+                        
+                        wrapper.appendChild(link);
+                        wrapper.appendChild(copyButton);
+                        dd.appendChild(wrapper);
                         dd.appendChild(document.createElement('br'));
                     });
                 } else {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'flex items-center gap-2 group';
+
                     const link = document.createElement('a');
                     link.href = '#';
                     link.className = 'text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300';
                     link.dataset.identity = value;
                     link.onclick = (event) => handleLdapLinkClick(event, value);
                     link.textContent = value;
-                    dd.appendChild(link);
+                    
+                    const copyButton = createCopyButton(value);
+                    
+                    wrapper.appendChild(link);
+                    wrapper.appendChild(copyButton);
+                    dd.appendChild(wrapper);
                 }
             } else {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'flex items-center gap-2 group';
+                
+                const textSpan = document.createElement('span');
                 if (Array.isArray(value)) {
-                    dd.innerHTML = value.map(v => isByteData(v) ? convertToBase64(v) : v).join('<br>');
+                    const formattedValue = value.map(v => isByteData(v) ? convertToBase64(v) : v);
+                    textSpan.innerHTML = formattedValue.join('<br>');
+                    const copyButton = createCopyButton(formattedValue.join('\n'));
+                    wrapper.appendChild(textSpan);
+                    wrapper.appendChild(copyButton);
                 } else {
-                    dd.innerHTML = isByteData(value) ? convertToBase64(value) : value;
+                    const formattedValue = isByteData(value) ? convertToBase64(value) : value;
+                    textSpan.textContent = formattedValue;
+                    const copyButton = createCopyButton(formattedValue);
+                    wrapper.appendChild(textSpan);
+                    wrapper.appendChild(copyButton);
                 }
+                
+                dd.appendChild(wrapper);
             }
 
             flexDiv.appendChild(dd);
@@ -428,11 +458,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         contentDiv.appendChild(dl);
-
-        // Clear previous content and append new elements
         resultsPanel.innerHTML = '';
         resultsPanel.appendChild(headerDiv);
         resultsPanel.appendChild(contentDiv);
+    }
+
+    // Helper function to create copy button
+    function createCopyButton(text) {
+        const copyButton = document.createElement('button');
+        copyButton.className = 'opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800';
+        copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
+        copyButton.title = 'Copy to clipboard';
+        
+        copyButton.addEventListener('click', async (event) => {
+            event.stopPropagation();
+            
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    await navigator.clipboard.writeText(text);
+                } else {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-999999px';
+                    textArea.style.top = '-999999px';
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    
+                    try {
+                        document.execCommand('copy');
+                        textArea.remove();
+                    } catch (err) {
+                        console.error('Fallback: Oops, unable to copy', err);
+                        textArea.remove();
+                        throw new Error('Copy failed');
+                    }
+                }
+                
+                copyButton.innerHTML = '<i class="fas fa-check fa-xs"></i>';
+                setTimeout(() => {
+                    copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
+                }, 1000);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                showErrorAlert('Failed to copy to clipboard');
+            }
+        });
+        
+        return copyButton;
     }
 
     function getSelectedIdentity() {

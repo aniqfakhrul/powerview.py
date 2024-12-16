@@ -57,8 +57,14 @@ document.addEventListener('DOMContentLoaded', function() {
             logsData.logs.forEach(log => {
                 const existingEntries = Array.from(commandHistoryEntries.children);
                 const logExists = existingEntries.some(entry => {
-                    const timestamp = entry.querySelector('span.text-sm.text-gray-500').textContent;
-                    const debugMessage = entry.querySelector('code').textContent;
+                    const timestampElement = entry.querySelector('span.text-sm.text-neutral-500');
+                    const debugMessageElement = entry.querySelector('code');
+                    
+                    if (!timestampElement || !debugMessageElement) return false;
+                    
+                    const timestamp = timestampElement.textContent;
+                    const debugMessage = debugMessageElement.textContent;
+                    
                     return timestamp === log.timestamp && debugMessage === log.debug_message;
                 });
 

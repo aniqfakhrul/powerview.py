@@ -155,9 +155,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             await handleHttpError(response);
             const data = await response.json();
-            allMembers = data; // Store all members
+            allMembers = data;
 
-            // Clear the member search input when loading new group
             const memberSearchInput = document.getElementById('member-search');
             if (memberSearchInput) {
                 memberSearchInput.value = '';
@@ -166,13 +165,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const membersContainer = document.querySelector('.members-container');
             if (!membersContainer) return;
 
-            // Update the members section header
             const memberHeader = document.querySelector('.member-header');
             if (memberHeader) {
                 memberHeader.textContent = `Members of ${groupName}`;
             }
 
-            // Create and populate the members table
             const table = document.createElement('table');
             table.className = 'min-w-full text-sm text-neutral-600 dark:text-neutral-300';
 
@@ -194,33 +191,83 @@ document.addEventListener('DOMContentLoaded', () => {
 
             data.forEach(member => {
                 const row = document.createElement('tr');
-                row.className = 'hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer';
+                row.className = 'hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer group';
                 
-                // Add click handler for LDAP link
                 row.addEventListener('click', (event) => {
-                    handleLdapLinkClick(event, member.attributes.MemberDistinguishedName);
+                    if (!event.target.closest('button')) {  // Only handle click if not clicking copy button
+                        handleLdapLinkClick(event, member.attributes.MemberDistinguishedName);
+                    }
                 });
 
-                const nameCell = document.createElement('td');
-                nameCell.textContent = member.attributes.MemberName;
-                nameCell.className = 'px-4 py-3 text-center';
+                // Create cells with copy buttons
+                const cells = [
+                    { value: member.attributes.MemberName },
+                    { value: member.attributes.MemberDomain },
+                    { value: member.attributes.MemberDistinguishedName }
+                ];
 
-                const domainCell = document.createElement('td');
-                domainCell.textContent = member.attributes.MemberDomain;
-                domainCell.className = 'px-4 py-3 text-center';
+                cells.forEach(({ value }) => {
+                    const td = document.createElement('td');
+                    td.className = 'px-4 py-3 text-center relative';
 
-                const dnCell = document.createElement('td');
-                dnCell.textContent = member.attributes.MemberDistinguishedName;
-                dnCell.className = 'px-4 py-3 text-center';
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'flex items-center justify-center gap-2';
 
-                row.appendChild(nameCell);
-                row.appendChild(domainCell);
-                row.appendChild(dnCell);
+                    const textSpan = document.createElement('span');
+                    textSpan.textContent = value;
+
+                    const copyButton = document.createElement('button');
+                    copyButton.className = 'opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800';
+                    copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
+                    copyButton.title = 'Copy to clipboard';
+                    
+                    copyButton.addEventListener('click', async (event) => {
+                        event.stopPropagation();
+                        
+                        try {
+                            if (navigator.clipboard && window.isSecureContext) {
+                                await navigator.clipboard.writeText(value);
+                            } else {
+                                const textArea = document.createElement('textarea');
+                                textArea.value = value;
+                                textArea.style.position = 'fixed';
+                                textArea.style.left = '-999999px';
+                                textArea.style.top = '-999999px';
+                                document.body.appendChild(textArea);
+                                textArea.focus();
+                                textArea.select();
+                                
+                                try {
+                                    document.execCommand('copy');
+                                    textArea.remove();
+                                } catch (err) {
+                                    console.error('Fallback: Oops, unable to copy', err);
+                                    textArea.remove();
+                                    throw new Error('Copy failed');
+                                }
+                            }
+                            
+                            copyButton.innerHTML = '<i class="fas fa-check fa-xs"></i>';
+                            setTimeout(() => {
+                                copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
+                            }, 1000);
+                        } catch (err) {
+                            console.error('Failed to copy text: ', err);
+                            showErrorAlert('Failed to copy to clipboard');
+                        }
+                    });
+
+                    wrapper.appendChild(textSpan);
+                    wrapper.appendChild(copyButton);
+                    td.appendChild(wrapper);
+                    row.appendChild(td);
+                });
+
                 tbody.appendChild(row);
             });
 
             table.appendChild(tbody);
-            membersContainer.innerHTML = ''; // Clear existing content
+            membersContainer.innerHTML = '';
             membersContainer.appendChild(table);
 
         } catch (error) {

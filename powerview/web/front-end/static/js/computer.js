@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const activeFilters = new Set();
-    const defaultProperties = ['sAMAccountName', 'cn', 'distinguishedName'];
+    const defaultProperties = ['dnsHostName', 'operatingSystem', 'description'];
     let identityToDelete = null;
     let rowToDelete = null;
     let allOUs = [];
@@ -195,13 +195,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 attributeKeys.forEach(key => {
                     const td = document.createElement('td');
-                    td.className = 'p-1 whitespace-nowrap';
+                    td.className = 'p-1 whitespace-nowrap relative group';
                     const value = computer.attributes[key];
+                    
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'flex items-center gap-2';
+                    
+                    const textSpan = document.createElement('span');
                     if (Array.isArray(value)) {
-                        td.innerHTML = value.join('<br>');
+                        textSpan.innerHTML = value.join('<br>');
                     } else {
-                        td.textContent = value;
+                        textSpan.textContent = value;
                     }
+                    
+                    const copyButton = document.createElement('button');
+                    copyButton.className = 'opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800';
+                    copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
+                    copyButton.title = 'Copy to clipboard';
+                    
+                    copyButton.addEventListener('click', async (event) => {
+                        event.stopPropagation();
+                        const textToCopy = Array.isArray(value) ? value.join('\n') : value;
+                        
+                        try {
+                            if (navigator.clipboard && window.isSecureContext) {
+                                await navigator.clipboard.writeText(textToCopy);
+                            } else {
+                                const textArea = document.createElement('textarea');
+                                textArea.value = textToCopy;
+                                textArea.style.position = 'fixed';
+                                textArea.style.left = '-999999px';
+                                textArea.style.top = '-999999px';
+                                document.body.appendChild(textArea);
+                                textArea.focus();
+                                textArea.select();
+                                
+                                try {
+                                    document.execCommand('copy');
+                                    textArea.remove();
+                                } catch (err) {
+                                    console.error('Fallback: Oops, unable to copy', err);
+                                    textArea.remove();
+                                    throw new Error('Copy failed');
+                                }
+                            }
+                            
+                            copyButton.innerHTML = '<i class="fas fa-check fa-xs"></i>';
+                            setTimeout(() => {
+                                copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
+                            }, 1000);
+                        } catch (err) {
+                            console.error('Failed to copy text: ', err);
+                            showErrorAlert('Failed to copy to clipboard');
+                        }
+                    });
+                    
+                    wrapper.appendChild(textSpan);
+                    wrapper.appendChild(copyButton);
+                    td.appendChild(wrapper);
                     tr.appendChild(td);
                 });
 
