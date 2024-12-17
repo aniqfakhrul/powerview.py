@@ -5,9 +5,9 @@
 {% block content %}
     <!-- Utils Panel -->
     <div class="flex-1 overflow-y-auto" id="utils-panel">
-        <div class="grid grid-cols-2 gap-4 m-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 m-4">
             <!-- ConvertFrom_SID Panel -->
-            <div class="bg-white rounded-lg shadow p-6">
+            <div x-data="{ sidInput: '', resultSid: '', errorSid: '' }" class="p-4 rounded-lg border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
                 <div class="flex items-center gap-2 mb-4">
                     <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <circle cx="12" cy="12" r="10"></circle>
@@ -18,33 +18,38 @@
                 </div>
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <label class="block text-sm font-medium mb-1">
                             Enter SID
                         </label>
-                        <input
-                            type="text"
-                            placeholder="S-1-5-21-..."
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                        />
+                        <input x-model="sidInput" type="text" class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-white" name="sid" placeholder="Enter SID" autocomplete="sid"/>
                     </div>
 
                     <!-- Error message placeholder -->
-                    <p class="text-sm text-red-600 hidden">Error message here</p>
+                    <p x-text="errorSid" class="text-sm text-red-600" x-show="errorSid"></p>
 
-                    <button class="w-full bg-blue-500 text-white py-2 rounded-md shadow-sm hover:bg-blue-600" id="convertfromsid-button">
+                    <button @click="convertFromSid(sidInput).then(data => { 
+                        if (JSON.stringify(data, null, 2) === sidInput) {
+                            resultSid = 'Not found';
+                        } else {
+                            resultSid = JSON.stringify(data, null, 2);
+                        }
+                        errorSid = ''; 
+                    }).catch(err => { 
+                        errorSid = 'Error converting SID'; 
+                        resultSid = ''; 
+                    })" class="w-full bg-blue-500 py-2 rounded-md shadow-sm hover:bg-blue-600">
                         Convert
                     </button>
 
                     <!-- Result placeholder -->
-                    <div class="mt-4 p-4 bg-gray-50 rounded-md hidden" id="convertfromsid-result">
-                        <h3 class="text-sm font-medium text-gray-700 mb-1">Result:</h3>
-                        <p class="text-sm font-mono">Result content here</p>
+                    <div class="mt-4 p-4 rounded-md" x-show="resultSid">
+                        <p class="text-sm font-mono" x-text="resultSid"></p>
                     </div>
                 </div>
             </div>
 
             <!-- ConvertFrom_UAC Panel -->
-            <div class="bg-white rounded-lg shadow p-6">
+            <div x-data="{ uacInput: '', resultUac: '', errorUac: '' }" class="p-4 rounded-lg border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
                 <div class="flex items-center gap-2 mb-4">
                     <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <circle cx="12" cy="12" r="10"></circle>
@@ -55,30 +60,28 @@
                 </div>
                 <div class="space-y-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <label class="block text-sm font-medium mb-1">
                             Enter UAC Value
                         </label>
-                        <input
-                            type="text"
-                            placeholder="Enter UAC value..."
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                        />
+                        <input x-model="uacInput" type="text" class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-white" name="uac" placeholder="Enter UAC value" autocomplete="uac"/>
                     </div>
 
                     <!-- Error message placeholder -->
-                    <p class="text-sm text-red-600 hidden">Error message here</p>
+                    <p x-text="errorUac" class="text-sm text-red-600" x-show="errorUac"></p>
 
-                    <button class="w-full bg-blue-500 text-white py-2 rounded-md shadow-sm hover:bg-blue-600" id="convertfromuac-button">
+                    <button @click="convertFromUac(uacInput).then(data => { resultUac = data.map(item => `${item.attributes.Name}: ${item.attributes.Value}`).join('\n'); errorUac = ''; }).catch(err => { errorUac = 'Error converting UAC'; resultUac = ''; })" class="w-full bg-blue-500 py-2 rounded-md shadow-sm hover:bg-blue-600">
                         Convert
                     </button>
 
                     <!-- Result placeholder -->
-                    <div class="mt-4 p-4 bg-gray-50 rounded-md hidden" id="convertfromuac-result">
-                        <h3 class="text-sm font-medium text-gray-700 mb-1">Result:</h3>
-                        <p class="text-sm font-mono">Result content here</p>
+                    <div class="mt-4 p-4 rounded-md" x-show="resultUac">
+                        <p class="text-sm font-mono" x-text="resultUac"></p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
 {% endblock %}

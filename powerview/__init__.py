@@ -11,7 +11,6 @@ from powerview.utils.shell import get_prompt
 from powerview.utils.colors import bcolors
 
 import ldap3
-import json
 import random
 import string
 import shlex
@@ -110,11 +109,20 @@ def main():
                                 else:
                                     entries = powerview.get_domainobjectowner(identity=identity, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
-                                identity = pv_args.identity.strip()
+                                identity = pv_args.identity.strip() if hasattr(pv_args, 'identity') else None
+
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainobjectacl(args=pv_args)
+                                    entries = temp_powerview.get_domainobjectacl(
+                                        identity=identity,
+                                        security_identifier=pv_args.security_identifier,
+                                        args=pv_args
+                                    )
                                 else:
-                                    entries = powerview.get_domainobjectacl(args=pv_args)
+                                    entries = powerview.get_domainobjectacl(
+                                        identity=identity,
+                                        security_identifier=pv_args.security_identifier,
+                                        args=pv_args
+                                    )
                             elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
@@ -149,9 +157,9 @@ def main():
                             elif pv_args.module.casefold() == 'get-domaingroupmember' or pv_args.module.casefold() == 'get-netgroupmember':
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaingroupmember(pv_args, identity)
+                                    entries = temp_powerview.get_domaingroupmember(identity=identity, args=pv_args)
                                 else:
-                                    entries = powerview.get_domaingroupmember(pv_args, identity)
+                                    entries = powerview.get_domaingroupmember(identity=identity, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainforeigngroupmember' or pv_args.module.casefold() == 'find-foreigngroup':
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainforeigngroupmember(pv_args)
@@ -539,9 +547,9 @@ def main():
                                     if pv_args.computerpass is None:
                                         pv_args.computerpass = ''.join(random.choice(list(string.ascii_letters + string.digits + "!@#$%^&*()")) for _ in range(12))
                                     if temp_powerview:
-                                        temp_powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
+                                        temp_powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass, basedn=pv_args.basedn)
                                     else:
-                                        powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
+                                        powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass, basedn=pv_args.basedn)
                                 else:
                                     logging.error(f'-ComputerName and -ComputerPass are required')
                             elif pv_args.module.casefold() == 'add-domaindnsrecord':
@@ -557,6 +565,14 @@ def main():
                                     temp_powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
                                 else:
                                     powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
+                            elif pv_args.module.casefold() == 'add-domaingroup' or pv_args.module.casefold() == 'add-adgroup':
+                                if pv_args.identity is not None:
+                                    if temp_powerview:
+                                        temp_powerview.add_domaingroup(pv_args.identity, basedn=pv_args.basedn, args=pv_args)
+                                    else:
+                                        powerview.add_domaingroup(pv_args.identity, basedn=pv_args.basedn, args=pv_args)
+                                else:
+                                    logging.error('-Name flag is required')
                             elif pv_args.module.casefold() == 'remove-domainobject' or pv_args.module.casefold() == 'remove-adobject':
                                 if pv_args.identity:
                                     identity = pv_args.identity.strip()
@@ -665,6 +681,7 @@ def main():
                             logging.error(str(e))
                             conn.reset_connection()
             except KeyboardInterrupt:
+                log_handler.save_history()
                 print()
             except EOFError:
                 log_handler.save_history()
@@ -683,6 +700,7 @@ def main():
                 continue
             except Exception as e:
                 if args.stack_trace:
+                    log_handler.save_history()
                     raise
                 else:
                     logging.error(str(e))

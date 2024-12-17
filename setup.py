@@ -16,7 +16,8 @@ setup(
 		'powerview',
         'powerview.utils',
         'powerview.modules',
-        'powerview.lib'
+        'powerview.lib',
+        'powerview.web'
     ],
 	license='MIT',
 	install_requires=[

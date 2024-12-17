@@ -1,33 +1,20 @@
 <!-- Command History -->
-<div id="command-history-panel" class="w-1/4 border-l bg-white overflow-y-auto hidden">
-    <div class="flex items-center justify-between gap-2 p-4 border-b sticky top-0 bg-white z-10">
+<div id="command-history-panel" class="fixed top-0 right-0 bottom-0 w-96 bg-white dark:bg-neutral-900 border-l border-neutral-300 dark:border-neutral-700 shadow-2xl shadow-neutral-950/10 dark:shadow-black/50 transform transition-transform duration-300 ease-in-out translate-x-full z-50 hidden">
+    <div class="flex items-center justify-between gap-2 p-4 border-b sticky top-0 bg-white dark:bg-neutral-900 z-10 border-neutral-200 dark:border-neutral-700">
         <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <svg class="w-5 h-5 text-blue-500 dark:text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 8v4l3 3"></path>
                 <circle cx="12" cy="12" r="10"></circle>
             </svg>
-            <h2 class="text-lg font-semibold">Logs</h2>
+            <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Logs</h2>
         </div>
-        <button id="close-command-history-panel" class="text-gray-500 hover:text-gray-700">
+        <button id="close-command-history-panel" class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
         </button>
     </div>
-    <div class="divide-y">
-        <!-- Example command history entries -->
-        <div class="p-4 hover:bg-gray-50 cursor-pointer group" id="command-history-entries">
-            <!-- <div class="flex items-center justify-between mb-1">
-                <span class="text-sm text-gray-500">2024-03-15 14:30:22</span>
-                <span class="text-sm px-2 py-0.5 rounded-full bg-green-100 text-green-800">success</span>
-            </div>
-            <div class="flex items-center gap-2">
-                <code class="text-sm font-mono text-gray-700 flex-1">Get-DomainUser -Identity administrator</code>
-                <svg class="w-4 h-4 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M9 5l7 7-7 7"></path>
-                </svg>
-            </div> -->
-        </div>
-        <!-- Add more entries as needed -->
+    <div class="h-full overflow-y-auto scrollbar" id="command-history-entries">
+        <!-- Log entries will be dynamically added here -->
     </div>
 </div>

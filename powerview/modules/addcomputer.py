@@ -42,6 +42,7 @@ import random
 import ssl
 from binascii import unhexlify
 
+from powerview.utils.helpers import is_valid_dn
 
 class ADDCOMPUTER:
     def __init__(self, username=None, password=None, domain=None, cmdLineOptions=None, computer_name=None, computer_pass=None, base_dn=None, ldap_session=None):
@@ -90,7 +91,7 @@ class ADDCOMPUTER:
             elif self.__delete:
                 raise ValueError("You have to provide a computer name when using -delete.")
         else:
-            if self.__computerName[-1] != '$':
+            if self.__computerName[-1] != '$' and not is_valid_dn(self.__computerName):
                 self.__computerName += '$'
 
         if self.__computerPassword is None:
@@ -111,11 +112,7 @@ class ADDCOMPUTER:
             self.__domainNetbios = self.__domain
 
         self.__baseDN = base_dn
-
-        if self.__method == 'LDAPS' and self.__computerGroup is None:
-            self.__computerGroup = 'CN=Computers,' + self.__baseDN
-
-
+        self.__computerGroup = self.__baseDN
 
     def run_samr(self):
         if self.__targetIp is not None:
@@ -213,11 +210,11 @@ class ADDCOMPUTER:
                 logging.info("Successfully added machine account %s with password %s." % (self.__computerName, self.__computerPassword))
 
     def LDAPComputerExists(self, connection, computerName):
-        connection.search(self.__baseDN, '(sAMAccountName=%s)' % computerName)
+        connection.search(self.__baseDN, '(|(sAMAccountName={computerName})(distinguishedName={computerName}))'.format(computerName=computerName))
         return len(connection.entries) ==1
 
     def LDAPGetComputer(self, connection, computerName):
-        connection.search(self.__baseDN, '(sAMAccountName=%s)' % computerName)
+        connection.search(self.__baseDN, '(|(sAMAccountName={computerName})(distinguishedName={computerName}))'.format(computerName=computerName))
         return connection.entries[0]
 
     def LDAP3KerberosLogin(self, connection, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None,

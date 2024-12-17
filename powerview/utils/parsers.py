@@ -59,7 +59,7 @@ def arg_parse():
 
 	web = parser.add_argument_group('web')
 	web.add_argument('--web-host', dest='web_host', action='store', default='127.0.0.1', help='Specify custom bind interface (Default: 127.0.0.1)')
-	web.add_argument('--web-port', dest='web_port', action='store', type=int, default=5000, help='Specify custom port for web interface (Default: 80)')
+	web.add_argument('--web-port', dest='web_port', action='store', type=int, default=5000, help='Specify custom port for web interface (Default: 5000)')
 	
 	if len(sys.argv) == 1:
 		parser.print_help()
@@ -698,6 +698,13 @@ def powerview_arg_parse(cmd):
 	add_domainuser_parser.add_argument('-BaseDN', action='store', default=None, const=None, dest='basedn', type=lambda value: escape_filter_chars_except_asterisk(value))
 	add_domainuser_parser.add_argument('-Server', action='store', dest='server')
 	add_domainuser_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+	# add domain group
+	add_domaingroup_parser = subparsers.add_parser('Add-DomainGroup', aliases=['Add-ADGroup'], exit_on_error=False)
+	add_domaingroup_parser.add_argument('-Identity', action='store', default=None, const=None, dest='identity')
+	add_domaingroup_parser.add_argument('-BaseDN', action='store', default=None, const=None, dest='basedn', type=lambda value: escape_filter_chars_except_asterisk(value))
+	add_domaingroup_parser.add_argument('-Server', action='store', dest='server')
+	add_domaingroup_parser.add_argument('-OutFile', action='store', dest='outfile')
 
 	# remove domain user
 	remove_domainuser_parser = subparsers.add_parser('Remove-DomainUser', aliases=['Remove-ADUser'], exit_on_error=False)

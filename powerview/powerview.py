@@ -35,7 +35,8 @@ from powerview.lib.dns import (
 from powerview.lib.reg import RemoteOperations
 from powerview.lib.samr import SamrObject
 from powerview.lib.resolver import (
-	UAC
+	UAC,
+	LDAP
 )
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.web.api.server import APIServer
@@ -97,14 +98,18 @@ class PowerView:
 
 		# API server
 		if self.args.web and self.ldap_session:
-			self.api_server = APIServer(self, host=self.args.web_host, port=self.args.web_port)
-			self.api_server.start()
+			try:
+				from powerview.web.api.server import APIServer
+				self.api_server = APIServer(self, host=self.args.web_host, port=self.args.web_port)
+				self.api_server.start()
+			except ImportError:
+				logging.warning("Web interface dependencies not installed. Web interface will not be available.")
 
 		# Get current user's SID from the LDAP connection
 		self.current_user_sid = None
-		whoami = self.conn.who_am_i()
-		if whoami:
-			user = self.get_domainobject(identity=whoami.split('\\')[1], properties=['objectSid'])
+		self.whoami = self.conn.who_am_i()
+		if self.whoami:
+			user = self.get_domainobject(identity=self.whoami.split('\\')[1], properties=['objectSid'])
 			if user and len(user) > 0:
 				self.current_user_sid = user[0]['attributes']['objectSid']
 
@@ -585,42 +590,47 @@ class PowerView:
 		#self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
 		#return self.ldap_session.entries
 
-	def get_domainobjectacl(self, searchbase=None, args=None, search_scope=ldap3.SUBTREE):
-		if not searchbase:
-			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+	def get_domainobjectacl(self, identity=None, security_identifier=None, resolveguids=False, targetidentity=None, principalidentity=None, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE):
+		# Use args to set defaults if not provided directly
+		if args:
+			identity = identity or getattr(args, 'identity', None)
+			security_identifier = security_identifier or getattr(args, 'security_identifier', None)
+			searchbase = searchbase or getattr(args, 'searchbase', self.root_dn)
 
-		#enumerate available guids
+		# Use the provided searchbase or default to the root DN
+		if not searchbase:
+			searchbase = self.root_dn
+
+		# Enumerate available GUIDs
 		guids_dict = {}
-		self.ldap_session.search(f"CN=Extended-Rights,CN=Configuration,{self.root_dn}", "(rightsGuid=*)",attributes=['displayName','rightsGuid'], search_scope=search_scope)
+		self.ldap_session.search(f"CN=Extended-Rights,CN=Configuration,{self.root_dn}", "(rightsGuid=*)", attributes=['displayName', 'rightsGuid'], search_scope=search_scope)
 		for entry in self.ldap_session.entries:
 			guids_dict[entry['rightsGuid'].value] = entry['displayName'].value
-		setattr(args,"guids_map_dict",guids_dict)
 
 		principal_SID = None
-		if args.security_identifier:
-			principalsid_entry = self.get_domainobject(identity=args.security_identifier, properties=['objectSid'])
+		if security_identifier:
+			principalsid_entry = self.get_domainobject(identity=security_identifier, properties=['objectSid'])
 			if not principalsid_entry:
 				logging.debug('[Get-DomainObjectAcl] Principal not found. Searching in Well Known SIDs...')
-				principal_SID = resolve_WellKnownSID(args.security_identifier)
+				principal_SID = resolve_WellKnownSID(security_identifier)
 
 				if principal_SID:
 					principal_SID = principal_SID.get("objectSid")
 					logging.debug("[Get-DomainObjectAcl] Found in well known SID: %s" % principal_SID)
 				else:
-					logging.error(f'[Get-DomainObjectAcl] Principal {args.security_identifier} not found. Try to use DN')
+					logging.error(f'[Get-DomainObjectAcl] Principal {security_identifier} not found. Try to use DN')
 					return
 
 			elif len(principalsid_entry) > 1:
 				logging.error(f'[Get-DomainObjectAcl] Multiple identities found. Use exact match')
 				return
 
-			args.security_identifier = principalsid_entry[0]['attributes']['objectSid'] if not principal_SID else principal_SID
+			security_identifier = principalsid_entry[0]['attributes']['objectSid'] if not principal_SID else principal_SID
 
-		identity = args.identity
 		if identity != "*":
-			identity_entries = self.get_domainobject(identity=identity,properties=['objectSid','distinguishedName'], searchbase=searchbase)
+			identity_entries = self.get_domainobject(identity=identity, properties=['objectSid', 'distinguishedName'], searchbase=searchbase)
 			if len(identity_entries) == 0:
-				logging.error(f'[Get-DomainObjectAcl] Identity {args.identity} not found. Try to use DN')
+				logging.error(f'[Get-DomainObjectAcl] Identity {identity} not found. Try to use DN')
 				return
 			elif len(identity_entries) > 1:
 				logging.error(f'[Get-DomainObjectAcl] Multiple identities found. Use exact match')
@@ -631,14 +641,20 @@ class PowerView:
 			logging.info('[Get-DomainObjectAcl] Recursing all domain objects. This might take a while')
 
 		logging.debug(f"[Get-DomainObjectAcl] Searching for identity %s" % (identity))
-		self.ldap_session.search(searchbase, f'(distinguishedName={identity})', attributes=['nTSecurityDescriptor','sAMAccountName','distinguishedName','objectSid'], controls=security_descriptor_control(sdflags=0x04))
-		entries = self.ldap_session.entries
+		
+		entries = []
+		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, f'(distinguishedName={identity})', attributes=['nTSecurityDescriptor', 'sAMAccountName', 'distinguishedName', 'objectSid'], controls=security_descriptor_control(sdflags=0x04), paged_size=1000, generator=True, search_scope=search_scope)
+		for _entries in entry_generator:
+			if _entries['type'] != 'searchResEntry':
+				continue
+			strip_entry(_entries)
+			entries.append(_entries)
 
 		if not entries:
 			logging.error(f'[Get-DomainObjectAcl] Identity not found in domain')
 			return
 
-		enum = ACLEnum(entries, self.ldap_session, self.root_dn, args)
+		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=security_identifier, guids_map_dict=guids_dict)
 		entries_dacl = enum.read_dacl()
 		return entries_dacl
 
@@ -1057,7 +1073,7 @@ class PowerView:
 				for member_dn in group_members:
 					member_root_dn = dn2rootdn(member_dn)
 					member_domain = dn2domain(member_dn)
-					ldap_filter = f"(&(objectCategory=person)(objectClass=user)(|(distinguishedName={member_dn})))"
+					ldap_filter = f"(&(objectCategory=*)(|(distinguishedName={member_dn})))"
 
 					if len(member_domain) != 0 and member_domain.casefold() != self.domain.casefold():
 						_, ldap_session = self.conn.init_ldap_session(ldap_address=member_domain)
@@ -1101,7 +1117,7 @@ class PowerView:
 						attr['attributes'] = member_infos
 						new_entries.append(attr.copy())
 			else:
-				ldap_filter = f"(&(samAccountType=805306368)(memberof:1.2.840.113556.1.4.1941:={group_identity_dn}))"
+				ldap_filter = f"(&(objectCategory=*)(memberof:1.2.840.113556.1.4.1941:={group_identity_dn}))"
 				self.ldap_session.search(self.root_dn, ldap_filter, attributes='*')
 
 				for entry in self.ldap_session.entries:
@@ -1263,6 +1279,22 @@ class PowerView:
 			entries.append(_entries)
 		return entries
 
+	def convertto_uacvalue(self, value, args=None, output=False):
+		if value.isdigit() or not isinstance(value, str):
+			raise ValueError("Value is not a string")
+
+		logging.debug(f"[ConvertTo-UACValue] Converting UAC name to value: {value}")
+		value = LDAP.parse_uac_name_to_value(value)
+		entries = [
+			{
+				"attributes": {
+					"Name": value.split(','),
+					"UACValue": value
+				}
+			}
+		]
+		return entries
+
 	def convertfrom_uacvalue(self, value, args=None, output=False):
 		values = UAC.parse_value_tolist(value)
 		entries = []
@@ -1282,7 +1314,7 @@ class PowerView:
 		identity = WELL_KNOWN_SIDS.get(objectsid)
 		known_sid = KNOWN_SIDS.get(objectsid)
 		if identity:
-			identity = f"{self.flatName}\\{identity}"
+			identity = identity
 		elif known_sid:
 			identity = known_sid
 		else:
@@ -1521,8 +1553,7 @@ class PowerView:
 			"displayName",
 		]
 		properties = def_prop if not properties else properties
-		if check_web_enrollment is not None:
-			check_web_enrollment = args.check_web_enrollment
+		check_web_enrollment = args.check_web_enrollment if hasattr(args, 'check_web_enrollment') else check_web_enrollment
 
 		ca_fetch = CAEnum(self.ldap_session, self.root_dn)
 		entries = ca_fetch.fetch_enrollment_services(properties, search_scope=search_scope)
@@ -2166,7 +2197,7 @@ displayName=New Group Policy Object
 
 		return succeed
 
-	def get_domaincatemplate(self, args=None, properties=[], identity=None, searchbase=None):
+	def get_domaincatemplate(self, args=None, properties=[], identity=None, vulnerable=False, searchbase=None, resolve_sids=False):
 		def list_sids(sids: List[str]):
 			sids_mapping = list(
 				map(
@@ -2200,9 +2231,9 @@ displayName=New Group Policy Object
 		identity = '*' if not identity else identity
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
-		resolve_sids = args.resolve_sids if hasattr(args, 'resolve_sids') and args.resolve_sids else None
+		resolve_sids = args.resolve_sids if hasattr(args, 'resolve_sids') and args.resolve_sids else resolve_sids
 		args_enabled = args.enabled if hasattr(args, 'enabled') and args.enabled else False
-		args_vulnerable = args.vulnerable if hasattr(args, 'vulnerable') and args.vulnerable else False
+		args_vulnerable = args.vulnerable if hasattr(args, 'vulnerable') and args.vulnerable else vulnerable
 
 		entries = []
 		template_guids = []
@@ -2220,7 +2251,7 @@ displayName=New Group Policy Object
 		list_ca_templates = []
 		list_entries = []
 		for ca in cas:
-			list_ca_templates += ca.certificateTemplates
+			list_ca_templates += ca.get('attributes').get('certificateTemplates')
 			for template in templates:
 				#template = template.entry_writable()
 				vulnerable = False
@@ -2299,7 +2330,7 @@ displayName=New Group Policy Object
 				e = modify_entry(template,
 								 new_attributes={
 									'Owner': template_owner,
-									'Certificate Authorities': ca.name,
+									'Certificate Authorities': ca.get('attributes').get('name'),
 									'msPKI-Certificate-Name-Flag': certificate_name_flag,
 									'msPKI-Enrollment-Flag': enrollment_flag,
 									'pKIExtendedKeyUsage': extended_key_usage,
@@ -2566,11 +2597,9 @@ displayName=New Group Policy Object
 		group_entry = self.get_domaingroup(identity=identity,properties=['distinguishedName'])
 		user_entry = self.get_domainobject(identity=members,properties=['distinguishedName'])
 		if len(group_entry) == 0:
-			logging.error(f'[Add-DomainGroupMember] Group {identity} not found in domain')
-			return
+			raise ValueError(f'[Add-DomainGroupMember] Group {identity} not found in domain')
 		if len(user_entry) == 0:
-			logging.error(f'[Add-DomainGroupMember] User {members} not found in domain. Try to use DN')
-			return
+			raise ValueError(f'[Add-DomainGroupMember] User {members} not found in domain. Try to use DN')
 		targetobject = group_entry[0]
 		userobject = user_entry[0]
 		if isinstance(targetobject["attributes"]["distinguishedName"], list):
@@ -2590,7 +2619,7 @@ displayName=New Group Policy Object
 			succeeded = False
 		
 		if not succeeded:
-			logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainGroupMember] Failed to add {members} to group {identity}")
+			raise ValueError(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainGroupMember] Failed to add {members} to group {identity}")
 		return succeeded
 
 	def disable_domaindnsrecord(self, recordname, zonename=None):
@@ -2673,20 +2702,59 @@ displayName=New Group Policy Object
 			return
 		identity_dn = entries[0]["attributes"]["distinguishedName"]
 		au = ADUser(self.ldap_session, self.root_dn)
-		au.removeUser(identity_dn)
+		return au.removeUser(identity_dn)
 
-	def add_domainuser(self, username, userpass, args=None):
+	def add_domaingroup(self, groupname, basedn=None, args=None):
 		parent_dn_entries = f"CN=Users,{self.root_dn}"
+		if basedn:
+			parent_dn_entries = basedn
 		if hasattr(args, 'basedn') and args.basedn:
-			entries = self.get_domainobject(identity=args.basedn)
-			if len(entries) <= 0:
-				logging.error(f"[Add-DomainUser] {args.basedn} could not be found in the domain")
-				return
-			parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
+			parent_dn_entries = args.basedn
 
-		if len(parent_dn_entries) == 0:
-			logging.error('[Add-DomainUser] Users parent DN not found in domain')
+		entries = self.get_domainobject(identity=parent_dn_entries)
+		if len(entries) <= 0:
+			logging.error(f"[Add-DomainGroup] {parent_dn_entries} could not be found in the domain")
 			return
+		elif len(entries) > 1:
+			logging.error("[Add-DomainGroup] More than one group found in domain")
+			return
+
+		parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
+		logging.debug(f"[Add-DomainGroup] Adding group in {parent_dn_entries}")
+
+		group_dn = f"CN={groupname},{parent_dn_entries}"
+		ucd = {
+			'displayName': groupname,
+			'sAMAccountName': groupname,
+			'objectCategory': 'CN=Group,CN=Schema,CN=Configuration,%s' % self.root_dn,
+			'objectClass': ['top', 'group'],
+		}
+
+		succeed = self.ldap_session.add(group_dn, ['top', 'group'], ucd)
+		if not succeed:
+			logging.error(f"[Add-DomainGroup] Failed adding {groupname} to domain ({self.ldap_session.result['description']})")
+			return False
+		else:
+			logging.info('[Add-DomainGroup] Success! Created new group')
+			return True
+
+	def add_domainuser(self, username, userpass, basedn=None, args=None):
+		parent_dn_entries = f"CN=Users,{self.root_dn}"
+		if basedn:
+			parent_dn_entries = basedn
+		if hasattr(args, 'basedn') and args.basedn:
+			parent_dn_entries = args.basedn
+
+		entries = self.get_domainobject(identity=parent_dn_entries)
+		if len(entries) <= 0:
+			logging.error(f"[Add-DomainUser] {parent_dn_entries} could not be found in the domain")
+			return
+		elif len(entries) > 1:
+			logging.error("[Add-DomainUser] More than one group found in domain")
+			return
+
+		parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
+
 		logging.debug(f"[Add-DomainUser] Adding user in {parent_dn_entries}")
 		
 		if self.use_ldaps:
@@ -2714,7 +2782,7 @@ displayName=New Group Policy Object
 			logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainUser] Failed adding {username} to domain ({self.ldap_session.result['description']})")
 			return False
 		else:
-			logging.info('[Add-DomainUser] Success! Created new user with')
+			logging.info('[Add-DomainUser] Success! Created new user')
 
 			if not self.use_ldaps:
 				logging.info("[Add-DomainUser] Adding password to account")
@@ -2857,7 +2925,7 @@ displayName=New Group Policy Object
 			)
 		dacledit.write()
 
-	def remove_domaincomputer(self,computer_name, args=None):
+	def remove_domaincomputer(self, computer_name, args=None):
 		parent_dn_entries = self.root_dn
 		if hasattr(args, 'basedn') and args.basedn:
 			entries = self.get_domainobject(identity=args.basedn)
@@ -2870,9 +2938,6 @@ displayName=New Group Policy Object
 
 			parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
 		
-		if computer_name[-1] != '$':
-			computer_name += '$'
-
 		setattr(self.args, "TGT", self.conn.get_TGT())
 		setattr(self.args, "TGS", self.conn.get_TGS())
 		setattr(self.args, "dc_host", self.dc_dnshostname)
@@ -2993,8 +3058,10 @@ displayName=New Group Policy Object
 			logging.info('[Add-DomainDNSRecord] Success! Created new record with dn %s' % record_dn)
 			return True
 
-	def add_domaincomputer(self, computer_name, computer_pass, args=None):
-		parent_dn_entries = self.root_dn
+	def add_domaincomputer(self, computer_name, computer_pass, basedn=None, args=None):
+		parent_dn_entries = f"CN=Computers,{self.root_dn}"
+		if basedn:
+			parent_dn_entries = basedn
 		if hasattr(args, 'basedn') and args.basedn:
 			entries = self.get_domainobject(identity=args.basedn)
 			if len(entries) <= 0:
@@ -3315,10 +3382,8 @@ displayName=New Group Policy Object
 					attrs = attr_append
 				else:
 					attrs = ini_to_dict(attr_append)
-
 			if not attrs:
-				logging.error(f"[Set-DomainObject] Parsing {'-Set' if args.set else '-Append'} value failed")
-				return
+				raise ValueError(f"[Set-DomainObject] Parsing {'-Set' if args.set else '-Append'} value failed")
 
 			# check if value is a file
 			if len(attrs['value']) == 1 and isinstance(attrs['value'][0], str) and not isinstance(attrs['value'][0], bytes) and attrs['value'][0].startswith("@"):
@@ -3339,20 +3404,16 @@ displayName=New Group Policy Object
 								for ori_val in values:
 									if isinstance(ori_val, str) and isinstance(val, str):
 										if val.casefold() == ori_val.casefold():
-											logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-											return
+											raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
 									else:
 										if val == values:
-											logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-											return
+											raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
 							elif isinstance(values, str):
 								if val.casefold() == values.casefold():
-									logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-									return
+									raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
 							else:
 								if val == values:
-									logging.error(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-									return
+									raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
 						except KeyError as e:
 							logging.warning(f"[Set-DomainObject] Attribute {attrs['attribute']} not exists in object. Modifying anyway...")
 			except ldap3.core.exceptions.LDAPKeyError as e:
@@ -3399,11 +3460,9 @@ displayName=New Group Policy Object
 					]
 				}, controls=security_descriptor_control(sdflags=sd_flag) if sd_flag else None)
 		except ldap3.core.exceptions.LDAPInsufficientAccessRightsResult as e:
-			logging.error(f"[Set-DomainObject] Insufficient access rights to modify {attr_key}: {str(e)}")
-			return False
+			raise ValueError(f"[Set-DomainObject] Insufficient access rights to modify {attr_key}: {str(e)}")
 		except ldap3.core.exceptions.LDAPInvalidValueError as e:
-			logging.error(f"[Set-DomainObject] Invalid value for {attr_key}: {str(e)}")
-			return False
+			raise ValueError(f"[Set-DomainObject] Invalid value for {attr_key}: {str(e)}")
 
 		if not succeeded:
 			logging.error(f"[Set-DomainObject] Failed to modify attribute {attr_key} for {targetobject[0]['attributes']['distinguishedName']}")

@@ -1,0 +1,74 @@
+{% extends "base/layouts.html" %}
+
+{% block content %}
+<div class="flex h-screen bg-neutral-100 dark:bg-neutral-900">
+    <!-- Left Panel -->
+    <div class="w-1/3 flex flex-col border-r border-neutral-200 dark:border-neutral-700">
+        {% include "views/initspinner.html" %}
+        <!-- Zone Names Section -->
+        <div class="h-1/2 flex flex-col bg-white dark:bg-neutral-800">
+            <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-globe text-neutral-500 dark:text-neutral-400"></i>
+                    <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Zone Names</h2>
+                </div>
+            </div>
+            <div class="zone-name-container flex-1 overflow-y-auto p-4 scrollbar">
+                <!-- Zone names will be dynamically populated -->
+            </div>
+        </div>
+
+        <!-- Record Names Section -->
+        <div class="h-1/2 flex flex-col bg-white dark:bg-neutral-800 border-t border-neutral-200 dark:border-neutral-700">
+            <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-list text-neutral-500 dark:text-neutral-400"></i>
+                    <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Record Names</h2>
+                </div>
+            </div>
+            <div class="record-name-section flex-1 overflow-y-auto p-4 scrollbar">
+                <!-- Record names table will be dynamically populated -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel: DNS Record Details -->
+    <div class="flex-1 flex flex-col bg-white dark:bg-neutral-800">
+        <!-- Header with Actions -->
+        <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-circle-info text-neutral-500 dark:text-neutral-400"></i>
+                    <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">DNS Record Details</h2>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button data-modal-target="delete-record-modal" 
+                            data-modal-toggle="delete-dns-record-modal" 
+                            class="hidden rounded-lg px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:bg-red-500 dark:hover:bg-red-600 dark:focus:ring-red-500">
+                        <i class="fa-solid fa-trash-can mr-1"></i>
+                        Delete Record
+                    </button>
+                    <button data-modal-target="add-record-modal" 
+                            data-modal-toggle="add-dns-record-modal" 
+                            class="rounded-lg px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:focus:ring-yellow-500">
+                        <i class="fa-solid fa-plus mr-1"></i>
+                        Add Record
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Details Content -->
+        <div class="flex-1 overflow-y-auto relative scrollbar">
+            {% include 'views/spinner.html' %}
+            <div class="dns-record-details-container p-4">
+                <!-- DNS record details will be dynamically populated -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dns.js') }}"></script>
+{% endblock %}

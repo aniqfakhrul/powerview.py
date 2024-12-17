@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, render_template, Response
 import logging
 from contextlib import redirect_stdout, redirect_stderr
 import io
@@ -11,6 +11,7 @@ import shlex
 from argparse import Namespace
 from powerview.web.api.helpers import make_serializable
 from powerview.utils.parsers import powerview_arg_parse
+from powerview.utils.constants import UAC_DICT
 
 class APIServer:
 	def __init__(self, powerview, host="127.0.0.1", port=5000):
@@ -32,39 +33,51 @@ class APIServer:
 		self.app.add_url_rule('/', 'index', self.render_index, methods=['GET'])
 		self.app.add_url_rule('/users', 'users', self.render_users, methods=['GET'])
 		self.app.add_url_rule('/computers', 'computers', self.render_computers, methods=['GET'])
+		self.app.add_url_rule('/dns', 'dns', self.render_dns, methods=['GET'])
+		self.app.add_url_rule('/groups', 'groups', self.render_groups, methods=['GET'])
+		self.app.add_url_rule('/ca', 'ca', self.render_ca, methods=['GET'])
+		self.app.add_url_rule('/ou', 'ou', self.render_ou, methods=['GET'])
 		self.app.add_url_rule('/utils', 'utils', self.render_utils, methods=['GET'])
 		self.app.add_url_rule('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		self.app.add_url_rule('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
 		self.app.add_url_rule('/api/add/<method_name>', 'add_operation', self.handle_add_operation, methods=['POST'])
 		self.app.add_url_rule('/api/invoke/<method_name>', 'invoke_operation', self.handle_invoke_operation, methods=['POST'])
 		self.app.add_url_rule('/api/remove/<method_name>', 'remove_operation', self.handle_remove_operation, methods=['POST'])
-		self.app.add_url_rule('/api/convert/<method_name>', 'convert_operation', self.handle_convert_operation, methods=['POST'])
+		self.app.add_url_rule('/api/convertfrom/<method_name>', 'convert_from_operation', self.handle_convert_from_operation, methods=['POST'])
+		self.app.add_url_rule('/api/convertto/<method_name>', 'convert_to_operation', self.handle_convert_to_operation, methods=['POST'])
 		self.app.add_url_rule('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, methods=['GET'])
 		self.app.add_url_rule('/health', 'health', self.handle_health, methods=['GET'])
-		self.app.add_url_rule('/api/status', 'status', self.handle_status, methods=['GET'])
-		self.app.add_url_rule('/api/logs', 'logs', self.render_logs, methods=['GET'])
+		self.app.add_url_rule('/api/connectioninfo', 'connectioninfo', self.handle_connection_info, methods=['GET'])
+		self.app.add_url_rule('/api/logs', 'logs', self.generate_log_stream, methods=['GET'])
 		self.app.add_url_rule('/api/history', 'history', self.render_history, methods=['GET'])
 		self.app.add_url_rule('/api/ldap_rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
 		self.app.add_url_rule('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
+		self.app.add_url_rule('/api/constants', 'constants', self.handle_constants, methods=['GET'])
 
 		self.nav_items = [
-			{"name": "Tree View", "icon": "fas fa-folder-tree", "link": "/"},
+			{"name": "Explorer", "icon": "fas fa-folder-tree", "link": "/"},
 			{"name": "Modules", "icon": "fas fa-cubes", "subitems": [
 				{"name": "Users", "icon": "far fa-user", "link": "/users"},
 				{"name": "Computers", "icon": "fas fa-display", "link": "/computers"},
+				{"name": "DNS", "icon": "fas fa-globe", "link": "/dns"},
+				{"name": "Groups", "icon": "fas fa-users", "link": "/groups"},
+				{"name": "CA", "icon": "fas fa-certificate", "link": "/ca"},
+				{"name": "OUs", "icon": "fas fa-building", "link": "/ou"},
 			]},
 			{"name": "Utils", "icon": "fas fa-toolbox", "link": "/utils"},
 			{"name": "Logs", "icon": "far fa-file-alt", "button_id": "toggle-command-history"},
 		]
 
 	def render_index(self):
-		context = {	
+		context = {
+			'title': 'Powerview.py',
 			'nav_items': self.nav_items
 		}
-		return render_template('index.html', **context)
+		return render_template('explorerpage.html', **context)
 
 	def render_users(self):
 		context = {
+			'title': 'Powerview.py - Users',
 			'nav_items': self.nav_items,
 			'ldap_properties': [
 				{'id': 'all-toggle', 'name': 'All', 'active': 'false', 'attribute': '*'},
@@ -83,33 +96,90 @@ class APIServer:
 				{'id': 'title-toggle', 'name': 'title', 'active': 'false', 'attribute': 'title'},
 				{'id': 'department-toggle', 'name': 'department', 'active': 'false', 'attribute': 'department'},
 				{'id': 'company-toggle', 'name': 'company', 'active': 'false', 'attribute': 'company'},
-				{'id': 'physicaldeliveryofficename-toggle', 'name': 'physicalDeliveryOfficeName', 'active': 'false', 'attribute': 'physicalDeliveryOfficeName'},
 				{'id': 'serviceprincipalname-toggle', 'name': 'servicePrincipalName', 'active': 'false', 'attribute': 'servicePrincipalName'},
 				{'id': 'memberof-toggle', 'name': 'memberOf', 'active': 'false', 'attribute': 'memberOf'},
 				{'id': 'accountexpires-toggle', 'name': 'accountExpires', 'active': 'false', 'attribute': 'accountExpires'}
+			],
+			'powerview_flags': [
+				{'id': 'spn-toggle', 'name': 'SPN', 'active': 'false', 'attribute': 'servicePrincipalName'},
+				{'id': 'trusted-to-auth-toggle', 'name': 'TrustedToAuth', 'active': 'false', 'attribute': 'trustedToAuth'},
+				{'id': 'enabled-users-toggle', 'name': 'Enabled', 'active': 'false', 'attribute': 'enabled'},
+				{'id': 'preauth-not-required-toggle', 'name': 'PreauthNotReq', 'active': 'false', 'attribute': 'preauthNotRequired'},
+				{'id': 'pass-not-required-toggle', 'name': 'PasswdNotReq', 'active': 'false', 'attribute': 'passwordNotRequired'},
+				{'id': 'admin-count-toggle', 'name': 'AdminCount', 'active': 'false', 'attribute': 'adminCount'},
+				{'id': 'lockout-toggle', 'name': 'Lockout', 'active': 'false', 'attribute': 'lockout'},
+				{'id': 'rbcd-toggle', 'name': 'RBCD', 'active': 'false', 'attribute': 'rbcd'},
+				{'id': 'shadow-cred-toggle', 'name': 'Shadow Cred', 'active': 'false', 'attribute': 'shadowCred'},
+				{'id': 'unconstrained-delegation-toggle', 'name': 'Unconstrained', 'active': 'false', 'attribute': 'unconstrainedDelegation'},
+				{'id': 'disabled-users-toggle', 'name': 'Disabled', 'active': 'false', 'attribute': 'disabled'},
+				{'id': 'password-expired-toggle', 'name': 'Password Expired', 'active': 'false', 'attribute': 'passwordExpired'}
 			]
 		}
 		return render_template('userspage.html', **context)
 
 	def render_computers(self):
 		context = {
+			'title': 'Powerview.py - Computers',
 			'nav_items': self.nav_items,
 			'ldap_properties': [
 				{'id': 'all-toggle', 'name': 'All', 'active': 'false', 'attribute': '*'},
 				{'id': 'samaccountname-toggle', 'name': 'sAMAccountname', 'active': 'true', 'attribute': 'sAMAccountName'},
 				{'id': 'cn-toggle', 'name': 'cn', 'active': 'true', 'attribute': 'cn'},
 				{'id': 'operatingsystem-toggle', 'name': 'operatingSystem', 'active': 'true', 'attribute': 'operatingSystem'},
-				{'id': 'operatingsystemversion-toggle', 'name': 'operatingSystemVersion', 'active': 'true', 'attribute': 'operatingSystemVersion'},
 				{'id': 'description-toggle', 'name': 'description', 'active': 'false', 'attribute': 'description'},
 				{'id': 'useraccountcontrol-toggle', 'name': 'userAccountControl', 'active': 'false', 'attribute': 'userAccountControl'},
 				{'id': 'serviceprincipalname-toggle', 'name': 'servicePrincipalName', 'active': 'false', 'attribute': 'servicePrincipalName'},
 				{'id': 'memberof-toggle', 'name': 'memberOf', 'active': 'false', 'attribute': 'memberOf'}
+			],
+			'powerview_flags': [
+				{'id': 'spn-toggle', 'name': 'SPN', 'active': 'false', 'attribute': 'servicePrincipalName'},
+				{'id': 'trusted-to-auth-toggle', 'name': 'Trusted To Auth', 'active': 'false', 'attribute': 'trustedToAuth'},
+				{'id': 'enabled-computers-toggle', 'name': 'Enabled', 'active': 'false', 'attribute': 'enabled'},
+				{'id': 'rbcd-toggle', 'name': 'RBCD', 'active': 'false', 'attribute': 'rbcd'},
+				{'id': 'shadow-cred-toggle', 'name': 'Shadow Cred', 'active': 'false', 'attribute': 'shadowCred'},
+				{'id': 'unconstrained-delegation-toggle', 'name': 'Unconstrained', 'active': 'false', 'attribute': 'unconstrainedDelegation'},
+				{'id': 'disabled-computers-toggle', 'name': 'Disabled', 'active': 'false', 'attribute': 'disabled'},
+				{'id': 'laps-toggle', 'name': 'LAPS', 'active': 'false', 'attribute': 'laps'},
+				{'id': 'printers-toggle', 'name': 'Printers', 'active': 'false', 'attribute': 'printers'},
+				{'id': 'bitlocker-toggle', 'name': 'Bitlocker', 'active': 'false', 'attribute': 'bitlocker'},
+				{'id': 'gmsapassword-toggle', 'name': 'GMSA Password', 'active': 'false', 'attribute': 'gmsaPassword'},
+				{'id': 'pre2k-toggle', 'name': 'Pre-2k', 'active': 'false', 'attribute': 'pre2k'},
+				{'id': 'excludedcs-toggle', 'name': 'Exclude DC', 'active': 'false', 'attribute': 'excludeDC'}
 			]
 		}
 		return render_template('computerpage.html', **context)
 
+	def render_dns(self):
+		context = {
+			'title': 'Powerview.py - DNS',
+			'nav_items': self.nav_items
+		}
+		return render_template('dnspage.html', **context)
+
+	def render_groups(self):
+		context = {
+			'title': 'Powerview.py - Groups',
+			'nav_items': self.nav_items
+		}
+		return render_template('grouppage.html', **context)
+
+	def render_ca(self):
+		context = {
+			'title': 'Powerview.py - CA',
+			'nav_items': self.nav_items
+		}
+		return render_template('capage.html', **context)
+
+	def render_ou(self):
+		context = {
+			'title': 'Powerview.py - OUs',
+			'nav_items': self.nav_items
+		}
+		return render_template('oupage.html', **context)
+
 	def render_utils(self):
 		context = {
+			'title': 'Powerview.py - Utils',
 			'nav_items': self.nav_items
 		}
 		return render_template('utilspage.html', **context)
@@ -129,8 +199,17 @@ class APIServer:
 	def handle_remove_operation(self, method_name):
 		return self.handle_operation(f"remove_{method_name}")
 
-	def handle_convert_operation(self, method_name):
+	def handle_convert_from_operation(self, method_name):
 		return self.handle_operation(f"convertfrom_{method_name}")
+
+	def handle_convert_to_operation(self, method_name):
+		return self.handle_operation(f"convertto_{method_name}")
+
+	def handle_constants(self):
+		get_param = request.args.get('get', '')
+		if get_param.lower() == 'uac':
+			return jsonify(UAC_DICT)
+		return jsonify({})
 
 	def handle_domaininfo(self):
 		domain_info = {
@@ -138,9 +217,19 @@ class APIServer:
 			'root_dn': self.powerview.root_dn,
 			'dc_dnshostname': self.powerview.dc_dnshostname,
 			'flatName': self.powerview.flatName,
-			'is_admin': self.powerview.is_admin,
 		}
 		return jsonify(domain_info)
+	
+	def handle_connection_info(self):
+		return jsonify({
+			'domain': self.powerview.domain,
+			'username': self.powerview.conn.get_username(),
+			'sid': self.powerview.current_user_sid,
+			'is_admin': self.powerview.is_admin,
+			'status': 'OK' if self.powerview.is_connection_alive() else 'KO',
+			'protocol': self.powerview.conn.get_proto(),
+			'ldap_address': self.powerview.conn.get_ldap_address(),
+		})
 
 	def execute_command(self):
 		properties = [
@@ -186,9 +275,6 @@ class APIServer:
 	def handle_health(self):
 		return jsonify({'status': 'ok'})
 
-	def handle_status(self):
-		return jsonify({'status': 'OK' if self.powerview.is_connection_alive() else 'KO'})
-
 	def handle_ldap_rebind(self):
 		return jsonify({'status': 'OK' if self.powerview.conn.reset_connection() else 'KO'})
 
@@ -202,7 +288,7 @@ class APIServer:
 		except Exception as e:
 			return jsonify({'error': str(e)}), 500
 
-	def render_logs(self):
+	def generate_log_stream(self):
 		try:
 			page = int(request.args.get('page', 1))
 			limit = int(request.args.get('limit', 10))
