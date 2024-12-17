@@ -81,6 +81,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 const container = document.querySelector('.ca-servers-container');
                 container.innerHTML = '';
                 
+                if (!data || data.length === 0) {
+                    container.innerHTML = `
+                        <div class="flex items-center justify-center h-full text-neutral-500">
+                            <div class="text-center">
+                                <i class="fa-solid fa-certificate mb-2 text-2xl"></i>
+                                <p>No CA servers found</p>
+                            </div>
+                        </div>`;
+                    return;
+                }
+                
                 data.forEach(ca => {
                     const caElement = document.createElement('div');
                     caElement.className = 'p-3 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg cursor-pointer mb-2';
@@ -105,7 +116,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     container.appendChild(caElement);
                 });
             })
-            .catch(error => console.error('Error fetching CA servers:', error));
+            .catch(error => {
+                console.error('Error fetching CA servers:', error);
+                const container = document.querySelector('.ca-servers-container');
+                container.innerHTML = `
+                    <div class="flex items-center justify-center h-full text-neutral-500">
+                        <div class="text-center">
+                            <i class="fa-solid fa-circle-exclamation mb-2 text-2xl"></i>
+                            <p>Failed to fetch CA servers</p>
+                        </div>
+                    </div>`;
+            });
     }
 
     function fetchCertificateTemplates(caName) {

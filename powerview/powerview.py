@@ -2597,11 +2597,9 @@ displayName=New Group Policy Object
 		group_entry = self.get_domaingroup(identity=identity,properties=['distinguishedName'])
 		user_entry = self.get_domainobject(identity=members,properties=['distinguishedName'])
 		if len(group_entry) == 0:
-			logging.error(f'[Add-DomainGroupMember] Group {identity} not found in domain')
-			return
+			raise ValueError(f'[Add-DomainGroupMember] Group {identity} not found in domain')
 		if len(user_entry) == 0:
-			logging.error(f'[Add-DomainGroupMember] User {members} not found in domain. Try to use DN')
-			return
+			raise ValueError(f'[Add-DomainGroupMember] User {members} not found in domain. Try to use DN')
 		targetobject = group_entry[0]
 		userobject = user_entry[0]
 		if isinstance(targetobject["attributes"]["distinguishedName"], list):
@@ -2621,7 +2619,7 @@ displayName=New Group Policy Object
 			succeeded = False
 		
 		if not succeeded:
-			logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainGroupMember] Failed to add {members} to group {identity}")
+			raise ValueError(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainGroupMember] Failed to add {members} to group {identity}")
 		return succeeded
 
 	def disable_domaindnsrecord(self, recordname, zonename=None):
@@ -2715,7 +2713,7 @@ displayName=New Group Policy Object
 
 		entries = self.get_domainobject(identity=parent_dn_entries)
 		if len(entries) <= 0:
-			logging.error(f"[Add-DomainGroup] {args.basedn} could not be found in the domain")
+			logging.error(f"[Add-DomainGroup] {parent_dn_entries} could not be found in the domain")
 			return
 		elif len(entries) > 1:
 			logging.error("[Add-DomainGroup] More than one group found in domain")
@@ -2734,10 +2732,10 @@ displayName=New Group Policy Object
 
 		succeed = self.ldap_session.add(group_dn, ['top', 'group'], ucd)
 		if not succeed:
-			logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainGroup] Failed adding {groupname} to domain ({self.ldap_session.result['description']})")
+			logging.error(f"[Add-DomainGroup] Failed adding {groupname} to domain ({self.ldap_session.result['description']})")
 			return False
 		else:
-			logging.info('[Add-DomainGroup] Success! Created new group with')
+			logging.info('[Add-DomainGroup] Success! Created new group')
 			return True
 
 	def add_domainuser(self, username, userpass, basedn=None, args=None):
@@ -2749,7 +2747,7 @@ displayName=New Group Policy Object
 
 		entries = self.get_domainobject(identity=parent_dn_entries)
 		if len(entries) <= 0:
-			logging.error(f"[Add-DomainUser] {args.basedn} could not be found in the domain")
+			logging.error(f"[Add-DomainUser] {parent_dn_entries} could not be found in the domain")
 			return
 		elif len(entries) > 1:
 			logging.error("[Add-DomainUser] More than one group found in domain")
@@ -2784,7 +2782,7 @@ displayName=New Group Policy Object
 			logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainUser] Failed adding {username} to domain ({self.ldap_session.result['description']})")
 			return False
 		else:
-			logging.info('[Add-DomainUser] Success! Created new user with')
+			logging.info('[Add-DomainUser] Success! Created new user')
 
 			if not self.use_ldaps:
 				logging.info("[Add-DomainUser] Adding password to account")

@@ -647,11 +647,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             await handleHttpError(response);
 
-            const result = await response.json();
-            if (result.success) {
+            const success = await response.json();
+            if (success) {
                 showSuccessAlert(`Added group ${groupname} to ${basedn}`);
             } else {
-                showErrorAlert(result.message);
+                showErrorAlert(success.message);
             }
             
             // Refresh the current subtree to show the new group
