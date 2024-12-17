@@ -1910,10 +1910,10 @@ SUPPORTED_sAMAccountType = dict([
 ])
 
 switcher_trustDirection = {
-	0: "Disabled",
-	1: "Inbound",
-	2: "Outbound",
-	3: "Bidirectional",
+	0: "DISABLED",
+	1: "INBOUND",
+	2: "OUTBOUND",
+	3: "BIDIRECTIONAL",
 }
 switcher_trustType = {
 	1: "WINDOWS_NON_ACTIVE_DIRECTORY",

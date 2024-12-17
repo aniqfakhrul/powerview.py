@@ -181,15 +181,26 @@ class TRUST:
 	@staticmethod
 	def resolve_trustDirection(flag):
 		flag = int(flag)
-		return switcher_trustDirection.get(flag)
+		types = []
+		for bit, name in switcher_trustDirection.items():
+			if flag & bit:
+				types.append(name)
+		return types
 
 	@staticmethod
 	def resolve_trustType(flag):
 		flag = int(flag)
-		return switcher_trustType.get(flag)
+		types = []
+		for bit, name in switcher_trustType.items():
+			if flag & bit:
+				types.append(name)
+		return types
 
 	@staticmethod
 	def resolve_trustAttributes(flag):
 		flag = int(flag)
-		return switcher_trustAttributes.get(flag)
-
+		attributes = []
+		for bit, name in switcher_trustAttributes.items():
+			if flag & bit:
+				attributes.append(name)
+		return attributes
