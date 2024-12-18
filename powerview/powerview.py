@@ -1201,7 +1201,6 @@ class PowerView:
 				continue
 			strip_entry(_entries)
 			entries.append(_entries)
-
 		return entries
 
 	def get_domaingpolocalgroup(self, args=None, identity=None):

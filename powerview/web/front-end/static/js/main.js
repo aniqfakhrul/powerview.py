@@ -87,6 +87,21 @@ function isValidDistinguishedName(value) {
     return dnPattern.test(value);
 }
 
+function parseGPOLink(gPLink) {
+    // Check if gPLink is an array and use the first element, or use the string directly
+    const gpLinkStr = Array.isArray(gPLink) ? gPLink[0] : gPLink;
+    
+    // Regular expression to match all GUID patterns inside CN={GUID}
+    const guidPattern = /CN=\{([^}]+)\}/gi;
+    const matches = [...gpLinkStr.matchAll(guidPattern)];
+    
+    // Extract all GUIDs from matches
+    const guids = matches.map(match => match[1]);
+    
+    // Return array of GUIDs if found, otherwise return null
+    return guids.length > 0 ? guids : null;
+}
+
 // Helper function to detect byte data
 function isByteData(value) {
     return typeof value === 'string' && 

@@ -80,10 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
             thead.className = 'sticky top-0 border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white';
             
             const headerRow = document.createElement('tr');
-            ['Name', 'Member Count'].forEach(headerText => {
+            ['Name', 'Member Count'].forEach((headerText, index) => {
                 const th = document.createElement('th');
                 th.textContent = headerText;
-                th.className = 'px-4 py-3 font-medium';
+                th.className = `px-4 py-3 font-medium ${index === 1 ? 'text-center' : ''}`;
                 headerRow.appendChild(th);
             });
             thead.appendChild(headerRow);
@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const countCell = document.createElement('td');
                 const memberCount = getMemberCount(group.attributes.member);
                 countCell.textContent = memberCount;
-                countCell.className = 'px-4 py-3';
+                countCell.className = 'px-4 py-3 text-center';
 
                 row.appendChild(nameCell);
                 row.appendChild(countCell);

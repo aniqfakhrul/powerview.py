@@ -621,6 +621,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await handleHttpError(response);
 
             const result = await response.json();
+            console.log('Add group member result:', result);
             if (result.success) {
                 showSuccessAlert(`Added ${member} to ${groupname}`);
             } else {
