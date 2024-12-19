@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 { dn: rootDn, icon: icons.adIcon },
                 { dn: `CN=Configuration,${rootDn}`, icon: icons.adIcon },
                 { dn: `CN=Schema,CN=Configuration,${rootDn}`, icon: icons.defaultIcon },
+                { dn: `CN=System,${rootDn}`, icon: icons.defaultIcon },
                 { dn: `DC=DomainDnsZones,${rootDn}`, icon: icons.adIcon },
                 { dn: `DC=ForestDnsZones,${rootDn}`, icon: icons.adIcon }
             ];
@@ -875,4 +876,38 @@ document.addEventListener('DOMContentLoaded', () => {
     // Call this function after the DOM is fully loaded
     initialize();
     setupTabEventDelegation();
+
+    // Update the search functionality
+    const searchInput = document.getElementById('object-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const treeNodes = document.querySelectorAll('#tree-view > div');
+            
+            treeNodes.forEach(node => {
+                // Always show parent nodes to maintain structure
+                node.style.display = '';
+                
+                // Find the subtree container
+                const subtree = node.querySelector('.subtree');
+                if (subtree) {
+                    const childNodes = subtree.querySelectorAll(':scope > div');
+                    let hasVisibleChildren = false;
+                    
+                    childNodes.forEach(childNode => {
+                        const childText = childNode.querySelector('span')?.textContent.toLowerCase() || '';
+                        if (childText.includes(searchTerm)) {
+                            childNode.style.display = '';
+                            hasVisibleChildren = true;
+                        } else {
+                            childNode.style.display = 'none';
+                        }
+                    });
+
+                    // Show/hide subtree based on whether it has visible children
+                    subtree.style.display = hasVisibleChildren || searchTerm === '' ? '' : 'none';
+                }
+            });
+        });
+    }
 });

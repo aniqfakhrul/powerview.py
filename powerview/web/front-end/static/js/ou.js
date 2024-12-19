@@ -67,18 +67,19 @@ function showDeleteModal(identity) {
 }
 
 
-async function loadLinkedGPOs(gpoIds) {
+async function loadLinkedGPOs(gpoLinks) {
     try {
         showLoadingIndicator();
         
         // Clear the panel first
         const gpoPanel = document.getElementById('tabpanelLinkedGpo');
+        gpoPanel.innerHTML = '';
         
         const properties = ['objectClass', 'displayName', 'distinguishedName', 'gPCFileSysPath'];
         
         // Fetch data for all GPO IDs
-        const allData = await Promise.all(gpoIds.map(id => 
-            fetchGPOData(id, 'SUBTREE', properties)
+        const allData = await Promise.all(gpoLinks.map(link => 
+            fetchGPOData(link.GUID, 'SUBTREE', properties)
         ));
         
         // Flatten and filter out any null results
@@ -97,10 +98,10 @@ async function loadLinkedGPOs(gpoIds) {
 
             // Create header
             const thead = document.createElement('thead');
+            thead.className = 'text-left border-b border-neutral-200 dark:border-neutral-700';
+            
             const headerRow = document.createElement('tr');
-            headerRow.className = 'text-left border-b border-neutral-200 dark:border-neutral-700';
-
-            ['Name', 'Status', 'Distinguished Name'].forEach(text => {
+            ['Name', 'Status', 'Enforcement', 'Distinguished Name'].forEach(text => {
                 const th = document.createElement('th');
                 th.className = 'px-4 py-2';
                 th.textContent = text;
@@ -112,7 +113,10 @@ async function loadLinkedGPOs(gpoIds) {
 
             // Create tbody
             const tbody = document.createElement('tbody');
-            data.forEach(gpo => {
+            tbody.className = 'divide-y divide-neutral-200 dark:divide-neutral-700';
+
+            data.forEach((gpo, index) => {
+                const gpoLink = gpoLinks[index];
                 const tr = document.createElement('tr');
                 tr.className = 'border-b border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 cursor-pointer result-item';
                 tr.onclick = (event) => handleLdapLinkClick(event, gpo.dn);
@@ -129,26 +133,28 @@ async function loadLinkedGPOs(gpoIds) {
                 statusCell.textContent = gpo.enabled ? 'Enabled' : 'Disabled';
                 tr.appendChild(statusCell);
 
-                // DN cell
+                // Enforcement cell
+                const enforcementCell = document.createElement('td');
+                enforcementCell.className = 'px-4 py-2';
+                enforcementCell.textContent = gpoLink.IsEnforced ? 'Enforced' : 'Not Enforced';
+                tr.appendChild(enforcementCell);
+
+                // DN cell with copy button
                 const dnCell = document.createElement('td');
                 dnCell.className = 'px-4 py-2';
-
                 const dnContainer = document.createElement('div');
                 dnContainer.className = 'flex items-center gap-2 group';
-
+                
                 const dnSpan = document.createElement('span');
                 dnSpan.className = 'break-all';
                 dnSpan.textContent = gpo.dn;
-
+                
                 const copyButton = document.createElement('button');
                 copyButton.className = 'opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800';
                 copyButton.onclick = (event) => copyToClipboard(event, gpo.dn);
                 copyButton.title = 'Copy to clipboard';
-
-                const copyIcon = document.createElement('i');
-                copyIcon.className = 'fas fa-copy fa-xs';
-                copyButton.appendChild(copyIcon);
-
+                copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
+                
                 dnContainer.appendChild(dnSpan);
                 dnContainer.appendChild(copyButton);
                 dnCell.appendChild(dnContainer);
@@ -160,28 +166,16 @@ async function loadLinkedGPOs(gpoIds) {
             table.appendChild(tbody);
             tableContainer.appendChild(table);
             container.appendChild(tableContainer);
-            gpoPanel.innerHTML = '';
             gpoPanel.appendChild(container);
-
         } else {
-            const emptyContainer = document.createElement('div');
-            emptyContainer.className = 'flex items-center justify-center h-64 text-neutral-500';
-
-            const content = document.createElement('div');
-            content.className = 'text-center';
-
-            const icon = document.createElement('i');
-            icon.className = 'fa-solid fa-shield-halved mb-2 text-2xl';
-
-            const text = document.createElement('p');
-            text.textContent = 'No Group Policy Objects linked to this OU';
-
-            content.appendChild(icon);
-            content.appendChild(text);
-            emptyContainer.appendChild(content);
-
-            gpoPanel.innerHTML = '';
-            gpoPanel.appendChild(emptyContainer);
+            gpoPanel.innerHTML = `
+                <div class="flex items-center justify-center h-64 text-neutral-500">
+                    <div class="text-center">
+                        <i class="fa-solid fa-shield-halved mb-2 text-2xl"></i>
+                        <p>No Group Policy Objects linked to this OU</p>
+                    </div>
+                </div>
+            `;
         }
     } catch (error) {
         console.error('Error loading GPOs:', error);

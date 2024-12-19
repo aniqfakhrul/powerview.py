@@ -322,6 +322,19 @@ def powerview_arg_parse(cmd):
 	get_domaingpolocalgroup_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaingpolocalgroup_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
+	# gposettings
+	get_domaingposettings_parser = subparsers.add_parser('Get-DomainGPOSettings', aliases=['Get-GPOSettings'], exit_on_error=False)
+	get_domaingposettings_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domaingposettings_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
+	get_domaingposettings_parser.add_argument('-Server', action='store', dest='server')
+	get_domaingposettings_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
+	get_domaingposettings_parser.add_argument('-Where', action='store', dest='where')
+	get_domaingposettings_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	get_domaingposettings_parser.add_argument('-SortBy', action='store', dest='sort_by')
+	get_domaingposettings_parser.add_argument('-OutFile', action='store', dest='outfile')
+	get_domaingposettings_parser.add_argument('-Count', action='store_true', dest='count')
+	get_domaingposettings_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+
 	# OU
 	get_domainou_parser = subparsers.add_parser('Get-DomainOU', aliases=['Get-NetOU'], exit_on_error=False)
 	get_domainou_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))

@@ -63,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             await handleHttpError(response);
             const data = await response.json();
-            console.log(data);
             allGroups = data; // Store all groups
             
             const groupsContainer = document.querySelector('.groups-container');

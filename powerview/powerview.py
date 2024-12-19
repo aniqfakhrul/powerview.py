@@ -11,6 +11,7 @@ from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.modules.dacledit import DACLedit
 from powerview.modules.products import EDR
+from powerview.modules.gpo import GPO
 from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
 from powerview.utils.storage import Storage
@@ -1214,7 +1215,7 @@ class PowerView:
 			try:
 				gpcfilesyspath = f"{entry['attributes']['gPCFileSysPath']}\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf"
 
-				conn = self.conn.init_smb_session(self.dc_ip)
+				conn = self.conn.init_smb_session(host2ip(self.dc_ip, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver))
 
 				share = 'sysvol'
 				filepath = ''.join(gpcfilesyspath.lower().split(share)[1:])
@@ -1231,9 +1232,6 @@ class PowerView:
 					data_content = output.decode(encoding)
 					found, infobject = parse_inicontent(filecontent=data_content)
 					if found:
-						#for i in infobject: # i = dict
-						#    new_dict['attributes'] = {'GPODisplayName': entry['displayName'].values[0],'GroupSID':i['sid'],'GroupMemberOf': i['memberof'], 'GroupMembers': i['memberof']}
-
 						if len(infobject) == 2:
 							new_dict['attributes'] = {'GPODisplayName': entry['attributes']['displayName'], 'GPOName': entry['attributes']['name'], 'GPOPath': entry['attributes']['gPCFileSysPath'], 'GroupName': self.convertfrom_sid(infobject[0]['sids']),'GroupSID':infobject[0]['sids'],'GroupMemberOf': f"{infobject[0]['memberof']}" if infobject[0]['memberof'] else "{}", 'GroupMembers': f"{infobject[1]['members']}" if infobject[1]['members'] else "{}"}
 							new_entries.append(new_dict.copy())
@@ -1249,6 +1247,115 @@ class PowerView:
 			except ldap3.core.exceptions.LDAPKeyError as e:
 				pass
 		return new_entries
+
+	def get_domaingposettings(self, args=None, identity=None):
+		"""
+		Parse GPO settings from SYSVOL share
+		Returns dictionary containing Machine and User configurations
+		"""
+		if args and hasattr(args, 'identity'):
+			identity = args.identity
+
+		entries = self.get_domaingpo(identity=identity)
+		if len(entries) == 0:
+			logging.error("[Get-GPOSettings] No GPO object found")
+			return
+
+		policy_settings = []
+		for entry in entries:
+			try:
+				gpcfilesyspath = entry['attributes']['gPCFileSysPath']
+				
+				# Connect to SYSVOL share
+				conn = self.conn.init_smb_session(host2ip(self.dc_ip, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver))
+				share = 'sysvol'
+				base_path = ''.join(gpcfilesyspath.lower().split(share)[1:])
+				
+				policy_data = {
+					'attributes': {
+						'displayName': entry['attributes']['displayName'],
+						'name': entry['attributes']['name'],
+						'gPCFileSysPath': gpcfilesyspath,
+						'machineConfig': {},
+						'userConfig': {}
+					}
+				}
+
+				# Parse Machine Configuration
+				machine_paths = {
+					'Security': '\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf',
+					'Registry': '\\MACHINE\\Registry.pol',
+					'Scripts': '\\MACHINE\\Scripts\\scripts.ini',
+					'Preferences': '\\MACHINE\\Preferences'
+				}
+
+				# Parse User Configuration
+				user_paths = {
+					'Registry': '\\USER\\Registry.pol',
+					'Scripts': '\\USER\\Scripts\\scripts.ini',
+					'Preferences': '\\USER\\Preferences'
+				}
+
+				# Process Machine Configuration
+				for section, path in machine_paths.items():
+					try:
+						fh = BytesIO()
+						file_path = base_path + path
+						try:
+							conn.getFile(share, file_path, fh.write)
+							content = fh.getvalue()
+							encoding = chardet.detect(content)["encoding"]
+							if encoding:
+								data = content.decode(encoding)
+								if section == 'Security':
+									# Parse Security Settings (GptTmpl.inf)
+									policy_data['attributes']['machineConfig']['Security'] = GPO.Helper._parse_inf_file(data)
+								elif section == 'Registry':
+									# Parse Registry Settings
+									policy_data['attributes']['machineConfig']['Registry'] = GPO.Helper._parse_registry_pol(content)
+								elif section == 'Scripts':
+									# Parse Startup/Shutdown Scripts
+									policy_data['attributes']['machineConfig']['Scripts'] = GPO.Helper._parse_scripts_ini(data)
+								elif section == 'Preferences':
+									# Parse Group Policy Preferences
+									policy_data['attributes']['machineConfig']['Preferences'] = GPO.Helper._parse_preferences(file_path, conn, share)
+						except Exception as e:
+							logging.debug(f"[Get-GPOSettings] File not found or access denied: {file_path}")
+						finally:
+							fh.close()
+					except Exception as e:
+						logging.debug(f"[Get-GPOSettings] Error processing {section}: {str(e)}")
+
+				# Process User Configuration (similar structure to Machine Configuration)
+				for section, path in user_paths.items():
+					try:
+						fh = BytesIO()
+						file_path = base_path + path
+						try:
+							conn.getFile(share, file_path, fh.write)
+							content = fh.getvalue()
+							encoding = chardet.detect(content)["encoding"]
+							if encoding:
+								data = content.decode(encoding)
+								if section == 'Registry':
+									policy_data['attributes']['userConfig']['Registry'] = GPO.Helper._parse_registry_pol(content)
+								elif section == 'Scripts':
+									policy_data['attributes']['userConfig']['Scripts'] = GPO.Helper._parse_scripts_ini(data)
+								elif section == 'Preferences':
+									policy_data['attributes']['userConfig']['Preferences'] = GPO.Helper._parse_preferences(file_path, conn, share)
+						except Exception as e:
+							logging.debug(f"[Get-GPOSettings] File not found or access denied: {file_path}")
+						finally:
+							fh.close()
+					except Exception as e:
+						logging.debug(f"[Get-GPOSettings] Error processing {section}: {str(e)}")
+
+				policy_settings.append(policy_data)
+
+			except Exception as e:
+				logging.error(f"[Get-GPOSettings] Error processing GPO: {str(e)}")
+				continue
+		return policy_settings
 
 	def get_domaintrust(self, args=None, properties=[], identity=None, search_scope=ldap3.SUBTREE):
 		def_prop = [

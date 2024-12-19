@@ -190,6 +190,12 @@ def main():
                                     entries = temp_powerview.get_domaingpolocalgroup(pv_args, identity)
                                 else:
                                     entries = powerview.get_domaingpolocalgroup(pv_args, identity)
+                            elif pv_args.module.casefold() == 'get-domaingposettings' or pv_args.module.casefold() == 'get-gposettings':
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaingposettings(pv_args, identity)
+                                else:
+                                    entries = powerview.get_domaingposettings(pv_args, identity)
                             elif pv_args.module.casefold() == 'get-domainou' or pv_args.module.casefold() == 'get-netou':
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None

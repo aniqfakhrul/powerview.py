@@ -91,15 +91,27 @@ function parseGPOLink(gPLink) {
     // Check if gPLink is an array and use the first element, or use the string directly
     const gpLinkStr = Array.isArray(gPLink) ? gPLink[0] : gPLink;
     
-    // Regular expression to match all GUID patterns inside CN={GUID}
-    const guidPattern = /CN=\{([^}]+)\}/gi;
-    const matches = [...gpLinkStr.matchAll(guidPattern)];
+    if (!gpLinkStr) return null;
+
+    const gpoLinks = [];
     
-    // Extract all GUIDs from matches
-    const guids = matches.map(match => match[1]);
+    // Regular expression to match GUIDs (36 characters)
+    const guidRegex = /[a-zA-Z0-9-]{36}/g;
+    const guids = [...gpLinkStr.matchAll(guidRegex)].map(match => match[0]);
     
-    // Return array of GUIDs if found, otherwise return null
-    return guids.length > 0 ? guids : null;
+    // Regular expression to match enforcement status
+    const statusRegex = /[;][0-4]{1}/g;
+    const statuses = [...gpLinkStr.matchAll(statusRegex)].map(match => match[0]);
+    
+    // Create array of GPO objects with GUID and enforcement status
+    for (let i = 0; i < guids.length; i++) {
+        gpoLinks.push({
+            GUID: guids[i],
+            IsEnforced: statuses[i] === ';2' || statuses[i] === ';3'
+        });
+    }
+    
+    return gpoLinks.length > 0 ? gpoLinks : null;
 }
 
 // Helper function to detect byte data
