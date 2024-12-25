@@ -18,7 +18,8 @@ from powerview.utils.helpers import (
 	is_valid_fqdn,
 	dn2domain,
 	is_ipaddress,
-	get_principal_dc_address
+	get_principal_dc_address,
+	get_system_nameserver
 )
 from powerview.lib.resolver import (
 	LDAP,
@@ -263,6 +264,14 @@ class CONNECTION:
 
 	def set_proto(self, proto):
 		self.proto = proto
+
+	def get_nameserver(self):
+		if not self.nameserver and not self.use_system_ns:
+			return get_system_nameserver()
+		return self.nameserver or self.use_system_ns
+
+	def set_nameserver(self, nameserver):
+		self.nameserver = nameserver
 
 	def who_am_i(self):
 		try:

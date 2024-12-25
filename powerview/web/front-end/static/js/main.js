@@ -490,14 +490,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const profileMenu = document.getElementById('profile-menu');
             const statusElement = profileMenu.querySelector('#connection-status-display');
             const addressElement = profileMenu.querySelector('#connection-address-display');
+            const nameserverElement = profileMenu.querySelector('#nameserver-address-display');
             const domainElement = profileMenu.querySelector('#connection-domain-display');
             const usernameElement = profileMenu.querySelector('#username-display');
 
             if (response.ok) {
                 const data = await response.json();
-                usernameElement.textContent = data.username;
+                usernameElement.textContent = `${data.username}@${data.domain}`;
                 addressElement.textContent = `${data.protocol}://${data.ldap_address}`;
-                domainElement.textContent = `${data.domain}`;
+                nameserverElement.textContent = `NS: ${data.nameserver}`;
                 if (data.status === 'OK') {
                     statusElement.textContent = 'Connected';
                     statusElement.classList.remove('text-red-400');
@@ -525,11 +526,14 @@ document.addEventListener('DOMContentLoaded', () => {
             clearTimeout(timeoutId);
         }
     }
+
+    initializeDisconnectButton();
 });
 
 function createAttributeEntry(name, value, identity) {
     const wrapper = document.createElement('div');
     wrapper.className = 'flex flex-col space-y-2';
+    wrapper.id = `${name}-wrapper`;
 
     const labelDiv = document.createElement('div');
     labelDiv.className = 'flex justify-between items-center';
@@ -804,6 +808,16 @@ function closeModal(modalId) {
     
     if (modal) {
         modal.classList.add('hidden');
+        // Remove event listeners when closing
+        const closeButton = modal.querySelector(`[data-modal-hide="${modalId}"]`);
+        if (closeButton) {
+            closeButton.removeEventListener('click', () => closeModal(modalId));
+        }
+        document.removeEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal(modalId);
+            }
+        });
     }
     if (overlay) {
         overlay.classList.add('hidden');
@@ -817,32 +831,68 @@ function handleModalSearch() {
 
     function filterContent() {
         const searchTerm = searchInput.value.toLowerCase();
-        const activeTab = document.querySelector('#ldap-attributes-modal [role="tab"][aria-selected="true"]')
-            .getAttribute('aria-controls');
+        // Find the active tab by checking which tab panel is currently visible
+        const activeTabPanel = document.querySelector('#ldap-attributes-modal [role="tabpanel"]:not([style*="display: none"])');
+        const activeTabId = activeTabPanel?.id;
 
-        if (activeTab === 'tabpanelInfo') {
-            // Filter attributes
-            const attributes = document.querySelectorAll('#existing-attributes > div');
-            attributes.forEach(attr => {
-                const label = attr.querySelector('label').textContent.toLowerCase();
-                const value = attr.querySelector('input').value.toLowerCase();
-                const matches = label.includes(searchTerm) || value.includes(searchTerm);
-                attr.style.display = matches ? '' : 'none';
-            });
-        } else if (activeTab === 'tabpanelDescendants') {
-            // Filter descendants table rows without affecting the header
-            const rows = document.querySelectorAll('#descendants-rows tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
-        } else if (activeTab === 'tabpanelDacl') {
-            // Filter DACL table rows without affecting the header
-            const rows = document.querySelectorAll('#modal-dacl-rows tr');
-            rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
-            });
+        if (!activeTabId) return;
+
+        switch (activeTabId) {
+            case 'tabpanelInfo':
+                // Filter attributes
+                const attributes = document.querySelectorAll('#existing-attributes > div');
+                attributes.forEach(attr => {
+                    const label = attr.querySelector('label')?.textContent.toLowerCase() || '';
+                    const value = attr.querySelector('input')?.value.toLowerCase() || '';
+                    const matches = label.includes(searchTerm) || value.includes(searchTerm);
+                    attr.style.display = matches ? '' : 'none';
+                });
+                break;
+
+            case 'tabpanelDescendants':
+                // Filter descendants table rows without affecting the header
+                const rows = document.querySelectorAll('#descendants-rows tr');
+                rows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = text.includes(searchTerm) ? '' : 'none';
+                });
+                break;
+
+            case 'tabpanelDacl':
+                // Filter DACL table rows without affecting the header
+                const daclRows = document.querySelectorAll('#modal-dacl-rows tr');
+                daclRows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = text.includes(searchTerm) ? '' : 'none';
+                });
+                break;
+
+            case 'tabpanelLoggedon':
+                // Filter logon users table rows
+                const logonRows = document.querySelectorAll('#logonusers-rows tr');
+                logonRows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = text.includes(searchTerm) ? '' : 'none';
+                });
+                break;
+
+            case 'tabpanelSessions':
+                // Filter sessions table rows
+                const sessionRows = document.querySelectorAll('#sessions-rows tr');
+                sessionRows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = text.includes(searchTerm) ? '' : 'none';
+                });
+                break;
+
+            case 'tabpanelMembers':
+                // Filter members table rows
+                const memberRows = document.querySelectorAll('#modal-members-content tr');
+                memberRows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = text.includes(searchTerm) ? '' : 'none';
+                });
+                break;
         }
     }
 
@@ -881,18 +931,27 @@ async function showLdapAttributesModal(attributes = {}, identity) {
             modalTitle.textContent = identity;
         }
 
+        const isGroup = attributes.objectClass && 
+            Array.isArray(attributes.objectClass) && 
+            attributes.objectClass.includes('group');
         // Show/hide Members tab based on objectClass
         const membersTab = modal.querySelector('[aria-controls="tabpanelMembers"]');
         if (membersTab) {
-            if (attributes.objectClass && Array.isArray(attributes.objectClass) && 
-                attributes.objectClass.includes('group')) {
-                membersTab.style.display = '';
-            } else {
-                membersTab.style.display = 'none';
-            }
+            membersTab.style.display = isGroup ? '' : 'none';
         }
 
-        // Show the modal, overlay, and spinner
+        const isComputer = attributes.objectClass && 
+                          Array.isArray(attributes.objectClass) && 
+                          attributes.objectClass.includes('computer');
+        // Show/hide Sessions and Logon Users tabs based on objectClass
+        const sessionsTab = modal.querySelector('[aria-controls="tabpanelSessions"]');
+        const loggedonTab = modal.querySelector('[aria-controls="tabpanelLoggedon"]');
+        if (sessionsTab && loggedonTab) {
+            sessionsTab.style.display = isComputer ? '' : 'none';
+            loggedonTab.style.display = isComputer ? '' : 'none';
+        }
+
+        // Show the modal and overlay
         modal.classList.remove('hidden');
         overlay.classList.remove('hidden');
         spinner.classList.remove('hidden');
@@ -902,6 +961,14 @@ async function showLdapAttributesModal(attributes = {}, identity) {
         if (closeButton) {
             closeButton.addEventListener('click', () => closeModal('ldap-attributes-modal'));
         }
+
+        // Add event listener for Escape key
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                closeModal('ldap-attributes-modal');
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
         
         try {
             // Populate the modal with existing attributes
@@ -1036,20 +1103,55 @@ async function selectModalTab(tabName) {
         panel.style.display = panel.id === `tabpanel${tabName.charAt(0).toUpperCase() + tabName.slice(1)}` ? 'block' : 'none';
     });
 
-    // Load specific tab content
-    if (tabName === 'descendants') {
-        loadDescendants();
-    } else if (tabName === 'dacl') {
-        const identity = document.querySelector('#ldap-attributes-modal h3').textContent;
-        if (identity) {
-            await fetchAndDisplayModalDacl(identity);
-            updateDaclTabContent();
+    const ldapAttributeModal = document.getElementById('ldap-attributes-modal');
+    if (!ldapAttributeModal) return;
+
+    try {
+        // Load specific tab content
+        switch (tabName) {
+            case 'descendants':
+                await loadDescendants();
+                break;
+                
+            case 'dacl':
+                const daclIdentity = ldapAttributeModal.querySelector('h3')?.textContent;
+                if (daclIdentity) {
+                    await fetchAndDisplayModalDacl(daclIdentity);
+                    updateDaclTabContent();
+                }
+                break;
+                
+            case 'members':
+                const memberIdentity = ldapAttributeModal.querySelector('h3')?.textContent;
+                if (memberIdentity) {
+                    await fetchAndDisplayModalMembers(memberIdentity);
+                }
+                break;
+                
+            case 'sessions':
+                const dnsHostnameSessionsInput = ldapAttributeModal.querySelector('#dNSHostName-wrapper input');
+                const dnsHostnameSessions = dnsHostnameSessionsInput?.value;
+                if (dnsHostnameSessions) {
+                    await fetchAndDisplayModalSessions(dnsHostnameSessions);
+                } else {
+                    showErrorAlert('DNS Hostname not found for this computer');
+                }
+                break;
+                
+            case 'loggedon':
+                const dnsHostnameLogonUsersInput = ldapAttributeModal.querySelector('#dNSHostName-wrapper input');
+                const dnsHostnameLogonUsers = dnsHostnameLogonUsersInput?.value;
+                if (dnsHostnameLogonUsers) {
+                    await fetchAndDisplayModalLogonUsers(dnsHostnameLogonUsers);
+                } else {
+                    showErrorAlert('DNS Hostname not found for this computer');
+                }
+                break;
         }
-    } else if (tabName === 'members') {
-        const identity = document.querySelector('#ldap-attributes-modal h3').textContent;
-        if (identity) {
-            await fetchAndDisplayModalMembers(identity);
-        }
+    } catch (error) {
+        console.error(`Error loading ${tabName} tab content:`, error);
+        showErrorAlert(`Failed to load ${tabName} tab content`);
+        showModalTab('info');
     }
 }
 
@@ -1467,7 +1569,6 @@ async function fetchAndDisplayModalMembers(identity) {
 
         await handleHttpError(response);
         const members = await response.json();
-        console.log(members);
         displayModalGroupMembers(members);
     } catch (error) {
         console.error('Error fetching group members:', error);
@@ -1559,4 +1660,186 @@ async function deleteDomainObject(identity, searchbase) {
         hideLoadingIndicator();
     }
     return false;
+}
+
+async function fetchAndDisplayModalSessions(identity) {
+    const sessionsRows = document.getElementById('sessions-rows');
+    sessionsRows.innerHTML = '';
+    
+    showLoadingIndicator();
+    try {
+        const response = await fetch('/api/get/netsession', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                identity: identity
+            })
+        });
+
+        await handleHttpError(response);
+        const sessionsData = await response.json();
+        updateModalSessionsContent(sessionsData);
+    } catch (error) {
+        console.error('Error fetching sessions data:', error);
+        showErrorAlert('Failed to fetch sessions data');
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+function updateModalSessionsContent(sessionsData) {
+    const sessionsRows = document.getElementById('sessions-rows');
+    if (!sessionsRows) return;
+
+    sessionsRows.innerHTML = '';
+
+    if (!sessionsData || !Array.isArray(sessionsData) || sessionsData.length === 0) {
+        sessionsRows.innerHTML = `
+            <tr>
+                <td colspan="4" class="px-3 py-4 text-center text-neutral-500 dark:text-neutral-400">
+                    No active sessions found
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    sessionsData.forEach(session => {
+        const row = document.createElement('tr');
+        row.classList.add(
+            'h-8',
+            'result-item',
+            'hover:bg-neutral-50',
+            'dark:hover:bg-neutral-800',
+            'border-b',
+            'border-neutral-200',
+            'dark:border-neutral-700',
+            'dark:text-neutral-200',
+            'text-neutral-600'
+        );
+
+        const attrs = session.attributes;
+        row.innerHTML = `
+            <td class="px-3 py-2">${attrs.Username || ''}</td>
+            <td class="px-3 py-2">${attrs.IP ? attrs.IP.replace(/\\/g, '') : ''}</td>
+            <td class="px-3 py-2">${attrs.Time ? `${attrs.Time} minutes` : ''}</td>
+            <td class="px-3 py-2">${attrs['Idle Time'] ? `${attrs['Idle Time']} minutes` : ''}</td>
+        `;
+
+        sessionsRows.appendChild(row);
+    });
+}
+
+async function fetchAndDisplayModalLogonUsers(dnsHostname) {
+    showLoadingIndicator();
+    try {
+        const response = await fetch('/api/get/netloggedon', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                computer_name: dnsHostname  // Changed from 'identity' to 'computer_name'
+            })
+        });
+
+        await handleHttpError(response);
+        const logonData = await response.json();
+        updateModalLogonUsersContent(logonData);
+    } catch (error) {
+        console.error('Error fetching logon users data:', error);
+        showErrorAlert('Failed to fetch logon users data');
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+function updateModalLogonUsersContent(logonData) {
+    const logonUsersRows = document.getElementById('logonusers-rows');
+    if (!logonUsersRows) return;
+
+    logonUsersRows.innerHTML = '';
+
+    if (!logonData || !Array.isArray(logonData) || logonData.length === 0) {
+        logonUsersRows.innerHTML = `
+            <tr>
+                <td colspan="4" class="px-3 py-4 text-center text-neutral-500 dark:text-neutral-400">
+                    No logon users found
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    logonData.forEach(user => {
+        const row = document.createElement('tr');
+        row.classList.add(
+            'h-8',
+            'result-item',
+            'hover:bg-neutral-50',
+            'dark:hover:bg-neutral-800',
+            'border-b',
+            'border-neutral-200',
+            'dark:border-neutral-700',
+            'dark:text-neutral-200',
+            'text-neutral-600'
+        );
+
+        const attrs = user.attributes;
+        row.innerHTML = `
+            <td class="px-3 py-2">${attrs.UserName || ''}</td>
+            <td class="px-3 py-2">${attrs.LogonDomain || ''}</td>
+            <td class="px-3 py-2">${attrs.AuthDomains || ''}</td>
+            <td class="px-3 py-2">${attrs.LogonServer || ''}</td>
+        `;
+
+        logonUsersRows.appendChild(row);
+    });
+}
+
+async function handleDisconnect() {
+    try {
+        showLoadingIndicator();
+        const response = await fetch('/api/ldap/close', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        await handleHttpError(response);
+
+        if (response.ok) {
+            // Update connection status UI
+            const profileMenu = document.getElementById('profile-menu');
+            const statusElement = profileMenu.querySelector('#connection-status-display');
+            const addressElement = profileMenu.querySelector('#connection-address-display');
+            const domainElement = profileMenu.querySelector('#connection-domain-display');
+            const usernameElement = profileMenu.querySelector('#username-display');
+
+            // Clear connection info
+            usernameElement.textContent = '';
+            addressElement.textContent = '';
+            domainElement.textContent = '';
+            statusElement.textContent = 'Disconnected';
+            statusElement.classList.remove('text-green-400');
+            statusElement.classList.add('text-red-400');
+
+            showSuccessAlert('Successfully disconnected from LDAP server');
+        }
+    } catch (error) {
+        console.error('Error disconnecting from LDAP server:', error);
+        showErrorAlert('Failed to disconnect from LDAP server');
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+function initializeDisconnectButton() {
+    const disconnectButton = document.getElementById('disconnect-button');
+    if (disconnectButton) {
+        disconnectButton.addEventListener('click', handleDisconnect);
+    }
 }

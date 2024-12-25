@@ -690,7 +690,7 @@ class PowerView:
 			properties = set(args.properties)
 		else:
 			properties = set(properties or def_prop)
-
+		
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
@@ -1357,7 +1357,7 @@ class PowerView:
 				continue
 		return policy_settings
 
-	def get_domaintrust(self, args=None, properties=[], identity=None, search_scope=ldap3.SUBTREE):
+	def get_domaintrust(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE):
 		def_prop = [
 			'name',
 			'objectGUID',
@@ -1372,12 +1372,15 @@ class PowerView:
 		properties = set(properties or def_prop)
 		identity = '*' if not identity else identity
 
+		if not searchbase:
+			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
 		identity_filter = f"(name={identity})"
 		ldap_filter = f'(&(objectClass=trustedDomain){identity_filter})'
 		logging.debug(f'[Get-DomainTrust] LDAP search filter: {ldap_filter}')
 
 		entries = []
-		entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope)
+		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope)
 		for _entries in entry_generator:
 			if _entries['type'] != 'searchResEntry':
 				continue
@@ -3957,50 +3960,28 @@ displayName=New Group Policy Object
 		dce.disconnect()
 		return entries
 
-	def get_netsession(self, args):
-		is_fqdn = False
-		host = ""
-		host_inp = args.computer if args.computer else args.computername
+	def get_netsession(self, identity=None, port=445, args=None):
+		KNOWN_PROTOCOLS = {
+			139: {'bindstr': r'ncacn_np:%s[\pipe\srvsvc]', 'set_host': True},
+			445: {'bindstr': r'ncacn_np:%s[\pipe\srvsvc]', 'set_host': True},
+		}
 
-		if host_inp:
-			if not is_ipaddress(host_inp):
-				is_fqdn = True
-				if args.server and args.server.casefold() != self.domain.casefold():
-					if not host_inp.endswith(args.server):
-						host = f"{host_inp}.{args.server}"
-					else:
-						host = host_inp
-				else:
-					if not is_valid_fqdn(host_inp):
-						host = f"{host_inp}.{self.domain}"
-					else:
-						host = host_inp
-				logging.debug(f"[Get-NetSession] Using FQDN: {host}")
-			else:
-				host = host_inp
-
-		if self.use_kerberos:
-			if is_ipaddress(args.computer) or is_ipaddress(args.computername):
-				logging.error('[Get-NetSession] FQDN must be used for kerberos authentication')
-				return
-		else:
-			if is_fqdn:
-				host = host2ip(host, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
-
-		if not host:
-			logging.error(f"[Get-NetSession] Host not found")
+		if is_ipaddress(identity) and self.use_kerberos:
+			logging.error("[Get-NetSession] Use FQDN when using kerberos")
 			return
 
-		dce = self.conn.init_rpc_session(host=host, pipe=r'\srvsvc')
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % identity
+		dce = self.conn.connectRPCTransport(host=identity, stringBindings=stringBinding, interface_uuid = srvs.MSRPC_UUID_SRVS)
 
 		if dce is None:
+			logging.error("[Get-NetSession] Failed to connect to %s" % (identity))
 			return
 
 		try:
 			resp = srvs.hNetrSessionEnum(dce, '\x00', NULL, 10)
 		except Exception as e:
 			if 'rpc_s_access_denied' in str(e):
-				logging.info('Access denied while enumerating Sessions on %s' % (host))
+				logging.info('Access denied while enumerating Sessions on %s' % (identity))
 			else:
 				logging.info(str(e))
 			return
@@ -4021,7 +4002,7 @@ displayName=New Group Policy Object
 					"Username": userName,
 					"Time": time,
 					"Idle Time": idleTime,
-					"Computer": host,
+					"Computer": identity,
 					}
 				})
 

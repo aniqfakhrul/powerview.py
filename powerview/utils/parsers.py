@@ -600,6 +600,7 @@ def powerview_arg_parse(cmd):
 	get_domaintrust_parser = subparsers.add_parser('Get-DomainTrust', aliases=['Get-NetTrust'], exit_on_error=False)
 	get_domaintrust_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaintrust_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
+	get_domaintrust_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaintrust_parser.add_argument('-Server', action='store', dest='server')
 	get_domaintrust_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaintrust_parser.add_argument('-Where', action='store', dest='where')

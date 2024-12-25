@@ -51,7 +51,8 @@ class APIServer:
 		self.app.add_url_rule('/api/connectioninfo', 'connectioninfo', self.handle_connection_info, methods=['GET'])
 		self.app.add_url_rule('/api/logs', 'logs', self.generate_log_stream, methods=['GET'])
 		self.app.add_url_rule('/api/history', 'history', self.render_history, methods=['GET'])
-		self.app.add_url_rule('/api/ldap_rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
+		self.app.add_url_rule('/api/ldap/rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
+		self.app.add_url_rule('/api/ldap/close', 'ldap_close', self.handle_ldap_close, methods=['GET'])
 		self.app.add_url_rule('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
 		self.app.add_url_rule('/api/constants', 'constants', self.handle_constants, methods=['GET'])
 
@@ -238,6 +239,7 @@ class APIServer:
 			'status': 'OK' if self.powerview.is_connection_alive() else 'KO',
 			'protocol': self.powerview.conn.get_proto(),
 			'ldap_address': self.powerview.conn.get_ldap_address(),
+			'nameserver': self.powerview.conn.get_nameserver(),
 		})
 
 	def execute_command(self):
@@ -286,6 +288,9 @@ class APIServer:
 
 	def handle_ldap_rebind(self):
 		return jsonify({'status': 'OK' if self.powerview.conn.reset_connection() else 'KO'})
+
+	def handle_ldap_close(self):
+		return jsonify({'status': 'OK' if self.powerview.conn.close() else 'KO'})
 
 	def render_history(self):
 		try:

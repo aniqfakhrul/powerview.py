@@ -102,8 +102,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         gpoDiv.appendChild(gpoArrow);
 
                         // Add GPO container icon and name
-                        const gpoIcon = document.createElement('i');
-                        gpoIcon.className = 'fa-solid fa-shield-halved text-neutral-500 dark:text-neutral-400';
+                        const gpoIcon = document.createElement('span');
+                        gpoIcon.innerHTML = icons.policyIcon;
                         gpoDiv.appendChild(gpoIcon);
 
                         const gpoNameSpan = document.createElement('span');
@@ -333,8 +333,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         );
 
         // Add GPO icon
-        const icon = document.createElement('i');
-        icon.className = 'fa-solid fa-shield-halved text-neutral-500 dark:text-neutral-400';
+        const icon = document.createElement('span');
+        icon.innerHTML = icons.policyIcon;
         div.appendChild(icon);
 
         // Add GPO name with enforcement status
@@ -585,7 +585,6 @@ async function fetchAndDisplaySettings(cn) {
 
         await handleHttpError(response);
         const settingsData = await response.json();
-        console.log(settingsData);
         
         const settingsPanel = document.getElementById('tabpanelSettings');
         if (!settingsData || settingsData.length === 0) {
@@ -670,7 +669,7 @@ function renderSection(section, settings) {
             
             return `
                 <div class="border border-neutral-200 dark:border-neutral-700 rounded-lg">
-                    <div class="px-4 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800">
+                    <div class="rounded-lg px-4 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800">
                         <h5 class="text-sm font-medium text-neutral-900 dark:text-white">${subsection}</h5>
                     </div>
                     <div class="p-4">
@@ -690,7 +689,7 @@ function renderSection(section, settings) {
     
     return `
         <div class="border border-neutral-200 dark:border-neutral-700 rounded-lg">
-            <div class="px-4 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800">
+            <div class="rounded-lg px-4 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800">
                 <h5 class="text-sm font-medium text-neutral-900 dark:text-white">${section}</h5>
             </div>
             <div class="p-4">

@@ -163,26 +163,34 @@ document.addEventListener('DOMContentLoaded', () => {
         counter.textContent = `Total Computers: ${computers.length}`;
 
         if (computers.length > 0) {
-            const attributeKeys = Object.keys(computers[0].attributes);
+            // Get all unique attribute keys from all computers and normalize them
+            const attributeKeys = [...new Set(
+                computers.flatMap(computer => 
+                    Object.keys(computer.attributes || {}).map(key => key.toLowerCase())
+                )
+            )];
 
+            // Create table headers
             thead.innerHTML = '';
             const headerRow = document.createElement('tr');
             attributeKeys.forEach(key => {
                 const th = document.createElement('th');
                 th.scope = 'col';
                 th.className = 'p-1';
-                th.textContent = key;
+                // Capitalize first letter of each word for display
+                th.textContent = key.split(/(?=[A-Z])/).join(' ').replace(/^\w/, c => c.toUpperCase());
                 headerRow.appendChild(th);
             });
 
+            // Add Action column header
             const actionTh = document.createElement('th');
             actionTh.scope = 'col';
             actionTh.className = 'p-1';
             actionTh.textContent = 'Action';
             headerRow.appendChild(actionTh);
-
             thead.appendChild(headerRow);
 
+            // Populate table rows
             computers.forEach(computer => {
                 const tr = document.createElement('tr');
                 tr.classList.add('dark:hover:bg-white/5', 'dark:hover:text-white', 'cursor-pointer');
@@ -193,21 +201,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     handleLdapLinkClick(event, computer.dn);
                 });
 
+                // Create cells for each attribute
                 attributeKeys.forEach(key => {
                     const td = document.createElement('td');
                     td.className = 'p-1 whitespace-nowrap relative group';
-                    const value = computer.attributes[key];
                     
                     const wrapper = document.createElement('div');
                     wrapper.className = 'flex items-center gap-2';
                     
                     const textSpan = document.createElement('span');
+                    // Find the actual key in the attributes object (case-insensitive)
+                    const actualKey = Object.keys(computer.attributes || {})
+                        .find(k => k.toLowerCase() === key);
+                    const value = actualKey ? computer.attributes[actualKey] : null;
+                    
+                    // Handle different value types
                     if (Array.isArray(value)) {
-                        textSpan.innerHTML = value.join('<br>');
+                        if (value.length === 0) {
+                            textSpan.textContent = '';
+                        } else {
+                            textSpan.innerHTML = value.join('<br>');
+                        }
+                    } else if (value === undefined || value === null) {
+                        textSpan.textContent = '';
                     } else {
                         textSpan.textContent = value;
                     }
-                    
+
                     const copyButton = document.createElement('button');
                     copyButton.className = 'opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800';
                     copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
@@ -215,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     copyButton.addEventListener('click', async (event) => {
                         event.stopPropagation();
-                        const textToCopy = Array.isArray(value) ? value.join('\n') : value;
+                        const textToCopy = Array.isArray(value) ? value.join('\n') : (value || '');
                         
                         try {
                             if (navigator.clipboard && window.isSecureContext) {
@@ -256,6 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     tr.appendChild(td);
                 });
 
+                // Add action column
                 const actionTd = document.createElement('td');
                 actionTd.className = 'p-1 whitespace-nowrap';
 
@@ -282,7 +303,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function addComputer(computer_name, computer_pass, basedn) {
-        console.log(computer_name, computer_pass, basedn);
         try {
             const response = await fetch('/api/add/domaincomputer', {
                 method: 'POST',
@@ -328,9 +348,10 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.classList.remove('hidden');
         overlay.classList.remove('hidden');
 
-        const firstInput = modal.querySelector('input');
-        if (firstInput) {
-            firstInput.focus();
+        // Focus on the computer name input instead of the first input
+        const computerNameInput = document.getElementById('new-computername');
+        if (computerNameInput) {
+            computerNameInput.focus();
         }
     }
 
@@ -435,7 +456,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function searchComputers() {
         const searchSpinner = document.getElementById('search-spinner');
         const boxOverlaySpinner = document.getElementById('box-overlay-spinner');
-        
         try {
             if (searchSpinner) searchSpinner.classList.remove('hidden');
             if (boxOverlaySpinner) boxOverlaySpinner.classList.remove('hidden');
@@ -450,7 +470,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             await handleHttpError(response);
             const result = await response.json();
-
             if (!Array.isArray(result)) {
                 throw new Error('Invalid response format');
             }
@@ -505,12 +524,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchBaseDropdown = document.getElementById('search-base-dropdown');
         const searchInput = document.getElementById('search-base-input');
         const optionsContainer = document.getElementById('search-base-options');
+        const baseDnModal = document.getElementById('computer-base-dn');
         
         try {
             // Get domain info for root DN
             const domainInfo = await getDomainInfo();
             const rootDN = domainInfo.root_dn;
             
+            // Fill in the base DN modal for search base input
+            baseDnModal.value = rootDN;
+
             // Get all OUs
             const ous = await getDomainOU();
             if (Array.isArray(ous)) {

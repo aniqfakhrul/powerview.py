@@ -8,11 +8,11 @@
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <i class="fa-solid fa-sitemap text-neutral-500 dark:text-neutral-400"></i>
-                    <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Active Directory</h2>
+                    <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Explorer</h2>
                 </div>
                 <input type="text" 
-                       id="object-search" 
-                       name="object-search"
+                       id="object-tree-search" 
+                       name="object-tree-search"
                        class="w-48 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800 placeholder:text-neutral-500 dark:placeholder:text-neutral-400" 
                        placeholder="Search objects...">
             </div>
@@ -51,6 +51,13 @@
                             class="px-4 py-3 text-sm text-neutral-600 font-medium dark:text-neutral-300 hover:text-neutral-900 hover:border-b-2 hover:border-neutral-300 dark:hover:border-neutral-600 dark:hover:text-white"
                             role="tab" 
                             aria-controls="tabpanelMembers">Members</button>
+                    <button onclick="selectTab('trusts')" 
+                            aria-selected="false" 
+                            tabindex="-1" 
+                            style="display: none;"
+                            class="px-4 py-3 text-sm text-neutral-600 font-medium dark:text-neutral-300 hover:text-neutral-900 hover:border-b-2 hover:border-neutral-300 dark:hover:border-neutral-600 dark:hover:text-white"
+                            role="tab" 
+                            aria-controls="tabpanelTrusts">Trusts</button>
                 </div>
 
                 <!-- Filter Input (keeping original ID) -->
@@ -101,6 +108,12 @@
             <div id="tabpanelMembers" role="tabpanel" class="h-full" style="display: none;">
                 <div id="members-content" class="p-4">
                     <!-- Members content will be dynamically populated -->
+                </div>
+            </div>
+
+            <div id="tabpanelTrusts" role="tabpanel" class="h-full" style="display: none;">
+                <div id="trusts-content" class="p-4">
+                    <!-- Trusts content will be dynamically populated -->
                 </div>
             </div>
         </div>
