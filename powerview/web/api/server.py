@@ -55,6 +55,7 @@ class APIServer:
 		self.app.add_url_rule('/api/ldap/close', 'ldap_close', self.handle_ldap_close, methods=['GET'])
 		self.app.add_url_rule('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
 		self.app.add_url_rule('/api/constants', 'constants', self.handle_constants, methods=['GET'])
+		self.app.add_url_rule('/api/clear-cache', 'clear_cache', self.handle_clear_cache, methods=['GET'])
 
 		self.nav_items = [
 			{"name": "Explorer", "icon": "fas fa-folder-tree", "link": "/"},
@@ -230,6 +231,10 @@ class APIServer:
 		}
 		return jsonify(domain_info)
 	
+	def handle_clear_cache(self):
+		success = self.powerview.clear_cache()
+		return jsonify({'status': 'OK' if success else 'KO'}), 200 if success else 400
+	
 	def handle_connection_info(self):
 		return jsonify({
 			'domain': self.powerview.domain,
@@ -287,10 +292,12 @@ class APIServer:
 		return jsonify({'status': 'ok'})
 
 	def handle_ldap_rebind(self):
-		return jsonify({'status': 'OK' if self.powerview.conn.reset_connection() else 'KO'})
+		success = self.powerview.conn.reset_connection()
+		return jsonify({'status': 'OK' if success else 'KO'}), 200 if success else 400
 
 	def handle_ldap_close(self):
-		return jsonify({'status': 'OK' if self.powerview.conn.close() else 'KO'})
+		success = self.powerview.conn.close()
+		return jsonify({'status': 'OK' if success else 'KO'}), 200 if success else 400
 
 	def render_history(self):
 		try:
@@ -358,7 +365,10 @@ class APIServer:
 			serializable_result = make_serializable(result)
 			return jsonify(serializable_result)
 		except Exception as e:
-			logging.error(f"Powerview API Error: {full_method_name}: {str(e)}")
+			if self.powerview.args.stack_trace:
+				raise e
+			else:
+				logging.error(f"Powerview API Error: {full_method_name}: {str(e)}")
 			return jsonify({'error': str(e)}), 400
 
 	def start(self):

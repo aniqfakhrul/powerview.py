@@ -528,6 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     initializeDisconnectButton();
+    initializeClearCacheButton();
 });
 
 function createAttributeEntry(name, value, identity) {
@@ -1409,7 +1410,7 @@ async function loadDescendantsWithProperties(identity, properties) {
                         row.appendChild(td);
                     }
                 });
-                
+
                 row.addEventListener('click', () => handleLdapLinkClick(event, item.dn));
                 tbody.appendChild(row);
             });
@@ -1841,5 +1842,33 @@ function initializeDisconnectButton() {
     const disconnectButton = document.getElementById('disconnect-button');
     if (disconnectButton) {
         disconnectButton.addEventListener('click', handleDisconnect);
+    }
+}
+
+function initializeClearCacheButton() {
+    const clearCacheButton = document.getElementById('clear-cache-button');
+    if (clearCacheButton) {
+        clearCacheButton.addEventListener('click', async () => {
+            try {
+                showLoadingIndicator();
+                const response = await fetch('/api/clear-cache', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                await handleHttpError(response);
+
+                if (response.ok) {
+                    showSuccessAlert('Cache cleared successfully');
+                }
+            } catch (error) {
+                console.error('Error clearing cache:', error);
+                showErrorAlert('Failed to clear cache');
+            } finally {
+                hideLoadingIndicator();
+            }
+        });
     }
 }

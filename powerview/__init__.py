@@ -303,6 +303,11 @@ def main():
                                         powerview.convertfrom_sid(objectsid=objectsid, output=True)
                                 else:
                                     logging.error("-ObjectSID flag is required")
+                            elif pv_args.module.casefold() == 'clear-cache':
+                                if temp_powerview:
+                                    temp_powerview.clear_cache()
+                                else:
+                                    powerview.clear_cache()
                             elif pv_args.module.casefold() == 'get-namedpipes':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     if temp_powerview:

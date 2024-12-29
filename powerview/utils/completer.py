@@ -8,6 +8,7 @@ else:
     import readline
 
 COMMANDS = {
+    'Clear-Cache':[''],
     'Get-Domain':['-Identity','-Properties', '-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-NetDomain':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'ConvertFrom-SID':['-ObjectSID','-Server', '-Outfile'],

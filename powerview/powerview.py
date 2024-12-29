@@ -59,11 +59,8 @@ class PowerView:
 		
 		self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
 
-		if self.args.obfuscate:
-			_paged_search = CustomExtendedOperationsRoot(self.ldap_session)
-			def obf_paged_search(*args, **kwargs):
-				return _paged_search.standard.paged_search(*args, **kwargs)
-			self.ldap_session.extend.standard.paged_search = obf_paged_search
+		self.custom_paged_search = CustomExtendedOperationsRoot(self.ldap_session, obfuscate=self.args.obfuscate, no_cache=self.args.no_cache)
+		self.ldap_session.extend.standard.paged_search = self.custom_paged_search.standard.paged_search
 
 		self.username = args.username if args.username else self.conn.get_username()
 		self.password = args.password
@@ -93,9 +90,6 @@ class PowerView:
 		self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
 		if not target_domain:
 			self.is_admin = self.is_admin()
-
-		# storage
-		self.store = Storage()
 
 		# API server
 		if self.args.web and self.ldap_session:
@@ -177,6 +171,10 @@ class PowerView:
 				logging.debug("Failed to check user admin status")
 
 		return self.is_domainadmin or self.is_admincount
+
+	def clear_cache(self) -> bool:
+		logging.info("[Clear-Cache] Clearing cache")
+		return self.custom_paged_search.standard.storage.clear_cache()
 
 	def get_domainuser(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE):
 		def_prop = [
