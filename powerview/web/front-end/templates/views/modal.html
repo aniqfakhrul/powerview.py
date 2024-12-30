@@ -224,6 +224,10 @@
                         class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
                         type="button" role="tab" aria-controls="tabpanelLoggedon"
                         style="display: none;">Logon Users</button>
+                    <button onclick="selectModalTab('memberof')" aria-selected="false" tabindex="-1" 
+                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
+                        type="button" role="tab" aria-controls="tabpanelMemberof"
+                        style="display: none;">Member Of</button>
                 </div>
                 <!-- Search Bar -->
                 <div class="relative flex items-center px-1">
@@ -368,6 +372,21 @@
                             <!-- Logon users will be dynamically populated -->
                         </tbody>
                     </table>
+                </div>
+                <div id="tabpanelMemberof" role="tabpanel" aria-label="memberof" class="p-4" style="display: none;">
+                    <div id="modal-memberof-content">
+                        <table class="w-full text-sm border-collapse">
+                            <thead>
+                                <tr class="h-8 text-left text-neutral-600 dark:text-neutral-400">
+                                    <th class="px-3 py-2">Name</th>
+                                    <th class="px-3 py-2">Distinguished Name</th>
+                                </tr>
+                            </thead>
+                            <tbody id="memberof-rows" class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                                <!-- Member Of rows will be dynamically populated -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

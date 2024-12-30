@@ -941,6 +941,18 @@ async function showLdapAttributesModal(attributes = {}, identity) {
             membersTab.style.display = isGroup ? '' : 'none';
         }
 
+        // Show/hide Member Of tab based on memberOf attribute
+        const memberOfTab = modal.querySelector('[aria-controls="tabpanelMemberof"]');
+        if (memberOfTab) {
+            const hasMemberOf = attributes.memberOf && Array.isArray(attributes.memberOf) && attributes.memberOf.length > 0;
+            memberOfTab.style.display = hasMemberOf ? '' : 'none';
+            
+            if (hasMemberOf) {
+                // Initialize the Member Of tab content
+                displayModalMemberOf(attributes.memberOf);
+            }
+        }
+
         const isComputer = attributes.objectClass && 
                           Array.isArray(attributes.objectClass) && 
                           attributes.objectClass.includes('computer');
@@ -1871,4 +1883,38 @@ function initializeClearCacheButton() {
             }
         });
     }
+}
+
+// Add this function to display the Member Of content
+function displayModalMemberOf(memberOf) {
+    const tbody = document.getElementById('memberof-rows');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    if (!memberOf || !Array.isArray(memberOf) || memberOf.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="2" class="px-3 py-2 text-neutral-600 dark:text-neutral-400">
+                    No group memberships found
+                </td>
+            </tr>`;
+        return;
+    }
+
+    memberOf.forEach(dn => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer';
+        row.onclick = () => handleLdapLinkClick(event, dn);
+
+        // Extract CN from DN
+        const cnMatch = dn.match(/CN=([^,]+)/);
+        const name = cnMatch ? cnMatch[1] : dn;
+
+        row.innerHTML = `
+            <td class="px-3 py-2">${name}</td>
+            <td class="px-3 py-2">${dn}</td>
+        `;
+        tbody.appendChild(row);
+    });
 }

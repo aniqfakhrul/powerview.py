@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await Promise.all([
             fetchDomainInfo(),
             fetchDomainTrusts(),
-            fetchDomainStats(),
+            fetchDomainControllers(),
             fetchCAServers(),
             fetchDNSZones(),
             fetchDomainAdmins(),
@@ -35,23 +35,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                             'ms-DS-MachineAccountQuota'
                         ]
                     })
-                }),
-                fetch('/api/get/domaincontroller', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        properties: ['dNSHostName']
-                    })
                 })
             ]);
 
-            await Promise.all([handleHttpError(domainResponse), handleHttpError(dcResponse)]);
-            const [domainData, dcData] = await Promise.all([domainResponse.json(), dcResponse.json()]);
+            await handleHttpError(domainResponse);
+            const domainData = await domainResponse.json();
 
-            if (!domainData.length || !dcData.length) {
-                throw new Error('No domain or DC data found');
+            if (!domainData.length) {
+                throw new Error('No domain data found');
             }
 
             const domain = domainData[0].attributes;
@@ -71,25 +62,56 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <p class="text-sm text-neutral-500 dark:text-neutral-400">Password Policy</p>
                         <p class="text-neutral-900 dark:text-white">Max Age: ${domain.maxPwdAge}</p>
                         <p class="text-neutral-900 dark:text-white">Lockout Duration: ${domain.lockoutDuration}</p>
-                        <p class="text-neutral-900 dark:text-white">Lockout Threshold: ${domain.lockoutThreshold}</p>
+                        <p class="text-neutral-900 dark:text-white">Lockout Threshold: ${domain.lockoutThreshold} attempts</p>
                     </div>
                     <div>
                         <p class="text-sm text-neutral-500 dark:text-neutral-400">Machine Account Quota</p>
                         <p class="text-neutral-900 dark:text-white ${domain['ms-DS-MachineAccountQuota'] > 0 ? 'text-yellow-500' : ''}">${domain['ms-DS-MachineAccountQuota']}</p>
-                    </div>
-                    <div>
-                        <p class="text-sm text-neutral-500 dark:text-neutral-400">Domain Controllers</p>
-                        <div class="space-y-1">
-                            ${dcData.map(dc => `
-                                <p class="text-neutral-900 dark:text-white">${dc.attributes.dNSHostName}</p>
-                            `).join('')}
-                        </div>
                     </div>
                 </div>
             `;
         } catch (error) {
             console.error('Error fetching domain info:', error);
             showErrorInCard('domain-info');
+        }
+    }
+
+    async function fetchDomainControllers() {
+        try {
+            const response = await fetch('/api/get/domaincontroller', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    properties: ['dNSHostName', 'operatingSystem']
+                })
+            });
+
+            await handleHttpError(response);
+            const data = await response.json();
+            
+            const container = document.getElementById('domain-stats');
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p class="text-neutral-500 dark:text-neutral-400">No domain controllers found</p>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="space-y-2 max-h-48 overflow-y-auto scrollbar">
+                    ${data.map(dc => `
+                        <div class="p-2 rounded bg-neutral-50 dark:bg-neutral-700">
+                            <p class="text-neutral-900 dark:text-white">${dc.attributes.dNSHostName}</p>
+                            ${dc.attributes.operatingSystem ? 
+                                `<p class="text-sm text-neutral-500 dark:text-neutral-400">${dc.attributes.operatingSystem}</p>` 
+                                : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        } catch (error) {
+            console.error('Error fetching domain controllers:', error);
+            showErrorInCard('domain-stats');
         }
     }
 
@@ -113,8 +135,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 <p class="text-neutral-900 dark:text-white">${trust.attributes.name}</p>
                                 <p class="text-sm text-neutral-500 dark:text-neutral-400">${trust.attributes.trustType}</p>
                             </div>
-                            <i class="fas fa-${trust.attributes.trustDirection === 'Bidirectional' ? 'exchange-alt' : 'arrow-right'} 
-                                text-neutral-500 dark:text-neutral-400"></i>
                         </div>
                     `).join('')}
                 </div>
@@ -122,67 +142,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error) {
             console.error('Error fetching domain trusts:', error);
             showErrorInCard('domain-trusts');
-        }
-    }
-
-    async function fetchDomainStats() {
-        try {
-            const [usersResponse, computersResponse, groupsResponse] = await Promise.all([
-                fetch('/api/get/domainuser', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        properties: ['cn']
-                    })
-                }),
-                fetch('/api/get/domaincomputer', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        properties: ['cn']
-                    })
-                }),
-                fetch('/api/get/domaingroup', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        properties: ['cn']
-                    })
-                })
-            ]);
-
-            const [users, computers, groups] = await Promise.all([
-                usersResponse.json(),
-                computersResponse.json(),
-                groupsResponse.json()
-            ]);
-
-            const container = document.getElementById('domain-stats');
-            container.innerHTML = `
-                <div class="grid grid-cols-3 gap-4">
-                    <div class="text-center">
-                        <p class="text-2xl font-bold text-neutral-900 dark:text-white">${users.length}</p>
-                        <p class="text-sm text-neutral-500 dark:text-neutral-400">Users</p>
-                    </div>
-                    <div class="text-center">
-                        <p class="text-2xl font-bold text-neutral-900 dark:text-white">${computers.length}</p>
-                        <p class="text-sm text-neutral-500 dark:text-neutral-400">Computers</p>
-                    </div>
-                    <div class="text-center">
-                        <p class="text-2xl font-bold text-neutral-900 dark:text-white">${groups.length}</p>
-                        <p class="text-sm text-neutral-500 dark:text-neutral-400">Groups</p>
-                    </div>
-                </div>
-            `;
-        } catch (error) {
-            console.error('Error fetching domain stats:', error);
-            showErrorInCard('domain-stats');
         }
     }
 
@@ -268,7 +227,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    identity: 'Domain Admins'
+                    identity: 'Domain Admins',
                 })
             });
             await handleHttpError(response);
@@ -281,18 +240,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             container.innerHTML = `
-                <div class="space-y-2">
-                    ${data.slice(0, 3).map(admin => `
+                <div class="space-y-2 max-h-48 overflow-y-auto scrollbar">
+                    ${data.map(admin => `
                         <div class="p-2 rounded bg-neutral-50 dark:bg-neutral-700">
-                            <p class="text-neutral-900 dark:text-white">${admin.attributes.MemberName}</p>
+                            <a href="#" 
+                               class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                               onclick="handleLdapLinkClick(event, '${admin.attributes.MemberDistinguishedName}')"
+                               data-dn="${admin.attributes.MemberDistinguishedName}">
+                                ${admin.attributes.MemberName}
+                            </a>
                             <p class="text-sm text-neutral-500 dark:text-neutral-400">${admin.attributes.MemberDomain}</p>
                         </div>
                     `).join('')}
-                    ${data.length > 3 ? `
-                        <p class="text-sm text-neutral-500 dark:text-neutral-400 text-right">
-                            And ${data.length - 3} more...
-                        </p>
-                    ` : ''}
                 </div>
             `;
         } catch (error) {
@@ -303,30 +262,130 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function fetchCriticalItems() {
         try {
-            const [usersResponse, computersResponse] = await Promise.all([
-                fetch('/api/get/domainuser'),
-                fetch('/api/get/domaincomputer')
+            const [adminUsersResponse, kerberoastableResponse, computersResponse, inactiveUsersResponse] = await Promise.all([
+                fetch('/api/get/domainuser', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        args: {
+                            admincount: true,
+                            properties: ['samAccountName']
+                        }
+                    })
+                }),
+                fetch('/api/get/domainuser', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        args: {
+                            spn: true,
+                            properties: ['samAccountName', 'adminCount']
+                        }
+                    })
+                }),
+                fetch('/api/get/domaincomputer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        args: {
+                            unconstrained: true,
+                            properties: ['samAccountName']
+                        }
+                    })
+                }),
+                fetch('/api/get/domainuser', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        args: {
+                            enabled: true,
+                            properties: ['sAMAccountName', 'lastLogonTimestamp'],
+                            ldapfilter: '(lastLogonTimestamp=-1)'
+                        },
+                    })
+                })
             ]);
 
-            const [adminUsers, unconstrainedComputers] = await Promise.all([
-                usersResponse.json(),
-                computersResponse.json()
+            const [adminUsers, kerberoastable, unconstrainedComputers, inactiveUsers] = await Promise.all([
+                adminUsersResponse.json(),
+                kerberoastableResponse.json(),
+                computersResponse.json(),
+                inactiveUsersResponse.json()
             ]);
+
+            // Filter kerberoastable users to find those with adminCount=1
+            const kerberoastableAdmins = kerberoastable.filter(user => user.attributes.adminCount === 1);
 
             const container = document.getElementById('critical-items');
             container.innerHTML = `
-                <div class="space-y-4">
-                    <div>
+                <div class="space-y-4 max-h-48 overflow-y-auto scrollbar">
+                    <div class="p-2 rounded bg-neutral-50 dark:bg-neutral-700">
                         <p class="text-sm font-medium text-neutral-900 dark:text-white mb-2">
-                            Users with Admin Count
+                            Users with Admin Count (${adminUsers.length})
                         </p>
-                        <p class="text-2xl font-bold text-red-500">${adminUsers.length}</p>
+                        <p class="text-sm text-neutral-600 dark:text-neutral-300">
+                            ${adminUsers.map(user => `
+                                <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" 
+                                   onclick="handleLdapLinkClick(event, '${user.dn}')"
+                                   data-dn="${user.dn}">${user.attributes.sAMAccountName}</a>
+                            `).join(', ')}
+                        </p>
                     </div>
-                    <div>
+                    <div class="p-2 rounded bg-neutral-50 dark:bg-neutral-700">
                         <p class="text-sm font-medium text-neutral-900 dark:text-white mb-2">
-                            Unconstrained Delegation
+                            Kerberoastable Users (${kerberoastable.length})
                         </p>
-                        <p class="text-2xl font-bold text-red-500">${unconstrainedComputers.length}</p>
+                        <p class="text-sm text-neutral-600 dark:text-neutral-300">
+                            ${kerberoastable.map(user => `
+                                <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" 
+                                   onclick="handleLdapLinkClick(event, '${user.dn}')"
+                                   data-dn="${user.dn}">${user.attributes.sAMAccountName}</a>
+                            `).join(', ')}
+                        </p>
+                    </div>
+                    <div class="p-2 rounded bg-neutral-50 dark:bg-neutral-700">
+                        <p class="text-sm font-medium text-neutral-900 dark:text-white mb-2">
+                            Kerberoastable Admins (${kerberoastableAdmins.length})
+                        </p>
+                        <p class="text-sm text-neutral-600 dark:text-neutral-300">
+                            ${kerberoastableAdmins.map(user => `
+                                <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" 
+                                   onclick="handleLdapLinkClick(event, '${user.dn}')"
+                                   data-dn="${user.dn}">${user.attributes.sAMAccountName}</a>
+                            `).join(', ')}
+                        </p>
+                    </div>
+                    <div class="p-2 rounded bg-neutral-50 dark:bg-neutral-700">
+                        <p class="text-sm font-medium text-neutral-900 dark:text-white mb-2">
+                            Unconstrained Delegation (${unconstrainedComputers.length})
+                        </p>
+                        <p class="text-sm text-neutral-600 dark:text-neutral-300">
+                            ${unconstrainedComputers.map(computer => `
+                                <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" 
+                                   onclick="handleLdapLinkClick(event, '${computer.dn}')"
+                                   data-dn="${computer.dn}">${computer.attributes.sAMAccountName}</a>
+                            `).join(', ')}
+                        </p>
+                    </div>
+                    <div class="p-2 rounded bg-neutral-50 dark:bg-neutral-700">
+                        <p class="text-sm font-medium text-neutral-900 dark:text-white mb-2">
+                            Inactive Users but still Enabled (${inactiveUsers.length})
+                        </p>
+                        <p class="text-sm text-neutral-600 dark:text-neutral-300">
+                            ${inactiveUsers.map(user => `
+                                <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" 
+                                   onclick="handleLdapLinkClick(event, '${user.dn}')"
+                                   data-dn="${user.dn}">${user.attributes.sAMAccountName}</a>
+                            `).join(', ')}
+                        </p>
                     </div>
                 </div>
             `;

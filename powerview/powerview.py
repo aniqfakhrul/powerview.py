@@ -199,55 +199,55 @@ class PowerView:
 
 		if identity:
 			identity_filter += f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
-		elif args and args.identity:
+		elif args and hasattr(args, 'identity') and args.identity:
 			identity_filter += f"(|(sAMAccountName={args.identity})(distinguishedName={args.identity}))"
 
 		if args:
-			if args.preauthnotrequired:
+			if hasattr(args, 'preauthnotrequired') and args.preauthnotrequired:
 				logging.debug("[Get-DomainUser] Searching for user accounts that do not require kerberos preauthenticate")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=4194304)'
-			if args.passnotrequired:
+			if hasattr(args, 'passnotrequired') and args.passnotrequired:
 				logging.debug("[Get-DomainUser] Searching for user accounts that have PASSWD_NOTREQD set")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=32)'
-			if args.admincount:
+			if hasattr(args, 'admincount') and args.admincount:
 				logging.debug('[Get-DomainUser] Searching for adminCount=1')
 				ldap_filter += f'(admincount=1)'
-			if args.lockout:
+			if hasattr(args, 'lockout') and args.lockout:
 				logging.debug('[Get-DomainUser] Searching for locked out user')
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=16)'
-			if args.allowdelegation:
+			if hasattr(args, 'allowdelegation') and args.allowdelegation:
 				logging.debug('[Get-DomainUser] Searching for users who can be delegated')
 				ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=1048574))'
-			if args.disallowdelegation:
+			if hasattr(args, 'disallowdelegation') and args.disallowdelegation:	
 				logging.debug('[Get-DomainUser] Searching for users who are sensitive and not trusted for delegation')
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=1048576)'
-			if args.trustedtoauth:
+			if hasattr(args, 'trustedtoauth') and args.trustedtoauth:
 				logging.debug('[Get-DomainUser] Searching for users that are trusted to authenticate for other principals')
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=16777216)'
 				properties.add('msds-AllowedToDelegateTo')
-			if args.rbcd:
+			if hasattr(args, 'rbcd') and args.rbcd:
 				logging.debug('[Get-DomainUser] Searching for users that are configured to allow resource-based constrained delegation')
 				ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
-			if args.shadowcred:
+			if hasattr(args, 'shadowcred') and args.shadowcred:
 				logging.debug("[Get-DomainUser] Searching for users that are configured to have msDS-KeyCredentialLink attribute set")
 				ldap_filter += f'(msDS-KeyCredentialLink=*)'
 				properties.add('msDS-KeyCredentialLink')
-			if args.spn:
+			if hasattr(args, 'spn') and args.spn:
 				logging.debug("[Get-DomainUser] Searching for users that have SPN attribute set")
 				ldap_filter += f'(servicePrincipalName=*)'
-			if args.unconstrained:
+			if hasattr(args, 'unconstrained') and args.unconstrained:
 				logging.debug("[Get-DomainUser] Searching for users configured for unconstrained delegation")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
-			if args.enabled:
+			if hasattr(args, 'enabled') and args.enabled:
 				logging.debug("[Get-DomainUser] Searching for enabled user")
 				ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=2))'
-			if args.disabled:
+			if hasattr(args, 'disabled') and args.disabled:
 				logging.debug("[Get-DomainUser] Searching for disabled user")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=2)'
-			if args.password_expired:
+			if hasattr(args, 'password_expired') and args.password_expired:
 				logging.debug("[Get-DomainUser] Searching for user with expired password")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=8388608)'
-			if args.ldapfilter:
+			if hasattr(args, 'ldapfilter') and args.ldapfilter:
 				logging.debug(f'[Get-DomainUser] Using additional LDAP filter: {args.ldapfilter}')
 				ldap_filter += f'{args.ldapfilter}'
 
@@ -699,70 +699,68 @@ class PowerView:
 
 		if identity:
 			identity_filter += f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
-		elif args and args.identity:
+		elif args and hasattr(args, 'identity') and args.identity:
 			identity_filter += f"(|(name={args.identity})(sAMAccountName={args.identity})(dnsHostName={args.identity}))"
 
 		if ldapfilter:
 			ldap_filter += ldapfilter
 
 		if args:
-			if args.unconstrained:
+			if hasattr(args, 'unconstrained') and args.unconstrained:
 				logging.debug("[Get-DomainComputer] Searching for computers with unconstrained delegation")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
-			if args.enabled:
+			if hasattr(args, 'enabled') and args.enabled:
 				logging.debug("[Get-DomainComputer] Searching for enabled computer")
 				ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=2))'
-			if args.disabled:
+			if hasattr(args, 'disabled') and args.disabled:
 				logging.debug("[Get-DomainComputer] Searching for disabled computer")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=2)'
-			if args.trustedtoauth:
+			if hasattr(args, 'trustedtoauth') and args.trustedtoauth:
 				logging.debug("[Get-DomainComputer] Searching for computers that are trusted to authenticate for other principals")
 				ldap_filter += f'(msds-allowedtodelegateto=*)'
 				properties.add('msds-AllowedToDelegateTo')
-			if args.laps:
+			if hasattr(args, 'laps') and args.laps:
 				logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
 				ldap_filter += f'(ms-Mcs-AdmPwd=*)'
 				properties += ['ms-MCS-AdmPwd','ms-Mcs-AdmPwdExpirationTime']
-			if args.rbcd:
+			if hasattr(args, 'rbcd') and args.rbcd:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
 				ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
 				properties.add('msDS-AllowedToActOnBehalfOfOtherIdentity')
-			if args.shadowcred:
+			if hasattr(args, 'shadowcred') and args.shadowcred:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to have msDS-KeyCredentialLink attribute set")
 				ldap_filter += f'(msDS-KeyCredentialLink=*)'
 				properties.add('msDS-KeyCredentialLink')
-			if args.printers:
+			if hasattr(args, 'printers') and args.printers:
 				logging.debug("[Get-DomainComputer] Searching for printers")
 				ldap_filter += f'(objectCategory=printQueue)'
-			if args.spn:
+			if hasattr(args, 'spn') and args.spn:
 				logging.debug(f"[Get-DomainComputer] Searching for computers with SPN attribute: {args.spn}")
 				ldap_filter += f'(servicePrincipalName=*)'
-			if args.excludedcs:
+			if hasattr(args, 'excludedcs') and args.excludedcs:
 				logging.debug("[Get-DomainComputer] Excluding domain controllers")
 				ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=8192))'
-			if args.bitlocker:
+			if hasattr(args, 'bitlocker') and args.bitlocker:
 				logging.debug("[Get-DomainComputer] Searching for computers with BitLocker keys")
 				ldap_filter += f'(objectClass=msFVE-RecoveryInformation)'
 				properties.add('msFVE-KeyPackage')
 				properties.add('msFVE-RecoveryGuid')
 				properties.add('msFVE-RecoveryPassword')
 				properties.add('msFVE-VolumeGuid')
-			if args.gmsapassword:
+			if hasattr(args, 'gmsapassword') and args.gmsapassword:
 				logging.debug("[Get-DomainComputer] Searching for computers with GSMA password stored")
 				ldap_filter += f'(objectClass=msDS-GroupManagedServiceAccount)'
 				properties.add('msDS-ManagedPassword')
 				properties.add('msDS-GroupMSAMembership')
 				properties.add('msDS-ManagedPasswordInterval')
 				properties.add('msDS-ManagedPasswordId')
-			if args.pre2k:
+			if hasattr(args, 'pre2k') and args.pre2k:
 				logging.debug("[Get-DomainComputer] Search for Pre-Created Windows 2000 computer")
 				ldap_filter += f'(userAccountControl=4128)(logonCount=0)'
-			if args.ldapfilter:
+			if hasattr(args, 'ldapfilter') and args.ldapfilter:
 				logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
 				ldap_filter += f"{args.ldapfilter}"
 
-		# also need to change this to filter from objectClass instead
-		#ldap_filter = f'(&(samAccountType=805306369){identity_filter}{ldap_filter})'
 		ldap_filter = f'(&(objectClass=computer){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainComputer] LDAP search filter: {ldap_filter}')
 		entries = []
