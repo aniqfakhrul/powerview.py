@@ -3760,6 +3760,9 @@ displayName=New Group Policy Object
 			logging.error("[Get-NetLoggedOn] Use FQDN when using kerberos")
 			return
 
+		if is_valid_fqdn(computer_name) and not self.use_kerberos:
+			computer_name = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
 		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding, interface_uuid = wkst.MSRPC_UUID_WKST)
 		
@@ -3967,6 +3970,9 @@ displayName=New Group Policy Object
 		if is_ipaddress(identity) and self.use_kerberos:
 			logging.error("[Get-NetSession] Use FQDN when using kerberos")
 			return
+
+		if is_valid_fqdn(identity) and not self.use_kerberos:
+			identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % identity
 		dce = self.conn.connectRPCTransport(host=identity, stringBindings=stringBinding, interface_uuid = srvs.MSRPC_UUID_SRVS)

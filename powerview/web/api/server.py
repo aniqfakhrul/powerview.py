@@ -31,6 +31,7 @@ class APIServer:
 
 		# Define routes
 		self.app.add_url_rule('/', 'index', self.render_index, methods=['GET'])
+		self.app.add_url_rule('/dashboard', 'dashboard', self.render_dashboard, methods=['GET'])
 		self.app.add_url_rule('/users', 'users', self.render_users, methods=['GET'])
 		self.app.add_url_rule('/computers', 'computers', self.render_computers, methods=['GET'])
 		self.app.add_url_rule('/dns', 'dns', self.render_dns, methods=['GET'])
@@ -59,6 +60,7 @@ class APIServer:
 
 		self.nav_items = [
 			{"name": "Explorer", "icon": "fas fa-folder-tree", "link": "/"},
+			{"name": "Dashboard", "icon": "fas fa-chart-line", "link": "/dashboard"},
 			{"name": "Modules", "icon": "fas fa-cubes", "subitems": [
 				{"name": "Users", "icon": "far fa-user", "link": "/users"},
 				{"name": "Computers", "icon": "fas fa-display", "link": "/computers"},
@@ -78,6 +80,13 @@ class APIServer:
 			'nav_items': self.nav_items
 		}
 		return render_template('explorerpage.html', **context)
+	
+	def render_dashboard(self):
+		context = {
+			'title': 'Powerview.py - Dashboard',
+			'nav_items': self.nav_items
+		}
+		return render_template('dashboardpage.html', **context)
 
 	def render_users(self):
 		context = {

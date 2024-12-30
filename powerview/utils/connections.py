@@ -63,6 +63,7 @@ class CONNECTION:
 		self.no_pass = args.no_pass
 		self.nameserver = args.nameserver
 		self.use_system_ns = args.use_system_ns
+		self.stack_trace = args.stack_trace
 
 		self.pfx = args.pfx
 		self.pfx_pass = None
@@ -1000,16 +1001,19 @@ class CONNECTION:
 
 	# stole from PetitPotam.py
 	# TODO: FIX kerberos auth
-	def connectRPCTransport(self, host=None, stringBindings=None, interface_uuid=None, auth=True, set_authn=False, raise_exceptions=False):
-		if not host:
-			host = self.dc_ip
-		if not stringBindings:
-			stringBindings = epm.hept_map(host, samr.MSRPC_UUID_SAMR, protocol = 'ncacn_ip_tcp')
+	def connectRPCTransport(self, host=None, stringBindings=None, interface_uuid=None, port=445, auth=True, set_authn=False, raise_exceptions=False):
+		if self.stack_trace:
+			raise_exceptions = True
+
 		if not host:
 			host = self.dc_ip
 
+		if not stringBindings:
+			stringBindings = epm.hept_map(host, samr.MSRPC_UUID_SAMR, protocol ='ncacn_ip_tcp')
+
+		logging.debug("[ConnectRPCTransport] Connecting to %s" % stringBindings)
 		rpctransport = transport.DCERPCTransportFactory(stringBindings)
-		#rpctransport.set_dport(445)
+		rpctransport.set_dport(port)
 
 		if hasattr(rpctransport, 'set_credentials') and auth:
 			rpctransport.set_credentials(self.username, self.password, self.domain, self.lmhash, self.nthash, TGT=self.TGT)
@@ -1026,19 +1030,26 @@ class CONNECTION:
 			dce.set_auth_type(RPC_C_AUTHN_WINNT)
 			dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
 
-		logging.debug("Connecting to %s" % stringBindings)
+		logging.debug("[ConnectRPCTransport] Connecting to %s" % stringBindings)
 
 		try:
 			dce.connect()
 			if interface_uuid:
+				logging.debug("[connectRPCTransport] Binding to UUID %s" % interface_uuid)
 				dce.bind(interface_uuid)
 			return dce
 		except SessionError as e:
-			logging.debug(str(e))
+			logging.debug("[connectRPCTransport:SessionError] %s" % str(e))
 			if raise_exceptions:
 				raise e
 			else:
-				return 
+				return
+		except Exception as e:
+			logging.debug("[connectRPCTransport:Exception] %s" % str(e))
+			if raise_exceptions:
+				raise e
+			else:
+				return
 
 	# stolen from pywerview
 	def create_rpc_connection(self, host, pipe):
