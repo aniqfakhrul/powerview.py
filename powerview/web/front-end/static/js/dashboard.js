@@ -262,7 +262,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function fetchCriticalItems() {
         try {
-            const [adminUsersResponse, kerberoastableResponse, computersResponse, inactiveUsersResponse] = await Promise.all([
+            const [adminUsersResponse, kerberoastableResponse, computersResponse, constrainedDelegationResponse, inactiveUsersResponse] = await Promise.all([
                 fetch('/api/get/domainuser', {
                     method: 'POST',
                     headers: {
@@ -306,6 +306,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                     },
                     body: JSON.stringify({
                         args: {
+                            trustedtoauth: true,
+                            properties: ['sAMAccountName']
+                        }
+                    })
+                }),
+                fetch('/api/get/domainuser', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        args: {
                             enabled: true,
                             properties: ['sAMAccountName', 'lastLogonTimestamp'],
                             ldapfilter: '(lastLogonTimestamp=-1)'
@@ -314,10 +326,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 })
             ]);
 
-            const [adminUsers, kerberoastable, unconstrainedComputers, inactiveUsers] = await Promise.all([
+            const [adminUsers, kerberoastable, unconstrainedComputers, constrainedDelegation, inactiveUsers] = await Promise.all([
                 adminUsersResponse.json(),
                 kerberoastableResponse.json(),
                 computersResponse.json(),
+                constrainedDelegationResponse.json(),
                 inactiveUsersResponse.json()
             ]);
 
@@ -395,6 +408,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" 
                                    onclick="handleLdapLinkClick(event, '${computer.dn}')"
                                    data-dn="${computer.dn}">${computer.attributes.sAMAccountName}</a>
+                            `).join(', ')}
+                        </p>
+                    </div>
+                    <div class="p-2 rounded bg-neutral-50 dark:bg-neutral-700">
+                        <p class="text-sm font-medium text-neutral-900 dark:text-white mb-2">
+                            Constrained Delegation (${constrainedDelegation.length})
+                        </p>
+                        <p class="text-sm text-neutral-600 dark:text-neutral-300">
+                            ${constrainedDelegation.map(user => `
+                                <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" 
+                                onclick="handleLdapLinkClick(event, '${user.dn}')"
+                                data-dn="${user.dn}">${user.attributes.sAMAccountName}</a>
                             `).join(', ')}
                         </p>
                     </div>
