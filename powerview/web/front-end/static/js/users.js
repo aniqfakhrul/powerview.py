@@ -407,10 +407,10 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.classList.remove('hidden');
             overlay.classList.remove('hidden');
 
-            // Focus on the first input
-            const firstInput = modal.querySelector('input');
-            if (firstInput) {
-                firstInput.focus();
+            // Focus on the username input instead of the first input
+            const usernameInput = document.getElementById('new-username');
+            if (usernameInput) {
+                usernameInput.focus();
             }
         } catch (error) {
             console.error('Error initializing Add User Modal:', error);
@@ -541,11 +541,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchBaseDropdown = document.getElementById('search-base-dropdown');
         const searchInput = document.getElementById('search-base-input');
         const optionsContainer = document.getElementById('search-base-options');
-        
+        const baseDnModal = document.getElementById('user-base-dn');
+
         try {
             // Get domain info for root DN
             const domainInfo = await getDomainInfo();
             const rootDN = domainInfo.root_dn;
+
+            // Fill in the base DN modal for search base input
+            baseDnModal.value = rootDN;
             
             // Get all OUs
             const ous = await getDomainOU();

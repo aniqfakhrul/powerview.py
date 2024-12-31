@@ -11,6 +11,7 @@ from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.modules.dacledit import DACLedit
 from powerview.modules.products import EDR
+from powerview.modules.gpo import GPO
 from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
 from powerview.utils.storage import Storage
@@ -58,11 +59,8 @@ class PowerView:
 		
 		self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
 
-		if self.args.obfuscate:
-			_paged_search = CustomExtendedOperationsRoot(self.ldap_session)
-			def obf_paged_search(*args, **kwargs):
-				return _paged_search.standard.paged_search(*args, **kwargs)
-			self.ldap_session.extend.standard.paged_search = obf_paged_search
+		self.custom_paged_search = CustomExtendedOperationsRoot(self.ldap_session, obfuscate=self.args.obfuscate, no_cache=self.args.no_cache)
+		self.ldap_session.extend.standard.paged_search = self.custom_paged_search.standard.paged_search
 
 		self.username = args.username if args.username else self.conn.get_username()
 		self.password = args.password
@@ -92,9 +90,6 @@ class PowerView:
 		self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
 		if not target_domain:
 			self.is_admin = self.is_admin()
-
-		# storage
-		self.store = Storage()
 
 		# API server
 		if self.args.web and self.ldap_session:
@@ -177,6 +172,10 @@ class PowerView:
 
 		return self.is_domainadmin or self.is_admincount
 
+	def clear_cache(self) -> bool:
+		logging.info("[Clear-Cache] Clearing cache")
+		return self.custom_paged_search.standard.storage.clear_cache()
+
 	def get_domainuser(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE):
 		def_prop = [
 			'servicePrincipalName', 'objectCategory', 'objectGUID', 'primaryGroupID', 'userAccountControl',
@@ -200,55 +199,55 @@ class PowerView:
 
 		if identity:
 			identity_filter += f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
-		elif args and args.identity:
+		elif args and hasattr(args, 'identity') and args.identity:
 			identity_filter += f"(|(sAMAccountName={args.identity})(distinguishedName={args.identity}))"
 
 		if args:
-			if args.preauthnotrequired:
+			if hasattr(args, 'preauthnotrequired') and args.preauthnotrequired:
 				logging.debug("[Get-DomainUser] Searching for user accounts that do not require kerberos preauthenticate")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=4194304)'
-			if args.passnotrequired:
+			if hasattr(args, 'passnotrequired') and args.passnotrequired:
 				logging.debug("[Get-DomainUser] Searching for user accounts that have PASSWD_NOTREQD set")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=32)'
-			if args.admincount:
+			if hasattr(args, 'admincount') and args.admincount:
 				logging.debug('[Get-DomainUser] Searching for adminCount=1')
 				ldap_filter += f'(admincount=1)'
-			if args.lockout:
+			if hasattr(args, 'lockout') and args.lockout:
 				logging.debug('[Get-DomainUser] Searching for locked out user')
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=16)'
-			if args.allowdelegation:
+			if hasattr(args, 'allowdelegation') and args.allowdelegation:
 				logging.debug('[Get-DomainUser] Searching for users who can be delegated')
 				ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=1048574))'
-			if args.disallowdelegation:
+			if hasattr(args, 'disallowdelegation') and args.disallowdelegation:	
 				logging.debug('[Get-DomainUser] Searching for users who are sensitive and not trusted for delegation')
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=1048576)'
-			if args.trustedtoauth:
+			if hasattr(args, 'trustedtoauth') and args.trustedtoauth:
 				logging.debug('[Get-DomainUser] Searching for users that are trusted to authenticate for other principals')
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=16777216)'
 				properties.add('msds-AllowedToDelegateTo')
-			if args.rbcd:
+			if hasattr(args, 'rbcd') and args.rbcd:
 				logging.debug('[Get-DomainUser] Searching for users that are configured to allow resource-based constrained delegation')
 				ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
-			if args.shadowcred:
+			if hasattr(args, 'shadowcred') and args.shadowcred:
 				logging.debug("[Get-DomainUser] Searching for users that are configured to have msDS-KeyCredentialLink attribute set")
 				ldap_filter += f'(msDS-KeyCredentialLink=*)'
 				properties.add('msDS-KeyCredentialLink')
-			if args.spn:
+			if hasattr(args, 'spn') and args.spn:
 				logging.debug("[Get-DomainUser] Searching for users that have SPN attribute set")
 				ldap_filter += f'(servicePrincipalName=*)'
-			if args.unconstrained:
+			if hasattr(args, 'unconstrained') and args.unconstrained:
 				logging.debug("[Get-DomainUser] Searching for users configured for unconstrained delegation")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
-			if args.enabled:
+			if hasattr(args, 'enabled') and args.enabled:
 				logging.debug("[Get-DomainUser] Searching for enabled user")
 				ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=2))'
-			if args.disabled:
+			if hasattr(args, 'disabled') and args.disabled:
 				logging.debug("[Get-DomainUser] Searching for disabled user")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=2)'
-			if args.password_expired:
+			if hasattr(args, 'password_expired') and args.password_expired:
 				logging.debug("[Get-DomainUser] Searching for user with expired password")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=8388608)'
-			if args.ldapfilter:
+			if hasattr(args, 'ldapfilter') and args.ldapfilter:
 				logging.debug(f'[Get-DomainUser] Using additional LDAP filter: {args.ldapfilter}')
 				ldap_filter += f'{args.ldapfilter}'
 
@@ -689,7 +688,7 @@ class PowerView:
 			properties = set(args.properties)
 		else:
 			properties = set(properties or def_prop)
-
+		
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
@@ -700,70 +699,68 @@ class PowerView:
 
 		if identity:
 			identity_filter += f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
-		elif args and args.identity:
+		elif args and hasattr(args, 'identity') and args.identity:
 			identity_filter += f"(|(name={args.identity})(sAMAccountName={args.identity})(dnsHostName={args.identity}))"
 
 		if ldapfilter:
 			ldap_filter += ldapfilter
 
 		if args:
-			if args.unconstrained:
+			if hasattr(args, 'unconstrained') and args.unconstrained:
 				logging.debug("[Get-DomainComputer] Searching for computers with unconstrained delegation")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
-			if args.enabled:
+			if hasattr(args, 'enabled') and args.enabled:
 				logging.debug("[Get-DomainComputer] Searching for enabled computer")
 				ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=2))'
-			if args.disabled:
+			if hasattr(args, 'disabled') and args.disabled:
 				logging.debug("[Get-DomainComputer] Searching for disabled computer")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=2)'
-			if args.trustedtoauth:
+			if hasattr(args, 'trustedtoauth') and args.trustedtoauth:
 				logging.debug("[Get-DomainComputer] Searching for computers that are trusted to authenticate for other principals")
 				ldap_filter += f'(msds-allowedtodelegateto=*)'
 				properties.add('msds-AllowedToDelegateTo')
-			if args.laps:
+			if hasattr(args, 'laps') and args.laps:
 				logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
 				ldap_filter += f'(ms-Mcs-AdmPwd=*)'
 				properties += ['ms-MCS-AdmPwd','ms-Mcs-AdmPwdExpirationTime']
-			if args.rbcd:
+			if hasattr(args, 'rbcd') and args.rbcd:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
 				ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
 				properties.add('msDS-AllowedToActOnBehalfOfOtherIdentity')
-			if args.shadowcred:
+			if hasattr(args, 'shadowcred') and args.shadowcred:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to have msDS-KeyCredentialLink attribute set")
 				ldap_filter += f'(msDS-KeyCredentialLink=*)'
 				properties.add('msDS-KeyCredentialLink')
-			if args.printers:
+			if hasattr(args, 'printers') and args.printers:
 				logging.debug("[Get-DomainComputer] Searching for printers")
 				ldap_filter += f'(objectCategory=printQueue)'
-			if args.spn:
+			if hasattr(args, 'spn') and args.spn:
 				logging.debug(f"[Get-DomainComputer] Searching for computers with SPN attribute: {args.spn}")
 				ldap_filter += f'(servicePrincipalName=*)'
-			if args.excludedcs:
+			if hasattr(args, 'excludedcs') and args.excludedcs:
 				logging.debug("[Get-DomainComputer] Excluding domain controllers")
 				ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=8192))'
-			if args.bitlocker:
+			if hasattr(args, 'bitlocker') and args.bitlocker:
 				logging.debug("[Get-DomainComputer] Searching for computers with BitLocker keys")
 				ldap_filter += f'(objectClass=msFVE-RecoveryInformation)'
 				properties.add('msFVE-KeyPackage')
 				properties.add('msFVE-RecoveryGuid')
 				properties.add('msFVE-RecoveryPassword')
 				properties.add('msFVE-VolumeGuid')
-			if args.gmsapassword:
+			if hasattr(args, 'gmsapassword') and args.gmsapassword:
 				logging.debug("[Get-DomainComputer] Searching for computers with GSMA password stored")
 				ldap_filter += f'(objectClass=msDS-GroupManagedServiceAccount)'
 				properties.add('msDS-ManagedPassword')
 				properties.add('msDS-GroupMSAMembership')
 				properties.add('msDS-ManagedPasswordInterval')
 				properties.add('msDS-ManagedPasswordId')
-			if args.pre2k:
+			if hasattr(args, 'pre2k') and args.pre2k:
 				logging.debug("[Get-DomainComputer] Search for Pre-Created Windows 2000 computer")
 				ldap_filter += f'(userAccountControl=4128)(logonCount=0)'
-			if args.ldapfilter:
+			if hasattr(args, 'ldapfilter') and args.ldapfilter:
 				logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
 				ldap_filter += f"{args.ldapfilter}"
 
-		# also need to change this to filter from objectClass instead
-		#ldap_filter = f'(&(samAccountType=805306369){identity_filter}{ldap_filter})'
 		ldap_filter = f'(&(objectClass=computer){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainComputer] LDAP search filter: {ldap_filter}')
 		entries = []
@@ -1201,7 +1198,6 @@ class PowerView:
 				continue
 			strip_entry(_entries)
 			entries.append(_entries)
-
 		return entries
 
 	def get_domaingpolocalgroup(self, args=None, identity=None):
@@ -1215,7 +1211,7 @@ class PowerView:
 			try:
 				gpcfilesyspath = f"{entry['attributes']['gPCFileSysPath']}\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf"
 
-				conn = self.conn.init_smb_session(self.dc_ip)
+				conn = self.conn.init_smb_session(host2ip(self.dc_ip, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver))
 
 				share = 'sysvol'
 				filepath = ''.join(gpcfilesyspath.lower().split(share)[1:])
@@ -1232,9 +1228,6 @@ class PowerView:
 					data_content = output.decode(encoding)
 					found, infobject = parse_inicontent(filecontent=data_content)
 					if found:
-						#for i in infobject: # i = dict
-						#    new_dict['attributes'] = {'GPODisplayName': entry['displayName'].values[0],'GroupSID':i['sid'],'GroupMemberOf': i['memberof'], 'GroupMembers': i['memberof']}
-
 						if len(infobject) == 2:
 							new_dict['attributes'] = {'GPODisplayName': entry['attributes']['displayName'], 'GPOName': entry['attributes']['name'], 'GPOPath': entry['attributes']['gPCFileSysPath'], 'GroupName': self.convertfrom_sid(infobject[0]['sids']),'GroupSID':infobject[0]['sids'],'GroupMemberOf': f"{infobject[0]['memberof']}" if infobject[0]['memberof'] else "{}", 'GroupMembers': f"{infobject[1]['members']}" if infobject[1]['members'] else "{}"}
 							new_entries.append(new_dict.copy())
@@ -1251,7 +1244,116 @@ class PowerView:
 				pass
 		return new_entries
 
-	def get_domaintrust(self, args=None, properties=[], identity=None, search_scope=ldap3.SUBTREE):
+	def get_domaingposettings(self, args=None, identity=None):
+		"""
+		Parse GPO settings from SYSVOL share
+		Returns dictionary containing Machine and User configurations
+		"""
+		if args and hasattr(args, 'identity'):
+			identity = args.identity
+
+		entries = self.get_domaingpo(identity=identity)
+		if len(entries) == 0:
+			logging.error("[Get-GPOSettings] No GPO object found")
+			return
+
+		policy_settings = []
+		for entry in entries:
+			try:
+				gpcfilesyspath = entry['attributes']['gPCFileSysPath']
+				
+				# Connect to SYSVOL share
+				conn = self.conn.init_smb_session(host2ip(self.dc_ip, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver))
+				share = 'sysvol'
+				base_path = ''.join(gpcfilesyspath.lower().split(share)[1:])
+				
+				policy_data = {
+					'attributes': {
+						'displayName': entry['attributes']['displayName'],
+						'name': entry['attributes']['name'],
+						'gPCFileSysPath': gpcfilesyspath,
+						'machineConfig': {},
+						'userConfig': {}
+					}
+				}
+
+				# Parse Machine Configuration
+				machine_paths = {
+					'Security': '\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf',
+					'Registry': '\\MACHINE\\Registry.pol',
+					'Scripts': '\\MACHINE\\Scripts\\scripts.ini',
+					'Preferences': '\\MACHINE\\Preferences'
+				}
+
+				# Parse User Configuration
+				user_paths = {
+					'Registry': '\\USER\\Registry.pol',
+					'Scripts': '\\USER\\Scripts\\scripts.ini',
+					'Preferences': '\\USER\\Preferences'
+				}
+
+				# Process Machine Configuration
+				for section, path in machine_paths.items():
+					try:
+						fh = BytesIO()
+						file_path = base_path + path
+						try:
+							conn.getFile(share, file_path, fh.write)
+							content = fh.getvalue()
+							encoding = chardet.detect(content)["encoding"]
+							if encoding:
+								data = content.decode(encoding)
+								if section == 'Security':
+									# Parse Security Settings (GptTmpl.inf)
+									policy_data['attributes']['machineConfig']['Security'] = GPO.Helper._parse_inf_file(data)
+								elif section == 'Registry':
+									# Parse Registry Settings
+									policy_data['attributes']['machineConfig']['Registry'] = GPO.Helper._parse_registry_pol(content)
+								elif section == 'Scripts':
+									# Parse Startup/Shutdown Scripts
+									policy_data['attributes']['machineConfig']['Scripts'] = GPO.Helper._parse_scripts_ini(data)
+								elif section == 'Preferences':
+									# Parse Group Policy Preferences
+									policy_data['attributes']['machineConfig']['Preferences'] = GPO.Helper._parse_preferences(file_path, conn, share)
+						except Exception as e:
+							logging.debug(f"[Get-GPOSettings] File not found or access denied: {file_path}")
+						finally:
+							fh.close()
+					except Exception as e:
+						logging.debug(f"[Get-GPOSettings] Error processing {section}: {str(e)}")
+
+				# Process User Configuration (similar structure to Machine Configuration)
+				for section, path in user_paths.items():
+					try:
+						fh = BytesIO()
+						file_path = base_path + path
+						try:
+							conn.getFile(share, file_path, fh.write)
+							content = fh.getvalue()
+							encoding = chardet.detect(content)["encoding"]
+							if encoding:
+								data = content.decode(encoding)
+								if section == 'Registry':
+									policy_data['attributes']['userConfig']['Registry'] = GPO.Helper._parse_registry_pol(content)
+								elif section == 'Scripts':
+									policy_data['attributes']['userConfig']['Scripts'] = GPO.Helper._parse_scripts_ini(data)
+								elif section == 'Preferences':
+									policy_data['attributes']['userConfig']['Preferences'] = GPO.Helper._parse_preferences(file_path, conn, share)
+						except Exception as e:
+							logging.debug(f"[Get-GPOSettings] File not found or access denied: {file_path}")
+						finally:
+							fh.close()
+					except Exception as e:
+						logging.debug(f"[Get-GPOSettings] Error processing {section}: {str(e)}")
+
+				policy_settings.append(policy_data)
+
+			except Exception as e:
+				logging.error(f"[Get-GPOSettings] Error processing GPO: {str(e)}")
+				continue
+		return policy_settings
+
+	def get_domaintrust(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE):
 		def_prop = [
 			'name',
 			'objectGUID',
@@ -1266,12 +1368,15 @@ class PowerView:
 		properties = set(properties or def_prop)
 		identity = '*' if not identity else identity
 
+		if not searchbase:
+			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
 		identity_filter = f"(name={identity})"
 		ldap_filter = f'(&(objectClass=trustedDomain){identity_filter})'
 		logging.debug(f'[Get-DomainTrust] LDAP search filter: {ldap_filter}')
 
 		entries = []
-		entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope)
+		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope)
 		for _entries in entry_generator:
 			if _entries['type'] != 'searchResEntry':
 				continue
@@ -3653,6 +3758,9 @@ displayName=New Group Policy Object
 			logging.error("[Get-NetLoggedOn] Use FQDN when using kerberos")
 			return
 
+		if is_valid_fqdn(computer_name) and not self.use_kerberos:
+			computer_name = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
 		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding, interface_uuid = wkst.MSRPC_UUID_WKST)
 		
@@ -3851,50 +3959,31 @@ displayName=New Group Policy Object
 		dce.disconnect()
 		return entries
 
-	def get_netsession(self, args):
-		is_fqdn = False
-		host = ""
-		host_inp = args.computer if args.computer else args.computername
+	def get_netsession(self, identity=None, port=445, args=None):
+		KNOWN_PROTOCOLS = {
+			139: {'bindstr': r'ncacn_np:%s[\pipe\srvsvc]', 'set_host': True},
+			445: {'bindstr': r'ncacn_np:%s[\pipe\srvsvc]', 'set_host': True},
+		}
 
-		if host_inp:
-			if not is_ipaddress(host_inp):
-				is_fqdn = True
-				if args.server and args.server.casefold() != self.domain.casefold():
-					if not host_inp.endswith(args.server):
-						host = f"{host_inp}.{args.server}"
-					else:
-						host = host_inp
-				else:
-					if not is_valid_fqdn(host_inp):
-						host = f"{host_inp}.{self.domain}"
-					else:
-						host = host_inp
-				logging.debug(f"[Get-NetSession] Using FQDN: {host}")
-			else:
-				host = host_inp
-
-		if self.use_kerberos:
-			if is_ipaddress(args.computer) or is_ipaddress(args.computername):
-				logging.error('[Get-NetSession] FQDN must be used for kerberos authentication')
-				return
-		else:
-			if is_fqdn:
-				host = host2ip(host, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
-
-		if not host:
-			logging.error(f"[Get-NetSession] Host not found")
+		if is_ipaddress(identity) and self.use_kerberos:
+			logging.error("[Get-NetSession] Use FQDN when using kerberos")
 			return
 
-		dce = self.conn.init_rpc_session(host=host, pipe=r'\srvsvc')
+		if is_valid_fqdn(identity) and not self.use_kerberos:
+			identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % identity
+		dce = self.conn.connectRPCTransport(host=identity, stringBindings=stringBinding, interface_uuid = srvs.MSRPC_UUID_SRVS)
 
 		if dce is None:
+			logging.error("[Get-NetSession] Failed to connect to %s" % (identity))
 			return
 
 		try:
 			resp = srvs.hNetrSessionEnum(dce, '\x00', NULL, 10)
 		except Exception as e:
 			if 'rpc_s_access_denied' in str(e):
-				logging.info('Access denied while enumerating Sessions on %s' % (host))
+				logging.info('Access denied while enumerating Sessions on %s' % (identity))
 			else:
 				logging.info(str(e))
 			return
@@ -3915,7 +4004,7 @@ displayName=New Group Policy Object
 					"Username": userName,
 					"Time": time,
 					"Idle Time": idleTime,
-					"Computer": host,
+					"Computer": identity,
 					}
 				})
 

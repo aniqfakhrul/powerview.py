@@ -18,11 +18,35 @@ async function selectOUTab(tabName) {
         panel.style.display = panel.id === `tabpanel${tabName.charAt(0).toUpperCase() + tabName.slice(1)}` ? 'block' : 'none';
     });
 
+    // Load specific tab content
     if (tabName === 'descendants') {
         const selectedOU = document.querySelector('.selected');
         if (selectedOU) {
             const identity = selectedOU.getAttribute('data-dn');
             await loadOUDescendants(identity);
+        }
+    } else if (tabName === 'linkedGpo') {
+        const selectedOU = document.querySelector('.selected');
+        if (selectedOU) {
+            const identity = selectedOU.getAttribute('data-dn');
+            const ouData = await fetchItemsData(identity, 'BASE', ['gPLink']);
+            if (ouData && ouData.length > 0 && ouData[0].attributes.gPLink) {
+                const gpoIds = parseGPOLink(ouData[0].attributes.gPLink);
+                if (gpoIds && gpoIds.length > 0) {
+                    await loadLinkedGPOs(gpoIds);
+                }
+            } else {
+                // Show empty state if no GPOs are linked
+                const gpoPanel = document.getElementById('tabpanelLinkedGpo');
+                gpoPanel.innerHTML = `
+                    <div class="flex items-center justify-center h-64 text-neutral-500">
+                        <div class="text-center">
+                            <i class="fa-solid fa-shield-halved mb-2 text-2xl"></i>
+                            <p>No Group Policy Objects linked to this OU</p>
+                        </div>
+                    </div>
+                `;
+            }
         }
     }
 }
@@ -39,6 +63,150 @@ function showDeleteModal(identity) {
     const firstButton = modal.querySelector('button');
     if (firstButton) {
         firstButton.focus();
+    }
+}
+
+
+async function loadLinkedGPOs(gpoLinks) {
+    try {
+        showLoadingIndicator();
+        
+        // Clear the panel first
+        const gpoPanel = document.getElementById('tabpanelLinkedGpo');
+        gpoPanel.innerHTML = '';
+        
+        const properties = ['objectClass', 'displayName', 'distinguishedName', 'gPCFileSysPath'];
+        
+        // Fetch data for all GPO IDs
+        const allData = await Promise.all(gpoLinks.map(link => 
+            fetchGPOData(link.GUID, 'SUBTREE', properties)
+        ));
+        
+        // Flatten and filter out any null results
+        const data = allData.flat().filter(Boolean);
+        
+        if (data && data.length > 0) {
+            // Create container
+            const container = document.createElement('div');
+            container.className = 'bg-white dark:bg-neutral-800 rounded-lg';
+
+            const tableContainer = document.createElement('div');
+            tableContainer.className = 'overflow-x-auto';
+
+            const table = document.createElement('table');
+            table.className = 'w-full text-sm text-neutral-600 dark:text-neutral-300';
+
+            // Create header
+            const thead = document.createElement('thead');
+            thead.className = 'text-left border-b border-neutral-200 dark:border-neutral-700';
+            
+            const headerRow = document.createElement('tr');
+            ['Name', 'Status', 'Enforcement', 'Distinguished Name'].forEach(text => {
+                const th = document.createElement('th');
+                th.className = 'px-4 py-2';
+                th.textContent = text;
+                headerRow.appendChild(th);
+            });
+
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            // Create tbody
+            const tbody = document.createElement('tbody');
+            tbody.className = 'divide-y divide-neutral-200 dark:divide-neutral-700';
+
+            data.forEach((gpo, index) => {
+                const gpoLink = gpoLinks[index];
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 cursor-pointer result-item';
+                tr.onclick = (event) => handleLdapLinkClick(event, gpo.dn);
+
+                // Name cell
+                const nameCell = document.createElement('td');
+                nameCell.className = 'px-4 py-2';
+                nameCell.textContent = gpo.attributes.displayName || '';
+                tr.appendChild(nameCell);
+
+                // Status cell
+                const statusCell = document.createElement('td');
+                statusCell.className = 'px-4 py-2';
+                statusCell.textContent = gpo.enabled ? 'Enabled' : 'Disabled';
+                tr.appendChild(statusCell);
+
+                // Enforcement cell
+                const enforcementCell = document.createElement('td');
+                enforcementCell.className = 'px-4 py-2';
+                enforcementCell.textContent = gpoLink.IsEnforced ? 'Enforced' : 'Not Enforced';
+                tr.appendChild(enforcementCell);
+
+                // DN cell with copy button
+                const dnCell = document.createElement('td');
+                dnCell.className = 'px-4 py-2';
+                const dnContainer = document.createElement('div');
+                dnContainer.className = 'flex items-center gap-2 group';
+                
+                const dnSpan = document.createElement('span');
+                dnSpan.className = 'break-all';
+                dnSpan.textContent = gpo.dn;
+                
+                const copyButton = document.createElement('button');
+                copyButton.className = 'opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800';
+                copyButton.onclick = (event) => copyToClipboard(event, gpo.dn);
+                copyButton.title = 'Copy to clipboard';
+                copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
+                
+                dnContainer.appendChild(dnSpan);
+                dnContainer.appendChild(copyButton);
+                dnCell.appendChild(dnContainer);
+                tr.appendChild(dnCell);
+
+                tbody.appendChild(tr);
+            });
+
+            table.appendChild(tbody);
+            tableContainer.appendChild(table);
+            container.appendChild(tableContainer);
+            gpoPanel.appendChild(container);
+        } else {
+            gpoPanel.innerHTML = `
+                <div class="flex items-center justify-center h-64 text-neutral-500">
+                    <div class="text-center">
+                        <i class="fa-solid fa-shield-halved mb-2 text-2xl"></i>
+                        <p>No Group Policy Objects linked to this OU</p>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading GPOs:', error);
+        showErrorAlert('Failed to load linked GPOs');
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+async function fetchGPOData(identity, search_scope='BASE', properties=['*']) {
+    try {
+        const response = await fetch('/api/get/domaingpo', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                identity: identity,
+                properties: properties,
+                search_scope: search_scope
+            })
+        });
+
+        await handleHttpError(response);
+
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error fetching GPO data:', error);
+        return null;
+    } finally {
     }
 }
 
@@ -157,7 +325,7 @@ async function loadOUDescendants(identity) {
                     row.appendChild(td);
                 });
 
-                row.addEventListener('click', () => {
+                row.addEventListener('click', (event) => {
                     handleLdapLinkClick(event, item.attributes.distinguishedName);
                 });
 
@@ -195,7 +363,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const rootNode = await createOUTreeNode(rootDn, domain, true);
             if (rootNode) {
                 // Automatically expand root node
-                await toggleOUSubtree(rootDn, rootNode);
+                rootNode.click();
             }
         } catch (error) {
             console.error('Error initializing OU view:', error);
@@ -255,17 +423,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             showLoadingIndicator();
 
             try {
+                // Fetch and display OU details first
+                const ouData = await fetchItemsData(dn, 'BASE', ['*']);
+                if (ouData && ouData.length > 0) {
+                    displayOUDetails(ouData[0]);
+                }
+
                 // Check for existing subtree
                 let subtreeContainer = div.nextElementSibling;
                 if (subtreeContainer && subtreeContainer.classList.contains('subtree')) {
                     subtreeContainer.remove();
                 } else {
-                    // Fetch and display OU details
-                    const ouData = await fetchOUData(dn, 'BASE');
-                    if (ouData && ouData.length > 0) {
-                        displayOUDetails(ouData[0]);
-                        await toggleOUSubtree(dn, div);
-                    }
+                    await toggleOUSubtree(dn, div);
                 }
             } catch (error) {
                 console.error('Error handling OU node click:', error);
@@ -336,7 +505,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return false;
     }
 
-    function displayOUDetails(ou) {
+    async function displayOUDetails(ou) {
         const contentDiv = document.getElementById('ou-content');
         if (!contentDiv) return;
 
@@ -348,6 +517,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Show tabs
         document.getElementById('ou-tabs').style.display = 'flex';
+
+        // Show/hide Linked GPO tab based on gPLink attribute
+        const linkedGpoTab = document.querySelector('[aria-controls="tabpanelLinkedGpo"]');
+        if (linkedGpoTab) {
+            if (ou.attributes.gPLink) {
+                linkedGpoTab.classList.remove('hidden');
+            } else {
+                linkedGpoTab.classList.add('hidden');
+                // If the GPO tab was selected, switch to info tab
+                if (linkedGpoTab.getAttribute('aria-selected') === 'true') {
+                    selectOUTab('info');
+                }
+            }
+        }
 
         // Update info panel
         const infoPanel = document.getElementById('tabpanelInfo');

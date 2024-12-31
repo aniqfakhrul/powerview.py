@@ -1,0 +1,106 @@
+{% extends "base/layouts.html" %}
+
+{% block content %}
+<div class="p-4 h-full flex flex-col gap-4">
+    {% include 'views/spinner.html' %}
+    
+    <!-- Domain Overview Section -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Domain Info Card -->
+        <div class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
+            <div class="flex items-center gap-2 mb-4">
+                <i class="fas fa-network-wired text-neutral-500 dark:text-neutral-400"></i>
+                <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Domain Info</h2>
+            </div>
+            <div id="domain-info" class="space-y-2">
+                <!-- Will be populated dynamically -->
+            </div>
+        </div>
+
+        <!-- Domain Trust Card -->
+        <div class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
+            <div class="flex items-center gap-2 mb-4">
+                <i class="fas fa-handshake text-neutral-500 dark:text-neutral-400"></i>
+                <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Domain Trusts</h2>
+            </div>
+            <div id="domain-trusts" class="space-y-2">
+                <!-- Will be populated dynamically -->
+            </div>
+        </div>
+
+        <!-- Domain Controllers Card -->
+        <div class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
+            <div class="flex items-center gap-2 mb-4">
+                <i class="fas fa-server text-neutral-500 dark:text-neutral-400"></i>
+                <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Domain Controllers</h2>
+            </div>
+            <div id="domain-stats" class="space-y-2">
+                <!-- Will be populated dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Secondary Information Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <!-- Builtin Queries Section (2/5 width) -->
+        <div class="lg:col-span-2 bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
+            <div class="flex items-center gap-2 mb-4">
+                <i class="fas fa-shield-alt text-neutral-500 dark:text-neutral-400"></i>
+                <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Builtin Queries</h2>
+            </div>
+            <div id="critical-items" class="space-y-2">
+                <!-- Will be populated dynamically -->
+            </div>
+        </div>
+
+        <!-- Right Side Cards (3/5 width) -->
+        <div class="lg:col-span-3 grid grid-cols-1 gap-4">
+            <!-- CA Servers Section -->
+            <div class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-certificate text-neutral-500 dark:text-neutral-400"></i>
+                        <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">CA Servers</h2>
+                    </div>
+                    <a href="/ca" class="text-blue-500 hover:text-blue-600 text-sm">View All</a>
+                </div>
+                <div id="ca-servers" class="space-y-2">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </div>
+
+            <!-- DNS Zones Section -->
+            <div class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-globe text-neutral-500 dark:text-neutral-400"></i>
+                        <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">DNS Zones</h2>
+                    </div>
+                    <a href="/dns" class="text-blue-500 hover:text-blue-600 text-sm">View All</a>
+                </div>
+                <div id="dns-zones" class="space-y-2">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Domain Admins Section -->
+            <div class="bg-white dark:bg-neutral-800 rounded-lg p-4 border border-neutral-200 dark:border-neutral-700">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-users-cog text-neutral-500 dark:text-neutral-400"></i>
+                        <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Domain Admins</h2>
+                    </div>
+                    <a href="/groups" class="text-blue-500 hover:text-blue-600 text-sm">View All</a>
+                </div>
+                <div id="domain-admins" class="space-y-2">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

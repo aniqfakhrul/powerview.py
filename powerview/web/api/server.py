@@ -31,12 +31,14 @@ class APIServer:
 
 		# Define routes
 		self.app.add_url_rule('/', 'index', self.render_index, methods=['GET'])
+		self.app.add_url_rule('/dashboard', 'dashboard', self.render_dashboard, methods=['GET'])
 		self.app.add_url_rule('/users', 'users', self.render_users, methods=['GET'])
 		self.app.add_url_rule('/computers', 'computers', self.render_computers, methods=['GET'])
 		self.app.add_url_rule('/dns', 'dns', self.render_dns, methods=['GET'])
 		self.app.add_url_rule('/groups', 'groups', self.render_groups, methods=['GET'])
 		self.app.add_url_rule('/ca', 'ca', self.render_ca, methods=['GET'])
 		self.app.add_url_rule('/ou', 'ou', self.render_ou, methods=['GET'])
+		self.app.add_url_rule('/gpo', 'gpo', self.render_gpo, methods=['GET'])
 		self.app.add_url_rule('/utils', 'utils', self.render_utils, methods=['GET'])
 		self.app.add_url_rule('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		self.app.add_url_rule('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
@@ -50,19 +52,23 @@ class APIServer:
 		self.app.add_url_rule('/api/connectioninfo', 'connectioninfo', self.handle_connection_info, methods=['GET'])
 		self.app.add_url_rule('/api/logs', 'logs', self.generate_log_stream, methods=['GET'])
 		self.app.add_url_rule('/api/history', 'history', self.render_history, methods=['GET'])
-		self.app.add_url_rule('/api/ldap_rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
+		self.app.add_url_rule('/api/ldap/rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
+		self.app.add_url_rule('/api/ldap/close', 'ldap_close', self.handle_ldap_close, methods=['GET'])
 		self.app.add_url_rule('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
 		self.app.add_url_rule('/api/constants', 'constants', self.handle_constants, methods=['GET'])
+		self.app.add_url_rule('/api/clear-cache', 'clear_cache', self.handle_clear_cache, methods=['GET'])
 
 		self.nav_items = [
 			{"name": "Explorer", "icon": "fas fa-folder-tree", "link": "/"},
+			{"name": "Dashboard", "icon": "fas fa-chart-line", "link": "/dashboard"},
 			{"name": "Modules", "icon": "fas fa-cubes", "subitems": [
 				{"name": "Users", "icon": "far fa-user", "link": "/users"},
 				{"name": "Computers", "icon": "fas fa-display", "link": "/computers"},
-				{"name": "DNS", "icon": "fas fa-globe", "link": "/dns"},
 				{"name": "Groups", "icon": "fas fa-users", "link": "/groups"},
+				{"name": "DNS", "icon": "fas fa-globe", "link": "/dns"},
 				{"name": "CA", "icon": "fas fa-certificate", "link": "/ca"},
 				{"name": "OUs", "icon": "fas fa-building", "link": "/ou"},
+				{"name": "GPOs", "icon": "fas fa-building", "link": "/gpo"},
 			]},
 			{"name": "Utils", "icon": "fas fa-toolbox", "link": "/utils"},
 			{"name": "Logs", "icon": "far fa-file-alt", "button_id": "toggle-command-history"},
@@ -74,6 +80,13 @@ class APIServer:
 			'nav_items': self.nav_items
 		}
 		return render_template('explorerpage.html', **context)
+	
+	def render_dashboard(self):
+		context = {
+			'title': 'Powerview.py - Dashboard',
+			'nav_items': self.nav_items
+		}
+		return render_template('dashboardpage.html', **context)
 
 	def render_users(self):
 		context = {
@@ -177,6 +190,13 @@ class APIServer:
 		}
 		return render_template('oupage.html', **context)
 
+	def render_gpo(self):
+		context = {
+			'title': 'Powerview.py - GPOs',
+			'nav_items': self.nav_items
+		}
+		return render_template('gpopage.html', **context)
+
 	def render_utils(self):
 		context = {
 			'title': 'Powerview.py - Utils',
@@ -220,6 +240,10 @@ class APIServer:
 		}
 		return jsonify(domain_info)
 	
+	def handle_clear_cache(self):
+		success = self.powerview.clear_cache()
+		return jsonify({'status': 'OK' if success else 'KO'}), 200 if success else 400
+	
 	def handle_connection_info(self):
 		return jsonify({
 			'domain': self.powerview.domain,
@@ -229,6 +253,7 @@ class APIServer:
 			'status': 'OK' if self.powerview.is_connection_alive() else 'KO',
 			'protocol': self.powerview.conn.get_proto(),
 			'ldap_address': self.powerview.conn.get_ldap_address(),
+			'nameserver': self.powerview.conn.get_nameserver(),
 		})
 
 	def execute_command(self):
@@ -276,7 +301,12 @@ class APIServer:
 		return jsonify({'status': 'ok'})
 
 	def handle_ldap_rebind(self):
-		return jsonify({'status': 'OK' if self.powerview.conn.reset_connection() else 'KO'})
+		success = self.powerview.conn.reset_connection()
+		return jsonify({'status': 'OK' if success else 'KO'}), 200 if success else 400
+
+	def handle_ldap_close(self):
+		success = self.powerview.conn.close()
+		return jsonify({'status': 'OK' if success else 'KO'}), 200 if success else 400
 
 	def render_history(self):
 		try:
@@ -344,7 +374,10 @@ class APIServer:
 			serializable_result = make_serializable(result)
 			return jsonify(serializable_result)
 		except Exception as e:
-			logging.error(f"Powerview API Error: {full_method_name}: {str(e)}")
+			if self.powerview.args.stack_trace:
+				raise e
+			else:
+				logging.error(f"Powerview API Error: {full_method_name}: {str(e)}")
 			return jsonify({'error': str(e)}), 400
 
 	def start(self):

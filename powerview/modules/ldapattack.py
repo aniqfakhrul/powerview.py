@@ -1203,9 +1203,9 @@ class ACLEnum:
         LOG.debug("[ACLEnum] Parsing DACL")
         for entry in self.entries:
             dacl_dict = {}
-            secDescData = entry.get('attributes').get('ntSecurityDescriptor')
+            secDescData = entry.get('attributes').get('nTSecurityDescriptor')
             if not secDescData:
-                LOG.debug(f'[ACLEnum] ntSecurityDescriptor attribute not found for {entry.entry_dn}')
+                LOG.debug(f'[ACLEnum] ntSecurityDescriptor attribute not found for {entry.get("dn")}')
                 continue
             secDesc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDescData)
 

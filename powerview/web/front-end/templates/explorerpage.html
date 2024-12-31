@@ -5,24 +5,16 @@
     <div class="w-1/3 flex flex-col border-r border-neutral-200 dark:border-neutral-700" id="tree-view-panel">
         <!-- Search Header -->
         <div class="p-4 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800">
-            <div class="relative flex items-center gap-2">
-                <div class="relative flex-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" 
-                         stroke="currentColor" aria-hidden="true" 
-                         class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-neutral-400"> 
-                        <path stroke-linecap="round" stroke-linejoin="round" 
-                              d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-                    </svg>
-                    <input type="search" 
-                           name="object-search"
-                           class="w-full rounded-lg border border-neutral-200 bg-white py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-800 dark:focus:border-yellow-500 dark:focus:ring-yellow-500"
-                           placeholder="Search objects..." />
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-sitemap text-neutral-500 dark:text-neutral-400"></i>
+                    <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Explorer</h2>
                 </div>
-                <button id="execute-button" 
-                        class="rounded-lg px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:focus:ring-yellow-500"
-                        onclick="executePowerViewCommand()">
-                    Search
-                </button>
+                <input type="text" 
+                       id="object-tree-search" 
+                       name="object-tree-search"
+                       class="w-48 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800 placeholder:text-neutral-500 dark:placeholder:text-neutral-400" 
+                       placeholder="Search objects...">
             </div>
         </div>
 
@@ -59,6 +51,13 @@
                             class="px-4 py-3 text-sm text-neutral-600 font-medium dark:text-neutral-300 hover:text-neutral-900 hover:border-b-2 hover:border-neutral-300 dark:hover:border-neutral-600 dark:hover:text-white"
                             role="tab" 
                             aria-controls="tabpanelMembers">Members</button>
+                    <button onclick="selectTab('trusts')" 
+                            aria-selected="false" 
+                            tabindex="-1" 
+                            style="display: none;"
+                            class="px-4 py-3 text-sm text-neutral-600 font-medium dark:text-neutral-300 hover:text-neutral-900 hover:border-b-2 hover:border-neutral-300 dark:hover:border-neutral-600 dark:hover:text-white"
+                            role="tab" 
+                            aria-controls="tabpanelTrusts">Trusts</button>
                 </div>
 
                 <!-- Filter Input (keeping original ID) -->
@@ -109,6 +108,12 @@
             <div id="tabpanelMembers" role="tabpanel" class="h-full" style="display: none;">
                 <div id="members-content" class="p-4">
                     <!-- Members content will be dynamically populated -->
+                </div>
+            </div>
+
+            <div id="tabpanelTrusts" role="tabpanel" class="h-full" style="display: none;">
+                <div id="trusts-content" class="p-4">
+                    <!-- Trusts content will be dynamically populated -->
                 </div>
             </div>
         </div>

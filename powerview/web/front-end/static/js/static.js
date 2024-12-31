@@ -173,6 +173,7 @@ async function handleHttpError(response) {
         if (response.status === 400) {
             const errorResponse = await response.json();
             if (errorResponse.error) {
+                console.log('Error response:', errorResponse.error);
                 showErrorAlert(errorResponse.error);
             } else {
                 showErrorAlert('An unknown error occurred.');

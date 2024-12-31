@@ -190,6 +190,12 @@ def main():
                                     entries = temp_powerview.get_domaingpolocalgroup(pv_args, identity)
                                 else:
                                     entries = powerview.get_domaingpolocalgroup(pv_args, identity)
+                            elif pv_args.module.casefold() == 'get-domaingposettings' or pv_args.module.casefold() == 'get-gposettings':
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaingposettings(pv_args, identity)
+                                else:
+                                    entries = powerview.get_domaingposettings(pv_args, identity)
                             elif pv_args.module.casefold() == 'get-domainou' or pv_args.module.casefold() == 'get-netou':
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
@@ -276,9 +282,9 @@ def main():
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaintrust(pv_args, properties, identity)
+                                    entries = temp_powerview.get_domaintrust(pv_args, properties, identity, searchbase=pv_args.searchbase)
                                 else:
-                                    entries = powerview.get_domaintrust(pv_args, properties, identity)
+                                    entries = powerview.get_domaintrust(pv_args, properties, identity, searchbase=pv_args.searchbase)
                             elif pv_args.module.casefold() == 'convertfrom-uacvalue':
                                 if pv_args.value:
                                     value = pv_args.value.strip()
@@ -297,6 +303,11 @@ def main():
                                         powerview.convertfrom_sid(objectsid=objectsid, output=True)
                                 else:
                                     logging.error("-ObjectSID flag is required")
+                            elif pv_args.module.casefold() == 'clear-cache':
+                                if temp_powerview:
+                                    temp_powerview.clear_cache()
+                                else:
+                                    powerview.clear_cache()
                             elif pv_args.module.casefold() == 'get-namedpipes':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     if temp_powerview:
@@ -342,10 +353,11 @@ def main():
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'get-netsession':
                                 if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
                                     if temp_powerview:
-                                        entries = temp_powerview.get_netsession(pv_args)
+                                        entries = temp_powerview.get_netsession(identity=computername, port=445, args=pv_args)
                                     else:
-                                        entries = powerview.get_netsession(pv_args)
+                                        entries = powerview.get_netsession(identity=computername, port=445, args=pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'find-localadminaccess':

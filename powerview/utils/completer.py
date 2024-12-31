@@ -8,6 +8,7 @@ else:
     import readline
 
 COMMANDS = {
+    'Clear-Cache':[''],
     'Get-Domain':['-Identity','-Properties', '-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-NetDomain':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'ConvertFrom-SID':['-ObjectSID','-Server', '-Outfile'],
@@ -32,6 +33,8 @@ COMMANDS = {
     'Get-NetGPO':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-DomainGPOLocalGroup':['-Identity','-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-GPOLocalGroup':['-Identity','-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
+    'Get-DomainGPOSettings':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
+    'Get-GPOSettings':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-DomainOU':['-Identity','-Properties','-SearchBase','-LDAPFilter','-Server','-Select','-GPLink', '-ResolveGPLink', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-NetOU':['-Identity','-Properties','-SearchBase','-LDAPFilter','-Server','-Select','-GPLink', '-ResolveGPLink', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-DomainGroup':['-Identity','-Properties','-LDAPFilter','-SearchBase','-MemberIdentity','-AdminCount','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile'],
@@ -42,8 +45,8 @@ COMMANDS = {
     'Find-ForeignGroup':['-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap','-OutFile'],
     'Get-DomainForeignUser':['-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Find-ForeignUser':['-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap','-OutFile'],
-    'Get-DomainTrust':['-Identity','-Properties','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile'],
-    'Get-NetTrust':['-Identity','-Properties','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
+    'Get-DomainTrust':['-Identity','-Properties','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile'],
+    'Get-NetTrust':['-Identity','-Properties','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-DomainUser':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Enabled','-Disabled','-RBCD', '-ShadowCred', '-Unconstrained','-PassNotRequired','-PreAuthNotRequired','-AllowDelegation','-DisallowDelegation','-AdminCount','-Lockout','-PassExpired','-TrustedToAuth','-SPN', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-NetUser':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-RBCD','-ShadowCred','-Unconstrained','-PassNotRequired','-PreAuthNotRequired','-AllowDelegation','-DisallowDelegation','-AdminCount','-Lockout','-PassExpired','-TrustedToAuth','-SPN', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-LocalUser':['-Computer','-ComputerName', '-Identity', '-Properties', '-Select','-Enabled','-Disabled', '-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],

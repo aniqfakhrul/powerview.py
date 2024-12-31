@@ -409,6 +409,8 @@ def get_user_info(samname, ldap_session, domain_dumper):
 	except IndexError:
 		return False
 
+def get_system_nameserver():
+	return resolver.get_default_resolver().nameservers[0]
 
 def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_ns=True, type=str):
 	hostname = str(hostname)

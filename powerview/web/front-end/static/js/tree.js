@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 { dn: rootDn, icon: icons.adIcon },
                 { dn: `CN=Configuration,${rootDn}`, icon: icons.adIcon },
                 { dn: `CN=Schema,CN=Configuration,${rootDn}`, icon: icons.defaultIcon },
+                { dn: `CN=System,${rootDn}`, icon: icons.defaultIcon },
                 { dn: `DC=DomainDnsZones,${rootDn}`, icon: icons.adIcon },
                 { dn: `DC=ForestDnsZones,${rootDn}`, icon: icons.adIcon }
             ];
@@ -33,9 +34,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (exists) {
                     const treeNode = createTreeNode(node.dn, node.icon);
                     if (node.dn === rootDn) {
+                        // Check for domain trusts
+                        const trusts = await getDomainTrust(node.dn);
+                        if (trusts && trusts.length > 0) {
+                            // Add trust tag
+                            const trustTag = document.createElement('span');
+                            trustTag.className = 'ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
+                            trustTag.textContent = 'Trust';
+                            treeNode.appendChild(trustTag);
+
+                            // Show Trusts tab
+                            const trustsTab = document.querySelector('[aria-controls="tabpanelTrusts"]');
+                            if (trustsTab) {
+                                trustsTab.style.display = '';
+                            }
+                        }
+
                         // Mark the root node as selected
                         document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
                         treeNode.classList.add('selected');
+                        treeNode.setAttribute('data-identifier', node.dn);
+
 
                         // Automatically expand the rootDn node
                         toggleSubtree(node.dn, treeNode);
@@ -98,28 +117,40 @@ document.addEventListener('DOMContentLoaded', () => {
             // Reset to the "General" tab
             selectTab('general');
 
-            // Show the spinner when a tree node is clicked
-            // showLoadingIndicator();
-
-            let subtreeContainer = div.nextElementSibling;
-            if (subtreeContainer && subtreeContainer.classList.contains('subtree')) {
-                subtreeContainer.remove();
-                hideLoadingIndicator(); // Hide the spinner if subtree is removed
-                return;
-            }
+            // Mark this node as selected
+            document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+            div.classList.add('selected');
 
             const itemData = await fetchItemData(dn, 'BASE');
             if (itemData) {
                 populateResultsPanel(itemData);
+
+                // Show/hide Members tab for groups
+                const membersTab = document.querySelector('[aria-controls="tabpanelMembers"]');
+                if (membersTab) {
+                    if (itemData.attributes.objectClass && itemData.attributes.objectClass.includes('group')) {
+                        membersTab.style.display = '';
+                    } else {
+                        membersTab.style.display = 'none';
+                    }
+                }
+
+                // Show/hide Trusts tab for domains
+                const trustsTab = document.querySelector('[aria-controls="tabpanelTrusts"]');
+                if (trustsTab) {
+                    if (itemData.attributes.objectClass && itemData.attributes.objectClass.includes('domain')) {
+                        trustsTab.style.display = '';
+                    } else {
+                        trustsTab.style.display = 'none';
+                    }
+                }
+                
                 toggleSubtree(dn, div);
             }
-
-            // Hide the spinner after processing
-            // hideLoadingIndicator();
         });
 
         treeView.appendChild(div);
-        return div; // Return the created tree node
+        return div;
     }
 
     
@@ -260,6 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
                 objDiv.classList.add('selected');
 
+                // Show/hide Members tab for groups
                 const membersTab = document.querySelector('[aria-controls="tabpanelMembers"]');
                 if (membersTab) {
                     if (obj.attributes.objectClass && obj.attributes.objectClass.includes('group')) {
@@ -269,12 +301,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
+                // Show/hide Trusts tab for domains
+                const trustsTab = document.querySelector('[aria-controls="tabpanelTrusts"]');
+                if (trustsTab) {
+                    if (obj.attributes.objectClass && obj.attributes.objectClass.includes('domain')) {
+                        trustsTab.style.display = '';
+                    } else {
+                        trustsTab.style.display = 'none';
+                    }
+                }
+
                 // Show the spinner on the right side of the node
                 showLoadingIndicator();
                 let childSubtreeContainer = objDiv.nextElementSibling;
                 if (childSubtreeContainer && childSubtreeContainer.classList.contains('subtree')) {
                     childSubtreeContainer.remove();
-                    hideLoadingIndicator(); // Hide the spinner if subtree is removed
+                    hideLoadingIndicator();
                     return;
                 }
 
@@ -284,7 +326,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     toggleSubtree(obj.dn, objDiv);
                 }
 
-                // Hide the spinner after processing
                 hideLoadingIndicator();
             });
 
@@ -319,29 +360,42 @@ document.addEventListener('DOMContentLoaded', () => {
         buttonsDiv.className = 'flex gap-2';
 
         // Add User button
-        const addUserButton = document.createElement('button');
-        addUserButton.className = 'px-2 py-1.5 text-sm font-medium rounded-md text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-yellow-500 dark:hover:text-yellow-400 dark:hover:bg-yellow-900/20 transition-colors';
-        addUserButton.innerHTML = icons.userIcon;
-        addUserButton.setAttribute('title', 'Add User');
-        addUserButton.onclick = () => handleCreateUser(item.dn);
-        buttonsDiv.appendChild(addUserButton);
+        if (Array.isArray(attributes.objectClass) && (attributes.objectClass.includes('container') || attributes.objectClass.includes('organizationalUnit'))) {
+            const addUserButton = document.createElement('button');
+            addUserButton.className = 'px-2 py-1.5 text-sm font-medium rounded-md text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-yellow-500 dark:hover:text-yellow-400 dark:hover:bg-yellow-900/20 transition-colors';
+            addUserButton.innerHTML = icons.userIcon;
+            addUserButton.setAttribute('title', 'Add User');
+            addUserButton.onclick = () => handleCreateUser(item.dn);
+            buttonsDiv.appendChild(addUserButton);
+        }
 
         // Add Group button
-        const addGroupButton = document.createElement('button');
-        addGroupButton.className = 'px-2 py-1.5 text-sm font-medium rounded-md text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-yellow-500 dark:hover:text-yellow-400 dark:hover:bg-yellow-900/20 transition-colors';
-        addGroupButton.innerHTML = icons.groupIcon;
-        addGroupButton.setAttribute('title', 'Add Group');
-        addGroupButton.onclick = () => handleCreateGroup(item.dn);
-        buttonsDiv.appendChild(addGroupButton);
+        if (Array.isArray(attributes.objectClass) && (attributes.objectClass.includes('container') || attributes.objectClass.includes('organizationalUnit'))) {
+            const addGroupButton = document.createElement('button');
+            addGroupButton.className = 'px-2 py-1.5 text-sm font-medium rounded-md text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-yellow-500 dark:hover:text-yellow-400 dark:hover:bg-yellow-900/20 transition-colors';
+            addGroupButton.innerHTML = icons.groupIcon;
+            addGroupButton.setAttribute('title', 'Add Group');
+            addGroupButton.onclick = () => handleCreateGroup(item.dn);
+            buttonsDiv.appendChild(addGroupButton);
+        }
 
         // Add "Add User to Group" button only if object is a group
-        if (Array.isArray(attributes.objectClass) && attributes.objectClass.includes('group')) {
+        if (Array.isArray(attributes.objectClass) && (attributes.objectClass.includes('group') || attributes.objectClass.includes('user'))) {
             const addUserToGroupButton = document.createElement('button');
             addUserToGroupButton.className = 'px-2 py-1.5 text-sm font-medium rounded-md text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-yellow-500 dark:hover:text-yellow-400 dark:hover:bg-yellow-900/20 transition-colors';
             addUserToGroupButton.innerHTML = '<i class="fa-solid fa-user-plus"></i>';
             addUserToGroupButton.setAttribute('title', 'Add User to Group');
-            addUserToGroupButton.onclick = () => handleAddGroupMember(item.attributes.name);
+            addUserToGroupButton.onclick = () => handleAddGroupMember(item);
             buttonsDiv.appendChild(addUserToGroupButton);
+        }
+
+        if (Array.isArray(attributes.objectClass) && attributes.objectClass.includes('group')) {
+            const removeUserButton = document.createElement('button');
+            removeUserButton.className = 'px-2 py-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300';
+            removeUserButton.innerHTML = '<i class="fas fa-user-minus"></i>';
+            removeUserButton.title = 'Delete user from group';
+            removeUserButton.onclick = () => handleRemoveGroupMember(item);
+            buttonsDiv.appendChild(removeUserButton);
         }
 
         // Create Details button
@@ -370,7 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
         contentDiv.className = 'p-4 space-y-2';
 
         const dl = document.createElement('dl');
-        dl.className = 'grid grid-cols-1 gap-3';
+        dl.className = 'grid grid-cols-1 gap-1';
 
         for (const [key, value] of Object.entries(attributes)) {
             const isDistinguishedName = Array.isArray(value) ? value.some(isValidDistinguishedName) : isValidDistinguishedName(value);
@@ -392,7 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
             flexDiv.appendChild(dt);
 
             const dd = document.createElement('dd');
-            dd.className = 'mt-1 text-sm text-neutral-900 dark:text-white w-2/3 break-all';
+            dd.className = 'text-sm text-neutral-900 dark:text-white w-2/3 break-all';
 
             if (isDistinguishedName) {
                 if (Array.isArray(value)) {
@@ -412,7 +466,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         wrapper.appendChild(link);
                         wrapper.appendChild(copyButton);
                         dd.appendChild(wrapper);
-                        dd.appendChild(document.createElement('br'));
                     });
                 } else {
                     const wrapper = document.createElement('div');
@@ -605,6 +658,33 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    async function removeDomainGroupMember(identity, member) {
+        try {
+            const response = await fetch('/api/remove/domaingroupmember', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ 
+                    identity: identity,
+                    members: member
+                })
+            });
+
+            await handleHttpError(response);
+
+            const success = await response.json();
+            if (success) {
+                showSuccessAlert(`Removed ${member} from ${identity}`);
+            } else {
+                showErrorAlert(success.message);
+            }
+        } catch (error) {
+            console.error('Error removing group member:', error);
+            showErrorAlert('Failed to remove group member. Please try again.');
+        }
+    }
+
     async function addDomainGroupMember(groupname, member) {
         try {
             const response = await fetch('/api/add/domaingroupmember', {
@@ -620,11 +700,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             await handleHttpError(response);
 
-            const result = await response.json();
-            if (result.success) {
+            const success = await response.json();
+            if (success) {
                 showSuccessAlert(`Added ${member} to ${groupname}`);
             } else {
-                showErrorAlert(result.message);
+                showErrorAlert(success.message);
             }
         } catch (error) {
             console.error('Error adding group member:', error);
@@ -678,11 +758,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             await handleHttpError(response);
 
-            const result = await response.json();
-            if (result.success) {
+            const success = await response.json();
+            if (success) {
                 showSuccessAlert(`Added user ${username} to ${basedn}`);
             } else {
-                showErrorAlert(result.message);
+                showErrorAlert(success.message);
             }
             
             // Refresh the current subtree to show the new user
@@ -746,14 +826,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    async function showAddGroupMemberModal(groupName) {
-        const modal = document.getElementById('add-group-member-modal');
+    async function showRemoveGroupMemberModal(item) {
+        const modal = document.getElementById('remove-group-member-modal');
         const overlay = document.getElementById('modal-overlay');
-        const groupNameInput = document.getElementById('group-name');
-        const memberInput = document.getElementById('new-member');
+        const groupNameInput = document.getElementById('remove-group-name');
+        const memberSelect = document.getElementById('remove-member');
 
-        if (groupNameInput) {
-            groupNameInput.value = groupName;
+        // Clear previous values
+        groupNameInput.value = '';
+        memberSelect.innerHTML = '';
+
+        if (item.attributes.name) {
+            groupNameInput.value = item.attributes.name;
+        }
+
+        // Populate the member dropdown if members exist
+        if (item.attributes.member) {
+            // Convert to array if it's a single string
+            const members = Array.isArray(item.attributes.member) ? 
+                item.attributes.member : [item.attributes.member];
+
+            members.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member;
+                option.textContent = member.split(',')[0].replace('CN=', ''); // Show only the CN part
+                memberSelect.appendChild(option);
+            });
         }
 
         try {
@@ -762,11 +860,100 @@ document.addEventListener('DOMContentLoaded', () => {
             modal.classList.remove('hidden');
             overlay.classList.remove('hidden');
 
-            // Focus on the member input
-            if (memberInput) {
-                setTimeout(() => {
-                    memberInput.focus();
-                }, 100); // Small delay to ensure modal is fully visible
+            // Add event listener for form submission
+            const form = document.getElementById('remove-group-member-form');
+            form.onsubmit = async (e) => {
+                e.preventDefault();
+                const groupname = groupNameInput.value;
+                const member = memberSelect.value;
+                
+                if (!groupname || !member) {
+                    showErrorAlert('Please select a member to remove');
+                    return;
+                }
+
+                try {
+                    await removeDomainGroupMember(groupname, member);
+                    modal.classList.add('hidden');
+                    overlay.classList.add('hidden');
+                    form.reset();
+                    
+                    // Refresh both the tree view and results panel
+                    const selectedNode = document.querySelector('.selected');
+                    if (selectedNode) {
+                        const dn = selectedNode.getAttribute('data-identifier');
+                        // Fetch updated data and refresh the results panel
+                        const updatedData = await fetchItemData(dn, 'BASE');
+                        if (updatedData) {
+                            populateResultsPanel(updatedData);
+                        }
+                    }
+                    
+                    // Also refresh the tree view
+                    await refreshCurrentSubtree();
+                } catch (error) {
+                    console.error('Error removing group member:', error);
+                    showErrorAlert('Failed to remove group member');
+                }
+            };
+        } catch (error) {
+            console.error('Error initializing Remove Group Member Modal:', error);
+            showErrorAlert('Failed to initialize Remove Group Member Modal');
+        }
+    }
+
+    // Add event listeners for modal close buttons
+    document.querySelectorAll('[data-modal-hide="remove-group-member-modal"]').forEach(button => {
+        button.addEventListener('click', () => {
+            document.getElementById('remove-group-member-modal').classList.add('hidden');
+            document.getElementById('modal-overlay').classList.add('hidden');
+        });
+    });
+
+    async function showAddGroupMemberModal(item) {
+        const modal = document.getElementById('add-group-member-modal');
+        const overlay = document.getElementById('modal-overlay');
+        const groupNameInput = document.getElementById('group-name');
+        const memberInput = document.getElementById('new-member');
+    
+        // clear the inputs
+        groupNameInput.value = '';
+        memberInput.value = '';
+    
+        // Check if item has objectClass array
+        if (item.attributes.objectClass && Array.isArray(item.attributes.objectClass)) {
+            if (item.attributes.objectClass.includes('group')) {
+                // If item is a group, fill in group name
+                if (groupNameInput) {
+                    groupNameInput.value = item.attributes.name;
+                }
+            } else if (item.attributes.objectClass.includes('user')) {
+                // If item is a user, fill in member name
+                if (memberInput) {
+                    memberInput.value = item.attributes.name;
+                }
+            }
+        }
+    
+        try {
+            // Show the modal
+            modal.removeAttribute('aria-hidden');
+            modal.classList.remove('hidden');
+            overlay.classList.remove('hidden');
+    
+            // Focus on appropriate input based on object type
+            if (item.attributes.objectClass?.includes('group')) {
+                if (memberInput) {
+                    setTimeout(() => {
+                        memberInput.focus();
+                    }, 100);
+                }
+            } else if (item.attributes.objectClass?.includes('user')) {
+                if (groupNameInput) {
+                    setTimeout(() => {
+                        groupNameInput.focus(); 
+                    }, 100);
+                }
             }
         } catch (error) {
             console.error('Error initializing Add Group Member Modal:', error);
@@ -774,7 +961,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    document.getElementById('add-group-member-form')?.addEventListener('submit', (event) => {
+    document.getElementById('add-group-member-form')?.addEventListener('submit', async (event) => {
         event.preventDefault();
         const groupname = document.getElementById('group-name')?.value;
         const member = document.getElementById('new-member')?.value;
@@ -782,10 +969,34 @@ document.addEventListener('DOMContentLoaded', () => {
             showErrorAlert('Please fill in all fields');
             return;
         }
-
-        addDomainGroupMember(groupname, member);
-        document.getElementById('add-group-member-modal')?.classList.add('hidden');
-        document.getElementById('modal-overlay')?.classList.add('hidden');
+    
+        try {
+            await addDomainGroupMember(groupname, member);
+            
+            // Close the modal
+            document.getElementById('add-group-member-modal')?.classList.add('hidden');
+            document.getElementById('modal-overlay')?.classList.add('hidden');
+            
+            // Clear the form
+            document.getElementById('add-group-member-form').reset();
+    
+            // Refresh both the tree view and results panel
+            const selectedNode = document.querySelector('.selected');
+            if (selectedNode) {
+                const dn = selectedNode.getAttribute('data-identifier');
+                // Fetch updated data and refresh the results panel
+                const updatedData = await fetchItemData(dn, 'BASE');
+                if (updatedData) {
+                    populateResultsPanel(updatedData);
+                }
+            }
+            
+            // Also refresh the tree view
+            await refreshCurrentSubtree();
+        } catch (error) {
+            console.error('Error adding group member:', error);
+            showErrorAlert('Failed to add group member');
+        }
     });
 
     async function showAddUserModal(containerDn) {
@@ -842,9 +1053,14 @@ document.addEventListener('DOMContentLoaded', () => {
         showAddGroupModal(containerDn);
     }
 
-    function handleAddGroupMember(groupName) {
-        console.log('Add member to group:', groupName);
-        showAddGroupMemberModal(groupName);
+    function handleAddGroupMember(item) {
+        console.log('Add member to group:', item.attributes.name);
+        showAddGroupMemberModal(item);
+    }
+
+    function handleRemoveGroupMember(item) {
+        console.log('Remove member from group:', item.attributes.name);
+        showRemoveGroupMemberModal(item);
     }
 
     async function refreshCurrentSubtree() {
@@ -874,4 +1090,38 @@ document.addEventListener('DOMContentLoaded', () => {
     // Call this function after the DOM is fully loaded
     initialize();
     setupTabEventDelegation();
+
+    // Update the search functionality
+    const searchInput = document.getElementById('object-tree-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const treeNodes = document.querySelectorAll('#tree-view > div');
+            
+            treeNodes.forEach(node => {
+                // Always show parent nodes to maintain structure
+                node.style.display = '';
+                
+                // Find the subtree container
+                const subtree = node.querySelector('.subtree');
+                if (subtree) {
+                    const childNodes = subtree.querySelectorAll(':scope > div');
+                    let hasVisibleChildren = false;
+                    
+                    childNodes.forEach(childNode => {
+                        const childText = childNode.querySelector('span')?.textContent.toLowerCase() || '';
+                        if (childText.includes(searchTerm)) {
+                            childNode.style.display = '';
+                            hasVisibleChildren = true;
+                        } else {
+                            childNode.style.display = 'none';
+                        }
+                    });
+
+                    // Show/hide subtree based on whether it has visible children
+                    subtree.style.display = hasVisibleChildren || searchTerm === '' ? '' : 'none';
+                }
+            });
+        });
+    }
 });

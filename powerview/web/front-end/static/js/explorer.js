@@ -1,6 +1,5 @@
 function executePowerViewCommand() {
     const searchInput = document.querySelector('input[name="object-search"]').value;
-    console.log(searchInput);
     fetch('/api/get/domainobject', {
         method: 'POST',
         headers: {
@@ -39,7 +38,7 @@ function expandTreePath(treePath) {
 }
 
 async function selectTab(tabName) {
-    const tabs = ['general', 'members', 'dacl'];
+    const tabs = ['general', 'members', 'dacl', 'trusts'];
     tabs.forEach(tab => {
         const button = document.querySelector(`button[aria-controls="tabpanel${tab.charAt(0).toUpperCase() + tab.slice(1)}"]`);
         const panel = document.getElementById(`tabpanel${tab.charAt(0).toUpperCase() + tab.slice(1)}`);
@@ -58,7 +57,7 @@ async function selectTab(tabName) {
             );
             panel.style.display = 'block';
 
-            // If members tab is selected, fetch and display members
+            // Handle specific tab content
             if (tab === 'members') {
                 const selectedNode = document.querySelector('.selected');
                 if (selectedNode) {
@@ -77,6 +76,14 @@ async function selectTab(tabName) {
                     const identity = selectedNode.getAttribute('data-identifier');
                     if (identity) {
                         fetchAndDisplayDacl(identity);
+                    }
+                }
+            } else if (tab === 'trusts') {
+                const selectedNode = document.querySelector('.selected');
+                if (selectedNode) {
+                    const identity = selectedNode.getAttribute('data-identifier');
+                    if (identity) {
+                        fetchAndDisplayTrust(identity);
                     }
                 }
             }
@@ -212,6 +219,63 @@ function updateDaclContent(daclData) {
             daclRows.appendChild(row);
         });
     });
+}
+
+async function getDomainTrust(searchbase) {
+    try {
+        const response = await fetch('/api/get/domaintrust', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ searchbase: searchbase })
+        });
+
+        await handleHttpError(response);
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error fetching domain trusts:', error);
+        return [];
+    }
+}
+
+async function fetchAndDisplayTrust(searchbase) {
+    showLoadingIndicator();
+    try {
+        const trusts = await getDomainTrust(searchbase);
+        const trustsContent = document.getElementById('trusts-content');
+        
+        if (trusts && trusts.length > 0) {
+            const trustsList = trusts.map(trust => `
+                <div class="mb-4 p-4 bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700">
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-lg font-medium text-neutral-900 dark:text-white">${trust.attributes.name}</h3>
+                        <span class="text-sm text-neutral-500 dark:text-neutral-400">${trust.attributes.flatName}</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <span class="font-medium text-neutral-700 dark:text-neutral-300">Trust Direction:</span>
+                            <span class="ml-2 text-neutral-600 dark:text-neutral-400">${trust.attributes.trustDirection.join(', ')}</span>
+                        </div>
+                        <div>
+                            <span class="font-medium text-neutral-700 dark:text-neutral-300">Trust Type:</span>
+                            <span class="ml-2 text-neutral-600 dark:text-neutral-400">${trust.attributes.trustType.join(', ')}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            trustsContent.innerHTML = trustsList;
+        } else {
+            trustsContent.innerHTML = '<p class="text-neutral-500 dark:text-neutral-400">No domain trusts found.</p>';
+        }
+    } catch (error) {
+        console.error('Error displaying trusts:', error);
+        showErrorAlert('Failed to load domain trusts');
+    } finally {
+        hideLoadingIndicator();
+    }
 }
 
 document.addEventListener('DOMContentLoaded', () => {

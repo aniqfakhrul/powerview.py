@@ -150,11 +150,21 @@
                     </div>
                     <div>
                         <label for="new-dns-name" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Record Name</label>
-                        <input type="text" name="new-dns-name" id="new-dns-name" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" placeholder="Enter DNS name" required />
+                        <input type="text" 
+                            name="new-dns-name" 
+                            id="new-dns-name" 
+                            class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white placeholder-neutral-400" 
+                            placeholder="Enter DNS name" 
+                            required />
                     </div>
                     <div>
                         <label for="new-dns-address" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Record Address</label>
-                        <input type="text" name="new-dns-address" id="new-dns-address" placeholder="Enter DNS address" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" required />
+                        <input type="text" 
+                            name="new-dns-address" 
+                            id="new-dns-address" 
+                            class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white placeholder-neutral-400" 
+                            placeholder="Enter DNS address" 
+                            required />
                     </div>
                 </div>
                 <div class="flex flex-col-reverse justify-between gap-2 border-t border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20 sm:flex-row sm:items-center md:justify-end">
@@ -166,7 +176,12 @@
 </div>
 
 <!-- LDAP Attributes Modal -->
-<div id="ldap-attributes-modal" tabindex="-1" aria-hidden="true" class="hidden fixed inset-0 z-50 flex justify-center items-center w-full h-full">
+<div id="ldap-attributes-modal" 
+    tabindex="-1" 
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="ldap-attributes-title"
+    class="hidden fixed inset-0 z-50 flex justify-center items-center w-full h-full">
     <div class="relative p-4 w-full max-w-6xl h-[90vh]">
         <!-- Modal content -->
         <div class="relative flex flex-col h-full rounded-md border border-neutral-300 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
@@ -201,6 +216,18 @@
                         class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
                         type="button" role="tab" aria-controls="tabpanelMembers"
                         style="display: none;">Members</button>
+                    <button onclick="selectModalTab('sessions')" aria-selected="false" tabindex="-1" 
+                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
+                        type="button" role="tab" aria-controls="tabpanelSessions"
+                        style="display: none;">Sessions</button>
+                    <button onclick="selectModalTab('loggedon')" aria-selected="false" tabindex="-1" 
+                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
+                        type="button" role="tab" aria-controls="tabpanelLoggedon"
+                        style="display: none;">Logon Users</button>
+                    <button onclick="selectModalTab('memberof')" aria-selected="false" tabindex="-1" 
+                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
+                        type="button" role="tab" aria-controls="tabpanelMemberof"
+                        style="display: none;">Member Of</button>
                 </div>
                 <!-- Search Bar -->
                 <div class="relative flex items-center px-1">
@@ -290,8 +317,9 @@
                     <div class="mb-4 flex justify-end">
                         <button type="button" 
                             onclick="openAddObjectAclModal()"
-                            class="cursor-pointer whitespace-nowrap rounded-md bg-black px-4 py-2 text-center text-sm font-medium tracking-wide text-neutral-100 transition hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black active:opacity-100 active:outline-offset-0 dark:bg-yellow-500 dark:text-black dark:focus-visible:outline-yellow-500">
-                            <i class="fas fa-plus mr-2"></i>Add ACL
+                            class="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-neutral-800 dark:bg-yellow-500 dark:text-black dark:hover:bg-yellow-600">
+                            <i class="fas fa-plus fa-sm"></i>
+                            Add ACL
                         </button>
                     </div>
                     <table class="w-full text-sm border-collapse">
@@ -313,6 +341,51 @@
                 <div id="tabpanelMembers" role="tabpanel" aria-label="members" class="p-4" style="display: none;">
                     <div id="modal-members-content">
                         <!-- Members content will be dynamically populated -->
+                    </div>
+                </div>
+                <div id="tabpanelSessions" role="tabpanel" aria-label="sessions" class="p-4" style="display: none;">
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="h-8 text-left text-neutral-600 dark:text-neutral-400">
+                                <th class="px-3 py-2">Username</th>
+                                <th class="px-3 py-2">Client</th>
+                                <th class="px-3 py-2">Connected</th>
+                                <th class="px-3 py-2">Idle Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sessions-rows" class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                            <!-- Sessions will be dynamically populated -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="tabpanelLoggedon" role="tabpanel" aria-label="loggedon" class="p-4" style="display: none;">
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="h-8 text-left text-neutral-600 dark:text-neutral-400">
+                                <th class="px-3 py-2">Username</th>
+                                <th class="px-3 py-2">Logon Type</th>
+                                <th class="px-3 py-2">Authentication</th>
+                                <th class="px-3 py-2">Last Logon</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logonusers-rows" class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                            <!-- Logon users will be dynamically populated -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="tabpanelMemberof" role="tabpanel" aria-label="memberof" class="p-4" style="display: none;">
+                    <div id="modal-memberof-content">
+                        <table class="w-full text-sm border-collapse">
+                            <thead>
+                                <tr class="h-8 text-left text-neutral-600 dark:text-neutral-400">
+                                    <th class="px-3 py-2">Name</th>
+                                    <th class="px-3 py-2">Distinguished Name</th>
+                                </tr>
+                            </thead>
+                            <tbody id="memberof-rows" class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                                <!-- Member Of rows will be dynamically populated -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -466,6 +539,52 @@
                 <button type="submit"
                     class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:text-black rounded-md">
                     Add Member
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Remove Group Member Modal -->
+<div id="remove-group-member-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" aria-hidden="true">
+    <div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700">
+            <h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
+                Remove Group Member
+            </h3>
+            <button data-modal-hide="remove-group-member-modal" class="text-neutral-400 hover:text-neutral-500 dark:hover:text-neutral-300">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Modal Body -->
+        <form id="remove-group-member-form" class="p-4 space-y-4">
+            <div>
+                <label for="remove-group-name" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Group Name
+                </label>
+                <input type="text" id="remove-group-name" name="remove-group-name"
+                    class="w-full px-3 py-2 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white">
+            </div>
+            <div>
+                <label for="remove-member" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Member Name
+                </label>
+                <select id="remove-member" name="remove-member" required
+                    class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white">
+                </select>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="flex justify-end gap-2 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+                <button type="button" data-modal-hide="remove-group-member-modal"
+                    class="px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-md">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 dark:text-white rounded-md">
+                    Remove Member
                 </button>
             </div>
         </form>
