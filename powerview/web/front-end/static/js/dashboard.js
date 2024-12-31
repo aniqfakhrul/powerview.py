@@ -271,7 +271,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     body: JSON.stringify({
                         args: {
                             admincount: true,
-                            properties: ['samAccountName']
+                            properties: ['samAccountName', 'memberOf']
                         }
                     })
                 }),
@@ -321,12 +321,35 @@ document.addEventListener('DOMContentLoaded', async () => {
                 inactiveUsersResponse.json()
             ]);
 
+            const domainAdmins = adminUsers.filter(user => {
+                const memberOf = user.attributes.memberOf;
+                // Handle both string and array cases
+                if (Array.isArray(memberOf)) {
+                    return memberOf.some(group => group.toLowerCase().includes('cn=domain admins'));
+                } else if (typeof memberOf === 'string') {
+                    return memberOf.toLowerCase().includes('cn=domain admins');
+                }
+                return false;
+            });    
+
             // Filter kerberoastable users to find those with adminCount=1
             const kerberoastableAdmins = kerberoastable.filter(user => user.attributes.adminCount === 1);
 
             const container = document.getElementById('critical-items');
             container.innerHTML = `
-                <div class="space-y-4 max-h-48 overflow-y-auto scrollbar">
+                <div class="space-y-4 overflow-y-auto scrollbar">
+                    <div class="p-2 rounded bg-neutral-50 dark:bg-neutral-700">
+                        <p class="text-sm font-medium text-neutral-900 dark:text-white mb-2">
+                            Domain Admins (${domainAdmins.length})
+                        </p>
+                        <p class="text-sm text-neutral-600 dark:text-neutral-300">
+                            ${domainAdmins.map(user => `
+                                <a href="#" class="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" 
+                                onclick="handleLdapLinkClick(event, '${user.dn}')"
+                                data-dn="${user.dn}">${user.attributes.sAMAccountName}</a>
+                            `).join(', ')}
+                        </p>
+                    </div>
                     <div class="p-2 rounded bg-neutral-50 dark:bg-neutral-700">
                         <p class="text-sm font-medium text-neutral-900 dark:text-white mb-2">
                             Users with Admin Count (${adminUsers.length})

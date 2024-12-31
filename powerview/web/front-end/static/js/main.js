@@ -944,12 +944,17 @@ async function showLdapAttributesModal(attributes = {}, identity) {
         // Show/hide Member Of tab based on memberOf attribute
         const memberOfTab = modal.querySelector('[aria-controls="tabpanelMemberof"]');
         if (memberOfTab) {
-            const hasMemberOf = attributes.memberOf && Array.isArray(attributes.memberOf) && attributes.memberOf.length > 0;
+            // Handle both array and string cases for memberOf
+            const hasMemberOf = attributes.memberOf && 
+                (Array.isArray(attributes.memberOf) ? attributes.memberOf.length > 0 : true);
             memberOfTab.style.display = hasMemberOf ? '' : 'none';
             
             if (hasMemberOf) {
+                // Convert single string to array if needed
+                const memberOfArray = Array.isArray(attributes.memberOf) ? 
+                    attributes.memberOf : [attributes.memberOf];
                 // Initialize the Member Of tab content
-                displayModalMemberOf(attributes.memberOf);
+                displayModalMemberOf(memberOfArray);
             }
         }
 
