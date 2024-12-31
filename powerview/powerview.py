@@ -2151,7 +2151,7 @@ displayName=New Group Policy Object
 
 		logging.debug(f"[Add-DomainCATemplateAcle] Template {name} exists")
 
-		template_parser = PARSE_TEMPLATE(template[0],current_user_sid=self.current_user_sid)
+		template_parser = PARSE_TEMPLATE(template[0],current_user_sid=self.current_user_sid,ldap_session = self.ldap_session)
 		secDesc = template_parser.modify_dacl(principal_identity[0].get('attributes').get('objectSid'), rights)
 		succeed = self.set_domainobject(  
 								name,
@@ -2331,6 +2331,9 @@ displayName=New Group Policy Object
 			"pKIExtendedKeyUsage",
 			"nTSecurityDescriptor",
 			"objectGUID",
+			"msPKI-Template-Schema-Version",
+			"msPKI-Certificate-Policy",
+			"msPKI-Minimal-Key-Size"
 		]
 
 		identity = '*' if not identity else identity
@@ -2355,6 +2358,9 @@ displayName=New Group Policy Object
 		# Entries only
 		list_ca_templates = []
 		list_entries = []
+
+		# Get issuance policies for each template
+		oids = ca_fetch.get_issuance_policies()
 		for ca in cas:
 			list_ca_templates += ca.get('attributes').get('certificateTemplates')
 			for template in templates:
@@ -2369,8 +2375,24 @@ displayName=New Group Policy Object
 				else:
 					template_guids.append(template["objectGUID"])
 
+				# Oid
+				object_id = template["objectGUID"].value.lstrip("{").rstrip("}")
+				issuance_policies = template["msPKI-Certificate-Policy"].value
+
+				if not isinstance(issuance_policies, list):
+					if issuance_policies is None:
+						issuance_policies = []
+					else:
+						issuance_policies = [issuance_policies]
+
+				linked_group = None
+				for oid in oids:
+					if oid["attributes"].get("msPKI-Cert-Template-OID") in issuance_policies:
+						linked_group = oid["attributes"].get("msDS-OIDToGroupLink")
+
+
 				# get enrollment rights
-				template_ops = PARSE_TEMPLATE(template, current_user_sid=self.current_user_sid)
+				template_ops = PARSE_TEMPLATE(template, current_user_sid=self.current_user_sid, linked_group=linked_group, ldap_session=self.ldap_session)
 				parsed_dacl = template_ops.parse_dacl()
 				template_ops.resolve_flags()
 				template_owner = template_ops.get_owner_sid()
@@ -2447,6 +2469,7 @@ displayName=New Group Policy Object
 									'Client Authentication': template_ops.get_client_authentication(),
 									'Enrollment Agent': template_ops.get_enrollment_agent(),
 									'Any Purpose': template_ops.get_any_purpose(),
+									**({"Linked Groups": linked_group} if linked_group is not None else {}),
 									'Write Owner': parsed_dacl['Write Owner'],
 									'Write Dacl': parsed_dacl['Write Dacl'],
 									'Write Property': parsed_dacl['Write Property'],

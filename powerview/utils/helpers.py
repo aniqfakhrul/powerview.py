@@ -61,27 +61,63 @@ def escape_filter_chars_except_asterisk(filter_str):
 	escaped_chars = ''.join(c if c == '*' else escape_filter_chars(c) for c in filter_str)
 	return escaped_chars
 
-def get_user_sids(domain_sid, objectsid):
-	user_sids = []
-	rid = int(objectsid.split("-")[-1])
+def get_user_sids(domain_sid, objectsid, ldap_session=None):
+    user_sids = set()  # Using a set for faster lookups and deduplication
 
-	# add domain user group
-	user_sids.append(f"{domain_sid}-513")
+    rid = int(objectsid.split("-")[-1])
 
-	# add domain computer group
-	user_sids.append(f"{domain_sid}-515")
+    # Add well-known SIDs first
+    user_sids.update([
+        f"{domain_sid}-513",  # Domain Users
+        f"{domain_sid}-515",  # Domain Computers
+        "S-1-1-0",           # Everyone
+        "S-1-5-11",          # Authenticated Users  
+        "S-1-5-32-545"       # Users
+    ])
 
-	# verify object sid
-	if rid > 1000:
-		user_sids.append(objectsid)
+    # Add object SID if RID > 1000
+    if rid > 1000:
+        user_sids.add(objectsid)
 
-	# Everyone, Authenticated Users, Users
-	user_sids += [
-		"S-1-1-0",
-		"S-1-5-11",
-		"S-1-5-32-545"
-	]
-	return user_sids
+    if ldap_session:
+        try:
+            # Get user DN and search for nested groups in one LDAP query
+            base_dn = ldap_session.server.info.other["defaultNamingContext"][0]
+            
+            # Search for user DN and nested groups in one query
+            search_filter = (
+                f"(&(objectSid={objectsid})(|(objectClass=user)(objectClass=group)))"
+            )
+            
+            # Search for direct group memberships
+            ldap_session.search(
+                search_base=base_dn,
+                search_filter=search_filter,
+                attributes=['distinguishedName', 'memberOf', 'objectSid'],
+                search_scope='SUBTREE'
+            )
+
+            if len(ldap_session.entries) > 0:
+                # Add all group SIDs from the memberOf attribute
+                for entry in ldap_session.entries:
+                    if hasattr(entry, 'objectSid'):
+                        user_sids.add(str(entry.objectSid))
+                    if hasattr(entry, 'memberOf'):
+                        # Get group SIDs for each group DN
+                        for group_dn in entry.memberOf:
+                            ldap_session.search(
+                                search_base=group_dn,
+                                search_filter='(objectClass=*)',
+                                attributes=['objectSid'],
+                                search_scope='BASE'
+                            )
+                            if len(ldap_session.entries) > 0 and hasattr(ldap_session.entries[0], 'objectSid'):
+                                user_sids.add(str(ldap_session.entries[0].objectSid))
+
+        except Exception as e:
+            logging.warning(f"Failed to get group memberships: {str(e)}")
+
+    return list(user_sids)
 
 def filetime_to_span(filetime: str) -> int:
 	(span,) = struct.unpack("<q", filetime)
