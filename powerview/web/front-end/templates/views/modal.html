@@ -1,0 +1,592 @@
+<!-- Background Overlay -->
+<div id="modal-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-40"></div>
+
+<!-- Delete Confirmation Modal -->
+<div id="popup-modal" 
+    tabindex="-1" 
+    role="dialog"
+    aria-labelledby="modal-title"
+    class="fixed inset-0 z-50 flex justify-center items-center w-full h-full hidden">
+    <div class="relative p-4 w-full max-w-md max-h-full" role="document">
+        <!-- Modal content -->
+        <div class="relative flex max-w-lg flex-col overflow-hidden rounded-md border border-neutral-300 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            <!-- Modal header -->
+            <div class="flex items-center justify-between border-b border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20">
+                <h3 class="font-semibold tracking-wide text-neutral-900 dark:text-white">
+                    Delete Confirmation
+                </h3>
+                <button type="button" class="end-2.5 text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white" data-modal-hide="popup-modal">
+                    <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
+                    </svg>
+                    <span class="sr-only">Close modal</span>
+                </button>
+            </div>
+            <!-- Modal body -->
+            <div class="p-4 text-center">
+                <svg class="mx-auto mb-4 text-gray-400 w-12 h-12 dark:text-gray-200" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 11V6m0 8h.01M19 10a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+                </svg>
+                <p class="mb-5 font-normal text-gray-500 dark:text-gray-400">Are you sure you want to delete <span id="identity-to-delete"></span>?</p>
+            </div>
+            <div class="flex flex-col-reverse justify-between gap-2 border-t border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20 sm:flex-row sm:items-center md:justify-end">
+                <button id="confirm-delete" type="button" class="cursor-pointer whitespace-nowrap rounded-md bg-red-600 px-4 py-2 text-center text-sm font-medium tracking-wide text-white transition hover:bg-red-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 active:opacity-100 active:outline-offset-0">Yes, I'm sure</button>
+                <button data-modal-hide="popup-modal" type="button" class="cursor-pointer whitespace-nowrap rounded-md px-4 py-2 text-center text-sm font-medium tracking-wide text-neutral-600 transition hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black active:opacity-100 active:outline-offset-0 dark:text-neutral-300 dark:focus-visible:outline-yellow-500">No, cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add User Modal -->
+<div id="add-user-modal" tabindex="-1" aria-hidden="true" class="hidden fixed inset-0 z-50 flex justify-center items-center w-full h-full">
+    <div class="relative p-4 w-full max-w-md max-h-full">
+        <!-- Modal content -->
+        <div class="relative flex max-w-lg flex-col overflow-hidden rounded-md border border-neutral-300 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            <!-- Modal header -->
+            <div class="flex items-center justify-between border-b border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20">
+                <h3 class="font-semibold tracking-wide text-neutral-900 dark:text-white">
+                    Add New User
+                </h3>
+                <button type="button" class="end-2.5 text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white" data-modal-hide="add-user-modal">
+                    <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
+                    </svg>
+                    <span class="sr-only">Close modal</span>
+                </button>
+            </div>
+            <!-- Modal body -->
+            <form id="add-user-form">
+                <div class="p-4 space-y-4">
+                    <div>
+                        <label for="user-base-dn" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Base DN</label>
+                        <input type="text" name="user-base-dn" id="user-base-dn" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" placeholder="Enter Base DN" required />
+                    </div>
+                    <div>
+                        <label for="new-username" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Username</label>
+                        <input type="text" name="new-username" id="new-username" class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white placeholder-neutral-400" placeholder="Enter username" required />
+                    </div>
+                    <div>
+                        <label for="new-password" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Password</label>
+                        <input type="password" name="new-password" id="new-password" placeholder="Enter password" class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white placeholder-neutral-400" required />
+                    </div>
+                </div>
+                <div class="flex flex-col-reverse justify-between gap-2 border-t border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20 sm:flex-row sm:items-center md:justify-end">
+                    <button type="submit" class="cursor-pointer whitespace-nowrap rounded-md bg-black px-4 py-2 text-center text-sm font-medium tracking-wide text-neutral-100 transition hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black active:opacity-100 active:outline-offset-0 dark:bg-yellow-500 dark:text-black dark:focus-visible:outline-yellow-500">Add User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Computer Modal -->
+<div id="add-computer-modal"
+    tabindex="-1"
+    role="dialog"
+    aria-labelledby="modal-title"
+    class="fixed inset-0 z-50 flex justify-center items-center w-full h-full hidden">
+    <div class="relative p-4 w-full max-w-md max-h-full" role="document">
+        <!-- Modal content -->
+        <div class="relative flex max-w-lg flex-col overflow-hidden rounded-md border border-neutral-300 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            <!-- Modal header -->
+            <div class="flex items-center justify-between border-b border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20">
+                <h3 class="font-semibold tracking-wide text-neutral-900 dark:text-white">
+                    Add New Computer
+                </h3>
+                <button type="button" class="end-2.5 text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white" data-modal-hide="add-computer-modal">
+                    <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
+                    </svg>
+                    <span class="sr-only">Close modal</span>
+                </button>
+            </div>
+            <!-- Modal body -->
+            <form id="add-computer-form">
+                <div class="p-4 space-y-4">
+                    <div>
+                        <label for="computer-base-dn" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Base DN</label>
+                        <input type="text" name="computer-base-dn" id="computer-base-dn" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" placeholder="Enter Base DN" required />
+                    </div>
+                    <div>
+                        <label for="new-computername" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Computer Name</label>
+                        <input type="text" name="new-computername" id="new-computername" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" placeholder="Enter computer name" required />
+                    </div>
+                    <div>
+                        <label for="new-computerpass" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Computer Password</label>
+                        <input type="password" name="new-computerpass" id="new-computerpass" placeholder="Enter computer password" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" required />
+                    </div>
+                </div>
+                <div class="flex flex-col-reverse justify-between gap-2 border-t border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20 sm:flex-row sm:items-center md:justify-end">
+                    <button type="submit" class="cursor-pointer whitespace-nowrap rounded-md bg-black px-4 py-2 text-center text-sm font-medium tracking-wide text-neutral-100 transition hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black active:opacity-100 active:outline-offset-0 dark:bg-yellow-500 dark:text-black dark:focus-visible:outline-yellow-500">Add Computer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add DNS Record Modal -->
+<div id="add-dns-record-modal" tabindex="-1" aria-hidden="true" class="hidden fixed inset-0 z-50 flex justify-center items-center w-full h-full">
+    <div class="relative p-4 w-full max-w-md max-h-full">
+        <!-- Modal content -->
+        <div class="relative flex max-w-lg flex-col overflow-hidden rounded-md border border-neutral-300 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            <!-- Modal header -->
+            <div class="flex items-center justify-between border-b border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20">
+                <h3 class="font-semibold tracking-wide text-neutral-900 dark:text-white">
+                    Add DNS Record
+                </h3>
+                <button type="button" class="end-2.5 text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white" data-modal-hide="add-dns-record-modal">
+                    <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
+                    </svg>
+                    <span class="sr-only">Close modal</span>
+                </button>
+            </div>
+            <!-- Modal body -->
+            <form id="add-dns-record-form">
+                <div class="p-4 space-y-4">
+                    <div>
+                        <label for="dns-zone" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Zone</label>
+                        <select id="dns-zone" name="dns-zone" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" required>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="new-dns-name" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Record Name</label>
+                        <input type="text" 
+                            name="new-dns-name" 
+                            id="new-dns-name" 
+                            class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white placeholder-neutral-400" 
+                            placeholder="Enter DNS name" 
+                            required />
+                    </div>
+                    <div>
+                        <label for="new-dns-address" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Record Address</label>
+                        <input type="text" 
+                            name="new-dns-address" 
+                            id="new-dns-address" 
+                            class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white placeholder-neutral-400" 
+                            placeholder="Enter DNS address" 
+                            required />
+                    </div>
+                </div>
+                <div class="flex flex-col-reverse justify-between gap-2 border-t border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20 sm:flex-row sm:items-center md:justify-end">
+                    <button type="submit" class="cursor-pointer whitespace-nowrap rounded-md bg-black px-4 py-2 text-center text-sm font-medium tracking-wide text-neutral-100 transition hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black active:opacity-100 active:outline-offset-0 dark:bg-yellow-500 dark:text-black dark:focus-visible:outline-yellow-500">Add Record</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- LDAP Attributes Modal -->
+<div id="ldap-attributes-modal" 
+    tabindex="-1" 
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="ldap-attributes-title"
+    class="hidden fixed inset-0 z-50 flex justify-center items-center w-full h-full">
+    <div class="relative p-4 w-full max-w-6xl h-[90vh]">
+        <!-- Modal content -->
+        <div class="relative flex flex-col h-full rounded-md border border-neutral-300 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            {% include 'views/spinner.html' %}
+
+            <!-- Modal header - fixed -->
+            <div class="flex items-center justify-between border-b border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20">
+                <h3 class="font-semibold tracking-wide text-neutral-900 dark:text-white">
+                    LDAP Attributes
+                </h3>
+                <button type="button" class="end-2.5 text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white" data-modal-hide="ldap-attributes-modal">
+                    <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
+                    </svg>
+                    <span class="sr-only">Close modal</span>
+                </button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex justify-between items-center gap-2 overflow-x-auto border-b border-neutral-300 dark:border-neutral-700" role="tablist" aria-label="tab options">
+                <div class="flex gap-2">
+                    <button onclick="selectModalTab('info')" aria-selected="true" tabindex="0" 
+                        class="h-min px-4 py-2 text-sm font-bold text-black border-b-2 border-black dark:border-yellow-500 dark:text-yellow-500" 
+                        type="button" role="tab" aria-controls="tabpanelInfo">Info</button>
+                    <button onclick="selectModalTab('descendants')" aria-selected="false" tabindex="-1" 
+                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
+                        type="button" role="tab" aria-controls="tabpanelDescendants">Descendants</button>
+                    <button onclick="selectModalTab('dacl')" aria-selected="false" tabindex="-1" 
+                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
+                        type="button" role="tab" aria-controls="tabpanelDacl">DACL</button>
+                    <button onclick="selectModalTab('members')" aria-selected="false" tabindex="-1" 
+                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
+                        type="button" role="tab" aria-controls="tabpanelMembers"
+                        style="display: none;">Members</button>
+                    <button onclick="selectModalTab('sessions')" aria-selected="false" tabindex="-1" 
+                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
+                        type="button" role="tab" aria-controls="tabpanelSessions"
+                        style="display: none;">Sessions</button>
+                    <button onclick="selectModalTab('loggedon')" aria-selected="false" tabindex="-1" 
+                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
+                        type="button" role="tab" aria-controls="tabpanelLoggedon"
+                        style="display: none;">Logon Users</button>
+                    <button onclick="selectModalTab('memberof')" aria-selected="false" tabindex="-1" 
+                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
+                        type="button" role="tab" aria-controls="tabpanelMemberof"
+                        style="display: none;">Member Of</button>
+                </div>
+                <!-- Search Bar -->
+                <div class="relative flex items-center px-1">
+                    <input type="text" id="modal-tab-search" 
+                        class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1 text-sm 
+                        text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-400 hover:text-neutral-900 
+                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black 
+                        dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500" 
+                        placeholder="Filter results...">
+                    <button class="clear-input absolute inset-y-0 right-0 px-2 text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-400 focus:outline-none">
+                        <i class="fa-solid fa-xmark fa-xs p-1"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="flex-1 overflow-y-auto scrollbar">
+                <!-- Info Tab -->
+                <div id="tabpanelInfo" role="tabpanel" aria-label="info" class="p-4" style="display: block;">
+                    <form id="ldap-attributes-form" class="space-y-4">
+                        <!-- Existing Attributes Section -->
+                        <div id="existing-attributes" class="space-y-4">
+                            <!-- Attribute entries will be dynamically added here -->
+                        </div>
+
+                        <!-- Add New Attribute Section -->
+                        <div class="mt-8 pt-4 border-t border-neutral-300 dark:border-neutral-700">
+                            <h4 class="text-lg font-medium mb-4 text-neutral-900 dark:text-white">Add New Attribute</h4>
+                            <div class="flex gap-4">
+                                <div class="flex-1">
+                                    <label for="new-attribute-name" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Attribute Name</label>
+                                    <input type="text" id="new-attribute-name" class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-full whitespace-pre" placeholder="Enter attribute name">
+                                </div>
+                                <div class="flex-1">
+                                    <label for="new-attribute-value" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Attribute Value</label>
+                                    <input type="text" id="new-attribute-value" class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-full whitespace-pre" placeholder="Enter attribute value">
+                                </div>
+                                <div class="flex items-end">
+                                    <button type="button" id="add-new-attribute" class="cursor-pointer whitespace-nowrap rounded-md bg-black px-4 py-2 text-center text-sm font-medium tracking-wide text-neutral-100 transition hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black active:opacity-100 active:outline-offset-0 dark:bg-yellow-500 dark:text-black dark:focus-visible:outline-yellow-500">Add</button>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Descendants Tab -->
+                <div id="tabpanelDescendants" role="tabpanel" aria-label="descendants" class="p-4" style="display: none;">
+                    <!-- Add Filter Section -->
+                    <div class="mb-4 p-4 border border-neutral-300 dark:border-neutral-700 rounded-md">
+                        <div class="flex items-center gap-4">
+                            <div class="flex-grow">
+                                <label class="block text-sm font-medium mb-2">Select Properties</label>
+                                <div class="flex gap-2 flex-wrap" id="selected-properties">
+                                    <span class="px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md text-sm flex items-center gap-1">
+                                        name
+                                        <button class="hover:text-red-500"><i class="fas fa-times fa-xs"></i></button>
+                                    </span>
+                                    <span class="px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md text-sm flex items-center gap-1">
+                                        distinguishedName
+                                        <button class="hover:text-red-500"><i class="fas fa-times fa-xs"></i></button>
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="flex items-end gap-2">
+                                <input type="text" id="new-property" 
+                                    class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500" 
+                                    placeholder="Add property">
+                                <button id="search-filter" 
+                                    class="cursor-pointer whitespace-nowrap rounded-md bg-black px-4 py-2 text-center text-sm font-medium tracking-wide text-neutral-100 transition hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black active:opacity-100 active:outline-offset-0 dark:bg-yellow-500 dark:text-black dark:focus-visible:outline-yellow-500">
+                                    Search
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Table remains the same -->
+                    <table class="w-full text-sm text-neutral-600 dark:text-neutral-300 text-left">
+                        <thead id="descendants-header">
+                            <!-- Headers will be dynamically generated -->
+                        </thead>
+                        <tbody id="descendants-rows">
+                            <!-- Rows will be dynamically generated -->
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Add this after the Descendants tab panel -->
+                <div id="tabpanelDacl" role="tabpanel" aria-label="dacl" class="p-4" style="display: none;">
+                    <div class="mb-4 flex justify-end">
+                        <button type="button" 
+                            onclick="openAddObjectAclModal()"
+                            class="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-neutral-800 dark:bg-yellow-500 dark:text-black dark:hover:bg-yellow-600">
+                            <i class="fas fa-plus fa-sm"></i>
+                            Add ACL
+                        </button>
+                    </div>
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="h-8 text-left text-neutral-600 dark:text-neutral-400">
+                                <th class="px-3 py-2">Type</th>
+                                <th class="px-3 py-2">Principal</th>
+                                <th class="px-3 py-2">Access</th>
+                                <th class="px-3 py-2">Inherited From</th>
+                                <th class="px-3 py-2">Applies to</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modal-dacl-rows" class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                            <!-- DACL rows will be dynamically populated -->
+                        </tbody>
+                    </table>
+                </div>
+                <!-- In modal.html, add this after the DACL tab panel -->
+                <div id="tabpanelMembers" role="tabpanel" aria-label="members" class="p-4" style="display: none;">
+                    <div id="modal-members-content">
+                        <!-- Members content will be dynamically populated -->
+                    </div>
+                </div>
+                <div id="tabpanelSessions" role="tabpanel" aria-label="sessions" class="p-4" style="display: none;">
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="h-8 text-left text-neutral-600 dark:text-neutral-400">
+                                <th class="px-3 py-2">Username</th>
+                                <th class="px-3 py-2">Client</th>
+                                <th class="px-3 py-2">Connected</th>
+                                <th class="px-3 py-2">Idle Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sessions-rows" class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                            <!-- Sessions will be dynamically populated -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="tabpanelLoggedon" role="tabpanel" aria-label="loggedon" class="p-4" style="display: none;">
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="h-8 text-left text-neutral-600 dark:text-neutral-400">
+                                <th class="px-3 py-2">Username</th>
+                                <th class="px-3 py-2">Logon Type</th>
+                                <th class="px-3 py-2">Authentication</th>
+                                <th class="px-3 py-2">Last Logon</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logonusers-rows" class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                            <!-- Logon users will be dynamically populated -->
+                        </tbody>
+                    </table>
+                </div>
+                <div id="tabpanelMemberof" role="tabpanel" aria-label="memberof" class="p-4" style="display: none;">
+                    <div id="modal-memberof-content">
+                        <table class="w-full text-sm border-collapse">
+                            <thead>
+                                <tr class="h-8 text-left text-neutral-600 dark:text-neutral-400">
+                                    <th class="px-3 py-2">Name</th>
+                                    <th class="px-3 py-2">Distinguished Name</th>
+                                </tr>
+                            </thead>
+                            <tbody id="memberof-rows" class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                                <!-- Member Of rows will be dynamically populated -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Object ACL Modal -->
+<div id="add-object-acl-modal" tabindex="-1" aria-hidden="true" class="hidden fixed inset-0 z-50 flex justify-center items-center w-full h-full">
+    <div class="relative p-4 w-full max-w-md max-h-full">
+        <!-- Modal content -->
+        <div class="relative flex max-w-lg flex-col overflow-hidden rounded-md border border-neutral-300 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            <!-- Modal header -->
+            <div class="flex items-center justify-between border-b border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20">
+                <h3 class="font-semibold tracking-wide text-neutral-900 dark:text-white">
+                    Add Object ACL
+                </h3>
+                <button type="button" class="end-2.5 text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white" data-modal-hide="add-object-acl-modal">
+                    <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
+                    </svg>
+                    <span class="sr-only">Close modal</span>
+                </button>
+            </div>
+            <!-- Modal body -->
+            <form id="add-object-acl-form">
+                <div class="p-4 space-y-4">
+                    <div>
+                        <label for="target-identity" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Target Identity</label>
+                        <input type="text" name="target-identity" id="target-identity" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" placeholder="Enter target identity" required />
+                    </div>
+                    <div>
+                        <label for="principal-identity" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Principal Identity</label>
+                        <input type="text" name="principal-identity" id="principal-identity" placeholder="Enter principal identity" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" required />
+                    </div>
+                    <div>
+                        <label for="acl-rights" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Rights</label>
+                        <select id="acl-rights" name="acl-rights" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" required>
+                            <option value="fullcontrol">Full Control</option>
+                            <option value="resetpassword">Reset Password</option>
+                            <option value="writemembers">Write Members</option>
+                            <option value="dcsync">DCSync</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="ace-type" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">ACE Type</label>
+                        <select id="ace-type" name="ace-type" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5 dark:bg-gray-600 dark:border-gray-500 dark:placeholder-gray-400 dark:text-white" required>
+                            <option value="allowed" selected>Allow</option>
+                            <option value="denied">Deny</option>
+                        </select>
+                    </div>
+
+                    <div class="flex items-center">
+                        <label for="inheritance" class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="inheritance" name="inheritance" class="sr-only peer" value="true">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                            <span class="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">Inheritance</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="flex flex-col-reverse justify-between gap-2 border-t border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20 sm:flex-row sm:items-center md:justify-end">
+                    <button type="submit" class="cursor-pointer whitespace-nowrap rounded-md bg-black px-4 py-2 text-center text-sm font-medium tracking-wide text-neutral-100 transition hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black active:opacity-100 active:outline-offset-0 dark:bg-yellow-500 dark:text-black dark:focus-visible:outline-yellow-500">Add ACL</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Add Group Modal -->
+<div id="add-group-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" aria-hidden="true">
+    <div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700">
+            <h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
+                Add Group
+            </h3>
+            <button data-modal-hide="add-group-modal" class="text-neutral-400 hover:text-neutral-500 dark:hover:text-neutral-300">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Modal Body -->
+        <form id="add-group-form" class="p-4 space-y-4">
+            <div>
+                <label for="group-base-dn" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Base DN
+                </label>
+                <input type="text" id="group-base-dn" name="group-base-dn"
+                    class="w-full px-3 py-2 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white">
+            </div>
+            <div>
+                <label for="new-groupname" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Group Name
+                </label>
+                <input type="text" id="new-groupname" name="new-groupname" required
+                    class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white placeholder-neutral-400"
+                    placeholder="Enter group name">
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="flex justify-end gap-2 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+                <button type="button" data-modal-hide="add-group-modal"
+                    class="px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-md">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:text-black rounded-md">
+                    Add Group
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Add Group Member Modal -->
+<div id="add-group-member-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" aria-hidden="true">
+    <div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700">
+            <h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
+                Add Group Member
+            </h3>
+            <button data-modal-hide="add-group-member-modal" class="text-neutral-400 hover:text-neutral-500 dark:hover:text-neutral-300">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Modal Body -->
+        <form id="add-group-member-form" class="p-4 space-y-4">
+            <div>
+                <label for="group-name" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Group Name
+                </label>
+                <input type="text" id="group-name" name="group-name"
+                    class="w-full px-3 py-2 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white">
+            </div>
+            <div>
+                <label for="new-member" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Member Name
+                </label>
+                <input type="text" id="new-member" name="new-member" required
+                    class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white placeholder-neutral-400">
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="flex justify-end gap-2 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+                <button type="button" data-modal-hide="add-group-member-modal"
+                    class="px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-md">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:text-black rounded-md">
+                    Add Member
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Remove Group Member Modal -->
+<div id="remove-group-member-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" aria-hidden="true">
+    <div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700">
+            <h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
+                Remove Group Member
+            </h3>
+            <button data-modal-hide="remove-group-member-modal" class="text-neutral-400 hover:text-neutral-500 dark:hover:text-neutral-300">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Modal Body -->
+        <form id="remove-group-member-form" class="p-4 space-y-4">
+            <div>
+                <label for="remove-group-name" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Group Name
+                </label>
+                <input type="text" id="remove-group-name" name="remove-group-name"
+                    class="w-full px-3 py-2 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white">
+            </div>
+            <div>
+                <label for="remove-member" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                    Member Name
+                </label>
+                <select id="remove-member" name="remove-member" required
+                    class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white">
+                </select>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="flex justify-end gap-2 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+                <button type="button" data-modal-hide="remove-group-member-modal"
+                    class="px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-md">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 dark:text-white rounded-md">
+                    Remove Member
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

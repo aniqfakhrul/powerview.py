@@ -11,7 +11,6 @@ from powerview.utils.shell import get_prompt
 from powerview.utils.colors import bcolors
 
 import ldap3
-import json
 import random
 import string
 import shlex
@@ -90,14 +89,14 @@ def main():
                         try:
                             entries = None
                             if pv_args.module.casefold() == 'get-domain' or pv_args.module.casefold() == 'get-netdomain':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domain(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domain(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domainobject' or pv_args.module.casefold() == 'get-adobject':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainobject(pv_args, properties, identity)
@@ -110,20 +109,29 @@ def main():
                                 else:
                                     entries = powerview.get_domainobjectowner(identity=identity, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
-                                identity = pv_args.identity.strip()
+                                identity = pv_args.identity.strip() if hasattr(pv_args, 'identity') else None
+
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainobjectacl(args=pv_args)
+                                    entries = temp_powerview.get_domainobjectacl(
+                                        identity=identity,
+                                        security_identifier=pv_args.security_identifier,
+                                        args=pv_args
+                                    )
                                 else:
-                                    entries = powerview.get_domainobjectacl(args=pv_args)
+                                    entries = powerview.get_domainobjectacl(
+                                        identity=identity,
+                                        security_identifier=pv_args.security_identifier,
+                                        args=pv_args
+                                    )
                             elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainuser(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domainuser(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-localuser':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 computername = pv_args.computer if pv_args.computer else pv_args.computername
                                 if temp_powerview:
                                     entries = temp_powerview.get_localuser(computer_name=computername, identity=pv_args.identity, properties=properties, args=pv_args)
@@ -133,14 +141,14 @@ def main():
                                 if pv_args.resolveip and not pv_args.identity:
                                     logging.error("-ResolveIP can only be used with -Identity")
                                     continue
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaincomputer(pv_args, properties, identity, resolveip=pv_args.resolveip, resolvesids=pv_args.resolvesids)
                                 else:
                                     entries = powerview.get_domaincomputer(pv_args, properties, identity, resolveip=pv_args.resolveip, resolvesids=pv_args.resolvesids)
                             elif pv_args.module.casefold() == 'get-domaingroup' or pv_args.module.casefold() == 'get-netgroup':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaingroup(pv_args, properties, identity)
@@ -149,9 +157,9 @@ def main():
                             elif pv_args.module.casefold() == 'get-domaingroupmember' or pv_args.module.casefold() == 'get-netgroupmember':
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaingroupmember(pv_args, identity)
+                                    entries = temp_powerview.get_domaingroupmember(identity=identity, args=pv_args)
                                 else:
-                                    entries = powerview.get_domaingroupmember(pv_args, identity)
+                                    entries = powerview.get_domaingroupmember(identity=identity, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainforeigngroupmember' or pv_args.module.casefold() == 'find-foreigngroup':
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainforeigngroupmember(pv_args)
@@ -163,14 +171,14 @@ def main():
                                 else:
                                     entries = powerview.get_domainforeignuser(pv_args)
                             elif pv_args.module.casefold() == 'get-domaincontroller' or pv_args.module.casefold() == 'get-netdomaincontroller':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaincontroller(pv_args, properties, identity)
                                 else:
                                     entries = powerview.get_domaincontroller(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaingpo' or pv_args.module.casefold() == 'get-netgpo':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaingpo(pv_args, properties, identity)
@@ -182,8 +190,14 @@ def main():
                                     entries = temp_powerview.get_domaingpolocalgroup(pv_args, identity)
                                 else:
                                     entries = powerview.get_domaingpolocalgroup(pv_args, identity)
+                            elif pv_args.module.casefold() == 'get-domaingposettings' or pv_args.module.casefold() == 'get-gposettings':
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaingposettings(pv_args, identity)
+                                else:
+                                    entries = powerview.get_domaingposettings(pv_args, identity)
                             elif pv_args.module.casefold() == 'get-domainou' or pv_args.module.casefold() == 'get-netou':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainou(pv_args, properties, identity, resolve_gplink=pv_args.resolve_gplink)
@@ -191,7 +205,7 @@ def main():
                                     entries = powerview.get_domainou(pv_args, properties, identity, resolve_gplink=pv_args.resolve_gplink)
                             elif pv_args.module.casefold() == 'get-domaindnszone':
                                 identity = pv_args.identity.strip() if pv_args.identity else None
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaindnszone(identity, properties, args=pv_args)
                                 else:
@@ -199,13 +213,13 @@ def main():
                             elif pv_args.module.casefold() == 'get-domaindnsrecord':
                                 zonename = pv_args.zonename.strip() if pv_args.zonename else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaindnsrecord(identity, zonename, properties, args=pv_args)
                                 else:
                                     entries = powerview.get_domaindnsrecord(identity, zonename, properties, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainsccm' or pv_args.module.casefold() == 'get-sccm':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainsccm(pv_args, properties, identity)
@@ -224,13 +238,13 @@ def main():
                                 else:
                                     entries = powerview.get_domainrbcd(identity, pv_args)
                             elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-ca':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainca(pv_args, properties)
                                 else:
                                     entries = powerview.get_domainca(pv_args, properties)
                             elif pv_args.module.casefold() == 'get-domaincatemplate' or pv_args.module.casefold() == 'get-catemplate':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaincatemplate(pv_args, properties, identity)
@@ -265,12 +279,12 @@ def main():
                                 else:
                                     logging.error('-TargetIdentity , -PrincipalIdentity and -Rights flags are required')
                             elif pv_args.module.casefold() == 'get-domaintrust' or pv_args.module.casefold() == 'get-nettrust':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaintrust(pv_args, properties, identity)
+                                    entries = temp_powerview.get_domaintrust(pv_args, properties, identity, searchbase=pv_args.searchbase)
                                 else:
-                                    entries = powerview.get_domaintrust(pv_args, properties, identity)
+                                    entries = powerview.get_domaintrust(pv_args, properties, identity, searchbase=pv_args.searchbase)
                             elif pv_args.module.casefold() == 'convertfrom-uacvalue':
                                 if pv_args.value:
                                     value = pv_args.value.strip()
@@ -289,6 +303,11 @@ def main():
                                         powerview.convertfrom_sid(objectsid=objectsid, output=True)
                                 else:
                                     logging.error("-ObjectSID flag is required")
+                            elif pv_args.module.casefold() == 'clear-cache':
+                                if temp_powerview:
+                                    temp_powerview.clear_cache()
+                                else:
+                                    powerview.clear_cache()
                             elif pv_args.module.casefold() == 'get-namedpipes':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     if temp_powerview:
@@ -334,10 +353,11 @@ def main():
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'get-netsession':
                                 if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
                                     if temp_powerview:
-                                        entries = temp_powerview.get_netsession(pv_args)
+                                        entries = temp_powerview.get_netsession(identity=computername, port=445, args=pv_args)
                                     else:
-                                        entries = powerview.get_netsession(pv_args)
+                                        entries = powerview.get_netsession(identity=computername, port=445, args=pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'find-localadminaccess':
@@ -346,13 +366,13 @@ def main():
                                 else:
                                     entries = powerview.find_localadminaccess(pv_args)
                             elif pv_args.module.casefold() == 'invoke-kerberoast':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 if temp_powerview:
                                     entries = temp_powerview.invoke_kerberoast(pv_args, properties)
                                 else:
                                     entries = powerview.invoke_kerberoast(pv_args, properties)
                             elif pv_args.module.casefold() == 'get-exchangeserver' or pv_args.module.casefold() == 'get-exchange':
-                                properties = pv_args.properties.strip(" ").split(',') if pv_args.properties else None
+                                properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_exchangeserver(identity=identity, properties=properties, args=pv_args)
@@ -539,9 +559,9 @@ def main():
                                     if pv_args.computerpass is None:
                                         pv_args.computerpass = ''.join(random.choice(list(string.ascii_letters + string.digits + "!@#$%^&*()")) for _ in range(12))
                                     if temp_powerview:
-                                        temp_powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
+                                        temp_powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass, basedn=pv_args.basedn)
                                     else:
-                                        powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass)
+                                        powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass, basedn=pv_args.basedn)
                                 else:
                                     logging.error(f'-ComputerName and -ComputerPass are required')
                             elif pv_args.module.casefold() == 'add-domaindnsrecord':
@@ -557,6 +577,14 @@ def main():
                                     temp_powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
                                 else:
                                     powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
+                            elif pv_args.module.casefold() == 'add-domaingroup' or pv_args.module.casefold() == 'add-adgroup':
+                                if pv_args.identity is not None:
+                                    if temp_powerview:
+                                        temp_powerview.add_domaingroup(pv_args.identity, basedn=pv_args.basedn, args=pv_args)
+                                    else:
+                                        powerview.add_domaingroup(pv_args.identity, basedn=pv_args.basedn, args=pv_args)
+                                else:
+                                    logging.error('-Name flag is required')
                             elif pv_args.module.casefold() == 'remove-domainobject' or pv_args.module.casefold() == 'remove-adobject':
                                 if pv_args.identity:
                                     identity = pv_args.identity.strip()
@@ -641,7 +669,7 @@ def main():
                                     elif hasattr(pv_args, "tableview") and pv_args.tableview:
                                         formatter.table_view(entries)
                                     elif hasattr(pv_args, "select") and pv_args.select is not None:
-                                        if hasattr(pv_args, "select") and pv_args.select.isdecimal():
+                                        if isinstance(pv_args.select, int):
                                             formatter.print_index(entries)
                                         else:
                                             formatter.print_select(entries)
@@ -665,6 +693,7 @@ def main():
                             logging.error(str(e))
                             conn.reset_connection()
             except KeyboardInterrupt:
+                log_handler.save_history()
                 print()
             except EOFError:
                 log_handler.save_history()
@@ -683,6 +712,7 @@ def main():
                 continue
             except Exception as e:
                 if args.stack_trace:
+                    log_handler.save_history()
                     raise
                 else:
                     logging.error(str(e))

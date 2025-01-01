@@ -1,0 +1,178 @@
+{% extends "base/layouts.html" %}
+
+{% block content %}
+    <!-- Main Panel -->
+    <div class="p-4 h-full flex flex-col gap-4">
+        <!-- Search Operations Panel -->
+        <div class="flex flex-col rounded-lg border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+            <!-- Header with title and add button -->
+            <div class="flex items-center justify-between p-4 border-b border-neutral-300 dark:border-neutral-700">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-computer"></i>
+                    <h2 class="text-lg font-semibold">Computers</h2>
+                </div>
+                <button data-modal-target="add-computer-modal" data-modal-toggle="add-computer-modal" 
+                    class="block text-white bg-green-700 hover:bg-green-800 focus:ring-4 focus:outline-none focus:ring-green-300 font-medium rounded-lg text-sm px-3 py-1.5 text-center dark:bg-green-600 dark:hover:bg-green-700 dark:focus:ring-green-800" 
+                    type="button">
+                    Add Computer
+                </button>
+            </div>
+
+            <!-- Filter Section -->
+            <div class="p-4 border-b border-neutral-300 dark:border-neutral-700">
+                <div class="flex gap-4">
+                    <!-- Property Filter (Left Side) -->
+                    <div class="flex-grow flex items-center gap-4">
+                        <div class="flex-grow">
+                            <label class="block text-sm font-medium mb-2">Select Properties</label>
+                            <div class="flex gap-2 flex-wrap" id="computer-properties">
+                                <!-- Properties will be dynamically added here -->
+                            </div>
+                        </div>
+                        <div class="flex items-end">
+                            <input type="text" id="new-computer-property" 
+                                class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500" 
+                                placeholder="Add property">
+                        </div>
+                    </div>
+
+                    <!-- Vertical Divider -->
+                    <div class="border-l border-neutral-300 dark:border-neutral-700"></div>
+
+                    <!-- Query Templates (Right Side) -->
+                    <div class="flex-shrink-0 flex flex-col gap-2">
+                        <label class="block text-sm font-medium">Query Templates</label>
+                        <div class="flex flex-col gap-2">
+                            <!-- Custom LDAP Filter Input -->
+                            <input type="text" id="custom-ldap-filter" 
+                                class="w-96 rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500" 
+                                placeholder="Custom LDAP filter...">
+                            
+                            <!-- Existing Query Templates -->
+                            <div class="flex justify-between gap-2">
+                                <div class="flex gap-2 flex-wrap" id="selected-filters">
+                                    <!-- Active filters will be shown here -->
+                                </div>
+                                <div class="relative flex-shrink-0">
+                                    <button id="filter-dropdown-button" 
+                                        class="px-2 py-1 text-sm rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1">
+                                        Add Filter <i class="fas fa-chevron-down"></i>
+                                    </button>
+                                    <div id="filter-dropdown-menu" 
+                                        class="hidden absolute right-0 mt-1 w-40 rounded-md border border-neutral-300 bg-white dark:border-neutral-700 dark:bg-neutral-800 shadow-lg z-10">
+                                        <div class="py-1">
+                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="unconstrained">Unconstrained</button>
+                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="trustedtoauth">TrustedToAuth</button>
+                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="laps">LAPS</button>
+                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="rbcd">RBCD</button>
+                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="shadowcred">ShadowCred</button>
+                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="printers">Printers</button>
+                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="spn">SPN</button>
+                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="excludedcs">ExcludeDCs</button>
+                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="bitlocker">BitLocker</button>
+                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="gmsapassword">GMSAPassword</button>
+                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="pre2k">Pre2K</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Identity Filter and Search Base -->
+            <div class="px-4 pt-4 pb-4">
+                <div class="flex gap-4">
+                    <!-- Identity Filter -->
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium mb-2">Identity Filter (sAMAccountName or DN)</label>
+                        <input type="text" id="computer-identity" 
+                            class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-white" 
+                            placeholder="Default: *">
+                    </div>
+
+                    <!-- Search Base -->
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium mb-2">Search Base</label>
+                        <div class="relative">
+                            <select id="computer-search-base" 
+                                class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-white">
+                                <option value="">Loading...</option>
+                            </select>
+                            <!-- Search overlay -->
+                            <div id="search-base-dropdown" class="hidden absolute left-0 right-0 mt-1 rounded-md border border-neutral-300 bg-white dark:border-neutral-700 dark:bg-neutral-800 shadow-lg z-10">
+                                <div class="p-2 border-b border-neutral-300 dark:border-neutral-700 sticky top-0 bg-white dark:bg-neutral-800">
+                                    <input type="text" id="search-base-input" 
+                                        class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500" 
+                                        placeholder="Search OUs...">
+                                </div>
+                                <div id="search-base-options" class="max-h-60 overflow-y-auto scrollbar">
+                                    <!-- Options will be dynamically populated -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Search Button -->
+                    <div class="flex items-end">
+                        <button id="computer-search-button" 
+                            class="cursor-pointer whitespace-nowrap rounded-md bg-black px-4 py-2 text-center text-sm font-medium tracking-wide text-neutral-100 transition hover:opacity-75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black active:opacity-100 active:outline-offset-0 dark:bg-yellow-500 dark:text-black dark:focus-visible:outline-yellow-500">
+                            Search
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Panel -->
+        <div class="flex-1 flex flex-col rounded-lg border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 relative">
+            {% include 'views/spinner.html' %}
+
+            <!-- Results Header -->
+            <div class="flex items-center justify-between p-4 border-b border-neutral-300 dark:border-neutral-700">
+                <div class="text-sm text-neutral-600 dark:text-neutral-400" id="computers-counter">
+                    Total Computers Found: 0
+                </div>
+                <!-- Filter Results -->
+                <div class="flex-grow max-w-md ml-4">
+                    <input type="text" id="computer-search" 
+                        class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1.5 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-white" 
+                        placeholder="Filter results...">
+                </div>
+            </div>
+
+            <!-- Table Section -->
+            <div class="flex-1 relative overflow-hidden">
+                <!-- Main scrollable content -->
+                <div class="absolute inset-0 overflow-y-auto pb-6 scrollbar">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-left text-sm text-neutral-600 dark:text-neutral-300" id="computers-result-table">
+                            <thead class="border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
+                            </thead>
+                            <tbody>
+                                <tr id="initial-state">
+                                    <td colspan="100%" class="text-center py-8 text-neutral-500">
+                                        <i class="fa-solid fa-magnifying-glass mb-2 text-lg"></i>
+                                        <p>Use the search button or filters above to find computers</p>
+                                    </td>
+                                </tr>
+                                <tr id="loading-placeholder" class="hidden">
+                                    <td colspan="100%" class="text-center py-4">Loading...</td>
+                                </tr>
+                                <tr id="empty-placeholder" class="hidden">
+                                    <td colspan="100%" class="text-center py-4">No computers found</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/modules.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/computer.js') }}"></script>
+{% endblock %}

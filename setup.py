@@ -16,7 +16,8 @@ setup(
 		'powerview',
         'powerview.utils',
         'powerview.modules',
-        'powerview.lib'
+        'powerview.lib',
+        'powerview.web'
     ],
 	license='MIT',
 	install_requires=[
@@ -32,6 +33,7 @@ setup(
 		'argparse',
 		'requests_ntlm',
 		'python-dateutil',
+		'flask',
 	],
 	classifiers=[
 		'Intended Audience :: Information Technology',

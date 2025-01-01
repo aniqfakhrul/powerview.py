@@ -1,0 +1,87 @@
+{% extends "base/layouts.html" %}
+{% block head %}
+    
+{% endblock %}
+{% block content %}
+    <!-- Utils Panel -->
+    <div class="flex-1 overflow-y-auto" id="utils-panel">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 m-4">
+            <!-- ConvertFrom_SID Panel -->
+            <div x-data="{ sidInput: '', resultSid: '', errorSid: '' }" class="p-4 rounded-lg border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" x2="12" y1="8" y2="12"></line>
+                        <line x1="12" x2="12.01" y1="16" y2="16"></line>
+                    </svg>
+                    <h2 class="text-lg font-semibold">ConvertFrom_SID</h2>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">
+                            Enter SID
+                        </label>
+                        <input x-model="sidInput" type="text" class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-white" name="sid" placeholder="Enter SID" autocomplete="sid"/>
+                    </div>
+
+                    <!-- Error message placeholder -->
+                    <p x-text="errorSid" class="text-sm text-red-600" x-show="errorSid"></p>
+
+                    <button @click="convertFromSid(sidInput).then(data => { 
+                        if (JSON.stringify(data, null, 2) === sidInput) {
+                            resultSid = 'Not found';
+                        } else {
+                            resultSid = JSON.stringify(data, null, 2);
+                        }
+                        errorSid = ''; 
+                    }).catch(err => { 
+                        errorSid = 'Error converting SID'; 
+                        resultSid = ''; 
+                    })" class="w-full bg-blue-500 py-2 rounded-md shadow-sm hover:bg-blue-600">
+                        Convert
+                    </button>
+
+                    <!-- Result placeholder -->
+                    <div class="mt-4 p-4 rounded-md" x-show="resultSid">
+                        <p class="text-sm font-mono" x-text="resultSid"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ConvertFrom_UAC Panel -->
+            <div x-data="{ uacInput: '', resultUac: '', errorUac: '' }" class="p-4 rounded-lg border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" x2="12" y1="8" y2="12"></line>
+                        <line x1="12" x2="12.01" y1="16" y2="16"></line>
+                    </svg>
+                    <h2 class="text-lg font-semibold">ConvertFrom_UAC</h2>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">
+                            Enter UAC Value
+                        </label>
+                        <input x-model="uacInput" type="text" class="w-full rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-white" name="uac" placeholder="Enter UAC value" autocomplete="uac"/>
+                    </div>
+
+                    <!-- Error message placeholder -->
+                    <p x-text="errorUac" class="text-sm text-red-600" x-show="errorUac"></p>
+
+                    <button @click="convertFromUac(uacInput).then(data => { resultUac = data.map(item => `${item.attributes.Name}: ${item.attributes.Value}`).join('\n'); errorUac = ''; }).catch(err => { errorUac = 'Error converting UAC'; resultUac = ''; })" class="w-full bg-blue-500 py-2 rounded-md shadow-sm hover:bg-blue-600">
+                        Convert
+                    </button>
+
+                    <!-- Result placeholder -->
+                    <div class="mt-4 p-4 rounded-md" x-show="resultUac">
+                        <p class="text-sm font-mono" x-text="resultUac"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+{% endblock %}

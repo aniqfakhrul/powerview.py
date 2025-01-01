@@ -4,7 +4,10 @@ from impacket.ldap import ldaptypes
 from impacket.uuid import bin_to_string, string_to_bin
 from ldap3.protocol.formatters.formatters import format_sid
 from ldap3.protocol.microsoft import security_descriptor_control
+from ldap3 import SUBTREE, BASE, LEVEL
 import socket
+
+from powerview.utils.helpers import strip_entry
 
 from powerview.utils.helpers import (
     is_admin_sid,
@@ -79,18 +82,30 @@ class CAEnum:
         ca_search_base = f"CN=Certification Authorities,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
         logging.debug(f'LDAP Base: {ca_search_base}')
         logging.debug(f'LDAP Filter: {enroll_filter}')
-        self.ldap_session.search(ca_search_base, enroll_filter,attributes='*')
-        return self.ldap_session.entries
+        
+        entries = []
+        entry_generator = self.ldap_session.extend.standard.paged_search(ca_search_base, enroll_filter, attributes=list(properties), paged_size=1000, generator=True)
+        for _entries in entry_generator:
+            if _entries['type'] != 'searchResEntry':
+                continue
+            strip_entry(_entries)
+            entries.append(_entries)
+        return entries
 
-    def fetch_enrollment_services(self, properties=['*'], searchbase=None):
+    def fetch_enrollment_services(self, properties=['*'], searchbase=None, search_scope=SUBTREE):
         enroll_filter = "(objectCategory=pKIEnrollmentService)"
 
         if not searchbase:
             searchbase = "CN=Configuration,{}".format(self.root_dn)
 
-        self.ldap_session.search(searchbase,enroll_filter,attributes=properties)
-
-        return self.ldap_session.entries
+        entries = []
+        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, enroll_filter, attributes=list(properties), paged_size=1000, generator=True, search_scope=search_scope)
+        for _entries in entry_generator:
+            if _entries['type'] != 'searchResEntry':
+                continue
+            strip_entry(_entries)
+            entries.append(_entries)
+        return entries
 
     def get_certificate_templates(self, properties=None, ca_search_base=None, identity=None):
         if not properties:
@@ -110,6 +125,9 @@ class CAEnum:
                 "pKIExtendedKeyUsage",
                 "nTSecurityDescriptor",
                 "objectGUID",
+                "msPKI-Template-Schema-Version",
+                "msPKI-Certificate-Policy",
+                "msPKI-Minimal-Key-Size"
             ]
         ca_search_base = f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}" if not ca_search_base else ca_search_base
         search_filter = ""
@@ -169,8 +187,37 @@ class CAEnum:
 
         return False
 
+    def get_issuance_policies(self, properties=None):
+        if not properties:
+            properties = [
+                "cn",
+                "name", 
+                "displayName",
+                "msDS-OIDToGroupLink",
+                "msPKI-Cert-Template-OID",
+                "nTSecurityDescriptor",
+                "objectGUID"
+            ]
+        searchbase = f"CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
+        ldap_filter = "(objectclass=msPKI-Enterprise-Oid)"
+        entries = []
+        entry_generator = self.ldap_session.extend.standard.paged_search(
+            searchbase,
+            ldap_filter,
+            attributes=list(properties), 
+            paged_size=1000,
+            generator=True,
+            controls=security_descriptor_control(sdflags=0x5)
+        )
+        for _entries in entry_generator:
+            if _entries['type'] != 'searchResEntry':
+                continue
+            strip_entry(_entries)
+            entries.append(_entries)
+        return entries
+
 class PARSE_TEMPLATE:
-    def __init__(self, template):
+    def __init__(self, template, current_user_sid=None, linked_group=None, ldap_session=None):
         self.template = template
         self.owner_sid = None
         self.parsed_dacl = {}
@@ -186,7 +233,9 @@ class PARSE_TEMPLATE:
         self.authorized_signatures_required = False
         self.no_security_extension = False
         self.domain_sid = None
-
+        self.current_user_sid = current_user_sid
+        self.linked_group = linked_group
+        self.ldap_session = ldap_session
     def get_owner_sid(self):
         return self.owner_sid
 
@@ -353,8 +402,8 @@ class PARSE_TEMPLATE:
     def can_user_enroll_template(self):
         enrollable_sids = []
         user_can_enroll = False
-        for sid in self.parsed_dacl["Enrollment Rights"]:
-            if sid in get_user_sids(self.domain_sid, sid):
+        for sid in get_user_sids(self.domain_sid, self.current_user_sid, self.ldap_session):
+            if sid in self.parsed_dacl["Enrollment Rights"]:
                 enrollable_sids.append(sid)
                 user_can_enroll = True
         return user_can_enroll, enrollable_sids
@@ -367,33 +416,61 @@ class PARSE_TEMPLATE:
             # TODO: add another user_can_enroll logic
             self.parsed_dacl["Enrollment Rights"]
             if (user_can_enroll and self.get_enrollee_supplies_subject() and self.get_client_authentication()):
-                vulns["ESC1"] = enrollable_sids[0]
+                vulns["ESC1"] = enrollable_sids
 
             # ESC2
             if user_can_enroll and self.get_any_purpose():
-                vulns["ESC2"] = enrollable_sids[0]
+                vulns["ESC2"] = enrollable_sids
 
             # ESC3
             if user_can_enroll and self.get_enrollment_agent():
-                vulns["ESC3"] = enrollable_sids[0]
+                vulns["ESC3"] = enrollable_sids
 
             # ESC9
             if user_can_enroll and self.get_no_security_extension():
                 vunls["ESC9"] = "Vulnerable yayay"
 
-            # ESC4
-            # for s in self.parsed_dacl["Write Owner"]:
-            #     rid = int(s.split("-")[-1])
-            #     if rid > 1000:
-            #         vulns["ESC4"] = f"{rid} have write permission"
-            # for s in self.parsed_dacl["Write Dacl"]:
-            #     rid = int(s.split("-")[-1])
-            #     if rid > 1000:
-            #         vulns["ESC4"] = f"{rid} have write permission"
-            # for s in self.parsed_dacl["Write Property"]:
-            #     rid = int(s.split("-")[-1])
-            #     if rid > 1000:
-            #         vulns["ESC4"] = f"{rid} have write permission"
+            # ESC13
+            if user_can_enroll and self.get_client_authentication() and self.template["msPKI-Certificate-Policy"] and self.linked_group:
+                vulns["ESC13"] = enrollable_sids
+
+            # ESC15
+            if user_can_enroll and self.get_enrollee_supplies_subject() and int(self.template["msPKI-Template-Schema-Version"].raw_values[0]) == 1:
+                vulns["ESC15"] = enrollable_sids
+        
+
+        # ESC4
+        security = CertificateSecurity(self.template["nTSecurityDescriptor"].raw_values[0])
+        owner_sid = security.owner
+
+        if owner_sid in get_user_sids(self.domain_sid, self.current_user_sid, self.ldap_session):
+            vulns["ESC4"] = [owner_sid]
+        else:
+            has_vulnerable_acl = False
+            aces = security.aces
+            vulnerable_acl_sids = set()
+            
+            for sid, rights in aces.items():
+                if sid not in get_user_sids(self.domain_sid, self.current_user_sid, self.ldap_session):
+                    continue
+
+                ad_rights = rights["rights"] 
+                ad_extended_rights = rights["extended_rights"]
+                
+                for right in [CERTIFICATE_RIGHTS.GENERIC_ALL, CERTIFICATE_RIGHTS.WRITE_OWNER, 
+                             CERTIFICATE_RIGHTS.WRITE_DACL, CERTIFICATE_RIGHTS.WRITE_PROPERTY]:
+                    if right in ad_rights:
+                        vulnerable_acl_sids.add(sid)
+                        has_vulnerable_acl = True
+                
+                if (CERTIFICATE_RIGHTS.WRITE_PROPERTY in ad_rights and
+                    ('00000000-0000-0000-0000-000000000000' in ad_extended_rights and 
+                     ad_rights & ACTIVE_DIRECTORY_RIGHTS.EXTENDED_RIGHT)):
+                    vulnerable_acl_sids.add(sid)
+                    has_vulnerable_acl = True
+
+            if has_vulnerable_acl:
+                vulns["ESC4"] = list(vulnerable_acl_sids)
 
         return vulns
 

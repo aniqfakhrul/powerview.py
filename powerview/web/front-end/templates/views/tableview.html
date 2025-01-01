@@ -1,0 +1,18 @@
+<div class="flex-1 overflow-y-auto" id="tableview" hidden>
+    <div class="md:grid-cols-2 gap-4 m-4">
+        <div class="col-span-1 bg-white rounded-lg shadow p-4">
+            <div>
+                <input type="text" id="object-search" class="w-full p-2 border rounded" placeholder="Filter objects...">
+            </div>
+            <div class="overflow-x-auto overflow-y-auto" style="max-height: 500px;">
+                <table class="w-full text-left text-sm text-neutral-600 dark:text-neutral-300" id="objects-result-table">
+                    <thead class="border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <!-- Rows will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

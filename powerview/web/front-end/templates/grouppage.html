@@ -1,0 +1,54 @@
+{% extends "base/layouts.html" %}
+
+{% block content %}
+<div class="p-4 h-full flex gap-4 relative">
+    {% include 'views/spinner.html' %}
+    <!-- Groups Panel -->
+    <div class="w-1/3 flex flex-col rounded-lg border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+        <!-- Header -->
+        <div class="flex items-center justify-between p-4 border-b border-neutral-300 dark:border-neutral-700">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-users text-neutral-500 dark:text-neutral-400"></i>
+                <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Domain Groups</h2>
+            </div>
+            <input type="text" 
+                   id="group-search" 
+                   class="w-64 rounded-md border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800 placeholder:text-neutral-500 dark:placeholder:text-neutral-400" 
+                   placeholder="Filter groups...">
+        </div>
+
+        <!-- Groups Table Container -->
+        <div class="flex-1 p-4 overflow-hidden">
+            <div class="groups-container h-full overflow-auto scrollbar">
+                <!-- Groups will be dynamically populated -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Members Panel -->
+    <div class="w-2/3 flex flex-col rounded-lg border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
+        <!-- Header -->
+        <div class="flex items-center justify-between p-4 border-b border-neutral-300 dark:border-neutral-700">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-user-group text-neutral-500 dark:text-neutral-400"></i>
+                <h2 class="text-lg font-semibold text-neutral-900 dark:text-white member-header">Group Members</h2>
+            </div>
+            <input type="text" 
+                   id="member-search" 
+                   class="w-64 rounded-md border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800 placeholder:text-neutral-500 dark:placeholder:text-neutral-400" 
+                   placeholder="Filter members...">
+        </div>
+
+        <!-- Members Table Container -->
+        <div class="flex-1 p-4 overflow-hidden">
+            <div class="members-container h-full overflow-auto scrollbar">
+                <!-- Members will be dynamically populated -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/group.js') }}"></script>
+{% endblock %}
