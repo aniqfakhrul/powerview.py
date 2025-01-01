@@ -20,7 +20,7 @@ class Storage:
 
     def _generate_cache_key(self, search_base, search_filter, search_scope, attributes):
         """Generate a unique cache key based on search parameters"""
-        cache_string = f"{search_base}|{search_filter}|{search_scope}|{str(sorted(attributes) if attributes else 'None')}"
+        cache_string = f"{search_base.lower()}|{search_filter.lower()}|{search_scope.lower()}|{str(sorted(attributes) if attributes else 'None')}"
         return hashlib.md5(cache_string.encode()).hexdigest()
 
     def _serialize_complex_types(self, obj):

@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    async function searchUsers() {
+    async function searchUsers(no_cache=false) {
         const searchSpinner = document.getElementById('search-spinner');
         const boxOverlaySpinner = document.getElementById('box-overlay-spinner');
         
@@ -170,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(collectQueryParams())
+                body: JSON.stringify({...collectQueryParams(), no_cache: no_cache})
             });
 
             await handleHttpError(response);
@@ -514,7 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             showSuccessAlert(`Added user ${username} to ${basedn}`);
 
-            searchUsers(); // Refresh the user list
+            searchUsers(no_cache=true); // Refresh the user list
         } catch (error) {
             console.error('Error adding user:', error);
             showErrorAlert('Failed to add user. Please try again.');
@@ -549,7 +549,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const rootDN = domainInfo.root_dn;
 
             // Fill in the base DN modal for search base input
-            baseDnModal.value = rootDN;
+            baseDnModal.value = `CN=Users,${rootDN}`;
             
             // Get all OUs
             const ous = await getDomainOU();

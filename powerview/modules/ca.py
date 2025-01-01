@@ -125,6 +125,9 @@ class CAEnum:
                 "pKIExtendedKeyUsage",
                 "nTSecurityDescriptor",
                 "objectGUID",
+                "msPKI-Template-Schema-Version",
+                "msPKI-Certificate-Policy",
+                "msPKI-Minimal-Key-Size"
             ]
         ca_search_base = f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}" if not ca_search_base else ca_search_base
         search_filter = ""
@@ -184,8 +187,37 @@ class CAEnum:
 
         return False
 
+    def get_issuance_policies(self, properties=None):
+        if not properties:
+            properties = [
+                "cn",
+                "name", 
+                "displayName",
+                "msDS-OIDToGroupLink",
+                "msPKI-Cert-Template-OID",
+                "nTSecurityDescriptor",
+                "objectGUID"
+            ]
+        searchbase = f"CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
+        ldap_filter = "(objectclass=msPKI-Enterprise-Oid)"
+        entries = []
+        entry_generator = self.ldap_session.extend.standard.paged_search(
+            searchbase,
+            ldap_filter,
+            attributes=list(properties), 
+            paged_size=1000,
+            generator=True,
+            controls=security_descriptor_control(sdflags=0x5)
+        )
+        for _entries in entry_generator:
+            if _entries['type'] != 'searchResEntry':
+                continue
+            strip_entry(_entries)
+            entries.append(_entries)
+        return entries
+
 class PARSE_TEMPLATE:
-    def __init__(self, template, current_user_sid=None):
+    def __init__(self, template, current_user_sid=None, linked_group=None, ldap_session=None):
         self.template = template
         self.owner_sid = None
         self.parsed_dacl = {}
@@ -202,7 +234,8 @@ class PARSE_TEMPLATE:
         self.no_security_extension = False
         self.domain_sid = None
         self.current_user_sid = current_user_sid
-
+        self.linked_group = linked_group
+        self.ldap_session = ldap_session
     def get_owner_sid(self):
         return self.owner_sid
 
@@ -369,8 +402,8 @@ class PARSE_TEMPLATE:
     def can_user_enroll_template(self):
         enrollable_sids = []
         user_can_enroll = False
-        for sid in self.parsed_dacl["Enrollment Rights"]:
-            if sid in get_user_sids(self.domain_sid, sid):
+        for sid in get_user_sids(self.domain_sid, self.current_user_sid, self.ldap_session):
+            if sid in self.parsed_dacl["Enrollment Rights"]:
                 enrollable_sids.append(sid)
                 user_can_enroll = True
         return user_can_enroll, enrollable_sids
@@ -396,13 +429,21 @@ class PARSE_TEMPLATE:
             # ESC9
             if user_can_enroll and self.get_no_security_extension():
                 vunls["ESC9"] = "Vulnerable yayay"
+
+            # ESC13
+            if user_can_enroll and self.get_client_authentication() and self.template["msPKI-Certificate-Policy"] and self.linked_group:
+                vulns["ESC13"] = enrollable_sids
+
+            # ESC15
+            if user_can_enroll and self.get_enrollee_supplies_subject() and int(self.template["msPKI-Template-Schema-Version"].raw_values[0]) == 1:
+                vulns["ESC15"] = enrollable_sids
         
 
         # ESC4
         security = CertificateSecurity(self.template["nTSecurityDescriptor"].raw_values[0])
         owner_sid = security.owner
 
-        if owner_sid in get_user_sids(self.domain_sid, self.current_user_sid):
+        if owner_sid in get_user_sids(self.domain_sid, self.current_user_sid, self.ldap_session):
             vulns["ESC4"] = [owner_sid]
         else:
             has_vulnerable_acl = False
@@ -410,7 +451,7 @@ class PARSE_TEMPLATE:
             vulnerable_acl_sids = set()
             
             for sid, rights in aces.items():
-                if sid not in get_user_sids(self.domain_sid, self.current_user_sid):
+                if sid not in get_user_sids(self.domain_sid, self.current_user_sid, self.ldap_session):
                     continue
 
                 ad_rights = rights["rights"] 
