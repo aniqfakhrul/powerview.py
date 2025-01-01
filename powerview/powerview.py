@@ -176,7 +176,7 @@ class PowerView:
 		logging.info("[Clear-Cache] Clearing cache")
 		return self.custom_paged_search.standard.storage.clear_cache()
 
-	def get_domainuser(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE):
+	def get_domainuser(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False):
 		def_prop = [
 			'servicePrincipalName', 'objectCategory', 'objectGUID', 'primaryGroupID', 'userAccountControl',
 			'sAMAccountType', 'adminCount', 'cn', 'name', 'sAMAccountName', 'distinguishedName', 'mail',
@@ -188,6 +188,8 @@ class PowerView:
 			properties = set(args.properties)
 		else:
 			properties = set(properties or def_prop)
+
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
@@ -259,7 +261,7 @@ class PowerView:
 
 		# in case need more then 1000 entries
 		entries = []
-		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope)
+		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope, no_cache=no_cache)
 		for _entries in entry_generator:
 			if _entries['type'] != 'searchResEntry':
 				continue
@@ -351,7 +353,7 @@ class PowerView:
 			entries.append(entry)
 		return entries
 
-	def get_domaincontroller(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE):
+	def get_domaincontroller(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False):
 		def_prop = [
 			'cn',
 			'distinguishedName',
@@ -377,6 +379,7 @@ class PowerView:
 		ldap_filter = ""
 		identity_filter = ""
 
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		properties = def_prop if not properties else properties
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
@@ -394,7 +397,7 @@ class PowerView:
 		ldap_filter = f"(&(userAccountControl:1.2.840.113556.1.4.803:=8192){identity_filter}{ldap_filter})"
 		logging.debug(f"[Get-DomainController] LDAP search filter: {ldap_filter}")
 		entries = []
-		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True, search_scope=search_scope)
+		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True, search_scope=search_scope, no_cache=no_cache)
 		for _entries in entry_generator:
 			if _entries['type'] != 'searchResEntry':
 				continue
@@ -415,11 +418,12 @@ class PowerView:
 
 		return entries
 
-	def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, ldap_filter=None, searchbase=None, sd_flag=None, search_scope=ldap3.SUBTREE):
+	def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, ldap_filter=None, searchbase=None, sd_flag=None, search_scope=ldap3.SUBTREE, no_cache=False):
 		def_prop = [
 			'*'
 		]
 		properties = set(properties or def_prop)
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 
 		if sd_flag:
 			controls = security_descriptor_control(sdflags=sd_flag)
@@ -444,7 +448,7 @@ class PowerView:
 		logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
 
 		entries = []
-		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, controls=controls, search_scope=search_scope)
+		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, controls=controls, search_scope=search_scope, no_cache=no_cache)
 		for _entries in entry_generator:
 			if _entries['type'] != 'searchResEntry':
 				continue
@@ -589,7 +593,7 @@ class PowerView:
 		#self.ldap_session.search(self.root_dn,ldap_filter,attributes=properties)
 		#return self.ldap_session.entries
 
-	def get_domainobjectacl(self, identity=None, security_identifier=None, resolveguids=False, targetidentity=None, principalidentity=None, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE):
+	def get_domainobjectacl(self, identity=None, security_identifier=None, resolveguids=False, targetidentity=None, principalidentity=None, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False):
 		# Use args to set defaults if not provided directly
 		if args:
 			identity = identity or getattr(args, 'identity', None)
@@ -600,9 +604,11 @@ class PowerView:
 		if not searchbase:
 			searchbase = self.root_dn
 
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+
 		# Enumerate available GUIDs
 		guids_dict = {}
-		self.ldap_session.search(f"CN=Extended-Rights,CN=Configuration,{self.root_dn}", "(rightsGuid=*)", attributes=['displayName', 'rightsGuid'], search_scope=search_scope)
+		self.ldap_session.search(f"CN=Extended-Rights,CN=Configuration,{self.root_dn}", "(rightsGuid=*)", attributes=['displayName', 'rightsGuid'], search_scope=search_scope, no_cache=no_cache)
 		for entry in self.ldap_session.entries:
 			guids_dict[entry['rightsGuid'].value] = entry['displayName'].value
 
@@ -657,7 +663,7 @@ class PowerView:
 		entries_dacl = enum.read_dacl()
 		return entries_dacl
 
-	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolveip=False, resolvesids=False, ldapfilter=None, search_scope=ldap3.SUBTREE):
+	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolveip=False, resolvesids=False, ldapfilter=None, search_scope=ldap3.SUBTREE, no_cache=False):
 		def_prop = [
 			'lastLogonTimestamp',
 			'objectCategory',
@@ -688,6 +694,8 @@ class PowerView:
 			properties = set(args.properties)
 		else:
 			properties = set(properties or def_prop)
+
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -764,7 +772,7 @@ class PowerView:
 		ldap_filter = f'(&(objectClass=computer){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainComputer] LDAP search filter: {ldap_filter}')
 		entries = []
-		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope)
+		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope, no_cache=no_cache)
 		for _entries in entry_generator:
 			if _entries['type'] != 'searchResEntry':
 				continue
@@ -1353,7 +1361,7 @@ class PowerView:
 				continue
 		return policy_settings
 
-	def get_domaintrust(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE):
+	def get_domaintrust(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False):
 		def_prop = [
 			'name',
 			'objectGUID',
@@ -1371,12 +1379,14 @@ class PowerView:
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+
 		identity_filter = f"(name={identity})"
 		ldap_filter = f'(&(objectClass=trustedDomain){identity_filter})'
 		logging.debug(f'[Get-DomainTrust] LDAP search filter: {ldap_filter}')
 
 		entries = []
-		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope)
+		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope, no_cache=no_cache)
 		for _entries in entry_generator:
 			if _entries['type'] != 'searchResEntry':
 				continue
@@ -1441,9 +1451,10 @@ class PowerView:
 			print("%s" % identity)
 		return identity
 
-	def get_domain(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE):
+	def get_domain(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False):
 		properties = ['*'] if not properties else properties
 		identity = '*' if not identity else identity
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 
 		identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
 		if not searchbase:
@@ -1459,16 +1470,15 @@ class PowerView:
 		logging.debug(f'[Get-Domain] LDAP search filter: {ldap_filter}')
 
 		entries = []
-		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True, search_scope=search_scope)
+		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True, search_scope=search_scope, no_cache=no_cache)
 		for _entries in entry_generator:
 			if _entries['type'] != 'searchResEntry':
 				continue
-			#self.store.write_to_file("get_domain.json", _entries.get("attributes"))
 			strip_entry(_entries)
 			entries.append(_entries)
 		return entries
 
-	def get_domaindnszone(self, identity=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE):
+	def get_domaindnszone(self, identity=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False):
 		def_prop = [
 			'objectClass',
 			'cn',
@@ -1485,6 +1495,7 @@ class PowerView:
 
 		properties = def_prop if not properties else properties
 		identity = '*' if not identity else identity
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}" 
@@ -1496,7 +1507,7 @@ class PowerView:
 		logging.debug(f"[Get-DomainDNSZone] LDAP Filter string: {ldap_filter}")
 
 		entries = []
-		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, ldap_filter, attributes=properties, paged_size = 1000, generator=True, search_scope=search_scope)
+		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, ldap_filter, attributes=properties, paged_size = 1000, generator=True, search_scope=search_scope, no_cache=no_cache)
 		for _entries in entry_generator:
 			if _entries['type'] != 'searchResEntry':
 				continue
@@ -1504,7 +1515,7 @@ class PowerView:
 			entries.append(_entries)
 		return entries
 
-	def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE):
+	def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False):
 		def_prop = [
 			'name',
 			'distinguishedName',
@@ -1517,10 +1528,12 @@ class PowerView:
 
 		zonename = '*' if not zonename else zonename
 		identity = escape_filter_chars(identity) if identity else None
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}" 
 
-		zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'], searchbase=searchbase)
+		zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'], searchbase=searchbase, no_cache=no_cache)
 		if not zones:
 			logging.error(f"[Get-DomainDNSRecord] Zone {zonename} not found")
 			return
@@ -1534,7 +1547,7 @@ class PowerView:
 		for zone in zones:
 			logging.debug(f"[Get-DomainDNSRecord] Search base: {zone['attributes']['distinguishedName']}")
 			logging.debug(f"[Get-DomainDNSRecord] LDAP Filter string: {ldap_filter}")
-			entry_generator = self.ldap_session.extend.standard.paged_search(zone['attributes']['distinguishedName'], ldap_filter, attributes=def_prop, paged_size = 1000, generator=True, search_scope=search_scope)
+			entry_generator = self.ldap_session.extend.standard.paged_search(zone['attributes']['distinguishedName'], ldap_filter, attributes=def_prop, paged_size = 1000, generator=True, search_scope=search_scope, no_cache=no_cache)
 			for _entries in entry_generator:
 				if _entries['type'] != 'searchResEntry':
 					continue

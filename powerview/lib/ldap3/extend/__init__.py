@@ -32,9 +32,12 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 					 controls=None,
 					 paged_size=100,
 					 paged_criticality=False,
-					 generator=True):
+					 generator=True,
+					 no_cache=False):
 		
-		if not self.no_cache:
+		no_cache = no_cache or self.no_cache
+
+		if not no_cache:
 			cached_results = self.storage.get_cached_results(search_base, search_filter, search_scope, attributes)
 			if cached_results is not None:
 				logging.debug("[CustomStandardExtendedOperations] Returning cached results for query")
@@ -95,7 +98,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 										  paged_size,
 										  paged_criticality))
 			
-			if not self.no_cache:
+			if not no_cache:
 				self.storage.cache_results(search_base, search_filter, search_scope, attributes, results)
 			return results
 		else:
@@ -113,7 +116,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 											paged_size,
 											paged_criticality))
 			
-			if not self.no_cache:
+			if not no_cache:
 				self.storage.cache_results(search_base, search_filter, search_scope, attributes, results)
 			
 			return results

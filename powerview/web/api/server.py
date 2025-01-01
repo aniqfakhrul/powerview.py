@@ -12,6 +12,7 @@ from argparse import Namespace
 from powerview.web.api.helpers import make_serializable
 from powerview.utils.parsers import powerview_arg_parse
 from powerview.utils.constants import UAC_DICT
+from powerview._version import __version__ as version
 
 class APIServer:
 	def __init__(self, powerview, host="127.0.0.1", port=5000):
@@ -77,6 +78,7 @@ class APIServer:
 	def render_index(self):
 		context = {
 			'title': 'Powerview.py',
+			'version': version,
 			'nav_items': self.nav_items
 		}
 		return render_template('explorerpage.html', **context)
@@ -84,6 +86,7 @@ class APIServer:
 	def render_dashboard(self):
 		context = {
 			'title': 'Powerview.py - Dashboard',
+			'version': version,
 			'nav_items': self.nav_items
 		}
 		return render_template('dashboardpage.html', **context)
@@ -92,6 +95,7 @@ class APIServer:
 		context = {
 			'title': 'Powerview.py - Users',
 			'nav_items': self.nav_items,
+			'version': version,
 			'ldap_properties': [
 				{'id': 'all-toggle', 'name': 'All', 'active': 'false', 'attribute': '*'},
 				{'id': 'samaccountname-toggle', 'name': 'sAMAccountname', 'active': 'true', 'attribute': 'sAMAccountName'},
@@ -134,6 +138,7 @@ class APIServer:
 		context = {
 			'title': 'Powerview.py - Computers',
 			'nav_items': self.nav_items,
+			'version': version,
 			'ldap_properties': [
 				{'id': 'all-toggle', 'name': 'All', 'active': 'false', 'attribute': '*'},
 				{'id': 'samaccountname-toggle', 'name': 'sAMAccountname', 'active': 'true', 'attribute': 'sAMAccountName'},
@@ -165,21 +170,24 @@ class APIServer:
 	def render_dns(self):
 		context = {
 			'title': 'Powerview.py - DNS',
-			'nav_items': self.nav_items
+			'nav_items': self.nav_items,
+			'version': version,
 		}
 		return render_template('dnspage.html', **context)
 
 	def render_groups(self):
 		context = {
 			'title': 'Powerview.py - Groups',
-			'nav_items': self.nav_items
+			'nav_items': self.nav_items,
+			'version': version,
 		}
 		return render_template('grouppage.html', **context)
 
 	def render_ca(self):
 		context = {
 			'title': 'Powerview.py - CA',
-			'nav_items': self.nav_items
+			'nav_items': self.nav_items,
+			'version': version,
 		}
 		return render_template('capage.html', **context)
 

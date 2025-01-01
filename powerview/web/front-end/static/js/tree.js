@@ -154,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     
-    async function toggleSubtree(searchbase, parentElement) {
+    async function toggleSubtree(searchbase, parentElement, no_cache=false) {
         const spinner = document.getElementById(`spinner-${convertDnToId(searchbase)}`);
         if (spinner) {
             spinner.classList.remove('hidden'); // Show the spinner
@@ -175,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ searchbase: searchbase, search_scope: 'LEVEL' })
+                body: JSON.stringify({ searchbase: searchbase, search_scope: 'LEVEL', no_cache: no_cache })
             });
 
             await handleHttpError(response);
@@ -1079,7 +1079,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Re-fetch and display the subtree
         try {
             showLoadingIndicator();
-            await toggleSubtree(dn, parentDiv);
+            await toggleSubtree(dn, parentDiv, no_cache=true);
         } catch (error) {
             console.error('Error refreshing subtree:', error);
         } finally {

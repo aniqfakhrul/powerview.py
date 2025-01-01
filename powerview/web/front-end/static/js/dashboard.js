@@ -130,10 +130,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             container.innerHTML = `
                 <div class="space-y-2">
                     ${data.map(trust => `
-                        <div class="flex items-center justify-between p-2 rounded bg-neutral-50 dark:bg-neutral-700">
-                            <div>
-                                <p class="text-neutral-900 dark:text-white">${trust.attributes.name}</p>
-                                <p class="text-sm text-neutral-500 dark:text-neutral-400">${trust.attributes.trustType}</p>
+                        <div class="flex flex-col p-2 rounded bg-neutral-50 dark:bg-neutral-700">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-neutral-900 dark:text-white">${trust.attributes.name}</p>
+                                </div>
+                            </div>
+                            <div class="mt-2 text-sm">
+                                <p class="text-neutral-500 dark:text-neutral-400">
+                                    Type: ${trust.attributes.trustType.join(', ')}
+                                </p>
+                                <p class="text-neutral-500 dark:text-neutral-400">
+                                    SID: ${trust.attributes.securityIdentifier}
+                                </p>
+                                <p class="text-neutral-500 dark:text-neutral-400">
+                                    Direction: ${trust.attributes.trustDirection.join(', ')}
+                                </p>
+                                <p class="text-neutral-500 dark:text-neutral-400">
+                                    Attributes: ${trust.attributes.trustAttributes}
+                                </p>
                             </div>
                         </div>
                     `).join('')}
