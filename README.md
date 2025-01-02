@@ -59,7 +59,8 @@ powerview range.net/lowpriv:Password123@192.168.86.192 [--use-channel-binding | 
 ```
 powerview 10.10.10.10 --pfx administrator.pfx
 ```
-![](./src/intro.gif)
+![intro](https://github.com/user-attachments/assets/286de18a-d0a4-4211-87c2-3736bb1e3005)
+
 
 * Enable LDAP Filter Obfuscation.
 ```
@@ -115,7 +116,8 @@ Set-DomainObject -Identity "adminuser" -Append 'servicePrincipalname=@/path/to/l
 powerview 10.10.10.10 --relay [--relay-host] [--relay-port] [--use-ldap | --use-ldaps]
 ```
 
-![](./src/relay.gif)
+![relay](https://github.com/user-attachments/assets/4f219920-0cb0-4e81-ab6f-b6c94381a95f)
+
 
 > [!NOTE]  
 > This demonstration shows coerced authentication was made using `printerbug.py`. You may use other methods that coerce HTTP authentication.
