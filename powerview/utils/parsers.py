@@ -173,6 +173,7 @@ def powerview_arg_parse(cmd):
 	get_domaingroup_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaingroup_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaingroup_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaingroup_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
 
 	# foreignuser
 	get_domainforeignuser_parser = subparsers.add_parser('Get-DomainForeignUser', aliases=['Find-ForeignUser'], exit_on_error=False)

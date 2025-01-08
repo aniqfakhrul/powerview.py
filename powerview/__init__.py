@@ -151,9 +151,9 @@ def main():
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaingroup(pv_args, properties, identity)
+                                    entries = temp_powerview.get_domaingroup(pv_args, properties, identity, no_cache=pv_args.no_cache)
                                 else:
-                                    entries = powerview.get_domaingroup(pv_args, properties, identity)
+                                    entries = powerview.get_domaingroup(pv_args, properties, identity, no_cache=pv_args.no_cache)
                             elif pv_args.module.casefold() == 'get-domaingroupmember' or pv_args.module.casefold() == 'get-netgroupmember':
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:

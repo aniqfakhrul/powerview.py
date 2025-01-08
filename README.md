@@ -28,7 +28,7 @@ curl -L powerview.sh | sh
 git clone https://github.com/aniqfakhrul/powerview.py
 cd powerview.py
 sudo apt install libkrb5-dev
-./intall.sh
+./install.sh
 ```
 > [!NOTE]
 > In case the installation throws error regarding `gssapi` library. You might need to install `libkrb5-dev` (Debian/Ubuntu) or `krb5-devel` (CentOS)
