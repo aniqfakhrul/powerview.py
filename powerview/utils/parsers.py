@@ -633,6 +633,7 @@ def powerview_arg_parse(cmd):
 	convertfrom_sid_parser.add_argument('-ObjectSID', action='store', dest='objectsid')
 	convertfrom_sid_parser.add_argument('-Server', action='store', dest='server')
 	convertfrom_sid_parser.add_argument('-OutFile', action='store', dest='outfile')
+	convertfrom_sid_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
 
 	# add domain group members
 	add_domaingroupmember_parser = subparsers.add_parser('Add-DomainGroupMember',aliases=['Add-GroupMember'], exit_on_error=False)

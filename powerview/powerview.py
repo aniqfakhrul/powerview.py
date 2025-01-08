@@ -1430,28 +1430,39 @@ class PowerView:
 			)
 		return entries
 
-	def convertfrom_sid(self, objectsid, args=None, output=False):
+	def convertfrom_sid(self, objectsid, args=None, output=False, no_cache=False):
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		identity = WELL_KNOWN_SIDS.get(objectsid)
 		known_sid = KNOWN_SIDS.get(objectsid)
 		if identity:
 			identity = identity
 		elif known_sid:
+			logging.debug(f"[ConvertFrom-SID] Using previously stored SID: {known_sid}")
 			identity = known_sid
 		else:
 			ldap_filter = f"(|(|(objectSid={objectsid})))"
 			logging.debug(f"[ConvertFrom-SID] LDAP search filter: {ldap_filter}")
 
-			self.ldap_session.search(self.root_dn,ldap_filter,attributes=['sAMAccountName','name'])
-			if len(self.ldap_session.entries) != 0:
-				try:
-					identity = f"{self.flatName}\\{self.ldap_session.entries[0]['sAMAccountName'].value}"
-				except IndexError:
-					identity = f"{self.flatName}\\{self.ldap_session.entries[0]['name'].value}"
+			entries = []
+			entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn, ldap_filter, attributes=['sAMAccountName','name'], paged_size=1000, generator=True, no_cache=no_cache)
+			for _entries in entry_generator:
+				if _entries['type'] != 'searchResEntry':
+					continue
+				entries.append(_entries)
 
-				KNOWN_SIDS[objectsid] = identity
-			else:
+			if len(entries) == 0:
 				logging.debug(f"[ConvertFrom-SID] No objects found for {objectsid}")
 				return objectsid
+			elif len(entries) > 1:
+				logging.warning(f"[ConvertFrom-SID] Multiple objects found for {objectsid}")
+				return objectsid
+			try:
+				identity = f"{self.flatName}\\{entries[0]['attributes']['sAMAccountName']}"
+			except IndexError:
+				identity = f"{self.flatName}\\{entries[0]['attributes']['name']}"
+
+			KNOWN_SIDS[objectsid] = identity
+
 		if output:
 			print("%s" % identity)
 		return identity

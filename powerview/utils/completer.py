@@ -11,7 +11,7 @@ COMMANDS = {
     'Clear-Cache':[''],
     'Get-Domain':['-Identity','-Properties', '-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache'],
     'Get-NetDomain':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache'],
-    'ConvertFrom-SID':['-ObjectSID','-Server', '-Outfile'],
+    'ConvertFrom-SID':['-ObjectSID','-Server', '-Outfile', '-NoCache'],
     'ConvertFrom-UACValue':['-Value','-TableView','-Outfile'],
     'Get-DomainController':['-Identity','-ResolveSIDs','-SearchBase','-LDAPFilter','-Properties','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache'],
     'Get-NetDomainController':['-Identity','-ResolveSIDs','-SearchBase','-LDAPFilter','-Properties','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache'],

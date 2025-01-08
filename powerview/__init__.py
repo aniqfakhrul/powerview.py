@@ -298,9 +298,9 @@ def main():
                                 if pv_args.objectsid:
                                     objectsid = pv_args.objectsid.strip()
                                     if temp_powerview:
-                                        temp_powerview.convertfrom_sid(objectsid=objectsid, output=True)
+                                        temp_powerview.convertfrom_sid(objectsid=objectsid, output=True, no_cache=pv_args.no_cache)
                                     else:
-                                        powerview.convertfrom_sid(objectsid=objectsid, output=True)
+                                        powerview.convertfrom_sid(objectsid=objectsid, output=True, no_cache=pv_args.no_cache)
                                 else:
                                     logging.error("-ObjectSID flag is required")
                             elif pv_args.module.casefold() == 'clear-cache':
