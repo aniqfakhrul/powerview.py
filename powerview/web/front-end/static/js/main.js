@@ -1132,6 +1132,9 @@ async function selectModalTab(tabName) {
                 break;
                 
             case 'dacl':
+                const daclTabContent = document.getElementById('modal-dacl-rows');
+                daclTabContent.innerHTML = '';
+
                 const daclIdentity = ldapAttributeModal.querySelector('h3')?.textContent;
                 if (daclIdentity) {
                     await fetchAndDisplayModalDacl(daclIdentity);
