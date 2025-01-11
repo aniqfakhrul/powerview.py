@@ -1203,18 +1203,35 @@ class ACLEnum:
         LOG.debug("[ACLEnum] Parsing DACL")
         for entry in self.entries:
             dacl_dict = {}
-            secDescData = entry.get('attributes').get('nTSecurityDescriptor')
+            
+            # Get nTSecurityDescriptor and handle list case
+            secDescData = entry.get('attributes', {}).get('nTSecurityDescriptor')
             if not secDescData:
                 LOG.debug(f'[ACLEnum] ntSecurityDescriptor attribute not found for {entry.get("dn")}')
                 continue
-            secDesc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDescData)
-
-            # TODO: Implement bloodhound dacl and ace parsing method, more reliable
-            self.objectdn = entry.get('dn')
-            self.objectsid = entry.get('attributes').get('objectSid')
-            dacl = self.parseDACL(secDesc['Dacl'])
-            dacl_dict['attributes'] = dacl
-            parsed_dacl.append(dacl_dict)
+            
+            # Handle list case for secDescData
+            if isinstance(secDescData, list):
+                secDescData = secDescData[0]
+            
+            # Get objectSid and handle list case
+            objectsid = entry.get('attributes', {}).get('objectSid')
+            if isinstance(objectsid, list) and len(objectsid) > 0:
+                objectsid = objectsid[0]
+            else:
+                objectsid = None
+            
+            try:
+                secDesc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDescData)
+                self.objectdn = entry.get('dn')
+                self.objectsid = objectsid
+                dacl = self.parseDACL(secDesc['Dacl'])
+                dacl_dict['attributes'] = dacl
+                parsed_dacl.append(dacl_dict)
+            except Exception as e:
+                LOG.debug(f'[ACLEnum] Error parsing security descriptor for {entry.get("dn")}: {str(e)}')
+                continue
+            
         return parsed_dacl
 
     def parseDACL(self, dacl):

@@ -613,7 +613,14 @@ class PowerView:
 		for entry in guid_generator:
 			if entry['type'] != 'searchResEntry':
 				continue
-			guids_dict[entry['attributes']['rightsGuid']] = entry['attributes']['displayName']
+			# Handle case where rightsGuid is returned as a list
+			rights_guid = entry['attributes']['rightsGuid']
+			display_name = entry['attributes']['displayName']
+			if isinstance(rights_guid, list):
+				rights_guid = rights_guid[0]
+			if isinstance(display_name, list):
+				display_name = display_name[0]
+			guids_dict[rights_guid] = display_name
 
 		principal_SID = None
 		if security_identifier:
@@ -655,7 +662,6 @@ class PowerView:
 		for _entries in entry_generator:
 			if _entries['type'] != 'searchResEntry':
 				continue
-			strip_entry(_entries)
 			entries.append(_entries)
 
 		if not entries:
