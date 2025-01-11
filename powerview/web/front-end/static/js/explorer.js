@@ -154,7 +154,7 @@ function displayGroupMembers(members) {
 }
 
 
-async function fetchAndDisplayDacl(identity) {
+async function fetchAndDisplayDacl(identity, no_cache = false) {
     showLoadingIndicator();
     try {
         const response = await fetch('/api/get/domainobjectacl', {
@@ -162,15 +162,20 @@ async function fetchAndDisplayDacl(identity) {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ identity: identity, searchbase: identity, search_scope: 'BASE' })
+            body: JSON.stringify({ 
+                identity: identity, 
+                searchbase: identity, 
+                search_scope: 'BASE',
+                no_cache: no_cache 
+            })
         });
 
         await handleHttpError(response);
-
         const daclData = await response.json();
         updateDaclContent(daclData);
     } catch (error) {
         console.error('Error fetching DACL data:', error);
+        showErrorAlert('Failed to fetch DACL data');
     } finally {
         hideLoadingIndicator();
     }
@@ -276,6 +281,95 @@ async function fetchAndDisplayTrust(searchbase) {
     } finally {
         hideLoadingIndicator();
     }
+}
+
+function openExplorerAddObjectAclModal() {
+    const modal = document.getElementById('add-object-acl-modal');
+    const targetIdentityInput = document.getElementById('target-identity');
+    const overlay = document.getElementById('modal-overlay');
+    
+    // Get the currently selected node's DN
+    const selectedNode = document.querySelector('.selected');
+    const currentIdentity = selectedNode ? selectedNode.getAttribute('data-identifier') : '';
+    
+    if (modal) {
+        if (targetIdentityInput && currentIdentity) {
+            targetIdentityInput.value = currentIdentity;
+        }
+        
+        modal.classList.remove('hidden');
+        overlay.classList.remove('hidden');
+        
+        // Initialize close handlers if not already initialized
+        initializeExplorerAddAclModal();
+    }
+}
+
+function closeExplorerAddObjectAclModal() {
+    const modal = document.getElementById('add-object-acl-modal');
+    const overlay = document.getElementById('modal-overlay');
+    
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
+
+    // Clear form fields
+    const form = document.getElementById('add-object-acl-form');
+    if (form) {
+        form.reset();
+    }
+}
+
+function initializeExplorerAddAclModal() {
+    // Handle close button click
+    const closeButton = document.querySelector('[data-modal-hide="add-object-acl-modal"]');
+    if (closeButton) {
+        closeButton.addEventListener('click', closeExplorerAddObjectAclModal);
+    }
+
+    // Add form submit handler
+    const form = document.getElementById('add-object-acl-form');
+    if (form) {
+        form.removeEventListener('submit', handleExplorerAclSubmit);
+        form.addEventListener('submit', handleExplorerAclSubmit);
+    }
+
+    // Handle clicking outside the modal to close it
+    const modal = document.getElementById('add-object-acl-modal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeExplorerAddObjectAclModal();
+            }
+        });
+    }
+}
+
+async function handleExplorerAclSubmit(e) {
+    e.preventDefault();
+    
+    const targetIdentity = document.getElementById('target-identity').value;
+    const principalIdentity = document.getElementById('principal-identity').value;
+    const rights = document.getElementById('acl-rights').value;
+    const aceType = document.getElementById('ace-type').value;
+    const inheritance = document.getElementById('inheritance').checked;
+
+    const refreshCallback = async () => {
+        closeExplorerAddObjectAclModal();
+        await fetchAndDisplayDacl(targetIdentity, true);
+    };
+
+    await addDomainObjectAcl(
+        targetIdentity, 
+        principalIdentity, 
+        rights, 
+        aceType, 
+        inheritance,
+        refreshCallback
+    );
 }
 
 document.addEventListener('DOMContentLoaded', () => {
