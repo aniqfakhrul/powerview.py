@@ -1204,17 +1204,14 @@ class ACLEnum:
         for entry in self.entries:
             dacl_dict = {}
             
-            # Get nTSecurityDescriptor and handle list case
             secDescData = entry.get('attributes', {}).get('nTSecurityDescriptor')
             if not secDescData:
                 LOG.debug(f'[ACLEnum] ntSecurityDescriptor attribute not found for {entry.get("dn")}')
                 continue
             
-            # Handle list case for secDescData
             if isinstance(secDescData, list):
                 secDescData = secDescData[0]
             
-            # Get objectSid and handle list case
             objectsid = entry.get('attributes', {}).get('objectSid')
             if isinstance(objectsid, list) and len(objectsid) > 0:
                 objectsid = objectsid[0]
