@@ -13,6 +13,7 @@ from powerview.web.api.helpers import make_serializable
 from powerview.utils.parsers import powerview_arg_parse
 from powerview.utils.constants import UAC_DICT
 from powerview._version import __version__ as version
+from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 
 class APIServer:
 	def __init__(self, powerview, host="127.0.0.1", port=5000):
@@ -41,6 +42,7 @@ class APIServer:
 		self.app.add_url_rule('/ou', 'ou', self.render_ou, methods=['GET'])
 		self.app.add_url_rule('/gpo', 'gpo', self.render_gpo, methods=['GET'])
 		self.app.add_url_rule('/utils', 'utils', self.render_utils, methods=['GET'])
+		self.app.add_url_rule('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
 		self.app.add_url_rule('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		self.app.add_url_rule('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
 		self.app.add_url_rule('/api/add/<method_name>', 'add_operation', self.handle_add_operation, methods=['POST'])
@@ -58,6 +60,7 @@ class APIServer:
 		self.app.add_url_rule('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
 		self.app.add_url_rule('/api/constants', 'constants', self.handle_constants, methods=['GET'])
 		self.app.add_url_rule('/api/clear-cache', 'clear_cache', self.handle_clear_cache, methods=['GET'])
+		self.app.add_url_rule('/api/settings', 'settings', self.handle_settings, methods=['GET'])
 
 		self.nav_items = [
 			{"name": "Explorer", "icon": "fas fa-folder-tree", "link": "/"},
@@ -73,6 +76,7 @@ class APIServer:
 			]},
 			{"name": "Utils", "icon": "fas fa-toolbox", "link": "/utils"},
 			{"name": "Logs", "icon": "far fa-file-alt", "button_id": "toggle-command-history"},
+			{"name": "Settings", "icon": "fas fa-cog", "button_id": "toggle-settings"}
 		]
 
 	def render_index(self):
@@ -252,6 +256,29 @@ class APIServer:
 		success = self.powerview.clear_cache()
 		return jsonify({'status': 'OK' if success else 'KO'}), 200 if success else 400
 	
+	def handle_settings(self):
+		# return all self.powerview.args in json
+		return jsonify(vars(self.powerview.args))
+	
+	def handle_set_settings(self):
+		try:
+			obfuscate = request.json.get('obfuscate', False)
+			no_cache = request.json.get('no_cache', False)
+			logging.info(f"obfuscate: {obfuscate}, no_cache: {no_cache}")
+			
+			# Update powerview args
+			self.powerview.args.obfuscate = obfuscate
+			self.powerview.args.no_cache = no_cache
+			
+			# Create new CustomExtendedOperationsRoot instance with updated settings
+			self.powerview.custom_paged_search = CustomExtendedOperationsRoot(self.powerview.ldap_session, obfuscate=obfuscate, no_cache=no_cache)
+			self.powerview.ldap_session.extend.standard = self.powerview.custom_paged_search.standard
+			
+			return jsonify({'status': 'OK'})
+		except Exception as e:
+			logging.error(f"Error setting settings: {str(e)}")
+			return jsonify({'error': str(e)}), 400
+
 	def handle_connection_info(self):
 		return jsonify({
 			'domain': self.powerview.domain,
