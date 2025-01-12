@@ -1464,10 +1464,20 @@ class PowerView:
 			elif len(entries) > 1:
 				logging.warning(f"[ConvertFrom-SID] Multiple objects found for {objectsid}")
 				return objectsid
+
 			try:
-				identity = f"{self.flatName}\\{entries[0]['attributes']['sAMAccountName']}"
-			except IndexError:
-				identity = f"{self.flatName}\\{entries[0]['attributes']['name']}"
+				sam_account_name = entries[0]['attributes']['sAMAccountName']
+				if isinstance(sam_account_name, list):
+					sam_account_name = sam_account_name[0]
+				identity = f"{self.flatName}\\{sam_account_name}"
+			except (IndexError, KeyError):
+				try:
+					name = entries[0]['attributes']['name']
+					if isinstance(name, list):
+						name = name[0]
+					identity = f"{self.flatName}\\{name}"
+				except (IndexError, KeyError):
+					return objectsid
 
 			KNOWN_SIDS[objectsid] = identity
 
