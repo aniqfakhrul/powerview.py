@@ -90,7 +90,7 @@ class Storage:
         except Exception as e:
             logging.error(f"Error caching results: {e}")
 
-    def get_cached_results(self, search_base, search_filter, search_scope, attributes, cache_ttl=86400):
+    def get_cached_results(self, search_base, search_filter, search_scope, attributes, cache_ttl=1800):
         """Retrieve cached LDAP query results if they exist and are not expired"""
         cache_key = self._generate_cache_key(search_base, search_filter, search_scope, attributes)
         cache_file = os.path.join(self.cache_path, f"{cache_key}.json")

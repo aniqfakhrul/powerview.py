@@ -492,7 +492,7 @@ class PowerView:
 		
 		return succeeded
 
-	def get_domainobjectowner(self, identity=None, searchbase=None, resolve_sid=True, args=None, search_scope=ldap3.SUBTREE):
+	def get_domainobjectowner(self, identity=None, searchbase=None, resolve_sid=True, args=None, search_scope=ldap3.SUBTREE, no_cache=False):
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 		
@@ -500,13 +500,15 @@ class PowerView:
 			identity = '*'
 			logging.info("[Get-DomainObjectOwner] Recursing all domain objects. This might take a while")
 
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+
 		objects = self.get_domainobject(identity=identity, properties=[
 			'cn',
 			'nTSecurityDescriptor',
 			'sAMAccountname',
 			'ObjectSID',
 			'distinguishedName',
-		], searchbase=searchbase, sd_flag=0x01, search_scope=search_scope)
+		], searchbase=searchbase, sd_flag=0x01, search_scope=search_scope, no_cache=no_cache)
 
 		if len(objects) == 0:
 			logging.error("[Get-DomainObjectOwner] Identity not found in domain")

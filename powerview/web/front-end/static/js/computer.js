@@ -281,6 +281,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const actionTd = document.createElement('td');
                 actionTd.className = 'p-1 whitespace-nowrap';
 
+                // Add Change Owner button
+                const changeOwnerButton = document.createElement('button');
+                changeOwnerButton.className = 'text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400 p-1 rounded-md hover:bg-green-50 dark:hover:bg-green-950/50 transition-colors mr-2';
+                changeOwnerButton.innerHTML = '<i class="fas fa-user-shield"></i>';
+                changeOwnerButton.title = 'Change Owner';
+                changeOwnerButton.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    showChangeOwnerModal(computer.dn);
+                });
+                actionTd.appendChild(changeOwnerButton);
+
+                // Existing delete button
                 const deleteButton = document.createElement('button');
                 deleteButton.className = 'text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors';
                 deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
@@ -319,7 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             console.log('Computer added:', result);
 
-            searchComputers();
+            searchComputers(true);
         } catch (error) {
             console.error('Error adding user:', error);
         }
@@ -455,7 +467,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    async function searchComputers() {
+    async function searchComputers(no_cache = false) {
         const searchSpinner = document.getElementById('search-spinner');
         const boxOverlaySpinner = document.getElementById('box-overlay-spinner');
         try {
@@ -467,7 +479,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(collectQueryParams())
+                body: JSON.stringify({
+                    ...collectQueryParams(),
+                    no_cache: no_cache
+                })
             });
 
             await handleHttpError(response);
@@ -706,6 +721,77 @@ document.addEventListener('DOMContentLoaded', () => {
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const filename = `computers_export_${timestamp}.csv`;
             exportTableToCSV(filename);
+        });
+    }
+
+    async function changeOwner(targetIdentity, principalIdentity) {
+        try {
+            const response = await fetch('/api/set/domainobjectowner', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    targetidentity: targetIdentity,
+                    principalidentity: principalIdentity
+                })
+            });
+
+            await handleHttpError(response);
+
+            const result = await response.json();
+
+            if (result === false) {
+                showErrorAlert("Failed to change owner. Check logs");
+                return false;
+            }
+
+            showSuccessAlert("Owner changed successfully");
+            return true;
+        } catch (error) {
+            console.error('Error changing owner:', error);
+            showErrorAlert("Failed to change owner. Check logs");
+            return false;
+        }
+    }
+
+    function hideModal(modalId) {
+        const modal = document.getElementById(modalId);
+        const overlay = document.getElementById('modal-overlay');
+        modal.classList.add('hidden');
+        overlay.classList.add('hidden');
+    }
+
+    function showChangeOwnerModal(distinguishedName) {
+        // Show modal and overlay
+        const modal = document.getElementById('change-owner-modal');
+        const overlay = document.getElementById('modal-overlay');
+        modal.classList.remove('hidden');
+        overlay.classList.remove('hidden');
+
+        // Prefill the identity field
+        const identityInput = document.getElementById('owner-identity-input');
+        identityInput.value = distinguishedName;
+
+        // Handle form submission
+        const form = document.getElementById('change-owner-form');
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const newOwner = document.getElementById('new-owner-input').value;
+
+            const success = await changeOwner(distinguishedName, newOwner);
+            if (success) {
+                hideModal('change-owner-modal');
+                // Clear the input field after successful submission
+                document.getElementById('new-owner-input').value = '';
+            }
+        };
+
+        // Add event listeners for the cancel button and close icon
+        document.querySelectorAll('[data-modal-hide="change-owner-modal"]').forEach(button => {
+            button.addEventListener('click', () => {
+                hideModal('change-owner-modal');
+            });
         });
     }
 });

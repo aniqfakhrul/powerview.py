@@ -1215,8 +1215,6 @@ class ACLEnum:
             objectsid = entry.get('attributes', {}).get('objectSid')
             if isinstance(objectsid, list) and len(objectsid) > 0:
                 objectsid = objectsid[0]
-            else:
-                objectsid = None
             
             try:
                 secDesc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDescData)
