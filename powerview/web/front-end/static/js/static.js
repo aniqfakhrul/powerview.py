@@ -166,6 +166,118 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Run fetchSingleCommandLogs in the background
     setInterval(fetchSingleCommandLogs, 10000); // Fetch every 10 seconds
+
+    const settingsButton = document.getElementById('toggle-settings');
+    const settingsPanel = document.getElementById('settings-panel');
+    const closeSettingsButton = document.getElementById('close-settings-panel');
+
+    async function initializeSettingsToggles() {
+        const obfuscateToggle = document.getElementById('obfuscate-toggle');
+        const cacheToggle = document.getElementById('cache-toggle');
+
+        try {
+            const response = await fetch('/api/settings');
+            if (!response.ok) {
+                throw new Error('Failed to fetch settings');
+            }
+            
+            const settings = await response.json();
+            
+            // Enable toggles
+            obfuscateToggle.disabled = false;
+            cacheToggle.disabled = false;
+
+            // Set initial states based on API response
+            obfuscateToggle.checked = settings.obfuscate || false;
+            cacheToggle.checked = !settings.no_cache; // Note: we invert no_cache since the toggle is for enabling cache
+
+            // Add change event listeners
+            obfuscateToggle.addEventListener('change', async (e) => {
+                try {
+                    const response = await fetch('/api/set/settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            obfuscate: e.target.checked,
+                            no_cache: !cacheToggle.checked
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to update settings');
+                    }
+                    
+                    showSuccessAlert('Settings updated successfully');
+                } catch (error) {
+                    console.error('Error updating settings:', error);
+                    showErrorAlert('Failed to update settings');
+                    // Revert the toggle if the API call failed
+                    e.target.checked = !e.target.checked;
+                }
+            });
+
+            cacheToggle.addEventListener('change', async (e) => {
+                try {
+                    const response = await fetch('/api/set/settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            obfuscate: obfuscateToggle.checked,
+                            no_cache: !e.target.checked  // Invert the cache toggle value
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to update settings');
+                    }
+                    
+                    showSuccessAlert('Settings updated successfully');
+                } catch (error) {
+                    console.error('Error updating settings:', error);
+                    showErrorAlert('Failed to update settings');
+                    // Revert the toggle if the API call failed
+                    e.target.checked = !e.target.checked;
+                }
+            });
+
+        } catch (error) {
+            console.error('Error fetching settings:', error);
+            // Keep toggles disabled if we can't fetch settings
+            obfuscateToggle.disabled = true;
+            cacheToggle.disabled = true;
+        }
+    }
+
+    settingsButton.addEventListener('click', function() {
+        if (settingsPanel.classList.contains('hidden')) {
+            settingsPanel.classList.remove('hidden');
+            setTimeout(() => {
+                settingsPanel.classList.remove('translate-x-full');
+            }, 0);
+            // Hide other panels if they're open
+            commandHistoryPanel.classList.add('translate-x-full', 'hidden');
+            detailsPanel.classList.add('hidden');
+        } else {
+            settingsPanel.classList.add('translate-x-full');
+            setTimeout(() => {
+                settingsPanel.classList.add('hidden');
+            }, 300);
+        }
+    });
+
+    closeSettingsButton.addEventListener('click', () => {
+        settingsPanel.classList.add('translate-x-full');
+        setTimeout(() => {
+            settingsPanel.classList.add('hidden');
+        }, 300);
+    });
+
+    // Initialize settings
+    initializeSettingsToggles();
 });
 
 async function handleHttpError(response) {

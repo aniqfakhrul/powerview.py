@@ -1,0 +1,45 @@
+<!-- Settings Panel -->
+<div id="settings-panel" class="fixed top-0 right-0 bottom-0 w-96 bg-white dark:bg-neutral-900 border-l border-neutral-300 dark:border-neutral-700 shadow-2xl shadow-neutral-950/10 dark:shadow-black/50 transform transition-transform duration-300 ease-in-out translate-x-full z-50 hidden">
+    <div class="flex items-center justify-between gap-2 p-4 border-b sticky top-0 bg-white dark:bg-neutral-900 z-10 border-neutral-200 dark:border-neutral-700">
+        <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-blue-500 dark:text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+            <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Settings</h2>
+        </div>
+        <button id="close-settings-panel" class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+        </button>
+    </div>
+
+    <div class="p-6 space-y-6">
+        <!-- Obfuscate Toggle -->
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-medium text-neutral-900 dark:text-white">Obfuscate</h3>
+                <p class="text-sm text-neutral-500 dark:text-neutral-400">Hide sensitive information in the UI</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="obfuscate-toggle" class="sr-only peer" disabled>
+                <div class="w-11 h-6 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
+                <span class="sr-only">Toggle obfuscation</span>
+            </label>
+        </div>
+
+        <!-- Cache Toggle -->
+        <div class="flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-medium text-neutral-900 dark:text-white">Cache</h3>
+                <p class="text-sm text-neutral-500 dark:text-neutral-400">Enable caching of LDAP queries</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="cache-toggle" class="sr-only peer" disabled>
+                <div class="w-11 h-6 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
+                <span class="sr-only">Toggle caching</span>
+            </label>
+        </div>
+    </div>
+</div>

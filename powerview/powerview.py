@@ -608,13 +608,25 @@ class PowerView:
 
 		# Enumerate available GUIDs
 		guids_dict = {}
-		self.ldap_session.search(f"CN=Extended-Rights,CN=Configuration,{self.root_dn}", "(rightsGuid=*)", attributes=['displayName', 'rightsGuid'], search_scope=search_scope)
-		for entry in self.ldap_session.entries:
-			guids_dict[entry['rightsGuid'].value] = entry['displayName'].value
+		logging.debug(f"[Get-DomainObjectAcl] Searching for GUIDs in {self.root_dn}")
+		guid_generator = self.ldap_session.extend.standard.paged_search(f"CN=Extended-Rights,CN=Configuration,{self.root_dn}", "(rightsGuid=*)", attributes=['displayName', 'rightsGuid'], paged_size=1000, generator=True, search_scope=search_scope, no_cache=no_cache)
+		for entry in guid_generator:
+			if entry['type'] != 'searchResEntry':
+				continue
+			rights_guid = entry['attributes'].get('rightsGuid')
+			display_name = entry['attributes'].get('displayName')
+
+			if isinstance(rights_guid, list):
+				rights_guid = rights_guid[0]
+			if isinstance(display_name, list):
+				display_name = display_name[0]
+
+			if rights_guid and display_name:
+				guids_dict[rights_guid] = display_name
 
 		principal_SID = None
 		if security_identifier:
-			principalsid_entry = self.get_domainobject(identity=security_identifier, properties=['objectSid'])
+			principalsid_entry = self.get_domainobject(identity=security_identifier, properties=['objectSid'], no_cache=no_cache, searchbase=searchbase)
 			if not principalsid_entry:
 				logging.debug('[Get-DomainObjectAcl] Principal not found. Searching in Well Known SIDs...')
 				principal_SID = resolve_WellKnownSID(security_identifier)
@@ -652,7 +664,6 @@ class PowerView:
 		for _entries in entry_generator:
 			if _entries['type'] != 'searchResEntry':
 				continue
-			strip_entry(_entries)
 			entries.append(_entries)
 
 		if not entries:
@@ -940,7 +951,7 @@ class PowerView:
 						)
 		return entries
 
-	def get_domaingroup(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE):
+	def get_domaingroup(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False):
 		def_prop = [
 			'adminCount',
 			'cn',
@@ -960,6 +971,8 @@ class PowerView:
 		properties = set(properties or def_prop)
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 
 		logging.debug(f"[Get-DomainGroup] Using search base: {searchbase}")
 		
@@ -987,7 +1000,7 @@ class PowerView:
 		ldap_filter = f'(&(objectCategory=group){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainGroup] LDAP search filter: {ldap_filter}')
 		entries = []
-		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope)
+		entry_generator = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope, no_cache=no_cache)
 		for _entries in entry_generator:
 			if _entries['type'] != 'searchResEntry':
 				continue
@@ -1052,11 +1065,11 @@ class PowerView:
 		entries = self.get_domaingroup(identity=identity)
 
 		if len(entries) == 0:
-			logging.info("[Get-DomainGroupMember] No group found")
+			logging.warning("[Get-DomainGroupMember] No group found")
 			return
 
 		if len(entries) > 1 and not multiple:
-			logging.info("[Get-DomainGroupMember] Multiple group found. Probably try searching with distinguishedName")
+			logging.warning("[Get-DomainGroupMember] Multiple group found. Probably try searching with distinguishedName")
 			return
 
 		# create a new entry structure
@@ -1425,28 +1438,49 @@ class PowerView:
 			)
 		return entries
 
-	def convertfrom_sid(self, objectsid, args=None, output=False):
+	def convertfrom_sid(self, objectsid, args=None, output=False, no_cache=False):
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		identity = WELL_KNOWN_SIDS.get(objectsid)
 		known_sid = KNOWN_SIDS.get(objectsid)
 		if identity:
 			identity = identity
 		elif known_sid:
+			logging.debug(f"[ConvertFrom-SID] Using previously stored SID: {known_sid}")
 			identity = known_sid
 		else:
 			ldap_filter = f"(|(|(objectSid={objectsid})))"
 			logging.debug(f"[ConvertFrom-SID] LDAP search filter: {ldap_filter}")
 
-			self.ldap_session.search(self.root_dn,ldap_filter,attributes=['sAMAccountName','name'])
-			if len(self.ldap_session.entries) != 0:
-				try:
-					identity = f"{self.flatName}\\{self.ldap_session.entries[0]['sAMAccountName'].value}"
-				except IndexError:
-					identity = f"{self.flatName}\\{self.ldap_session.entries[0]['name'].value}"
+			entries = []
+			entry_generator = self.ldap_session.extend.standard.paged_search(self.root_dn, ldap_filter, attributes=['sAMAccountName','name'], paged_size=1000, generator=True, no_cache=no_cache)
+			for _entries in entry_generator:
+				if _entries['type'] != 'searchResEntry':
+					continue
+				entries.append(_entries)
 
-				KNOWN_SIDS[objectsid] = identity
-			else:
+			if len(entries) == 0:
 				logging.debug(f"[ConvertFrom-SID] No objects found for {objectsid}")
 				return objectsid
+			elif len(entries) > 1:
+				logging.warning(f"[ConvertFrom-SID] Multiple objects found for {objectsid}")
+				return objectsid
+
+			try:
+				sam_account_name = entries[0]['attributes']['sAMAccountName']
+				if isinstance(sam_account_name, list):
+					sam_account_name = sam_account_name[0]
+				identity = f"{self.flatName}\\{sam_account_name}"
+			except (IndexError, KeyError):
+				try:
+					name = entries[0]['attributes']['name']
+					if isinstance(name, list):
+						name = name[0]
+					identity = f"{self.flatName}\\{name}"
+				except (IndexError, KeyError):
+					return objectsid
+
+			KNOWN_SIDS[objectsid] = identity
+
 		if output:
 			print("%s" % identity)
 		return identity

@@ -1132,6 +1132,9 @@ async function selectModalTab(tabName) {
                 break;
                 
             case 'dacl':
+                const daclTabContent = document.getElementById('modal-dacl-rows');
+                daclTabContent.innerHTML = '';
+
                 const daclIdentity = ldapAttributeModal.querySelector('h3')?.textContent;
                 if (daclIdentity) {
                     await fetchAndDisplayModalDacl(daclIdentity);
@@ -1173,7 +1176,7 @@ async function selectModalTab(tabName) {
     }
 }
 
-async function fetchAndDisplayModalDacl(identity) {
+async function fetchAndDisplayModalDacl(identity, no_cache = false) {
     showLoadingIndicator();
     try {
         const response = await fetch('/api/get/domainobjectacl', {
@@ -1181,7 +1184,7 @@ async function fetchAndDisplayModalDacl(identity) {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ identity: identity, searchbase: identity, search_scope: 'BASE' })
+            body: JSON.stringify({ identity: identity, searchbase: identity, search_scope: 'BASE', no_cache: no_cache })
         });
 
         await handleHttpError(response);
@@ -1530,7 +1533,7 @@ function initializeAddAclModal() {
 }
 
 // Add this function to handle the API request for adding ACL
-async function addDomainObjectAcl(targetIdentity, principalIdentity, rights, aceType, inheritance) {
+async function addDomainObjectAcl(targetIdentity, principalIdentity, rights, aceType, inheritance, refreshCallback = null) {
     try {
         showLoadingIndicator();
         const response = await fetch('/api/add/domainobjectacl', {
@@ -1551,15 +1554,17 @@ async function addDomainObjectAcl(targetIdentity, principalIdentity, rights, ace
 
         if (response.ok) {
             showSuccessAlert('Successfully added ACL');
-            closeAddObjectAclModal();
             
-            // Force refresh of DACL tab content
-            const identity = document.querySelector('#ldap-attributes-modal h3').textContent;
-            if (identity) {
-                // Make sure we're on the DACL tab
-                await selectModalTab('dacl');
-                // Fetch and display updated DACL data
-                await fetchAndDisplayModalDacl(identity);
+            // If a refresh callback is provided, use it
+            if (refreshCallback) {
+                await refreshCallback();
+            } else {
+                // Default modal refresh behavior
+                const identity = document.querySelector('#ldap-attributes-modal h3')?.textContent;
+                if (identity) {
+                    await selectModalTab('dacl');
+                    await fetchAndDisplayModalDacl(identity, true);
+                }
             }
             return true;
         }
