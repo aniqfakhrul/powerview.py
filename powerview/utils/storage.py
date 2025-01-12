@@ -6,17 +6,30 @@ from datetime import datetime, timedelta
 import logging
 from ldap3.utils.ciDict import CaseInsensitiveDict
 import base64
+import tempfile
 
 class Storage:
     def __init__(self):
-        self.root_folder = os.path.join(os.path.expanduser('~'), ".powerview", "storage")
-        self.cache_folder = "ldap_cache"
-        self.cache_path = os.path.join(self.root_folder, self.cache_folder)
-        
         try:
-            os.makedirs(self.cache_path, exist_ok=True)
+            home_path = os.path.expanduser('~')
+            if os.path.exists(home_path) and os.access(home_path, os.W_OK):
+                self.root_folder = os.path.join(home_path, ".powerview", "storage")
+            else:
+                self.root_folder = os.path.join(tempfile.gettempdir(), "powerview_storage")
+            
+            self.cache_folder = "ldap_cache"
+            self.cache_path = os.path.join(self.root_folder, self.cache_folder)
+            
+            os.makedirs(self.cache_path, mode=0o700, exist_ok=True)
+            logging.info(f"[Storage] Using cache directory: {self.cache_path}")
+            
         except Exception as e:
-            logging.error(f"Error initializing storage: {e}")
+            temp_dir = tempfile.mkdtemp(prefix="powerview_")
+            self.root_folder = temp_dir
+            self.cache_path = os.path.join(temp_dir, "ldap_cache")
+            os.makedirs(self.cache_path, mode=0o700, exist_ok=True)
+            logging.warning(f"[Storage] Using temporary directory for storage: {self.cache_path}")
+            logging.error(f"[Storage] Original error: {e}")
 
     def _generate_cache_key(self, search_base, search_filter, search_scope, attributes):
         """Generate a unique cache key based on search parameters"""
@@ -77,7 +90,7 @@ class Storage:
         except Exception as e:
             logging.error(f"Error caching results: {e}")
 
-    def get_cached_results(self, search_base, search_filter, search_scope, attributes, cache_ttl=300):
+    def get_cached_results(self, search_base, search_filter, search_scope, attributes, cache_ttl=1800):
         """Retrieve cached LDAP query results if they exist and are not expired"""
         cache_key = self._generate_cache_key(search_base, search_filter, search_scope, attributes)
         cache_file = os.path.join(self.cache_path, f"{cache_key}.json")
@@ -90,6 +103,12 @@ class Storage:
                 cache_time = datetime.fromisoformat(cached_data['timestamp'])
                 if datetime.now() - cache_time < timedelta(seconds=cache_ttl):
                     return self._deserialize_complex_types(cached_data['results'])
+                else:
+                    try:
+                        os.remove(cache_file)
+                        logging.debug(f"[Storage] Deleted expired cache file: {cache_key}")
+                    except Exception as e:
+                        logging.error(f"[Storage] Error deleting expired cache file: {e}")
         except Exception as e:
             logging.error(f"[Storage] Error reading cache: {e}")
         
