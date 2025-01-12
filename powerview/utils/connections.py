@@ -287,7 +287,7 @@ class CONNECTION:
 		self.ldap_session.rebind()
 
 	def close(self):
-		self.ldap_session.unbind()
+		return self.ldap_session.unbind()
 
 	def init_ldap_session(self, ldap_address=None, use_ldap=False, use_gc_ldap=False):
 		

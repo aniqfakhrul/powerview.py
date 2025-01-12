@@ -163,6 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
         counter.textContent = `Total Computers: ${computers.length}`;
 
         if (computers.length > 0) {
+            exportButton.classList.remove('hidden');
             // Get all unique attribute keys from all computers and normalize them
             const attributeKeys = [...new Set(
                 computers.flatMap(computer => 
@@ -294,6 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 tbody.appendChild(tr);
             });
         } else {
+            exportButton.classList.add('hidden');
             tbody.innerHTML = `
                 <tr id="empty-placeholder">
                     <td colspan="100%" class="text-center py-4">No computers found</td>
@@ -635,5 +637,75 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error fetching domain OUs:', error);
             return [];
         }
+    }
+
+    // Add export table functionality
+    const exportButton = document.getElementById('export-table-button');
+    
+    function exportTableToCSV(filename = 'computers_export.csv') {
+        const table = document.getElementById('computers-result-table');
+        const rows = table.querySelectorAll('tr');
+        const csvContent = [];
+
+        // Get headers (excluding the Action column)
+        const headers = Array.from(rows[0].querySelectorAll('th'))
+            .map(header => `"${header.textContent.replace(/"/g, '""')}"`)
+            .filter(header => header !== '"Action"');
+        csvContent.push(headers.join(','));
+
+        // Get data rows
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            // Skip hidden rows (filtered out or placeholders)
+            if (row.classList.contains('hidden') || 
+                row.id === 'initial-state' || 
+                row.id === 'loading-placeholder' || 
+                row.id === 'empty-placeholder') {
+                continue;
+            }
+
+            // Get all cells except the last one (Action column)
+            const cells = Array.from(row.querySelectorAll('td'));
+            cells.pop(); // Remove the last cell (Action column)
+            
+            const rowData = cells.map(cell => {
+                // Get text content from the span element (excluding the copy button)
+                const textSpan = cell.querySelector('span');
+                const text = textSpan ? textSpan.textContent : cell.textContent;
+                // Properly escape and quote the cell content
+                return `"${text.trim().replace(/"/g, '""')}"`;
+            });
+            
+            csvContent.push(rowData.join(','));
+        }
+
+        // Create and trigger download
+        const csvString = csvContent.join('\n');
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        
+        if (navigator.msSaveBlob) { // IE 10+
+            navigator.msSaveBlob(blob, filename);
+        } else {
+            const link = document.createElement('a');
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }
+        }
+    }
+
+    // Add click handler for export button
+    if (exportButton) {
+        exportButton.addEventListener('click', () => {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `computers_export_${timestamp}.csv`;
+            exportTableToCSV(filename);
+        });
     }
 });

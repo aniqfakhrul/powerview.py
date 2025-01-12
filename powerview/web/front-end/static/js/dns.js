@@ -121,8 +121,13 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             await handleHttpError(response);
-
             const data = await response.json();
+
+            // Clear record search when switching zones
+            const recordSearchInput = document.getElementById('record-search');
+            if (recordSearchInput) {
+                recordSearchInput.value = '';
+            }
 
             // Deduplicate records, prioritizing those with addresses
             const uniqueRecords = new Map();
@@ -130,7 +135,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const name = record.attributes.name;
                 const currentRecord = uniqueRecords.get(name);
                 
-                // Add record if name doesn't exist or if new record has an address and current doesn't
                 if (!currentRecord || (!currentRecord.attributes.Address && record.attributes.Address)) {
                     uniqueRecords.set(name, record);
                 }
@@ -144,37 +148,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
             recordNameSection.innerHTML = '';
 
-            // Create table
+            // Create table with a specific class for filtering
             const table = document.createElement('table');
-            table.classList.add('w-full', 'text-left', 'border-collapse');
+            table.classList.add('w-full', 'text-left', 'border-collapse', 'dns-records-table');
 
             // Create table header
+            const thead = document.createElement('thead');
             const headerRow = document.createElement('tr');
-            const nameHeader = document.createElement('th');
-            nameHeader.textContent = 'Name';
-            nameHeader.classList.add('text-neutral-600', 'dark:text-neutral-400', 'px-3', 'py-2');
-            const addressHeader = document.createElement('th');
-            addressHeader.textContent = 'Address';
-            addressHeader.classList.add('text-neutral-600', 'dark:text-neutral-400', 'px-3', 'py-2');
-            headerRow.appendChild(nameHeader);
-            headerRow.appendChild(addressHeader);
-            table.appendChild(headerRow);
+            ['Name', 'Address'].forEach(headerText => {
+                const th = document.createElement('th');
+                th.textContent = headerText;
+                th.classList.add(
+                    'text-neutral-600',
+                    'dark:text-neutral-400',
+                    'px-3',
+                    'py-2',
+                    'font-medium'
+                );
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            // Create tbody
+            const tbody = document.createElement('tbody');
+            tbody.classList.add('divide-y', 'divide-neutral-200', 'dark:divide-neutral-700');
 
             // Populate table rows
             Array.from(uniqueRecords.values()).forEach(record => {
                 const row = document.createElement('tr');
                 row.classList.add(
-                    'cursor-pointer', 
-                    'hover:bg-neutral-100', 
-                    'dark:hover:bg-neutral-700'
+                    'cursor-pointer',
+                    'hover:bg-neutral-100',
+                    'dark:hover:bg-neutral-700',
+                    'dns-record-row'  // Add specific class for filtering
                 );
 
                 row.addEventListener('click', () => {
-                    // Remove selected classes from all rows
-                    table.querySelectorAll('tr').forEach(r => {
+                    tbody.querySelectorAll('tr').forEach(r => {
                         r.classList.remove('bg-neutral-200', 'dark:bg-neutral-800');
                     });
-                    // Add selected classes to clicked row
                     row.classList.add('bg-neutral-200', 'dark:bg-neutral-800');
                     fetchAndDisplayDnsRecordDetails(record.attributes.name, zoneName);
                 });
@@ -189,14 +202,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 row.appendChild(nameCell);
                 row.appendChild(addressCell);
-
-                table.appendChild(row);
+                tbody.appendChild(row);
             });
 
+            table.appendChild(tbody);
             recordNameSection.appendChild(table);
 
         } catch (error) {
-            console.error('Error fetching DNS records:', error);
+            console.error('Error loading DNS records:', error);
+            showErrorAlert('Failed to load DNS records');
         } finally {
             if (zoneSpinner) {
                 zoneSpinner.classList.add('hidden');
@@ -555,6 +569,65 @@ document.addEventListener('DOMContentLoaded', () => {
             hideLoadingIndicator();
         }
     }
+
+    // Add event listeners for search inputs with debounce
+    const zoneSearchInput = document.getElementById('zone-search');
+    const recordSearchInput = document.getElementById('record-search');
+
+    if (zoneSearchInput) {
+        let zoneDebounceTimeout;
+        zoneSearchInput.addEventListener('input', () => {
+            clearTimeout(zoneDebounceTimeout);
+            zoneDebounceTimeout = setTimeout(filterZones, 100);
+        });
+    }
+
+    if (recordSearchInput) {
+        let recordDebounceTimeout;
+        recordSearchInput.addEventListener('input', () => {
+            clearTimeout(recordDebounceTimeout);
+            recordDebounceTimeout = setTimeout(filterRecords, 100);
+        });
+    }
+
+    function filterZones() {
+        const searchTerm = zoneSearchInput.value.toLowerCase();
+        const zoneItems = document.querySelectorAll('.zone-item');
+
+        zoneItems.forEach(item => {
+            const zoneName = item.querySelector('span').textContent.toLowerCase();
+            if (zoneName.includes(searchTerm)) {
+                item.classList.remove('hidden');
+            } else {
+                item.classList.add('hidden');
+            }
+        });
+    }
+
+    function filterRecords() {
+        const searchTerm = document.getElementById('record-search').value.toLowerCase();
+        const rows = document.querySelectorAll('.dns-record-row');
+        
+        rows.forEach(row => {
+            const cells = Array.from(row.getElementsByTagName('td'));
+            const textContent = cells.map(cell => cell.textContent.toLowerCase()).join(' ');
+            
+            if (textContent.includes(searchTerm)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    // Add clear button functionality
+    document.querySelectorAll('.clear-input').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const input = e.target.closest('.relative').querySelector('input');
+            input.value = '';
+            input.dispatchEvent(new Event('input')); // Trigger the search filter
+        });
+    });
 
     fetchAndDisplayDnsZones();
 });
