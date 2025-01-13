@@ -14,6 +14,8 @@ from powerview.utils.parsers import powerview_arg_parse
 from powerview.utils.constants import UAC_DICT
 from powerview._version import __version__ as version
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
+from powerview.modules.smbclient import SMBClient
+from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip
 
 class APIServer:
 	def __init__(self, powerview, host="127.0.0.1", port=5000):
@@ -61,6 +63,11 @@ class APIServer:
 		self.app.add_url_rule('/api/constants', 'constants', self.handle_constants, methods=['GET'])
 		self.app.add_url_rule('/api/clear-cache', 'clear_cache', self.handle_clear_cache, methods=['GET'])
 		self.app.add_url_rule('/api/settings', 'settings', self.handle_settings, methods=['GET'])
+		self.app.add_url_rule('/api/smb/connect', 'smb_connect', self.handle_smb_connect, methods=['POST'])
+		self.app.add_url_rule('/api/smb/shares', 'smb_shares', self.handle_smb_shares, methods=['POST'])
+		self.app.add_url_rule('/api/smb/ls', 'smb_ls', self.handle_smb_ls, methods=['POST'])
+		self.app.add_url_rule('/api/smb/get', 'smb_get', self.handle_smb_get, methods=['POST'])
+		self.app.add_url_rule('/api/smb/put', 'smb_put', self.handle_smb_put, methods=['POST'])
 
 		self.nav_items = [
 			{"name": "Explorer", "icon": "fas fa-folder-tree", "link": "/"},
@@ -427,3 +434,220 @@ class APIServer:
 			)
 			logging.info(f"Powerview web listening on {self.host}:{self.port}")
 			self.api_server_thread.start()
+
+	def handle_smb_connect(self):
+		try:
+			data = request.json
+			computer = data.get('computer').lower()
+			# Add optional credential parameters
+			username = data.get('username')
+			password = data.get('password')
+			nthash = data.get('nthash')
+			lmhash = data.get('lmhash')
+			domain = data.get('domain')
+			
+			if not computer:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+
+			# Reuse get_netshare logic for connection
+			is_fqdn = False
+			host = ""
+
+			if not is_ipaddress(computer):
+				is_fqdn = True
+				if not is_valid_fqdn(computer):
+					host = f"{computer}.{self.powerview.domain}"
+				else:
+					host = computer
+				logging.debug(f"[SMB Connect] Using FQDN: {host}")
+			else:
+				host = computer
+
+			if self.powerview.use_kerberos:
+				if is_ipaddress(computer):
+					return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
+			else:
+				if is_fqdn:
+					host = host2ip(host, self.powerview.nameserver, 3, True, 
+												use_system_ns=self.powerview.use_system_nameserver)
+
+			if not host:
+				return jsonify({'error': 'Host not found'}), 404
+
+			# Pass optional credentials to init_smb_session
+			client = self.powerview.conn.init_smb_session(
+				host,
+				username=username,
+				password=password,
+				nthash=nthash,
+				lmhash=lmhash,
+				domain=domain
+			)
+			
+			if not client:
+				return jsonify({'error': f'Failed to connect to {host}'}), 400
+
+			# Store SMB client in session
+			if not hasattr(self, 'smb_sessions'):
+				self.smb_sessions = {}
+			self.smb_sessions[host] = client
+
+			return jsonify({
+				'status': 'connected',
+				'host': host
+			})
+
+		except Exception as e:
+			logging.error(f"SMB Connect Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_shares(self):
+		try:
+			data = request.json
+			host = data.get('computer').lower()
+			
+			if not host:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+
+			if not hasattr(self, 'smb_sessions') or host not in self.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			client = self.smb_sessions[host]
+			smb_client = SMBClient(client)
+			shares = smb_client.shares()
+
+			# Format shares similar to get_netshare
+			formatted_shares = []
+			for share in shares:
+				entry = {
+					"Name": share['shi1_netname'][:-1],
+					"Remark": share['shi1_remark'][:-1],
+					"Address": host
+				}
+				formatted_shares.append({"attributes": entry})
+
+			return jsonify(formatted_shares)
+
+		except Exception as e:
+			logging.error(f"SMB Shares Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_ls(self):
+		try:
+			data = request.json
+			host = data.get('computer').lower()
+			share = data.get('share')
+			path = data.get('path', '')
+			
+			if not host or not share:
+				return jsonify({'error': 'Computer name/IP and share name are required'}), 400
+
+			if not hasattr(self, 'smb_sessions') or host not in self.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			client = self.smb_sessions[host]
+			smb_client = SMBClient(client)
+			
+			files = smb_client.ls(share, path)
+			logging.debug(f"[SMB LS] Listing {path} on {host} with share {share}")
+			
+			# Format file listing
+			file_list = []
+			for f in files:
+				file_info = {
+					"name": f.get_longname(),
+					"size": f.get_filesize(),
+					"is_directory": f.is_directory(),
+					"created": str(f.get_ctime()),
+					"modified": str(f.get_mtime()),
+					"accessed": str(f.get_atime())
+				}
+				file_list.append(file_info)
+
+			return jsonify(file_list)
+
+		except Exception as e:
+			logging.error(f"[SMB LS] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_get(self):
+		try:
+			data = request.json
+			host = data.get('computer').lower()
+			share = data.get('share')
+			path = data.get('path')
+			
+			if not host or not share or not path:
+				return jsonify({'error': 'Computer name/IP, share name, and file path are required'}), 400
+
+			if not hasattr(self, 'smb_sessions') or host not in self.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			client = self.smb_sessions[host]
+			smb_client = SMBClient(client)
+			
+			try:
+				file_content = smb_client.get(share, path)
+				
+				# Get the filename from the path
+				filename = os.path.basename(path)
+				
+				# Create a response with the file content
+				response = Response(
+					file_content,
+					mimetype='application/octet-stream',
+					headers={
+						'Content-Disposition': f'attachment; filename="{filename}"',
+						'Content-Length': len(file_content)
+					}
+				)
+				
+				return response
+
+			except Exception as e:
+				logging.error(f"[SMB GET] Error reading file {path}: {str(e)}")
+				return jsonify({'error': f'Failed to read file: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB GET] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_put(self):
+		try:
+			if 'file' not in request.files:
+				return jsonify({'error': 'No file provided'}), 400
+			
+			file = request.files['file']
+			if file.filename == '':
+				return jsonify({'error': 'No file selected'}), 400
+
+			computer = request.form.get('computer').lower()
+			share = request.form.get('share')
+			current_path = request.form.get('path', '')
+			
+			if not computer or not share:
+				return jsonify({'error': 'Computer name/IP and share name are required'}), 400
+
+			if not hasattr(self, 'smb_sessions') or computer not in self.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			client = self.smb_sessions[computer]
+			smb_client = SMBClient(client)
+			
+			# Save file temporarily
+			temp_path = os.path.join('/tmp', file.filename)
+			file.save(temp_path)
+			
+			try:
+				# Upload file to SMB share
+				upload_path = os.path.join(current_path, file.filename).replace('/', '\\')
+				smb_client.put(share, temp_path)
+				return jsonify({'message': 'File uploaded successfully'})
+			finally:
+				# Clean up temporary file
+				if os.path.exists(temp_path):
+					os.remove(temp_path)
+
+		except Exception as e:
+			logging.error(f"[SMB PUT] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500

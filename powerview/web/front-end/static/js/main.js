@@ -968,6 +968,8 @@ async function showLdapAttributesModal(attributes = {}, identity) {
             sessionsTab.style.display = isComputer ? '' : 'none';
             loggedonTab.style.display = isComputer ? '' : 'none';
         }
+        const sharesTab = modal.querySelector('[aria-controls="tabpanelShares"]');
+        sharesTab.style.display = isComputer ? '' : 'none';
 
         // Show the modal and overlay
         modal.classList.remove('hidden');
@@ -1166,6 +1168,21 @@ async function selectModalTab(tabName) {
                     await fetchAndDisplayModalLogonUsers(dnsHostnameLogonUsers);
                 } else {
                     showErrorAlert('DNS Hostname not found for this computer');
+                }
+                break;
+
+            case 'owner':
+                const identity = document.querySelector('#ldap-attributes-modal h3')?.textContent;
+                if (identity) {
+                    await getObjectOwner(identity);
+                }
+                break;
+
+            case 'shares':
+                const dnsHostnameInput = document.querySelector('#dNSHostName-wrapper input');
+                const dnsHostname = dnsHostnameInput?.value;
+                if (dnsHostname) {
+                    initializeSMBTab(dnsHostname);
                 }
                 break;
         }
@@ -1927,4 +1944,471 @@ function displayModalMemberOf(memberOf) {
         `;
         tbody.appendChild(row);
     });
+}
+
+// Add this function to fetch and display owner information
+async function getObjectOwner(identity) {
+    try {
+        showLoadingIndicator();
+        const response = await fetch('/api/get/domainobjectowner', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                identity: identity,
+                searchbase: identity,
+                search_scope: 'BASE'
+            })
+        });
+
+        await handleHttpError(response);
+        const data = await response.json();
+        console.log(data);
+        
+        if (data && data.length > 0) {
+            const ownerInfo = data[0].attributes.Owner;
+            displayOwnerInfo(ownerInfo);
+        } else {
+            showErrorAlert(`No owner information found for ${identity}`);
+        }
+    } catch (error) {
+        console.error('Error fetching owner information:', error);
+        showErrorAlert('Failed to fetch owner information');
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+// Add this function to display owner information
+function displayOwnerInfo(ownerInfo) {
+    const container = document.getElementById('owner-info');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="flex items-center gap-4">
+            <div class="flex-1">
+                <div class="text-sm font-medium text-neutral-900 dark:text-white">Current Owner</div>
+                <div class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">${ownerInfo}</div>
+            </div>
+        </div>
+    `;
+
+    // Add click handler for change owner button
+    const changeOwnerButton = document.getElementById('change-owner-button');
+    if (changeOwnerButton) {
+        changeOwnerButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const identity = document.querySelector('#ldap-attributes-modal h3')?.textContent;
+            if (identity) {
+                openChangeOwnerModal(identity);
+            }
+        });
+    }
+}
+
+// Add this function to handle the change owner button click
+function openChangeOwnerModal(identity) {
+    const modal = document.getElementById('change-owner-modal');
+    const overlay = document.getElementById('modal-overlay');
+    modal.classList.remove('hidden');
+    overlay.classList.remove('hidden');
+
+    // Prefill the identity field
+    const identityInput = document.getElementById('owner-identity-input');
+    identityInput.value = identity;
+
+    // Handle form submission
+    const form = document.getElementById('change-owner-form');
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const newOwner = document.getElementById('new-owner-input').value;
+
+        const success = await changeOwner(identity, newOwner);
+        if (success) {
+            hideModal('change-owner-modal');
+            // Refresh owner info after successful change
+            await getObjectOwner(identity);
+        }
+    };
+}
+
+// Add this function to change owner
+async function changeOwner(targetIdentity, principalIdentity) {
+    try {
+        showLoadingIndicator();
+        const response = await fetch('/api/set/domainobjectowner', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                targetidentity: targetIdentity,
+                principalidentity: principalIdentity
+            })
+        });
+
+        await handleHttpError(response);
+        const result = await response.json();
+
+        if (result === false) {
+            showErrorAlert("Failed to change owner. Check logs");
+            return false;
+        }
+
+        showSuccessAlert("Owner changed successfully");
+        return true;
+    } catch (error) {
+        console.error('Error changing owner:', error);
+        showErrorAlert("Failed to change owner. Check logs");
+        return false;
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+// Add these functions to handle SMB operations
+async function connectToSMB(data) {
+    const response = await fetch('/api/smb/connect', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to connect to SMB share');
+    }
+
+    return response.json();
+}
+
+async function listSMBShares(computer) {
+    try {
+        const response = await fetch('/api/smb/shares', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ computer })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to list SMB shares');
+        }
+
+        return await response.json();
+    } catch (error) {
+        showErrorAlert(error.message);
+        throw error;
+    }
+}
+
+async function listSMBPath(computer, share, path = '') {
+    try {
+        const response = await fetch('/api/smb/ls', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ computer, share, path })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to list SMB path');
+        }
+
+        return await response.json();
+    } catch (error) {
+        showErrorAlert(error.message);
+        throw error;
+    }
+}
+
+// Add function to initialize SMB tab
+async function initializeSMBTab(dnsHostname) {
+    const connectButton = document.getElementById('smb-connect-button');
+    const connectAsButton = document.getElementById('smb-connect-as-button');
+    const connectAsForm = document.getElementById('connect-as-form');
+    const statusDiv = document.getElementById('smb-connection-status');
+    const treeDiv = document.getElementById('smb-tree');
+    const computerInput = document.getElementById('smb-computer');
+
+    // Pre-fill computer input with dnsHostname
+    if (computerInput && dnsHostname) {
+        computerInput.value = dnsHostname;
+    }
+
+    // Toggle connect-as form
+    connectAsButton.onclick = () => {
+        connectAsForm.classList.toggle('hidden');
+    };
+
+    connectButton.onclick = async () => {
+        try {
+            showLoadingIndicator();
+            const computer = computerInput.value;
+            const username = document.getElementById('smb-username').value;
+            const password = document.getElementById('smb-password').value;
+
+            // Prepare connection data
+            const connectionData = {
+                computer: computer
+            };
+
+            // Add credentials if provided
+            if (!connectAsForm.classList.contains('hidden') && username && password) {
+                connectionData.username = username;
+                connectionData.password = password;
+            }
+
+            // Connect to SMB
+            await connectToSMB(connectionData);
+            const shares = await listSMBShares(computer);
+            
+            // Update status
+            statusDiv.innerHTML = `
+                <div class="flex items-center gap-2 text-green-600 dark:text-green-500">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Connected to ${computer}</span>
+                </div>
+            `;
+
+            // Build tree view
+            treeDiv.innerHTML = buildSMBTreeView(shares);
+            attachTreeViewListeners(computer);
+
+        } catch (error) {
+            statusDiv.innerHTML = `
+                <div class="flex items-center gap-2 text-red-600 dark:text-red-500">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span>${error.message}</span>
+                </div>
+            `;
+        } finally {
+            hideLoadingIndicator();
+        }
+    };
+}
+
+function buildSMBTreeView(shares) {
+    let html = '<ul class="space-y-1">'; // Reduced spacing between items
+    shares.forEach(share => {
+        const shareName = share.attributes.Name;
+        html += `
+            <li class="smb-tree-item" data-share="${shareName}">
+                <div class="flex items-center gap-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer">
+                    <i class="fas fa-folder text-yellow-500"></i>
+                    <span>${shareName}</span>
+                    <span class="text-xs text-neutral-500">${share.attributes.Remark}</span>
+                </div>
+                <ul class="ml-6 space-y-1 hidden"></ul>
+            </li>
+        `;
+    });
+    html += '</ul>';
+    return html;
+}
+
+function attachTreeViewListeners(computer) {
+    document.querySelectorAll('.smb-tree-item').forEach(item => {
+        const shareDiv = item.querySelector('div');
+        const subList = item.querySelector('ul');
+        let isLoaded = false;
+
+        shareDiv.onclick = async () => {
+            const share = item.dataset.share;
+            
+            if (!isLoaded) {
+                try {
+                    showLoadingIndicator();
+                    const files = await listSMBPath(computer, share);
+                    subList.innerHTML = buildFileList(files, share);
+                    isLoaded = true;
+                    subList.classList.remove('hidden');
+                    attachFileListeners(computer, share);
+                } catch (error) {
+                    console.error('Error loading files:', error);
+                } finally {
+                    hideLoadingIndicator();
+                }
+            } else {
+                subList.classList.toggle('hidden');
+            }
+        };
+    });
+}
+
+function attachFileListeners(computer, share) {
+    document.querySelectorAll('.file-item').forEach(item => {
+        const fileDiv = item.querySelector('div');
+        const subList = item.querySelector('ul');
+        const isDirectory = item.getAttribute('data-is-dir') === '16' || item.getAttribute('data-is-dir') === '48';
+
+        if (isDirectory) {
+            fileDiv.onclick = async () => {
+                // If the folder is already loaded and just hidden, simply toggle it
+                if (!subList.classList.contains('hidden') || subList.children.length > 0) {
+                    subList.classList.toggle('hidden');
+                    return;
+                }
+
+                // Only make API call if folder hasn't been loaded yet
+                try {
+                    showLoadingIndicator();
+                    const currentPath = item.dataset.path;
+                    const cleanPath = currentPath.replace(/^\//, '').replace(/\//g, '\\');
+                    const files = await listSMBPath(computer, share, cleanPath);
+                    subList.innerHTML = buildFileList(files, share, currentPath);
+                    subList.classList.remove('hidden');
+                    // Recursively attach listeners to new files
+                    attachFileListeners(computer, share);
+                } catch (error) {
+                    console.error('Error loading files:', error);
+                } finally {
+                    hideLoadingIndicator();
+                }
+            };
+        }
+    });
+}
+
+async function downloadSMBFile(computer, share, path) {
+    try {
+        showLoadingIndicator();
+        const response = await fetch('/api/smb/get', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ computer, share, path })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to download file');
+        }
+
+        // Get the filename from the path
+        const filename = path.split('\\').pop();
+
+        // Create a blob from the response
+        const blob = await response.blob();
+        
+        // Create a temporary link to trigger the download
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Cleanup
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+    } catch (error) {
+        showErrorAlert(error.message);
+        throw error;
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+// Update the buildFileList function to add download functionality for files
+function buildFileList(files, share, currentPath = '') {
+    let html = '';
+    files.forEach(file => {
+        const isDirectory = file.is_directory;
+        const icon = isDirectory ? 'fa-folder' : 'fa-file';
+        const iconColor = isDirectory ? 'text-yellow-500' : 'text-neutral-400';
+        const computerInput = document.getElementById('smb-computer');
+        
+        html += `
+            <li class="file-item" data-path="${currentPath}/${file.name}" data-is-dir="${file.is_directory ? '16' : '0'}">
+                <div class="flex items-center justify-between gap-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer">
+                    <div class="flex items-center gap-1">
+                        <i class="fas ${icon} ${iconColor}"></i>
+                        <span>${file.name}</span>
+                        <span class="text-xs text-neutral-500">${formatFileSize(file.size)}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        ${isDirectory ? `
+                            <button onclick="event.stopPropagation(); uploadSMBFile('${computerInput.value}', '${share}', '${currentPath}/${file.name}')"
+                                class="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300">
+                                <i class="fas fa-upload"></i>
+                            </button>
+                        ` : `
+                            <button onclick="event.stopPropagation(); downloadSMBFile('${computerInput.value}', '${share}', '${currentPath}/${file.name}')" 
+                                class="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        `}
+                    </div>
+                </div>
+                ${isDirectory ? '<ul class="ml-6 space-y-1 hidden"></ul>' : ''}
+            </li>
+        `;
+    });
+    return html;
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Add file upload functionality
+async function uploadSMBFile(computer, share, currentPath) {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.style.display = 'none';
+    document.body.appendChild(fileInput);
+
+    fileInput.onchange = async function() {
+        if (!this.files || !this.files[0]) return;
+
+        try {
+            showLoadingIndicator();
+            const formData = new FormData();
+            formData.append('file', this.files[0]);
+            formData.append('computer', computer);
+            formData.append('share', share);
+            formData.append('path', currentPath);
+
+            const response = await fetch('/api/smb/put', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to upload file');
+            }
+
+            // Refresh the current directory listing
+            const files = await listSMBPath(computer, share, currentPath);
+            const parentList = document.querySelector(`[data-path="${currentPath}"]`).parentElement;
+            parentList.innerHTML = buildFileList(files, share, currentPath);
+            attachFileListeners(computer, share);
+            
+            showSuccessAlert('File uploaded successfully');
+
+        } catch (error) {
+            showErrorAlert(error.message);
+            console.error('Upload error:', error);
+        } finally {
+            hideLoadingIndicator();
+            document.body.removeChild(fileInput);
+        }
+    };
+
+    fileInput.click();
 }

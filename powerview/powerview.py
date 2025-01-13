@@ -8,6 +8,7 @@ from powerview.modules.gmsa import GMSA
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
 from powerview.modules.sccm import SCCM
 from powerview.modules.addcomputer import ADDCOMPUTER
+from powerview.modules.smbclient import SMBClient
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.modules.dacledit import DACLedit
 from powerview.modules.products import EDR
@@ -67,6 +68,7 @@ class PowerView:
 
 		self.lmhash = args.lmhash
 		self.nthash = args.nthash
+		self.auth_aes_key = args.auth_aes_key
 		self.use_ldaps = args.use_ldaps
 		self.nameserver = args.nameserver
 		self.use_system_nameserver = args.use_system_ns
@@ -492,7 +494,7 @@ class PowerView:
 		
 		return succeeded
 
-	def get_domainobjectowner(self, identity=None, searchbase=None, resolve_sid=True, args=None, search_scope=ldap3.SUBTREE, no_cache=False):
+	def get_domainobjectowner(self, identity=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False):
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 		
@@ -506,7 +508,7 @@ class PowerView:
 			'cn',
 			'nTSecurityDescriptor',
 			'sAMAccountname',
-			'ObjectSID',
+			'objectSid',
 			'distinguishedName',
 		], searchbase=searchbase, sd_flag=0x01, search_scope=search_scope, no_cache=no_cache)
 
@@ -2605,10 +2607,10 @@ displayName=New Group Policy Object
 
 		if len(delegfrom_identity) > 1:
 			logging.error("[Set-DomainRBCD] More then one identity found")
-			return
+			return False
 		elif len(delegfrom_identity) == 0:
 			logging.error(f"[Set-DomainRBCD] {delegatefrom} identity not found in domain")
-			return
+			return False
 		logging.debug(f"[Set-DomainRBCD] {delegatefrom} identity found")
 
 		# now time to modify
@@ -2616,7 +2618,7 @@ displayName=New Group Policy Object
 		delegfrom_sid = delegfrom_identity.get("attributes").get("objectSid")
 
 		if delegfrom_sid is None:
-			return
+			return False
 
 		rbcd = RBCD(targetidentity, self.ldap_session)
 		succeed = rbcd.write_to(delegfrom_sid)
@@ -2656,20 +2658,20 @@ displayName=New Group Policy Object
 		)
 		if len(target_identity) > 1:
 			logging.error("[Set-DomainObjectOwner] More than one target identity found")
-			return
+			return False
 		elif len(target_identity) == 0:
 			logging.error(f"[Set-DomainObjectOwner] {targetidentity} identity not found in domain")
-			return
+			return False
 		logging.debug(f"[Set-DomainObjectOwner] {targetidentity} identity found")
 
 		# verify that the principalidentity exists
 		principal_identity = self.get_domainobject(identity=principalidentity)
 		if len(principal_identity) > 1:
 			logging.error("[Set-DomainObjectOwner] More than one principal identity found")
-			return
+			return False
 		elif len(principal_identity) == 0:
 			logging.error(f"[Set-DomainObjectOwner] {principalidentity} identity not found in domain")
-			return
+			return False
 		logging.debug(f"[Set-DomainObjectOwner] {principalidentity} identity found")
 
 		# create changeowner object
@@ -2678,7 +2680,7 @@ displayName=New Group Policy Object
 
 		if target_identity_owner == principal_identity[0]["attributes"]["objectSid"]:
 			logging.warning("[Set-DomainObjectOwner] %s is already the owner of the %s" % (principal_identity[0]["attributes"]["sAMAccountName"], target_identity[0]["attributes"]["distinguishedName"]))
-			return
+			return False
 
 		logging.info("[Set-DomainObjectOwner] Changing current owner %s to %s" % (target_identity_owner, principal_identity[0]["attributes"]["objectSid"]))
 
@@ -3915,9 +3917,11 @@ displayName=New Group Policy Object
 		client = self.conn.init_smb_session(host)
 
 		if not client:
+			logging.error("[Get-NetShare] Failed to connect to %s" % (host))
 			return
-
-		shares = client.listShares()
+		
+		smbclient = SMBClient(client)
+		shares = smbclient.shares()
 		entries = []
 		for i in range(len(shares)):
 			entry = {
