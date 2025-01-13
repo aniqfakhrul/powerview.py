@@ -360,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
         buttonsDiv.className = 'flex gap-2';
 
         // Add User button
-        if (Array.isArray(attributes.objectClass) && (attributes.objectClass.includes('container') || attributes.objectClass.includes('organizationalUnit'))) {
+        if (Array.isArray(attributes.objectClass) && (attributes.objectClass.includes('container') || attributes.objectClass.includes('organizationalUnit') || attributes.objectClass.includes('builtinDomain') || attributes.objectClass.includes('domain'))) {
             const addUserButton = document.createElement('button');
             addUserButton.className = 'px-2 py-1.5 text-sm font-medium rounded-md text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-yellow-500 dark:hover:text-yellow-400 dark:hover:bg-yellow-900/20 transition-colors';
             addUserButton.innerHTML = icons.userIcon;
@@ -370,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Add Group button
-        if (Array.isArray(attributes.objectClass) && (attributes.objectClass.includes('container') || attributes.objectClass.includes('organizationalUnit'))) {
+        if (Array.isArray(attributes.objectClass) && (attributes.objectClass.includes('container') || attributes.objectClass.includes('organizationalUnit') || attributes.objectClass.includes('builtinDomain') || attributes.objectClass.includes('domain'))) {
             const addGroupButton = document.createElement('button');
             addGroupButton.className = 'px-2 py-1.5 text-sm font-medium rounded-md text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-yellow-500 dark:hover:text-yellow-400 dark:hover:bg-yellow-900/20 transition-colors';
             addGroupButton.innerHTML = icons.groupIcon;
