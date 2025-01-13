@@ -1,0 +1,104 @@
+{% extends "base/layouts.html" %}
+
+{% block content %}
+<div class="flex flex-col h-screen bg-white dark:bg-neutral-900">
+    <!-- Connection Header -->
+    <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-share-nodes text-neutral-500 dark:text-neutral-400"></i>
+                <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">SMB Browser</h2>
+            </div>
+            <div class="flex items-center gap-2">
+                <!-- Add this button before the connect form -->
+                <button id="toggle-downloads" type="button" 
+                    class="whitespace-nowrap px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white border border-neutral-200 dark:border-neutral-700 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                    <i class="fas fa-download fa-sm mr-1"></i>
+                    Downloads
+                </button>
+                <!-- Connect As Form (initially hidden) -->
+                <div id="connect-as-form" class="hidden flex items-center gap-2">
+                    <input type="text" id="smb-username" 
+                        placeholder="Username" 
+                        class="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800">
+                    <input type="password" id="smb-password" 
+                        placeholder="Password" 
+                        class="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800">
+                </div>
+
+                <input type="text" id="smb-computer" 
+                    placeholder="Enter computer name or IP" 
+                    class="w-64 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800">
+                
+                <button id="smb-connect-as-button" type="button" 
+                    class="whitespace-nowrap px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white border border-neutral-200 dark:border-neutral-700 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                    <i class="fas fa-user-shield fa-sm mr-1"></i>
+                    Connect As
+                </button>
+
+                <button id="smb-connect-button" type="button" 
+                    class="whitespace-nowrap px-3 py-1.5 text-sm font-medium text-white dark:text-black bg-neutral-900 dark:bg-yellow-500 rounded-md hover:bg-neutral-800 dark:hover:bg-yellow-600">
+                    <i class="fas fa-plug fa-sm mr-1"></i>
+                    Connect
+                </button>
+            </div>
+        </div>
+        <div id="smb-connection-status" class="mt-2 text-sm"></div>
+    </div>
+
+    <!-- Tree View Content -->
+    <div class="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-700">
+        <div id="smb-tree" class="p-4">
+            <!-- Tree view will be dynamically populated -->
+        </div>
+    </div>
+
+    <!-- File Viewer Panel -->
+    <div id="file-viewer-panel" class="fixed top-0 right-0 bottom-0 w-1/2 bg-white dark:bg-neutral-900 border-l border-neutral-300 dark:border-neutral-700 shadow-2xl shadow-neutral-950/10 dark:shadow-black/50 transform transition-transform duration-300 ease-in-out translate-x-full z-50 hidden">
+        <div class="flex flex-col h-full">
+            <!-- Header -->
+            <div class="flex items-center justify-between gap-2 p-4 border-b sticky top-0 bg-white dark:bg-neutral-900 z-10 border-neutral-200 dark:border-neutral-700">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-file-alt text-blue-500 dark:text-yellow-500"></i>
+                    <h2 id="file-viewer-title" class="text-lg font-semibold text-neutral-900 dark:text-white">File Content</h2>
+                </div>
+                <button id="close-file-viewer" class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Content -->
+            <div class="flex-1 overflow-auto p-4">
+                <pre id="file-viewer-content" class="font-mono text-sm text-neutral-900 dark:text-white whitespace-pre-wrap"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Downloads Panel -->
+    <div id="downloads-panel" class="fixed top-0 right-0 bottom-0 w-96 bg-white dark:bg-neutral-900 border-l border-neutral-300 dark:border-neutral-700 shadow-2xl shadow-neutral-950/10 dark:shadow-black/50 transform transition-transform duration-300 ease-in-out translate-x-full z-50 hidden">
+        <div class="flex flex-col h-full">
+            <!-- Header -->
+            <div class="flex items-center justify-between gap-2 p-4 border-b sticky top-0 bg-white dark:bg-neutral-900 z-10 border-neutral-200 dark:border-neutral-700">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-download text-blue-500 dark:text-yellow-500"></i>
+                    <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Downloads</h2>
+                </div>
+                <button id="close-downloads-panel" class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Downloads List -->
+            <div class="flex-1 overflow-auto p-4">
+                <div id="downloads-list" class="space-y-4">
+                    <!-- Downloads will be dynamically added here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/smb.js') }}"></script>
+{% endblock %}

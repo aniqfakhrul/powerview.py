@@ -63,18 +63,8 @@ class SMBClient:
         fh = BytesIO()
         try:
             self.client.getFile(share, ntpath.normpath(path), fh.write)
+            return fh.getvalue()
         except:
             raise
-        output = fh.getvalue()
-        encoding = chardet.detect(output)["encoding"]
-        error_msg = "[-] Output cannot be correctly decoded, are you sure the text is readable ?"
-        if encoding:
-            try:
-                return output.decode(encoding)
-            except:
-                logging.error("[SMBClient] %s" % (error_msg))
-            finally:
-                fh.close()
-        else:
-            logging.error("[SMBClient] %s" % (error_msg))
+        finally:
             fh.close()

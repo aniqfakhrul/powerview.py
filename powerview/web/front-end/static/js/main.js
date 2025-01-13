@@ -807,20 +807,40 @@ function closeModal(modalId) {
     const modal = document.getElementById(modalId);
     const overlay = document.getElementById('modal-overlay');
     
-    if (modal) {
-        modal.classList.add('hidden');
-        // Remove event listeners when closing
-        const closeButton = modal.querySelector(`[data-modal-hide="${modalId}"]`);
-        if (closeButton) {
-            closeButton.removeEventListener('click', () => closeModal(modalId));
+    if (modalId === 'ldap-attributes-modal') {
+        // Clear SMB tree content
+        const smbTree = document.getElementById('smb-tree');
+        if (smbTree) {
+            smbTree.innerHTML = '';
         }
-        document.removeEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeModal(modalId);
-            }
-        });
+        
+        // Reset connection status
+        const connectionStatus = document.getElementById('smb-connection-status');
+        if (connectionStatus) {
+            connectionStatus.innerHTML = '';
+        }
+
+        // Reset computer input
+        const computerInput = document.getElementById('smb-computer');
+        if (computerInput) {
+            computerInput.value = '';
+        }
+
+        // Hide the connect as form if it's visible
+        const connectAsForm = document.getElementById('connect-as-form');
+        if (connectAsForm) {
+            connectAsForm.classList.add('hidden');
+        }
+
+        // Reset credentials if any
+        const usernameInput = document.getElementById('smb-username');
+        const passwordInput = document.getElementById('smb-password');
+        if (usernameInput) usernameInput.value = '';
+        if (passwordInput) passwordInput.value = '';
     }
-    if (overlay) {
+
+    if (modal && overlay) {
+        modal.classList.add('hidden');
         overlay.classList.add('hidden');
     }
 }

@@ -43,6 +43,7 @@ class APIServer:
 		self.app.add_url_rule('/ca', 'ca', self.render_ca, methods=['GET'])
 		self.app.add_url_rule('/ou', 'ou', self.render_ou, methods=['GET'])
 		self.app.add_url_rule('/gpo', 'gpo', self.render_gpo, methods=['GET'])
+		self.app.add_url_rule('/smb', 'smb', self.render_smb, methods=['GET'])
 		self.app.add_url_rule('/utils', 'utils', self.render_utils, methods=['GET'])
 		self.app.add_url_rule('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
 		self.app.add_url_rule('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
@@ -68,6 +69,7 @@ class APIServer:
 		self.app.add_url_rule('/api/smb/ls', 'smb_ls', self.handle_smb_ls, methods=['POST'])
 		self.app.add_url_rule('/api/smb/get', 'smb_get', self.handle_smb_get, methods=['POST'])
 		self.app.add_url_rule('/api/smb/put', 'smb_put', self.handle_smb_put, methods=['POST'])
+		self.app.add_url_rule('/api/smb/cat', 'smb_cat', self.handle_smb_cat, methods=['POST'])
 
 		self.nav_items = [
 			{"name": "Explorer", "icon": "fas fa-folder-tree", "link": "/"},
@@ -80,6 +82,7 @@ class APIServer:
 				{"name": "CA", "icon": "fas fa-certificate", "link": "/ca"},
 				{"name": "OUs", "icon": "fas fa-building", "link": "/ou"},
 				{"name": "GPOs", "icon": "fas fa-building", "link": "/gpo"},
+				{"name": "SMB Browser", "icon": "fas fa-building", "link": "/smb"},
 			]},
 			{"name": "Utils", "icon": "fas fa-toolbox", "link": "/utils"},
 			{"name": "Logs", "icon": "far fa-file-alt", "button_id": "toggle-command-history"},
@@ -215,6 +218,13 @@ class APIServer:
 			'nav_items': self.nav_items
 		}
 		return render_template('gpopage.html', **context)
+
+	def render_smb(self):
+		context = {
+			'title': 'Powerview.py - SMB',
+			'nav_items': self.nav_items
+		}
+		return render_template('smbpage.html', **context)
 
 	def render_utils(self):
 		context = {
@@ -650,4 +660,26 @@ class APIServer:
 
 		except Exception as e:
 			logging.error(f"[SMB PUT] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_cat(self):
+		try:
+			data = request.json
+			computer = data.get('computer').lower()
+			share = data.get('share')
+			path = data.get('path')
+
+			if not all([computer, share, path]):
+				return jsonify({'error': 'Missing required parameters'}), 400
+
+			client = self.smb_sessions[computer]
+			smb_client = SMBClient(client)
+			content = smb_client.cat(share, path)
+			if content is None:
+				return jsonify({'error': 'Failed to read file content'}), 500
+
+			return content, 200
+
+		except Exception as e:
+			logging.error(f"Error reading file content: {str(e)}")
 			return jsonify({'error': str(e)}), 500
