@@ -561,11 +561,16 @@ class APIServer:
 			files = smb_client.ls(share, path)
 			logging.debug(f"[SMB LS] Listing {path} on {host} with share {share}")
 			
-			# Format file listing
+			# Format file listing and filter out . and ..
 			file_list = []
 			for f in files:
+				name = f.get_longname()
+				# Skip . and .. entries
+				if name in ['.', '..']:
+					continue
+				
 				file_info = {
-					"name": f.get_longname(),
+					"name": name,
 					"size": f.get_filesize(),
 					"is_directory": f.is_directory(),
 					"created": str(f.get_ctime()),
