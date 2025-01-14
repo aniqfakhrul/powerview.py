@@ -3940,13 +3940,18 @@ displayName=New Group Policy Object
 
 		return entries
 
-	def get_netservice(self, computer_name, port=445, args=None):
+	def get_netservice(self, computer_name, port=445, name=None, isrunning=None, isstopped=None, args=None):
 		ip_address = ""
 		computer_dns = ""
 		KNOWN_PROTOCOLS = {
 				139: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 				445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 				}
+
+		# Use function parameters if provided, otherwise check args
+		name_filter = name if name is not None else (args.name if args else None)
+		is_running = isrunning if isrunning is not None else (args.isrunning if args else None)
+		is_stopped = isstopped if isstopped is not None else (args.isstopped if args else None)
 
 		if not is_ipaddress(computer_name):
 			ip_address = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
@@ -3986,23 +3991,23 @@ displayName=New Group Policy Object
 		try:
 			for i in range(len(resp)):
 				state = resp[i]['ServiceStatus']['dwCurrentState']
-				name = resp[i]['lpServiceName'][:-1]
+				service_name = resp[i]['lpServiceName'][:-1]
 				displayname = resp[i]['lpDisplayName'][:-1]
 
-				if args.name and args.name.lower() not in name.lower():
+				if name_filter and name_filter.lower() not in service_name.lower():
 					continue
 
-				if args.isrunning and not state == scmr.SERVICE_RUNNING:
+				if is_running and not state == scmr.SERVICE_RUNNING:
 					continue
-				elif args.isstopped and not state == scmr.SERVICE_STOPPED:
+				elif is_stopped and not state == scmr.SERVICE_STOPPED:
 					continue
 
-				if edr.service_exist(name):
-					name = f"{bcolors.WARNING}{name}{bcolors.ENDC}"
+				if edr.service_exist(service_name):
+					service_name = f"{bcolors.WARNING}{service_name}{bcolors.ENDC}"
 					displayname = f"{bcolors.WARNING}{displayname}{bcolors.ENDC}"
 
 				entry = {
-					"Name": name,
+					"Name": service_name,
 					"DisplayName": displayname,
 					"Status": "UNKNOWN",
 				}

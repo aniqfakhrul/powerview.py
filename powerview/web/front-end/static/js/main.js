@@ -981,15 +981,19 @@ async function showLdapAttributesModal(attributes = {}, identity) {
         const isComputer = attributes.objectClass && 
                           Array.isArray(attributes.objectClass) && 
                           attributes.objectClass.includes('computer');
-        // Show/hide Sessions and Logon Users tabs based on objectClass
+        
+        // Show/hide computer-specific tabs
         const sessionsTab = modal.querySelector('[aria-controls="tabpanelSessions"]');
         const loggedonTab = modal.querySelector('[aria-controls="tabpanelLoggedon"]');
-        if (sessionsTab && loggedonTab) {
+        const sharesTab = modal.querySelector('[aria-controls="tabpanelShares"]');
+        const servicesTab = modal.querySelector('[aria-controls="tabpanelServices"]');
+        
+        if (sessionsTab && loggedonTab && sharesTab && servicesTab) {
             sessionsTab.style.display = isComputer ? '' : 'none';
             loggedonTab.style.display = isComputer ? '' : 'none';
+            sharesTab.style.display = isComputer ? '' : 'none';
+            servicesTab.style.display = isComputer ? '' : 'none';  // Added this line
         }
-        const sharesTab = modal.querySelector('[aria-controls="tabpanelShares"]');
-        sharesTab.style.display = isComputer ? '' : 'none';
 
         // Show the modal and overlay
         modal.classList.remove('hidden');
@@ -1203,6 +1207,16 @@ async function selectModalTab(tabName) {
                 const dnsHostname = dnsHostnameInput?.value;
                 if (dnsHostname) {
                     initializeSMBTab(dnsHostname);
+                }
+                break;
+
+            case 'services':
+                const dnsHostnameServicesInput = ldapAttributeModal.querySelector('#dNSHostName-wrapper input');
+                const dnsHostnameServices = dnsHostnameServicesInput?.value;
+                if (dnsHostnameServices) {
+                    await fetchAndDisplayModalServices(dnsHostnameServices);
+                } else {
+                    showErrorAlert('DNS Hostname not found for this computer');
                 }
                 break;
         }
@@ -2431,4 +2445,55 @@ async function uploadSMBFile(computer, share, currentPath) {
     };
 
     fileInput.click();
+}
+
+// Add new function to fetch and display services
+async function fetchAndDisplayModalServices(computer) {
+    try {
+        showLoadingIndicator();
+        const response = await fetch('/api/get/netservice', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                computer_name: computer
+            })
+        });
+
+        await handleHttpError(response);
+        const data = await response.json();
+        
+        const tbody = document.getElementById('services-rows');
+        tbody.innerHTML = '';
+
+        data.forEach(service => {
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-neutral-50 dark:hover:bg-neutral-800';
+
+            // Handle the status styling
+            let statusClass = '';
+            let status = service.attributes.Status.replace(/\u001b\[\d+m/g, ''); // Remove ANSI codes
+            
+            if (status === 'RUNNING') {
+                statusClass = 'text-green-500 dark:text-green-400';
+            } else if (status === 'STOPPED') {
+                statusClass = 'text-red-500 dark:text-red-400';
+            } else if (status.includes('PENDING')) {
+                statusClass = 'text-yellow-500 dark:text-yellow-400';
+            }
+
+            row.innerHTML = `
+                <td class="px-3 py-2 text-neutral-700 dark:text-neutral-200">${service.attributes.Name}</td>
+                <td class="px-3 py-2 text-neutral-600 dark:text-neutral-300">${service.attributes.DisplayName}</td>
+                <td class="px-3 py-2 font-medium ${statusClass}">${status}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    } catch (error) {
+        console.error('Error fetching services:', error);
+        showErrorAlert('Failed to fetch services');
+    } finally {
+        hideLoadingIndicator();
+    }
 }
