@@ -169,7 +169,7 @@ async function listSMBPath(computer, share, path = '') {
 
 
 function buildSMBTreeView(shares) {
-    let html = '<ul class="space-y-1">';
+    let html = '<ul>';
     shares.forEach(share => {
         const shareName = share.attributes.Name;
         html += `
@@ -179,9 +179,10 @@ function buildSMBTreeView(shares) {
                         <i class="fas fa-folder text-yellow-500"></i>
                         <span class="text-neutral-900 dark:text-white">${shareName}</span>
                         <span class="text-xs text-neutral-500 dark:text-neutral-400">${share.attributes.Remark}</span>
+                        <span class="spinner-container"></span>
                     </div>
                 </div>
-                <ul class="ml-6 space-y-1 hidden"></ul>
+                <ul class="ml-6 hidden"></ul>
             </li>
         `;
     });
@@ -193,6 +194,7 @@ function attachTreeViewListeners(computer) {
     document.querySelectorAll('.smb-tree-item').forEach(item => {
         const shareDiv = item.querySelector('div');
         const subList = item.querySelector('ul');
+        const spinnerContainer = item.querySelector('.spinner-container');
         let isLoaded = false;
 
         shareDiv.onclick = async () => {
@@ -200,7 +202,7 @@ function attachTreeViewListeners(computer) {
             
             if (!isLoaded) {
                 try {
-                    showLoadingIndicator();
+                    showInlineSpinner(spinnerContainer);
                     const files = await listSMBPath(computer, share);
                     subList.innerHTML = buildFileList(files, share);
                     isLoaded = true;
@@ -209,7 +211,7 @@ function attachTreeViewListeners(computer) {
                 } catch (error) {
                     console.error('Error loading files:', error);
                 } finally {
-                    hideLoadingIndicator();
+                    removeInlineSpinner(spinnerContainer);
                 }
             } else {
                 subList.classList.toggle('hidden');
@@ -218,39 +220,98 @@ function attachTreeViewListeners(computer) {
     });
 }
 
+function showInlineSpinner(element) {
+    // Remove existing spinner if any
+    removeInlineSpinner(element);
+    
+    const spinnerTemplate = document.querySelector('#inline-spinner-template');
+    if (spinnerTemplate) {
+        const spinner = spinnerTemplate.content.cloneNode(true);
+        spinner.firstElementChild.classList.add('inline-action-spinner');
+        element.appendChild(spinner);
+    }
+}
+
+function removeInlineSpinner(element) {
+    const existingSpinner = element.querySelector('.inline-action-spinner');
+    if (existingSpinner) {
+        existingSpinner.remove();
+    }
+}
+
 function attachFileListeners(computer, share) {
     document.querySelectorAll('.file-item').forEach(item => {
         const isDirectory = item.getAttribute('data-is-dir') === '16' || item.getAttribute('data-is-dir') === '48';
+        const spinnerContainer = item.querySelector('.spinner-container');
         
         if (isDirectory) {
             const fileDiv = item.querySelector('div');
             const subList = item.querySelector('ul');
+            const uploadBtn = item.querySelector('.upload-btn');
             
-            if (!fileDiv || !subList) return; // Skip if elements not found
+            if (!fileDiv || !subList) return;
 
             fileDiv.onclick = async () => {
-                // If the folder is already loaded and just hidden, simply toggle it
                 if (subList.children.length > 0) {
                     subList.classList.toggle('hidden');
                     return;
                 }
 
-                // Only make API call if folder hasn't been loaded yet
                 try {
-                    showLoadingIndicator();
+                    showInlineSpinner(spinnerContainer);
                     const currentPath = item.dataset.path;
                     const cleanPath = currentPath.replace(/^\//, '').replace(/\//g, '\\');
                     const files = await listSMBPath(computer, share, cleanPath);
                     subList.innerHTML = buildFileList(files, share, currentPath);
                     subList.classList.remove('hidden');
-                    // Recursively attach listeners to new files
                     attachFileListeners(computer, share);
                 } catch (error) {
                     console.error('Error loading files:', error);
                 } finally {
-                    hideLoadingIndicator();
+                    removeInlineSpinner(spinnerContainer);
                 }
             };
+
+            // Handle upload button
+            if (uploadBtn) {
+                uploadBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    showInlineSpinner(spinnerContainer);
+                    try {
+                        await uploadSMBFile(computer, share, item.dataset.path);
+                    } finally {
+                        removeInlineSpinner(spinnerContainer);
+                    }
+                };
+            }
+        } else {
+            // Handle view button
+            const viewBtn = item.querySelector('.view-btn');
+            if (viewBtn) {
+                viewBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    showInlineSpinner(spinnerContainer);
+                    try {
+                        await viewSMBFile(computer, share, item.dataset.path);
+                    } finally {
+                        removeInlineSpinner(spinnerContainer);
+                    }
+                };
+            }
+
+            // Handle download button
+            const downloadBtn = item.querySelector('.download-btn');
+            if (downloadBtn) {
+                downloadBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    showInlineSpinner(spinnerContainer);
+                    try {
+                        await downloadSMBFile(computer, share, item.dataset.path);
+                    } finally {
+                        removeInlineSpinner(spinnerContainer);
+                    }
+                };
+            }
         }
     });
 }
@@ -379,36 +440,128 @@ function failDownload(id, error) {
     entry.querySelector('.text-xs').classList.add('text-red-500');
 }
 
-// Update the buildFileList function to add download functionality for files
+function getFileIcon(fileName, isDirectory) {
+    if (isDirectory) {
+        return {
+            icon: icons.folderIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    const fileExt = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+    
+    // Check for Excel file extensions
+    const excelExtensions = ['.xlsx', '.xls', '.xlsm', '.xlsb', '.xltx', '.xltm', '.xlt', '.csv'];
+    if (excelExtensions.includes(fileExt)) {
+        return {
+            icon: icons.xlsxIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for Word file extensions
+    const wordExtensions = ['.docx', '.doc', '.docm', '.dotx', '.dotm', '.dot'];
+    if (wordExtensions.includes(fileExt)) {
+        return {
+            icon: icons.docxIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for Text file extensions
+    const textExtensions = ['.txt', '.log', '.ini', '.cfg', '.conf', '.text', '.md'];
+    if (textExtensions.includes(fileExt)) {
+        return {
+            icon: icons.txtIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for DLL file extensions
+    const dllExtensions = ['.dll', '.sys', '.drv', '.ocx'];
+    if (dllExtensions.includes(fileExt)) {
+        return {
+            icon: icons.dllIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for Outlook file extensions
+    const outlookExtensions = ['.pst', '.ost', '.msg', '.eml', '.nst', '.oft'];
+    if (outlookExtensions.includes(fileExt)) {
+        return {
+            icon: icons.outlookIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for PowerPoint file extensions
+    const powerpointExtensions = ['.ppt', '.pptx', '.pptm', '.potx', '.potm', '.ppsx', '.ppsm'];
+    if (powerpointExtensions.includes(fileExt)) {
+        return {
+            icon: icons.powerpointIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for Compressed file extensions
+    const compressedExtensions = ['.zip', '.rar', '.7z', '.gz', '.tar', '.bz2', '.xz', '.cab'];
+    if (compressedExtensions.includes(fileExt)) {
+        return {
+            icon: icons.zipIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for PDF file extension
+    if (fileExt === '.pdf') {
+        return {
+            icon: icons.pdfIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    return {
+        icon: 'fa-file',
+        iconClass: 'text-neutral-400',
+        isCustomSvg: false
+    };
+}
+
 function buildFileList(files, share, currentPath = '') {
-    let html = '<ul class="space-y-1">';
+    let html = '';
     files.forEach(file => {
         const isDirectory = file.is_directory;
-        const icon = isDirectory ? 'fa-folder' : 'fa-file';
-        const iconColor = isDirectory ? 'text-yellow-500' : 'text-neutral-400';
-        const computerInput = document.getElementById('smb-computer');
+        const fileIcon = getFileIcon(file.name, isDirectory);
         
         html += `
-            <li class="file-item" data-path="${currentPath}/${file.name}" data-is-dir="${isDirectory ? '16' : '0'}">
-                <div class="flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer">
-                    <div class="flex items-center gap-2">
-                        <i class="fas ${icon} ${iconColor}"></i>
+            <li class="file-item" data-path="${currentPath}/${file.name}" data-is-dir="${file.is_directory ? '16' : '0'}">
+                <div class="flex items-center justify-between gap-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer">
+                    <div class="flex items-center gap-1">
+                        ${fileIcon.isCustomSvg 
+                            ? `<span class="w-4 h-4">${fileIcon.icon}</span>`
+                            : `<i class="fas ${fileIcon.icon} ${fileIcon.iconClass}"></i>`
+                        }
                         <span class="text-neutral-900 dark:text-white">${file.name}</span>
                         <span class="text-xs text-neutral-500 dark:text-neutral-400">${formatFileSize(file.size)}</span>
+                        <span class="spinner-container"></span>
                     </div>
                     <div class="flex items-center gap-2">
                         ${isDirectory ? `
-                            <button onclick="event.stopPropagation(); uploadSMBFile('${computerInput.value}', '${share}', '${currentPath}/${file.name}')"
-                                class="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-1">
+                            <button class="upload-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300">
                                 <i class="fas fa-upload"></i>
                             </button>
                         ` : `
-                            <button onclick="event.stopPropagation(); viewSMBFile('${computerInput.value}', '${share}', '${currentPath}/${file.name}')" 
-                                class="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-1">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <button onclick="event.stopPropagation(); downloadSMBFile('${computerInput.value}', '${share}', '${currentPath}/${file.name}')" 
-                                class="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-1">
+                            <button class="download-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300">
                                 <i class="fas fa-download"></i>
                             </button>
                         `}
@@ -418,7 +571,6 @@ function buildFileList(files, share, currentPath = '') {
             </li>
         `;
     });
-    html += '</ul>';
     return html;
 }
 
