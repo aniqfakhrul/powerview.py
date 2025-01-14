@@ -174,15 +174,20 @@ function buildSMBTreeView(shares) {
         const shareName = share.attributes.Name;
         html += `
             <li class="smb-tree-item" data-share="${shareName}">
-                <div class="flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer">
-                    <div class="flex items-center gap-2">
-                        <i class="fas fa-folder text-yellow-500"></i>
-                        <span class="text-neutral-900 dark:text-white">${shareName}</span>
-                        <span class="text-xs text-neutral-500 dark:text-neutral-400">${share.attributes.Remark}</span>
-                        <span class="spinner-container"></span>
+                <div class="grid grid-cols-12 gap-4 items-center hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer py-0.5 px-2">
+                    <div class="col-span-6">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <i class="fas fa-folder text-yellow-500 flex-shrink-0"></i>
+                            <span class="text-neutral-900 dark:text-white truncate">${shareName}</span>
+                             <span class="text-xs text-neutral-500 dark:text-neutral-400">${share.attributes.Remark}</span>
+                            <span class="spinner-container flex-shrink-0"></span>
+                        </div>
                     </div>
+                    <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400">--</div>
+                    <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400">--</div>
+                    <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400 text-right">--</div>
                 </div>
-                <ul class="ml-6 hidden"></ul>
+                <ul class="hidden"></ul>
             </li>
         `;
     });
@@ -543,31 +548,51 @@ function buildFileList(files, share, currentPath = '') {
         const isDirectory = file.is_directory;
         const fileIcon = getFileIcon(file.name, isDirectory);
         
+        // Convert Windows FILETIME to JavaScript Date
+        const windowsTimestamp = BigInt(file.modified);
+        const unixTimestamp = Number((windowsTimestamp - BigInt(116444736000000000)) / BigInt(10000));
+        const modifiedDate = new Date(unixTimestamp).toLocaleString();
+        
+        // Calculate indentation level based on path depth, removing empty segments
+        const pathSegments = currentPath.split('/').filter(segment => segment.length > 0);
+        const indentLevel = pathSegments.length + 1; // Add 1 to indent share contents
+        const marginLeft = indentLevel * 1.5; // 1.5rem per level
+        
         html += `
             <li class="file-item" data-path="${currentPath}/${file.name}" data-is-dir="${file.is_directory ? '16' : '0'}">
-                <div class="flex items-center justify-between gap-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer">
-                    <div class="flex items-center gap-1">
-                        ${fileIcon.isCustomSvg 
-                            ? `<span class="w-4 h-4">${fileIcon.icon}</span>`
-                            : `<i class="fas ${fileIcon.icon} ${fileIcon.iconClass}"></i>`
-                        }
-                        <span class="text-neutral-900 dark:text-white">${file.name}</span>
-                        <span class="text-xs text-neutral-500 dark:text-neutral-400">${formatFileSize(file.size)}</span>
-                        <span class="spinner-container"></span>
+                <div class="grid grid-cols-12 gap-4 items-center hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer py-0.5 px-2">
+                    <div class="col-span-6">
+                        <div class="flex items-center gap-2 min-w-0" style="margin-left: ${marginLeft}rem;">
+                            ${fileIcon.isCustomSvg 
+                                ? `<span class="w-4 h-4 flex-shrink-0">${fileIcon.icon}</span>`
+                                : `<i class="fas ${fileIcon.icon} ${fileIcon.iconClass} flex-shrink-0"></i>`
+                            }
+                            <span class="text-neutral-900 dark:text-white truncate">${file.name}</span>
+                            <span class="spinner-container flex-shrink-0"></span>
+                        </div>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400">
+                        ${formatFileSize(file.size)}
+                    </div>
+                    <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400">
+                        ${modifiedDate}
+                    </div>
+                    <div class="col-span-2 flex items-center gap-2 justify-end">
                         ${isDirectory ? `
-                            <button class="upload-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300">
+                            <button class="upload-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="Upload">
                                 <i class="fas fa-upload"></i>
                             </button>
-                        ` : `
-                            <button class="download-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300">
+                        ` :  `
+                            <button class="view-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="View">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="download-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="Download">
                                 <i class="fas fa-download"></i>
                             </button>
                         `}
                     </div>
                 </div>
-                ${isDirectory ? '<ul class="ml-6 space-y-1 hidden"></ul>' : ''}
+                ${isDirectory ? `<ul class="hidden"></ul>` : ''}
             </li>
         `;
     });

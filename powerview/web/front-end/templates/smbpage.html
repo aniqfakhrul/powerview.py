@@ -48,7 +48,13 @@
 
     <!-- Tree View Content -->
     <div class="flex-1 overflow-y-auto scrollbar">
-        <div id="smb-tree" class="p-4">
+        <div class="px-4 py-1 border-b border-neutral-200 dark:border-neutral-700 grid grid-cols-12 gap-4">
+            <div class="col-span-6 text-sm font-medium text-neutral-500 dark:text-neutral-400">Name</div>
+            <div class="col-span-2 text-sm font-medium text-neutral-500 dark:text-neutral-400">Size</div>
+            <div class="col-span-2 text-sm font-medium text-neutral-500 dark:text-neutral-400">Modified</div>
+            <div class="col-span-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 text-right">Actions</div>
+        </div>
+        <div id="smb-tree" class="p-2">
             <!-- Tree view will be dynamically populated -->
         </div>
     </div>
