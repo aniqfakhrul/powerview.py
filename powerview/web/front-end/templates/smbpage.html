@@ -2,8 +2,8 @@
 
 {% block content %}
 <div class="flex flex-col h-screen bg-white dark:bg-neutral-900">
-    <!-- Connection Header -->
-    <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
+    <!-- Fixed Connection Header -->
+    <div class="p-4">
         <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
                 <i class="fa-solid fa-share-nodes text-neutral-500 dark:text-neutral-400"></i>
@@ -46,16 +46,28 @@
         <div id="smb-connection-status" class="mt-2 text-sm"></div>
     </div>
 
-    <!-- Tree View Content -->
-    <div class="flex-1 overflow-y-auto scrollbar">
-        <div class="px-4 py-1 border-b border-neutral-200 dark:border-neutral-700 grid grid-cols-12 gap-4">
+    <!-- Fixed Tabs and Headers -->
+    <div class="bg-white dark:bg-neutral-900">
+        <!-- PC Tabs -->
+        <div class="border-b border-neutral-200 dark:border-neutral-700">
+            <div id="pc-tabs" class="flex overflow-x-auto scrollbar-thin">
+                <!-- Tabs will be dynamically added here -->
+            </div>
+        </div>
+
+        <!-- Table Headers -->
+        <div class="px-4 py-1 border-b border-neutral-200 dark:border-neutral-700 grid grid-cols-12">
             <div class="col-span-6 text-sm font-medium text-neutral-500 dark:text-neutral-400">Name</div>
             <div class="col-span-2 text-sm font-medium text-neutral-500 dark:text-neutral-400">Size</div>
             <div class="col-span-2 text-sm font-medium text-neutral-500 dark:text-neutral-400">Modified</div>
             <div class="col-span-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 text-right">Actions</div>
         </div>
-        <div id="smb-tree" class="p-2">
-            <!-- Tree view will be dynamically populated -->
+    </div>
+
+    <!-- Scrollable Content Area -->
+    <div class="flex-1 min-h-0"> <!-- min-h-0 is important for nested flex scroll -->
+        <div id="pc-views" class="h-full overflow-y-auto scrollbar p-2">
+            <!-- Each PC view will be dynamically added here -->
         </div>
     </div>
 

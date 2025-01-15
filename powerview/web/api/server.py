@@ -554,7 +554,7 @@ class APIServer:
 
 			if not hasattr(self, 'smb_sessions') or host not in self.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
-
+			
 			client = self.smb_sessions[host]
 			smb_client = SMBClient(client)
 			

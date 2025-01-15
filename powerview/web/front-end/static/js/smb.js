@@ -1,15 +1,15 @@
+let activeComputer = null;
+
 document.addEventListener('DOMContentLoaded', () => {
     const connectButton = document.getElementById('smb-connect-button');
     const connectAsButton = document.getElementById('smb-connect-as-button');
     const connectAsForm = document.getElementById('connect-as-form');
-    const statusDiv = document.getElementById('smb-connection-status');
-    const treeDiv = document.getElementById('smb-tree');
+    const pcViews = document.getElementById('pc-views');
+    const pcTabs = document.getElementById('pc-tabs');
     const computerInput = document.getElementById('smb-computer');
-
-    // Toggle connect-as form
-    connectAsButton.onclick = () => {
-        connectAsForm.classList.toggle('hidden');
-    };
+    
+    // Keep track of connected PCs
+    const connectedPCs = new Set();
 
     connectButton.onclick = async () => {
         try {
@@ -17,6 +17,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const computer = computerInput.value;
             if (!computer) {
                 throw new Error('Please enter a computer name or IP');
+            }
+
+            // Check if already connected
+            if (connectedPCs.has(computer)) {
+                // Just switch to that tab
+                switchToPC(computer);
+                return;
             }
 
             const username = document.getElementById('smb-username').value;
@@ -36,28 +43,111 @@ document.addEventListener('DOMContentLoaded', () => {
             await connectToSMB(connectionData);
             const shares = await listSMBShares(computer);
             
-            // Update status
-            statusDiv.innerHTML = `
-                <div class="flex items-center gap-2 text-green-600 dark:text-green-500">
-                    <i class="fas fa-check-circle"></i>
-                    <span>Connected to ${computer}</span>
-                </div>
-            `;
+            // Add new PC tab
+            addPCTab(computer);
+            
+            // Add new PC view
+            addPCView(computer, shares);
+            
+            // Switch to new PC
+            switchToPC(computer);
+            
+            // Show success alert instead of updating status div
+            showSuccessAlert(`Connected to ${computer}`);
 
-            // Build tree view
-            treeDiv.innerHTML = buildSMBTreeView(shares);
-            attachTreeViewListeners(computer);
+            // Track this PC
+            connectedPCs.add(computer);
 
         } catch (error) {
-            statusDiv.innerHTML = `
-                <div class="flex items-center gap-2 text-red-600 dark:text-red-500">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <span>${error.message}</span>
-                </div>
-            `;
+            console.error('Connection error:', error);
+            showErrorAlert(error.message);
         } finally {
             hideLoadingIndicator();
         }
+    };
+
+    function addPCTab(computer) {
+        const tab = document.createElement('div');
+        tab.dataset.computer = computer;
+        tab.id = `tab-${computer}`;
+        tab.className = 'flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer border-b-2 border-transparent';
+        tab.innerHTML = `
+            <i class="fas fa-computer"></i>
+            <span>${computer}</span>
+            <button class="close-tab ml-2 text-neutral-400 hover:text-red-500">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        
+        tab.onclick = () => switchToPC(computer);
+        
+        // Handle close button
+        const closeBtn = tab.querySelector('.close-tab');
+        closeBtn.onclick = (e) => {
+            e.stopPropagation();
+            disconnectPC(computer);
+        };
+        
+        pcTabs.appendChild(tab);
+    }
+
+    function addPCView(computer, shares) {
+        const view = document.createElement('div');
+        view.id = `view-${computer}`;
+        view.dataset.computer = computer;
+        view.className = 'hidden';
+        view.innerHTML = buildSMBTreeView(shares, computer);
+        pcViews.appendChild(view);
+        attachTreeViewListeners(computer);
+    }
+
+    function switchToPC(computer) {
+        console.log('Switching to PC:', computer);
+        // Update active computer
+        activeComputer = computer;
+
+        // Update tabs
+        document.querySelectorAll('#pc-tabs > div').forEach(tab => {
+            tab.classList.remove('text-neutral-900', 'dark:text-white', 'border-blue-500', 'dark:border-yellow-500');
+            if (tab.id === `tab-${computer}`) {
+                tab.classList.add('text-neutral-900', 'dark:text-white', 'border-blue-500', 'dark:border-yellow-500');
+            }
+        });
+
+        // Update views
+        document.querySelectorAll('#pc-views > div').forEach(view => {
+            view.classList.add('hidden');
+            if (view.id === `view-${computer}`) {
+                view.classList.remove('hidden');
+            }
+        });
+    }
+
+    function disconnectPC(computer) {
+        // Remove tab
+        const tab = document.getElementById(`tab-${computer}`);
+        if (tab) tab.remove();
+
+        // Remove view
+        const view = document.getElementById(`view-${computer}`);
+        if (view) view.remove();
+
+        // Remove from tracking
+        connectedPCs.delete(computer);
+
+        // If we're disconnecting the active computer, switch to another one
+        if (activeComputer === computer) {
+            activeComputer = null;
+            const remainingPC = connectedPCs.values().next().value;
+            if (remainingPC) {
+                switchToPC(remainingPC);
+            }
+        }
+    }
+
+    // Toggle connect-as form
+    connectAsButton.onclick = () => {
+        connectAsForm.classList.toggle('hidden');
     };
 
     // Add file viewer close button handler
@@ -146,6 +236,12 @@ async function listSMBShares(computer) {
 }
 
 async function listSMBPath(computer, share, path = '') {
+    // Verify we're operating on the active computer
+    if (computer !== activeComputer) {
+        console.warn(`Attempted to list path from ${computer} while ${activeComputer} is active`);
+        return [];
+    }
+
     try {
         const response = await fetch('/api/smb/ls', {
             method: 'POST',
@@ -168,12 +264,12 @@ async function listSMBPath(computer, share, path = '') {
 }
 
 
-function buildSMBTreeView(shares) {
+function buildSMBTreeView(shares, computer) {
     let html = '<ul>';
     shares.forEach(share => {
         const shareName = share.attributes.Name;
         html += `
-            <li class="smb-tree-item" data-share="${shareName}">
+            <li class="smb-tree-item" data-share="${shareName}" data-computer="${computer}">
                 <div class="grid grid-cols-12 gap-4 items-center hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer py-0.5 px-2">
                     <div class="col-span-6">
                         <div class="flex items-center gap-2 min-w-0">
@@ -204,15 +300,16 @@ function attachTreeViewListeners(computer) {
 
         shareDiv.onclick = async () => {
             const share = item.dataset.share;
+            const computer = item.dataset.computer;
             
             if (!isLoaded) {
                 try {
                     showInlineSpinner(spinnerContainer);
                     const files = await listSMBPath(computer, share);
-                    subList.innerHTML = buildFileList(files, share);
+                    subList.innerHTML = buildFileList(files, share, '', computer);
                     isLoaded = true;
                     subList.classList.remove('hidden');
-                    attachFileListeners(computer, share);
+                    attachFileListeners();
                 } catch (error) {
                     console.error('Error loading files:', error);
                 } finally {
@@ -244,9 +341,11 @@ function removeInlineSpinner(element) {
     }
 }
 
-function attachFileListeners(computer, share) {
+function attachFileListeners() {
     document.querySelectorAll('.file-item').forEach(item => {
         const isDirectory = item.getAttribute('data-is-dir') === '16' || item.getAttribute('data-is-dir') === '48';
+        const computer = item.dataset.computer;
+        const share = item.dataset.share;
         const spinnerContainer = item.querySelector('.spinner-container');
         
         if (isDirectory) {
@@ -267,9 +366,9 @@ function attachFileListeners(computer, share) {
                     const currentPath = item.dataset.path;
                     const cleanPath = currentPath.replace(/^\//, '').replace(/\//g, '\\');
                     const files = await listSMBPath(computer, share, cleanPath);
-                    subList.innerHTML = buildFileList(files, share, currentPath);
+                    subList.innerHTML = buildFileList(files, share, currentPath, computer);
                     subList.classList.remove('hidden');
-                    attachFileListeners(computer, share);
+                    attachFileListeners();
                 } catch (error) {
                     console.error('Error loading files:', error);
                 } finally {
@@ -277,7 +376,6 @@ function attachFileListeners(computer, share) {
                 }
             };
 
-            // Handle upload button
             if (uploadBtn) {
                 uploadBtn.onclick = async (e) => {
                     e.stopPropagation();
@@ -290,7 +388,6 @@ function attachFileListeners(computer, share) {
                 };
             }
         } else {
-            // Handle view button
             const viewBtn = item.querySelector('.view-btn');
             if (viewBtn) {
                 viewBtn.onclick = async (e) => {
@@ -304,7 +401,6 @@ function attachFileListeners(computer, share) {
                 };
             }
 
-            // Handle download button
             const downloadBtn = item.querySelector('.download-btn');
             if (downloadBtn) {
                 downloadBtn.onclick = async (e) => {
@@ -326,18 +422,60 @@ const downloads = new Map();
 
 // Update the downloadSMBFile function to include progress tracking
 async function downloadSMBFile(computer, share, path) {
-    try {
-        const filename = path.split('\\').pop();
-        
-        // Create download entry
-        const downloadId = Date.now().toString();
-        const downloadEntry = createDownloadEntry(downloadId, filename);
-        document.getElementById('downloads-list').prepend(downloadEntry);
-        
-        // Show downloads panel
-        const downloadsPanel = document.getElementById('downloads-panel');
-        downloadsPanel.classList.remove('hidden', 'translate-x-full');
+    // Verify we're operating on the active computer
+    if (computer !== activeComputer) {
+        console.warn(`Attempted to download from ${computer} while ${activeComputer} is active`);
+        return;
+    }
 
+    try {
+        showLoadingIndicator();
+        const filename = path.split('\\').pop();
+        const downloadId = Date.now();
+
+        // Create download entry with computer and share info
+        const downloadsList = document.getElementById('downloads-list');
+        const downloadEntry = document.createElement('div');
+        downloadEntry.id = `download-${downloadId}`;
+        downloadEntry.className = 'bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-3';
+        downloadEntry.innerHTML = `
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-file text-blue-500 dark:text-yellow-500"></i>
+                        <div class="truncate">
+                            <div class="text-sm font-medium text-neutral-900 dark:text-white truncate">
+                                ${filename}
+                            </div>
+                            <div class="text-xs text-neutral-500 dark:text-neutral-400">
+                                from \\\\${computer}\\${share}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-1 flex items-center gap-2">
+                        <div class="flex-1 bg-neutral-200 dark:bg-neutral-700 rounded-full h-1.5">
+                            <div class="download-progress bg-blue-500 dark:bg-yellow-500 h-1.5 rounded-full" style="width: 0%"></div>
+                        </div>
+                        <span class="text-xs text-neutral-500 dark:text-neutral-400 download-status">Starting...</span>
+                    </div>
+                </div>
+                <button onclick="clearDownload(${downloadId})" class="text-neutral-400 hover:text-neutral-500 dark:hover:text-neutral-300">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+
+        // Show downloads panel if hidden
+        const downloadsPanel = document.getElementById('downloads-panel');
+        downloadsPanel.classList.remove('hidden');
+        setTimeout(() => {
+            downloadsPanel.classList.remove('translate-x-full');
+        }, 0);
+
+        // Add the new download entry
+        downloadsList.insertBefore(downloadEntry, downloadsList.firstChild);
+
+        // Start download
         const response = await fetch('/api/smb/get', {
             method: 'POST',
             headers: {
@@ -351,43 +489,31 @@ async function downloadSMBFile(computer, share, path) {
             throw new Error(error.error || 'Failed to download file');
         }
 
-        // Get total size from headers
-        const totalSize = parseInt(response.headers.get('Content-Length') || '0');
-        const reader = response.body.getReader();
-        let receivedSize = 0;
-
-        // Create a new ReadableStream to process the download chunks
-        const stream = new ReadableStream({
-            async start(controller) {
-                while (true) {
-                    const {done, value} = await reader.read();
-                    if (done) break;
-                    
-                    receivedSize += value.length;
-                    updateDownloadProgress(downloadId, receivedSize, totalSize);
-                    controller.enqueue(value);
-                }
-                controller.close();
-            }
-        });
-
-        // Create download link
-        const blob = await new Response(stream).blob();
+        // Get the suggested filename from the response headers
+        const suggestedFilename = `${computer}_${share}_${filename}`;
+        const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = filename;
+        a.download = suggestedFilename;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
 
-        // Mark download as complete
-        completeDownload(downloadId, filename);
+        // Update download entry to show completion
+        const progressBar = downloadEntry.querySelector('.download-progress');
+        const statusText = downloadEntry.querySelector('.download-status');
+        progressBar.style.width = '100%';
+        statusText.textContent = 'Complete';
+
+        showSuccessAlert('File downloaded successfully');
 
     } catch (error) {
         showErrorAlert(error.message);
-        failDownload(downloadId, error.message);
+        console.error('Download error:', error);
+    } finally {
+        hideLoadingIndicator();
     }
 }
 
@@ -445,7 +571,7 @@ function failDownload(id, error) {
     entry.querySelector('.text-xs').classList.add('text-red-500');
 }
 
-function buildFileList(files, share, currentPath = '') {
+function buildFileList(files, share, currentPath, computer) {
     let html = '';
     files.forEach(file => {
         const isDirectory = file.is_directory;
@@ -456,13 +582,17 @@ function buildFileList(files, share, currentPath = '') {
         const unixTimestamp = Number((windowsTimestamp - BigInt(116444736000000000)) / BigInt(10000));
         const modifiedDate = new Date(unixTimestamp).toLocaleString();
         
-        // Calculate indentation level based on path depth, removing empty segments
+        // Calculate indentation level based on path depth
         const pathSegments = currentPath.split('/').filter(segment => segment.length > 0);
-        const indentLevel = pathSegments.length + 1; // Add 1 to indent share contents
-        const marginLeft = indentLevel * 1.5; // 1.5rem per level
+        const indentLevel = pathSegments.length + 1;
+        const marginLeft = indentLevel * 1.5;
         
         html += `
-            <li class="file-item" data-path="${currentPath}/${file.name}" data-is-dir="${file.is_directory ? '16' : '0'}">
+            <li class="file-item" 
+                data-path="${currentPath}/${file.name}" 
+                data-is-dir="${file.is_directory ? '16' : '0'}"
+                data-computer="${computer}"
+                data-share="${share}">
                 <div class="grid grid-cols-12 gap-4 items-center hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer py-0.5 px-2">
                     <div class="col-span-6">
                         <div class="flex items-center gap-2 min-w-0" style="margin-left: ${marginLeft}rem;">
@@ -512,6 +642,12 @@ function formatFileSize(bytes) {
 
 // Add file upload functionality
 async function uploadSMBFile(computer, share, currentPath) {
+    // Verify we're operating on the active computer
+    if (computer !== activeComputer) {
+        console.warn(`Attempted to upload to ${computer} while ${activeComputer} is active`);
+        return;
+    }
+
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.style.display = 'none';
@@ -541,8 +677,8 @@ async function uploadSMBFile(computer, share, currentPath) {
             // Refresh the current directory listing
             const files = await listSMBPath(computer, share, currentPath);
             const parentList = document.querySelector(`[data-path="${currentPath}"]`).parentElement;
-            parentList.innerHTML = buildFileList(files, share, currentPath);
-            attachFileListeners(computer, share);
+            parentList.innerHTML = buildFileList(files, share, currentPath, computer);
+            attachFileListeners();
             
             showSuccessAlert('File uploaded successfully');
 
@@ -560,6 +696,12 @@ async function uploadSMBFile(computer, share, currentPath) {
 
 // Add the file viewer function
 async function viewSMBFile(computer, share, path) {
+    // Verify we're operating on the active computer
+    if (computer !== activeComputer) {
+        console.warn(`Attempted to view file from ${computer} while ${activeComputer} is active`);
+        return;
+    }
+
     try {
         showLoadingIndicator();
         const response = await fetch('/api/smb/cat', {
