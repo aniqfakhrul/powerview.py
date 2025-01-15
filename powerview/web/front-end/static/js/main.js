@@ -2229,14 +2229,15 @@ async function initializeSMBTab(dnsHostname) {
     };
 }
 
+// Update buildSMBTreeView to use the folderIcon
 function buildSMBTreeView(shares) {
-    let html = '<ul class="space-y-1">'; // Reduced spacing between items
+    let html = '<ul class="space-y-1">';
     shares.forEach(share => {
         const shareName = share.attributes.Name;
         html += `
             <li class="smb-tree-item" data-share="${shareName}">
                 <div class="flex items-center gap-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer">
-                    <i class="fas fa-folder text-yellow-500"></i>
+                    <span class="text-yellow-500">${getFileIcon('', true).icon}</span>
                     <span>${shareName}</span>
                     <span class="text-xs text-neutral-500">${share.attributes.Remark}</span>
                 </div>
@@ -2353,20 +2354,19 @@ async function downloadSMBFile(computer, share, path) {
     }
 }
 
-// Update the buildFileList function to add download functionality for files
+// Update buildFileList to use getFileIcon
 function buildFileList(files, share, currentPath = '') {
     let html = '';
     files.forEach(file => {
         const isDirectory = file.is_directory;
-        const icon = isDirectory ? 'fa-folder' : 'fa-file';
-        const iconColor = isDirectory ? 'text-yellow-500' : 'text-neutral-400';
+        const fileIcon = getFileIcon(file.name, isDirectory);
         const computerInput = document.getElementById('smb-computer');
         
         html += `
             <li class="file-item" data-path="${currentPath}/${file.name}" data-is-dir="${file.is_directory ? '16' : '0'}">
                 <div class="flex items-center justify-between gap-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer">
                     <div class="flex items-center gap-1">
-                        <i class="fas ${icon} ${iconColor}"></i>
+                        <span class="${isDirectory ? 'text-yellow-500' : 'text-neutral-400'}">${fileIcon.icon}</span>
                         <span>${file.name}</span>
                         <span class="text-xs text-neutral-500">${formatFileSize(file.size)}</span>
                     </div>
@@ -2496,4 +2496,121 @@ async function fetchAndDisplayModalServices(computer) {
     } finally {
         hideLoadingIndicator();
     }
+}
+
+function getFileIcon(fileName, isDirectory) {
+    if (isDirectory) {
+        return {
+            icon: icons.folderIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    const fileExt = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+    
+    // Check for executable file extensions
+    const executableExtensions = ['.exe', '.msi', '.bat', '.cmd', '.com', '.scr'];
+    if (executableExtensions.includes(fileExt)) {
+        return {
+            icon: icons.executableIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for Excel file extensions
+    const excelExtensions = ['.xlsx', '.xls', '.xlsm', '.xlsb', '.xltx', '.xltm', '.xlt', '.csv'];
+    if (excelExtensions.includes(fileExt)) {
+        return {
+            icon: icons.xlsxIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for registry file extensions
+    const registryExtensions = ['.reg', '.regx'];
+    if (registryExtensions.includes(fileExt)) {
+        return {
+            icon: icons.registryIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for Word file extensions
+    const wordExtensions = ['.docx', '.doc', '.docm', '.dotx', '.dotm', '.dot'];
+    if (wordExtensions.includes(fileExt)) {
+        return {
+            icon: icons.docxIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for Text file extensions
+    const textExtensions = ['.txt', '.log', '.ini', '.cfg', '.conf', '.text', '.md'];
+    if (textExtensions.includes(fileExt)) {
+        return {
+            icon: icons.txtIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for DLL file extensions
+    const dllExtensions = ['.dll', '.sys', '.drv', '.ocx'];
+    if (dllExtensions.includes(fileExt)) {
+        return {
+            icon: icons.dllIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for Outlook file extensions
+    const outlookExtensions = ['.pst', '.ost', '.msg', '.eml', '.nst', '.oft'];
+    if (outlookExtensions.includes(fileExt)) {
+        return {
+            icon: icons.outlookIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for PowerPoint file extensions
+    const powerpointExtensions = ['.ppt', '.pptx', '.pptm', '.potx', '.potm', '.ppsx', '.ppsm'];
+    if (powerpointExtensions.includes(fileExt)) {
+        return {
+            icon: icons.powerpointIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for Compressed file extensions
+    const compressedExtensions = ['.zip', '.rar', '.7z', '.gz', '.tar', '.bz2', '.xz', '.cab'];
+    if (compressedExtensions.includes(fileExt)) {
+        return {
+            icon: icons.zipIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for PDF file extension
+    if (fileExt === '.pdf') {
+        return {
+            icon: icons.pdfIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    return {
+        icon: 'fa-file',
+        iconClass: 'text-neutral-400',
+        isCustomSvg: false
+    };
 }
