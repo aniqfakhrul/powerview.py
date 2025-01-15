@@ -177,9 +177,9 @@ function buildSMBTreeView(shares) {
                 <div class="grid grid-cols-12 gap-4 items-center hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer py-0.5 px-2">
                     <div class="col-span-6">
                         <div class="flex items-center gap-2 min-w-0">
-                            <i class="fas fa-folder text-yellow-500 flex-shrink-0"></i>
+                            <span class="text-yellow-500 flex-shrink-0">${icons.smbshareIcon}</span>
                             <span class="text-neutral-900 dark:text-white truncate">${shareName}</span>
-                             <span class="text-xs text-neutral-500 dark:text-neutral-400">${share.attributes.Remark}</span>
+                            <span class="text-xs text-neutral-500 dark:text-neutral-400">${share.attributes.Remark}</span>
                             <span class="spinner-container flex-shrink-0"></span>
                         </div>
                     </div>
@@ -456,11 +456,31 @@ function getFileIcon(fileName, isDirectory) {
 
     const fileExt = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
     
+    // Check for executable file extensions
+    const executableExtensions = ['.exe', '.msi', '.bat', '.cmd', '.com', '.scr'];
+    if (executableExtensions.includes(fileExt)) {
+        return {
+            icon: icons.executableIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
     // Check for Excel file extensions
     const excelExtensions = ['.xlsx', '.xls', '.xlsm', '.xlsb', '.xltx', '.xltm', '.xlt', '.csv'];
     if (excelExtensions.includes(fileExt)) {
         return {
             icon: icons.xlsxIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for registry file extensions
+    const registryExtensions = ['.reg', '.regx'];
+    if (registryExtensions.includes(fileExt)) {
+        return {
+            icon: icons.registryIcon,
             iconClass: '',
             isCustomSvg: true
         };
