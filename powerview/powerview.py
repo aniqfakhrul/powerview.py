@@ -1717,12 +1717,24 @@ class PowerView:
 		if check_web_enrollment:
 			# check for web enrollment
 			for i in range(len(entries)):
-				target_name = entries[i]['dnsHostName'].value
-				web_enrollment = ca_fetch.check_web_enrollment(target_name,self.nameserver, use_system_ns=self.use_system_nameserver)
+				# check if entries[i]['attributes']['dNSHostName'] is a list
+				if isinstance(entries[i]['attributes']['dNSHostName'], list):
+					target_name = entries[i]['attributes']['dNSHostName'][0]
+				else:
+					target_name = entries[i]['attributes']['dNSHostName']
 
-				if not web_enrollment:
-					logging.debug("Trying to check web enrollment with IP")
-					web_enrollment = ca_fetch.check_web_enrollment(target_name,self.nameserver, use_ip=True, use_system_ns=self.use_system_nameserver)
+				if not target_name:
+					logging.warning(f"[Get-DomainCA] No DNS hostname found for {entries[i].get('dn')}")
+					continue
+
+				# resolve target name to IP
+				target_ip = host2ip(target_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+
+				web_enrollment = ca_fetch.check_web_enrollment(target_name)
+
+				if not web_enrollment and (target_ip.casefold() != target_name.casefold()):
+					logging.debug("[Get-DomainCA] Trying to check web enrollment with IP")
+					web_enrollment = ca_fetch.check_web_enrollment(target_ip)
 
 				entries[i] = modify_entry(
 					entries[i],
