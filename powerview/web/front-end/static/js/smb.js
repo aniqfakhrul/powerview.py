@@ -189,6 +189,47 @@ document.addEventListener('DOMContentLoaded', () => {
             downloadsPanel.classList.add('hidden');
         }, 300);
     });
+
+    // Add click handlers for panels
+    document.addEventListener('click', (e) => {
+        const fileViewer = document.getElementById('file-viewer-panel');
+        const downloadsPanel = document.getElementById('downloads-panel');
+
+        // Handle file viewer panel
+        if (fileViewer && !fileViewer.classList.contains('hidden')) {
+            // Check if click is outside the panel
+            if (!fileViewer.contains(e.target) && !e.target.closest('.view-btn')) {
+                fileViewer.classList.add('translate-x-full');
+                setTimeout(() => {
+                    fileViewer.classList.add('hidden');
+                    // Clean up any object URLs if viewing an image
+                    const img = fileViewer.querySelector('img');
+                    if (img && img.src.startsWith('blob:')) {
+                        URL.revokeObjectURL(img.src);
+                    }
+                }, 300);
+            }
+        }
+
+        // Handle downloads panel
+        if (downloadsPanel && !downloadsPanel.classList.contains('hidden')) {
+            // Check if click is outside the panel and not on the toggle button
+            if (!downloadsPanel.contains(e.target) && !e.target.closest('#toggle-downloads')) {
+                downloadsPanel.classList.add('translate-x-full');
+                setTimeout(() => {
+                    downloadsPanel.classList.add('hidden');
+                }, 300);
+            }
+        }
+    });
+
+    // Prevent panel closing when clicking inside the panels
+    const panels = document.querySelectorAll('#file-viewer-panel, #downloads-panel');
+    panels.forEach(panel => {
+        panel.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    });
 });
 
 // Reuse the existing SMB functions from main.js
@@ -291,7 +332,7 @@ function buildSMBTreeView(shares, computer) {
     return html;
 }
 
-function attachTreeViewListeners(computer) {
+function attachTreeViewListeners() {
     document.querySelectorAll('.smb-tree-item').forEach(item => {
         const shareDiv = item.querySelector('div');
         const subList = item.querySelector('ul');
