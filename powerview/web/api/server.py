@@ -70,6 +70,9 @@ class APIServer:
 		self.app.add_url_rule('/api/smb/get', 'smb_get', self.handle_smb_get, methods=['POST'])
 		self.app.add_url_rule('/api/smb/put', 'smb_put', self.handle_smb_put, methods=['POST'])
 		self.app.add_url_rule('/api/smb/cat', 'smb_cat', self.handle_smb_cat, methods=['POST'])
+		self.app.add_url_rule('/api/smb/rm', 'smb_rm', self.handle_smb_rm, methods=['POST'])
+		self.app.add_url_rule('/api/smb/mkdir', 'smb_mkdir', self.handle_smb_mkdir, methods=['POST'])
+		self.app.add_url_rule('/api/smb/rmdir', 'smb_rmdir', self.handle_smb_rmdir, methods=['POST'])
 
 		self.nav_items = [
 			{"name": "Explorer", "icon": "fas fa-folder-tree", "link": "/"},
@@ -687,4 +690,85 @@ class APIServer:
 
 		except Exception as e:
 			logging.error(f"Error reading file content: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_rm(self):
+		try:
+			data = request.json
+			computer = data.get('computer').lower()
+			share = data.get('share')
+			path = data.get('path')
+
+			if not all([computer, share, path]):
+				return jsonify({'error': 'Missing required parameters'}), 400
+
+			if not hasattr(self, 'smb_sessions') or computer not in self.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			client = self.smb_sessions[computer]
+			smb_client = SMBClient(client)
+			
+			try:
+				# Delete file over SMB
+				smb_client.rm(share, path)
+				return jsonify({'message': 'File deleted successfully'})
+			except Exception as e:
+				return jsonify({'error': f'Failed to delete file: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB RM] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_mkdir(self):
+		try:
+			data = request.json
+			computer = data.get('computer').lower()
+			share = data.get('share')
+			path = data.get('path')
+
+			if not all([computer, share, path]):
+				return jsonify({'error': 'Missing required parameters'}), 400
+
+			if not hasattr(self, 'smb_sessions') or computer not in self.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			client = self.smb_sessions[computer]
+			smb_client = SMBClient(client)
+			
+			try:
+				# Create directory over SMB
+				smb_client.mkdir(share, path)
+				return jsonify({'message': 'Directory created successfully'})
+			except Exception as e:
+				return jsonify({'error': f'Failed to create directory: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB MKDIR] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_rmdir(self):
+		try:
+			data = request.json
+			computer = data.get('computer').lower()
+			share = data.get('share')
+			path = data.get('path')
+
+			if not all([computer, share, path]):
+				return jsonify({'error': 'Missing required parameters'}), 400
+
+			if not hasattr(self, 'smb_sessions') or computer not in self.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			client = self.smb_sessions[computer]
+			smb_client = SMBClient(client)
+			
+			try:
+				# Delete directory over SMB
+				smb_client.rmdir(share, path)
+				return jsonify({'message': 'Directory deleted successfully'})
+			except Exception as e:
+				return jsonify({'error': f'Failed to delete directory: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB RMDIR] Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500

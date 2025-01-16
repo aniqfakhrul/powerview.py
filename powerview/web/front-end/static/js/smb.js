@@ -346,12 +346,12 @@ function attachFileListeners() {
         const isDirectory = item.getAttribute('data-is-dir') === '16' || item.getAttribute('data-is-dir') === '48';
         const computer = item.dataset.computer;
         const share = item.dataset.share;
+        const path = item.dataset.path;
         const spinnerContainer = item.querySelector('.spinner-container');
         
         if (isDirectory) {
             const fileDiv = item.querySelector('div');
             const subList = item.querySelector('ul');
-            const uploadBtn = item.querySelector('.upload-btn');
             
             if (!fileDiv || !subList) return;
 
@@ -376,12 +376,26 @@ function attachFileListeners() {
                 }
             };
 
+            const uploadBtn = item.querySelector('.upload-btn');
             if (uploadBtn) {
                 uploadBtn.onclick = async (e) => {
                     e.stopPropagation();
                     showInlineSpinner(spinnerContainer);
                     try {
                         await uploadSMBFile(computer, share, item.dataset.path);
+                    } finally {
+                        removeInlineSpinner(spinnerContainer);
+                    }
+                };
+            }
+
+            const newFolderBtn = item.querySelector('.new-folder-btn');
+            if (newFolderBtn) {
+                newFolderBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    showInlineSpinner(spinnerContainer);
+                    try {
+                        await createSMBDirectory(computer, share, path);
                     } finally {
                         removeInlineSpinner(spinnerContainer);
                     }
@@ -413,6 +427,20 @@ function attachFileListeners() {
                     }
                 };
             }
+        }
+        
+        // Add delete button listener
+        const deleteBtn = item.querySelector('.delete-btn');
+        if (deleteBtn) {
+            deleteBtn.onclick = async (e) => {
+                e.stopPropagation();
+                showInlineSpinner(spinnerContainer);
+                try {
+                    await deleteSMBFileOrDirectory(computer, share, path, isDirectory);
+                } finally {
+                    removeInlineSpinner(spinnerContainer);
+                }
+            };
         }
     });
 }
@@ -615,6 +643,9 @@ function buildFileList(files, share, currentPath, computer) {
                             <button class="upload-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="Upload">
                                 <i class="fas fa-upload"></i>
                             </button>
+                            <button class="new-folder-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="New Folder">
+                                <i class="fas fa-folder-plus"></i>
+                            </button>
                         ` :  `
                             <button class="view-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="View">
                                 <i class="fas fa-eye"></i>
@@ -623,6 +654,9 @@ function buildFileList(files, share, currentPath, computer) {
                                 <i class="fas fa-download"></i>
                             </button>
                         `}
+                        <button class="delete-btn text-neutral-500 hover:text-red-600 dark:hover:text-red-400" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </div>
                 </div>
                 ${isDirectory ? `<ul class="hidden"></ul>` : ''}
@@ -766,5 +800,97 @@ function clearDownload(id) {
                 }, 300);
             }
         }, 300);
+    }
+}
+
+async function deleteSMBFileOrDirectory(computer, share, path, isDirectory) {
+    // Verify we're operating on the active computer
+    if (computer !== activeComputer) {
+        console.warn(`Attempted to delete file from ${computer} while ${activeComputer} is active`);
+        return;
+    }
+
+    // Ask for confirmation
+    if (!confirm('Are you sure you want to delete this file?')) {
+        return;
+    }
+
+    try {
+        showLoadingIndicator();
+        const response = await fetch(isDirectory ? '/api/smb/rmdir' : '/api/smb/rm', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ computer, share, path })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to delete file');
+        }
+
+        // Remove the file from the list
+        const fileItem = document.querySelector(`[data-path="${path}"]`);
+        if (fileItem) {
+            fileItem.remove();
+        }
+
+        showSuccessAlert('File deleted successfully');
+
+    } catch (error) {
+        showErrorAlert(error.message);
+        console.error('Delete error:', error);
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+async function createSMBDirectory(computer, share, path) {
+    // Verify we're operating on the active computer
+    if (computer !== activeComputer) {
+        console.warn(`Attempted to create directory on ${computer} while ${activeComputer} is active`);
+        return;
+    }
+
+    // Prompt for directory name
+    const dirName = prompt('Enter new folder name:');
+    if (!dirName) return;
+
+    try {
+        showLoadingIndicator();
+        const newPath = path ? `${path}\\${dirName}` : dirName;
+        
+        const response = await fetch('/api/smb/mkdir', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ computer, share, path: newPath })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to create directory');
+        }
+
+        // Refresh the current directory listing
+        const currentPath = path || '';
+        const files = await listSMBPath(computer, share, currentPath);
+        const parentList = document.querySelector(`[data-path="${currentPath}"]`)?.parentElement || 
+                          document.querySelector(`[data-share="${share}"]`)?.querySelector('ul');
+        
+        if (parentList) {
+            parentList.innerHTML = buildFileList(files, share, currentPath, computer);
+            attachFileListeners();
+        }
+        
+        showSuccessAlert('Directory created successfully');
+
+    } catch (error) {
+        showErrorAlert(error.message);
+        console.error('Create directory error:', error);
+    } finally {
+        hideLoadingIndicator();
     }
 }

@@ -68,3 +68,26 @@ class SMBClient:
             raise
         finally:
             fh.close()
+
+    def rm(self, share, path):
+        if self.client is None:
+            logging.error("[SMBClient] Not logged in")
+            return
+        
+        self.client.deleteFile(share, path)
+
+    def rmdir(self, share, path):
+        if self.client is None:
+            logging.error("[SMBClient] Not logged in")
+            return
+
+        path = path.replace('/', '\\')
+        self.client.deleteDirectory(share, path)
+
+    def mkdir(self, share, path):
+        if self.client is None:
+            logging.error("[SMBClient] Not logged in")
+            return
+        
+        path = path.replace('/', '\\')
+        self.client.createDirectory(share, path)
