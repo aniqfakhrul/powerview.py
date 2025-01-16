@@ -136,8 +136,20 @@
 
             <!-- Results Header -->
             <div class="flex items-center justify-between p-4 border-b border-neutral-300 dark:border-neutral-700">
-                <div class="text-sm text-neutral-600 dark:text-neutral-400" id="users-counter">
-                    Total Users Found: 0
+                <div class="flex items-center gap-4">
+                    <div class="text-sm text-neutral-600 dark:text-neutral-400" id="users-counter">
+                        Total Users Found: 0
+                    </div>
+                    <!-- Add Export Button -->
+                    <button id="export-table-button" 
+                        class="hidden px-3 py-1.5 text-sm font-medium text-neutral-600 hover:text-neutral-900 
+                               dark:text-neutral-400 dark:hover:text-neutral-100 
+                               border border-neutral-300 dark:border-neutral-700 
+                               hover:bg-neutral-100 dark:hover:bg-neutral-800 
+                               rounded-md transition-colors flex items-center gap-2">
+                        <i class="fas fa-download"></i>
+                        Export
+                    </button>
                 </div>
                 <!-- Filter Results -->
                 <div class="flex-grow max-w-md ml-4">
@@ -151,7 +163,7 @@
             <div class="flex-1 relative overflow-hidden">
                 <!-- Main scrollable content -->
                 <div class="absolute inset-0 overflow-y-auto pb-6 scrollbar">
-                    <div class="overflow-x-auto">
+                    <div class="overflow-x-auto scrollbar">
                         <table class="min-w-full text-left text-sm text-neutral-600 dark:text-neutral-300" id="users-result-table">
                             <thead class="border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
                             </thead>

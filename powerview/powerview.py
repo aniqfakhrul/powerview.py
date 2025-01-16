@@ -8,6 +8,7 @@ from powerview.modules.gmsa import GMSA
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
 from powerview.modules.sccm import SCCM
 from powerview.modules.addcomputer import ADDCOMPUTER
+from powerview.modules.smbclient import SMBClient
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.modules.dacledit import DACLedit
 from powerview.modules.products import EDR
@@ -67,6 +68,7 @@ class PowerView:
 
 		self.lmhash = args.lmhash
 		self.nthash = args.nthash
+		self.auth_aes_key = args.auth_aes_key
 		self.use_ldaps = args.use_ldaps
 		self.nameserver = args.nameserver
 		self.use_system_nameserver = args.use_system_ns
@@ -492,7 +494,7 @@ class PowerView:
 		
 		return succeeded
 
-	def get_domainobjectowner(self, identity=None, searchbase=None, resolve_sid=True, args=None, search_scope=ldap3.SUBTREE):
+	def get_domainobjectowner(self, identity=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False):
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 		
@@ -500,13 +502,15 @@ class PowerView:
 			identity = '*'
 			logging.info("[Get-DomainObjectOwner] Recursing all domain objects. This might take a while")
 
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+
 		objects = self.get_domainobject(identity=identity, properties=[
 			'cn',
 			'nTSecurityDescriptor',
 			'sAMAccountname',
-			'ObjectSID',
+			'objectSid',
 			'distinguishedName',
-		], searchbase=searchbase, sd_flag=0x01, search_scope=search_scope)
+		], searchbase=searchbase, sd_flag=0x01, search_scope=search_scope, no_cache=no_cache)
 
 		if len(objects) == 0:
 			logging.error("[Get-DomainObjectOwner] Identity not found in domain")
@@ -1713,12 +1717,24 @@ class PowerView:
 		if check_web_enrollment:
 			# check for web enrollment
 			for i in range(len(entries)):
-				target_name = entries[i]['dnsHostName'].value
-				web_enrollment = ca_fetch.check_web_enrollment(target_name,self.nameserver, use_system_ns=self.use_system_nameserver)
+				# check if entries[i]['attributes']['dNSHostName'] is a list
+				if isinstance(entries[i]['attributes']['dNSHostName'], list):
+					target_name = entries[i]['attributes']['dNSHostName'][0]
+				else:
+					target_name = entries[i]['attributes']['dNSHostName']
 
-				if not web_enrollment:
-					logging.debug("Trying to check web enrollment with IP")
-					web_enrollment = ca_fetch.check_web_enrollment(target_name,self.nameserver, use_ip=True, use_system_ns=self.use_system_nameserver)
+				if not target_name:
+					logging.warning(f"[Get-DomainCA] No DNS hostname found for {entries[i].get('dn')}")
+					continue
+
+				# resolve target name to IP
+				target_ip = host2ip(target_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+
+				web_enrollment = ca_fetch.check_web_enrollment(target_name)
+
+				if not web_enrollment and (target_ip.casefold() != target_name.casefold()):
+					logging.debug("[Get-DomainCA] Trying to check web enrollment with IP")
+					web_enrollment = ca_fetch.check_web_enrollment(target_ip)
 
 				entries[i] = modify_entry(
 					entries[i],
@@ -2603,10 +2619,10 @@ displayName=New Group Policy Object
 
 		if len(delegfrom_identity) > 1:
 			logging.error("[Set-DomainRBCD] More then one identity found")
-			return
+			return False
 		elif len(delegfrom_identity) == 0:
 			logging.error(f"[Set-DomainRBCD] {delegatefrom} identity not found in domain")
-			return
+			return False
 		logging.debug(f"[Set-DomainRBCD] {delegatefrom} identity found")
 
 		# now time to modify
@@ -2614,7 +2630,7 @@ displayName=New Group Policy Object
 		delegfrom_sid = delegfrom_identity.get("attributes").get("objectSid")
 
 		if delegfrom_sid is None:
-			return
+			return False
 
 		rbcd = RBCD(targetidentity, self.ldap_session)
 		succeed = rbcd.write_to(delegfrom_sid)
@@ -2654,20 +2670,20 @@ displayName=New Group Policy Object
 		)
 		if len(target_identity) > 1:
 			logging.error("[Set-DomainObjectOwner] More than one target identity found")
-			return
+			return False
 		elif len(target_identity) == 0:
 			logging.error(f"[Set-DomainObjectOwner] {targetidentity} identity not found in domain")
-			return
+			return False
 		logging.debug(f"[Set-DomainObjectOwner] {targetidentity} identity found")
 
 		# verify that the principalidentity exists
 		principal_identity = self.get_domainobject(identity=principalidentity)
 		if len(principal_identity) > 1:
 			logging.error("[Set-DomainObjectOwner] More than one principal identity found")
-			return
+			return False
 		elif len(principal_identity) == 0:
 			logging.error(f"[Set-DomainObjectOwner] {principalidentity} identity not found in domain")
-			return
+			return False
 		logging.debug(f"[Set-DomainObjectOwner] {principalidentity} identity found")
 
 		# create changeowner object
@@ -2676,7 +2692,7 @@ displayName=New Group Policy Object
 
 		if target_identity_owner == principal_identity[0]["attributes"]["objectSid"]:
 			logging.warning("[Set-DomainObjectOwner] %s is already the owner of the %s" % (principal_identity[0]["attributes"]["sAMAccountName"], target_identity[0]["attributes"]["distinguishedName"]))
-			return
+			return False
 
 		logging.info("[Set-DomainObjectOwner] Changing current owner %s to %s" % (target_identity_owner, principal_identity[0]["attributes"]["objectSid"]))
 
@@ -3913,9 +3929,11 @@ displayName=New Group Policy Object
 		client = self.conn.init_smb_session(host)
 
 		if not client:
+			logging.error("[Get-NetShare] Failed to connect to %s" % (host))
 			return
-
-		shares = client.listShares()
+		
+		smbclient = SMBClient(client)
+		shares = smbclient.shares()
 		entries = []
 		for i in range(len(shares)):
 			entry = {
@@ -3934,13 +3952,18 @@ displayName=New Group Policy Object
 
 		return entries
 
-	def get_netservice(self, computer_name, port=445, args=None):
+	def get_netservice(self, computer_name, port=445, name=None, isrunning=None, isstopped=None, args=None):
 		ip_address = ""
 		computer_dns = ""
 		KNOWN_PROTOCOLS = {
 				139: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 				445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 				}
+
+		# Use function parameters if provided, otherwise check args
+		name_filter = name if name is not None else (args.name if args else None)
+		is_running = isrunning if isrunning is not None else (args.isrunning if args else None)
+		is_stopped = isstopped if isstopped is not None else (args.isstopped if args else None)
 
 		if not is_ipaddress(computer_name):
 			ip_address = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
@@ -3980,23 +4003,23 @@ displayName=New Group Policy Object
 		try:
 			for i in range(len(resp)):
 				state = resp[i]['ServiceStatus']['dwCurrentState']
-				name = resp[i]['lpServiceName'][:-1]
+				service_name = resp[i]['lpServiceName'][:-1]
 				displayname = resp[i]['lpDisplayName'][:-1]
 
-				if args.name and args.name.lower() not in name.lower():
+				if name_filter and name_filter.lower() not in service_name.lower():
 					continue
 
-				if args.isrunning and not state == scmr.SERVICE_RUNNING:
+				if is_running and not state == scmr.SERVICE_RUNNING:
 					continue
-				elif args.isstopped and not state == scmr.SERVICE_STOPPED:
+				elif is_stopped and not state == scmr.SERVICE_STOPPED:
 					continue
 
-				if edr.service_exist(name):
-					name = f"{bcolors.WARNING}{name}{bcolors.ENDC}"
+				if edr.service_exist(service_name):
+					service_name = f"{bcolors.WARNING}{service_name}{bcolors.ENDC}"
 					displayname = f"{bcolors.WARNING}{displayname}{bcolors.ENDC}"
 
 				entry = {
-					"Name": name,
+					"Name": service_name,
 					"DisplayName": displayname,
 					"Status": "UNKNOWN",
 				}

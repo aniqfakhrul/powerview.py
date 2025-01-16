@@ -287,7 +287,7 @@ class CONNECTION:
 		self.ldap_session.rebind()
 
 	def close(self):
-		self.ldap_session.unbind()
+		return self.ldap_session.unbind()
 
 	def init_ldap_session(self, ldap_address=None, use_ldap=False, use_gc_ldap=False):
 		
@@ -906,8 +906,15 @@ class CONNECTION:
 
 		return True
 
-	def init_smb_session(self, host, timeout=10, useCache=True):
+	def init_smb_session(self, host, username=None, password=None, nthash=None, lmhash=None, domain=None, timeout=10, useCache=True):
 		try:
+			# Use provided credentials or fall back to self values
+			username = username or self.username
+			password = password or self.password 
+			nthash = nthash or self.nthash
+			lmhash = lmhash or self.lmhash
+			domain = domain or self.domain
+
 			logging.debug("Default timeout is set to 15. Expect a delay")
 			conn = SMBConnection(host, host, sess_port=445, timeout=timeout)
 			if self.use_kerberos:
@@ -929,17 +936,17 @@ class CONNECTION:
 						return
 					else:
 						# retrieve domain information from CCache file if needed
-						if self.domain == '':
-							self.domain = ccache.principal.realm['data'].decode('utf-8')
+						if domain == '':
+							domain = ccache.principal.realm['data'].decode('utf-8')
 							logging.debug('Domain retrieved from CCache: %s' % domain)
 
 						logging.debug('Using Kerberos Cache: %s' % os.getenv('KRB5CCNAME'))
-						principal = 'cifs/%s@%s' % (self.targetIp.upper(), self.domain.upper())
+						principal = 'cifs/%s@%s' % (self.targetIp.upper(), domain.upper())
 
 						creds = ccache.getCredential(principal)
 						if creds is None:
 							# Let's try for the TGT and go from there
-							principal = 'krbtgt/%s@%s' % (self.domain.upper(), self.domain.upper())
+							principal = 'krbtgt/%s@%s' % (domain.upper(), domain.upper())
 							creds = ccache.getCredential(principal)
 							if creds is not None:
 								self.TGT = creds.toTGT()
@@ -951,18 +958,18 @@ class CONNECTION:
 							logging.debug('Using TGS from cache')
 
 						# retrieve user information from CCache file if needed
-						if self.username == '' and creds is not None:
-							self.username = creds['client'].prettyPrint().split(b'@')[0].decode('utf-8')
-							logging.debug('Username retrieved from CCache: %s' % self.username)
-						elif self.username == '' and len(ccache.principal.components) > 0:
-							self.user = ccache.principal.components[0]['data'].decode('utf-8')
-							logging.debug('Username retrieved from CCache: %s' % self.username)
+						if username == '' and creds is not None:
+							username = creds['client'].prettyPrint().split(b'@')[0].decode('utf-8')
+							logging.debug('Username retrieved from CCache: %s' % username)
+						elif username == '' and len(ccache.principal.components) > 0:
+							username = ccache.principal.components[0]['data'].decode('utf-8')
+							logging.debug('Username retrieved from CCache: %s' % username)
 				
-				conn.kerberosLogin(self.username,self.password,self.domain, self.lmhash, self.nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
-				#conn.kerberosLogin(self.username,self.password,self.domain, self.lmhash, self.nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
+				conn.kerberosLogin(username, password, domain, lmhash, nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
+				#conn.kerberosLogin(username, password, domain, lmhash, nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
 				# havent support kerberos authentication yet
 			else:
-				conn.login(self.username,self.password,self.domain, self.lmhash, self.nthash)
+				conn.login(username, password, domain, lmhash, nthash)
 			return conn
 		except OSError as e:
 			logging.debug(str(e))
@@ -1035,7 +1042,6 @@ class CONNECTION:
 		try:
 			dce.connect()
 			if interface_uuid:
-				logging.debug("[connectRPCTransport] Binding to UUID %s" % interface_uuid)
 				dce.bind(interface_uuid)
 			return dce
 		except SessionError as e:

@@ -358,6 +358,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 const actionTd = document.createElement('td');
                 actionTd.className = 'p-1 whitespace-nowrap';
 
+                // Add Change Password button
+                const changePasswordButton = document.createElement('button');
+                changePasswordButton.className = 'text-blue-600 hover:text-blue-700 dark:text-blue-500 dark:hover:text-blue-400 p-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors mr-2';
+                changePasswordButton.innerHTML = '<i class="fas fa-key"></i>';
+                changePasswordButton.title = 'Change Password';
+                changePasswordButton.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    showChangePasswordModal(user.dn);
+                });
+                actionTd.appendChild(changePasswordButton);
+
+                // Add Change Owner button
+                const changeOwnerButton = document.createElement('button');
+                changeOwnerButton.className = 'text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400 p-1 rounded-md hover:bg-green-50 dark:hover:bg-green-950/50 transition-colors mr-2';
+                changeOwnerButton.innerHTML = '<i class="fas fa-user-shield"></i>';
+                changeOwnerButton.title = 'Change Owner';
+                changeOwnerButton.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    showChangeOwnerModal(user.dn);
+                });
+                actionTd.appendChild(changeOwnerButton);
+
+                // Existing Delete button
                 const deleteButton = document.createElement('button');
                 deleteButton.className = 'text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors';
                 deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
@@ -371,12 +394,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 tr.appendChild(actionTd);
                 tbody.appendChild(tr);
             });
+
+            exportButton.classList.remove('hidden'); // Show export button
         } else {
             tbody.innerHTML = `
                 <tr id="empty-placeholder">
                     <td colspan="100%" class="text-center py-4">No users found</td>
                 </tr>
             `;
+            exportButton.classList.add('hidden'); // Hide export button
         }
     }
 
@@ -653,6 +679,197 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Error fetching domain OUs:', error);
             return [];
+        }
+    }
+
+    // Add export table functionality
+    const exportButton = document.getElementById('export-table-button');
+    
+    function exportTableToCSV(filename = 'users_export.csv') {
+        const table = document.getElementById('users-result-table');
+        const rows = table.querySelectorAll('tr');
+        const csvContent = [];
+
+        // Get headers (excluding the Action column)
+        const headers = Array.from(rows[0].querySelectorAll('th'))
+            .map(header => `"${header.textContent.replace(/"/g, '""')}"`)
+            .filter(header => header !== '"Action"'); // Remove Action column header
+        csvContent.push(headers.join(','));
+
+        // Get data rows
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            // Skip hidden rows (filtered out or placeholders)
+            if (row.classList.contains('hidden') || 
+                row.id === 'initial-state' || 
+                row.id === 'loading-placeholder' || 
+                row.id === 'empty-placeholder') {
+                continue;
+            }
+
+            // Get all cells except the last one (Action column)
+            const cells = Array.from(row.querySelectorAll('td'));
+            cells.pop(); // Remove the last cell (Action column)
+            
+            const rowData = cells.map(cell => {
+                // Get text content from the span element (excluding the copy button)
+                const textSpan = cell.querySelector('span');
+                const text = textSpan ? textSpan.textContent : cell.textContent;
+                // Properly escape and quote the cell content
+                return `"${text.trim().replace(/"/g, '""')}"`;
+            });
+            
+            csvContent.push(rowData.join(','));
+        }
+
+        // Create and trigger download
+        const csvString = csvContent.join('\n');
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        
+        if (navigator.msSaveBlob) { // IE 10+
+            navigator.msSaveBlob(blob, filename);
+        } else {
+            const link = document.createElement('a');
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }
+        }
+    }
+
+    // Add click handler for export button
+    if (exportButton) {
+        exportButton.addEventListener('click', () => {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `users_export_${timestamp}.csv`;
+            exportTableToCSV(filename);
+        });
+    }
+
+    // Add the change password function
+    async function changePassword(distinguishedName, newPassword, oldPassword = null) {
+        try {
+            const response = await fetch('/api/set/domainuserpassword', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    identity: distinguishedName,
+                    accountpassword: newPassword,
+                    oldpassword: oldPassword
+                })
+            });
+
+            await handleHttpError(response);
+
+            const result = await response.json();
+            
+            if (result === false) {
+                showErrorAlert("Failed to change password. Check logs");
+                return false;
+            }
+
+            showSuccessAlert("Password changed successfully");
+            return true;
+        } catch (error) {
+            console.error('Error changing password:', error);
+            showErrorAlert("Failed to change password. Check logs");
+            return false;
+        }
+    }
+
+    // Add modal show function
+    function showChangePasswordModal(distinguishedName) {
+        // Show modal and overlay
+        const modal = document.getElementById('change-password-modal');
+        const overlay = document.getElementById('modal-overlay');
+        modal.classList.remove('hidden');
+        overlay.classList.remove('hidden');
+
+        // Prefill the identity field
+        const identityInput = document.getElementById('identity-input');
+        identityInput.value = distinguishedName;
+
+        // Handle form submission
+        const form = document.getElementById('change-password-form');
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const newPassword = document.getElementById('new-password-input').value;
+
+            const success = await changePassword(distinguishedName, newPassword);
+            if (success) {
+                hideModal('change-password-modal');
+            }
+        };
+    }
+
+    // Utility function to hide modals
+    function hideModal(modalId) {
+        const modal = document.getElementById(modalId);
+        const overlay = document.getElementById('modal-overlay');
+        modal.classList.add('hidden');
+        overlay.classList.add('hidden');
+    }
+
+    function showChangeOwnerModal(distinguishedName) {
+        // Show modal and overlay
+        const modal = document.getElementById('change-owner-modal');
+        const overlay = document.getElementById('modal-overlay');
+        modal.classList.remove('hidden');
+        overlay.classList.remove('hidden');
+
+        // Prefill the identity field
+        const identityInput = document.getElementById('owner-identity-input');
+        identityInput.value = distinguishedName;
+
+        // Handle form submission
+        const form = document.getElementById('change-owner-form');
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const newOwner = document.getElementById('new-owner-input').value;
+
+            const success = await changeOwner(distinguishedName, newOwner);
+            if (success) {
+                hideModal('change-owner-modal');
+            }
+        };
+    }
+
+    async function changeOwner(targetIdentity, principalIdentity) {
+        try {
+            const response = await fetch('/api/set/domainobjectowner', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    targetidentity: targetIdentity,
+                    principalidentity: principalIdentity
+                })
+            });
+
+            await handleHttpError(response);
+
+            const result = await response.json();
+
+            if (result === false) {
+                showErrorAlert("Failed to change owner. Check logs");
+                return false;
+            }
+
+            showSuccessAlert("Owner changed successfully");
+            return true;
+        } catch (error) {
+            console.error('Error changing owner:', error);
+            showErrorAlert("Failed to change owner. Check logs");
+            return false;
         }
     }
 });
