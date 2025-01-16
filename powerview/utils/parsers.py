@@ -141,6 +141,7 @@ def powerview_arg_parse(cmd):
 	get_domainobjectowner_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainobjectowner_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainobjectowner_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domainobjectowner_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
 
 	#domainobjectacl
 	get_domainobjectacl_parser = subparsers.add_parser('Get-DomainObjectAcl', aliases=['Get-ObjectAcl'] ,exit_on_error=False)

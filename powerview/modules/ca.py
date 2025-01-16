@@ -150,10 +150,7 @@ class CAEnum:
         return self.ldap_session.entries
 
     # https://github.com/ly4k/Certipy/blob/main/certipy/commands/find.py#L688
-    def check_web_enrollment(self, target, nameserver=None, timeout=5, use_ip=False, use_system_ns=True):
-        if use_ip:
-            target = host2ip(target, nameserver, 3, True, use_system_ns)
-
+    def check_web_enrollment(self, target, timeout=5):
         if target is None:
             logging.debug("No target found")
             return False

@@ -807,20 +807,40 @@ function closeModal(modalId) {
     const modal = document.getElementById(modalId);
     const overlay = document.getElementById('modal-overlay');
     
-    if (modal) {
-        modal.classList.add('hidden');
-        // Remove event listeners when closing
-        const closeButton = modal.querySelector(`[data-modal-hide="${modalId}"]`);
-        if (closeButton) {
-            closeButton.removeEventListener('click', () => closeModal(modalId));
+    if (modalId === 'ldap-attributes-modal') {
+        // Clear SMB tree content
+        const smbTree = document.getElementById('smb-tree');
+        if (smbTree) {
+            smbTree.innerHTML = '';
         }
-        document.removeEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                closeModal(modalId);
-            }
-        });
+        
+        // Reset connection status
+        const connectionStatus = document.getElementById('smb-connection-status');
+        if (connectionStatus) {
+            connectionStatus.innerHTML = '';
+        }
+
+        // Reset computer input
+        const computerInput = document.getElementById('smb-computer');
+        if (computerInput) {
+            computerInput.value = '';
+        }
+
+        // Hide the connect as form if it's visible
+        const connectAsForm = document.getElementById('connect-as-form');
+        if (connectAsForm) {
+            connectAsForm.classList.add('hidden');
+        }
+
+        // Reset credentials if any
+        const usernameInput = document.getElementById('smb-username');
+        const passwordInput = document.getElementById('smb-password');
+        if (usernameInput) usernameInput.value = '';
+        if (passwordInput) passwordInput.value = '';
     }
-    if (overlay) {
+
+    if (modal && overlay) {
+        modal.classList.add('hidden');
         overlay.classList.add('hidden');
     }
 }
@@ -961,12 +981,18 @@ async function showLdapAttributesModal(attributes = {}, identity) {
         const isComputer = attributes.objectClass && 
                           Array.isArray(attributes.objectClass) && 
                           attributes.objectClass.includes('computer');
-        // Show/hide Sessions and Logon Users tabs based on objectClass
+        
+        // Show/hide computer-specific tabs
         const sessionsTab = modal.querySelector('[aria-controls="tabpanelSessions"]');
         const loggedonTab = modal.querySelector('[aria-controls="tabpanelLoggedon"]');
-        if (sessionsTab && loggedonTab) {
+        const sharesTab = modal.querySelector('[aria-controls="tabpanelShares"]');
+        const servicesTab = modal.querySelector('[aria-controls="tabpanelServices"]');
+        
+        if (sessionsTab && loggedonTab && sharesTab && servicesTab) {
             sessionsTab.style.display = isComputer ? '' : 'none';
             loggedonTab.style.display = isComputer ? '' : 'none';
+            sharesTab.style.display = isComputer ? '' : 'none';
+            servicesTab.style.display = isComputer ? '' : 'none';  // Added this line
         }
 
         // Show the modal and overlay
@@ -1164,6 +1190,31 @@ async function selectModalTab(tabName) {
                 const dnsHostnameLogonUsers = dnsHostnameLogonUsersInput?.value;
                 if (dnsHostnameLogonUsers) {
                     await fetchAndDisplayModalLogonUsers(dnsHostnameLogonUsers);
+                } else {
+                    showErrorAlert('DNS Hostname not found for this computer');
+                }
+                break;
+
+            case 'owner':
+                const identity = document.querySelector('#ldap-attributes-modal h3')?.textContent;
+                if (identity) {
+                    await getObjectOwner(identity);
+                }
+                break;
+
+            case 'shares':
+                const dnsHostnameInput = document.querySelector('#dNSHostName-wrapper input');
+                const dnsHostname = dnsHostnameInput?.value;
+                if (dnsHostname) {
+                    initializeSMBTab(dnsHostname);
+                }
+                break;
+
+            case 'services':
+                const dnsHostnameServicesInput = ldapAttributeModal.querySelector('#dNSHostName-wrapper input');
+                const dnsHostnameServices = dnsHostnameServicesInput?.value;
+                if (dnsHostnameServices) {
+                    await fetchAndDisplayModalServices(dnsHostnameServices);
                 } else {
                     showErrorAlert('DNS Hostname not found for this computer');
                 }
@@ -1927,4 +1978,639 @@ function displayModalMemberOf(memberOf) {
         `;
         tbody.appendChild(row);
     });
+}
+
+// Add this function to fetch and display owner information
+async function getObjectOwner(identity) {
+    try {
+        showLoadingIndicator();
+        const response = await fetch('/api/get/domainobjectowner', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                identity: identity,
+                searchbase: identity,
+                search_scope: 'BASE'
+            })
+        });
+
+        await handleHttpError(response);
+        const data = await response.json();
+        console.log(data);
+        
+        if (data && data.length > 0) {
+            const ownerInfo = data[0].attributes.Owner;
+            displayOwnerInfo(ownerInfo);
+        } else {
+            showErrorAlert(`No owner information found for ${identity}`);
+        }
+    } catch (error) {
+        console.error('Error fetching owner information:', error);
+        showErrorAlert('Failed to fetch owner information');
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+// Add this function to display owner information
+function displayOwnerInfo(ownerInfo) {
+    const container = document.getElementById('owner-info');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="flex items-center gap-4">
+            <div class="flex-1">
+                <div class="text-sm font-medium text-neutral-900 dark:text-white">Current Owner</div>
+                <div class="mt-1 text-sm text-neutral-600 dark:text-neutral-400">${ownerInfo}</div>
+            </div>
+        </div>
+    `;
+
+    // Add click handler for change owner button
+    const changeOwnerButton = document.getElementById('change-owner-button');
+    if (changeOwnerButton) {
+        changeOwnerButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const identity = document.querySelector('#ldap-attributes-modal h3')?.textContent;
+            if (identity) {
+                openChangeOwnerModal(identity);
+            }
+        });
+    }
+}
+
+// Add this function to handle the change owner button click
+function openChangeOwnerModal(identity) {
+    const modal = document.getElementById('change-owner-modal');
+    const overlay = document.getElementById('modal-overlay');
+    modal.classList.remove('hidden');
+    overlay.classList.remove('hidden');
+
+    // Prefill the identity field
+    const identityInput = document.getElementById('owner-identity-input');
+    identityInput.value = identity;
+
+    // Handle form submission
+    const form = document.getElementById('change-owner-form');
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const newOwner = document.getElementById('new-owner-input').value;
+
+        const success = await changeOwner(identity, newOwner);
+        if (success) {
+            hideModal('change-owner-modal');
+            // Refresh owner info after successful change
+            await getObjectOwner(identity);
+        }
+    };
+}
+
+// Add this function to change owner
+async function changeOwner(targetIdentity, principalIdentity) {
+    try {
+        showLoadingIndicator();
+        const response = await fetch('/api/set/domainobjectowner', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                targetidentity: targetIdentity,
+                principalidentity: principalIdentity
+            })
+        });
+
+        await handleHttpError(response);
+        const result = await response.json();
+
+        if (result === false) {
+            showErrorAlert("Failed to change owner. Check logs");
+            return false;
+        }
+
+        showSuccessAlert("Owner changed successfully");
+        return true;
+    } catch (error) {
+        console.error('Error changing owner:', error);
+        showErrorAlert("Failed to change owner. Check logs");
+        return false;
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+// Add these functions to handle SMB operations
+async function connectToSMB(data) {
+    const response = await fetch('/api/smb/connect', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to connect to SMB share');
+    }
+
+    return response.json();
+}
+
+async function listSMBShares(computer) {
+    try {
+        const response = await fetch('/api/smb/shares', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ computer })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to list SMB shares');
+        }
+
+        return await response.json();
+    } catch (error) {
+        showErrorAlert(error.message);
+        throw error;
+    }
+}
+
+async function listSMBPath(computer, share, path = '') {
+    try {
+        const response = await fetch('/api/smb/ls', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ computer, share, path })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to list SMB path');
+        }
+
+        return await response.json();
+    } catch (error) {
+        showErrorAlert(error.message);
+        throw error;
+    }
+}
+
+// Add function to initialize SMB tab
+async function initializeSMBTab(dnsHostname) {
+    const connectButton = document.getElementById('smb-connect-button');
+    const connectAsButton = document.getElementById('smb-connect-as-button');
+    const connectAsForm = document.getElementById('connect-as-form');
+    const statusDiv = document.getElementById('smb-connection-status');
+    const treeDiv = document.getElementById('smb-tree');
+    const computerInput = document.getElementById('smb-computer');
+
+    // Pre-fill computer input with dnsHostname
+    if (computerInput && dnsHostname) {
+        computerInput.value = dnsHostname;
+    }
+
+    // Toggle connect-as form
+    connectAsButton.onclick = () => {
+        connectAsForm.classList.toggle('hidden');
+    };
+
+    connectButton.onclick = async () => {
+        try {
+            showLoadingIndicator();
+            const computer = computerInput.value;
+            const username = document.getElementById('smb-username').value;
+            const password = document.getElementById('smb-password').value;
+
+            // Prepare connection data
+            const connectionData = {
+                computer: computer
+            };
+
+            // Add credentials if provided
+            if (!connectAsForm.classList.contains('hidden') && username && password) {
+                connectionData.username = username;
+                connectionData.password = password;
+            }
+
+            // Connect to SMB
+            await connectToSMB(connectionData);
+            const shares = await listSMBShares(computer);
+            
+            // Update status
+            statusDiv.innerHTML = `
+                <div class="flex items-center gap-2 text-green-600 dark:text-green-500">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Connected to ${computer}</span>
+                </div>
+            `;
+
+            // Build tree view
+            treeDiv.innerHTML = buildSMBTreeView(shares);
+            attachTreeViewListeners(computer);
+
+        } catch (error) {
+            statusDiv.innerHTML = `
+                <div class="flex items-center gap-2 text-red-600 dark:text-red-500">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span>${error.message}</span>
+                </div>
+            `;
+        } finally {
+            hideLoadingIndicator();
+        }
+    };
+}
+
+// Update buildSMBTreeView to use the folderIcon
+function buildSMBTreeView(shares) {
+    let html = '<ul class="space-y-1">';
+    shares.forEach(share => {
+        const shareName = share.attributes.Name;
+        html += `
+            <li class="smb-tree-item" data-share="${shareName}">
+                <div class="flex items-center gap-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer">
+                    <span class="text-yellow-500">${getFileIcon('', true).icon}</span>
+                    <span>${shareName}</span>
+                    <span class="text-xs text-neutral-500">${share.attributes.Remark}</span>
+                </div>
+                <ul class="ml-6 space-y-1 hidden"></ul>
+            </li>
+        `;
+    });
+    html += '</ul>';
+    return html;
+}
+
+function attachTreeViewListeners(computer) {
+    document.querySelectorAll('.smb-tree-item').forEach(item => {
+        const shareDiv = item.querySelector('div');
+        const subList = item.querySelector('ul');
+        let isLoaded = false;
+
+        shareDiv.onclick = async () => {
+            const share = item.dataset.share;
+            
+            if (!isLoaded) {
+                try {
+                    showLoadingIndicator();
+                    const files = await listSMBPath(computer, share);
+                    subList.innerHTML = buildFileList(files, share);
+                    isLoaded = true;
+                    subList.classList.remove('hidden');
+                    attachFileListeners(computer, share);
+                } catch (error) {
+                    console.error('Error loading files:', error);
+                } finally {
+                    hideLoadingIndicator();
+                }
+            } else {
+                subList.classList.toggle('hidden');
+            }
+        };
+    });
+}
+
+function attachFileListeners(computer, share) {
+    document.querySelectorAll('.file-item').forEach(item => {
+        const fileDiv = item.querySelector('div');
+        const subList = item.querySelector('ul');
+        const isDirectory = item.getAttribute('data-is-dir') === '16' || item.getAttribute('data-is-dir') === '48';
+
+        if (isDirectory) {
+            fileDiv.onclick = async () => {
+                // If the folder is already loaded and just hidden, simply toggle it
+                if (!subList.classList.contains('hidden') || subList.children.length > 0) {
+                    subList.classList.toggle('hidden');
+                    return;
+                }
+
+                // Only make API call if folder hasn't been loaded yet
+                try {
+                    showLoadingIndicator();
+                    const currentPath = item.dataset.path;
+                    const cleanPath = currentPath.replace(/^\//, '').replace(/\//g, '\\');
+                    const files = await listSMBPath(computer, share, cleanPath);
+                    subList.innerHTML = buildFileList(files, share, currentPath);
+                    subList.classList.remove('hidden');
+                    // Recursively attach listeners to new files
+                    attachFileListeners(computer, share);
+                } catch (error) {
+                    console.error('Error loading files:', error);
+                } finally {
+                    hideLoadingIndicator();
+                }
+            };
+        }
+    });
+}
+
+async function downloadSMBFile(computer, share, path) {
+    try {
+        showLoadingIndicator();
+        const response = await fetch('/api/smb/get', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ computer, share, path })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to download file');
+        }
+
+        // Get the filename from the path
+        const filename = path.split('\\').pop();
+
+        // Create a blob from the response
+        const blob = await response.blob();
+        
+        // Create a temporary link to trigger the download
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Cleanup
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+    } catch (error) {
+        showErrorAlert(error.message);
+        throw error;
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+// Update buildFileList to use getFileIcon
+function buildFileList(files, share, currentPath = '') {
+    let html = '';
+    files.forEach(file => {
+        const isDirectory = file.is_directory;
+        const fileIcon = getFileIcon(file.name, isDirectory);
+        const computerInput = document.getElementById('smb-computer');
+        
+        html += `
+            <li class="file-item" data-path="${currentPath}/${file.name}" data-is-dir="${file.is_directory ? '16' : '0'}">
+                <div class="flex items-center justify-between gap-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer">
+                    <div class="flex items-center gap-1">
+                        <span class="${isDirectory ? 'text-yellow-500' : 'text-neutral-400'}">${fileIcon.icon}</span>
+                        <span>${file.name}</span>
+                        <span class="text-xs text-neutral-500">${formatFileSize(file.size)}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        ${isDirectory ? `
+                            <button onclick="event.stopPropagation(); uploadSMBFile('${computerInput.value}', '${share}', '${currentPath}/${file.name}')"
+                                class="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300">
+                                <i class="fas fa-upload"></i>
+                            </button>
+                        ` : `
+                            <button onclick="event.stopPropagation(); downloadSMBFile('${computerInput.value}', '${share}', '${currentPath}/${file.name}')" 
+                                class="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        `}
+                    </div>
+                </div>
+                ${isDirectory ? '<ul class="ml-6 space-y-1 hidden"></ul>' : ''}
+            </li>
+        `;
+    });
+    return html;
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Add file upload functionality
+async function uploadSMBFile(computer, share, currentPath) {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.style.display = 'none';
+    document.body.appendChild(fileInput);
+
+    fileInput.onchange = async function() {
+        if (!this.files || !this.files[0]) return;
+
+        try {
+            showLoadingIndicator();
+            const formData = new FormData();
+            formData.append('file', this.files[0]);
+            formData.append('computer', computer);
+            formData.append('share', share);
+            formData.append('path', currentPath);
+
+            const response = await fetch('/api/smb/put', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to upload file');
+            }
+
+            // Refresh the current directory listing
+            const files = await listSMBPath(computer, share, currentPath);
+            const parentList = document.querySelector(`[data-path="${currentPath}"]`).parentElement;
+            parentList.innerHTML = buildFileList(files, share, currentPath);
+            attachFileListeners(computer, share);
+            
+            showSuccessAlert('File uploaded successfully');
+
+        } catch (error) {
+            showErrorAlert(error.message);
+            console.error('Upload error:', error);
+        } finally {
+            hideLoadingIndicator();
+            document.body.removeChild(fileInput);
+        }
+    };
+
+    fileInput.click();
+}
+
+// Add new function to fetch and display services
+async function fetchAndDisplayModalServices(computer) {
+    try {
+        showLoadingIndicator();
+        const response = await fetch('/api/get/netservice', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                computer_name: computer
+            })
+        });
+
+        await handleHttpError(response);
+        const data = await response.json();
+        
+        const tbody = document.getElementById('services-rows');
+        tbody.innerHTML = '';
+
+        data.forEach(service => {
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-neutral-50 dark:hover:bg-neutral-800';
+
+            // Handle the status styling
+            let statusClass = '';
+            let status = service.attributes.Status.replace(/\u001b\[\d+m/g, ''); // Remove ANSI codes
+            
+            if (status === 'RUNNING') {
+                statusClass = 'text-green-500 dark:text-green-400';
+            } else if (status === 'STOPPED') {
+                statusClass = 'text-red-500 dark:text-red-400';
+            } else if (status.includes('PENDING')) {
+                statusClass = 'text-yellow-500 dark:text-yellow-400';
+            }
+
+            row.innerHTML = `
+                <td class="px-3 py-2 text-neutral-700 dark:text-neutral-200">${service.attributes.Name}</td>
+                <td class="px-3 py-2 text-neutral-600 dark:text-neutral-300">${service.attributes.DisplayName}</td>
+                <td class="px-3 py-2 font-medium ${statusClass}">${status}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    } catch (error) {
+        console.error('Error fetching services:', error);
+        showErrorAlert('Failed to fetch services');
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+function getFileIcon(fileName, isDirectory) {
+    if (isDirectory) {
+        return {
+            icon: icons.folderIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    const fileExt = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+    
+    // Check for executable file extensions
+    const executableExtensions = ['.exe', '.msi', '.bat', '.cmd', '.com', '.scr'];
+    if (executableExtensions.includes(fileExt)) {
+        return {
+            icon: icons.executableIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for Excel file extensions
+    const excelExtensions = ['.xlsx', '.xls', '.xlsm', '.xlsb', '.xltx', '.xltm', '.xlt', '.csv'];
+    if (excelExtensions.includes(fileExt)) {
+        return {
+            icon: icons.xlsxIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for registry file extensions
+    const registryExtensions = ['.reg', '.regx'];
+    if (registryExtensions.includes(fileExt)) {
+        return {
+            icon: icons.registryIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for Word file extensions
+    const wordExtensions = ['.docx', '.doc', '.docm', '.dotx', '.dotm', '.dot'];
+    if (wordExtensions.includes(fileExt)) {
+        return {
+            icon: icons.docxIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for Text file extensions
+    const textExtensions = ['.txt', '.log', '.ini', '.cfg', '.conf', '.text', '.md'];
+    if (textExtensions.includes(fileExt)) {
+        return {
+            icon: icons.txtIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for DLL file extensions
+    const dllExtensions = ['.dll', '.sys', '.drv', '.ocx'];
+    if (dllExtensions.includes(fileExt)) {
+        return {
+            icon: icons.dllIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for Outlook file extensions
+    const outlookExtensions = ['.pst', '.ost', '.msg', '.eml', '.nst', '.oft'];
+    if (outlookExtensions.includes(fileExt)) {
+        return {
+            icon: icons.outlookIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for PowerPoint file extensions
+    const powerpointExtensions = ['.ppt', '.pptx', '.pptm', '.potx', '.potm', '.ppsx', '.ppsm'];
+    if (powerpointExtensions.includes(fileExt)) {
+        return {
+            icon: icons.powerpointIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for Compressed file extensions
+    const compressedExtensions = ['.zip', '.rar', '.7z', '.gz', '.tar', '.bz2', '.xz', '.cab'];
+    if (compressedExtensions.includes(fileExt)) {
+        return {
+            icon: icons.zipIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for PDF file extension
+    if (fileExt === '.pdf') {
+        return {
+            icon: icons.pdfIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    return {
+        icon: 'fa-file',
+        iconClass: 'text-neutral-400',
+        isCustomSvg: false
+    };
 }

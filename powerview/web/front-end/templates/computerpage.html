@@ -131,8 +131,20 @@
 
             <!-- Results Header -->
             <div class="flex items-center justify-between p-4 border-b border-neutral-300 dark:border-neutral-700">
-                <div class="text-sm text-neutral-600 dark:text-neutral-400" id="computers-counter">
-                    Total Computers Found: 0
+                <div class="flex items-center gap-4">
+                    <div class="text-sm text-neutral-600 dark:text-neutral-400" id="computers-counter">
+                        Total Computers Found: 0
+                    </div>
+                    <!-- Add Export Button -->
+                    <button id="export-table-button" 
+                        class="hidden px-3 py-1.5 text-sm font-medium text-neutral-600 hover:text-neutral-900 
+                               dark:text-neutral-400 dark:hover:text-neutral-100 
+                               border border-neutral-300 dark:border-neutral-700 
+                               hover:bg-neutral-100 dark:hover:bg-neutral-800 
+                               rounded-md transition-colors flex items-center gap-2">
+                        <i class="fas fa-download"></i>
+                        Export
+                    </button>
                 </div>
                 <!-- Filter Results -->
                 <div class="flex-grow max-w-md ml-4">
@@ -146,7 +158,7 @@
             <div class="flex-1 relative overflow-hidden">
                 <!-- Main scrollable content -->
                 <div class="absolute inset-0 overflow-y-auto pb-6 scrollbar">
-                    <div class="overflow-x-auto">
+                    <div class="overflow-x-auto scrollbar">
                         <table class="min-w-full text-left text-sm text-neutral-600 dark:text-neutral-300" id="computers-result-table">
                             <thead class="border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white">
                             </thead>
@@ -168,6 +180,51 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Change Owner Modal -->
+    <div id="change-owner-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" aria-hidden="true">
+        <div class="bg-white dark:bg-neutral-800 rounded-lg shadow-xl max-w-md w-full">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700">
+                <h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
+                    Change Owner
+                </h3>
+                <button data-modal-hide="change-owner-modal" class="text-neutral-400 hover:text-neutral-500 dark:hover:text-neutral-300">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <form id="change-owner-form" class="p-4 space-y-4">
+                <div>
+                    <label for="owner-identity-input" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Identity
+                    </label>
+                    <input type="text" id="owner-identity-input" name="owner-identity-input" readonly
+                        class="w-full px-3 py-2 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white">
+                </div>
+                <div>
+                    <label for="new-owner-input" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        New Owner
+                    </label>
+                    <input type="text" id="new-owner-input" name="new-owner-input" required
+                        class="w-full px-3 py-2 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white">
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="flex justify-end gap-2 pt-4 border-t border-neutral-200 dark:border-neutral-700">
+                    <button type="button" data-modal-hide="change-owner-modal"
+                        class="px-4 py-2 text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-md">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:text-black rounded-md">
+                        Change Owner
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 {% endblock %}

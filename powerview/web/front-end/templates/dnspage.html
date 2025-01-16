@@ -8,9 +8,23 @@
         <!-- Zone Names Section -->
         <div class="h-1/2 flex flex-col bg-white dark:bg-neutral-800">
             <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
-                <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-globe text-neutral-500 dark:text-neutral-400"></i>
-                    <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Zone Names</h2>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-globe text-neutral-500 dark:text-neutral-400"></i>
+                        <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Zone Names</h2>
+                    </div>
+                    <!-- Updated search input styling -->
+                    <div class="relative flex items-center">
+                        <input type="text" id="zone-search" 
+                            class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1 text-sm 
+                                   text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-400 hover:text-neutral-900 
+                                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black 
+                                   dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-48" 
+                            placeholder="Search zones...">
+                        <button class="clear-input absolute right-0 px-2 text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-400 focus:outline-none">
+                            <i class="fa-solid fa-xmark fa-xs"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="zone-name-container flex-1 overflow-y-auto p-4 scrollbar">
@@ -21,9 +35,23 @@
         <!-- Record Names Section -->
         <div class="h-1/2 flex flex-col bg-white dark:bg-neutral-800 border-t border-neutral-200 dark:border-neutral-700">
             <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
-                <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-list text-neutral-500 dark:text-neutral-400"></i>
-                    <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Record Names</h2>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-list text-neutral-500 dark:text-neutral-400"></i>
+                        <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Record Names</h2>
+                    </div>
+                    <!-- Updated search input styling -->
+                    <div class="relative flex items-center">
+                        <input type="text" id="record-search" 
+                            class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1 text-sm 
+                                   text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-400 hover:text-neutral-900 
+                                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black 
+                                   dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-48" 
+                            placeholder="Search records...">
+                        <button class="clear-input absolute right-0 px-2 text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-400 focus:outline-none">
+                            <i class="fa-solid fa-xmark fa-xs"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="record-name-section flex-1 overflow-y-auto p-4 scrollbar">

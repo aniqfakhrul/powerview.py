@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Create table header
             const thead = document.createElement('thead');
-            thead.className = 'sticky top-0 border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white';
+            thead.className = 'sticky text-left top-0 border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white';
             
             const headerRow = document.createElement('tr');
             ['Name', 'Member Count'].forEach((headerText, index) => {
@@ -173,13 +173,13 @@ document.addEventListener('DOMContentLoaded', () => {
             table.className = 'min-w-full text-sm text-neutral-600 dark:text-neutral-300';
 
             const thead = document.createElement('thead');
-            thead.className = 'sticky top-0 border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white';
+            thead.className = 'top-0 border-b border-neutral-300 bg-neutral-50 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white';
             
             const headerRow = document.createElement('tr');
             ['Member Name', 'Member Domain', 'Distinguished Name'].forEach(headerText => {
                 const th = document.createElement('th');
                 th.textContent = headerText;
-                th.className = 'px-4 py-3 font-medium text-center';
+                th.className = 'px-4 py-3 font-medium text-left';
                 headerRow.appendChild(th);
             });
             thead.appendChild(headerRow);
@@ -207,10 +207,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 cells.forEach(({ value }) => {
                     const td = document.createElement('td');
-                    td.className = 'px-4 py-3 text-center relative';
+                    td.className = 'px-4 py-3 text-left relative';
 
                     const wrapper = document.createElement('div');
-                    wrapper.className = 'flex items-center justify-center gap-2';
+                    wrapper.className = 'flex items-center gap-2';
 
                     const textSpan = document.createElement('span');
                     textSpan.textContent = value;
