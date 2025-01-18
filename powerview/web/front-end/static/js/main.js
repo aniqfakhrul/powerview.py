@@ -2608,6 +2608,16 @@ function getFileIcon(fileName, isDirectory) {
         };
     }
 
+    // Add certificate file extensions check (before other checks)
+    const certificateExtensions = ['.pfx', '.p12', '.der', '.cer', '.crt', '.p7b', '.p7c', '.pem', '.key'];
+    if (certificateExtensions.includes(fileExt)) {
+        return {
+            icon: icons.certIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
     return {
         icon: 'fa-file',
         iconClass: 'text-neutral-400',

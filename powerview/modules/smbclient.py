@@ -12,13 +12,13 @@ class SMBClient:
 
     def shares(self):
         if self.client is None:
-            logging.error("[SMBClient] Not logged in")
+            logging.error("[SMBClient: shares] Not logged in")
             return
         return self.client.listShares()
 
     def ls(self, share, path=''):
         if self.client is None:
-            logging.error("[SMBClient] Not logged in")
+            logging.error("[SMBClient: ls] Not logged in")
             return
         
         path = path.replace('/', '\\')
@@ -28,7 +28,7 @@ class SMBClient:
     
     def get(self, share, path):
         if self.client is None:
-            logging.error("[SMBClient] Not logged in")
+            logging.error("[SMBClient: get] Not logged in")
             return
         
         path = path.replace('/', '\\')
@@ -43,7 +43,7 @@ class SMBClient:
 
     def put(self, share, path):
         if self.client is None:
-            logging.error("[SMBClient] Not logged in")
+            logging.error("[SMBClient: put] Not logged in")
             return
         
         src_path = path
@@ -56,7 +56,7 @@ class SMBClient:
 
     def cat(self, share, path):
         if self.client is None:
-            logging.error("[SMBClient] Not logged in")
+            logging.error("[SMBClient: cat] Not logged in")
             return
         
         path = path.replace('/', '\\')
@@ -71,14 +71,14 @@ class SMBClient:
 
     def rm(self, share, path):
         if self.client is None:
-            logging.error("[SMBClient] Not logged in")
+            logging.error("[SMBClient: rm] Not logged in")
             return
         
         self.client.deleteFile(share, path)
 
     def rmdir(self, share, path):
         if self.client is None:
-            logging.error("[SMBClient] Not logged in")
+            logging.error("[SMBClient: rmdir] Not logged in")
             return
 
         path = path.replace('/', '\\')
@@ -86,7 +86,7 @@ class SMBClient:
 
     def mkdir(self, share, path):
         if self.client is None:
-            logging.error("[SMBClient] Not logged in")
+            logging.error("[SMBClient: mkdir] Not logged in")
             return
         
         path = path.replace('/', '\\')
