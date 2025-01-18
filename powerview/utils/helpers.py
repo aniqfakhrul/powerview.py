@@ -484,7 +484,7 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 			addr.append(r.address)
 
 		if len(addr) == 1:
-			STORED_ADDR[hostname] = addr
+			STORED_ADDR[hostname] = addr[0]
 			ip = addr[0] 
 		elif len(addr) > 1 and type == str:
 			c_key = 0

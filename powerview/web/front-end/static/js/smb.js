@@ -455,19 +455,24 @@ function attachFileListeners() {
                     }
                 };
             }
+        }
 
-            const downloadBtn = item.querySelector('.download-btn');
-            if (downloadBtn) {
-                downloadBtn.onclick = async (e) => {
-                    e.stopPropagation();
-                    showInlineSpinner(spinnerContainer);
-                    try {
-                        await downloadSMBFile(computer, share, item.dataset.path);
-                    } finally {
-                        removeInlineSpinner(spinnerContainer);
+        const downloadBtn = item.querySelector('.download-btn');
+        if (downloadBtn) {
+            downloadBtn.onclick = async (e) => {
+                e.stopPropagation();
+                showInlineSpinner(spinnerContainer);
+                try {
+                    if (isDirectory) {
+                        const dirName = path.split('/').pop();
+                        await downloadSMBDirectory(computer, share, path, dirName);
+                    } else {
+                        await downloadSMBFile(computer, share, path);
                     }
-                };
-            }
+                } finally {
+                    removeInlineSpinner(spinnerContainer);
+                }
+            };
         }
         
         // Add delete button listener
@@ -687,7 +692,10 @@ function buildFileList(files, share, currentPath, computer) {
                             <button class="new-folder-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="New Folder">
                                 <i class="fas fa-folder-plus"></i>
                             </button>
-                        ` :  `
+                            <button class="download-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="Download Directory">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        ` : `
                             <button class="view-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="View">
                                 <i class="fas fa-eye"></i>
                             </button>
@@ -700,7 +708,7 @@ function buildFileList(files, share, currentPath, computer) {
                         </button>
                     </div>
                 </div>
-                ${isDirectory ? `<ul class="hidden"></ul>` : ''}
+                ${isDirectory ? '<ul class="hidden"></ul>' : ''}
             </li>
         `;
     });
@@ -769,21 +777,38 @@ async function uploadSMBFile(computer, share, currentPath) {
     fileInput.click();
 }
 
+// Add this helper function to check if a file is an image based on extension
+function isImageFile(filename) {
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
+    return imageExtensions.some(ext => filename.toLowerCase().endsWith(ext));
+}
+
 // Add the file viewer function
 async function viewSMBFile(computer, share, path) {
-    // Verify we're operating on the active computer
     if (computer !== activeComputer) {
         console.warn(`Attempted to view file from ${computer} while ${activeComputer} is active`);
         return;
     }
 
+    const spinner = document.getElementById('file-viewer-spinner');
+
     try {
         showLoadingIndicator();
+        const filename = path.split('\\').pop();
+        const isImage = isImageFile(filename);
+        const isPdf = isPdfFile(filename);
+        
+        // Show loading spinner
+        spinner.classList.remove('hidden');
+        
+        // Reset viewers
+        document.getElementById('image-viewer').classList.add('hidden');
+        document.getElementById('text-viewer').classList.add('hidden');
+        document.getElementById('pdf-viewer').classList.add('hidden');
+
         const response = await fetch('/api/smb/cat', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ computer, share, path })
         });
 
@@ -792,29 +817,76 @@ async function viewSMBFile(computer, share, path) {
             throw new Error(error.error || 'Failed to read file');
         }
 
-        const content = await response.text();
-        
-        // Get filename for the title
-        const filename = path.split('\\').pop();
+        // Clone the response for different uses
+        const responseClone = response.clone();
 
-        // Update the file viewer panel
+        // Update title and show panel
         const fileViewer = document.getElementById('file-viewer-panel');
         const fileViewerTitle = document.getElementById('file-viewer-title');
-        const fileViewerContent = document.getElementById('file-viewer-content');
-        
         fileViewerTitle.textContent = filename;
-        fileViewerContent.textContent = content;
-        
+
+        // Setup download button
+        const downloadBtn = document.getElementById('file-viewer-download');
+        downloadBtn.onclick = () => downloadSMBFile(computer, share, path);
+
+        if (isPdf) {
+            const arrayBuffer = await responseClone.arrayBuffer();
+            const pdfViewer = document.getElementById('pdf-viewer');
+            
+            // Reset PDF viewer state
+            pageNum = 1;
+            zoomLevel = 1.0;
+            document.getElementById('pdf-zoom-level').textContent = '100%';
+            
+            // Load PDF
+            pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            
+            // Setup controls and render first page
+            setupPdfControls();
+            await renderPdfPage();
+            
+            pdfViewer.classList.remove('hidden');
+            
+            // Update file info
+            document.getElementById('file-size').textContent = formatFileSize(arrayBuffer.byteLength);
+            document.getElementById('file-type').textContent = 'application/pdf';
+        } else if (isImage) {
+            const blob = await responseClone.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            
+            const imageViewer = document.getElementById('image-viewer');
+            const img = document.getElementById('image-content');
+            
+            img.src = objectUrl;
+            img.onload = () => {
+                imageViewer.classList.remove('hidden');
+                // Update file info
+                document.getElementById('file-size').textContent = formatFileSize(blob.size);
+                document.getElementById('file-type').textContent = blob.type;
+            };
+        } else {
+            const content = await response.text();
+            const textViewer = document.getElementById('text-viewer');
+            const textContent = document.getElementById('text-content');
+            
+            textContent.textContent = content;
+            textViewer.classList.remove('hidden');
+            
+            // Update file info
+            document.getElementById('file-size').textContent = formatFileSize(content.length);
+            document.getElementById('file-type').textContent = 'text/plain';
+        }
+
         // Show the panel
         fileViewer.classList.remove('hidden');
-        setTimeout(() => {
-            fileViewer.classList.remove('translate-x-full');
-        }, 0);
+        setTimeout(() => fileViewer.classList.remove('translate-x-full'), 0);
 
     } catch (error) {
         showErrorAlert(error.message);
         console.error('View error:', error);
     } finally {
+        // Hide spinner
+        spinner.classList.add('hidden');
         hideLoadingIndicator();
     }
 }
@@ -934,4 +1006,162 @@ async function createSMBDirectory(computer, share, path) {
     } finally {
         hideLoadingIndicator();
     }
+}
+
+// Add this new function to recursively list all files in a directory
+async function listSMBDirectoryContents(computer, share, path, files = []) {
+    try {
+        const response = await listSMBPath(computer, share, path);
+        
+        for (const item of response) {
+            const itemPath = path ? `${path}\\${item.name}` : item.name;
+            
+            if (item.is_directory) {
+                // Recursively list contents of subdirectories
+                await listSMBDirectoryContents(computer, share, itemPath, files);
+            } else {
+                // Add file with its full path
+                files.push({
+                    name: item.name,
+                    path: itemPath,
+                    size: item.size
+                });
+            }
+        }
+        
+        return files;
+    } catch (error) {
+        console.error('Error listing directory contents:', error);
+        throw error;
+    }
+}
+
+// Add this function to handle directory downloads
+async function downloadSMBDirectory(computer, share, path, directoryName) {
+    try {
+        // Create a unique download ID for the directory
+        const downloadId = Date.now().toString();
+        
+        // Add directory download entry to the downloads panel
+        const downloadsList = document.getElementById('downloads-list');
+        const entry = createDownloadEntry(downloadId, `📁 ${directoryName}`);
+        downloadsList.appendChild(entry);
+        
+        // Show downloads panel
+        const downloadsPanel = document.getElementById('downloads-panel');
+        downloadsPanel.classList.remove('hidden', 'translate-x-full');
+        
+        // List all files in the directory recursively
+        const files = await listSMBDirectoryContents(computer, share, path);
+        const totalFiles = files.length;
+        let completedFiles = 0;
+        
+        // Update status to show file count
+        const statusElement = document.getElementById(`download-status-${downloadId}`);
+        statusElement.textContent = `0/${totalFiles} files`;
+        
+        // Download each file
+        for (const file of files) {
+            try {
+                await downloadSMBFile(computer, share, file.path, true);
+                completedFiles++;
+                
+                // Update progress
+                const progress = (completedFiles / totalFiles) * 100;
+                updateDownloadProgress(downloadId, completedFiles, totalFiles);
+                statusElement.textContent = `${completedFiles}/${totalFiles} files`;
+            } catch (error) {
+                console.error(`Error downloading file ${file.path}:`, error);
+                // Continue with next file even if one fails
+            }
+        }
+        
+        // Mark download as complete
+        completeDownload(downloadId, directoryName);
+        statusElement.textContent = `Completed: ${completedFiles}/${totalFiles} files`;
+        
+    } catch (error) {
+        console.error('Directory download error:', error);
+        failDownload(downloadId, 'Failed to download directory');
+        throw error;
+    }
+}
+
+// Add to your helper functions
+function isPdfFile(filename) {
+    return filename.toLowerCase().endsWith('.pdf');
+}
+
+// Add PDF viewer state
+let pdfDoc = null;
+let pageNum = 1;
+let zoomLevel = 1.0;
+
+// Add PDF viewer controls
+async function renderPdfPage() {
+    const page = await pdfDoc.getPage(pageNum);
+    const canvas = document.getElementById('pdf-canvas');
+    const context = canvas.getContext('2d');
+
+    // Calculate viewport with zoom
+    const viewport = page.getViewport({ scale: zoomLevel });
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    await page.render({
+        canvasContext: context,
+        viewport: viewport
+    }).promise;
+
+    // Update page counter
+    document.getElementById('pdf-page-num').textContent = 
+        `Page ${pageNum} of ${pdfDoc.numPages}`;
+}
+
+function setupPdfControls() {
+    // Page navigation
+    document.getElementById('pdf-prev').onclick = async () => {
+        if (pageNum <= 1) return;
+        pageNum--;
+        await renderPdfPage();
+    };
+
+    document.getElementById('pdf-next').onclick = async () => {
+        if (pageNum >= pdfDoc.numPages) return;
+        pageNum++;
+        await renderPdfPage();
+    };
+
+    // Zoom controls
+    document.getElementById('pdf-zoom-out').onclick = async () => {
+        if (zoomLevel <= 0.5) return;
+        zoomLevel -= 0.25;
+        document.getElementById('pdf-zoom-level').textContent = `${Math.round(zoomLevel * 100)}%`;
+        await renderPdfPage();
+    };
+
+    document.getElementById('pdf-zoom-in').onclick = async () => {
+        if (zoomLevel >= 3) return;
+        zoomLevel += 0.25;
+        document.getElementById('pdf-zoom-level').textContent = `${Math.round(zoomLevel * 100)}%`;
+        await renderPdfPage();
+    };
+}
+
+// Add cleanup to closeFileViewer
+function closeFileViewer() {
+    const fileViewer = document.getElementById('file-viewer-panel');
+    fileViewer.classList.add('translate-x-full');
+    setTimeout(() => {
+        fileViewer.classList.add('hidden');
+        // Clean up any object URLs
+        const img = fileViewer.querySelector('img');
+        if (img && img.src.startsWith('blob:')) {
+            URL.revokeObjectURL(img.src);
+        }
+        // Reset PDF state
+        pdfDoc = null;
+        pageNum = 1;
+        zoomLevel = 1.0;
+    }, 300);
 }
