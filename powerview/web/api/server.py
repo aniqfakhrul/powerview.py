@@ -458,6 +458,10 @@ class APIServer:
 			nthash = data.get('nthash')
 			lmhash = data.get('lmhash')
 			domain = data.get('domain')
+
+			# Parse domain from username if in Windows format
+			if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\')
 			
 			if not computer:
 				return jsonify({'error': 'Computer name/IP is required'}), 400

@@ -915,7 +915,7 @@ class CONNECTION:
 			lmhash = lmhash or self.lmhash
 			domain = domain or self.domain
 
-			logging.debug("Default timeout is set to 15. Expect a delay")
+			logging.debug(f"[Connection: init_smb_session] Default timeout is set to {timeout}. Expect a delay")
 			conn = SMBConnection(host, host, sess_port=445, timeout=timeout)
 			if self.use_kerberos:
 				if self.TGT and self.TGS:
