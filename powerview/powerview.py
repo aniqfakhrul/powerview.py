@@ -238,7 +238,7 @@ class PowerView:
 				properties.add('msDS-KeyCredentialLink')
 			if hasattr(args, 'spn') and args.spn:
 				logging.debug("[Get-DomainUser] Searching for users that have SPN attribute set")
-				ldap_filter += f'(servicePrincipalName=*)'
+				ldap_filter += f'(&(servicePrincipalName=*)(!(name=krbtgt)))'
 			if hasattr(args, 'unconstrained') and args.unconstrained:
 				logging.debug("[Get-DomainUser] Searching for users configured for unconstrained delegation")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
@@ -3702,14 +3702,8 @@ displayName=New Group Policy Object
 
 	def invoke_kerberoast(self, args, properties=[]):
 		# look for users with SPN set
-		ldap_filter = ""
-		ldap_filter = f"(servicePrincipalName=*)(UserAccountControl:1.2.840.113556.1.4.803:=512)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))(!(objectCategory=computer))"
-		if args.identity:
-			ldap_filter += f"(sAMAccountName={args.identity})"
-		ldap_filter = f"(&{ldap_filter})"
-		logging.debug(f'[Invoke-Kerberoast] LDAP Filter string: {ldap_filter}')
-		self.ldap_session.search(self.root_dn, ldap_filter, attributes=['servicePrincipalName', 'sAMAccountName','pwdLastSet', 'MemberOf', 'userAccountControl', 'lastLogon'])
-		entries = self.ldap_session.entries
+		setattr(args, 'spn', True)
+		entries = self.get_domainuser(args)
 		if len(entries) == 0:
 			logging.debug("[Invoke-Kerberoast] No identity found")
 			return

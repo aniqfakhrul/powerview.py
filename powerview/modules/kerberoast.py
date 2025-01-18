@@ -216,7 +216,7 @@ class GetUserSPNs:
         for entry in entries:
             mustCommit = False
             sAMAccountName =  ''
-            dn = entry.entry_dn
+            dn = entry.get('dn')
             memberOf = ''
             SPNs = []
             pwdLastSet = ''
@@ -224,23 +224,15 @@ class GetUserSPNs:
             lastLogon = 'N/A'
             delegation = ''
             try:
-                item = json.loads(entry.entry_to_json())
-                entry_out['attributes'] = {'distinguishedName':dn}
-                for attribute,value in item['attributes'].items():
+                entry_out['attributes'] = {'distinguishedName': dn}
+                for attribute,value in entry['attributes'].items():
                     if str(attribute) == 'sAMAccountName':
-                        sAMAccountName = str(value[0])
+                        sAMAccountName = entry['attributes']['sAMAccountName'][0] if isinstance(entry['attributes']['sAMAccountName'], list) else entry['attributes']['sAMAccountName']
                         mustCommit = True
-                    #elif str(attribute) == 'userAccountControl':
-                    #    userAccountControl = str(value[0])
-                    #    if int(userAccountControl) & UF_TRUSTED_FOR_DELEGATION:
-                    #        delegation = 'unconstrained'
-                    #    elif int(userAccountControl) & UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION:
-                    #        delegation = 'constrained'
                     elif str(attribute) == 'memberOf':
-                        memberOf = str(value[0])
+                        memberOf = entry['attributes']['memberOf']
                     elif str(attribute) == 'servicePrincipalName':
-                        for spn in value:
-                            SPNs.append(str(spn))
+                        SPNs = entry['attributes']['servicePrincipalName'] if isinstance(entry['attributes']['servicePrincipalName'], list) else [entry['attributes']['servicePrincipalName']]
                 if mustCommit is True:
                     if int(userAccountControl) & UF_ACCOUNTDISABLE:
                         logging.debug('Bypassing disabled account %s ' % sAMAccountName)
@@ -285,7 +277,7 @@ class GetUserSPNs:
                         kdc_opts.append(constants.KDCOptions(idx).name)
 
                 logging.debug("Using KDC Options (" + ','.join(kdc_opts) + ")")
-
+                
                 for user, SPN in users.items():
                     sAMAccountName = user
                     downLevelLogonName = self.__targetDomain + "\\" + sAMAccountName
