@@ -1037,8 +1037,6 @@ class CONNECTION:
 			dce.set_auth_type(RPC_C_AUTHN_WINNT)
 			dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
 
-		logging.debug("[ConnectRPCTransport] Connecting to %s" % stringBindings)
-
 		try:
 			dce.connect()
 			if interface_uuid:

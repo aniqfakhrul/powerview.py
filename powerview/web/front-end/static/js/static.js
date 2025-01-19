@@ -278,6 +278,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize settings
     initializeSettingsToggles();
+
+    // Add event listeners for alert close buttons
+    document.querySelectorAll('.close-alert').forEach(button => {
+        button.addEventListener('click', function() {
+            const alertType = this.getAttribute('data-alert-type');
+            const alertBox = document.querySelector(`div[role="alert-${alertType}"]`);
+            if (alertBox) {
+                hideAlert(alertBox);
+                // Clear any existing timeout
+                if (alertType === 'success') {
+                    clearTimeout(successAlertTimeout);
+                } else if (alertType === 'error') {
+                    clearTimeout(errorAlertTimeout);
+                }
+            }
+        });
+    });
 });
 
 async function handleHttpError(response) {
@@ -296,14 +313,30 @@ async function handleHttpError(response) {
     }
 }
 
+// Update the show alert functions to clear any existing timeouts
+let successAlertTimeout;
+let errorAlertTimeout;
+
 async function showSuccessAlert(message) {
     const alertBox = document.querySelector('div[role="alert-success"]');
     const alertMessage = document.getElementById('alert-message-success');
     alertMessage.textContent = message;
-    alertBox.hidden = false;
+    
+    // Clear any existing timeout
+    if (successAlertTimeout) {
+        clearTimeout(successAlertTimeout);
+    }
 
+    // Show the alert
+    alertBox.hidden = false;
+    // Trigger animation after a small delay to ensure hidden is removed
     setTimeout(() => {
-        alertBox.hidden = true;
+        alertBox.classList.remove('translate-x-full', 'opacity-0');
+    }, 10);
+
+    // Set new timeout for hiding
+    successAlertTimeout = setTimeout(() => {
+        hideAlert(alertBox);
     }, 5000);
 }
 
@@ -311,11 +344,34 @@ async function showErrorAlert(message) {
     const alertBox = document.querySelector('div[role="alert-error"]');
     const alertMessage = document.getElementById('alert-message-error');
     alertMessage.textContent = message;
-    alertBox.hidden = false;
+    
+    // Clear any existing timeout
+    if (errorAlertTimeout) {
+        clearTimeout(errorAlertTimeout);
+    }
 
+    // Show the alert
+    alertBox.hidden = false;
+    // Trigger animation after a small delay to ensure hidden is removed
+    setTimeout(() => {
+        alertBox.classList.remove('translate-x-full', 'opacity-0');
+    }, 10);
+
+    // Set new timeout for hiding
+    errorAlertTimeout = setTimeout(() => {
+        hideAlert(alertBox);
+    }, 5000);
+}
+
+// Add helper function to handle hiding animation
+function hideAlert(alertBox) {
+    // Add the classes back to trigger the hide animation
+    alertBox.classList.add('translate-x-full', 'opacity-0');
+    
+    // Wait for animation to complete before hiding
     setTimeout(() => {
         alertBox.hidden = true;
-    }, 5000);
+    }, 300); // Match this with the duration-300 class
 }
 
 function getSpinnerSVG(id, size = 'size-4') {

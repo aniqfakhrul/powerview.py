@@ -51,6 +51,8 @@ class APIServer:
 		self.app.add_url_rule('/api/add/<method_name>', 'add_operation', self.handle_add_operation, methods=['POST'])
 		self.app.add_url_rule('/api/invoke/<method_name>', 'invoke_operation', self.handle_invoke_operation, methods=['POST'])
 		self.app.add_url_rule('/api/remove/<method_name>', 'remove_operation', self.handle_remove_operation, methods=['POST'])
+		self.app.add_url_rule('/api/start/<method_name>', 'start_operation', self.handle_start_operation, methods=['POST'])
+		self.app.add_url_rule('/api/stop/<method_name>', 'stop_operation', self.handle_stop_operation, methods=['POST'])
 		self.app.add_url_rule('/api/convertfrom/<method_name>', 'convert_from_operation', self.handle_convert_from_operation, methods=['POST'])
 		self.app.add_url_rule('/api/convertto/<method_name>', 'convert_to_operation', self.handle_convert_to_operation, methods=['POST'])
 		self.app.add_url_rule('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, methods=['GET'])
@@ -211,28 +213,32 @@ class APIServer:
 	def render_ou(self):
 		context = {
 			'title': 'Powerview.py - OUs',
-			'nav_items': self.nav_items
+			'nav_items': self.nav_items,
+			'version': version,
 		}
 		return render_template('oupage.html', **context)
 
 	def render_gpo(self):
 		context = {
 			'title': 'Powerview.py - GPOs',
-			'nav_items': self.nav_items
+			'nav_items': self.nav_items,
+			'version': version,
 		}
 		return render_template('gpopage.html', **context)
 
 	def render_smb(self):
 		context = {
 			'title': 'Powerview.py - SMB',
-			'nav_items': self.nav_items
+			'nav_items': self.nav_items,
+			'version': version,
 		}
 		return render_template('smbpage.html', **context)
 
 	def render_utils(self):
 		context = {
 			'title': 'Powerview.py - Utils',
-			'nav_items': self.nav_items
+			'nav_items': self.nav_items,
+			'version': version,
 		}
 		return render_template('utilspage.html', **context)
 
@@ -256,6 +262,12 @@ class APIServer:
 
 	def handle_convert_to_operation(self, method_name):
 		return self.handle_operation(f"convertto_{method_name}")
+
+	def handle_start_operation(self, method_name):
+		return self.handle_operation(f"start_{method_name}")
+
+	def handle_stop_operation(self, method_name):
+		return self.handle_operation(f"stop_{method_name}")
 
 	def handle_constants(self):
 		get_param = request.args.get('get', '')
