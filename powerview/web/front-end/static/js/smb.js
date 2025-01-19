@@ -320,9 +320,10 @@ function buildSMBTreeView(shares, computer) {
                             <span class="spinner-container flex-shrink-0"></span>
                         </div>
                     </div>
+                    <div class="col-span-1 text-sm text-neutral-500 dark:text-neutral-400">--</div>
                     <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400">--</div>
                     <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400">--</div>
-                    <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400 text-right">--</div>
+                    <div class="col-span-1 text-sm text-neutral-500 dark:text-neutral-400 text-right">--</div>
                 </div>
                 <ul class="hidden"></ul>
             </li>
@@ -389,20 +390,46 @@ function attachFileListeners() {
         const share = item.dataset.share;
         const path = item.dataset.path;
         const spinnerContainer = item.querySelector('.spinner-container');
+        const fileDiv = item.querySelector('div');
         
+        // Add loading state tracking
+        let isLoading = false;
+
+        // Handle double click for files
+        if (!isDirectory) {
+            fileDiv.addEventListener('dblclick', async () => {
+                if (isLoading) return;
+
+                try {
+                    isLoading = true;
+                    showInlineSpinner(spinnerContainer);
+                    const cleanPath = path.replace(/^\//, '').replace(/\//g, '\\');
+                    await viewSMBFile(computer, share, cleanPath);
+                } catch (error) {
+                    console.error('Error viewing file:', error);
+                    showErrorAlert(error.message);
+                } finally {
+                    removeInlineSpinner(spinnerContainer);
+                    isLoading = false;
+                }
+            });
+        }
+
         if (isDirectory) {
-            const fileDiv = item.querySelector('div');
             const subList = item.querySelector('ul');
             
             if (!fileDiv || !subList) return;
 
             fileDiv.onclick = async () => {
+                if (isLoading) return;
+
                 if (subList.children.length > 0) {
                     subList.classList.toggle('hidden');
                     return;
                 }
 
                 try {
+                    isLoading = true;
                     showInlineSpinner(spinnerContainer);
                     const currentPath = item.dataset.path;
                     const cleanPath = currentPath.replace(/^\//, '').replace(/\//g, '\\');
@@ -414,6 +441,7 @@ function attachFileListeners() {
                     console.error('Error loading files:', error);
                 } finally {
                     removeInlineSpinner(spinnerContainer);
+                    isLoading = false;
                 }
             };
 
@@ -495,7 +523,7 @@ function attachFileListeners() {
 const downloads = new Map();
 
 // Update the downloadSMBFile function to include progress tracking
-async function downloadSMBFile(computer, share, path) {
+async function downloadSMBFile(computer, share, path, raw = false) {
     // Verify we're operating on the active computer
     if (computer !== activeComputer) {
         console.warn(`Attempted to download from ${computer} while ${activeComputer} is active`);
@@ -507,47 +535,51 @@ async function downloadSMBFile(computer, share, path) {
         const filename = path.split('\\').pop();
         const downloadId = Date.now();
 
-        // Create download entry with computer and share info
-        const downloadsList = document.getElementById('downloads-list');
-        const downloadEntry = document.createElement('div');
-        downloadEntry.id = `download-${downloadId}`;
-        downloadEntry.className = 'bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-3';
-        downloadEntry.innerHTML = `
-            <div class="flex items-center justify-between gap-2">
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2">
-                        <i class="fas fa-file text-blue-500 dark:text-yellow-500"></i>
-                        <div class="truncate">
-                            <div class="text-sm font-medium text-neutral-900 dark:text-white truncate">
-                                ${filename}
-                            </div>
-                            <div class="text-xs text-neutral-500 dark:text-neutral-400">
-                                from \\\\${computer}\\${share}
+        // Only create download entry if not raw download
+        let downloadEntry;
+        if (!raw) {
+            // Create download entry with computer and share info
+            const downloadsList = document.getElementById('downloads-list');
+            downloadEntry = document.createElement('div');
+            downloadEntry.id = `download-${downloadId}`;
+            downloadEntry.className = 'bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-3';
+            downloadEntry.innerHTML = `
+                <div class="flex items-center justify-between gap-2">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            <i class="fas fa-file text-blue-500 dark:text-yellow-500"></i>
+                            <div class="truncate">
+                                <div class="text-sm font-medium text-neutral-900 dark:text-white truncate">
+                                    ${filename}
+                                </div>
+                                <div class="text-xs text-neutral-500 dark:text-neutral-400">
+                                    from \\\\${computer}\\${share}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="mt-1 flex items-center gap-2">
-                        <div class="flex-1 bg-neutral-200 dark:bg-neutral-700 rounded-full h-1.5">
-                            <div class="download-progress bg-blue-500 dark:bg-yellow-500 h-1.5 rounded-full" style="width: 0%"></div>
+                        <div class="mt-1 flex items-center gap-2">
+                            <div class="flex-1 bg-neutral-200 dark:bg-neutral-700 rounded-full h-1.5">
+                                <div class="download-progress bg-blue-500 dark:bg-yellow-500 h-1.5 rounded-full" style="width: 0%"></div>
+                            </div>
+                            <span class="text-xs text-neutral-500 dark:text-neutral-400 download-status">Starting...</span>
                         </div>
-                        <span class="text-xs text-neutral-500 dark:text-neutral-400 download-status">Starting...</span>
                     </div>
+                    <button onclick="clearDownload(${downloadId})" class="text-neutral-400 hover:text-neutral-500 dark:hover:text-neutral-300">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
-                <button onclick="clearDownload(${downloadId})" class="text-neutral-400 hover:text-neutral-500 dark:hover:text-neutral-300">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-        `;
+            `;
 
-        // Show downloads panel if hidden
-        const downloadsPanel = document.getElementById('downloads-panel');
-        downloadsPanel.classList.remove('hidden');
-        setTimeout(() => {
-            downloadsPanel.classList.remove('translate-x-full');
-        }, 0);
+            // Show downloads panel if hidden
+            const downloadsPanel = document.getElementById('downloads-panel');
+            downloadsPanel.classList.remove('hidden');
+            setTimeout(() => {
+                downloadsPanel.classList.remove('translate-x-full');
+            }, 0);
 
-        // Add the new download entry
-        downloadsList.insertBefore(downloadEntry, downloadsList.firstChild);
+            // Add the new download entry
+            downloadsList.insertBefore(downloadEntry, downloadsList.firstChild);
+        }
 
         // Start download
         const response = await fetch('/api/smb/get', {
@@ -563,25 +595,30 @@ async function downloadSMBFile(computer, share, path) {
             throw new Error(error.error || 'Failed to download file');
         }
 
-        // Get the suggested filename from the response headers
-        const suggestedFilename = `${computer}_${share}_${filename}`;
         const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = suggestedFilename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        
+        if (raw) {
+            return blob;
+        } else {
+            // Get the suggested filename from the response headers
+            const suggestedFilename = `${computer}_${share}_${filename}`;
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = suggestedFilename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
 
-        // Update download entry to show completion
-        const progressBar = downloadEntry.querySelector('.download-progress');
-        const statusText = downloadEntry.querySelector('.download-status');
-        progressBar.style.width = '100%';
-        statusText.textContent = 'Complete';
+            // Update download entry to show completion
+            const progressBar = downloadEntry.querySelector('.download-progress');
+            const statusText = downloadEntry.querySelector('.download-status');
+            progressBar.style.width = '100%';
+            statusText.textContent = 'Complete';
 
-        showSuccessAlert('File downloaded successfully');
+            showSuccessAlert('File downloaded successfully');
+        }
 
     } catch (error) {
         showErrorAlert(error.message);
@@ -655,6 +692,11 @@ function buildFileList(files, share, currentPath, computer) {
         const windowsTimestamp = BigInt(file.modified);
         const unixTimestamp = Number((windowsTimestamp - BigInt(116444736000000000)) / BigInt(10000));
         const modifiedDate = new Date(unixTimestamp).toLocaleString();
+
+        // Convert Windows FILETIME to JavaScript Date for created date
+        const windowsCreatedTimestamp = BigInt(file.created);
+        const unixCreatedTimestamp = Number((windowsCreatedTimestamp - BigInt(116444736000000000)) / BigInt(10000));
+        const createdDate = new Date(unixCreatedTimestamp).toLocaleString();
         
         // Calculate indentation level based on path depth
         const pathSegments = currentPath.split('/').filter(segment => segment.length > 0);
@@ -666,7 +708,8 @@ function buildFileList(files, share, currentPath, computer) {
                 data-path="${currentPath}/${file.name}" 
                 data-is-dir="${file.is_directory ? '16' : '0'}"
                 data-computer="${computer}"
-                data-share="${share}">
+                data-share="${share}"
+                title="${file.name}">
                 <div class="grid grid-cols-12 gap-4 items-center hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer py-0.5 px-2">
                     <div class="col-span-6">
                         <div class="flex items-center gap-2 min-w-0" style="margin-left: ${marginLeft}rem;">
@@ -678,13 +721,16 @@ function buildFileList(files, share, currentPath, computer) {
                             <span class="spinner-container flex-shrink-0"></span>
                         </div>
                     </div>
-                    <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400">
+                    <div class="col-span-1 text-sm text-neutral-500 dark:text-neutral-400">
                         ${formatFileSize(file.size)}
+                    </div>
+                    <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400">
+                        ${createdDate}
                     </div>
                     <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400">
                         ${modifiedDate}
                     </div>
-                    <div class="col-span-2 flex items-center gap-2 justify-end">
+                    <div class="col-span-1 flex items-center gap-2 justify-end">
                         ${isDirectory ? `
                             <button class="upload-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="Upload">
                                 <i class="fas fa-upload"></i>
@@ -1060,10 +1106,16 @@ async function downloadSMBDirectory(computer, share, path, directoryName) {
         const statusElement = document.getElementById(`download-status-${downloadId}`);
         statusElement.textContent = `0/${totalFiles} files`;
         
+        // Create a JSZip instance
+        const zip = new JSZip();
+
         // Download each file
         for (const file of files) {
             try {
-                await downloadSMBFile(computer, share, file.path, true);
+                const blob = await downloadSMBFile(computer, share, file.path, true);
+                if (blob) {
+                    zip.file(file.name, blob);
+                }
                 completedFiles++;
                 
                 // Update progress
@@ -1075,6 +1127,29 @@ async function downloadSMBDirectory(computer, share, path, directoryName) {
                 // Continue with next file even if one fails
             }
         }
+
+        // Generate the zip file
+        const zipBlob = await zip.generateAsync({ 
+            type: 'blob',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 6 }
+        }, (metadata) => {
+            // Update compression progress
+            if (metadata.percent) {
+                updateDownloadProgress(downloadId, metadata.percent);
+                statusElement.textContent = `Compressing: ${Math.round(metadata.percent)}%`;
+            }
+        });
+        
+        // Create download link for the zip
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${directoryName}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
         
         // Mark download as complete
         completeDownload(downloadId, directoryName);

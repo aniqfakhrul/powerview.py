@@ -2618,9 +2618,27 @@ function getFileIcon(fileName, isDirectory) {
         };
     }
 
+    // Check for jpg file extension
+    if (fileExt === '.jpg') {
+        return {
+            icon: icons.jpgIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for png file extension
+    if (fileExt === '.png') {
+        return {
+            icon: icons.pngIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
     return {
-        icon: 'fa-file',
+        icon: icons.unknownFileIcon,
         iconClass: 'text-neutral-400',
-        isCustomSvg: false
+        isCustomSvg: true
     };
 }
