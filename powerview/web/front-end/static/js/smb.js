@@ -13,6 +13,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     connectButton.onclick = async () => {
         try {
+            // Add loading state to button
+            const connectIcon = connectButton.querySelector('.fa-plug');
+            const buttonText = connectButton.lastChild;
+            const originalText = buttonText.textContent;
+            
+            connectIcon.classList.add('animate-pulse');
+            buttonText.textContent = ' Connecting...';
+            connectButton.disabled = true;
+            
             showLoadingIndicator();
             const computer = computerInput.value;
             if (!computer) {
@@ -62,6 +71,13 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Connection error:', error);
             showErrorAlert(error.message);
         } finally {
+            // Reset button state
+            const connectIcon = connectButton.querySelector('.fa-plug');
+            const buttonText = connectButton.lastChild;
+            
+            connectIcon.classList.remove('animate-pulse');
+            buttonText.textContent = ' Connect';
+            connectButton.disabled = false;
             hideLoadingIndicator();
         }
     };
@@ -230,6 +246,40 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
         });
     });
+
+    // Add refresh button handler
+    const refreshButton = document.getElementById('smb-refresh-button');
+    refreshButton.onclick = async () => {
+        if (!activeComputer) {
+            showErrorAlert('No active connection to refresh');
+            return;
+        }
+
+        try {
+            // Add spinning class to the icon
+            const refreshIcon = refreshButton.querySelector('.fa-sync-alt');
+            refreshIcon.classList.add('animate-spin');
+            // Disable the button while refreshing
+            refreshButton.disabled = true;
+            
+            showLoadingIndicator();
+            const computer = activeComputer;
+            
+            // Reconnect to SMB
+            await connectToSMB({computer});
+            
+            showSuccessAlert(`Refreshed connection to ${computer}`);
+        } catch (error) {
+            console.error('Refresh error:', error);
+            showErrorAlert(error.message);
+        } finally {
+            // Remove spinning class and re-enable button
+            const refreshIcon = refreshButton.querySelector('.fa-sync-alt');
+            refreshIcon.classList.remove('animate-spin');
+            refreshButton.disabled = false;
+            hideLoadingIndicator();
+        }
+    };
 });
 
 // Reuse the existing SMB functions from main.js
