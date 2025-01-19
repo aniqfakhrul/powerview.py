@@ -2,6 +2,7 @@
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.dcerpc.v5 import srvs, wkst, scmr, rrp
 from impacket.dcerpc.v5.ndr import NULL
+from impacket.crypto import encryptSecret
 from typing import List
 
 from powerview.modules.gmsa import GMSA
@@ -27,7 +28,12 @@ from powerview.utils.colors import bcolors
 from powerview.utils.constants import (
 	WELL_KNOWN_SIDS,
 	KNOWN_SIDS,
-	resolve_WellKnownSID
+	resolve_WellKnownSID,
+	SERVICE_TYPE,
+	SERVICE_START_TYPE,
+	SERVICE_ERROR_CONTROL,
+	SERVICE_STATUS,
+	SERVICE_WIN32_EXIT_CODE
 )
 from powerview.lib.dns import (
 	DNS_RECORD,
@@ -3946,30 +3952,335 @@ displayName=New Group Policy Object
 
 		return entries
 
-	def get_netservice(self, computer_name, port=445, name=None, isrunning=None, isstopped=None, args=None):
-		ip_address = ""
-		computer_dns = ""
+	def remove_netservice(self,
+		computer_name,
+		service_name,
+		port=445
+	):
+		if not computer_name or not service_name:
+			if self.args.stack_trace:
+				raise ValueError("[Remove-NetService] Computer name, service name, and path are required")
+			else:
+				logging.error("[Remove-NetService] Computer name, service name, and path are required")
+				return False
+
+		service_name = service_name + '\x00' if service_name else NULL
+
 		KNOWN_PROTOCOLS = {
-				139: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
-				445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
-				}
+			139: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
+			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
+		}
 
-		# Use function parameters if provided, otherwise check args
-		name_filter = name if name is not None else (args.name if args else None)
-		is_running = isrunning if isrunning is not None else (args.isrunning if args else None)
-		is_stopped = isstopped if isstopped is not None else (args.isstopped if args else None)
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
+		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
 
-		if not is_ipaddress(computer_name):
-			ip_address = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+		if not dce:
+			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
+			return False
+
+		dce.bind(scmr.MSRPC_UUID_SCMR)
+
+		try:
+			res = scmr.hROpenSCManagerW(dce)
+			scManagerHandle = res['lpScHandle']
+
+			logging.debug(f"[Remove-NetService] Opening service handle {service_name} on {computer_name}")
+			resp = scmr.hROpenServiceW(dce, scManagerHandle, service_name)
+			serviceHandle = resp['lpServiceHandle']
+
+			scmr.hRDeleteService(dce, serviceHandle)
+			logging.info(f"[Remove-NetService] Service {service_name} removed from {computer_name}")
+
+			logging.debug(f"[Remove-NetService] Closing service handle {service_name} on {computer_name}")
+			scmr.hRCloseServiceHandle(dce, scManagerHandle)
+			dce.disconnect()
+			return True
+		except Exception as e:
+			logging.error("[Remove-NetService] %s" % (str(e)))
+			return False
+
+	def stop_netservice(self,
+		computer_name,
+		service_name,
+		port=445
+	):
+		if not computer_name or not service_name:
+			if self.args.stack_trace:
+				raise ValueError("[Stop-NetService] Computer name, service name, and path are required")
+			else:
+				logging.error("[Stop-NetService] Computer name, service name, and path are required")
+				return False
+
+		service_name = service_name + '\x00' if service_name else NULL
+
+		KNOWN_PROTOCOLS = {
+			139: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
+			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
+		}
+
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
+		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+
+		if not dce:
+			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
+			return False
+
+		dce.bind(scmr.MSRPC_UUID_SCMR)
+
+		try:
+			res = scmr.hROpenSCManagerW(dce)
+			scManagerHandle = res['lpScHandle']
+
+			logging.debug(f"[Stop-NetService] Opening service handle {service_name} on {computer_name}")
+			resp = scmr.hROpenServiceW(dce, scManagerHandle, service_name)
+			serviceHandle = resp['lpServiceHandle']
+
+			scmr.hRControlService(dce, serviceHandle, scmr.SERVICE_CONTROL_STOP)
+			logging.info(f"[Stop-NetService] Service {service_name} stopped on {computer_name}")
+
+			logging.debug(f"[Stop-NetService] Closing service handle {service_name} on {computer_name}")
+			scmr.hRCloseServiceHandle(dce, serviceHandle)
+			scmr.hRCloseServiceHandle(dce, scManagerHandle)
+			dce.disconnect()
+			return True
+		except Exception as e:
+			raise ValueError("[Stop-NetService] %s" % (str(e)))
+
+	def start_netservice(self,
+		computer_name,
+		service_name,
+		port=445
+	):
+		if not computer_name or not service_name:
+			if self.args.stack_trace:
+				raise ValueError("[Start-NetService] Computer name, service name, and path are required")
+			else:
+				logging.error("[Start-NetService] Computer name, service name, and path are required")
+				return False
+
+		service_name = service_name + '\x00' if service_name else NULL
+
+		KNOWN_PROTOCOLS = {
+			139: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
+			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
+		}
+
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
+		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+
+		if not dce:
+			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
+			return False
+
+		dce.bind(scmr.MSRPC_UUID_SCMR)
+
+		try:
+			res = scmr.hROpenSCManagerW(dce)
+			scManagerHandle = res['lpScHandle']
+
+			logging.debug(f"[Start-NetService] Opening service handle {service_name} on {computer_name}")
+			resp = scmr.hROpenServiceW(dce, scManagerHandle, service_name)
+			serviceHandle = resp['lpServiceHandle']
+
+			scmr.hRStartServiceW(dce, serviceHandle)
+			logging.info(f"[Start-NetService] Service {service_name} started on {computer_name}")
+
+			logging.debug(f"[Start-NetService] Closing service handle {service_name} on {computer_name}")
+			scmr.hRCloseServiceHandle(dce, serviceHandle)
+			scmr.hRCloseServiceHandle(dce, scManagerHandle)
+			dce.disconnect()
+			return True
+		except Exception as e:
+			raise ValueError("[Start-NetService] %s" % (str(e)))
+
+	def add_netservice(self,
+		computer_name,
+		service_name,
+		display_name,
+		binary_path,
+		service_type=None,
+		start_type=None,
+		error_control=None,
+		service_start_name=None,
+		password=None,
+		port=445
+	):
+
+		if not computer_name or not service_name:
+			if self.args.stack_trace:
+				raise ValueError("[Add-NetService] Computer name, service name, and path are required")
+			else:
+				logging.error("[Add-NetService] Computer name, service name, and path are required")
+				return False
+
+		service_name = service_name + '\x00' if service_name else NULL
+		display_name = display_name + '\x00' if display_name else NULL
+		binary_path = binary_path + '\x00' if binary_path else NULL
+		service_type = int(service_type) if service_type else scmr.SERVICE_WIN32_OWN_PROCESS
+		start_type = int(start_type) if start_type else scmr.SERVICE_AUTO_START
+		error_control = int(error_control) if error_control else scmr.SERVICE_ERROR_IGNORE
+		service_start_name = service_start_name + '\x00' if service_start_name else NULL
+		if password:
+			client = self.conn.init_smb_session(computer_name)
+			key = client.getSessionKey()
+			try:
+				password = (password+'\x00').encode('utf-16le')
+			except UnicodeDecodeError:
+				import sys
+				password = (password+'\x00').decode(sys.getfilesystemencoding()).encode('utf-16le')
+			password = encryptSecret(key, password)
 		else:
-			ip_address = computer_name
+			password = NULL
 
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % ip_address
-		dce = self.conn.connectRPCTransport(host=ip_address, stringBindings=stringBinding)
+		KNOWN_PROTOCOLS = {
+			139: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
+			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
+		}
+
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
+		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+
+		if not dce:
+			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
+			return False
+
+		dce.bind(scmr.MSRPC_UUID_SCMR)
+
+		try:
+			res = scmr.hROpenSCManagerW(dce)
+			scManagerHandle = res['lpScHandle']
+
+			scmr.hRCreateServiceW(
+				dce,
+				scManagerHandle,
+				service_name,
+				display_name,
+				dwServiceType=service_type,
+				dwStartType=start_type,
+				dwErrorControl=error_control,
+				lpBinaryPathName=binary_path,
+				lpServiceStartName=service_start_name,
+				lpPassword=password
+			)
+			logging.info(f"[Add-NetService] Service {service_name} added to {computer_name}")
+
+			logging.debug(f"[Add-NetService] Closing service handle {service_name} on {computer_name}")
+			scmr.hRCloseServiceHandle(dce, scManagerHandle)
+			dce.disconnect()
+			return True
+		except Exception as e:
+			raise ValueError("[Add-NetService] %s" % (str(e)))
+
+	def set_netservice(self,
+		computer_name,
+		service_name,
+		display_name=None,
+		binary_path=None,
+		service_type=None,
+		start_type=None,
+		error_control=None,
+		service_start_name=None,
+		password=None,
+		port=445
+	):
+		if not computer_name or not service_name:
+			if self.args.stack_trace:
+				raise ValueError("[Set-NetService] Computer name, service name, and path are required")
+			else:
+				logging.error("[Set-NetService] Computer name, service name, and path are required")
+				return False
+
+		KNOWN_PROTOCOLS = {
+			139: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
+			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
+		}
+
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
+		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+
+		if not dce:
+			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
+			return False
+
+		dce.bind(scmr.MSRPC_UUID_SCMR)
+
+		try:
+			res = scmr.hROpenSCManagerW(dce)
+			scManagerHandle = res['lpScHandle']
+
+			# Open service handle
+			logging.debug(f"[Set-NetService] Opening service handle {service_name} on {computer_name}")
+			resp = scmr.hROpenServiceW(dce, scManagerHandle, service_name + '\x00')
+			serviceHandle = resp['lpServiceHandle']
+
+			display = display_name + '\x00' if display_name else NULL
+			binary_path = binary_path + '\x00' if binary_path else NULL
+			service_type = service_type if service_type else scmr.SERVICE_NO_CHANGE
+			start_type = start_type if start_type else scmr.SERVICE_NO_CHANGE
+			error_control = error_control if error_control else scmr.SERVICE_ERROR_IGNORE
+			service_start_name = service_start_name + '\x00' if service_start_name else NULL
+			if password:
+				client = self.conn.init_smb_session(computer_name)
+				key = client.getSessionKey()
+				try:
+					password = (password+'\x00').encode('utf-16le')
+				except UnicodeDecodeError:
+					import sys
+					password = (password+'\x00').decode(sys.getfilesystemencoding()).encode('utf-16le')
+				password = encryptSecret(key, password)
+			else:
+				password = NULL
+
+			logging.debug(f"[Set-NetService] Changing service config {service_name} on {computer_name}")
+
+			scmr.hRChangeServiceConfigW(
+				dce, 
+				serviceHandle,
+				service_type,
+				start_type,
+				error_control,
+				binary_path,
+				NULL,
+				NULL,
+				NULL,
+				0,
+				service_start_name,
+				password,
+				0,
+				display
+			)
+			logging.info(f"[Set-NetService] Service config changed {service_name} on {computer_name}")
+
+			logging.debug(f"[Set-NetService] Closing service handle {service_name} on {computer_name}")
+			scmr.hRCloseServiceHandle(dce, serviceHandle)
+			scmr.hRCloseServiceHandle(dce, scManagerHandle)
+			dce.disconnect()
+
+			return True
+		except Exception as e:
+			raise ValueError("[Set-NetService] %s" % (str(e)))
+
+	def get_netservice(self,
+		computer_name,
+		port=445,
+		name=None,
+		is_running=None,
+		is_stopped=None,
+		raw=False
+	):
+
+		KNOWN_PROTOCOLS = {
+			139: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
+			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
+		}
+
+
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
+		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
 		
 		if not dce:
-			logging.error("Failed to connect to %s" % (ip_address))
-			return
+			logging.error("[Get-NetService] Failed to connect to %s" % (computer_name))
+			return False
 
 		dce.bind(scmr.MSRPC_UUID_SCMR)
 
@@ -3978,30 +4289,46 @@ displayName=New Group Policy Object
 			res = scmr.hROpenSCManagerW(dce)
 			scManagerHandle = res['lpScHandle']
 
-			resp = scmr.hREnumServicesStatusW(dce, scManagerHandle)
-		except Exception as e:
-			if str(e).find('Broken pipe') >= 0:
-				# The connection timed-out. Let's try to bring it back next round
-				logging.error('Connection failed - skipping host!')
-				return
-			elif str(e).upper().find('ACCESS_DENIED'):
-				# We're not admin, bye
-				logging.error('Access denied - you must be admin to enumerate sessions this way')
-				dce.disconnect()
-				return
+			if name:
+				ans = scmr.hROpenServiceW(dce, scManagerHandle, name + '\x00')
+				serviceHandle = ans['lpServiceHandle']
+
+				config = {}
+				logging.debug(f"[Get-NetService] Querying service config for {name} on {computer_name}")
+				resp = scmr.hRQueryServiceConfigW(dce, serviceHandle)
+				config['attributes'] = {}
+				config['attributes']['ServiceName'] = name
+				config['attributes']['DisplayName'] = resp['lpServiceConfig']['lpDisplayName'][:-1]
+				config['attributes']['StartType'] = SERVICE_START_TYPE(resp['lpServiceConfig']['dwStartType']).to_str() if not raw else resp['lpServiceConfig']['dwStartType']
+				config['attributes']['ErrorControl'] = SERVICE_ERROR_CONTROL(resp['lpServiceConfig']['dwErrorControl']).to_str() if not raw else resp['lpServiceConfig']['dwErrorControl']
+				config['attributes']['BinaryPath'] = resp['lpServiceConfig']['lpBinaryPathName'][:-1] if not raw else resp['lpServiceConfig']['lpBinaryPathName']
+				config['attributes']['ServiceType'] = SERVICE_TYPE(resp['lpServiceConfig']['dwServiceType']).to_str() if not raw else resp['lpServiceConfig']['dwServiceType']
+				config['attributes']['Dependencies'] = resp['lpServiceConfig']['lpDependencies'][:-1]
+				config['attributes']['ServiceStartName'] = resp['lpServiceConfig']['lpServiceStartName'][:-1]
+
+				logging.debug(f"[Get-NetService] Querying service status for {name} on {computer_name}")
+				resp = scmr.hRQueryServiceStatus(dce, serviceHandle)
+				config['attributes']['Status'] = SERVICE_STATUS(resp['lpServiceStatus']['dwCurrentState']).to_str() if not raw else resp['lpServiceStatus']['dwCurrentState']
+				config['attributes']['Win32ExitCode'] = SERVICE_WIN32_EXIT_CODE(resp['lpServiceStatus']['dwWin32ExitCode']).to_str() if not raw else resp['lpServiceStatus']['dwWin32ExitCode']
+				config['attributes']['ServiceSpecificExitCode'] = resp['lpServiceStatus']['dwServiceSpecificExitCode']
+				config['attributes']['CheckPoint'] = resp['lpServiceStatus']['dwCheckPoint']
+				config['attributes']['WaitHint'] = resp['lpServiceStatus']['dwWaitHint']
+
+				return [config]
 			else:
-				raise
-		
+				resp = scmr.hREnumServicesStatusW(dce, scManagerHandle)
+
+		except Exception as e:
+			raise ValueError("[Get-NetService] %s" % (str(e)))
+
 		edr = EDR()
 		entries = []
+		
 		try:
 			for i in range(len(resp)):
 				state = resp[i]['ServiceStatus']['dwCurrentState']
 				service_name = resp[i]['lpServiceName'][:-1]
 				displayname = resp[i]['lpDisplayName'][:-1]
-
-				if name_filter and name_filter.lower() not in service_name.lower():
-					continue
 
 				if is_running and not state == scmr.SERVICE_RUNNING:
 					continue

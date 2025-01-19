@@ -256,6 +256,11 @@
 
             <!-- Tab Content -->
             <div class="flex-1 overflow-y-auto scrollbar">
+                <div id="modal-content-spinner" class="hidden absolute inset-0 bg-black/50 flex justify-center items-center z-50">
+                    <div class="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-yellow-400 border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" role="status">
+                        <span class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
+                    </div>
+                </div>
                 <!-- Info Tab -->
                 <div id="tabpanelInfo" role="tabpanel" aria-label="info" class="p-4" style="display: block;">
                     <form id="ldap-attributes-form" class="space-y-4">
@@ -468,6 +473,7 @@
                         </button>
                     </div>
                 </div>
+                <!-- Services Tab -->
                 <div id="tabpanelServices" role="tabpanel" aria-label="services" class="p-4 relative" style="display: none;">
                     <!-- Add spinner overlay -->
                     <div id="services-tab-spinner" class="hidden absolute inset-0 bg-black bg-opacity-50 flex justify-center items-center z-10">
@@ -479,6 +485,84 @@
                             <span class="sr-only">Loading...</span>
                         </div>
                     </div>
+
+                    <!-- Header with Add Button -->
+                    <div class="flex justify-between items-center mb-4">
+                        <div class="flex items-center gap-4">
+                            <select id="service-status-filter" class="px-2 py-1 text-sm bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-neutral-700 dark:text-neutral-300">
+                                <option value="ALL">All Services</option>
+                                <option value="RUNNING">Running Only</option>
+                                <option value="STOPPED">Stopped Only</option>
+                            </select>
+                            <span class="text-sm font-medium text-neutral-600 dark:text-neutral-400">
+                                <span id="services-count">0</span> services found
+                            </span>
+                        </div>
+                        <button id="toggle-add-service-form" class="p-2 text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/50 rounded-md transition-colors">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+
+                    <!-- Add Service Form (Hidden by default) -->
+                    <div id="add-service-form-container" class="hidden">
+                        <div class="mb-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-md border border-neutral-200 dark:border-neutral-700 transform transition-all duration-300 ease-in-out opacity-0 scale-95" id="add-service-form-content">
+                            <form id="add-service-form" class="p-4">
+                                <div class="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Service Name</label>
+                                        <input type="text" name="service_name" required
+                                            class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Display Name</label>
+                                        <input type="text" name="display_name" required
+                                            class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Binary Path</label>
+                                        <input type="text" name="binary_path" required
+                                            class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Service Type</label>
+                                        <select name="service_type"
+                                            class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white">
+                                            <option value="1">Kernel Driver</option>
+                                            <option value="2">File System Driver</option>
+                                            <option value="4">Adapter</option>
+                                            <option value="8">Recognizer Driver</option>
+                                            <option value="16" selected>Win32 Own Process</option>
+                                            <option value="32">Win32 Share Process</option>
+                                            <option value="256">Interactive Process</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Start Type</label>
+                                        <select name="start_type"
+                                            class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white">
+                                            <option value="0">Boot Start</option>
+                                            <option value="1">System Start</option>
+                                            <option value="2" selected>Automatic</option>
+                                            <option value="3">Manual</option>
+                                            <option value="4">Disabled</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">Service Start Name</label>
+                                        <input type="text" name="service_start_name" placeholder="LocalSystem"
+                                            class="w-full px-3 py-2 bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-600 rounded-md text-sm text-neutral-900 dark:text-white">
+                                    </div>
+                                </div>
+                                <div class="flex justify-end mt-4">
+                                    <button type="submit" 
+                                        class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:text-black rounded-md">
+                                        Add Service
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
                     <!-- Rest of the services tab content -->
                     <table class="w-full text-sm border-collapse">
                         <thead>
@@ -486,6 +570,7 @@
                                 <th class="px-3 py-2">Name</th>
                                 <th class="px-3 py-2">Display Name</th>
                                 <th class="px-3 py-2">Status</th>
+                                <th class="px-3 py-2 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="services-rows" class="divide-y divide-neutral-200 dark:divide-neutral-700">

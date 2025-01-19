@@ -19,7 +19,7 @@
                 <!-- Connect As Form (initially hidden) -->
                 <div id="connect-as-form" class="hidden flex items-center gap-2">
                     <input type="text" id="smb-username" 
-                        placeholder="Username" 
+                        placeholder="domain\username" 
                         class="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800">
                     <input type="password" id="smb-password" 
                         placeholder="Password" 
@@ -41,6 +41,12 @@
                     <i class="fas fa-plug fa-sm mr-1"></i>
                     Connect
                 </button>
+
+                <!-- Add refresh button -->
+                <button id="smb-refresh-button" type="button" 
+                    class="whitespace-nowrap px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white border border-neutral-200 dark:border-neutral-700 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                    <i class="fas fa-sync-alt fa-sm"></i>
+                </button>
             </div>
         </div>
         <div id="smb-connection-status" class="mt-2 text-sm"></div>
@@ -58,9 +64,10 @@
         <!-- Table Headers -->
         <div class="px-4 py-1 border-b border-neutral-200 dark:border-neutral-700 grid grid-cols-12">
             <div class="col-span-6 text-sm font-medium text-neutral-500 dark:text-neutral-400">Name</div>
-            <div class="col-span-2 text-sm font-medium text-neutral-500 dark:text-neutral-400">Size</div>
+            <div class="col-span-1 text-sm font-medium text-neutral-500 dark:text-neutral-400">Size</div>
+            <div class="col-span-2 text-sm font-medium text-neutral-500 dark:text-neutral-400">Created</div>
             <div class="col-span-2 text-sm font-medium text-neutral-500 dark:text-neutral-400">Modified</div>
-            <div class="col-span-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 text-right">Actions</div>
+            <div class="col-span-1 text-sm font-medium text-neutral-500 dark:text-neutral-400 text-right">Actions</div>
         </div>
     </div>
 
@@ -173,4 +180,5 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/smb.js') }}"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 {% endblock %}

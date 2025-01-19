@@ -1,4 +1,4 @@
-<div hidden class="fixed top-4 right-4 z-50 w-full max-w-sm overflow-hidden rounded-md border border-red-500 bg-white text-neutral-600 dark:bg-neutral-950 dark:text-neutral-300 shadow-lg" role="alert-error">
+<div hidden class="fixed top-4 right-4 z-50 w-full max-w-sm overflow-hidden rounded-md border border-red-500 bg-white text-neutral-600 dark:bg-neutral-950 dark:text-neutral-300 shadow-lg transform transition-all duration-300 ease-in-out translate-x-full opacity-0" role="alert-error">
     <div class="flex w-full items-center gap-2 bg-red-500/10 p-4">
         <div class="bg-red-500/15 text-red-500 rounded-full p-1" aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-6" aria-hidden="true">
@@ -9,7 +9,7 @@
             <h3 class="text-sm font-semibold text-red-500">Error</h3>
             <p class="text-xs font-medium sm:text-sm" id="alert-message-error"></p>
         </div>
-        <button class="ml-auto" aria-label="dismiss alert">
+        <button class="ml-auto close-alert" aria-label="Close alert" data-alert-type="error">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" fill="none" stroke-width="2.5" class="w-4 h-4 shrink-0">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -17,7 +17,7 @@
     </div>
 </div>
 
-<div hidden class="fixed top-4 right-4 z-50 w-full max-w-sm overflow-hidden rounded-md border border-green-500 bg-white text-neutral-600 dark:bg-neutral-950 dark:text-neutral-300 shadow-lg" role="alert-success">
+<div hidden class="fixed top-4 right-4 z-50 w-full max-w-sm overflow-hidden rounded-md border border-green-500 bg-white text-neutral-600 dark:bg-neutral-950 dark:text-neutral-300 shadow-lg transform transition-all duration-300 ease-in-out translate-x-full opacity-0" role="alert-success">
     <div class="flex w-full items-center gap-2 bg-green-500/10 p-4">
         <div class="bg-green-500/15 text-green-500 rounded-full p-1" aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-6" aria-hidden="true">
@@ -28,7 +28,7 @@
             <h3 class="text-sm font-semibold text-green-500">Success</h3>
             <p class="text-xs font-medium sm:text-sm" id="alert-message-success"></p>
         </div>
-        <button class="ml-auto" aria-label="dismiss alert">
+        <button class="ml-auto close-alert" aria-label="Close alert" data-alert-type="success">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true" stroke="currentColor" fill="none" stroke-width="2.5" class="w-4 h-4 shrink-0">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
             </svg>

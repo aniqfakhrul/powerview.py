@@ -559,9 +559,47 @@ def powerview_arg_parse(cmd):
 	get_netservice_status_group.add_argument('-IsStopped', action='store_true', default=False, dest='isstopped')
 	get_netservice_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
 	get_netservice_parser.add_argument('-SortBy', action='store', dest='sort_by')
-	get_netservice_parser.add_argument('-Server', action='store', dest='server')
 	get_netservice_parser.add_argument('-Count', action='store_true', dest='count')
 	get_netservice_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+	# remove-netservice
+	remove_netservice_parser = subparsers.add_parser('Remove-NetService', exit_on_error=False)
+	remove_netservice_parser.add_argument('-Computer', required=True, action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	remove_netservice_parser.add_argument('-Name', required=True, action='store', const=None, dest='service_name')
+
+	# start-netservice
+	start_netservice_parser = subparsers.add_parser('Start-NetService', exit_on_error=False)
+	start_netservice_parser.add_argument('-Computer', required=True, action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	start_netservice_parser.add_argument('-Name', required=True, action='store', const=None, dest='service_name')
+
+	# stop-netservice
+	stop_netservice_parser = subparsers.add_parser('Stop-NetService', exit_on_error=False)
+	stop_netservice_parser.add_argument('-Computer', required=True, action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	stop_netservice_parser.add_argument('-Name', required=True, action='store', const=None, dest='service_name')
+
+	# add-netservice
+	add_netservice_parser = subparsers.add_parser('Add-NetService', exit_on_error=False)
+	add_netservice_parser.add_argument('-Computer', required=True, action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	add_netservice_parser.add_argument('-Name', required=True, action='store', const=None, dest='service_name')
+	add_netservice_parser.add_argument('-DisplayName', required=True, action='store', const=None, dest='display_name')
+	add_netservice_parser.add_argument('-Path', required=True,action='store', const=None, dest='binary_path')
+	add_netservice_parser.add_argument('-Password', action='store', const=None, dest='password')
+	add_netservice_parser.add_argument('-ServiceType', action='store', const=None, dest='service_type')
+	add_netservice_parser.add_argument('-StartType', action='store', const=None, dest='start_type')
+	add_netservice_parser.add_argument('-ErrorControl', action='store', const=None, dest='error_control')
+	add_netservice_parser.add_argument('-ServiceStartName', action='store', const=None, dest='service_start_name')
+
+	# set-netservice
+	set_netservice_parser = subparsers.add_parser('Set-NetService', exit_on_error=False)
+	set_netservice_parser.add_argument('-Computer', required=True, action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	set_netservice_parser.add_argument('-Name', required=True, action='store', const=None, dest='service_name')
+	set_netservice_parser.add_argument('-DisplayName', action='store', const=None, dest='display_name')
+	set_netservice_parser.add_argument('-Path', action='store', const=None, dest='binary_path')
+	set_netservice_parser.add_argument('-Password', action='store', const=None, dest='password')
+	set_netservice_parser.add_argument('-ServiceType', action='store', const=None, dest='service_type')
+	set_netservice_parser.add_argument('-StartType', action='store', const=None, dest='start_type')
+	set_netservice_parser.add_argument('-ErrorControl', action='store', const=None, dest='error_control')
+	set_netservice_parser.add_argument('-ServiceStartName', action='store', const=None, dest='service_start_name')
 
 	# shares
 	find_localadminaccess_parser = subparsers.add_parser('Find-LocalAdminAccess', exit_on_error=False)
