@@ -29,6 +29,75 @@ class IntFlag(enum.IntFlag):
 	def __repr__(self):
 		return str(self)
 
+# constants for service access codes in a class
+class SERVICE_ACCESS_CODES(IntFlag):
+	SERVICE_QUERY_CONFIG = 0x00000001
+	SERVICE_CHANGE_CONFIG = 0x00000002
+	SERVICE_QUERY_STATUS = 0x00000004
+	SERVICE_ENUMERATE_DEPENDENTS = 0x00000008
+	SERVICE_START = 0x00000010
+	SERVICE_STOP = 0x00000020
+
+	def to_str(self):
+		return f"{self._name_} ({self._value_})"
+
+class SERVICE_TYPE(IntFlag):
+	SERVICE_KERNEL_DRIVER = 0x00000001
+	SERVICE_FILE_SYSTEM_DRIVER = 0x00000002
+	SERVICE_ADAPTER = 0x00000004
+	SERVICE_RECOGNIZER_DRIVER = 0x00000008
+	SERVICE_WIN32_OWN_PROCESS = 0x00000010
+	SERVICE_WIN32_SHARE_PROCESS = 0x00000020
+	SERVICE_INTERACTIVE_PROCESS = 0x00000100
+
+	def to_str(self):
+		return f"{self._name_} ({self._value_})"
+
+class SERVICE_START_TYPE(IntFlag):
+	BOOT_START = 0x00000000
+	SYSTEM_START = 0x00000001
+	AUTO_START = 0x00000002
+	DEMAND_START = 0x00000003
+	DISABLED = 0x00000004
+
+	def to_str(self):
+		return f"{self._name_} ({self._value_})"
+
+# constants for dwErrorControl
+class SERVICE_ERROR_CONTROL(IntFlag):
+	IGNORE = 0x00000000
+	NORMAL = 0x00000001
+	SEVERE = 0x00000002
+	CRITICAL = 0x00000003
+
+	def to_str(self):
+		return f"{self._name_} ({self._value_})"
+
+# constants for dwServiceStatus
+class SERVICE_STATUS(IntFlag):
+	STOPPED = 0x00000001
+	START_PENDING = 0x00000002
+	STOP_PENDING = 0x00000003
+	RUNNING = 0x00000004
+	CONTINUE_PENDING = 0x00000005
+	PAUSE_PENDING = 0x00000006
+	PAUSED = 0x00000007
+
+	def to_str(self):
+		return f"{self._name_} ({self._value_})"
+
+# constants for dwWin32ExitCode
+class SERVICE_WIN32_EXIT_CODE(IntFlag):
+	STOPPED = 0x00000001
+	STOP_PENDING = 0x00000002
+	STOP_PENDING_2 = 0x00000003
+	STOP_PENDING_3 = 0x00000004
+	STOP_PENDING_4 = 0x00000005
+	STOP_PENDING_5 = 0x00000006
+
+	def to_str(self):
+		return f"{self._name_} ({self._value_})"
+
 class MS_PKI_CERTIFICATE_NAME_FLAG(IntFlag):
 	NONE = 0x00000000
 	ENROLLEE_SUPPLIES_SUBJECT = 0x00000001

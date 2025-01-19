@@ -67,6 +67,20 @@ function showLoadingIndicator() {
     boxOverlaySpinner.classList.remove('hidden'); // Show the spinner
 }
 
+function showModalContentSpinner() {
+    const spinner = document.getElementById('modal-content-spinner');
+    if (spinner) {
+        spinner.classList.remove('hidden');
+    }
+}
+
+function hideModalContentSpinner() {
+    const spinner = document.getElementById('modal-content-spinner');
+    if (spinner) {
+        spinner.classList.add('hidden');
+    }
+}
+
 function showInitLoadingIndicator() {
     const boxOverlaySpinner = document.getElementById('box-overlay-spinner-init');
     boxOverlaySpinner.classList.remove('hidden'); // Show the spinner
@@ -527,8 +541,132 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    const addServiceForm = document.getElementById('add-service-form');
+    if (addServiceForm) {
+        addServiceForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            
+            // Get computer name from DNS hostname field
+            const dnsHostnameInput = document.querySelector('#dNSHostName-wrapper input');
+            if (!dnsHostnameInput) {
+                showErrorAlert('Computer hostname not found');
+                return;
+            }
+            
+            const computer = dnsHostnameInput.value;
+            if (!computer) {
+                showErrorAlert('Computer hostname is required');
+                return;
+            }
+            
+            try {
+                showLoadingIndicator();
+                const response = await fetch('/api/add/netservice', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        computer_name: computer,
+                        service_name: form.service_name.value,
+                        display_name: form.display_name.value,
+                        binary_path: form.binary_path.value,
+                        service_type: parseInt(form.service_type.value),
+                        start_type: parseInt(form.start_type.value),
+                        service_start_name: form.service_start_name.value || null
+                    })
+                });
+        
+                await handleHttpError(response);
+                showSuccessAlert('Service created successfully');
+                
+                // Refresh the services list
+                await fetchAndDisplayModalServices(computer);
+                
+                // Reset the form and hide it
+                form.reset();
+                const container = document.getElementById('add-service-form-container');
+                const content = document.getElementById('add-service-form-content');
+                const toggleButton = document.getElementById('toggle-add-service-form');
+                
+                if (container && content && toggleButton) {
+                    content.classList.remove('opacity-100', 'scale-100');
+                    content.classList.add('opacity-0', 'scale-95');
+                    
+                    setTimeout(() => {
+                        container.classList.add('hidden');
+                    }, 300);
+                    
+                    toggleButton.innerHTML = '<i class="fas fa-plus"></i>';
+                    toggleButton.classList.remove('text-red-600', 'hover:text-red-700', 'dark:text-red-500', 'dark:hover:text-red-400', 'hover:bg-red-50', 'dark:hover:bg-red-950/50');
+                    toggleButton.classList.add('text-green-600', 'hover:text-green-700', 'dark:text-green-500', 'dark:hover:text-green-400', 'hover:bg-green-50', 'dark:hover:bg-green-950/50');
+                }
+            } catch (error) {
+                console.error('Error creating service:', error);
+                showErrorAlert(error.message || 'Failed to create service');
+            } finally {
+                hideLoadingIndicator();
+            }
+        });
+    }
+
     initializeDisconnectButton();
     initializeClearCacheButton();
+
+    // Add this near your other initialization code
+    document.getElementById('toggle-add-service-form').addEventListener('click', function() {
+        const container = document.getElementById('add-service-form-container');
+        const content = document.getElementById('add-service-form-content');
+        
+        if (container.classList.contains('hidden')) {
+            // Show the form
+            container.classList.remove('hidden');
+            setTimeout(() => {
+                content.classList.remove('opacity-0', 'scale-95');
+                content.classList.add('opacity-100', 'scale-100');
+            }, 10);
+            
+            // Update button style to show active state
+            this.classList.remove('text-green-600', 'hover:text-green-700', 'dark:text-green-500', 'dark:hover:text-green-400', 'hover:bg-green-50', 'dark:hover:bg-green-950/50');
+            this.classList.add('text-red-600', 'hover:text-red-700', 'dark:text-red-500', 'dark:hover:text-red-400', 'hover:bg-red-50', 'dark:hover:bg-red-950/50');
+            this.innerHTML = '<i class="fas fa-times"></i>';
+        } else {
+            // Hide the form with animation
+            content.classList.remove('opacity-100', 'scale-100');
+            content.classList.add('opacity-0', 'scale-95');
+            
+            setTimeout(() => {
+                container.classList.add('hidden');
+            }, 300);
+            
+            // Reset button style
+            this.classList.remove('text-red-600', 'hover:text-red-700', 'dark:text-red-500', 'dark:hover:text-red-400', 'hover:bg-red-50', 'dark:hover:bg-red-950/50');
+            this.classList.add('text-green-600', 'hover:text-green-700', 'dark:text-green-500', 'dark:hover:text-green-400', 'hover:bg-green-50', 'dark:hover:bg-green-950/50');
+            this.innerHTML = '<i class="fas fa-plus"></i>';
+        }
+    });
+
+    // Reset form state when modal is closed
+    document.querySelectorAll('[data-modal-hide="ldap-attributes-modal"]').forEach(button => {
+        button.addEventListener('click', function() {
+            const container = document.getElementById('add-service-form-container');
+            const content = document.getElementById('add-service-form-content');
+            const toggleButton = document.getElementById('toggle-add-service-form');
+            
+            container.classList.add('hidden');
+            content.classList.remove('opacity-100', 'scale-100');
+            content.classList.add('opacity-0', 'scale-95');
+            
+            // Reset button style
+            toggleButton.classList.remove('text-red-600', 'hover:text-red-700', 'dark:text-red-500', 'dark:hover:text-red-400', 'hover:bg-red-50', 'dark:hover:bg-red-950/50');
+            toggleButton.classList.add('text-green-600', 'hover:text-green-700', 'dark:text-green-500', 'dark:hover:text-green-400', 'hover:bg-green-50', 'dark:hover:bg-green-950/50');
+            toggleButton.innerHTML = '<i class="fas fa-plus"></i>';
+            
+            // Reset form if needed
+            document.getElementById('add-service-form').reset();
+        });
+    });
 });
 
 function createAttributeEntry(name, value, identity) {
@@ -848,6 +986,7 @@ function closeModal(modalId) {
 // Add this function to handle filtering
 function handleModalSearch() {
     const searchInput = document.getElementById('modal-tab-search');
+    if (!searchInput) return;
     const clearButton = searchInput.nextElementSibling;
 
     function filterContent() {
@@ -912,6 +1051,27 @@ function handleModalSearch() {
                 memberRows.forEach(row => {
                     const text = row.textContent.toLowerCase();
                     row.style.display = text.includes(searchTerm) ? '' : 'none';
+                });
+                break;
+
+            case 'tabpanelServices':
+                const statusFilter = document.getElementById('service-status-filter');
+                const selectedStatus = statusFilter ? statusFilter.value : 'ALL';
+                const serviceRows = document.querySelectorAll('#services-rows tr:not(.details-row)');
+                
+                serviceRows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    const statusCell = row.querySelector('td:nth-child(3)');
+                    const status = statusCell ? statusCell.textContent.trim() : '';
+                    const detailsRow = row.nextElementSibling;
+                    
+                    const matchesSearch = text.includes(searchTerm);
+                    const matchesStatus = selectedStatus === 'ALL' || status === selectedStatus;
+                    
+                    row.style.display = matchesSearch && matchesStatus ? '' : 'none';
+                    if (detailsRow && detailsRow.classList.contains('details-row')) {
+                        detailsRow.style.display = matchesSearch && matchesStatus ? '' : 'none';
+                    }
                 });
                 break;
         }
@@ -1228,7 +1388,7 @@ async function selectModalTab(tabName) {
 }
 
 async function fetchAndDisplayModalDacl(identity, no_cache = false) {
-    showLoadingIndicator();
+    showModalContentSpinner();
     try {
         const response = await fetch('/api/get/domainobjectacl', {
             method: 'POST',
@@ -1245,7 +1405,7 @@ async function fetchAndDisplayModalDacl(identity, no_cache = false) {
         console.error('Error fetching DACL data:', error);
         showErrorAlert('Failed to fetch DACL data');
     } finally {
-        hideLoadingIndicator();
+        hideModalContentSpinner();
     }
 }
 
@@ -1631,7 +1791,7 @@ async function addDomainObjectAcl(targetIdentity, principalIdentity, rights, ace
 
 // Add new function to handle members display
 async function fetchAndDisplayModalMembers(identity) {
-    showLoadingIndicator();
+    showModalContentSpinner();
     try {
         const response = await fetch('/api/get/domaingroupmember', {
             method: 'POST',
@@ -1648,7 +1808,7 @@ async function fetchAndDisplayModalMembers(identity) {
         console.error('Error fetching group members:', error);
         showErrorAlert('Failed to fetch group members');
     } finally {
-        hideLoadingIndicator();
+        hideModalContentSpinner();
     }
 }
 
@@ -1740,7 +1900,7 @@ async function fetchAndDisplayModalSessions(identity) {
     const sessionsRows = document.getElementById('sessions-rows');
     sessionsRows.innerHTML = '';
     
-    showLoadingIndicator();
+    showModalContentSpinner();
     try {
         const response = await fetch('/api/get/netsession', {
             method: 'POST',
@@ -1759,7 +1919,7 @@ async function fetchAndDisplayModalSessions(identity) {
         console.error('Error fetching sessions data:', error);
         showErrorAlert('Failed to fetch sessions data');
     } finally {
-        hideLoadingIndicator();
+        hideModalContentSpinner();
     }
 }
 
@@ -1807,7 +1967,7 @@ function updateModalSessionsContent(sessionsData) {
 }
 
 async function fetchAndDisplayModalLogonUsers(dnsHostname) {
-    showLoadingIndicator();
+    showModalContentSpinner();
     try {
         const response = await fetch('/api/get/netloggedon', {
             method: 'POST',
@@ -1826,7 +1986,7 @@ async function fetchAndDisplayModalLogonUsers(dnsHostname) {
         console.error('Error fetching logon users data:', error);
         showErrorAlert('Failed to fetch logon users data');
     } finally {
-        hideLoadingIndicator();
+        hideModalContentSpinner();
     }
 }
 
@@ -1983,7 +2143,7 @@ function displayModalMemberOf(memberOf) {
 // Add this function to fetch and display owner information
 async function getObjectOwner(identity) {
     try {
-        showLoadingIndicator();
+        showModalContentSpinner();
         const response = await fetch('/api/get/domainobjectowner', {
             method: 'POST',
             headers: {
@@ -2010,7 +2170,7 @@ async function getObjectOwner(identity) {
         console.error('Error fetching owner information:', error);
         showErrorAlert('Failed to fetch owner information');
     } finally {
-        hideLoadingIndicator();
+        hideModalContentSpinner();
     }
 }
 
@@ -2184,7 +2344,7 @@ async function initializeSMBTab(dnsHostname) {
 
     connectButton.onclick = async () => {
         try {
-            showLoadingIndicator();
+            showModalContentSpinner();
             const computer = computerInput.value;
             const username = document.getElementById('smb-username').value;
             const password = document.getElementById('smb-password').value;
@@ -2224,7 +2384,7 @@ async function initializeSMBTab(dnsHostname) {
                 </div>
             `;
         } finally {
-            hideLoadingIndicator();
+            hideModalContentSpinner();
         }
     };
 }
@@ -2447,10 +2607,41 @@ async function uploadSMBFile(computer, share, currentPath) {
     fileInput.click();
 }
 
-// Add new function to fetch and display services
+// Add this to your fetchAndDisplayModalServices function where you populate the services
+function updateServicesCount(services) {
+    const countElement = document.getElementById('services-count');
+    if (countElement) {
+        countElement.textContent = services.length;
+    }
+}
+
+function filterServicesByStatus(tbody, statusFilter) {
+    const rows = tbody.querySelectorAll('tr:not(.details-row)');
+    rows.forEach(row => {
+        const statusCell = row.querySelector('td:nth-child(3)');
+        if (!statusCell) return;
+        
+        const status = statusCell.textContent.trim();
+        const detailsRow = row.nextElementSibling;
+        
+        if (statusFilter === 'ALL' || status === statusFilter) {
+            row.style.display = '';
+            if (detailsRow && detailsRow.classList.contains('details-row')) {
+                detailsRow.style.display = '';
+            }
+        } else {
+            row.style.display = 'none';
+            if (detailsRow && detailsRow.classList.contains('details-row')) {
+                detailsRow.style.display = 'none';
+            }
+        }
+    });
+}
+
+// Update your existing fetchAndDisplayModalServices function
 async function fetchAndDisplayModalServices(computer) {
     try {
-        showLoadingIndicator();
+        showModalContentSpinner();
         const response = await fetch('/api/get/netservice', {
             method: 'POST',
             headers: {
@@ -2463,13 +2654,23 @@ async function fetchAndDisplayModalServices(computer) {
 
         await handleHttpError(response);
         const data = await response.json();
+
+        updateServicesCount(data);
         
         const tbody = document.getElementById('services-rows');
         tbody.innerHTML = '';
 
+        const statusFilter = document.getElementById('service-status-filter');
+        if (statusFilter) {
+            statusFilter.addEventListener('change', (e) => {
+                filterServicesByStatus(tbody, e.target.value);
+            });
+        }
+
         data.forEach(service => {
+            // Create main row
             const row = document.createElement('tr');
-            row.className = 'hover:bg-neutral-50 dark:hover:bg-neutral-800';
+            row.className = 'hover:bg-neutral-50 dark:hover:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700';
 
             // Handle the status styling
             let statusClass = '';
@@ -2487,12 +2688,279 @@ async function fetchAndDisplayModalServices(computer) {
                 <td class="px-3 py-2 text-neutral-700 dark:text-neutral-200">${service.attributes.Name}</td>
                 <td class="px-3 py-2 text-neutral-600 dark:text-neutral-300">${service.attributes.DisplayName}</td>
                 <td class="px-3 py-2 font-medium ${statusClass}">${status}</td>
+                <td class="px-3 py-2 text-right">
+                    <div class="flex justify-end gap-2">
+                        <button class="start-service-button ${status === 'RUNNING' ? 'hidden' : ''} text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button class="stop-service-button ${status !== 'RUNNING' ? 'hidden' : ''} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300" title="Stop Service">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                        <button class="info-button text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
+                        <button class="delete-service-button text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                </td>
             `;
             tbody.appendChild(row);
+
+            // Create details row (hidden by default)
+            const detailsRow = document.createElement('tr');
+            detailsRow.className = 'hidden bg-neutral-50 dark:bg-neutral-800/50';
+            detailsRow.innerHTML = `
+                <td colspan="4" class="px-3 py-2">
+                    <div class="animate-fade-in">
+                        <div class="flex justify-center">
+                            <div class="w-6 h-6 animate-spin">
+                                <i class="fas fa-circle-notch"></i>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(detailsRow);
+
+            const stopButton = row.querySelector('.stop-service-button');
+            stopButton.addEventListener('click', async () => {
+                try {
+                    showModalContentSpinner();
+                    const response = await fetch('/api/stop/netservice', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            computer_name: computer,
+                            service_name: service.attributes.Name
+                        })
+                    });
+
+                    await handleHttpError(response);
+                    showSuccessAlert('Service stopped successfully');
+                    
+                    // Refresh the services list
+                    await fetchAndDisplayModalServices(computer);
+                } catch (error) {
+                    console.error('Error stopping service:', error);
+                    showErrorAlert(error.message || 'Failed to stop service');
+                } finally {
+                    hideModalContentSpinner();
+                }
+            });
+
+            const startButton = row.querySelector('.start-service-button');
+            startButton.addEventListener('click', async () => {
+                try {
+                    showModalContentSpinner();
+                    const response = await fetch('/api/start/netservice', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            computer_name: computer,
+                            service_name: service.attributes.Name
+                        })
+                    });
+
+                    await handleHttpError(response);
+                    showSuccessAlert('Service started successfully');
+                    
+                    // Refresh the services list
+                    await fetchAndDisplayModalServices(computer);
+                } catch (error) {
+                    console.error('Error starting service:', error);
+                    showErrorAlert(error.message || 'Failed to start service');
+                } finally {
+                    hideModalContentSpinner();
+                }
+            });
+
+            // Add delete button handler
+            const deleteButton = row.querySelector('.delete-service-button');
+            deleteButton.addEventListener('click', async () => {
+                if (confirm(`Are you sure you want to delete the service "${service.attributes.Name}"?`)) {
+                    try {
+                        showLoadingIndicator();
+                        const response = await fetch('/api/remove/netservice', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                computer_name: computer,
+                                service_name: service.attributes.Name
+                            })
+                        });
+
+                        await handleHttpError(response);
+                        showSuccessAlert('Service deleted successfully');
+                        
+                        // Refresh the services list
+                        await fetchAndDisplayModalServices(computer);
+                    } catch (error) {
+                        console.error('Error deleting service:', error);
+                        showErrorAlert(error.message || 'Failed to delete service');
+                    } finally {
+                        hideModalContentSpinner();
+                    }
+                }
+            });
+
+            // Add click handler for info button
+            const infoButton = row.querySelector('.info-button');
+            infoButton.addEventListener('click', async () => {
+                detailsRow.classList.toggle('hidden');
+                
+                // Only fetch details if we're showing the row and haven't loaded them before
+                if (!detailsRow.classList.contains('hidden') && !detailsRow.dataset.loaded) {
+                    try {
+                        const detailsResponse = await fetch('/api/get/netservice', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ 
+                                computer_name: computer,
+                                name: service.attributes.Name,
+                                raw: true
+                            })
+                        });
+
+                        await handleHttpError(detailsResponse);
+                        const serviceDetails = await detailsResponse.json();
+                        
+                        if (serviceDetails && serviceDetails[0]) {
+                            const details = serviceDetails[0].attributes;
+                            detailsRow.innerHTML = `
+                                <td colspan="4" class="px-3 py-2">
+                                    <form class="service-edit-form">
+                                        <div class="animate-fade-in space-y-4">
+                                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                                <div>
+                                                    <p class="font-medium text-neutral-700 dark:text-neutral-200">Service Name</p>
+                                                    <input type="text" class="service-name-input mt-1 w-full px-2 py-1 text-sm bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded text-neutral-900 dark:text-white" value="${details.ServiceName}" readonly>
+                                                </div>
+                                                <div>
+                                                    <p class="font-medium text-neutral-700 dark:text-neutral-200">Display Name</p>
+                                                    <input type="text" class="display-name-input mt-1 w-full px-2 py-1 text-sm bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded text-neutral-900 dark:text-white" value="${details.DisplayName}">
+                                                </div>
+                                                <div>
+                                                    <p class="font-medium text-neutral-700 dark:text-neutral-200">Binary Path</p>
+                                                    <input type="text" class="binary-path-input mt-1 w-full px-2 py-1 text-sm bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded text-neutral-900 dark:text-white" value="${details.BinaryPath?.replace('\u0000', '') || ''}">
+                                                </div>
+                                                <div>
+                                                    <p class="font-medium text-neutral-700 dark:text-neutral-200">Service Type</p>
+                                                    <select class="service-type-input mt-1 w-full px-2 py-1 text-sm bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded text-neutral-900 dark:text-white">
+                                                        <option value="1" ${details.ServiceType === 1 ? 'selected' : ''}>Kernel Driver</option>
+                                                        <option value="2" ${details.ServiceType === 2 ? 'selected' : ''}>File System Driver</option>
+                                                        <option value="4" ${details.ServiceType === 4 ? 'selected' : ''}>Adapter</option>
+                                                        <option value="8" ${details.ServiceType === 8 ? 'selected' : ''}>Recognizer Driver</option>
+                                                        <option value="16" ${details.ServiceType === 16 ? 'selected' : ''}>Win32 Own Process</option>
+                                                        <option value="32" ${details.ServiceType === 32 ? 'selected' : ''}>Win32 Share Process</option>
+                                                        <option value="256" ${details.ServiceType === 256 ? 'selected' : ''}>Interactive Process</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <p class="font-medium text-neutral-700 dark:text-neutral-200">Start Type</p>
+                                                    <select class="start-type-input mt-1 w-full px-2 py-1 text-sm bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded text-neutral-900 dark:text-white">
+                                                        <option value="0" ${details.StartType === 0 ? 'selected' : ''}>Boot Start</option>
+                                                        <option value="1" ${details.StartType === 1 ? 'selected' : ''}>System Start</option>
+                                                        <option value="2" ${details.StartType === 2 ? 'selected' : ''}>Automatic</option>
+                                                        <option value="3" ${details.StartType === 3 ? 'selected' : ''}>Manual</option>
+                                                        <option value="4" ${details.StartType === 4 ? 'selected' : ''}>Disabled</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <p class="font-medium text-neutral-700 dark:text-neutral-200">Error Control</p>
+                                                    <select class="error-control-input mt-1 w-full px-2 py-1 text-sm bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded text-neutral-900 dark:text-white">
+                                                        <option value="0" ${details.ErrorControl === 0 ? 'selected' : ''}>Ignore</option>
+                                                        <option value="1" ${details.ErrorControl === 1 ? 'selected' : ''}>Normal</option>
+                                                        <option value="2" ${details.ErrorControl === 2 ? 'selected' : ''}>Severe</option>
+                                                        <option value="3" ${details.ErrorControl === 3 ? 'selected' : ''}>Critical</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <p class="font-medium text-neutral-700 dark:text-neutral-200">Service Start Name</p>
+                                                    <input type="text" class="service-start-name-input mt-1 w-full px-2 py-1 text-sm bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded text-neutral-900 dark:text-white" value="${details.ServiceStartName || ''}">
+                                                </div>
+                                                <div>
+                                                    <p class="font-medium text-neutral-700 dark:text-neutral-200">Dependencies</p>
+                                                    <input type="text" class="dependencies-input mt-1 w-full px-2 py-1 text-sm bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded text-neutral-900 dark:text-white" value="${details.Dependencies || ''}" readonly>
+                                                </div>
+                                            </div>
+                                            <div class="flex justify-end gap-2 pt-2">
+                                                <button type="submit" class="px-3 py-1.5 text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:text-black rounded">
+                                                    Save Changes
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </td>
+                            `;
+                            detailsRow.dataset.loaded = 'true';
+
+                            // Add form submit handler
+                            detailsRow.querySelector('.service-edit-form').onsubmit = async (e) => {
+                                e.preventDefault();
+                                await updateServiceConfig(computer,
+                                    details.ServiceName,
+                                    detailsRow.querySelector('.display-name-input').value,
+                                    detailsRow.querySelector('.binary-path-input').value,
+                                    detailsRow.querySelector('.service-type-input').value,
+                                    detailsRow.querySelector('.start-type-input').value,
+                                    detailsRow.querySelector('.error-control-input').value,
+                                    detailsRow.querySelector('.service-start-name-input').value
+                                );
+                            };
+                        }
+                    } catch (error) {
+                        console.error('Error fetching service details:', error);
+                        detailsRow.innerHTML = `
+                            <td colspan="4" class="px-3 py-2 text-red-500 dark:text-red-400">
+                                Failed to load service details
+                            </td>
+                        `;
+                    }
+                }
+            });
         });
     } catch (error) {
         console.error('Error fetching services:', error);
-        showErrorAlert('Failed to fetch services');
+        showErrorAlert(error.message || 'Failed to fetch services');
+    } finally {
+        hideModalContentSpinner();
+    }
+}
+
+async function updateServiceConfig(computer, serviceName, displayName, binaryPath, serviceType, startType, errorControl, serviceStartName) {
+    try {
+        showLoadingIndicator();
+        const response = await fetch('/api/set/netservice', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                computer_name: computer,
+                service_name: serviceName,
+                display_name: displayName,
+                binary_path: binaryPath,
+                service_type: parseInt(serviceType),
+                start_type: parseInt(startType),
+                error_control: parseInt(errorControl),
+                service_start_name: serviceStartName
+            })
+        });
+
+        await handleHttpError(response);
+        showSuccessAlert('Service updated successfully');
+    } catch (error) {
+        console.error('Error updating service:', error);
+        showErrorAlert('Failed to update service');
     } finally {
         hideLoadingIndicator();
     }
@@ -2618,9 +3086,27 @@ function getFileIcon(fileName, isDirectory) {
         };
     }
 
+    // Check for jpg file extension
+    if (fileExt === '.jpg') {
+        return {
+            icon: icons.jpgIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
+    // Check for png file extension
+    if (fileExt === '.png') {
+        return {
+            icon: icons.pngIcon,
+            iconClass: '',
+            isCustomSvg: true
+        };
+    }
+
     return {
-        icon: 'fa-file',
+        icon: icons.unknownFileIcon,
         iconClass: 'text-neutral-400',
-        isCustomSvg: false
+        isCustomSvg: true
     };
 }

@@ -346,11 +346,59 @@ def main():
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     computername = pv_args.computer if pv_args.computer else pv_args.computername
                                     if temp_powerview:
-                                        entries = temp_powerview.get_netservice(computer_name=computername, args=pv_args)
+                                        entries = temp_powerview.get_netservice(
+                                            computer_name=computername,
+                                            name=pv_args.name,
+                                            is_running=pv_args.isrunning,
+                                            is_stopped=pv_args.isstopped
+                                        )
                                     else:
-                                        entries = powerview.get_netservice(computer_name=computername, args=pv_args)
+                                        entries = powerview.get_netservice(
+                                            computer_name=computername,
+                                            name=pv_args.name,
+                                            is_running=pv_args.isrunning,
+                                            is_stopped=pv_args.isstopped
+                                        )
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'set-netservice':
+                                if pv_args.computer is not None:
+                                    if temp_powerview:
+                                        succeed = temp_powerview.set_netservice(
+                                            computer_name=pv_args.computer,
+                                            service_name=pv_args.service_name,
+                                            display_name=pv_args.display_name,
+                                            binary_path=pv_args.binary_path,
+                                            service_type=pv_args.service_type,
+                                            start_type=pv_args.start_type,
+                                            error_control=pv_args.error_control,
+                                            service_start_name=pv_args.service_start_name,
+                                            password=pv_args.password
+                                        )
+                                    else:
+                                        succeed = powerview.set_netservice(
+                                            computer_name=pv_args.computer,
+                                            service_name=pv_args.service_name,
+                                            display_name=pv_args.display_name,
+                                            binary_path=pv_args.binary_path,
+                                            service_type=pv_args.service_type,
+                                            start_type=pv_args.start_type,
+                                            error_control=pv_args.error_control,
+                                            service_start_name=pv_args.service_start_name,
+                                            password=pv_args.password
+                                        )
+                                else:
+                                    logging.error('-Computer is required')
+                            elif pv_args.module.casefold() == 'start-netservice':
+                                if temp_powerview:
+                                    succeed = temp_powerview.start_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name)
+                                else:
+                                    succeed = powerview.start_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name)
+                            elif pv_args.module.casefold() == 'stop-netservice':
+                                if temp_powerview:
+                                    succeed = temp_powerview.stop_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name)
+                                else:
+                                    succeed = powerview.stop_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name)
                             elif pv_args.module.casefold() == 'get-netsession':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     computername = pv_args.computer if pv_args.computer else pv_args.computername
@@ -402,6 +450,11 @@ def main():
                                         powerview.add_domainou(identity=pv_args.identity, basedn=pv_args.basedn, args=pv_args)
                                 else:
                                     logging.error('-Identity flag is required')
+                            elif pv_args.module.casefold() == 'add-netservice':
+                                if temp_powerview:
+                                    succeed = temp_powerview.add_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name, display_name=pv_args.display_name, binary_path=pv_args.binary_path, service_type=pv_args.service_type, start_type=pv_args.start_type, error_control=pv_args.error_control, service_start_name=pv_args.service_start_name, password=pv_args.password)
+                                else:
+                                    succeed = powerview.add_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name, display_name=pv_args.display_name, binary_path=pv_args.binary_path, service_type=pv_args.service_type, start_type=pv_args.start_type, error_control=pv_args.error_control, service_start_name=pv_args.service_start_name, password=pv_args.password)
                             elif pv_args.module.casefold() == 'remove-domainou' or pv_args.module.casefold() == 'remove-ou':
                                 if pv_args.identity is not None:
                                     if temp_powerview:
@@ -410,6 +463,11 @@ def main():
                                         powerview.remove_domainou(identity=pv_args.identity, args=pv_args)
                                 else:
                                     logging.error('-Identity flag is required')
+                            elif pv_args.module.casefold() == 'remove-netservice':
+                                if temp_powerview:
+                                    succeed = temp_powerview.remove_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name)
+                                else:
+                                    succeed = powerview.remove_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name)
                             elif pv_args.module.casefold() == 'add-domainobjectacl' or pv_args.module.casefold() == 'add-objectacl':
                                 if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
                                     if temp_powerview:
