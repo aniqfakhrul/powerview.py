@@ -425,7 +425,7 @@ class PARSE_TEMPLATE:
 
             # ESC9
             if user_can_enroll and self.get_no_security_extension():
-                vunls["ESC9"] = "Vulnerable yayay"
+                vulns["ESC9"] = enrollable_sids
 
             # ESC13
             if user_can_enroll and self.get_client_authentication() and self.template["msPKI-Certificate-Policy"] and self.linked_group:
