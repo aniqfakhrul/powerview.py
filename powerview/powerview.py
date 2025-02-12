@@ -111,7 +111,7 @@ class PowerView:
 		# Get current user's SID from the LDAP connection
 		self.current_user_sid = None
 		self.whoami = self.conn.who_am_i()
-		if self.whoami:
+		if self.whoami and self.whoami != 'ANONYMOUS':
 			user = self.get_domainobject(identity=self.whoami.split('\\')[1], properties=['objectSid'])
 			if user and len(user) > 0:
 				self.current_user_sid = user[0]['attributes']['objectSid']

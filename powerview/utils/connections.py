@@ -487,10 +487,10 @@ class CONNECTION:
 			
 			# check if domain is empty
 			if not self.domain or not is_valid_fqdn(self.domain):
-				self.domain = dn2domain(ldap_server.info.other.get('rootDomainNamingContext')[0])
+				self.domain = dn2domain(self.ldap_server.info.other.get('rootDomainNamingContext')[0])
 				self.username = "ANONYMOUS"
 			
-			return ldap_server, ldap_session
+			return self.ldap_server, self.ldap_session
 
 	def init_ldap_schannel_connection(self, target, tls, seal_and_sign=False, tls_channel_binding=False):
 		ldap_server_kwargs = {
