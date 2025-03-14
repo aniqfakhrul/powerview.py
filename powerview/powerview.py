@@ -188,7 +188,7 @@ class PowerView:
 		def_prop = [
 			'servicePrincipalName', 'objectCategory', 'objectGUID', 'primaryGroupID', 'userAccountControl',
 			'sAMAccountType', 'adminCount', 'cn', 'name', 'sAMAccountName', 'distinguishedName', 'mail',
-			'description', 'lastLogoff', 'lastLogon', 'memberof', 'objectSid', 'userPrincipalName', 
+			'description', 'lastLogoff', 'lastLogon', 'memberOf', 'objectSid', 'userPrincipalName', 
 			'pwdLastSet', 'badPwdCount', 'badPasswordTime', 'msDS-SupportedEncryptionTypes'
 		]
 		
