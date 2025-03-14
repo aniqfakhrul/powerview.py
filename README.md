@@ -23,6 +23,14 @@ pipx install "git+https://github.com/aniqfakhrul/powerview.py"
 curl -L powerview.sh | sh
 ```
 
+* Nix
+    1. You can enable flakes and nix-command permanently by adding the following line  `experimental-features = nix-command flakes` to `/etc/nix/nix.conf`.
+    2. Instead of using: `nix shell github:aniqfakhrul/powerview.py --extra-experimental-features flakes --extra-experimental-features nix-command`.
+    3. You can use the command below.
+```bash
+nix shell github:aniqfakhrul/powerview.py
+
+```
 * Manual
 ```
 git clone https://github.com/aniqfakhrul/powerview.py
