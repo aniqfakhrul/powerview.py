@@ -16,6 +16,12 @@ import string
 import shlex
 
 def main():
+    """
+    Main entry point for PowerView tool.
+    
+    Handles command-line argument parsing, LDAP connection setup,
+    and interactive command processing.
+    """
     args = arg_parse()
 
     domain, username, password, lmhash, nthash, ldap_address = parse_identity(args)
@@ -758,11 +764,12 @@ def main():
                 print("Exiting...")
                 conn.close()
                 sys.exit(0)
-            except ldap3.core.exceptions.LDAPSocketSendError as e:
-                logging.info("LDAPSocketSendError: Connection dead")
+            except (ldap3.core.exceptions.LDAPSocketSendError, 
+                    ldap3.core.exceptions.LDAPSocketReceiveError) as e:
+                logging.info(f"LDAP Socket Error: {str(e)}")
                 conn.reset_connection()
-            except ldap3.core.exceptions.LDAPSessionTerminatedByServerError as e:
-                logging.warning("LDAPSessionTerminatedByServerError: Server connection terminated. Trying to reconnect")
+            except ldap3.core.exceptions.LDAPSessionTerminatedByServerError:
+                logging.warning("Server connection terminated. Trying to reconnect")
                 conn.reset_connection()
                 continue
             except ldap3.core.exceptions.LDAPInvalidDnError as e:

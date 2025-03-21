@@ -618,21 +618,24 @@ class PowerView:
 
 		# Enumerate available GUIDs
 		guids_dict = {}
-		logging.debug(f"[Get-DomainObjectAcl] Searching for GUIDs in {self.root_dn}")
-		guid_generator = self.ldap_session.extend.standard.paged_search(f"CN=Extended-Rights,CN=Configuration,{self.root_dn}", "(rightsGuid=*)", attributes=['displayName', 'rightsGuid'], paged_size=1000, generator=True, search_scope=search_scope, no_cache=no_cache)
-		for entry in guid_generator:
-			if entry['type'] != 'searchResEntry':
-				continue
-			rights_guid = entry['attributes'].get('rightsGuid')
-			display_name = entry['attributes'].get('displayName')
+		try:
+			logging.debug(f"[Get-DomainObjectAcl] Searching for GUIDs in {self.root_dn}")
+			guid_generator = self.ldap_session.extend.standard.paged_search(f"CN=Extended-Rights,CN=Configuration,{self.root_dn}", "(rightsGuid=*)", attributes=['displayName', 'rightsGuid'], paged_size=1000, generator=True, search_scope=search_scope, no_cache=no_cache)
+			for entry in guid_generator:
+				if entry['type'] != 'searchResEntry':
+					continue
+				rights_guid = entry['attributes'].get('rightsGuid')
+				display_name = entry['attributes'].get('displayName')
 
-			if isinstance(rights_guid, list):
-				rights_guid = rights_guid[0]
-			if isinstance(display_name, list):
-				display_name = display_name[0]
+				if isinstance(rights_guid, list):
+					rights_guid = rights_guid[0]
+				if isinstance(display_name, list):
+					display_name = display_name[0]
 
-			if rights_guid and display_name:
-				guids_dict[rights_guid] = display_name
+				if rights_guid and display_name:
+					guids_dict[rights_guid] = display_name
+		except ldap3.core.exceptions.LDAPOperationResult as e:
+			logging.error(f"[Get-DomainObjectAcl] Error searching for GUIDs in {self.root_dn}: {e}. Continuing...")
 
 		principal_SID = None
 		if security_identifier:

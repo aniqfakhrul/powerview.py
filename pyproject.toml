@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "powerview"
-version = "2025.0.4" 
+version = "2025.0.5" 
 description = "Python based PowerView script"
 authors = ["Aniq Fakhrul <aniqfakhrull@gmail.com>"]
 readme = "README.md"
@@ -16,7 +16,8 @@ classifiers = [
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11"
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 packages = [
     { include = "powerview" }
