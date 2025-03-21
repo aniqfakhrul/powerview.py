@@ -283,11 +283,88 @@ class CONNECTION:
 			whoami = "%s\\%s" % (self.get_domain(), self.get_username())
 		return whoami if whoami else "ANONYMOUS"
 
-	def reset_connection(self):
-		self.ldap_session.rebind()
+	def reset_connection(self, max_retries=3):
+		"""
+		Reset and reconnect the LDAP connection using exponential backoff strategy
+		
+		Args:
+			max_retries (int): Maximum number of reconnection attempts
+			
+		Returns:
+			bool: True if reconnection successful, False otherwise
+		"""
+		import random
+		import time
+		
+		retry_count = 0
+		success = False
+		
+		while retry_count < max_retries and not success:
+			try:
+				if retry_count > 0:  # Only delay if this is a retry
+					# Calculate backoff with jitter
+					backoff_time = (2 ** retry_count) + random.uniform(0, 1)
+					logging.info(f"LDAP reconnection attempt {retry_count+1}/{max_retries} after {backoff_time:.2f} seconds")
+					time.sleep(backoff_time)
+				
+				# Actual reconnection
+				self.ldap_session.rebind()
+				
+				# Verify connection is alive
+				if self.is_connection_alive():
+					logging.info("LDAP reconnection successful")
+					success = True
+				else:
+					logging.warning("LDAP connection not functional after rebind attempt")
+					retry_count += 1
+				
+			except ldap3.core.exceptions.LDAPSocketOpenError as e:
+				logging.error(f"Socket open error during reconnection: {str(e)}")
+				retry_count += 1
+			except ldap3.core.exceptions.LDAPSessionTerminatedByServerError as e:
+				logging.error(f"Session terminated by server during reconnection: {str(e)}")
+				retry_count += 1
+			except ldap3.core.exceptions.LDAPSocketSendError as e:
+				logging.error(f"Socket send error during reconnection: {str(e)}")
+				retry_count += 1
+			except ldap3.core.exceptions.LDAPSocketReceiveError as e:
+				logging.error(f"Socket receive error during reconnection: {str(e)}")
+				retry_count += 1
+			except ldap3.core.exceptions.LDAPBindError as e:
+				logging.error(f"Bind error during reconnection: {str(e)}")
+				retry_count += 1
+			except Exception as e:
+				logging.error(f"Unexpected error during reconnection: {str(e)}")
+				retry_count += 1
+		
+		if not success:
+			logging.error("Maximum LDAP reconnection attempts reached")
+		
+		return success
 
 	def close(self):
-		return self.ldap_session.unbind()
+		"""Close all connections and resources properly"""
+		# First unbind LDAP session if it exists
+		if hasattr(self, 'ldap_session') and self.ldap_session:
+			try:
+				self.ldap_session.unbind()
+			except:
+				pass
+		
+		# Shutdown relay instance if it exists
+		if hasattr(self, 'relay_instance') and self.relay_instance:
+			try:
+				self.relay_instance.shutdown()
+				del self.relay_instance
+			except Exception as e:
+				logging.error(f"Error shutting down relay server: {str(e)}")
+		
+		# Make sure to clean up other resources as needed
+		if hasattr(self, 'rpc_conn') and self.rpc_conn:
+			try:
+				self.rpc_conn.disconnect()
+			except:
+				pass
 
 	def init_ldap_session(self, ldap_address=None, use_ldap=False, use_gc_ldap=False):
 		
@@ -358,14 +435,24 @@ class CONNECTION:
 		if not self.domain and not self.username and (not self.password or not self.nthash or not self.lmhash):
 			if self.relay:
 				target = "ldaps://%s" % (self.ldap_address) if self.use_ldaps else "ldap://%s" % (self.ldap_address)
-				logging.info(f"Targeting {target}")
+				logging.info(f"[Relay] Targeting {target}")
 
-				relay = Relay(target, self.relay_host, self.relay_port, self.args)
-				relay.start()
+				try:
+					# Store the relay instance as a class attribute
+					self.relay_instance = Relay(target, self.relay_host, self.relay_port, self.args)
+					self.relay_instance.start()
+				except PermissionError as e:
+					if "Permission denied" in str(e):
+						logging.error(f"[Relay] Permission denied when setting up relay server on port {self.relay_port}.")
+						logging.error(f"[Relay] Try running with sudo or using a port above 1024 with --relay-port option.")
+						sys.exit(1)
+					else:
+						# Re-raise any other permission errors
+						raise
 
-				self.ldap_session = relay.get_ldap_session()
-				self.ldap_server = relay.get_ldap_server()
-				self.proto = relay.get_scheme()
+				self.ldap_session = self.relay_instance.get_ldap_session()
+				self.ldap_server = self.relay_instance.get_ldap_server()
+				self.proto = self.relay_instance.get_scheme()
 
 				# setting back to default
 				self.relay = False
@@ -1102,6 +1189,51 @@ class CONNECTION:
 		else:
 			return self.rpc_conn
 
+	def is_connection_alive(self):
+		"""
+		Check if the LDAP connection is alive and functional
+		
+		Returns:
+			bool: True if connection is alive, False otherwise
+		"""
+		try:
+			# Try a simple operation to verify connection
+			if self.ldap_session and self.ldap_session.bound:
+				# Perform a simple search operation
+				result = self.ldap_session.search(
+					search_base=self.ldap_server.info.other['defaultNamingContext'][0],
+					search_filter='(objectClass=*)',
+					search_scope='BASE',
+					attributes=['1.1']
+				)
+				return result
+			return False
+		except Exception:
+			return False
+
+	def keep_alive(self):
+		"""
+		Perform a lightweight LDAP operation to keep the connection alive
+		
+		Returns:
+			bool: True if connection is still alive, False otherwise
+		"""
+		try:
+			# Perform a simple search with minimal overhead
+			result = self.is_connection_alive()
+			logging.debug("[Connection] Connection keep-alive check: Success")
+			return result
+		except Exception as e:
+			logging.debug(f"[Connection] Connection keep-alive check failed: {str(e)}")
+			return False
+
+	def __del__(self):
+		"""Destructor to ensure all resources are properly cleaned up"""
+		try:
+			self.close()
+		except:
+			pass
+
 class LDAPRelayServer(LDAPRelayClient):
 	def initConnection(self):
 		self.ldap_relay.scheme = "LDAP"
@@ -1154,10 +1286,24 @@ class LDAPRelayServer(LDAPRelayClient):
 				logging.error('Server rejected authentication because LDAP signing is enabled. Try connecting with TLS enabled (specify target as ldaps://hostname )')
 		return None, STATUS_ACCESS_DENIED
 
-class LDAPSRelayServer(LDAPRelayServer):
-	def __init__(self, serverConfig, target, targetPort = 636, extendedSecurity=True ):
-		LDAPRelayClient.__init__(self, serverConfig, target, targetPort, extendedSecurity)
+	def cleanup(self):
+		"""Properly cleanup LDAP connections"""
+		try:
+			if hasattr(self, 'session') and self.session:
+				if self.session.bound:
+					self.session.unbind()
+				self.session = None
+		except Exception as e:
+			logging.error(f"Error during LDAP relay server cleanup: {str(e)}")
 
+	def __del__(self):
+		"""Destructor to ensure cleanup"""
+		self.cleanup()
+
+class LDAPSRelayServer(LDAPRelayServer):
+	def __init__(self, serverConfig, target, targetPort = 636, extendedSecurity=True):
+		LDAPRelayClient.__init__(self, serverConfig, target, targetPort, extendedSecurity)
+	
 	def initConnection(self):
 		self.ldap_relay.scheme = "LDAPS"
 		self.server = ldap3.Server("ldaps://%s:%s" % (self.targetHost, self.targetPort), get_info=ldap3.ALL)
@@ -1186,7 +1332,8 @@ class HTTPRelayServer(HTTPRelayServer):
 					ntlm_nego = self.do_ntlm_negotiate(token, proxy=proxy)
 				except ldap3.core.exceptions.LDAPSocketOpenError as e:
 					logging.debug(str(e))
-					sys.exit(-1)
+					self.cleanup_connections()  # Add cleanup before exit
+					return  # Return instead of exit to allow proper cleanup
 
 				if not ntlm_nego:
 					# Connection failed
@@ -1291,6 +1438,41 @@ class HTTPRelayServer(HTTPRelayServer):
 							self.authUser, self.client_address[0], self.target.scheme, self.target.netloc))
 						self.do_REDIRECT()
 
+		def cleanup_connections(self):
+			"""Clean up any open connections"""
+			try:
+				if hasattr(self, 'target') and self.target:
+					if hasattr(self.target, 'session') and self.target.session:
+						if getattr(self.target.session, 'bound', False):
+							self.target.session.unbind()
+						self.target.session = None
+			except Exception as e:
+				logging.error(f"Error during HTTP handler cleanup: {str(e)}")
+
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+		self._active_connections = []
+	
+	def cleanup(self):
+		"""Clean up server resources"""
+		try:
+			# Clean up active connections
+			for conn in self._active_connections:
+				if conn and hasattr(conn, 'cleanup'):
+					conn.cleanup()
+			self._active_connections = []
+			
+			# Close server socket
+			if hasattr(self, 'socket') and self.socket:
+				self.socket.close()
+				self.socket = None
+		except Exception as e:
+			logging.error(f"Error during HTTP relay server cleanup: {str(e)}")
+	
+	def __del__(self):
+		"""Destructor to ensure cleanup"""
+		self.cleanup()
+
 class Relay:
 	def __init__(self, target, interface="0.0.0.0", port=80, args=None):
 		self.target = target
@@ -1322,6 +1504,8 @@ class Relay:
 		config.setDisableMulti(True)
 		self.server = HTTPRelayServer(config)
 
+		self._servers = []  # Track active servers
+
 	def get_scheme(self):
 		return self.scheme
 
@@ -1349,15 +1533,32 @@ class Relay:
 			sys.exit()
 
 	def get_relay_ldap_server(self, *args, **kwargs) -> LDAPRelayClient:
-		relay_server = LDAPRelayServer(*args, **kwargs)
-		relay_server.ldap_relay = self
-		return relay_server
+		server = super().get_relay_ldap_server(*args, **kwargs)
+		if server:
+			self._servers.append(server)
+		return server
 
 	def get_relay_ldaps_server(self, *args, **kwargs) -> LDAPRelayClient:
-		relay_server = LDAPSRelayServer(*args, **kwargs)
-		relay_server.ldap_relay = self
-		return relay_server
+		server = super().get_relay_ldaps_server(*args, **kwargs)
+		if server:
+			self._servers.append(server)
+		return server
 
 	def shutdown(self):
-		logging.info("Exiting...")
-		sys.exit(0)
+		"""Enhanced shutdown to ensure all resources are released"""
+		try:
+			# Close all tracked servers
+			for server in self._servers:
+				if hasattr(server, 'cleanup'):
+					server.cleanup()
+			self._servers = []
+			
+			# Call parent shutdown if it exists
+			if hasattr(super(), 'shutdown'):
+				super().shutdown()
+		except Exception as e:
+			logging.error(f"Error during relay shutdown: {str(e)}")
+	
+	def __del__(self):
+		"""Destructor to ensure shutdown"""
+		self.shutdown()
