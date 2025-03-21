@@ -99,6 +99,8 @@ class CAEnum:
             searchbase = "CN=Configuration,{}".format(self.root_dn)
 
         entries = []
+        logging.debug(f"LDAP Base: {searchbase}")
+        logging.debug(f"LDAP Filter: {enroll_filter}")
         entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, enroll_filter, attributes=list(properties), paged_size=1000, generator=True, search_scope=search_scope)
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':
