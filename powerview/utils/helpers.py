@@ -336,19 +336,24 @@ def is_ipaddress(address):
 		return False
 
 def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_ns=True):
-	answer = None
+	domain = str(domain)
+	if domain in list(STORED_ADDR.keys()):
+		return STORED_ADDR[domain]
 
-	basequery = f'_ldap._tcp.pdc._msdcs.{domain}'
 	dnsresolver = None
-	
 	if nameserver:
-		logging.debug(f'Querying domain controller information from DNS server {nameserver}')
+		logging.debug(f"Querying domain controller for {domain} from DNS server {nameserver}")
 		dnsresolver = resolver.Resolver(configure=False)
 		dnsresolver.nameservers = [nameserver]
-	else:
-		logging.debug(f'No nameserver provided, using system\'s dns to resolve {domain}')
+	elif use_system_ns:
+		logging.debug(f"Using host's resolver to find domain controller for {domain}")
 		dnsresolver = resolver.Resolver()
+	else:
+		logging.debug(f"Proxy-compatible mode: Returning domain '{domain}' without DC resolution")
+		return domain
 
+	answer = None
+	basequery = f'_ldap._tcp.pdc._msdcs.{domain}'
 	dnsresolver.lifetime = float(3)
 
 	try:
@@ -360,7 +365,7 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
 
 		for r in q:
 			dc = str(r.target).removesuffix('.')
-		#resolve ip for principal dc
+		# Resolve IP for principal DC with same DNS settings
 		answer = host2ip(dc, nameserver, 3, dns_tcp, use_system_ns)
 		return answer
 	except resolver.NXDOMAIN as e:
@@ -372,7 +377,7 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
 		pass
 	except dns.resolver.LifetimeTimeout as e:
 		logging.debug("Domain resolution timed out")
-		return
+		pass
 
 	try:
 		logging.debug("Querying all DCs")
@@ -388,6 +393,14 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
 	except dns.resolver.NoAnswer as e:
 		logging.debug(str(e))
 		pass
+	except Exception as e:
+		logging.debug(f"Error resolving DC address: {str(e)}")
+		pass
+	
+	# If resolution fails, try direct domain resolution
+	logging.debug(f"DC resolution failed, attempting direct domain resolution")
+	answer = host2ip(domain, nameserver, 3, dns_tcp, use_system_ns)
+	
 	return answer
 
 def resolve_domain(domain, nameserver):
@@ -459,6 +472,21 @@ def get_system_nameserver():
 	return resolver.get_default_resolver().nameservers[0]
 
 def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_ns=True, type=str):
+	"""
+	Resolve hostname to IP address with flexible resolution options.
+	
+	Parameters:
+		hostname: The hostname to resolve
+		nameserver: Optional specific DNS server to use
+		dns_timeout: Timeout for DNS queries in seconds
+		dns_tcp: Whether to use TCP for DNS queries
+		use_system_ns: Whether to use system nameservers if no nameserver provided
+		type: Return type (str for single IP, list for multiple IPs)
+		
+	Special behaviors:
+		- When nameserver=None and use_system_ns=False: Returns hostname without 
+		  resolution (proxy-compatible mode for use with proxychains)
+	"""
 	hostname = str(hostname)
 	if hostname in list(STORED_ADDR.keys()):
 		return STORED_ADDR[hostname]
@@ -472,6 +500,7 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 		logging.debug(f"Using host's resolver to resolve {hostname}")
 		dnsresolver = resolver.Resolver()
 	else:
+		logging.debug(f"Proxy-compatible mode: Returning hostname '{hostname}' without resolution")
 		return hostname
 
 	dnsresolver.lifetime = float(dns_timeout)
@@ -504,7 +533,8 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 		elif len(addr) > 1 and type == list:
 			return addr
 		else:
-			logging.error("Error resolving address with unknown error")
+			logging.error(f"No address records found for {hostname}")
+			return None
 
 		return ip
 

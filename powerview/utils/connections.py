@@ -196,10 +196,22 @@ class CONNECTION:
 	def get_domain(self):
 		return self.domain.lower()
 
-	def set_targetDomain(self, targetDomain):
-		self.targetDomain = targetDomain
-
+	def set_targetDomain(self, domain):
+		"""
+		Set or reset the target domain for cross-domain operations.
+		
+		Args:
+			domain: The target domain name or None to reset to primary domain
+		"""
+		self.targetDomain = domain
+			
 	def get_targetDomain(self):
+		"""
+		Get the current target domain if set for cross-domain operations.
+		
+		Returns:
+			String: The target domain name or None if operating in primary domain
+		"""
 		return self.targetDomain
 
 	def set_username(self, username):
@@ -248,15 +260,28 @@ class CONNECTION:
 				return None
 		
 		if is_valid_fqdn(server):
-			ldap_address = get_principal_dc_address(server, self.nameserver, use_system_ns=self.use_system_ns)
+			# Get principal DC address, respecting proxy mode if applicable
+			ldap_address = get_principal_dc_address(
+				server, 
+				self.nameserver, 
+				use_system_ns=self.use_system_ns
+			)
+			# In proxy mode, ldap_address will be set to the original domain
 		elif is_ipaddress(server):
 			ldap_address = server 
 		else:
 			logging.error("Invalid server address. Must be either an FQDN or IP address.")
 			return None
 
+		# Set the target domain and ldap address
 		self.ldap_address = ldap_address
 		self.targetDomain = server.lower()
+		
+		# Log the appropriate message based on whether we're in proxy mode
+		if self.nameserver is None and not self.use_system_ns and is_valid_fqdn(ldap_address):
+			logging.debug(f"Using proxy-compatible mode for {server} -> {ldap_address}")
+		else:
+			logging.debug(f"Updated LDAP address to {ldap_address} for domain {self.targetDomain}")
 
 		return ldap_address
 

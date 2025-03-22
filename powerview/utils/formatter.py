@@ -21,21 +21,48 @@ from io import StringIO
 import csv
 
 class FORMATTER:
-    def __init__(self, pv_args, use_kerberos=False):
+    def __init__(self, pv_args, use_kerberos=False, config=None):
         self.__newline = '\n'
         self.args = pv_args
         self.use_kerberos = use_kerberos
+        
+        # Default configuration
+        self.config = {
+            'wrap_length': 100,            # Text wrap length for large values
+            'attr_spacing': 28,            # Default attribute name spacing
+            'max_entries': 1000,           # Maximum entries before pagination
+            'date_format': '%m/%d/%Y %H:%M:%S %p',  # Format for datetime values
+            'binary_format': 'base64',     # Format for binary data (base64, hex)
+            'padding': 5,                  # Extra padding for attribute names
+            'nested_indent': 3,            # Indentation for nested values
+            'max_list_items': 100,         # Maximum items to show in lists
+            'table_format': 'simple',      # Default table format
+            'csv_quote_all': True,         # Quote all CSV fields
+            'show_empty_values': False,    # Show attributes with empty values
+            'truncate_long_values': True,  # Truncate very long values
+            'max_value_length': 1000       # Maximum value length before truncation
+        }
+        
+        # Override with user config if provided
+        if config:
+            self.config.update(config)
+            
+        # Initialize format cache
+        self._format_cache = {}
 
     def count(self, entries):
         print(len(entries))
 
     def print_table(self, entries: list, headers: list, align: str = None):
-        table_format = TABLE_FMT_MAP.get(self.args.tableview, "simple")
+        # Use config value with fallback to args
+        table_format = self.args.tableview if hasattr(self.args, 'tableview') else self.config['table_format']
+        table_format = TABLE_FMT_MAP.get(table_format, "simple")
+        
         filtered_entries = [entry for entry in entries if not all(e == '' for e in entry)]
         print()
         if table_format == "csv":
             output = StringIO()
-            csv_writer = csv.writer(output,quoting=csv.QUOTE_ALL)
+            csv_writer = csv.writer(output, quoting=csv.QUOTE_ALL if self.config['csv_quote_all'] else csv.QUOTE_MINIMAL)
             if headers:
                 csv_writer.writerow(headers)
             csv_writer.writerows(filtered_entries)
@@ -69,7 +96,7 @@ class FORMATTER:
                             if isinstance(i,int):
                                 value = str(i)
 
-                    value = self.beautify(value,self.get_max_len(list(entry['attributes'].keys()))+2)
+                    value = self.beautify(value, self.get_max_len(list(entry['attributes'].keys())) + 2)
                     if isinstance(value,list):
                         if len(value) != 0:
                             value = self.clean_value(value)
@@ -90,7 +117,7 @@ class FORMATTER:
                 entry = self.resolve_values(entry)
                 for ace in entry['attributes'][0:i]:
                     for attr, value in ace.items():
-                        _stdout = f"{attr.ljust(28)}: {value}"
+                        _stdout = f"{attr.ljust(self.config['attr_spacing'])}: {value}"
                         if self.args.outfile:
                             LOG.write_to_file(self.args.outfile, _stdout)
                         print(_stdout)
@@ -123,7 +150,7 @@ class FORMATTER:
                             else:
                                 value = str(entry['attributes'][key])
                             value = value.strip()
-                            if len(value) != 0:
+                            if len(value) != 0 or self.config['show_empty_values']:
                                 if len(select_attributes) == 1:
                                     if self.args.outfile:
                                         LOG.write_to_file(self.args.outfile, value)
@@ -148,7 +175,7 @@ class FORMATTER:
                                         LOG.write_to_file(self.args.outfile, ace[key])
                                     print(ace[key])
                                 else:
-                                    _stdout = f"{key.ljust(28)}: {ace[key]}"
+                                    _stdout = f"{key.ljust(self.config['attr_spacing'])}: {ace[key]}"
                                     if self.args.outfile:
                                         LOG.write_to_file(self.args.outfile, _stdout)
                                     print(_stdout)
@@ -179,63 +206,27 @@ class FORMATTER:
                     row = []
                     for head in headers:
                         val = IDict(ent).get(head) # IDict give get() with case-insensitive capabilities :)
-                        if isinstance(val,list):
-                            temp = ""
-                            for attr in val:
-                                if isinstance(attr, bytes):
-                                    temp += base64.b64encode(attr).decode("utf-8") + "\n"
-                                elif isinstance(attr, int):
-                                    temp = str(attr)
-                                elif isinstance(attr, datetime.datetime):
-                                    temp = str(attr.strftime('%m/%d/%Y'))
-                                else:
-                                    temp += attr + "\n"
-                            val = temp
-                        elif isinstance(val, int):
-                            val = str(val)
-                        elif isinstance(val, bytes):
-                            val = base64.b64encode(val).decode("utf-8")
-                        elif isinstance(val, datetime.datetime):
-                            val = str(val.strftime('%m/%d/%Y'))
-
-                        row.append(
-                                val 
-                                )
+                        val = self.format_value_by_type(val)
+                        row.append(val)
                     rows.append(row)
         else:
             for entry in entries:
                 row = []
                 for head in headers:
                     val = IDict(entry["attributes"]).get(head) # IDict give get() with case-insensitive capabilities :)
-
-                    if isinstance(val,list):
-                        temp = ""
-                        for attr in val:
-                            if isinstance(attr, bytes):
-                                temp += base64.b64encode(attr).decode("utf-8") + "\n"
-                            elif isinstance(attr, int):
-                                temp = str(attr)
-                            elif isinstance(attr, datetime.datetime):
-                                temp = str(attr.strftime('%m/%d/%Y'))
-                            else:
-                                temp += attr + "\n"
-                        val = temp
-                    elif isinstance(val, int):
-                        val = str(val)
-                    elif isinstance(val, bytes):
-                        val = base64.b64encode(val).decode("utf-8")
-                    elif isinstance(val, datetime.datetime):
-                        val = str(val.strftime('%m/%d/%Y'))
-
-                    row.append(
-                            val 
-                            )
-
+                    val = self.format_value_by_type(val)
+                    row.append(val)
                 rows.append(row)
 
         self.print_table(entries=rows, headers=headers)
 
-    def print(self,entries):
+    def print(self, entries):
+        # Add pagination for large result sets
+        total_entries = len(entries)
+        if hasattr(self.args, 'paginate') and self.args.paginate and total_entries > self.config['max_entries']:
+            self._print_paginated(entries)
+            return
+            
         for entry in entries:
             have_entry = False
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
@@ -251,10 +242,10 @@ class FORMATTER:
                             if isinstance(i,int):
                                 value = str(i)
 
-                    value = self.beautify(value,self.get_max_len(list(entry['attributes'].keys()))+2)
+                    value = self.beautify(value, self.get_max_len(list(entry['attributes'].keys()))+2)
 
                     if isinstance(value,list):
-                        if len(value) != 0:
+                        if len(value) != 0 or self.config['show_empty_values']:
                             value = self.clean_value(value)
 
                             have_entry = True
@@ -263,11 +254,12 @@ class FORMATTER:
                                 LOG.write_to_file(self.args.outfile, _stdout)
                             print(_stdout)
                     else:
-                        have_entry = True
-                        _stdout = f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {str(value)}"
-                        if self.args.outfile:
-                            LOG.write_to_file(self.args.outfile, _stdout)
-                        print(_stdout)
+                        if str(value).strip() != "" or self.config['show_empty_values']:
+                            have_entry = True
+                            _stdout = f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {str(value)}"
+                            if self.args.outfile:
+                                LOG.write_to_file(self.args.outfile, _stdout)
+                            print(_stdout)
                 if have_entry:
                     if self.args.outfile:
                         LOG.write_to_file(self.args.outfile, "")
@@ -276,10 +268,11 @@ class FORMATTER:
                 entry = self.resolve_values(entry)
                 for ace in entry['attributes']:
                     for k, v in ace.items():
-                        _stdout = f'{k.ljust(28)}: {v}'
-                        if self.args.outfile:
-                            LOG.write_to_file(self.args.outfile, _stdout)
-                        print(_stdout)
+                        if str(v).strip() != "" or self.config['show_empty_values']:
+                            _stdout = f'{k.ljust(self.config["attr_spacing"])}: {v}'
+                            if self.args.outfile:
+                                LOG.write_to_file(self.args.outfile, _stdout)
+                            print(_stdout)
                     if self.args.outfile:
                         LOG.write_to_file(self.args.outfile, "")
                     print()
@@ -288,6 +281,60 @@ class FORMATTER:
                 if self.args.outfile:
                     LOG.write_to_file(self.args.outfile, entry)
                 print(entry)
+
+    def _print_paginated(self, entries):
+        """Print entries with pagination support."""
+        page_size = self.config['max_entries']
+        total_pages = (len(entries) + page_size - 1) // page_size
+        
+        current_page = 1
+        while True:
+            start_idx = (current_page - 1) * page_size
+            end_idx = min(start_idx + page_size, len(entries))
+            
+            print(f"\n--- Page {current_page}/{total_pages} (Entries {start_idx+1}-{end_idx} of {len(entries)}) ---\n")
+            
+            # Print current page's entries
+            page_entries = entries[start_idx:end_idx]
+            for entry in page_entries:
+                # Use same logic as print method but for a subset
+                have_entry = False
+                if isinstance(entry, ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
+                    if isinstance(entry, ldap3.abstract.entry.Entry):
+                        entry = json.loads(entry.entry_to_json())
+                    entry = self.resolve_values(entry)
+                    for attr, value in entry['attributes'].items():
+                        value = self.beautify(value, self.get_max_len(list(entry['attributes'].keys()))+2)
+                        if isinstance(value, list):
+                            if len(value) != 0:
+                                value = self.clean_value(value)
+                                have_entry = True
+                                print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}")
+                        else:
+                            have_entry = True
+                            print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {str(value)}")
+                    if have_entry:
+                        print()
+                elif isinstance(entry['attributes'], list):
+                    entry = self.resolve_values(entry)
+                    for ace in entry['attributes']:
+                        for k, v in ace.items():
+                            print(f'{k.ljust(self.config["attr_spacing"])}: {v}')
+                        print()
+            
+            if total_pages <= 1:
+                break
+                
+            # Prompt for next action
+            action = input("\nEnter 'n' for next page, 'p' for previous page, 'q' to quit pagination: ").lower()
+            if action == 'n' and current_page < total_pages:
+                current_page += 1
+            elif action == 'p' and current_page > 1:
+                current_page -= 1
+            elif action == 'q':
+                break
+            else:
+                print("Invalid command or page limit reached.")
 
     def sort_entries(self, entries, sort_option):
         try:
@@ -454,7 +501,14 @@ class FORMATTER:
         return entry
 
     def get_max_len(self, lst):
-        return len(max(lst,key=len)) + 5
+        # Cache the result based on list content hash
+        cache_key = hash(tuple(sorted(lst)))
+        if cache_key in self._format_cache:
+            return self._format_cache[cache_key]
+        
+        result = len(max(lst, key=len)) + self.config['padding']
+        self._format_cache[cache_key] = result
+        return result
 
     def clean_value(self, value):
         temp = []
@@ -466,15 +520,15 @@ class FORMATTER:
         
         return temp
 
-    def beautify(self, strs,lens):
-        if isinstance(strs,str) and not self.args.nowrap:
+    def beautify(self, strs, lens):
+        if isinstance(strs, str) and not self.args.nowrap:
             temp = ""
-            if len(strs) > 100:
-                index = 100
-                for i in range(0,len(strs),100):
+            if len(strs) > self.config['wrap_length']:
+                index = self.config['wrap_length']
+                for i in range(0, len(strs), self.config['wrap_length']):
                     temp += f"{str(strs[i:index])}\n"
                     temp += ''.ljust(lens)
-                    index+=100
+                    index += self.config['wrap_length']
             else:
                 temp = f"{str(strs).ljust(lens)}"
 
@@ -482,23 +536,78 @@ class FORMATTER:
         elif isinstance(strs, list) and not self.args.nowrap:
             for i in range(len(strs)):
                 if isinstance(strs[i], datetime.datetime):
-                    strs[i] = strs[i].strftime('%m/%d/%Y')
+                    strs[i] = strs[i].strftime(self.config['date_format'])
                 elif isinstance(strs[i], bytes):
-                    strs[i] = base64.b64encode(strs[i]).decode('utf-8')
+                    strs[i] = self.format_binary_data(strs[i])
                     temp = ""
-                    if len(strs[i]) > 100:
-                        index = 100
-                        for j in range(0,len(strs[i]),100):
+                    if len(strs[i]) > self.config['wrap_length']:
+                        index = self.config['wrap_length']
+                        for j in range(0, len(strs[i]), self.config['wrap_length']):
                             temp += f"{str(strs[i][j:index])}\n"
                             temp += ''.ljust(lens)
-                            index+=100
+                            index += self.config['wrap_length']
                     else:
                         temp = f"{str(strs[i]).ljust(lens)}"
 
                     strs[i] = temp.strip()
             return strs
         elif isinstance(strs, bytes):
-            strs = base64.b64encode(strs).decode("utf-8")
+            strs = self.format_binary_data(strs)
             return strs
         else:
             return str(strs)
+
+    def format_value_by_type(self, value):
+        """Format a value based on its data type."""
+        if isinstance(value, datetime.datetime):
+            return value.strftime(self.config['date_format'])
+        elif isinstance(value, bytes):
+            return self.format_binary_data(value)
+        elif isinstance(value, list):
+            return self.format_list_value(value)
+        elif isinstance(value, int):
+            return str(value)
+        else:
+            return str(value)
+            
+    def format_binary_data(self, data):
+        """Format binary data according to configuration."""
+        if self.config['binary_format'] == 'base64':
+            return base64.b64encode(data).decode('utf-8')
+        elif self.config['binary_format'] == 'hex':
+            return data.hex()
+        else:
+            return base64.b64encode(data).decode('utf-8')
+            
+    def format_list_value(self, value_list):
+        """Format a list of values consistently."""
+        if not value_list:
+            return ""
+            
+        # Limit list size if needed
+        if len(value_list) > self.config['max_list_items']:
+            value_list = value_list[:self.config['max_list_items']]
+            was_truncated = True
+        else:
+            was_truncated = False
+            
+        # Format each element
+        formatted_items = []
+        for item in value_list:
+            if isinstance(item, datetime.datetime):
+                formatted_items.append(item.strftime(self.config['date_format']))
+            elif isinstance(item, bytes):
+                formatted_items.append(self.format_binary_data(item))
+            elif isinstance(item, dict) and "encoded" in item:
+                formatted_items.append(str(item["encoded"]))
+            else:
+                formatted_items.append(str(item))
+                
+        # Join items
+        result = "\n".join(formatted_items)
+        
+        # Add truncation indicator if needed
+        if was_truncated:
+            result += f"\n... (truncated, {len(value_list)} of {len(value_list)} items shown)"
+            
+        return result

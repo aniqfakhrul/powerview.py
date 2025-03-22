@@ -80,6 +80,7 @@ class PowerView:
 		self.use_system_nameserver = args.use_system_ns
 		self.dc_ip = args.dc_ip
 		self.use_kerberos = args.use_kerberos
+		self.target_server = target_server
 
 		if target_domain:
 			self.domain = target_domain
@@ -115,6 +116,17 @@ class PowerView:
 			user = self.get_domainobject(identity=self.whoami.split('\\')[1], properties=['objectSid'])
 			if user and len(user) > 0:
 				self.current_user_sid = user[0]['attributes']['objectSid']
+
+	def get_target_domain(self):
+		"""
+		Returns the current target domain if operating in cross-domain mode.
+		
+		Returns:
+			String: The target domain name or None if operating in the primary domain.
+		"""
+		if self.domain != self.conn.get_domain():
+			return self.domain
+		return None
 
 	def get_admin_status(self):
 		return self.is_admin

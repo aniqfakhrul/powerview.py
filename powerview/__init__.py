@@ -8,7 +8,7 @@ from powerview.utils.connections import CONNECTION
 from powerview.utils.logging import LOG
 from powerview.utils.parsers import powerview_arg_parse, arg_parse
 from powerview.utils.shell import get_prompt
-from powerview.utils.colors import bcolors
+from powerview.utils.colors import bcolors, Gradient
 
 import ldap3
 import random
@@ -66,12 +66,17 @@ def main():
         comp = Completer()
         comp.setup_completer()
 
+        # Store connections in a dictionary for reuse
+        domain_connections = {}
+        current_target_domain = None
+
         while True:
             try:
                 if args.query:
                     cmd = args.query
                 else:
-                    cmd = input(get_prompt(init_proto,server_dns,cur_user))
+                    # Use the enhanced prompt with target domain info
+                    cmd = input(get_prompt(init_proto, server_dns, cur_user, current_target_domain))
 
                 if cmd:
                     try:
@@ -84,14 +89,38 @@ def main():
 
                     if pv_args:
                         if pv_args.server and pv_args.server.casefold() != args.domain.casefold():
-                            conn.update_temp_ldap_address(pv_args.server)
+                            # Update current target domain for display in prompt
+                            current_target_domain = pv_args.server
                             
-                            try:
-                                temp_powerview = PowerView(conn, args, target_domain=pv_args.server)
-                            except:
-                                logging.error(f'Domain {pv_args.server} not found or probably not alive')
-                                continue
+                            if pv_args.server in domain_connections:
+                                temp_conn = domain_connections[pv_args.server]
+                            else:
+                                temp_conn = CONNECTION(args)
+                                temp_conn.update_temp_ldap_address(pv_args.server)
+                                domain_connections[pv_args.server] = temp_conn
 
+                            try:
+                                temp_powerview = PowerView(temp_conn, args, target_domain=pv_args.server)
+                            except ldap3.core.exceptions.LDAPSocketOpenError as e:
+                                logging.error(f'Connection to domain {pv_args.server} failed: {str(e)}')
+                                current_target_domain = None
+                                continue
+                            except ldap3.core.exceptions.LDAPBindError as e:
+                                logging.error(f'Authentication to domain {pv_args.server} failed: {str(e)}')
+                                current_target_domain = None
+                                continue
+                            except Exception as e:
+                                logging.error(f'Domain {pv_args.server} operation failed: {str(e)}')
+                                current_target_domain = None
+                                if args.stack_trace:
+                                    import traceback
+                                    logging.debug(traceback.format_exc())
+                                continue
+                        else:
+                            # No server specified or same as current domain
+                            current_target_domain = None
+                            temp_powerview = None
+                            
                         try:
                             entries = None
                             if pv_args.module.casefold() == 'get-domain' or pv_args.module.casefold() == 'get-netdomain':
@@ -744,6 +773,7 @@ def main():
                                             formatter.print(entries)
 
                             temp_powerview = None
+                            current_target_domain = None
                             conn.set_ldap_address(init_ldap_address)
                             conn.set_targetDomain(None)
                         except ldap3.core.exceptions.LDAPInvalidFilterError as e:
