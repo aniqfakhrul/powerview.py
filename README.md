@@ -1,6 +1,6 @@
 # PowerView.py
 
-[Installation](#installation) | [Basic Usage](#basic-usage) | [Modules](#module-available-so-far) | [Logging](#logging)
+[Installation](#installation) | [Basic Usage](#basic-usage) | [Modules](#module-available-so-far) | [Logging](#logging) | [Custom Vulnerability Rules](#custom-vulnerability-rules)
 
 PowerView.py is an alternative for the awesome original [PowerView.ps1](https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1) script. Most of the modules used in PowerView are available here ( some of the flags are changed ). Main goal is to achieve interactive session without having to repeatedly authenticate to ldap.
 
@@ -263,6 +263,125 @@ Get-CA                         Get-GPOLocalGroup              Remove-DomainCompu
 
 We will never miss logging to keep track of the actions done. By default, powerview creates a `.powerview` folder in current user home directory _(~)_. Each log file is generated based on current date.
 Example path: `/root/.powerview/logs/bionic.local/2024-02-13.log`
+
+### Vulnerability Detection
+
+PowerView.py includes an integrated vulnerability detection system that automatically identifies common Active Directory security issues. When querying objects, vulnerabilities will be displayed in the output:
+
+```
+vulnerabilities: [VULN-026] Domain with high machine account quota (allows users to add computer accounts) (MEDIUM)
+                 [VULN-029] Domain with weak minimum password length policy (less than 8 characters) (HIGH)
+```
+
+#### Custom Vulnerability Rules
+
+You can define custom vulnerability detection rules by modifying the `vulns.json` file located in the PowerView storage directory (`~/.powerview/vulns.json`).
+
+Each vulnerability rule has the following structure:
+
+```json
+"rule_name": {
+    "description": "Human-readable description of the vulnerability",
+    "rules": [
+        {
+            "attribute": "attributeName",
+            "condition": "condition_type",
+            "value": "value_to_check"
+        },
+        {
+            "attribute": "anotherAttribute",
+            "condition": "another_condition",
+            "value": "another_value"
+        }
+    ],
+    "exclusions": [
+        {
+            "attribute": "attributeName",
+            "condition": "condition_type",
+            "value": "value_to_exclude"
+        }
+    ],
+    "severity": "low|medium|high|critical",
+    "id": "VULN-XXX",
+    "rule_operator": "AND|OR",
+    "exclusion_operator": "AND|OR",
+    "details": "Optional detailed explanation of the vulnerability and remediation steps"
+}
+```
+
+**Rule Components:**
+
+- **rules**: List of conditions that must be met for the vulnerability to be detected
+- **exclusions**: List of conditions that, if met, will exclude an object from detection even if it matches the rules
+- **rule_operator**: How to combine multiple rules (default: "OR")
+  - "AND": All rules must match
+  - "OR": Any rule can match
+- **exclusion_operator**: How to combine multiple exclusions (default: "OR")
+  - "OR": Any exclusion can match to exclude the object
+  - "AND": All exclusions must match to exclude the object
+- **negate**: Optional boolean (True/False) that can be added to any rule to invert its result
+
+**Supported Conditions:**
+
+| Condition | Description |
+| --------- | ----------- |
+| `exists` | Attribute exists |
+| `not_exists` | Attribute does not exist |
+| `equals` | Exact match (case-insensitive) |
+| `not_equals` | Not an exact match |
+| `contains` | Substring match (case-insensitive) |
+| `not_contains` | No substring match |
+| `startswith` | Starts with string (case-insensitive) |
+| `endswith` | Ends with string (case-insensitive) |
+| `older_than` | Date is older than specified number of days |
+| `newer_than` | Date is newer than specified number of days |
+| `greater_than` | Numeric value is greater than specified |
+| `less_than` | Numeric value is less than specified |
+| `greater_than_or_equal` | Numeric value is greater than or equal to specified |
+| `less_than_or_equal` | Numeric value is less than or equal to specified |
+| `has_flag` | Bit flag is set in a numeric value |
+| `missing_flag` | Bit flag is not set in a numeric value |
+| `any_flag_set` | Any of the specified flags are set |
+| `all_flags_set` | All of the specified flags are set |
+
+**Multiple Values:**
+
+You can specify multiple values for a condition using:
+1. Pipe-separated string: `"value": "value1|value2|value3"`
+2. List format: `"value": ["value1", "value2", "value3"]`
+
+**Example Rule:**
+
+```json
+"weak_password_policy": {
+    "description": "Domain with weak minimum password length policy (less than 8 characters)",
+    "rules": [
+        {
+            "attribute": "objectClass",
+            "condition": "contains",
+            "value": "domainDNS"
+        },
+        {
+            "attribute": "minPwdLength",
+            "condition": "less_than",
+            "value": 8
+        }
+    ],
+    "exclusions": [],
+    "severity": "high",
+    "id": "VULN-029",
+    "rule_operator": "AND"
+}
+```
+
+**Debug Mode:**
+
+Enable vulnerability detection debug mode by setting the environment variable:
+```bash
+export POWERVIEW_DEBUG_VULN=1
+```
+
+This will log detailed information about rule matching to help troubleshoot custom rules.
 
 ### To-Do
 * ~~Add logging function to track and monitor what have been run.~~

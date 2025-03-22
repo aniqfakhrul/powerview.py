@@ -174,6 +174,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function initializeSettingsToggles() {
         const obfuscateToggle = document.getElementById('obfuscate-toggle');
         const cacheToggle = document.getElementById('cache-toggle');
+        const vulnCheckToggle = document.getElementById('vuln-check-toggle');
 
         try {
             const response = await fetch('/api/settings');
@@ -186,10 +187,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Enable toggles
             obfuscateToggle.disabled = false;
             cacheToggle.disabled = false;
+            vulnCheckToggle.disabled = false;
 
             // Set initial states based on API response
             obfuscateToggle.checked = settings.obfuscate || false;
             cacheToggle.checked = !settings.no_cache; // Note: we invert no_cache since the toggle is for enabling cache
+            vulnCheckToggle.checked = !settings.no_vuln_check; // Note: we invert no_vuln_check since the toggle is for disabling vulnerability checks
 
             // Add change event listeners
             obfuscateToggle.addEventListener('change', async (e) => {
@@ -201,7 +204,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         },
                         body: JSON.stringify({
                             obfuscate: e.target.checked,
-                            no_cache: !cacheToggle.checked
+                            no_cache: !cacheToggle.checked,
+                            no_vuln_check: !vulnCheckToggle.checked
                         })
                     });
 
@@ -227,7 +231,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         },
                         body: JSON.stringify({
                             obfuscate: obfuscateToggle.checked,
-                            no_cache: !e.target.checked  // Invert the cache toggle value
+                            no_cache: !e.target.checked,
+                            no_vuln_check: !e.target.checked
                         })
                     });
 
@@ -244,6 +249,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
+            vulnCheckToggle.addEventListener('change', async (e) => {
+                try {
+                    const response = await fetch('/api/set/settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            obfuscate: obfuscateToggle.checked,
+                            no_cache: !cacheToggle.checked,
+                            no_vuln_check: !e.target.checked
+                        })
+                    });
+                } catch (error) {
+                    console.error('Error updating settings:', error);
+                    showErrorAlert('Failed to update settings');
+                    // Revert the toggle if the API call failed
+                    e.target.checked = !e.target.checked;
+                }
+            });
         } catch (error) {
             console.error('Error fetching settings:', error);
             // Keep toggles disabled if we can't fetch settings

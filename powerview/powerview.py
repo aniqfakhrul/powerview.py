@@ -66,7 +66,7 @@ class PowerView:
 		
 		self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
 
-		self.custom_paged_search = CustomExtendedOperationsRoot(self.ldap_session, obfuscate=self.args.obfuscate, no_cache=self.args.no_cache)
+		self.custom_paged_search = CustomExtendedOperationsRoot(self.ldap_session, obfuscate=self.args.obfuscate, no_cache=self.args.no_cache, no_vuln_check=self.args.no_vuln_check)
 		self.ldap_session.extend.standard.paged_search = self.custom_paged_search.standard.paged_search
 
 		self.username = args.username if args.username else self.conn.get_username()
@@ -198,7 +198,7 @@ class PowerView:
 
 	def get_domainuser(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False):
 		def_prop = [
-			'servicePrincipalName', 'objectCategory', 'objectGUID', 'primaryGroupID', 'userAccountControl',
+			'objectClass', 'servicePrincipalName', 'objectCategory', 'objectGUID', 'primaryGroupID', 'userAccountControl',
 			'sAMAccountType', 'adminCount', 'cn', 'name', 'sAMAccountName', 'distinguishedName', 'mail',
 			'description', 'lastLogoff', 'lastLogon', 'memberOf', 'objectSid', 'userPrincipalName', 
 			'pwdLastSet', 'badPwdCount', 'badPasswordTime', 'msDS-SupportedEncryptionTypes'

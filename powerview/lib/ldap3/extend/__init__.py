@@ -11,13 +11,26 @@ from .obfuscate import (
 
 import logging
 from powerview.utils.storage import Storage
+from powerview.utils.vulnerabilities import VulnerabilityDetector
 
 class CustomStandardExtendedOperations(StandardExtendedOperations):
-	def __init__(self, connection, obfuscate=False, no_cache=False):
+	def __init__(self, connection, obfuscate=False, no_cache=False, no_vuln_check=False):
 		super().__init__(connection)
 		self.obfuscate = obfuscate
 		self.no_cache = no_cache
+		self.no_vuln_check = no_vuln_check
 		self.storage = Storage()
+		self.vulnerability_detector = VulnerabilityDetector(self.storage)
+	
+	def _format_vulnerability(self, vuln_dict):
+		"""Format a vulnerability dictionary as a string"""
+		vuln_id = vuln_dict.get('id', 'VULN')
+		description = vuln_dict.get('description', '')
+		severity = vuln_dict.get('severity', '').upper()
+		formatted = f"[{vuln_id}] {description} ({severity})"
+		if 'details' in vuln_dict:
+			formatted += f" - {vuln_dict['details']}"
+		return formatted
 
 	def paged_search(self,
 					 search_base,
@@ -33,14 +46,25 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 					 paged_size=100,
 					 paged_criticality=False,
 					 generator=True,
-					 no_cache=False):
+					 no_cache=False,
+					 no_vuln_check=False):
 		
 		no_cache = no_cache or self.no_cache
+		no_vuln_check = no_vuln_check or self.no_vuln_check
 
 		if not no_cache:
 			cached_results = self.storage.get_cached_results(search_base, search_filter, search_scope, attributes)
 			if cached_results is not None:
 				logging.debug("[CustomStandardExtendedOperations] Returning cached results for query")
+				
+				# Process vulnerabilities for all objects
+				for entry in cached_results:
+					if 'attributes' in entry:
+						vulnerabilities = self.vulnerability_detector.detect_vulnerabilities(entry['attributes'])
+						if vulnerabilities:
+							# Convert dictionary vulnerabilities to formatted strings
+							entry['attributes']['vulnerabilities'] = [self._format_vulnerability(v) for v in vulnerabilities]
+				
 				if generator:
 					# Return a generator that yields each cached result
 					return (entry for entry in cached_results)
@@ -98,6 +122,15 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 										  paged_size,
 										  paged_criticality))
 			
+			# Process vulnerabilities for all objects
+			if not no_vuln_check:
+				for entry in results:
+					if 'attributes' in entry:
+						vulnerabilities = self.vulnerability_detector.detect_vulnerabilities(entry['attributes'])
+						if vulnerabilities:
+							# Convert dictionary vulnerabilities to formatted strings
+							entry['attributes']['vulnerabilities'] = [self._format_vulnerability(v) for v in vulnerabilities]
+			
 			if not no_cache:
 				self.storage.cache_results(search_base, search_filter, search_scope, attributes, results)
 			return results
@@ -116,12 +149,21 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 											paged_size,
 											paged_criticality))
 			
+			# Process vulnerabilities for all objects
+			if not no_vuln_check:
+				for entry in results:
+					if 'attributes' in entry:
+						vulnerabilities = self.vulnerability_detector.detect_vulnerabilities(entry['attributes'])
+						if vulnerabilities:
+							# Convert dictionary vulnerabilities to formatted strings
+							entry['attributes']['vulnerabilities'] = [self._format_vulnerability(v) for v in vulnerabilities]
+			
 			if not no_cache:
 				self.storage.cache_results(search_base, search_filter, search_scope, attributes, results)
 			
 			return results
 
 class CustomExtendedOperationsRoot(ExtendedOperationsRoot):
-	def __init__(self, connection, obfuscate=False, no_cache=False):
+	def __init__(self, connection, obfuscate=False, no_cache=False, no_vuln_check=False):
 		super().__init__(connection)
-		self.standard = CustomStandardExtendedOperations(self._connection, obfuscate, no_cache)
+		self.standard = CustomStandardExtendedOperations(self._connection, obfuscate, no_cache, no_vuln_check)

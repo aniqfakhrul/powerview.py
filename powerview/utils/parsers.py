@@ -24,6 +24,8 @@ def arg_parse():
 	parser.add_argument('--no-admin-check', dest='no_admin_check', action='store_true', help='Skip admin check when first logging in')
 	parser.add_argument('--obfuscate', dest='obfuscate', action='store_true', help='Obfuscate search filter')
 	parser.add_argument('--no-cache', dest='no_cache', action='store_true', help='Disable caching of LDAP queries')
+	parser.add_argument('--no-vuln-check', dest='no_vuln_check', action='store_true', help='Disable vulnerability detection')
+
 	ns_group_parser = parser.add_mutually_exclusive_group()
 	ns_group_parser.add_argument('--use-system-nameserver', action='store_true', default=False, dest='use_system_ns', help='Use system nameserver to resolve hostname/domain')
 	ns_group_parser.add_argument('-ns','--nameserver', dest='nameserver', action='store', help='Specify custom nameserver. If not specified, domain controller will be used instead')

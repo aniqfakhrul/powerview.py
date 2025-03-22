@@ -13,19 +13,24 @@ class Storage:
         try:
             home_path = os.path.expanduser('~')
             if os.path.exists(home_path) and os.access(home_path, os.W_OK):
-                self.root_folder = os.path.join(home_path, ".powerview", "storage")
+                self.root_folder = os.path.join(home_path, ".powerview")
+                self.storage_folder = os.path.join(self.root_folder, "storage")
             else:
-                self.root_folder = os.path.join(tempfile.gettempdir(), "powerview_storage")
+                self.root_folder = os.path.join(tempfile.gettempdir(), "powerview")
+                self.storage_folder = os.path.join(self.root_folder, "storage")
             
             self.cache_folder = "ldap_cache"
-            self.cache_path = os.path.join(self.root_folder, self.cache_folder)
+            self.cache_path = os.path.join(self.storage_folder, self.cache_folder)
             
             os.makedirs(self.cache_path, mode=0o700, exist_ok=True)
+            os.makedirs(self.root_folder, mode=0o700, exist_ok=True)
+            
             logging.info(f"[Storage] Using cache directory: {self.cache_path}")
             
         except Exception as e:
             temp_dir = tempfile.mkdtemp(prefix="powerview_")
             self.root_folder = temp_dir
+            self.storage_folder = temp_dir
             self.cache_path = os.path.join(temp_dir, "ldap_cache")
             os.makedirs(self.cache_path, mode=0o700, exist_ok=True)
             logging.warning(f"[Storage] Using temporary directory for storage: {self.cache_path}")

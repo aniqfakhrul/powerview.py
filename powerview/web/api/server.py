@@ -296,14 +296,16 @@ class APIServer:
 		try:
 			obfuscate = request.json.get('obfuscate', False)
 			no_cache = request.json.get('no_cache', False)
-			logging.info(f"obfuscate: {obfuscate}, no_cache: {no_cache}")
+			no_vuln_check = request.json.get('no_vuln_check', False)
+			logging.info(f"obfuscate: {obfuscate}, no_cache: {no_cache}, no_vuln_check: {no_vuln_check}")
 			
 			# Update powerview args
 			self.powerview.args.obfuscate = obfuscate
 			self.powerview.args.no_cache = no_cache
+			self.powerview.args.no_vuln_check = no_vuln_check
 			
 			# Create new CustomExtendedOperationsRoot instance with updated settings
-			self.powerview.custom_paged_search = CustomExtendedOperationsRoot(self.powerview.ldap_session, obfuscate=obfuscate, no_cache=no_cache)
+			self.powerview.custom_paged_search = CustomExtendedOperationsRoot(self.powerview.ldap_session, obfuscate=obfuscate, no_cache=no_cache, no_vuln_check=no_vuln_check)
 			self.powerview.ldap_session.extend.standard = self.powerview.custom_paged_search.standard
 			
 			return jsonify({'status': 'OK'})
