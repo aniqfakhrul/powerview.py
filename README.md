@@ -1,6 +1,6 @@
 # PowerView.py
 
-[Installation](#installation) | [Basic Usage](#basic-usage) | [Modules](#module-available-so-far) | [Logging](#logging) | [Custom Vulnerability Rules](#custom-vulnerability-rules)
+[Installation](#installation) | [Basic Usage](#basic-usage) | [Modules](#module-available-so-far) | [Logging](#logging) | [User Defined Rules](#user-defined-rules) | [Testing](#testing)
 
 PowerView.py is an alternative for the awesome original [PowerView.ps1](https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1) script. Most of the modules used in PowerView are available here ( some of the flags are changed ). Main goal is to achieve interactive session without having to repeatedly authenticate to ldap.
 
@@ -273,7 +273,7 @@ vulnerabilities: [VULN-026] Domain with high machine account quota (allows users
                  [VULN-029] Domain with weak minimum password length policy (less than 8 characters) (HIGH)
 ```
 
-#### Custom Vulnerability Rules
+#### User Defined Rules
 
 You can define custom vulnerability detection rules by modifying the `vulns.json` file located in the PowerView storage directory (`~/.powerview/vulns.json`).
 
@@ -382,6 +382,29 @@ export POWERVIEW_DEBUG_VULN=1
 ```
 
 This will log detailed information about rule matching to help troubleshoot custom rules.
+
+### Testing
+
+You can run the tests by executing:
+
+```bash
+# Clone the repository
+git clone https://github.com/aniqfakhrul/powerview.py
+cd powerview.py
+
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run tests
+cd tests
+python test_modules.py
+```
+
+The tests verify that parameters like `no_cache` and `no_vuln_check` are correctly propagated to the PowerView methods.
 
 ### To-Do
 * ~~Add logging function to track and monitor what have been run.~~

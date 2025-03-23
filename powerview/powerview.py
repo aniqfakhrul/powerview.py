@@ -89,9 +89,6 @@ class PowerView:
 
 		self.use_ldaps = self.ldap_session.server.ssl
 
-		cnf = ldapdomaindump.domainDumpConfig()
-		cnf.basepath = None
-		self.domain_dumper = ldapdomaindump.domainDumper(self.ldap_server, self.ldap_session, cnf)
 		self.root_dn = self.ldap_server.info.other["defaultNamingContext"][0]
 		if not self.domain:
 			self.domain = dn2domain(self.root_dn)
