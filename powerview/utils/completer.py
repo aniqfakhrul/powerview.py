@@ -165,27 +165,47 @@ class Completer(object):
 
     def complete(self, text, state):
         buffer = readline.get_line_buffer()
-        line = shlex.split(buffer)
         
-        if not line:
+        # Handle empty buffer case
+        if not buffer.strip():
             return [c + ' ' for c in list(COMMANDS.keys())][state]
         
+        try:
+            line = shlex.split(buffer)
+        except ValueError:
+            # Handle unclosed quotes
+            line = shlex.split(buffer + '"')
+        
+        # Add empty token if buffer ends with space
         if RE_SPACE.match(buffer):
             line.append('')
         
         cmd = line[0].strip().casefold()
         
+        # Complete command names
         if len(line) == 1:
             results = [c + ' ' for c in list(COMMANDS.keys()) if c.casefold().startswith(cmd)] + [None]
             return results[state]
         
+        # Complete command arguments
         if cmd in (c.casefold() for c in COMMANDS.keys()):
             args = line[-1].strip()
-            full_cmd = [c for c in list(COMMANDS.keys()) if c.casefold() == cmd][0]  # Resolve exact case-sensitive match
+            full_cmd = [c for c in list(COMMANDS.keys()) if c.casefold() == cmd][0]
             
-            if len(line) > 1:
-                results = [arg + ' ' for arg in COMMANDS[full_cmd] if arg.casefold().startswith(args.casefold()) and arg not in line] + [None]
+            # Filter out flags already used in command
+            used_flags = [arg for arg in line if arg.startswith('-')]
+            available_flags = [arg for arg in COMMANDS[full_cmd] if arg not in used_flags]
+            
+            if args.startswith('-'):
+                results = [arg + ' ' for arg in available_flags if arg.casefold().startswith(args.casefold())] + [None]
                 return results[state]
+            
+            # Handle file paths for specific arguments that need file completion
+            file_related_flags = ['-OutFile']
+            prev_arg = line[-2] if len(line) > 1 else None
+            
+            if prev_arg in file_related_flags:
+                return self._complete_path(args)[state]
         
         return None
 
