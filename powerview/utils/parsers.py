@@ -114,6 +114,7 @@ def powerview_arg_parse(cmd):
 	get_domain_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domain_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domain_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domain_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 	
 	#domainobject
 	get_domainobject_parser = subparsers.add_parser('Get-DomainObject', aliases=['Get-ADObject'] ,exit_on_error=False)
@@ -130,6 +131,7 @@ def powerview_arg_parse(cmd):
 	get_domainobject_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainobject_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domainobject_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainobject_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	#domainobjectowner
 	get_domainobjectowner_parser = subparsers.add_parser('Get-DomainObjectOwner', aliases=['Get-ObjectOwner'] ,exit_on_error=False)
@@ -144,6 +146,7 @@ def powerview_arg_parse(cmd):
 	get_domainobjectowner_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainobjectowner_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domainobjectowner_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainobjectowner_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	#domainobjectacl
 	get_domainobjectacl_parser = subparsers.add_parser('Get-DomainObjectAcl', aliases=['Get-ObjectAcl'] ,exit_on_error=False)
@@ -159,6 +162,7 @@ def powerview_arg_parse(cmd):
 	get_domainobjectacl_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainobjectacl_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domainobjectacl_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainobjectacl_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	#group
 	get_domaingroup_parser = subparsers.add_parser('Get-DomainGroup', aliases=['Get-NetGroup'], exit_on_error=False)
@@ -177,6 +181,7 @@ def powerview_arg_parse(cmd):
 	get_domaingroup_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaingroup_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domaingroup_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaingroup_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	# foreignuser
 	get_domainforeignuser_parser = subparsers.add_parser('Get-DomainForeignUser', aliases=['Find-ForeignUser'], exit_on_error=False)
@@ -214,6 +219,8 @@ def powerview_arg_parse(cmd):
 	get_domaingroupmember_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaingroupmember_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaingroupmember_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaingroupmember_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaingroupmember_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	#user
 	get_domainuser_parser = subparsers.add_parser('Get-DomainUser', aliases=['Get-NetUser'], exit_on_error=False)
@@ -244,6 +251,7 @@ def powerview_arg_parse(cmd):
 	get_domainuser_parser.add_argument('-Disabled', action='store_true', default=False, dest='disabled')
 	get_domainuser_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domainuser_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainuser_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	# get-localuser
 	get_localuser_parser = subparsers.add_parser('Get-LocalUser', exit_on_error=False)
@@ -288,6 +296,8 @@ def powerview_arg_parse(cmd):
 	get_domaincomputer_parser.add_argument('-Printers', action='store_true', default=False, dest='printers')
 	get_domaincomputer_parser.add_argument('-ExcludeDCs', action='store_true', default=False, dest='excludedcs')
 	get_domaincomputer_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaincomputer_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaincomputer_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	#domain controller
 	get_domaincontroller_parser = subparsers.add_parser('Get-DomainController', aliases=['Get-NetDomainController'], exit_on_error=False)
@@ -305,6 +315,7 @@ def powerview_arg_parse(cmd):
 	get_domaincontroller_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaincontroller_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domaincontroller_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaincontroller_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	#gpo
 	get_domaingpo_parser = subparsers.add_parser('Get-DomainGPO', aliases=['Get-NetGPO'], exit_on_error=False)
@@ -320,6 +331,8 @@ def powerview_arg_parse(cmd):
 	get_domaingpo_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaingpo_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaingpo_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaingpo_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaingpo_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	#gpo local group / restricted groups
 	get_domaingpolocalgroup_parser = subparsers.add_parser('Get-DomainGPOLocalGroup', aliases=['Get-GPOLocalGroup'], exit_on_error=False)
@@ -363,6 +376,8 @@ def powerview_arg_parse(cmd):
 	get_domainou_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainou_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainou_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domainou_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainou_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	# Find DNS Zone
 	get_domaindnszone_parser = subparsers.add_parser('Get-DomainDNSZone', exit_on_error=False)
@@ -378,6 +393,7 @@ def powerview_arg_parse(cmd):
 	get_domaindnszone_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaindnszone_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domaindnszone_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaindnszone_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	# Get DNS Record
 	get_domaindnsrecord_parser = subparsers.add_parser('Get-DomainDNSRecord', exit_on_error=False)
@@ -394,6 +410,7 @@ def powerview_arg_parse(cmd):
 	get_domaindnsrecord_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaindnsrecord_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domaindnsrecord_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaindnsrecord_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	# Get SCCM
 	get_domainsccm_parser = subparsers.add_parser('Get-DomainSCCM', aliases=['Get-SCCM'], exit_on_error=False)
@@ -410,6 +427,8 @@ def powerview_arg_parse(cmd):
 	get_domainsccm_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainsccm_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainsccm_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domainsccm_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainsccm_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	# Get-DomainGMSA
 	get_domaingmsa_parser = subparsers.add_parser('Get-DomainGMSA', aliases=['Get-GMSA'], exit_on_error=False)
@@ -424,6 +443,8 @@ def powerview_arg_parse(cmd):
 	get_domaingmsa_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaingmsa_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaingmsa_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaingmsa_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaingmsa_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	# Get-DomainRBCD
 	get_domainrbcd_parser = subparsers.add_parser('Get-DomainRBCD', aliases=['Get-RBCD'], exit_on_error=False)
@@ -438,6 +459,8 @@ def powerview_arg_parse(cmd):
 	get_domainrbcd_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainrbcd_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainrbcd_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domainrbcd_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainrbcd_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	# Find CAs
 	get_domainca_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-CA'], exit_on_error=False)
@@ -452,6 +475,8 @@ def powerview_arg_parse(cmd):
 	get_domainca_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainca_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainca_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domainca_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainca_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	# Find CA Templates
 	get_domaincatemplate_parser = subparsers.add_parser('Get-DomainCATemplate', aliases=['Get-CATemplate'], exit_on_error=False)
@@ -469,6 +494,8 @@ def powerview_arg_parse(cmd):
 	get_domaincatemplate_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaincatemplate_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaincatemplate_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaincatemplate_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaincatemplate_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	remove_domaincatemplate_parser = subparsers.add_parser('Remove-DomainCATemplate', aliases=['Remove-CATemplate'], exit_on_error=False)
 	remove_domaincatemplate_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
@@ -662,6 +689,7 @@ def powerview_arg_parse(cmd):
 	get_domaintrust_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaintrust_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domaintrust_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaintrust_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 
 	# convert from uac value
 	convertfrom_uacvalue_parser = subparsers.add_parser('ConvertFrom-UACValue' ,exit_on_error=False)

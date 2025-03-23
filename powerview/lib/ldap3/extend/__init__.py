@@ -12,6 +12,7 @@ from .obfuscate import (
 import logging
 from powerview.utils.storage import Storage
 from powerview.utils.vulnerabilities import VulnerabilityDetector
+from powerview.utils.helpers import strip_entry
 
 class CustomStandardExtendedOperations(StandardExtendedOperations):
 	def __init__(self, connection, obfuscate=False, no_cache=False, no_vuln_check=False):
@@ -47,7 +48,8 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 					 paged_criticality=False,
 					 generator=True,
 					 no_cache=False,
-					 no_vuln_check=False):
+					 no_vuln_check=False,
+					 strip_entries=True):
 		
 		no_cache = no_cache or self.no_cache
 		no_vuln_check = no_vuln_check or self.no_vuln_check
@@ -58,12 +60,13 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				logging.debug("[CustomStandardExtendedOperations] Returning cached results for query")
 				
 				# Process vulnerabilities for all objects
-				for entry in cached_results:
-					if 'attributes' in entry:
-						vulnerabilities = self.vulnerability_detector.detect_vulnerabilities(entry['attributes'])
-						if vulnerabilities:
-							# Convert dictionary vulnerabilities to formatted strings
-							entry['attributes']['vulnerabilities'] = [self._format_vulnerability(v) for v in vulnerabilities]
+				if not no_vuln_check:
+					for entry in cached_results:
+						if 'attributes' in entry:
+							vulnerabilities = self.vulnerability_detector.detect_vulnerabilities(entry['attributes'])
+							if vulnerabilities:
+								# Convert dictionary vulnerabilities to formatted strings
+								entry['attributes']['vulnerabilities'] = [self._format_vulnerability(v) for v in vulnerabilities]
 				
 				if generator:
 					# Return a generator that yields each cached result
@@ -76,8 +79,6 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		if self.obfuscate:
 			parser = LdapParser(search_filter)
 			tokenized_filter = parser.parse()
-			#pprint(tokenized_filter)
-			#parser.modify_token("Value", "admin", "modifiedSamAccountName")
 			parser.comparison_operator_obfuscation()
 			parser.prepend_zeros()
 			parser.random_wildcards()
@@ -87,7 +88,6 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 			parser.randomize_oid()
 			parser.random_casing()
 			parser.random_spacing()
-			#pprint(parser.get_parsed_structure())
 			modified_filter = parser.convert_to_ldap()
 			logging.debug("[CustomStandardExtendedOperations] Modified Filter: {}".format(modified_filter))
 
@@ -96,10 +96,8 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 			dn_parser.dn_hex()
 			dn_parser.dn_randomcase()
 			dn_parser.random_spacing()
-			#dn_parser.dn_random_oid()
 			modified_dn = dn_parser.convert_to_dn()
 			logging.debug("[CustomStandardExtendedOperations] Modified DN: {}".format(modified_dn))
-			#pprint(modified_dn)
 
 			attribute_parser = AttributeParser(attributes)
 			attribute_parser.random_oid()
@@ -108,6 +106,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 			logging.debug("[CustomStandardExtendedOperations] Modified Attributes: {}".format(modified_attributes))
 
 		if generator:
+			# Get all results first so we can post-process them
 			results = list(paged_search_generator(self._connection,
 										  modified_dn,
 										  modified_filter,
@@ -122,9 +121,21 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 										  paged_size,
 										  paged_criticality))
 			
+			# Filter out non-search results
+			filtered_results = []
+			for entry in results:
+				if entry['type'] != 'searchResEntry':
+					continue
+					
+				# Strip entries if requested
+				if strip_entries:
+					strip_entry(entry)
+					
+				filtered_results.append(entry)
+				
 			# Process vulnerabilities for all objects
 			if not no_vuln_check:
-				for entry in results:
+				for entry in filtered_results:
 					if 'attributes' in entry:
 						vulnerabilities = self.vulnerability_detector.detect_vulnerabilities(entry['attributes'])
 						if vulnerabilities:
@@ -132,8 +143,9 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 							entry['attributes']['vulnerabilities'] = [self._format_vulnerability(v) for v in vulnerabilities]
 			
 			if not no_cache:
-				self.storage.cache_results(search_base, search_filter, search_scope, attributes, results)
-			return results
+				self.storage.cache_results(search_base, search_filter, search_scope, attributes, filtered_results)
+				
+			return filtered_results
 		else:
 			results = list(paged_search_accumulator(self._connection,
 											search_base,
@@ -149,9 +161,21 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 											paged_size,
 											paged_criticality))
 			
+			# Filter out non-search results and strip entries if requested
+			filtered_results = []
+			for entry in results:
+				if entry['type'] != 'searchResEntry':
+					continue
+					
+				# Strip entries if requested
+				if strip_entries:
+					strip_entry(entry)
+					
+				filtered_results.append(entry)
+			
 			# Process vulnerabilities for all objects
 			if not no_vuln_check:
-				for entry in results:
+				for entry in filtered_results:
 					if 'attributes' in entry:
 						vulnerabilities = self.vulnerability_detector.detect_vulnerabilities(entry['attributes'])
 						if vulnerabilities:
@@ -159,9 +183,9 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 							entry['attributes']['vulnerabilities'] = [self._format_vulnerability(v) for v in vulnerabilities]
 			
 			if not no_cache:
-				self.storage.cache_results(search_base, search_filter, search_scope, attributes, results)
+				self.storage.cache_results(search_base, search_filter, search_scope, attributes, filtered_results)
 			
-			return results
+			return filtered_results
 
 class CustomExtendedOperationsRoot(ExtendedOperationsRoot):
 	def __init__(self, connection, obfuscate=False, no_cache=False, no_vuln_check=False):

@@ -73,9 +73,11 @@ class CertificateSecurity(ActiveDirectorySecurity):
     RIGHTS_TYPE = CERTIFICATE_RIGHTS
 
 class CAEnum:
-    def __init__(self, ldap_session, root_dn):
+    def __init__(self, ldap_session, ldap_server):
         self.ldap_session = ldap_session
-        self.root_dn = root_dn
+        self.ldap_server = ldap_server
+        self.root_dn = self.ldap_server.info.other['rootDomainNamingContext'][0]
+        self.configuration_dn = self.ldap_server.info.other['configurationNamingContext'][0]
 
     def fetch_root_ca(self, properties=['*']):
         enroll_filter = "(objectclass=certificationAuthority)"
@@ -92,29 +94,44 @@ class CAEnum:
             entries.append(_entries)
         return entries
 
-    def fetch_enrollment_services(self, properties=['*'], searchbase=None, search_scope=SUBTREE):
-        enroll_filter = "(objectCategory=pKIEnrollmentService)"
+    def fetch_enrollment_services(self,
+            properties=[
+                "cn",
+                "name",
+                "dNSHostName",
+                "cACertificateDN",
+                "cACertificate",
+                "certificateTemplates",
+                "objectGUID",
+            ],
+            searchbase=None,
+            search_scope=SUBTREE,
+            no_cache=False,
+            no_vuln_check=False
+        ):
+        enroll_filter = "(&(objectClass=pKIEnrollmentService))"
 
         if not searchbase:
-            searchbase = "CN=Configuration,{}".format(self.root_dn)
+            searchbase = f"CN=Enrollment Services,CN=Public Key Services,CN=Services,{self.configuration_dn}"
 
-        entries = []
         logging.debug(f"LDAP Base: {searchbase}")
         logging.debug(f"LDAP Filter: {enroll_filter}")
-        entry_generator = self.ldap_session.extend.standard.paged_search(searchbase, enroll_filter, attributes=list(properties), paged_size=1000, generator=True, search_scope=search_scope)
-        for _entries in entry_generator:
-            if _entries['type'] != 'searchResEntry':
-                continue
-            strip_entry(_entries)
-            entries.append(_entries)
-        return entries
+        return self.ldap_session.extend.standard.paged_search(
+            searchbase,
+            enroll_filter,
+            attributes=list(properties),
+            paged_size=1000,
+            generator=True,
+            search_scope=search_scope,
+            no_cache=no_cache,
+            no_vuln_check=no_vuln_check
+        )
 
-    def get_certificate_templates(self, properties=None, ca_search_base=None, identity=None):
+    def get_certificate_templates(self, properties=None, ca_search_base=None, identity=None, search_scope=SUBTREE, no_cache=False, no_vuln_check=False):
         if not properties:
-            properties = [
-                "objectClass",
+            properties=[
+                "objectGUID",
                 "cn",
-                "distinguishedName",
                 "name",
                 "displayName",
                 "pKIExpirationPeriod",
@@ -122,34 +139,41 @@ class CAEnum:
                 "msPKI-Enrollment-Flag",
                 "msPKI-Private-Key-Flag",
                 "msPKI-Certificate-Name-Flag",
-                "msPKI-Cert-Template-OID",
+                "msPKI-Certificate-Policy",
+                "msPKI-Minimal-Key-Size",
                 "msPKI-RA-Signature",
                 "pKIExtendedKeyUsage",
                 "nTSecurityDescriptor",
                 "objectGUID",
-                "msPKI-Template-Schema-Version",
-                "msPKI-Certificate-Policy",
-                "msPKI-Minimal-Key-Size"
+                "whenCreated",
+                "whenChanged",
+                "msPKI-Template-Schema-Version"
             ]
-        ca_search_base = f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}" if not ca_search_base else ca_search_base
+
+        if not ca_search_base:
+            ca_search_base = f"CN=Certificate Templates,CN=Public Key Services,CN=Services,{self.configuration_dn}"
+        
         search_filter = ""
         identity_filter = ""
 
         if identity:
             identity_filter = f"(|(cn={identity})(displayName={identity}))"
 
-        search_filter = f"(&(objectclass=pkicertificatetemplate){identity_filter})"
+        search_filter = f"(&(objectclass=pKICertificateTemplate){identity_filter})"
 
+        logging.debug(f"LDAP Base: {ca_search_base}")
         logging.debug(f"LDAP Filter: {search_filter}")
-
-        self.ldap_session.search(
-            ca_search_base,
+        return self.ldap_session.extend.standard.paged_search(
+            self.configuration_dn,
             search_filter,
             attributes=properties,
-            controls = security_descriptor_control(sdflags=0x5),
+            controls=security_descriptor_control(sdflags=0x05),
+            paged_size=1000,
+            generator=True,
+            search_scope=search_scope,
+            no_cache=no_cache,
+            no_vuln_check=no_vuln_check
         )
-
-        return self.ldap_session.entries
 
     # https://github.com/ly4k/Certipy/blob/main/certipy/commands/find.py#L688
     def check_web_enrollment(self, target, timeout=5):
@@ -197,7 +221,7 @@ class CAEnum:
                 "nTSecurityDescriptor",
                 "objectGUID"
             ]
-        searchbase = f"CN=OID,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
+        searchbase = f"CN=OID,CN=Public Key Services,CN=Services,{self.configuration_dn}"
         ldap_filter = "(objectclass=msPKI-Enterprise-Oid)"
         entries = []
         entry_generator = self.ldap_session.extend.standard.paged_search(
@@ -214,6 +238,23 @@ class CAEnum:
             strip_entry(_entries)
             entries.append(_entries)
         return entries
+    
+    def add_oid(self, template_name, template_oid, displayname=None, flags=0x01):
+        oa = {
+            'Name': template_name,
+            'DisplayName': displayname if displayname else template_name,
+            'flags': flags,
+            'msPKI-Cert-Template-OID': template_oid,
+        }
+        oidpath = f"CN={template_oid},CN=OID,CN=Public Key Services,CN=Services,{self.configuration_dn}"
+        self.ldap_session.add(oidpath, ['top','msPKI-Enterprise-Oid'], oa)
+        if self.ldap_session.result['result'] == 0:
+            logging.debug(f"[Add-DomainCATemplate] Added new template OID {oidpath}")
+            logging.debug(f"[Add-DomainCATemplate] msPKI-Cert-Template-OID: {template_oid}")
+            return True
+        else:
+            logging.error(f"[Add-DomainCATemplate] Error adding new template OID ({self.ldap_session.result['description']})")
+            return False
 
 class PARSE_TEMPLATE:
     def __init__(self, template, current_user_sid=None, linked_group=None, ldap_session=None):
@@ -235,6 +276,7 @@ class PARSE_TEMPLATE:
         self.current_user_sid = current_user_sid
         self.linked_group = linked_group
         self.ldap_session = ldap_session
+
     def get_owner_sid(self):
         return self.owner_sid
 
@@ -321,7 +363,7 @@ class PARSE_TEMPLATE:
 
     def resolve_flags(self):
         # resolve certificate name flag
-        self.set_certificate_name_flag(self.template["msPKI-Certificate-Name-Flag"].raw_values[0])
+        self.set_certificate_name_flag(self.template.get("msPKI-Certificate-Name-Flag"))
         if self.certificate_name_flag is not None:
                 self.set_certificate_name_flag(MS_PKI_CERTIFICATE_NAME_FLAG(
                     int(self.certificate_name_flag)
@@ -330,14 +372,14 @@ class PARSE_TEMPLATE:
             self.set_certificate_name_flag(MS_PKI_CERTIFICATE_NAME_FLAG(0))
 
         # resolve enrollment flag
-        self.set_enrollment_flag(self.template["msPKI-Enrollment-Flag"].raw_values[0])
+        self.set_enrollment_flag(self.template.get("msPKI-Enrollment-Flag"))
         if self.enrollment_flag is not None:
             self.set_enrollment_flag(MS_PKI_ENROLLMENT_FLAG(int(self.enrollment_flag)))
         else:
             self.set_enrollment_flag(MS_PKI_ENROLLMENT_FLAG(0))
 
         # resolve authorized signature
-        self.set_authorized_signatures_required(self.template["msPKI-RA-Signature"].raw_values[0])
+        self.set_authorized_signatures_required(self.template.get("msPKI-RA-Signature"))
         if self.authorized_signatures_required is not None:
                 self.set_authorized_signatures_required(int(self.authorized_signatures_required))
         else:
@@ -349,14 +391,14 @@ class PARSE_TEMPLATE:
             ))
 
         # resolve pKIExtendedKeyUsage
-        eku = self.template["pKIExtendedKeyUsage"].raw_values
+        eku = self.template.get("pKIExtendedKeyUsage")
         if not isinstance(eku, list):
             if eku is None:
                 eku = []
             else:
                 eku = [eku]
 
-        eku = list(map(lambda x: x.decode(), eku))
+        eku = list(map(lambda x: x.decode() if isinstance(x, bytes) else x, eku))
         self.set_extended_key_usage(list(
                 map(lambda x: OID_TO_STR_MAP[x] if x in OID_TO_STR_MAP else x, eku)
             ))
@@ -393,10 +435,10 @@ class PARSE_TEMPLATE:
         )
 
         # resolve validity period
-        self.set_validity_period(filetime_to_str(self.template["pKIExpirationPeriod"].raw_values[0]))
+        self.set_validity_period(filetime_to_str(self.template.get("pKIExpirationPeriod")))
 
         # resolve renewal_period
-        self.set_renewal_period(filetime_to_str(self.template["pKIOverlapPeriod"].raw_values[0]))
+        self.set_renewal_period(filetime_to_str(self.template.get("pKIOverlapPeriod")))
 
     def can_user_enroll_template(self):
         enrollable_sids = []
@@ -413,7 +455,6 @@ class PARSE_TEMPLATE:
         if not self.get_requires_manager_approval() and not self.get_authorized_signatures_required():
             # ESC1
             # TODO: add another user_can_enroll logic
-            self.parsed_dacl["Enrollment Rights"]
             if (user_can_enroll and self.get_enrollee_supplies_subject() and self.get_client_authentication()):
                 vulns["ESC1"] = enrollable_sids
 
@@ -434,12 +475,12 @@ class PARSE_TEMPLATE:
                 vulns["ESC13"] = enrollable_sids
 
             # ESC15
-            if user_can_enroll and self.get_enrollee_supplies_subject() and int(self.template["msPKI-Template-Schema-Version"].raw_values[0]) == 1:
+            if user_can_enroll and self.get_enrollee_supplies_subject() and int(self.template.get("msPKI-Template-Schema-Version")) == 1:
                 vulns["ESC15"] = enrollable_sids
         
 
         # ESC4
-        security = CertificateSecurity(self.template["nTSecurityDescriptor"].raw_values[0])
+        security = CertificateSecurity(self.template.get("nTSecurityDescriptor"))
         owner_sid = security.owner
 
         if owner_sid in get_user_sids(self.domain_sid, self.current_user_sid, self.ldap_session):
@@ -504,7 +545,9 @@ class PARSE_TEMPLATE:
                         'mask':CERTIFICATE_RIGHTS.GENERIC_ALL,
                     }
                 }
-        sdData = self.template["nTSecurityDescriptor"].raw_values[0]
+        sdData = self.template.get("nTSecurityDescriptor")
+        if not sdData:
+            raise Exception(f"No nTSecurityDescriptor found for template {self.template.get('cn')}")
         security = CertificateSecurity(sdData)
         for guid in permissions.get(right_opt).get('rights'):
             security.sd['Dacl']['Data'].append(self.create_object_ace(guid, sid, mask=permissions.get(right_opt).get('mask')))
@@ -515,7 +558,9 @@ class PARSE_TEMPLATE:
         enrollment_rights = []
         all_extended_rights = []
 
-        sdData = self.template["nTSecurityDescriptor"].raw_values[0]
+        sdData = self.template.get("nTSecurityDescriptor")
+        if not sdData:
+            raise Exception(f"No nTSecurityDescriptor found for template {self.template.get('cn')}")
         security = CertificateSecurity(sdData)
         self.owner_sid = security.owner
         if not self.domain_sid:
