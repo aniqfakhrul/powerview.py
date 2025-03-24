@@ -243,30 +243,76 @@ class LdapParser:
 		previous_token_type = None
 		skip_random_spacing = False
 
+		def get_last_char(string_list):
+			"""Safely get the last character from the last non-empty string in the list"""
+			for s in reversed(string_list):
+				if s and isinstance(s, str):
+					return s[-1] if s else None
+			return None
+
 		for i in range(len(parsed_structure)):
 			token = parsed_structure[i]
 			if isinstance(token, list):
-				ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}({self.convert_to_ldap(token)}){LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}")
+				# Get context characters for proper spacing
+				prev_char = get_last_char(ldap_string)
+				spacing_before = LdapObfuscate.get_context_aware_spacing(prev_char, '(')
+				
+				nested_result = self.convert_to_ldap(token)
+				if nested_result:  # Only append if we got a result
+					ldap_string.append(f"{spacing_before}({nested_result})")
+					
+					# Add context-aware spacing after nested structure
+					if i < len(parsed_structure) - 1:
+						next_token = parsed_structure[i+1]
+						next_char = '(' if isinstance(next_token, list) else (
+							next_token.get('content', '')[0] if next_token.get('content') else None
+						)
+						spacing_after = LdapObfuscate.get_context_aware_spacing(')', next_char)
+						ldap_string.append(spacing_after)
 			else:
 				if token["type"] == "Attribute":
-					if in_exception(token["content"]) or parsed_structure[i+1]["type"] == "ExtensibleMatchFilter":
+					if in_exception(token["content"]) or (i+1 < len(parsed_structure) and 
+					   parsed_structure[i+1]["type"] == "ExtensibleMatchFilter"):
 						skip_random_spacing = True
 					else:
 						skip_random_spacing = False
 
-					ldap_string.append(f"{LdapObfuscate.random_spaces() if self.enable_spacing else ''}{token['content']}{LdapObfuscate.random_spaces() if self.enable_spacing else ''}")
+					# Add context-aware spacing around attributes
+					prev_char = get_last_char(ldap_string)
+					next_char = (parsed_structure[i+1].get("content", "")[0] 
+							   if i+1 < len(parsed_structure) and parsed_structure[i+1].get("content") 
+							   else None)
+					spacing = LdapObfuscate.get_context_aware_spacing(prev_char, next_char)
+					
+					if token.get('content'):  # Only append if content exists
+						ldap_string.append(f"{spacing}{token['content']}")
+
 				elif token["type"] == "ComparisonOperator":
-					ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}{token['content']}{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}")
+					spacing = "" if skip_random_spacing else LdapObfuscate.random_spaces(1, 2)
+					if token.get('content'):
+						ldap_string.append(f"{spacing}{token['content']}")
+
 				elif token["type"] == "Value":
-					ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}{token['content']}{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}")
+					content = token.get('content', '')
+					spacing = "" if skip_random_spacing else LdapObfuscate.get_context_aware_spacing(
+						'=', 
+						content[0] if content else None
+					)
+					ldap_string.append(f"{spacing}{content}")
+
 				elif token["type"] == "ExtensibleMatchFilter":
-					ldap_string.append(f":{token['content']}:")
+					if token.get('content'):
+						ldap_string.append(f":{token['content']}:")
+
 				else:
-					ldap_string.append(f"{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}{token['content']}{LdapObfuscate.random_spaces() if not skip_random_spacing and self.enable_spacing else ''}")
+					spacing = "" if skip_random_spacing else LdapObfuscate.random_spaces(0, 2)
+					if token.get('content'):
+						ldap_string.append(f"{spacing}{token['content']}")
 
 				previous_token_type = token["type"]
 
-		return ''.join(ldap_string)
+		result = ''.join(s for s in ldap_string if s)  # Filter out any None or empty strings
+		return result if result else ""  # Return empty string instead of None
 
 	def modify_token(self, token_type, old_value, new_value, parsed_structure=None):
 		if parsed_structure is None:
@@ -560,3 +606,28 @@ class LdapObfuscate:
 				result.append(random.choice([chars[i], WILDCARD + chars[i]]))
 
 		return ''.join(result)
+
+	@staticmethod
+	def get_context_aware_spacing(prev_char, next_char):
+		"""
+		Helper method to determine appropriate spacing based on context
+		Handles None values for prev_char and next_char
+		"""
+		# Handle None values
+		prev_char = str(prev_char) if prev_char is not None else ''
+		next_char = str(next_char) if next_char is not None else ''
+		
+		# No space around wildcards or special characters
+		if prev_char in EXCEPTION_CHARS or next_char in EXCEPTION_CHARS:
+			return ""
+			
+		# More spaces around operators
+		if prev_char in '&|!=><' or next_char in '&|!=><':
+			return LdapObfuscate.random_spaces(1, 3)
+			
+		# Less space around parentheses
+		if prev_char in '()' or next_char in '()':
+			return LdapObfuscate.random_spaces(0, 1)
+			
+		# Default spacing
+		return LdapObfuscate.random_spaces(0, 2)
