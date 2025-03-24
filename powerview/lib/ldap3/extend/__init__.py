@@ -68,9 +68,6 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 								# Convert dictionary vulnerabilities to formatted strings
 								entry['attributes']['vulnerabilities'] = [self._format_vulnerability(v) for v in vulnerabilities]
 				
-				if generator:
-					# Return a generator that yields each cached result
-					return (entry for entry in cached_results)
 				return cached_results
 		
 		modified_filter = search_filter
