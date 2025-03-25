@@ -196,7 +196,7 @@ class Completer(object):
             used_flags = [arg for arg in line if arg.startswith('-')]
             available_flags = [arg for arg in COMMANDS[full_cmd] if arg not in used_flags]
             
-            if args.startswith('-'):
+            if args.startswith('-') or not args:
                 results = [arg + ' ' for arg in available_flags if arg.casefold().startswith(args.casefold())] + [None]
                 return results[state]
             
