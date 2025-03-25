@@ -448,6 +448,11 @@ def main():
                                     entries = temp_powerview.find_localadminaccess(pv_args)
                                 else:
                                     entries = powerview.find_localadminaccess(pv_args)
+                            elif pv_args.module.casefold() == 'invoke-asreproast':
+                                if temp_powerview:
+                                    entries = temp_powerview.invoke_asreproast(args=pv_args)
+                                else:
+                                    entries = powerview.invoke_asreproast(args=pv_args)
                             elif pv_args.module.casefold() == 'invoke-kerberoast':
                                 properties = pv_args.properties if pv_args.properties else None
                                 if temp_powerview:

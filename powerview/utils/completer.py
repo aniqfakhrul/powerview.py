@@ -58,6 +58,7 @@ COMMANDS = {
     'Get-RegLoggedOn':['-Computer','-ComputerName','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Get-NetService':['-Name','-Computer','-ComputerName','-IsRunning','-IsStopped','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Find-LocalAdminAccess':['-Computer','-ComputerName','-Server', '-Count', '-OutFile'],
+    'Invoke-ASREPRoast':['-Identity', '-Properties', '-SearchBase', '-NoCache', '-Server', '-Select', '-NoWrap', '-OutFile', '-TableView', '-SortBy'],
     'Invoke-Kerberoast':['-Identity', '-Properties', '-Opsec','-LDAPFilter','-Server', '-Select', '-NoWrap', '-OutFile', '-TableView', '-SortBy'],
     'Invoke-PrinterBug':['-Target', '-Listener', '-Port', '-Server', '-OutFile', '-TableView', '-Select', '-Where', '-SortBy', '-Count', '-NoWrap'],
     'Invoke-DFSCoerce':['-Target', '-Listener', '-Port', '-Server', '-OutFile', '-TableView', '-Select', '-Where', '-SortBy', '-Count', '-NoWrap'],

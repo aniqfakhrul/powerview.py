@@ -639,6 +639,20 @@ def powerview_arg_parse(cmd):
 	find_localadminaccess_parser.add_argument('-Count', action='store_true', dest='count')
 	find_localadminaccess_parser.add_argument('-OutFile', action='store', dest='outfile')
 
+	# invoke asreproast
+	invoke_asreproast_parser = subparsers.add_parser('Invoke-ASREPRoast', exit_on_error=False)
+	invoke_asreproast_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_asreproast_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
+	invoke_asreproast_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_asreproast_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	invoke_asreproast_parser.add_argument('-Server', action='store', dest='server')
+	invoke_asreproast_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
+	invoke_asreproast_parser.add_argument('-OutFile', action='store', dest='outfile')
+	invoke_asreproast_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	invoke_asreproast_parser.add_argument('-SortBy', action='store', dest='sort_by')
+	invoke_asreproast_parser.add_argument('-Count', action='store_true', dest='count')
+	invoke_asreproast_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+
 	# invoke kerberoast
 	invoke_kerberoast_parser = subparsers.add_parser('Invoke-Kerberoast', exit_on_error=False)
 	invoke_kerberoast_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))

