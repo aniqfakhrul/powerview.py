@@ -59,6 +59,8 @@ COMMANDS = {
     'Get-NetService':['-Name','-Computer','-ComputerName','-IsRunning','-IsStopped','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Find-LocalAdminAccess':['-Computer','-ComputerName','-Server', '-Count', '-OutFile'],
     'Invoke-Kerberoast':['-Identity', '-Properties', '-Opsec','-LDAPFilter','-Server', '-Select', '-NoWrap', '-OutFile', '-TableView', '-SortBy'],
+    'Invoke-PrinterBug':['-Target', '-Listener', '-Port', '-Server', '-OutFile', '-TableView', '-Select', '-Where', '-SortBy', '-Count', '-NoWrap'],
+    'Invoke-DFSCoerce':['-Target', '-Listener', '-Port', '-Server', '-OutFile', '-TableView', '-Select', '-Where', '-SortBy', '-Count', '-NoWrap'],
     'Get-ExchangeServer':['-Identity','-Properties','-LDAPFilter','-SearchBase','-TableView', '-SortBy','-Server','-Select','-Count','-OutFile', '-NoCache', '-NoVulnCheck'],
     'Get-Exchange':['-Identity','-Properties','-LDAPFilter','-SearchBase','-TableView', '-SortBy','-Server','-Select','-Count','-OutFile', '-NoCache', '-NoVulnCheck'],
     'Unlock-ADAccount':['-Identity','-SearchBase', '-Server', '-Outfile'],

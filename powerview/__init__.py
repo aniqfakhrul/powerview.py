@@ -454,6 +454,16 @@ def main():
                                     entries = temp_powerview.invoke_kerberoast(pv_args, properties)
                                 else:
                                     entries = powerview.invoke_kerberoast(pv_args, properties)
+                            elif pv_args.module.casefold() == 'invoke-printerbug':
+                                if temp_powerview:
+                                    entries = temp_powerview.invoke_printerbug(args=pv_args)
+                                else:
+                                    entries = powerview.invoke_printerbug(args=pv_args)
+                            elif pv_args.module.casefold() == 'invoke-dfscoerce':
+                                if temp_powerview:
+                                    entries = temp_powerview.invoke_dfscoerce(args=pv_args)
+                                else:
+                                    entries = powerview.invoke_dfscoerce(args=pv_args)
                             elif pv_args.module.casefold() == 'get-exchangeserver' or pv_args.module.casefold() == 'get-exchange':
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None

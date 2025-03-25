@@ -144,24 +144,24 @@ Add-DomainComputer             Get-DomainDNSRecord            Get-NetGPO        
 Add-DomainDNSRecord            Get-DomainDNSZone              Get-NetGroup                   Remove-GroupMember 
 Add-DomainGPO                  Get-DomainForeignGroupMember   Get-NetGroupmember             Remove-OU 
 Add-DomainGroup                Get-DomainForeignUser          Get-NetLoggedOn                Remove-ObjectAcl 
-Add-DomainGroupMember          Get-DomainGMSA                 Get-NetOU                      Set-ADObject 
-Add-DomainOU                   Get-DomainGPO                  Get-NetService                 Set-ADObjectDN 
-Add-DomainObjectAcl            Get-DomainGPOLocalGroup        Get-NetSession                 Set-CATemplate 
-Add-DomainUser                 Get-DomainGPOSettings          Get-NetShare                   Set-DomainCATemplate 
-Add-GPLink                     Get-DomainGroup                Get-NetTrust                   Set-DomainComputerPassword 
-Add-GPO                        Get-DomainGroupMember          Get-NetUser                    Set-DomainDNSRecord 
-Add-GroupMember                Get-DomainOU                   Get-ObjectAcl                  Set-DomainObject 
-Add-OU                         Get-DomainObject               Get-ObjectOwner                Set-DomainObjectDN 
-Add-ObjectAcl                  Get-DomainObjectAcl            Get-RBCD                       Set-DomainObjectOwner 
-Clear-Cache                    Get-DomainObjectOwner          Get-RegLoggedOn                Set-DomainRBCD 
-ConvertFrom-SID                Get-DomainRBCD                 Get-SCCM                       Set-DomainUserPassword 
+Add-DomainGroupMember          Get-DomainGMSA                 Get-NetService                 Set-ADObject 
+Add-DomainOU                   Get-DomainGPO                  Get-NetSession                 Set-ADObjectDN 
+Add-DomainObjectAcl            Get-DomainGPOLocalGroup        Get-NetShare                   Set-CATemplate 
+Add-DomainUser                 Get-DomainGPOSettings          Get-NetTrust                   Set-DomainCATemplate 
+Add-GPLink                     Get-DomainGroup                Get-NetUser                    Set-DomainComputerPassword 
+Add-GPO                        Get-DomainGroupMember          Get-ObjectAcl                  Set-DomainDNSRecord 
+Add-GroupMember                Get-DomainOU                   Get-ObjectOwner                Set-DomainObject 
+Add-OU                         Get-DomainObject               Get-RBCD                       Set-DomainObjectDN 
+Add-ObjectAcl                  Get-DomainObjectAcl            Get-RegLoggedOn                Set-DomainObjectOwner 
+Clear-Cache                    Get-DomainObjectOwner          Get-SCCM                       Set-DomainRBCD 
+ConvertFrom-SID                Get-DomainRBCD                 Invoke-DFSCoerce               Set-DomainUserPassword 
 ConvertFrom-UACValue           Get-DomainSCCM                 Invoke-Kerberoast              Set-ObjectOwner 
-Disable-DomainDNSRecord        Get-DomainTrust                Remove-ADComputer              Set-RBCD 
-Find-ForeignGroup              Get-DomainUser                 Remove-ADObject                Unlock-ADAccount 
-Find-ForeignUser               Get-Exchange                   Remove-ADUser                  clear 
-Find-LocalAdminAccess          Get-ExchangeServer             Remove-CATemplate              exit 
-Get-ADObject                   Get-GMSA                       Remove-DomainCATemplate        
-Get-CA                         Get-GPOLocalGroup              Remove-DomainComputer  
+Disable-DomainDNSRecord        Get-DomainTrust                Invoke-PrinterBug              Set-RBCD 
+Find-ForeignGroup              Get-DomainUser                 Remove-ADComputer              Unlock-ADAccount 
+Find-ForeignUser               Get-Exchange                   Remove-ADObject                clear 
+Find-LocalAdminAccess          Get-ExchangeServer             Remove-ADUser                  exit 
+Get-ADObject                   Get-GMSA                       Remove-CATemplate              
+Get-CA                         Get-GPOLocalGroup              Remove-DomainCATemplate        
 ```
 
 ### Domain/LDAP Functions
@@ -255,7 +255,9 @@ Get-CA                         Get-GPOLocalGroup              Remove-DomainCompu
 |ConvertFrom-SID||Convert a given security identifier (SID) to user/group name|
 |ConvertFrom-UACValue||Converts a UAC int value to human readable form|
 |Get-NamedPipes||List out Named Pipes for a specific computer|
+|Invoke-DFSCoerce||Coerces machine account authentication via MS-DFSNM NetrDfsRemoveStdRoot()|
 |Invoke-Kerberoast||Requests kerberos ticket for a specified service principal name (SPN)|
+|Invoke-PrinterBug||Triggers the MS-RPRN RpcRemoteFindFirstPrinterChangeNotificationEx function to force a server to authenticate to a specified machine|
 |Unlock-ADAccount||Unlock domain accounts by modifying lockoutTime attribute|
 |Find-LocalAdminAccess||Finds computer on the local domain where the current has a Local Administrator access|
 

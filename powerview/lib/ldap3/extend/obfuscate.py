@@ -114,6 +114,11 @@ class DNParser:
 		self.enable_spacing = True
 
 class LdapParser:
+	"""
+	LDAP Parser class to parse LDAP filters and obfuscate them
+	
+	Reference: https://i.blackhat.com/BH-US-24/Presentations/US24-Bohannon-MaLDAPtive-Diving-Deep-Into-LDAP-Wednesday.pdf
+	"""
 	TOKEN_PATTERNS = {
 		'group_start': re.compile(r'\('),
 		'group_end': re.compile(r'\)'),
@@ -430,6 +435,10 @@ class LdapParser:
 		self.parsed_structure = [new_structure]
 
 	def append_garbage(self, parsed_structure=None):
+		"""
+		Enhanced append_garbage with ANR support.
+		ANR (Ambiguous Name Resolution) can be used as: anr=value or anr=value*garbage
+		"""
 		if parsed_structure is None:
 			parsed_structure = self.parsed_structure
 
@@ -443,14 +452,34 @@ class LdapParser:
 				attribute = parsed_structure[i]["content"]
 				operator = parsed_structure[i+1]["content"]
 				value = parsed_structure[i+2]["content"]
+				
 				if LdapObfuscate.is_number(value):
 					break
-				new_token = [
-					{"type":"Attribute", "content": attribute},
-					{"type":"ComparisonOperator", "content": operator},
-					{"type":"Value", "content": LdapObfuscate.random_string()}
-				]
-				self.append_inner_token(new_token)
+
+				# Decide whether to use regular garbage or ANR
+				use_anr = random.choice([True, False])
+				
+				if use_anr:
+					base_value = value.strip('*')
+					if base_value:
+						if random.choice([True, False]):
+							anr_value = f"{base_value}*{LdapObfuscate.random_string()}"
+						else:
+							anr_value = base_value
+
+						new_token = [
+							{"type": "Attribute", "content": LdapObfuscate.random_anr_casing()},
+							{"type": "ComparisonOperator", "content": "="},
+							{"type": "Value", "content": anr_value}
+						]
+						self.append_inner_token(new_token)
+				else:
+					new_token = [
+						{"type": "Attribute", "content": attribute},
+						{"type": "ComparisonOperator", "content": operator},
+						{"type": "Value", "content": LdapObfuscate.random_string()}
+					]
+					self.append_inner_token(new_token)
 
 	def randomize_oid(self, parsed_structure=None):
 		if parsed_structure is None:
@@ -631,3 +660,11 @@ class LdapObfuscate:
 			
 		# Default spacing
 		return LdapObfuscate.random_spaces(0, 2)
+
+	@staticmethod
+	def random_anr_casing():
+		"""
+		Returns 'anr' with random casing
+		"""
+		anr = "anr"
+		return ''.join(random.choice([c.upper(), c.lower()]) for c in anr)

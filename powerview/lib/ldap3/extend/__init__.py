@@ -81,7 +81,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 			parser.random_wildcards()
 			parser.random_hex()
 			parser.boolean_operator_obfuscation()
-			#parser.append_garbage()
+			parser.append_garbage()
 			parser.randomize_oid()
 			parser.random_casing()
 			parser.random_spacing()
