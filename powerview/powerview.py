@@ -16,6 +16,7 @@ from powerview.modules.asreproast import ASREProast
 from powerview.modules.dacledit import DACLedit
 from powerview.modules.products import EDR
 from powerview.modules.gpo import GPO
+from powerview.modules.exchange import ExchangeEnum
 from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
 from powerview.utils.storage import Storage
@@ -24,7 +25,8 @@ from powerview.modules.ldapattack import (
 	ACLEnum,
 	ADUser,
 	ObjectOwner,
-	RBCD
+	RBCD,
+	Trust
 )
 from powerview.utils.colors import bcolors
 from powerview.utils.constants import (
@@ -68,7 +70,7 @@ class PowerView:
 		
 		self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
 
-		self.custom_paged_search = CustomExtendedOperationsRoot(self.ldap_session, obfuscate=self.args.obfuscate, no_cache=self.args.no_cache, no_vuln_check=self.args.no_vuln_check)
+		self.custom_paged_search = CustomExtendedOperationsRoot(self.ldap_session, server=self.ldap_server, obfuscate=self.args.obfuscate, no_cache=self.args.no_cache, no_vuln_check=self.args.no_vuln_check, raw=self.args.raw)
 		self.ldap_session.extend.standard.paged_search = self.custom_paged_search.standard.paged_search
 
 		self.username = args.username if args.username else self.conn.get_username()
@@ -92,6 +94,7 @@ class PowerView:
 		self.use_ldaps = self.ldap_session.server.ssl
 
 		self.root_dn = self.ldap_server.info.other["defaultNamingContext"][0]
+		self.configuration_dn = self.ldap_server.info.other["configurationNamingContext"][0]
 		if not self.domain:
 			self.domain = dn2domain(self.root_dn)
 		self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
@@ -195,7 +198,7 @@ class PowerView:
 		logging.info("[Clear-Cache] Clearing cache")
 		return self.custom_paged_search.standard.storage.clear_cache()
 
-	def get_domainuser(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domainuser(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass', 'servicePrincipalName', 'objectCategory', 'objectGUID', 'primaryGroupID', 'userAccountControl',
 			'sAMAccountType', 'adminCount', 'cn', 'name', 'sAMAccountName', 'distinguishedName', 'mail',
@@ -210,6 +213,8 @@ class PowerView:
 
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
 
@@ -279,7 +284,17 @@ class PowerView:
 		logging.debug(f'[Get-DomainUser] LDAP search filter: {ldap_filter}')
 
 		# in case need more then 1000 entries
-		return self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope, no_cache=no_cache, no_vuln_check=no_vuln_check)
+		return self.ldap_session.extend.standard.paged_search(
+			searchbase,
+			ldap_filter,
+			attributes=list(properties),
+			paged_size = 1000,
+			generator=True,
+			search_scope=search_scope,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
 
 	def get_localuser(self, computer_name, identity=None, properties=[], port=445, args=None):
 		entries = list()
@@ -365,7 +380,7 @@ class PowerView:
 			entries.append(entry)
 		return entries
 
-	def get_domaincontroller(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domaincontroller(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'cn',
 			'distinguishedName',
@@ -394,6 +409,8 @@ class PowerView:
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		properties = def_prop if not properties else properties
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
 		
@@ -410,7 +427,18 @@ class PowerView:
 		ldap_filter = f"(&(userAccountControl:1.2.840.113556.1.4.803:=8192){identity_filter}{ldap_filter})"
 		logging.debug(f"[Get-DomainController] LDAP search filter: {ldap_filter}")
 		entries = []
-		entries = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=properties, paged_size = 1000, generator=True, search_scope=search_scope, no_cache=no_cache, no_vuln_check=no_vuln_check)
+		entries = self.ldap_session.extend.standard.paged_search(
+			searchbase,
+			ldap_filter,
+			attributes=properties,
+			paged_size = 1000,
+			generator=True,
+			search_scope=search_scope,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		
+		)
 		# resolve msDS-AllowedToActOnBehalfOfOtherIdentity
 		try:
 			if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(entries["attributes"].keys()):
@@ -425,13 +453,14 @@ class PowerView:
 
 		return entries
 
-	def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, ldap_filter=None, searchbase=None, sd_flag=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, ldap_filter=None, searchbase=None, sd_flag=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'*'
 		]
 		properties = set(properties or def_prop)
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
 		if sd_flag:
 			controls = security_descriptor_control(sdflags=sd_flag)
@@ -455,7 +484,18 @@ class PowerView:
 		ldap_filter = f'(&(objectClass=*){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
 
-		return self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, controls=controls, search_scope=search_scope, no_cache=no_cache, no_vuln_check=no_vuln_check)
+		return self.ldap_session.extend.standard.paged_search(
+			searchbase,
+			ldap_filter,
+			attributes=list(properties),
+			paged_size = 1000,
+			generator=True,
+			controls=controls,
+			search_scope=search_scope,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
 
 	def remove_domainobject(self, identity, searchbase=None, args=None, search_scope=ldap3.SUBTREE):
 		if not searchbase:
@@ -493,7 +533,7 @@ class PowerView:
 		
 		return succeeded
 
-	def get_domainobjectowner(self, identity=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domainobjectowner(self, identity=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 		
@@ -503,14 +543,24 @@ class PowerView:
 
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
-		objects = self.get_domainobject(identity=identity, properties=[
-			'cn',
-			'nTSecurityDescriptor',
-			'sAMAccountname',
-			'objectSid',
-			'distinguishedName',
-		], searchbase=searchbase, sd_flag=0x01, search_scope=search_scope, no_cache=no_cache, no_vuln_check=no_vuln_check)
+		objects = self.get_domainobject(
+			identity=identity,
+			properties=[
+				'cn',
+				'nTSecurityDescriptor',
+				'sAMAccountname',
+				'objectSid',
+				'distinguishedName',
+			],
+			searchbase=searchbase,
+			sd_flag=0x01,
+			search_scope=search_scope,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
 
 		if len(objects) == 0:
 			logging.error("[Get-DomainObjectOwner] Identity not found in domain")
@@ -533,7 +583,7 @@ class PowerView:
 
 		return objects
 
-	def get_domainou(self, args=None, properties=[], identity=None, searchbase=None, resolve_gplink=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domainou(self, args=None, properties=[], identity=None, searchbase=None, resolve_gplink=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass',
 			'ou',
@@ -559,6 +609,7 @@ class PowerView:
 
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -572,7 +623,18 @@ class PowerView:
 
 		ldap_filter = f'(&(objectCategory=organizationalUnit){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainOU] LDAP search filter: {ldap_filter}')
-		entries = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope, no_cache=no_cache, no_vuln_check=no_vuln_check)
+		entries = self.ldap_session.extend.standard.paged_search(
+			searchbase,
+			ldap_filter,
+			attributes=list(properties),
+			paged_size = 1000,
+			generator=True,
+			search_scope=search_scope,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
+
 		for entry in entries:
 			if resolve_gplink:
 				if len(entry['attributes']['gPLink']) == 0:
@@ -593,7 +655,7 @@ class PowerView:
 						entry["attributes"]["gPLink"] = gplink_list
 		return entries
 
-	def get_domainobjectacl(self, identity=None, security_identifier=None, resolveguids=False, targetidentity=None, principalidentity=None, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domainobjectacl(self, identity=None, security_identifier=None, resolveguids=False, targetidentity=None, principalidentity=None, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		# Use args to set defaults if not provided directly
 		if args:
 			identity = identity or getattr(args, 'identity', None)
@@ -606,6 +668,7 @@ class PowerView:
 
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
 		# Enumerate available GUIDs
 		guids_dict = {}
@@ -628,7 +691,14 @@ class PowerView:
 
 		principal_SID = None
 		if security_identifier:
-			principalsid_entry = self.get_domainobject(identity=security_identifier, properties=['objectSid'], no_cache=no_cache, searchbase=searchbase, no_vuln_check=no_vuln_check)
+			principalsid_entry = self.get_domainobject(
+				identity=security_identifier, 
+				properties=['objectSid'], 
+				no_cache=no_cache, 
+				searchbase=searchbase, 
+				no_vuln_check=no_vuln_check,
+				raw=raw
+			)
 			if not principalsid_entry:
 				logging.debug('[Get-DomainObjectAcl] Principal not found. Searching in Well Known SIDs...')
 				principal_SID = resolve_WellKnownSID(security_identifier)
@@ -647,7 +717,14 @@ class PowerView:
 			security_identifier = principalsid_entry[0]['attributes']['objectSid'] if not principal_SID else principal_SID
 
 		if identity != "*":
-			identity_entries = self.get_domainobject(identity=identity, properties=['objectSid', 'distinguishedName'], searchbase=searchbase, no_cache=no_cache, no_vuln_check=no_vuln_check)
+			identity_entries = self.get_domainobject(
+				identity=identity, 
+				properties=['objectSid', 'distinguishedName'], 
+				searchbase=searchbase, 
+				no_cache=no_cache, 
+				no_vuln_check=no_vuln_check,
+				raw=raw
+			)
 			if len(identity_entries) == 0:
 				logging.error(f'[Get-DomainObjectAcl] Identity {identity} not found. Try to use DN')
 				return
@@ -670,8 +747,9 @@ class PowerView:
 			generator=True, 
 			search_scope=search_scope, 
 			no_cache=no_cache, 
-			no_vuln_check=no_vuln_check, 
-			strip_entries=False
+			no_vuln_check=no_vuln_check,
+			strip_entries=False,
+			raw=raw
 		)
 
 		if not entries:
@@ -682,7 +760,7 @@ class PowerView:
 		entries_dacl = enum.read_dacl()
 		return entries_dacl
 
-	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolveip=False, resolvesids=False, ldapfilter=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolveip=False, resolvesids=False, ldapfilter=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass',
 			'lastLogonTimestamp',
@@ -717,7 +795,7 @@ class PowerView:
 
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
-		
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
@@ -751,7 +829,8 @@ class PowerView:
 			if hasattr(args, 'laps') and args.laps:
 				logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
 				ldap_filter += f'(ms-Mcs-AdmPwd=*)'
-				properties += ['ms-MCS-AdmPwd','ms-Mcs-AdmPwdExpirationTime']
+				properties.add('ms-MCS-AdmPwd')
+				properties.add('ms-Mcs-AdmPwdExpirationTime')
 			if hasattr(args, 'rbcd') and args.rbcd:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
 				ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
@@ -792,7 +871,17 @@ class PowerView:
 
 		ldap_filter = f'(&(objectClass=computer){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainComputer] LDAP search filter: {ldap_filter}')
-		entries = self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope, no_cache=no_cache, no_vuln_check=no_vuln_check)
+		entries = self.ldap_session.extend.standard.paged_search(
+			searchbase,
+			ldap_filter,
+			attributes=list(properties),
+			paged_size = 1000,
+			generator=True,
+			search_scope=search_scope,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
 		for entry in entries:
 			if resolveip and entry.get('attributes').get('dnsHostName'):
 				ip = host2ip(entry['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver, type=list)
@@ -823,7 +912,7 @@ class PowerView:
 
 		return entries
 
-	def get_domaingmsa(self, identity=None, args=None, no_cache=False, no_vuln_check=False):
+	def get_domaingmsa(self, identity=None, args=None, no_cache=False, no_vuln_check=False, raw=False):
 		properties = [
 			"sAMAccountName",
 			"objectSid",
@@ -837,11 +926,21 @@ class PowerView:
 
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
 		setattr(args, "ldapfilter", "(&(objectClass=msDS-GroupManagedServiceAccount))")
 
 		# get source identity
-		sourceObj = self.get_domainobject(identity=identity, properties=properties, searchbase=searchbase, args=args, sd_flag=0x04, no_cache=no_cache, no_vuln_check=no_vuln_check)
+		sourceObj = self.get_domainobject(
+			identity=identity,
+			properties=properties,
+			searchbase=searchbase,
+			args=args,
+			sd_flag=0x05,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
 
 		logging.debug("[Get-DomainGMSA] Found %d object(s) with gmsa attribute" % (len(sourceObj)))
 
@@ -874,7 +973,7 @@ class PowerView:
 
 		return entries
 
-	def get_domainrbcd(self, identity=None, args=None, no_cache=False, no_vuln_check=False):
+	def get_domainrbcd(self, identity=None, args=None, no_cache=False, no_vuln_check=False, raw=False):
 		properties = [
 					"sAMAccountName",
 					"sAMAccountType",
@@ -890,12 +989,22 @@ class PowerView:
 
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
 		# set args to have rbcd attribute
 		setattr(args, "ldapfilter", "(msDS-AllowedToActOnBehalfOfOtherIdentity=*)")
 
 		# get source identity
-		sourceObj = self.get_domainobject(identity=identity, properties=properties, searchbase=searchbase, args=args, no_cache=no_cache, no_vuln_check=no_vuln_check)
+		sourceObj = self.get_domainobject(
+			identity=identity,
+			properties=properties,
+			searchbase=searchbase,
+			args=args,
+			sd_flag=0x05,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
 
 		logging.debug("[Get-DomainRBCD] Found %d object(s) with msDS-AllowedToActOnBehalfOfOtherIdentity attribute" % (len(sourceObj)))
 
@@ -956,7 +1065,7 @@ class PowerView:
 						)
 		return entries
 
-	def get_domaingroup(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domaingroup(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'adminCount',
 			'cn',
@@ -979,6 +1088,7 @@ class PowerView:
 
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
 		logging.debug(f"[Get-DomainGroup] Using search base: {searchbase}")
 		
@@ -1013,7 +1123,8 @@ class PowerView:
 			generator=True, 
 			search_scope=search_scope, 
 			no_cache=no_cache, 
-			no_vuln_check=no_vuln_check
+			no_vuln_check=no_vuln_check,
+			raw=raw
 		)
 
 	def get_domainforeigngroupmember(self, args=None):
@@ -1067,10 +1178,18 @@ class PowerView:
 
 		return entries
 
+	def get_domaingroupmember(self, identity, args=None, multiple=False, no_cache=False, no_vuln_check=False, raw=False):
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
-	def get_domaingroupmember(self, identity, args=None, multiple=False):
 		# get the identity group information
-		entries = self.get_domaingroup(identity=identity)
+		entries = self.get_domaingroup(
+			identity=identity,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
 
 		if len(entries) == 0:
 			logging.warning("[Get-DomainGroupMember] No group found")
@@ -1179,7 +1298,7 @@ class PowerView:
 
 		return new_entries
 
-	def get_domaingpo(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domaingpo(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass',
 			'cn',
@@ -1212,6 +1331,7 @@ class PowerView:
 
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 		
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -1223,7 +1343,17 @@ class PowerView:
 
 		ldap_filter = f'(&(objectCategory=groupPolicyContainer){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainGPO] LDAP search filter: {ldap_filter}')
-		return self.ldap_session.extend.standard.paged_search(searchbase,ldap_filter,attributes=list(properties), paged_size = 1000, generator=True, search_scope=search_scope, no_cache=no_cache, no_vuln_check=no_vuln_check)
+		return self.ldap_session.extend.standard.paged_search(
+			searchbase,
+			ldap_filter,
+			attributes=list(properties),
+			paged_size = 1000,
+			generator=True,
+			search_scope=search_scope,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
 
 	def get_domaingpolocalgroup(self, args=None, identity=None):
 		new_entries = []
@@ -1269,7 +1399,7 @@ class PowerView:
 				pass
 		return new_entries
 
-	def get_domaingposettings(self, args=None, identity=None):
+	def get_domaingposettings(self, args=None, identity=None, no_cache=False, no_vuln_check=False, raw=False):
 		"""
 		Parse GPO settings from SYSVOL share
 		Returns dictionary containing Machine and User configurations
@@ -1277,7 +1407,16 @@ class PowerView:
 		if args and hasattr(args, 'identity'):
 			identity = args.identity
 
-		entries = self.get_domaingpo(identity=identity)
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+
+		entries = self.get_domaingpo(
+			identity=identity,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
 		if len(entries) == 0:
 			logging.error("[Get-GPOSettings] No GPO object found")
 			return
@@ -1378,7 +1517,7 @@ class PowerView:
 				continue
 		return policy_settings
 
-	def get_domaintrust(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domaintrust(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, sd_flag=None, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'name',
 			'objectGUID',
@@ -1387,19 +1526,24 @@ class PowerView:
 			'trustPartner',
 			'trustType',
 			'trustAttributes',
-			'flatName'
+			'flatName',
+			'whenCreated',
+			'whenChanged',
 		]
 
 		properties = set(properties or def_prop)
-		identity = '*' if not identity else identity
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
 
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
+		controls = security_descriptor_control(sdflags=sd_flag) if sd_flag else None
+
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
-		identity_filter = f"(name={identity})"
+		identity_filter = f"(name={identity})" if identity else ""
 		ldap_filter = f'(&(objectClass=trustedDomain){identity_filter})'
 		logging.debug(f'[Get-DomainTrust] LDAP search filter: {ldap_filter}')
 
@@ -1408,10 +1552,12 @@ class PowerView:
 			ldap_filter, 
 			attributes=list(properties), 
 			paged_size=1000, 
-			generator=True, 
+			generator=True,
+			controls=controls,
 			search_scope=search_scope,
 			no_cache=no_cache,
-			no_vuln_check=no_vuln_check
+			no_vuln_check=no_vuln_check,
+			raw=raw
 		)
 
 	def convertto_uacvalue(self, value, args=None, output=False):
@@ -1445,9 +1591,11 @@ class PowerView:
 			)
 		return entries
 
-	def convertfrom_sid(self, objectsid, args=None, output=False, no_cache=False):
+	def convertfrom_sid(self, objectsid, searchbase=None, args=None, output=False, no_cache=False):
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		identity = WELL_KNOWN_SIDS.get(objectsid)
+		if not searchbase:
+			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 		known_sid = KNOWN_SIDS.get(objectsid)
 		if identity:
 			identity = identity
@@ -1459,7 +1607,7 @@ class PowerView:
 			logging.debug(f"[ConvertFrom-SID] LDAP search filter: {ldap_filter}")
 
 			entries = self.ldap_session.extend.standard.paged_search(
-				self.root_dn, 
+				searchbase, 
 				ldap_filter, 
 				attributes=['sAMAccountName','name'], 
 				paged_size=1000, 
@@ -1495,11 +1643,12 @@ class PowerView:
 			print("%s" % identity)
 		return identity
 
-	def get_domain(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domain(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		properties = ['*'] if not properties else properties
 		identity = '*' if not identity else identity
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
 		identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
 		if not searchbase:
@@ -1522,10 +1671,11 @@ class PowerView:
 			generator=True,
 			search_scope=search_scope,
 			no_cache=no_cache,
-			no_vuln_check=no_vuln_check
+			no_vuln_check=no_vuln_check,
+			raw=raw
 		)
 
-	def get_domaindnszone(self, identity=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domaindnszone(self, identity=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass',
 			'name',
@@ -1543,6 +1693,7 @@ class PowerView:
 		identity = '*' if not identity else identity
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 		
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}" 
@@ -1561,10 +1712,11 @@ class PowerView:
 			generator=False, 
 			search_scope=search_scope, 
 			no_cache=no_cache,
-			no_vuln_check=no_vuln_check
+			no_vuln_check=no_vuln_check,
+			raw=raw
 		)
 
-	def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'name',
 			'distinguishedName',
@@ -1580,6 +1732,7 @@ class PowerView:
 		args = args or self.args
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}" 
@@ -1611,7 +1764,8 @@ class PowerView:
 				generator=False,
 				search_scope=search_scope, 
 				no_cache=no_cache, 
-				no_vuln_check=no_vuln_check
+				no_vuln_check=no_vuln_check,
+				raw=raw
 			)
 			
 			# Process the DNS records
@@ -1660,7 +1814,7 @@ class PowerView:
 			
 		return processed_entries
 
-	def get_domainsccm(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domainsccm(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			"cn",
 			"distinguishedname",
@@ -1679,6 +1833,7 @@ class PowerView:
 		identity = '*' if not identity else identity
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
@@ -1703,7 +1858,8 @@ class PowerView:
 			generator=True, 
 			search_scope=search_scope, 
 			no_cache=no_cache, 
-			no_vuln_check=no_vuln_check
+			no_vuln_check=no_vuln_check,
+			raw=raw
 		)
 
 		if args.check_datalib:
@@ -1745,7 +1901,7 @@ class PowerView:
 
 		return entries
 
-	def get_domainca(self, args=None, identity=None, check_web_enrollment=False, properties=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
+	def get_domainca(self, args=None, identity=None, check_web_enrollment=False, properties=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			"cn",
 			"name",
@@ -1761,13 +1917,15 @@ class PowerView:
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		check_web_enrollment = args.check_web_enrollment if hasattr(args, 'check_web_enrollment') else check_web_enrollment
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
-		ca_fetch = CAEnum(self.ldap_session, self.ldap_server)
+		ca_fetch = CAEnum(self)
 		entries = ca_fetch.fetch_enrollment_services(
 			properties, 
 			search_scope=search_scope, 
 			no_cache=no_cache, 
-			no_vuln_check=no_vuln_check
+			no_vuln_check=no_vuln_check,
+			raw=raw
 		)
 
 		if check_web_enrollment:
@@ -1804,7 +1962,7 @@ class PowerView:
 	def remove_domaincatemplate(self, identity, searchbase=None, args=None):
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
-		ca_fetch = CAEnum(self.ldap_session, self.ldap_server)
+		ca_fetch = CAEnum(self)
 		templates = ca_fetch.get_certificate_templates(identity=identity, ca_search_base=searchbase)
 		if len(templates) > 1:
 			logging.error(f"[Remove-DomainCATemplate] Multiple certificates found with name {identity}")
@@ -1846,38 +2004,6 @@ class PowerView:
 		else:
 			logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainCATemplate] Failed to delete template {identity} from certificate store")
 			return False
-
-	def get_exchangeserver(self, identity, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False):
-		if not searchbase:
-			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
-		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
-		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
-
-		logging.debug(f"[Get-ExchangeServer] Using search base: {searchbase}")
-		
-		# query if Exchange Servers group exists
-		exc_group = self.get_domaingroup(identity="Exchange Servers", searchbase=searchbase)
-
-		if len(exc_group) == 0:
-			logging.debug("[Get-ExchangeServer] Exchange Servers group not found in domain")
-			return
-
-		logging.debug("[Get-ExchangeServer] Exchange Servers group found in domain")
-		exc_group_dn = exc_group[0].get("dn")
-		if not exc_group_dn:
-			logging.error("[Get-ExchangeServer] Failed to get Exchange Servers group dn")
-			return
-
-		exc_ldapfilter = "(memberOf=%s)" % (exc_group_dn)
-		return self.get_domaincomputer(
-			identity=identity, 
-			properties=properties, 
-			searchbase=searchbase, 
-			ldapfilter=exc_ldapfilter, 
-			search_scope=search_scope,
-			no_cache=no_cache,
-			no_vuln_check=no_vuln_check
-		)
 
 	def unlock_adaccount(self, identity, searchbase=None, args=None):
 		if not searchbase:
@@ -2267,7 +2393,7 @@ displayName=New Group Policy Object
 		logging.debug(f"[Add-DomainCATemplateAcl] Found target identity {principal_identity[0].get('attributes').get('sAMAccountName')}")
 
 		if not ca_fetch:
-			ca_fetch = CAEnum(self.ldap_session, self.ldap_server)
+			ca_fetch = CAEnum(self)
 
 		template = ca_fetch.get_certificate_templates(identity=name)
 		
@@ -2299,7 +2425,7 @@ displayName=New Group Policy Object
 			return False
 
 	def add_domaincatemplate(self, displayname, name=None, args=None):
-		ca_fetch = CAEnum(self.ldap_session, self.ldap_server)
+		ca_fetch = CAEnum(self)
 
 		if not name:
 			logging.debug("[Add-DomainCATemplate] No certificate name given, using DisplayName instead")
@@ -2431,7 +2557,7 @@ displayName=New Group Policy Object
 
 		return succeed
 
-	def get_domaincatemplate(self, args=None, properties=[], identity=None, vulnerable=False, searchbase=None, resolve_sids=False, no_cache=False, no_vuln_check=False):
+	def get_domaincatemplate(self, args=None, properties=[], identity=None, vulnerable=False, searchbase=None, resolve_sids=False, no_cache=False, no_vuln_check=False, raw=False):
 		def list_sids(sids: List[str]):
 			sids_mapping = list(
 				map(
@@ -2469,23 +2595,29 @@ displayName=New Group Policy Object
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 		resolve_sids = args.resolve_sids if hasattr(args, 'resolve_sids') and args.resolve_sids else resolve_sids
 		args_enabled = args.enabled if hasattr(args, 'enabled') and args.enabled else False
 		args_vulnerable = args.vulnerable if hasattr(args, 'vulnerable') and args.vulnerable else vulnerable
 
 		entries = []
 		template_guids = []
-		ca_fetch = CAEnum(self.ldap_session, self.ldap_server)
+		ca_fetch = CAEnum(self)
 
 		templates = ca_fetch.get_certificate_templates(
 			def_prop,
 			searchbase,
 			identity,
 			no_cache=no_cache,
-			no_vuln_check=no_vuln_check
+			no_vuln_check=no_vuln_check,
+			raw=raw
 		)
 		logging.debug(f"[Get-DomainCATemplate] Found {len(templates)} templates")
-		cas = ca_fetch.fetch_enrollment_services(no_cache=no_cache, no_vuln_check=no_vuln_check)
+		cas = ca_fetch.fetch_enrollment_services(
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
 
 		if len(cas) <= 0:
 			logging.error(f"[Get-DomainCATemplate] No certificate authority found")
@@ -2498,7 +2630,7 @@ displayName=New Group Policy Object
 		list_entries = []
 
 		# Get issuance policies for each template
-		oids = ca_fetch.get_issuance_policies()
+		oids = ca_fetch.get_issuance_policies(no_cache=no_cache, no_vuln_check=no_vuln_check, raw=raw)
 		for ca in cas:
 			object_id = ca.get("attributes").get("objectGUID").lstrip("{").rstrip("}")
 			ca.get("attributes").update({"object_id": object_id})
@@ -2540,7 +2672,6 @@ displayName=New Group Policy Object
 				template_owner = template_ops.get_owner_sid()
 				certificate_name_flag = template_ops.get_certificate_name_flag()
 				enrollment_flag = template_ops.get_enrollment_flag()
-				# print(enrollment_flag)
 				extended_key_usage = template_ops.get_extended_key_usage()
 				validity_period = template_ops.get_validity_period()
 				renewal_period = template_ops.get_renewal_period()
@@ -2798,7 +2929,7 @@ displayName=New Group Policy Object
 			logging.error("[Set-DomainCATemplate] No identity or args supplied")
 			return
 
-		ca_fetch = CAEnum(self.ldap_session, self.ldap_server)
+		ca_fetch = CAEnum(self)
 		target_template = ca_fetch.get_certificate_templates(identity=identity, properties=['*'])
 		if len(target_template) == 0:
 			logging.error("[Set-DomainCATemplate] No template found")
@@ -3914,16 +4045,8 @@ displayName=New Group Policy Object
 		entry['attributes']['Status'] = 'Success'
 		return [entry]
 
-	def invoke_asreproast(self, identity='*', properties=[], searchbase=None, no_cache=False, args=None):
+	def invoke_asreproast(self, identity=None, searchbase=None, args=None, no_cache=False):
 		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
-		properties = args.properties if hasattr(args, 'properties') and args.properties else properties
-		
-		# Ensure sAMAccountName is always included in properties
-		if not properties:
-			properties = ['sAMAccountName']
-		elif 'sAMAccountName' not in properties:
-			properties.append('sAMAccountName')
-			
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 
@@ -3932,33 +4055,36 @@ displayName=New Group Policy Object
 			identity=identity,
 			searchbase=searchbase,
 			no_cache=no_cache,
-			properties=properties,
+			properties=['sAMAccountName', 'memberOf'],
 			args=args
 		)
-		logging.debug("[Invoke-ASREPRoast] Found %d users" % (len(users)))
+		logging.debug("[Invoke-ASREPRoast] Found %d users with preauthnotrequired enabled" % (len(users)))
 
 		entries = []
 		for user in users:
 			samaccountname = user.get("attributes").get("sAMAccountName")
 			if not samaccountname:
-				logging.debug("[Invoke-ASREPRoast] No samaccountname found for %s" % (user.get("attributes").get("dn")))
+				logging.debug("[Invoke-ASREPRoast] No sAMAccountName found for %s" % (user.get("attributes").get("dn")))
 				continue
 			asreproast = ASREProast(self)
-			tickets = asreproast.request(samaccountname)
-			entries.append(
-				{
-					"attributes": {
-						"sAMAccountName": samaccountname,
-						"Hash": tickets
-					}
-				}
-			)
+			ticket = asreproast.request(samaccountname)
+			user['attributes']["Hash"] = ticket if ticket and 'attributes' in user.keys() else None
+			entries.append(user)
 		return entries
 
-	def invoke_kerberoast(self, args, properties=[]):
-		# look for users with SPN set
+	def invoke_kerberoast(self, identity=None, searchbase=None, args=None, no_cache=False):
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		setattr(args, 'spn', True)
-		entries = self.get_domainuser(args)
+
+		entries = self.get_domainuser(
+			identity=identity,
+			searchbase=searchbase,
+			no_cache=no_cache,
+			properties=['sAMAccountName', 'memberOf', 'servicePrincipalName'],
+			args=args
+		)
 		if len(entries) == 0:
 			logging.debug("[Invoke-Kerberoast] No identity found")
 			return
@@ -3976,19 +4102,7 @@ displayName=New Group Policy Object
 			kdc_options = "0x40810000"
 
 		userspn = GetUserSPNs(self.username, self.password, self.domain, target_domain, self.args, identity=args.identity, options=kdc_options, encType=enctype, TGT=self.conn.get_TGT())
-		entries_out = userspn.run(entries)
-
-		# properly formatted for output
-		entries.clear()
-		entries = []
-		if properties:
-			for ent in entries_out:
-				entries.append({
-					'attributes': filter_entry(ent['attributes'],properties)
-					})
-		else:
-			entries = entries_out
-
+		entries = userspn.run(entries)
 		return entries
 
 	def find_localadminaccess(self, args):
@@ -4673,3 +4787,373 @@ displayName=New Group Policy Object
 				})
 
 		return sessions
+
+	def get_domaintrustkey(self, identity=None, properties=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False, args=None):
+		"""
+		Extract trust keys from domain trust objects.
+		
+		This function queries Active Directory for domain trust objects and extracts
+		the trust keys from trustAuthIncoming and trustAuthOutgoing attributes.
+		These keys are used to secure communications and authentication between trusted domains.
+		
+		The function uses specialized SD controls to read the sensitive trust key attributes,
+		which requires high privileges (typically Domain Admin) in the domain.
+		
+		Trust keys can be used for various offensive operations, including:
+		- Creating forged Kerberos tickets (Golden Tickets across trusts)
+		- Lateral movement between trusted domains
+		- Trust relationship abuse
+		
+		Args:
+			identity: Trust name to target (optional, if None all trusts are returned)
+			properties: Properties to retrieve (optional)
+			searchbase: Search base for the LDAP query (optional)
+			args: Arguments object containing properties (optional)
+			search_scope: LDAP search scope (default: SUBTREE)
+			no_cache: Whether to use cache (default: False)
+			no_vuln_check: Whether to skip vulnerability checks (default: False)
+		
+		Returns:
+			List of dictionaries containing trust objects with their parsed trust keys.
+			For each trust, the following information is included:
+			- Basic trust properties (name, direction, type, etc.)
+			- Security descriptor information
+			- Parsed trust key information from trustAuthIncoming and trustAuthOutgoing
+			  attributes, including key type, timestamp, and the actual key material
+		
+		Example:
+			# Get all trust keys
+			trust_keys = powerview.get_trustkey()
+			
+			# Get trust keys for a specific trust
+			trust_keys = powerview.get_trustkey(identity="example.com")
+			
+			# Access the keys
+			for trust in trust_keys:
+				if 'trustAuthIncoming' in trust and 'Entries' in trust['trustAuthIncoming']:
+					for entry in trust['trustAuthIncoming']['Entries']:
+						print(f"Found {entry['KeyType']} key: {entry['Key']}")
+		"""
+		import datetime
+		
+		def_prop = [
+			'name',
+			'objectGUID',
+			'securityIdentifier',
+			'trustDirection',
+			'trustPartner',
+			'trustType',
+			'trustAttributes',
+			'flatName',
+			'whenCreated',
+			'whenChanged',
+			'trustAuthIncoming',
+			'trustAuthOutgoing',
+			'nTSecurityDescriptor',
+		]
+		
+		properties = args.properties if hasattr(args, 'properties') and args.properties else properties or def_prop
+		properties = def_prop if not properties else set(def_prop + properties)
+		
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		
+		if not searchbase:
+			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+		
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+
+		_entries = self.get_domaintrust(
+			identity=identity,
+			properties=properties,
+			searchbase=searchbase,
+			sd_flag=0x05,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
+
+		if len(_entries) == 0:
+			logging.error("[Get-DomainTrustKey] No trust keys found")
+			return
+		else:
+			logging.info("[Get-DomainTrustKey] Found %d trust%s" % (len(_entries), "s" if len(_entries) > 1 else ""))
+		
+		entries = []
+		for entry in _entries:
+			if not entry.get('attributes', {}).get('trustAuthIncoming') or not entry.get('attributes', {}).get('trustAuthOutgoing'):
+				logging.info("[Get-DomainTrustKey] Trust keys not found for %s. Skipping..." % entry.get('attributes', {}).get('name'))
+				continue
+
+			trust = Trust(entry)
+			entries.append(
+				{
+					"attributes": {
+						"Trust": trust.name,
+						"Partner": trust.trust_partner,
+						"Direction": trust.trust_direction,
+						"Type": trust.trust_type,
+						"Attributes": trust.trust_attributes,
+						"Incoming Keys": trust.incoming_keys,
+						"Outgoing Keys": trust.outgoing_keys,
+						"Owner": self.convertfrom_sid(trust.owner_sid),
+						"IncomingKey": trust.incoming_keys,
+						"OutgoingKey": trust.outgoing_keys,
+					}
+				}
+			)
+		return entries
+
+	def get_exchangeserver(self, identity=None, properties=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False, args=None):
+		"""
+		Enumerate Exchange servers in the domain.
+		
+		Args:
+			identity: Server name to target (optional, if None all Exchange servers are returned)
+			properties: Properties to retrieve (optional)
+			searchbase: Search base for the LDAP query (optional)
+			args: Arguments object containing properties (optional)
+			search_scope: LDAP search scope (default: SUBTREE)
+			no_cache: Whether to use cache (default: False)
+			no_vuln_check: Whether to skip vulnerability checks (default: False)
+		
+		Returns:
+			List of Exchange servers with their properties
+		"""
+		properties = args.properties if hasattr(args, 'properties') and args.properties else properties
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		
+		if not searchbase:
+			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.configuration_dn
+		
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+		exchange_enum = ExchangeEnum(self)
+		
+		try:
+			entries = exchange_enum.get_exchange_servers(
+				properties=properties,
+				identity=identity,
+				searchbase=searchbase,
+				search_scope=search_scope,
+				no_cache=no_cache,
+				no_vuln_check=no_vuln_check,
+				raw=raw
+			)
+		except ldap3.core.exceptions.LDAPObjectClassError as e:
+			if "invalid class in objectClass attribute: msExchExchangeServer" in str(e):
+				logging.error("[Get-ExchangeServer] Error: Domain doesn't have Exchange servers")
+				return
+			else:
+				if self.args.stack_trace:
+					raise e
+				else:
+					logging.error(f"[Get-ExchangeServer] Error: {e}")
+					return
+		except Exception as e:
+			if self.args.stack_trace:
+				raise e
+			else:
+				logging.error(f"[Get-ExchangeServer] Error: {e}")
+				return
+		
+		logging.debug(f"[Get-ExchangeServer] Found {len(entries)} Exchange servers")
+		return entries
+	
+	def get_exchangemailbox(self, identity=None, properties=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False, args=None):
+		"""
+		Enumerate Exchange mailboxes in the domain.
+		
+		Args:
+			identity: User name to target (optional, if None all mailboxes are returned)
+			properties: Properties to retrieve (optional)
+			searchbase: Search base for the LDAP query (optional)
+			args: Arguments object containing properties (optional)
+			search_scope: LDAP search scope (default: SUBTREE)
+			no_cache: Whether to use cache (default: False)
+			no_vuln_check: Whether to skip vulnerability checks (default: False)
+			raw: Whether to return raw LDAP entries (default: False)
+		Returns:
+			List of Exchange mailboxes with their properties
+		"""
+		properties = args.properties if hasattr(args, 'properties') and args.properties else properties
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		
+		if not searchbase:
+			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+		
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+
+		exchange_enum = ExchangeEnum(self)
+		
+		# Get Exchange mailboxes
+		entries = exchange_enum.get_exchange_mailboxes(
+			properties=properties,
+			identity=identity,
+			searchbase=searchbase,
+			search_scope=search_scope,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
+		logging.debug(f"[Get-ExchangeMailbox] Found {len(entries)} Exchange mailboxes")
+		
+		return entries
+		
+	def get_exchangedatabase(self, identity=None, properties=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False, args=None):
+		"""
+		Enumerate Exchange mailbox databases in the domain.
+		
+		Args:
+			identity: Database name to target (optional, if None all databases are returned)
+			properties: Properties to retrieve (optional)
+			searchbase: Search base for the LDAP query (optional)
+			args: Arguments object containing properties (optional)
+			search_scope: LDAP search scope (default: SUBTREE)
+			no_cache: Whether to use cache (default: False)
+			no_vuln_check: Whether to skip vulnerability checks (default: False)
+		
+		Returns:
+			List of Exchange mailbox databases with their properties
+		"""
+		properties = args.properties if hasattr(args, 'properties') and args.properties else properties
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		
+		if not searchbase:
+			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.configuration_dn
+		
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+		
+		exchange_enum = ExchangeEnum(self)
+		
+		# Get Exchange databases
+		entries = exchange_enum.get_exchange_databases(
+			properties=properties,
+			identity=identity,
+			searchbase=searchbase,
+			search_scope=search_scope,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
+
+		logging.debug(f"[Get-ExchangeDatabase] Found {len(entries)} Exchange databases")
+		
+		return entries
+	
+	def get_exchangepermissions(self, identity=None, properties=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False, args=None):
+		"""
+		Enumerate and analyze Exchange-specific permissions in the AD environment.
+		
+		This function queries Active Directory for Exchange servers and related objects,
+		then analyzes the permissions on these objects to identify potential attack paths.
+		
+		Args:
+			identity: Exchange server name to target (optional, if None all Exchange servers are returned)
+			properties: Properties to retrieve (optional)
+			searchbase: Search base for the LDAP query (optional)
+			args: Arguments object containing properties (optional)
+			search_scope: LDAP search scope (default: SUBTREE)
+			no_cache: Whether to use cache (default: False)
+			no_vuln_check: Whether to skip vulnerability checks (default: False)
+			raw: Whether to return raw LDAP entries (default: False)
+		Returns:
+			List of Exchange objects with permission information and potential attack vectors
+		"""
+		properties = args.properties if hasattr(args, 'properties') and args.properties else properties
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		
+		if not searchbase:
+			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.configuration_dn
+		
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+		
+		exchange_enum = ExchangeEnum(self)
+		
+		# Query Exchange objects - we'll collect servers, mailboxes, and databases
+		exchange_objects = []
+		
+		# Get Exchange servers
+		servers = exchange_enum.get_exchange_servers(
+			properties=properties,
+			identity=identity,
+			searchbase=searchbase,
+			search_scope=search_scope,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
+		
+		exchange_objects.extend(servers)
+
+		logging.debug(f"[Get-ExchangePermissions] Found {len(servers)} Exchange servers")
+		
+		# Get Exchange mailboxes (limit to 100 to avoid performance issues)
+		mailboxes = exchange_enum.get_exchange_mailboxes(
+			properties=properties,
+			identity=identity,
+			searchbase=searchbase,
+			search_scope=search_scope,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
+		
+		exchange_objects.extend(mailboxes)
+		
+		logging.debug(f"[Get-ExchangePermissions] Found {len(mailboxes)} Exchange mailboxes")
+		
+		# Get Exchange databases
+		databases = exchange_enum.get_exchange_databases(
+			properties=properties,
+			identity=identity,
+			searchbase=searchbase,
+			search_scope=search_scope,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
+		
+		exchange_objects.extend(databases)
+		
+		logging.debug(f"[Get-ExchangePermissions] Found {len(databases)} Exchange databases")
+		
+		# Get Exchange organization
+		organization = exchange_enum.get_exchange_organization(
+			properties=properties,
+			searchbase=None,  # Use default configuration container
+			search_scope=search_scope,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
+		
+		exchange_objects.extend(organization)
+
+		logging.debug(f"[Get-ExchangePermissions] Found {len(organization)} Exchange organization")
+		
+		# Analyze permissions
+		results = exchange_enum.analyze_exchange_permissions(exchange_objects)
+		
+		# Format the results for output
+		formatted_results = []
+		for name, info in results.items():
+			formatted_results.append({
+				"attributes": {
+					"Name": name,
+					"ObjectType": info["ObjectType"],
+					"Owner": info["Owner"],
+					"Vulnerabilities": info["Vulnerabilities"],
+					"Permissions": info["Permissions"]
+				}
+			})
+		
+		return formatted_results

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from powerview.utils.colors import bcolors, Gradient
 
-def get_prompt(init_proto, server_dns, cur_user, target_domain=None):
+def get_prompt(init_proto, server_dns, cur_user, target_domain=None, using_cache=False):
 	"""
 	Creates a visually enhanced prompt for the PowerView shell.
 	
@@ -10,6 +10,7 @@ def get_prompt(init_proto, server_dns, cur_user, target_domain=None):
 		server_dns: The DNS name of the server
 		cur_user: The current authenticated user
 		target_domain: Optional target domain for cross-domain operations
+		using_cache: Indicates if the last results came from cache
 	
 	Returns:
 		A formatted string for the shell prompt
@@ -19,11 +20,17 @@ def get_prompt(init_proto, server_dns, cur_user, target_domain=None):
 	if target_domain:
 		domain_indicator = f" {bcolors.BOLD}{bcolors.FAIL}[→ {target_domain}]{bcolors.ENDC}"
 	
+	# Add cache indicator if using cached results - enhanced version
+	cache_indicator = ""
+	if using_cache:
+		cache_indicator = f" {bcolors.WARNING}{bcolors.BOLD}[CACHED]{bcolors.ENDC}"
+	
 	prompt = (f'{bcolors.OKBLUE}╭─{bcolors.ENDC}'
 			  f'{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}'
 			  f'{bcolors.OKBLUE}─[{bcolors.ENDC}{bcolors.OKCYAN}{server_dns}{bcolors.ENDC}{bcolors.OKBLUE}]{bcolors.ENDC}'
 			  f'{bcolors.OKBLUE}─[{bcolors.ENDC}{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}'
 			  f'{domain_indicator}'
+			  f'{cache_indicator}'
 			  f'\n{bcolors.OKBLUE}╰─{bcolors.BOLD}PV{bcolors.ENDC} {bcolors.OKGREEN}❯{bcolors.ENDC} ')
 	
 	return prompt

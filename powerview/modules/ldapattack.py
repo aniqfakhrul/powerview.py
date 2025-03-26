@@ -1413,3 +1413,436 @@ class RBCD:
             else:
                 logging.error('The server returned an error: %s', self.ldap_session.result['message'])
             return False
+
+class Trust:
+    """
+    Class for processing domain trust LDAP objects, including all trust attributes:
+    - Basic properties (name, trustPartner, flatName, etc.)
+    - Security identifier
+    - Security descriptor (nTSecurityDescriptor)
+    - Trust authentication keys (trustAuthIncoming, trustAuthOutgoing)
+    
+    This class handles the parsing of all trust-related attributes and provides
+    structured access to the trust information.
+    
+    Usage:
+    ```
+    # Process a trust entry from LDAP
+    trust_entry = ldap_entries[0]  # From get_domaintrust()
+    trust = Trust(trust_entry)
+    
+    # Access processed trust information
+    print(f"Trust Name: {trust.name}")
+    print(f"Trust Partner: {trust.trust_partner}")
+    print(f"Trust Direction: {trust.trust_direction}")
+    
+    # Access trust keys
+    if trust.has_incoming_keys():
+        print("Incoming Keys:")
+        for key in trust.incoming_keys:
+            print(f"  {key['KeyType']}: {key['Key']}")
+    
+    # Get a structured dictionary representation
+    trust_dict = trust.to_dict()
+    ```
+    
+    Security note:
+    These trust attributes, especially trust keys, are highly sensitive and can be used 
+    for various attacks including:
+    - Creating forged Kerberos tickets for lateral movement across trust boundaries
+    - Impersonating users from the trusted domain
+    
+    Extraction and use of these attributes requires high privileges (usually Domain Admin).
+    """
+    # Trust key types
+    TRUST_AUTH_TYPE_CLEAR = 0x1      # Plaintext (not used)
+    TRUST_AUTH_TYPE_NT4OWF = 0x2     # NT4 OWF (not used)
+    TRUST_AUTH_TYPE_CLEAR_PW = 0x3   # UTF-16 plaintext password
+    TRUST_AUTH_TYPE_CLEAR_NT_ONLY = 0x4  # RC4-HMAC key only (used for NT-compatible domains)
+    TRUST_AUTH_TYPE_CLEAR_BOTH = 0x5 # RC4-HMAC and UTF-16 plaintext password
+    TRUST_AUTH_TYPE_VERSION = 0x6    # VERSION (contains AES keys)
+    
+    # Trust direction
+    TRUST_DIRECTION_DISABLED = 0
+    TRUST_DIRECTION_INBOUND = 1
+    TRUST_DIRECTION_OUTBOUND = 2
+    TRUST_DIRECTION_BIDIRECTIONAL = 3
+    
+    # Trust type
+    TRUST_TYPE_DOWNLEVEL = 1     # Windows NT 4.0 or earlier
+    TRUST_TYPE_UPLEVEL = 2       # Windows 2000 or later
+    TRUST_TYPE_MIT = 3           # MIT Kerberos realm
+    TRUST_TYPE_DCE = 4           # DCE realm
+    
+    # Trust attributes
+    TRUST_ATTRIBUTE_NON_TRANSITIVE = 0x00000001
+    TRUST_ATTRIBUTE_UPLEVEL_ONLY = 0x00000002
+    TRUST_ATTRIBUTE_QUARANTINED_DOMAIN = 0x00000004
+    TRUST_ATTRIBUTE_FOREST_TRANSITIVE = 0x00000008
+    TRUST_ATTRIBUTE_CROSS_ORGANIZATION = 0x00000010
+    TRUST_ATTRIBUTE_WITHIN_FOREST = 0x00000020
+    TRUST_ATTRIBUTE_TREAT_AS_EXTERNAL = 0x00000040
+    TRUST_ATTRIBUTE_USES_RC4_ENCRYPTION = 0x00000080
+    
+    def __init__(self, entry=None):
+        """
+        Initialize a Trust object from an LDAP entry.
+        
+        Args:
+            entry: An LDAP entry dictionary from get_domaintrust()
+        """
+        # Basic attributes
+        self.dn = None
+        self.name = None
+        self.trust_partner = None
+        self.flat_name = None
+        self.trust_direction = None
+        self.trust_type = None
+        self.trust_attributes = None
+        self.when_created = None
+        self.when_changed = None
+        
+        # Security
+        self.security_identifier = None
+        self.owner_sid = None
+        
+        # Trust keys
+        self.incoming_keys_raw = None
+        self.outgoing_keys_raw = None
+        self.incoming_keys = []
+        self.outgoing_keys = []
+        
+        # Process the entry if provided
+        if entry:
+            self.process_entry(entry)
+    
+    def process_entry(self, entry):
+        """
+        Process an LDAP entry and extract all trust attributes.
+        
+        Args:
+            entry: An LDAP entry dictionary from get_domaintrust()
+        """
+        if not entry:
+            return
+            
+        if 'dn' in entry:
+            self.dn = entry['dn']
+        
+        # Extract basic attributes
+        attrs = entry.get('attributes', {})
+        self.name = attrs.get('name', None)
+        self.trust_partner = attrs.get('trustPartner', None)
+        self.flat_name = attrs.get('flatName', None)
+        self.trust_direction = attrs.get('trustDirection', None)
+        self.trust_type = attrs.get('trustType', None)
+        self.trust_attributes = attrs.get('trustAttributes', None)
+        self.when_created = attrs.get('whenCreated', None)
+        self.when_changed = attrs.get('whenChanged', None)
+        
+        # Process security identifier
+        if 'securityIdentifier' in attrs:
+            try:
+                self.security_identifier = format_sid(attrs['securityIdentifier'])
+            except Exception as e:
+                LOG.error(f"Error parsing securityIdentifier: {str(e)}")
+        
+        # Process security descriptor
+        if 'nTSecurityDescriptor' in attrs:
+            try:
+                sec_desc = ldaptypes.SR_SECURITY_DESCRIPTOR(data=attrs['nTSecurityDescriptor'])
+                if sec_desc['OwnerSid']:
+                    self.owner_sid = sec_desc['OwnerSid'].formatCanonical()
+            except Exception as e:
+                LOG.error(f"Error parsing security descriptor: {str(e)}")
+        
+        # Process trust keys
+        if 'trustAuthIncoming' in attrs and attrs['trustAuthIncoming']:
+            try:
+                # Get raw data
+                auth_in = attrs['trustAuthIncoming']
+                if isinstance(auth_in, list) and auth_in:
+                    auth_in = auth_in[0]
+                self.incoming_keys_raw = auth_in
+                
+                # Parse the data
+                self.incoming_keys = self._parse_auth_data(auth_in)
+            except Exception as e:
+                LOG.error(f"Error parsing trustAuthIncoming: {str(e)}")
+                import traceback
+                LOG.debug(traceback.format_exc())
+        
+        if 'trustAuthOutgoing' in attrs and attrs['trustAuthOutgoing']:
+            try:
+                # Get raw data
+                auth_out = attrs['trustAuthOutgoing']
+                if isinstance(auth_out, list) and auth_out:
+                    auth_out = auth_out[0]
+                self.outgoing_keys_raw = auth_out
+                
+                # Parse the data
+                self.outgoing_keys = self._parse_auth_data(auth_out)
+            except Exception as e:
+                LOG.error(f"Error parsing trustAuthOutgoing: {str(e)}")
+                import traceback
+                LOG.debug(traceback.format_exc())
+    
+    def _parse_auth_data(self, auth_data):
+        """
+        Parse the binary trustAuthIncoming/trustAuthOutgoing data
+        
+        The structure is:
+        - Version (2 bytes)
+        - Count (2 bytes) - number of entries
+        - Entries array where each entry contains:
+            - Type (4 bytes) - type of auth data
+            - Time (8 bytes) - timestamp
+            - Data (variable length) - the actual key material
+            
+        Returns:
+            List of dictionaries with parsed key information
+        """
+        if not auth_data:
+            return []
+            
+        entries = []
+        try:
+            pos = 0
+            version = int.from_bytes(auth_data[pos:pos+2], byteorder='little')
+            pos += 2
+            count = int.from_bytes(auth_data[pos:pos+2], byteorder='little')
+            pos += 2
+            
+            for _ in range(count):
+                entry = {}
+                entry['Version'] = version
+                
+                # Get auth type
+                auth_type = int.from_bytes(auth_data[pos:pos+4], byteorder='little')
+                entry['AuthType'] = auth_type
+                pos += 4
+                
+                # Get timestamp
+                timestamp = int.from_bytes(auth_data[pos:pos+8], byteorder='little')
+                entry['Timestamp'] = self._windows_time_to_datetime(timestamp)
+                pos += 8
+                
+                # Determine auth data length and get the data
+                if auth_type == self.TRUST_AUTH_TYPE_VERSION:
+                    # Version structure for AES keys
+                    auth_data_len = 12 + 32  # Header (12) + AES256 key (32)
+                    raw_data = auth_data[pos:pos+auth_data_len]
+                    
+                    # Extract fields from VERSION structure
+                    version_size = int.from_bytes(raw_data[0:2], byteorder='little')
+                    version_type = int.from_bytes(raw_data[2:4], byteorder='little')
+                    version_current = int.from_bytes(raw_data[4:8], byteorder='little')
+                    version_previous = int.from_bytes(raw_data[8:12], byteorder='little')
+                    
+                    entry['KeyType'] = 'AES256' if version_size == 32 else f'Unknown-{version_size}'
+                    entry['VersionType'] = version_type
+                    entry['VersionCurrent'] = version_current
+                    entry['VersionPrevious'] = version_previous
+                    
+                    # Get the actual key material (skip the header)
+                    key_material = raw_data[12:12+version_size]
+                    entry['Key'] = key_material.hex()
+                    
+                elif auth_type in [self.TRUST_AUTH_TYPE_CLEAR_NT_ONLY, self.TRUST_AUTH_TYPE_CLEAR_BOTH]:
+                    # RC4-HMAC key
+                    auth_data_len = 16  # RC4-HMAC key (16 bytes)
+                    key_material = auth_data[pos:pos+auth_data_len]
+                    entry['KeyType'] = 'RC4-HMAC'
+                    entry['Key'] = key_material.hex()
+                    
+                elif auth_type == self.TRUST_AUTH_TYPE_CLEAR_PW:
+                    # UTF-16 encoded password
+                    # Need to find null terminator
+                    start = pos
+                    while pos < len(auth_data):
+                        if auth_data[pos:pos+2] == b'\x00\x00':
+                            pos += 2  # Include null terminator
+                            break
+                        pos += 2
+                    
+                    auth_data_len = pos - start
+                    password_bytes = auth_data[start:pos]
+                    try:
+                        entry['KeyType'] = 'Password'
+                        entry['Key'] = password_bytes.decode('utf-16-le')
+                    except:
+                        entry['KeyType'] = 'Password (binary)'
+                        entry['Key'] = password_bytes.hex()
+                else:
+                    # Unknown type, grab a reasonable amount of data
+                    auth_data_len = 16  # Default size
+                    entry['KeyType'] = f'Unknown-{auth_type}'
+                    entry['Key'] = auth_data[pos:pos+auth_data_len].hex()
+                
+                pos += auth_data_len
+                entries.append(entry)
+                
+        except Exception as e:
+            LOG.error(f'Error parsing auth data: {str(e)}')
+            import traceback
+            LOG.debug(traceback.format_exc())
+            
+        return entries
+    
+    def _windows_time_to_datetime(self, windows_time):
+        """Convert Windows filetime to Python datetime"""
+        try:
+            # Windows time is in 100-nanosecond intervals since January 1, 1601
+            # Need to convert to seconds and adjust for the epoch difference
+            seconds_since_1601 = windows_time / 10000000
+            epoch_diff = 11644473600  # Seconds between 1601-01-01 and 1970-01-01
+            unix_time = seconds_since_1601 - epoch_diff
+            
+            # Convert to datetime
+            return datetime.datetime.fromtimestamp(unix_time).isoformat()
+        except:
+            return str(windows_time)
+    
+    def has_incoming_keys(self):
+        """Check if the trust has incoming keys"""
+        return len(self.incoming_keys) > 0
+    
+    def has_outgoing_keys(self):
+        """Check if the trust has outgoing keys"""
+        return len(self.outgoing_keys) > 0
+    
+    def get_latest_key(self, key_type=None, direction="incoming"):
+        """
+        Get the most recent key of the specified type and direction
+        
+        Args:
+            key_type: Type of key to get (e.g., 'AES256', 'RC4-HMAC')
+            direction: 'incoming' or 'outgoing'
+            
+        Returns:
+            Dictionary with key information or None if not found
+        """
+        keys = self.incoming_keys if direction.lower() == "incoming" else self.outgoing_keys
+        
+        if not keys:
+            return None
+            
+        # If no key type specified, get the newest key of any type
+        if key_type is None:
+            return keys[0]
+            
+        for entry in keys:
+            if entry.get('KeyType') == key_type:
+                return entry
+                
+        return None
+    
+    def get_trust_direction_string(self):
+        """Get a human-readable string for the trust direction"""
+        if self.trust_direction is None:
+            return "Unknown"
+            
+        direction_map = {
+            self.TRUST_DIRECTION_DISABLED: "Disabled",
+            self.TRUST_DIRECTION_INBOUND: "Inbound",
+            self.TRUST_DIRECTION_OUTBOUND: "Outbound",
+            self.TRUST_DIRECTION_BIDIRECTIONAL: "Bidirectional"
+        }
+        
+        return direction_map.get(self.trust_direction, f"Unknown ({self.trust_direction})")
+    
+    def get_trust_type_string(self):
+        """Get a human-readable string for the trust type"""
+        if self.trust_type is None:
+            return "Unknown"
+            
+        type_map = {
+            self.TRUST_TYPE_DOWNLEVEL: "Windows NT 4.0 or earlier (DOWNLEVEL)",
+            self.TRUST_TYPE_UPLEVEL: "Windows 2000 or later (UPLEVEL)",
+            self.TRUST_TYPE_MIT: "MIT Kerberos realm",
+            self.TRUST_TYPE_DCE: "DCE realm"
+        }
+        
+        return type_map.get(self.trust_type, f"Unknown ({self.trust_type})")
+    
+    def get_trust_attributes_list(self):
+        """Get a list of trust attribute flags as strings"""
+        if self.trust_attributes is None:
+            return ["None"]
+            
+        attribute_map = {
+            self.TRUST_ATTRIBUTE_NON_TRANSITIVE: "Non-Transitive",
+            self.TRUST_ATTRIBUTE_UPLEVEL_ONLY: "Uplevel Only",
+            self.TRUST_ATTRIBUTE_QUARANTINED_DOMAIN: "Quarantined Domain",
+            self.TRUST_ATTRIBUTE_FOREST_TRANSITIVE: "Forest Transitive",
+            self.TRUST_ATTRIBUTE_CROSS_ORGANIZATION: "Cross-Organization",
+            self.TRUST_ATTRIBUTE_WITHIN_FOREST: "Within Forest",
+            self.TRUST_ATTRIBUTE_TREAT_AS_EXTERNAL: "Treat as External",
+            self.TRUST_ATTRIBUTE_USES_RC4_ENCRYPTION: "Uses RC4 Encryption"
+        }
+        
+        result = []
+        for flag, name in attribute_map.items():
+            if self.trust_attributes & flag:
+                result.append(name)
+                
+        return result if result else ["None"]
+    
+    def to_dict(self):
+        """Return a dictionary representation of the trust"""
+        return {
+            'DistinguishedName': self.dn,
+            'Name': self.name,
+            'TrustPartner': self.trust_partner,
+            'FlatName': self.flat_name,
+            'TrustDirection': {
+                'Value': self.trust_direction,
+                'Name': self.get_trust_direction_string()
+            },
+            'TrustType': {
+                'Value': self.trust_type,
+                'Name': self.get_trust_type_string()
+            },
+            'TrustAttributes': {
+                'Value': self.trust_attributes,
+                'Flags': self.get_trust_attributes_list()
+            },
+            'WhenCreated': self.when_created,
+            'WhenChanged': self.when_changed,
+            'SecurityIdentifier': self.security_identifier,
+            'OwnerSid': self.owner_sid,
+            'IncomingTrustKeys': self.incoming_keys,
+            'OutgoingTrustKeys': self.outgoing_keys
+        }
+    
+    def __str__(self):
+        """Return a human-readable string representation of the trust"""
+        result = f"Trust: {self.name}\n"
+        result += f"  Distinguished Name: {self.dn}\n"
+        result += f"  Trust Partner: {self.trust_partner}\n"
+        result += f"  Trust Direction: {self.get_trust_direction_string()}\n"
+        result += f"  Trust Type: {self.get_trust_type_string()}\n"
+        result += f"  Trust Attributes: {', '.join(self.get_trust_attributes_list())}\n"
+        result += f"  Security Identifier: {self.security_identifier}\n"
+        result += f"  Owner SID: {self.owner_sid}\n"
+        
+        if self.has_incoming_keys():
+            result += "  Incoming Trust Keys:\n"
+            for i, key in enumerate(self.incoming_keys):
+                result += f"    Key {i+1}: {key.get('KeyType', 'Unknown')}, {key.get('Timestamp', 'N/A')}\n"
+                result += f"      Value: {key.get('Key', 'N/A')}\n"
+        else:
+            result += "  Incoming Trust Keys: None\n"
+            
+        if self.has_outgoing_keys():
+            result += "  Outgoing Trust Keys:\n"
+            for i, key in enumerate(self.outgoing_keys):
+                result += f"    Key {i+1}: {key.get('KeyType', 'Unknown')}, {key.get('Timestamp', 'N/A')}\n"
+                result += f"      Value: {key.get('Key', 'N/A')}\n"
+        else:
+            result += "  Outgoing Trust Keys: None\n"
+            
+        return result
+
+# For backward compatibility
+TrustKeyInfo = Trust

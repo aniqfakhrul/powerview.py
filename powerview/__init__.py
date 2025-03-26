@@ -66,9 +66,10 @@ def main():
         comp = Completer()
         comp.setup_completer()
 
-        # Store connections in a dictionary for reuse
         domain_connections = {}
         current_target_domain = None
+
+        using_cache = False
 
         while True:
             try:
@@ -76,7 +77,7 @@ def main():
                     cmd = args.query
                 else:
                     # Use the enhanced prompt with target domain info
-                    cmd = input(get_prompt(init_proto, server_dns, cur_user, current_target_domain))
+                    cmd = input(get_prompt(init_proto, server_dns, cur_user, current_target_domain, using_cache))
 
                 if cmd:
                     try:
@@ -320,6 +321,11 @@ def main():
                                     entries = temp_powerview.get_domaintrust(pv_args, properties, identity, searchbase=pv_args.searchbase)
                                 else:
                                     entries = powerview.get_domaintrust(pv_args, properties, identity, searchbase=pv_args.searchbase)
+                            elif pv_args.module.casefold() == 'get-domaintrustkey' or pv_args.module.casefold() == 'get-trustkey':
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaintrustkey(args=pv_args)
+                                else:
+                                    entries = powerview.get_domaintrustkey(args=pv_args)
                             elif pv_args.module.casefold() == 'convertfrom-uacvalue':
                                 if pv_args.value:
                                     value = pv_args.value.strip()
@@ -343,6 +349,7 @@ def main():
                                     temp_powerview.clear_cache()
                                 else:
                                     powerview.clear_cache()
+                                using_cache = False
                             elif pv_args.module.casefold() == 'get-namedpipes':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     if temp_powerview:
@@ -456,9 +463,9 @@ def main():
                             elif pv_args.module.casefold() == 'invoke-kerberoast':
                                 properties = pv_args.properties if pv_args.properties else None
                                 if temp_powerview:
-                                    entries = temp_powerview.invoke_kerberoast(pv_args, properties)
+                                    entries = temp_powerview.invoke_kerberoast(args=pv_args, properties=properties)
                                 else:
-                                    entries = powerview.invoke_kerberoast(pv_args, properties)
+                                    entries = powerview.invoke_kerberoast(args=pv_args, properties=properties)
                             elif pv_args.module.casefold() == 'invoke-printerbug':
                                 if temp_powerview:
                                     entries = temp_powerview.invoke_printerbug(args=pv_args)
@@ -476,6 +483,20 @@ def main():
                                     entries = temp_powerview.get_exchangeserver(identity=identity, properties=properties, args=pv_args)
                                 else:
                                     entries = powerview.get_exchangeserver(identity=identity, properties=properties, args=pv_args)
+                            elif pv_args.module.casefold() == 'get-exchangemailbox':
+                                properties = pv_args.properties if pv_args.properties else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                if temp_powerview:
+                                    entries = temp_powerview.get_exchangemailbox(identity=identity, properties=properties, args=pv_args)
+                                else:
+                                    entries = powerview.get_exchangemailbox(identity=identity, properties=properties, args=pv_args)
+                            elif pv_args.module.casefold() == 'get-exchangedatabase':
+                                properties = pv_args.properties if pv_args.properties else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                if temp_powerview:
+                                    entries = temp_powerview.get_exchangedatabase(identity=identity, properties=properties, args=pv_args)
+                                else:
+                                    entries = powerview.get_exchangedatabase(identity=identity, properties=properties, args=pv_args)
                             elif pv_args.module.casefold() == 'unlock-adaccount':
                                 if pv_args.identity is not None:
                                     if temp_powerview:
@@ -786,6 +807,11 @@ def main():
                                             formatter.print_table(entries["rows"], entries["headers"])
                                         else:
                                             formatter.print(entries)
+
+                            # After displaying results, check if they came from cache
+                            if entries and len(entries) > 0:
+                                first_entry = entries[0]
+                                using_cache = isinstance(first_entry, dict) and first_entry.get('from_cache', False)
 
                             temp_powerview = None
                             current_target_domain = None

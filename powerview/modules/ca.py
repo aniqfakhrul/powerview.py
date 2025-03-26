@@ -73,11 +73,12 @@ class CertificateSecurity(ActiveDirectorySecurity):
     RIGHTS_TYPE = CERTIFICATE_RIGHTS
 
 class CAEnum:
-    def __init__(self, ldap_session, ldap_server):
-        self.ldap_session = ldap_session
-        self.ldap_server = ldap_server
-        self.root_dn = self.ldap_server.info.other['rootDomainNamingContext'][0]
-        self.configuration_dn = self.ldap_server.info.other['configurationNamingContext'][0]
+    def __init__(self, powerview):
+        self.powerview = powerview
+        self.ldap_session = self.powerview.conn.ldap_session
+        self.ldap_server = self.powerview.conn.ldap_server
+        self.root_dn = self.powerview.root_dn
+        self.configuration_dn = self.powerview.configuration_dn
 
     def fetch_root_ca(self, properties=['*']):
         enroll_filter = "(objectclass=certificationAuthority)"
@@ -107,7 +108,8 @@ class CAEnum:
             searchbase=None,
             search_scope=SUBTREE,
             no_cache=False,
-            no_vuln_check=False
+            no_vuln_check=False,
+            raw=False
         ):
         enroll_filter = "(&(objectClass=pKIEnrollmentService))"
 
@@ -124,10 +126,11 @@ class CAEnum:
             generator=True,
             search_scope=search_scope,
             no_cache=no_cache,
-            no_vuln_check=no_vuln_check
+            no_vuln_check=no_vuln_check,
+            raw=raw
         )
 
-    def get_certificate_templates(self, properties=None, ca_search_base=None, identity=None, search_scope=SUBTREE, no_cache=False, no_vuln_check=False):
+    def get_certificate_templates(self, properties=None, ca_search_base=None, identity=None, search_scope=SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
         if not properties:
             properties=[
                 "objectGUID",
@@ -172,7 +175,8 @@ class CAEnum:
             generator=True,
             search_scope=search_scope,
             no_cache=no_cache,
-            no_vuln_check=no_vuln_check
+            no_vuln_check=no_vuln_check,
+            raw=raw
         )
 
     # https://github.com/ly4k/Certipy/blob/main/certipy/commands/find.py#L688
@@ -210,7 +214,7 @@ class CAEnum:
 
         return False
 
-    def get_issuance_policies(self, properties=None):
+    def get_issuance_policies(self, properties=None, sdflags=0x5, no_cache=False, no_vuln_check=False, raw=False):
         if not properties:
             properties = [
                 "cn",
@@ -230,7 +234,10 @@ class CAEnum:
             attributes=list(properties), 
             paged_size=1000,
             generator=True,
-            controls=security_descriptor_control(sdflags=0x5)
+            controls=security_descriptor_control(sdflags=sdflags),
+            no_cache=no_cache,
+            no_vuln_check=no_vuln_check,
+            raw=raw
         )
         for _entries in entry_generator:
             if _entries['type'] != 'searchResEntry':

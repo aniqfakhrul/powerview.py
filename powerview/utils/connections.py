@@ -23,7 +23,8 @@ from powerview.utils.helpers import (
 )
 from powerview.lib.resolver import (
 	LDAP,
-	TRUST
+	TRUST,
+	EXCHANGE,
 )
 from powerview.utils.certificate import (
 	load_pfx,
@@ -558,7 +559,8 @@ class CONNECTION:
 				"msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
 				"trustAttributes": TRUST.resolve_trustAttributes,
 				"trustType": TRUST.resolve_trustType,
-				"trustDirection": TRUST.resolve_trustDirection
+				"trustDirection": TRUST.resolve_trustDirection,
+				"msExchVersion": EXCHANGE.resolve_msExchVersion
 			}
 		}
 
@@ -630,7 +632,8 @@ class CONNECTION:
 				"msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
 				"trustAttributes": TRUST.resolve_trustAttributes,
 				"trustType": TRUST.resolve_trustType,
-				"trustDirection": TRUST.resolve_trustDirection
+				"trustDirection": TRUST.resolve_trustDirection,
+				"msExchVersion": EXCHANGE.resolve_msExchVersion
 			}
 		}
 
@@ -726,7 +729,8 @@ class CONNECTION:
 				"msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
 				"trustAttributes": TRUST.resolve_trustAttributes,
 				"trustType": TRUST.resolve_trustType,
-				"trustDirection": TRUST.resolve_trustDirection
+				"trustDirection": TRUST.resolve_trustDirection,
+				"msExchVersion": EXCHANGE.resolve_msExchVersion
 			}
 		}
 

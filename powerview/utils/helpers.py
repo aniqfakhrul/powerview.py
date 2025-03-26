@@ -168,6 +168,20 @@ def span_to_str(span: int) -> str:
 def filetime_to_str(filetime: str) -> str:
 	return span_to_str(filetime_to_span(filetime))
 
+def format_datetime(dt: datetime) -> str:
+    """
+    Format a datetime object into a human-readable string.
+    
+    Args:
+        dt: datetime object to format
+        
+    Returns:
+        Formatted datetime string
+    """
+    if not dt:
+        return "Never"
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
 def to_pascal_case(snake_str: str) -> str:
 	components = snake_str.split("_")
 	return "".join(x.title() for x in components)

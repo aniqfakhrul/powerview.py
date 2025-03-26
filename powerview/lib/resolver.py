@@ -1,8 +1,8 @@
 import datetime
 from dateutil.relativedelta import relativedelta
-
 from impacket.uuid import bin_to_string
 from ldap3.protocol.formatters.formatters import format_sid
+from impacket.ldap.ldaptypes import SR_SECURITY_DESCRIPTOR
 
 from powerview.modules.gmsa import GMSA
 from powerview.utils.constants import (
@@ -63,6 +63,14 @@ class sAMAccountType:
 
 class LDAP:
 	@staticmethod
+	def resolve_nTSecurityDescriptor(secDesc):
+		secDescData = SR_SECURITY_DESCRIPTOR(data=secDesc)
+		dacl = secDescData['Dacl']
+		for ace in dacl['Data']:
+			print(ace['Ace']['Mask']['Mask'])
+		return "test"
+
+	@staticmethod
 	def resolve_err_status(error_status):
 		return LDAP_ERROR_STATUS.get(error_status)
 
@@ -93,8 +101,6 @@ class LDAP:
 			val = UAC.parse_value(uac_val.decode())
 		else:
 			val = UAC.parse_value(uac_val)
-
-		val[0] = f"{val[0]} [{uac_val.decode()}]"
 
 		return val
 
@@ -204,3 +210,52 @@ class TRUST:
 			if flag & bit:
 				attributes.append(name)
 		return attributes
+
+class EXCHANGE:
+	@staticmethod
+	def resolve_msExchVersion(version_num):
+		"""
+		Convert an msExchVersion number to human-readable Exchange version
+		
+		Args:
+			version_num: The msExchVersion value as a string or integer
+			
+		Returns:
+			String with decoded version information
+		"""
+		try:
+			if isinstance(version_num, list):
+				version_num = version_num[0]
+			elif isinstance(version_num, bytes):
+				version_num = version_num.decode()
+				
+			version_num = int(version_num)
+			
+			# Extract components
+			major_version = (version_num >> 48) & 0xFFFF
+			minor_version = (version_num >> 32) & 0xFFFF
+			build = (version_num >> 16) & 0xFFFF
+			revision = version_num & 0xFFFF
+			
+			# Determine Exchange version
+			exchange_version = ""
+			if major_version == 15:
+				if minor_version >= 2:
+					exchange_version = "Exchange 2019"
+				elif minor_version == 1:
+					exchange_version = "Exchange 2016"
+				elif minor_version == 0:
+					exchange_version = "Exchange 2013"
+			elif major_version == 14:
+				exchange_version = "Exchange 2010"
+			elif major_version == 8:
+				exchange_version = "Exchange 2007"
+			elif major_version == 6:
+				exchange_version = "Exchange 2003"
+			else:
+				exchange_version = f"Unknown Exchange (Version {major_version})"
+			
+			version_str = f"{major_version}.{minor_version}.{build}.{revision}"
+			return f"{exchange_version} ({version_str})"
+		except (ValueError, TypeError) as e:
+			return f"Unknown format: {version_num}"

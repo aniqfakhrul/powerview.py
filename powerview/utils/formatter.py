@@ -49,6 +49,7 @@ class FORMATTER:
             
         # Initialize format cache
         self._format_cache = {}
+        self.last_results_from_cache = False
 
     def count(self, entries):
         print(len(entries))
@@ -185,6 +186,19 @@ class FORMATTER:
                         print()
 
     def table_view(self, entries):
+        # Check if results are from cache
+        from_cache = False
+        if entries and len(entries) > 0:
+            # Check first entry for cache status
+            first_entry = entries[0]
+            if isinstance(first_entry, dict) and first_entry.get('from_cache', False):
+                from_cache = True
+            
+        # Display cache notification if results are from cache
+        if from_cache:
+            cache_msg = f"{bcolors.WARNING}[!] Results from cache. Use 'Clear-Cache' or '-NoCache' to refresh.{bcolors.ENDC}"
+            print(cache_msg)
+        
         headers = []
         rows = []
         nested_list = False
@@ -220,13 +234,29 @@ class FORMATTER:
 
         self.print_table(entries=rows, headers=headers)
 
+        # Add footer cache message for visibility with large result sets
+        if from_cache:
+            print(f"{bcolors.WARNING}[!] Above results came from cache. Use 'Clear-Cache' or '-NoCache' to refresh.{bcolors.ENDC}")
+
     def print(self, entries):
         # Add pagination for large result sets
         total_entries = len(entries)
         if hasattr(self.args, 'paginate') and self.args.paginate and total_entries > self.config['max_entries']:
             self._print_paginated(entries)
             return
+        
+        # Check if results are from cache
+        self.last_results_from_cache = False
+        if entries and len(entries) > 0:
+            first_entry = entries[0]
+            if isinstance(first_entry, dict) and first_entry.get('from_cache', False):
+                self.last_results_from_cache = True
             
+        # Display cache notification if results are from cache
+        if self.last_results_from_cache:
+            cache_msg = f"{bcolors.WARNING}[!] Results from cache. Use 'Clear-Cache' or '-NoCache' to refresh.{bcolors.ENDC}"
+            print(cache_msg)
+        
         for entry in entries:
             have_entry = False
             if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
@@ -282,8 +312,25 @@ class FORMATTER:
                     LOG.write_to_file(self.args.outfile, entry)
                 print(entry)
 
+        # Add footer cache message for visibility with large result sets
+        if self.last_results_from_cache:
+            print(f"{bcolors.WARNING}[!] Above results came from cache. Use 'Clear-Cache' or '-NoCache' to refresh.{bcolors.ENDC}")
+
     def _print_paginated(self, entries):
         """Print entries with pagination support."""
+        # Check if results are from cache
+        from_cache = False
+        if entries and len(entries) > 0:
+            # Check first entry for cache status
+            first_entry = entries[0]
+            if isinstance(first_entry, dict) and first_entry.get('from_cache', False):
+                from_cache = True
+            
+        # Display cache notification if results are from cache
+        if from_cache:
+            cache_msg = f"{bcolors.WARNING}[!] Results from cache. Use 'Clear-Cache' or '-NoCache' to refresh.{bcolors.ENDC}"
+            print(cache_msg)
+        
         page_size = self.config['max_entries']
         total_pages = (len(entries) + page_size - 1) // page_size
         
