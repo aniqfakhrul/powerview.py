@@ -26,6 +26,7 @@ class APIServer:
 		self.powerview = powerview
 		self.host = host
 		self.port = port
+		self.status = False
 		
 		components = [self.powerview.flatName.lower(), self.powerview.args.username.lower(), self.powerview.args.ldap_address.lower()]
 		folder_name = '-'.join(filter(None, components)) or "default-log"
@@ -93,6 +94,12 @@ class APIServer:
 			{"name": "Logs", "icon": "far fa-file-alt", "button_id": "toggle-command-history"},
 			{"name": "Settings", "icon": "fas fa-cog", "button_id": "toggle-settings"}
 		]
+
+	def set_status(self, status):
+		self.status = status
+
+	def get_status(self):
+		return self.status
 
 	def render_index(self):
 		context = {
@@ -459,6 +466,7 @@ class APIServer:
 				kwargs={'host': self.host, 'port': self.port, 'debug': False},
 				daemon=True
 			)
+			self.set_status(True)
 			logging.info(f"Powerview web listening on {self.host}:{self.port}")
 			self.api_server_thread.start()
 

@@ -1,12 +1,16 @@
-[tool.poetry]
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
 name = "powerview"
-version = "2025.0.5" 
+version = "2025.0.5"
 description = "Python based PowerView script"
-authors = ["Aniq Fakhrul <aniqfakhrull@gmail.com>"]
+authors = [
+    { name = "Aniq Fakhrul", email = "aniqfakhrull@gmail.com" }
+]
 readme = "README.md"
-homepage = "https://github.com/aniqfakhrul/powerview.py"
-repository = "https://github.com/aniqfakhrul/powerview.py"
-license = "MIT"
+license = {file = "LICENSE"}
 classifiers = [
     "Intended Audience :: Information Technology",
     "License :: OSI Approved :: MIT License",
@@ -19,28 +23,31 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
-packages = [
-    { include = "powerview" }
+dependencies = [
+    "impacket",
+    "ldap3-bleeding-edge",
+    "dnspython",
+    "future",
+    "gnureadline",
+    "validators",
+    "dsinternals",
+    "chardet",
+    "tabulate",
+    "argparse",
+    "requests_ntlm",
+    "python-dateutil",
+    "flask",
 ]
 
-[tool.poetry.scripts]
-powerview = 'powerview:main'
+[project.optional-dependencies]
+mcp = [
+    "mcp @ git+https://github.com/modelcontextprotocol/python-sdk",
+    "uvicorn",
+]
 
-[tool.poetry.dependencies]
-python = "^3.5"
-impacket = "*"
-ldap3-bleeding-edge = "*"
-dnspython = "*"
-future = "*"
-gnureadline = "*"
-validators = "*"
-dsinternals = "*"
-chardet = "*"
-tabulate = "*"
-argparse = "*"
-requests_ntlm = "*"
-python-dateutil = "*"
-flask = "*"
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+[project.urls]
+homepage = 'https://github.com/aniqfakhrul/powerview.py'
+repository = 'https://github.com/aniqfakhrul/powerview.py'
+
+[project.scripts]
+powerview = "powerview:main"

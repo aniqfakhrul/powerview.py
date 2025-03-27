@@ -11,3 +11,6 @@ argparse
 requests_ntlm
 python-dateutil
 flask
+
+# Optional: Required only for MCP mode
+git+https://github.com/modelcontextprotocol/python-sdk

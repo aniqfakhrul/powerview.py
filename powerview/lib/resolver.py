@@ -15,6 +15,9 @@ from powerview.utils.constants import (
 	switcher_trustAttributes,
 	PWD_FLAGS,
 )
+from powerview.modules.ldapattack import (
+	RBCD
+)
 
 class UAC:
 	@staticmethod
@@ -63,12 +66,10 @@ class sAMAccountType:
 
 class LDAP:
 	@staticmethod
-	def resolve_nTSecurityDescriptor(secDesc):
-		secDescData = SR_SECURITY_DESCRIPTOR(data=secDesc)
-		dacl = secDescData['Dacl']
-		for ace in dacl['Data']:
-			print(ace['Ace']['Mask']['Mask'])
-		return "test"
+	def resolve_msDSAllowedToActOnBehalfOfOtherIdentity(data):
+		parser = RBCD(entries)
+		sids = parser.read()
+		return sids
 
 	@staticmethod
 	def resolve_err_status(error_status):

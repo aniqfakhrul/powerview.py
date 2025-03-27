@@ -140,3 +140,29 @@ class Gradient:
 			result += f"\033[38;2;{r};{g};{b}m{char}\033[0m"
 		
 		return result
+		
+	@staticmethod
+	def generate_gradient_colors(start_rgb, end_rgb, steps):
+		"""
+		Generate a list of RGB color values forming a gradient.
+		
+		Args:
+			start_rgb: Starting color as [r, g, b] with values 0-255
+			end_rgb: Ending color as [r, g, b] with values 0-255
+			steps: Number of colors to generate
+			
+		Returns:
+			List of [r, g, b] values representing the gradient
+		"""
+		if steps <= 1:
+			return [start_rgb]
+			
+		result = []
+		for i in range(steps):
+			ratio = i / (steps - 1)
+			r = round(start_rgb[0] + (end_rgb[0] - start_rgb[0]) * ratio)
+			g = round(start_rgb[1] + (end_rgb[1] - start_rgb[1]) * ratio)
+			b = round(start_rgb[2] + (end_rgb[2] - start_rgb[2]) * ratio)
+			result.append([r, g, b])
+			
+		return result

@@ -58,6 +58,8 @@ def main():
         if not args.no_admin_check:
             is_admin = powerview.get_admin_status()
         server_dns = powerview.get_server_dns()
+        mcp_running = powerview.mcp_server.get_status() if args.mcp and hasattr(powerview, 'mcp_server') else False
+        web_running = powerview.api_server.get_status() if args.web and hasattr(powerview, 'api_server') else False
         init_proto = conn.get_proto()
         server_ip = conn.get_ldap_address()
         temp_powerview = None
@@ -76,8 +78,7 @@ def main():
                 if args.query:
                     cmd = args.query
                 else:
-                    # Use the enhanced prompt with target domain info
-                    cmd = input(get_prompt(init_proto, server_dns, cur_user, current_target_domain, using_cache))
+                    cmd = input(get_prompt(init_proto, server_dns, cur_user, current_target_domain, using_cache, mcp_running=mcp_running, web_running=web_running))
 
                 if cmd:
                     try:
@@ -772,6 +773,8 @@ def main():
                                 else:
                                     logging.error("-GUID and -TargetIdentity flags are required")
                             elif pv_args.module.casefold() == 'exit':
+                                if mcp_running:
+                                    powerview.mcp_server.stop()
                                 log_handler.save_history()
                                 sys.exit(0)
                             elif pv_args.module.casefold() == 'clear':
@@ -828,9 +831,13 @@ def main():
                             logging.error(str(e))
                             conn.reset_connection()
             except KeyboardInterrupt:
+                if mcp_running:
+                    powerview.mcp_server.stop()
                 log_handler.save_history()
                 print()
             except EOFError:
+                if mcp_running:
+                    powerview.mcp_server.stop()
                 log_handler.save_history()
                 print("Exiting...")
                 conn.close()

@@ -56,6 +56,7 @@ def arg_parse():
 	mode_group = parser.add_mutually_exclusive_group()
 	mode_group.add_argument('--relay', dest='relay', action='store_true', help='Enable relay mode')
 	mode_group.add_argument('--web', dest='web', action='store_true', help='Enable web interface for LDAP queries')
+	mode_group.add_argument('--mcp', dest='mcp', action='store_true', help='Enable Model Context Protocol mode for AI assistants')
 
 	relay = parser.add_argument_group('relay')
 	relay.add_argument('--relay-host', dest='relay_host', action='store', default="0.0.0.0", help='Bind interface to expose HTTP server (Default: 0.0.0.0)')
@@ -64,6 +65,11 @@ def arg_parse():
 	web = parser.add_argument_group('web')
 	web.add_argument('--web-host', dest='web_host', action='store', default='127.0.0.1', help='Specify custom bind interface (Default: 127.0.0.1)')
 	web.add_argument('--web-port', dest='web_port', action='store', type=int, default=5000, help='Specify custom port for web interface (Default: 5000)')
+	
+	mcp = parser.add_argument_group('mcp')
+	mcp.add_argument('--mcp-host', dest='mcp_host', action='store', default='127.0.0.1', help='Specify custom bind interface for MCP (Default: 127.0.0.1)')
+	mcp.add_argument('--mcp-port', dest='mcp_port', action='store', type=int, default=8080, help='Specify custom port for MCP server (Default: 8080)')
+	mcp.add_argument('--mcp-name', dest='mcp_name', action='store', default='PowerView MCP', help='Specify MCP server name (Default: PowerView MCP)')
 	
 	if len(sys.argv) == 1:
 		parser.print_help()
@@ -258,6 +264,7 @@ def powerview_arg_parse(cmd):
 	get_domainuser_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domainuser_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
 	get_domainuser_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domainuser_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# get-localuser
 	get_localuser_parser = subparsers.add_parser('Get-LocalUser', exit_on_error=False)

@@ -62,6 +62,7 @@ from ldap3.extend.microsoft import addMembersToGroups, modifyPassword, removeMem
 from ldap3.utils.conv import escape_filter_chars
 import re
 import inspect
+import sys  # Add this near your other imports if not already present
 
 class PowerView:
 	def __init__(self, conn, args, target_server=None, target_domain=None):
@@ -92,7 +93,7 @@ class PowerView:
 			self.domain = conn.get_domain()
 
 		self.use_ldaps = self.ldap_session.server.ssl
-
+		self.forest_dn = self.ldap_server.info.other["rootDomainNamingContext"][0]
 		self.root_dn = self.ldap_server.info.other["defaultNamingContext"][0]
 		self.configuration_dn = self.ldap_server.info.other["configurationNamingContext"][0]
 		if not self.domain:
@@ -101,6 +102,14 @@ class PowerView:
 		self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
 		if not target_domain:
 			self.is_admin = self.is_admin()
+
+		# Get current user's SID from the LDAP connection
+		self.current_user_sid = None
+		self.whoami = self.conn.who_am_i()
+		if self.whoami and self.whoami != 'ANONYMOUS':
+			user = self.get_domainobject(identity=self.whoami.split('\\')[1], properties=['objectSid'])
+			if user and len(user) > 0:
+				self.current_user_sid = user[0]['attributes']['objectSid']
 
 		# API server
 		if self.args.web and self.ldap_session:
@@ -111,13 +120,36 @@ class PowerView:
 			except ImportError:
 				logging.warning("Web interface dependencies not installed. Web interface will not be available.")
 
-		# Get current user's SID from the LDAP connection
-		self.current_user_sid = None
-		self.whoami = self.conn.who_am_i()
-		if self.whoami and self.whoami != 'ANONYMOUS':
-			user = self.get_domainobject(identity=self.whoami.split('\\')[1], properties=['objectSid'])
-			if user and len(user) > 0:
-				self.current_user_sid = user[0]['attributes']['objectSid']
+		# MCP server
+		if self.args.mcp and self.ldap_session:
+			try:
+				from powerview.mcp import MCPServer
+				
+				logging.info(f"Initializing MCP server with name '{args.mcp_name}' on {args.mcp_host}:{args.mcp_port}")
+				self.mcp_server = MCPServer(
+					powerview=self,
+					name=self.args.mcp_name,
+					host=self.args.mcp_host,
+					port=self.args.mcp_port
+				)
+				self.mcp_server.start()
+				logging.info(f"MCP server started. AI assistants can now connect to PowerView via MCP")
+				logging.info(f"MCP server will run in the background. Exiting the tool will stop the server")
+			except ImportError as e:
+				logging.error(f"MCP error: {str(e)}")
+				sys.exit(1)
+			except AttributeError as e:
+				logging.error(f"Error initializing MCP server: The MCP SDK API appears to be incompatible")
+				logging.error(f"Please ensure you have the correct version of the MCP SDK installed")
+				logging.error(f"Try installing from the GitHub repository: pip install git+https://github.com/modelcontextprotocol/python-sdk")
+				if args.stack_trace:
+					raise
+				sys.exit(1)
+			except Exception as e:
+				logging.error(f"Error initializing MCP server: {str(e)}")
+				if args.stack_trace:
+					raise
+				sys.exit(1)
 
 	def get_target_domain(self):
 		"""
@@ -439,17 +471,17 @@ class PowerView:
 			raw=raw
 		
 		)
-		# resolve msDS-AllowedToActOnBehalfOfOtherIdentity
-		try:
-			if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(entries["attributes"].keys()):
-				parser = RBCD(entries)
-				sids = parser.read()
-				if args.resolvesids:
-					for i in range(len(sids)):
-						sids[i] = self.convertfrom_sid(sids[i])
-				entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = sids
-		except:
-			pass
+
+		if hasattr(args, 'resolvesids') and args.resolvesids:
+			try:
+				if entries.get("attributes", {}).get("msDS-AllowedToActOnBehalfOfOtherIdentity", None) is not None:
+					if isinstance(entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"], list):
+						for i in range(len(entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"])):
+							entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"][i] = self.convertfrom_sid(entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"][i])
+					else:
+						entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = self.convertfrom_sid(entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"])
+			except Exception as e:
+				logging.error(f"[Get-DomainController] Error resolving sids: {e}")
 
 		return entries
 
@@ -896,7 +928,7 @@ class PowerView:
 				if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(entry["attributes"].keys()):
 					parser = RBCD(entry)
 					sids = parser.read()
-					if args.resolvesids:
+					if hasattr(args, 'resolvesids') and args.resolvesids:
 						for i in range(len(sids)):
 							sids[i] = self.convertfrom_sid(sids[i])
 					entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = sids
