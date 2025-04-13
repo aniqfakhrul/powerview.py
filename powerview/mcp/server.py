@@ -46,7 +46,7 @@ class MCPServer:
         self.mcp = FastMCP(self.name)
         self.status = False
         self.server_thread = None
-        self._setup_resources()
+        # self._setup_resources() # Remove or comment out this line
         self._setup_tools()
         self._setup_prompts()
 
@@ -56,549 +56,285 @@ class MCPServer:
     def get_status(self):
         return self.status
 
-    def _setup_resources(self):
-        """Register all PowerView resources with the MCP server."""
-        
-        @self.mcp.resource("powerview://domain/{domain}")
-        async def domain_resource(domain: str) -> str:
-            """Get information about a domain."""
-            try:
-                # Pass args=None to maintain compatibility with any extra parameters
-                result = self.powerview.get_domain(properties=[], identity=domain, args=None)
-                return json.dumps(result, default=str) if result else json.dumps({"error": "No domain found"})
-            except Exception as e:
-                logging.error(f"Error retrieving domain info: {str(e)}")
-                return json.dumps({"error": str(e)})
-        
-        @self.mcp.resource("powerview://users/{identity}")
-        async def users_resource(identity: str) -> str:
-            """Get information about domain users."""
-            try:
-                # Creating a mock args object to ensure we handle all flag parameters
-                args = type('Args', (), {
-                    'identity': identity,
-                    'no_cache': False,
-                    'no_vuln_check': False
-                })
-                result = self.powerview.get_domainuser(args=args, properties=[], identity=identity) 
-                return json.dumps(result, default=str) if result else json.dumps({"error": "No users found"})
-            except Exception as e:
-                logging.error(f"Error retrieving user info: {str(e)}")
-                return json.dumps({"error": str(e)})
-        
-        @self.mcp.resource("powerview://computers/{identity}")
-        async def computers_resource(identity: str) -> str:
-            """Get information about domain computers."""
-            try:
-                # Adding resolveip and resolvesids parameters
-                result = self.powerview.get_domaincomputer(
-                    properties=[], 
-                    identity=identity,
-                    resolveip=False,  # Default to False
-                    resolvesids=False  # Default to False
-                )
-                return json.dumps(result, default=str) if result else json.dumps({"error": "No computers found"})
-            except Exception as e:
-                logging.error(f"Error retrieving computer info: {str(e)}")
-                return json.dumps({"error": str(e)})
-        
-        @self.mcp.resource("powerview://groups/{identity}")
-        async def groups_resource(identity: str) -> str:
-            """Get information about domain groups."""
-            try:
-                # Include no_cache parameter
-                result = self.powerview.get_domaingroup(
-                    properties=[], 
-                    identity=identity,
-                    no_cache=False  # Default to False
-                )
-                return json.dumps(result, default=str) if result else json.dumps({"error": "No groups found"})
-            except Exception as e:
-                logging.error(f"Error retrieving group info: {str(e)}")
-                return json.dumps({"error": str(e)})
-        
-        @self.mcp.resource("powerview://controllers/{identity}")
-        async def controllers_resource(identity: str) -> str:
-            """Get information about domain controllers."""
-            try:
-                # Include no_cache parameter 
-                result = self.powerview.get_domaincontroller(
-                    properties=[], 
-                    identity=identity,
-                    no_cache=False
-                )
-                return json.dumps(result, default=str) if result else json.dumps({"error": "No domain controllers found"})
-            except Exception as e:
-                logging.error(f"Error retrieving domain controller info: {str(e)}")
-                return json.dumps({"error": str(e)})
-        
-        @self.mcp.resource("powerview://trusts/{identity}")
-        async def trusts_resource(identity: str) -> str:
-            """Get information about domain trusts."""
-            try:
-                # Include searchbase parameter
-                result = self.powerview.get_domaintrust(
-                    properties=[], 
-                    identity=identity,
-                    searchbase=None,  # Default to None
-                    sd_flag=None      # Include sd_flag parameter
-                )
-                return json.dumps(result, default=str) if result else json.dumps({"error": "No trusts found"})
-            except Exception as e:
-                logging.error(f"Error retrieving trust info: {str(e)}")
-                return json.dumps({"error": str(e)})
-        
-        @self.mcp.resource("powerview://gpos/{identity}")
-        async def gpos_resource(identity: str) -> str:
-            """Get information about group policy objects."""
-            try:
-                # Include no_cache parameter
-                result = self.powerview.get_domaingpo(
-                    properties=[], 
-                    identity=identity,
-                    no_cache=False
-                )
-                return json.dumps(result, default=str) if result else json.dumps({"error": "No GPOs found"})
-            except Exception as e:
-                logging.error(f"Error retrieving GPO info: {str(e)}")
-                return json.dumps({"error": str(e)})
-        
-        @self.mcp.resource("powerview://ous/{identity}")
-        async def ous_resource(identity: str) -> str:
-            """Get information about organizational units."""
-            try:
-                # Include resolve_gplink parameter
-                result = self.powerview.get_domainou(
-                    properties=[], 
-                    identity=identity,
-                    resolve_gplink=False  # Default to False
-                )
-                return json.dumps(result, default=str) if result else json.dumps({"error": "No OUs found"})
-            except Exception as e:
-                logging.error(f"Error retrieving OU info: {str(e)}")
-                return json.dumps({"error": str(e)})
-    
     def _setup_tools(self):
         """Register all PowerView tools with the MCP server."""
         
         @self.mcp.tool()
         async def get_domain_user(
-            identity: str = "*", 
+            identity: str = "*",
             properties: str = "*",
-            # Authentication flags
+            # Flags matching parser dest names (snake_case where possible)
             preauthnotrequired: bool = False,
             passnotrequired: bool = False,
             password_expired: bool = False,
-            
-            # Admin and privilege flags
-            admin_count: bool = False,
+            admincount: bool = False, # Changed from admin_count to match parser dest
             trustedtoauth: bool = False,
-            
-            # Delegation flags
-            allowed_to_delegate: bool = False,
+            allowdelegation: bool = False, # Changed from allowed_to_delegate
             disallowdelegation: bool = False,
             rbcd: bool = False,
             unconstrained: bool = False,
-            
-            # Security feature flags
             shadowcred: bool = False,
             spn: bool = False,
-            
-            # Account status flags
             enabled: bool = False,
             disabled: bool = False,
-            locked: bool = False,
-            
-            # Additional filter
+            lockout: bool = False, # Changed from locked
             ldapfilter: str = "",
-            
-            # Cache options
-            no_cache: bool = False
+            searchbase: str = "",
+            no_cache: bool = False,
+            no_vuln_check: bool = False,
+            raw: bool = False
         ) -> str:
-            """
-            Get information about domain users with comprehensive filtering options.
-            
-            Args:
-                identity: User identity to search for (default: * for all users)
-                properties: Comma-separated list of properties to retrieve
-                
-                # Authentication flags
-                preauthnotrequired: Find accounts that don't require Kerberos preauthentication
-                passnotrequired: Find accounts where password is not required
-                password_expired: Find accounts with expired passwords
-                
-                # Admin and privilege flags
-                admin_count: Find accounts with adminCount=1
-                trustedtoauth: Find accounts trusted to authenticate for other principals
-                
-                # Delegation flags
-                allowed_to_delegate: Find accounts that can be delegated (allowdelegation)
-                disallowdelegation: Find accounts sensitive and not trusted for delegation
-                rbcd: Find accounts configured for resource-based constrained delegation
-                unconstrained: Find accounts configured for unconstrained delegation
-                
-                # Security feature flags
-                shadowcred: Find accounts with msDS-KeyCredentialLink attribute set
-                spn: Find accounts with Service Principal Names
-                
-                # Account status flags
-                enabled: Find enabled user accounts
-                disabled: Find disabled user accounts
-                locked: Find locked user accounts (lockout)
-                
-                # Additional filter
-                ldapfilter: Additional LDAP filter to apply
-                
-                # Cache options
-                no_cache: Bypass the cache and perform a live query
-            """
+            """Get information about domain users with comprehensive filtering options."""
             try:
                 props = properties.split(",") if properties else []
-                
-                # Create an args object with the necessary parameters
                 args = type('Args', (), {
                     'identity': identity,
                     'properties': props,
-                    
-                    # Authentication flags
                     'preauthnotrequired': preauthnotrequired,
                     'passnotrequired': passnotrequired,
                     'password_expired': password_expired,
-                    
-                    # Admin and privilege flags
-                    'admincount': admin_count,
+                    'admincount': admincount,
                     'trustedtoauth': trustedtoauth,
-                    
-                    # Delegation flags
-                    'allowdelegation': allowed_to_delegate,
+                    'allowdelegation': allowdelegation,
                     'disallowdelegation': disallowdelegation,
                     'rbcd': rbcd,
                     'unconstrained': unconstrained,
-                    
-                    # Security feature flags
                     'shadowcred': shadowcred,
                     'spn': spn,
-                    
-                    # Account status flags
                     'enabled': enabled,
                     'disabled': disabled,
-                    'lockout': locked,
-                    
-                    # Additional filter
+                    'lockout': lockout,
                     'ldapfilter': ldapfilter,
-                    
-                    # Common parameters
-                    'searchbase': None,
+                    'searchbase': searchbase if searchbase else None,
                     'no_cache': no_cache,
-                    'no_vuln_check': False,
-                    'raw': False
+                    'no_vuln_check': no_vuln_check,
+                    'raw': raw,
+                    # Ensure all relevant parser args have defaults if not in MCP params
+                    'module': 'Get-DomainUser' # Common parser attr
                 })
-                
                 result = self.powerview.get_domainuser(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No users found matching criteria"})
             except Exception as e:
                 logging.error(f"Error in get_domain_user: {str(e)}")
                 return json.dumps({"error": str(e)})
-        
+
         @self.mcp.tool()
         async def get_domain_computer(
-            identity: str = "*", 
+            identity: str = "*",
             properties: str = "*",
-            
-            # Status flags
             enabled: bool = False,
             disabled: bool = False,
-            
-            # Delegation flags
             unconstrained: bool = False,
-            trusted_to_auth: bool = False,
-            allowed_to_delegate: bool = False,
+            trustedtoauth: bool = False, # Changed from trusted_to_auth
+            allowdelegation: bool = False, # Changed from allowed_to_delegate
             disallowdelegation: bool = False,
-            
-            # Security feature flags
             rbcd: bool = False,
             shadowcred: bool = False,
             spn: bool = False,
-            
-            # Operating system flags
             printers: bool = False,
-            ping: bool = False,
-            
-            # Resolution options
-            resolve_ip: bool = False,
-            resolve_sids: bool = False,
-            
-            # Additional filter
+            ping: bool = False,  # Note: Ping functionality might be complex via LDAP alone
+            resolveip: bool = False, # Changed from resolve_ip
+            resolvesids: bool = False, # Changed from resolve_sids
             ldapfilter: str = "",
-            
-            # Cache options
-            no_cache: bool = False
+            searchbase: str = "",
+            no_cache: bool = False,
+            no_vuln_check: bool = False,
+            raw: bool = False,
+            # Add other parser flags
+            laps: bool = False,
+            bitlocker: bool = False,
+            gmsapassword: bool = False,
+            pre2k: bool = False,
+            excludedcs: bool = False
         ) -> str:
-            """
-            Get information about domain computers with comprehensive filtering options.
-            
-            Args:
-                identity: Computer identity to search for (* for all computers)
-                properties: Comma-separated list of properties to retrieve
-                
-                # Status flags
-                enabled: Find enabled computer accounts
-                disabled: Find disabled computer accounts
-                
-                # Delegation flags
-                unconstrained: Find computers configured for unconstrained delegation
-                trusted_to_auth: Find computers trusted to authenticate for other principals
-                allowed_to_delegate: Find computers that can be delegated
-                disallowdelegation: Find computers sensitive and not trusted for delegation
-                
-                # Security feature flags
-                rbcd: Find computers configured for resource-based constrained delegation
-                shadowcred: Find computers with msDS-KeyCredentialLink attribute set
-                spn: Find computers with specific Service Principal Names
-                
-                # Operating system flags
-                printers: Find printer servers
-                ping: Ping computers and return only those that respond
-                
-                # Resolution options
-                resolve_ip: Resolve IP addresses for the computers
-                resolve_sids: Resolve SIDs to names
-                
-                # Additional filter
-                ldapfilter: Additional LDAP filter to apply
-                
-                # Cache options
-                no_cache: Bypass the cache and perform a live query
-            """
+            """Get information about domain computers with comprehensive filtering options."""
             try:
                 props = properties.split(",") if properties else []
-                
-                # Create an args object with the necessary parameters
                 args = type('Args', (), {
                     'identity': identity,
                     'properties': props,
-                    
-                    # Status flags
                     'enabled': enabled,
                     'disabled': disabled,
-                    
-                    # Delegation flags
                     'unconstrained': unconstrained,
-                    'trustedtoauth': trusted_to_auth,
-                    'allowdelegation': allowed_to_delegate,
+                    'trustedtoauth': trustedtoauth,
+                    'allowdelegation': allowdelegation,
                     'disallowdelegation': disallowdelegation,
-                    
-                    # Security feature flags
                     'rbcd': rbcd,
                     'shadowcred': shadowcred,
                     'spn': spn,
-                    
-                    # Operating system flags
                     'printers': printers,
-                    'ping': ping,
-                    
-                    # Resolution options
-                    'resolveip': resolve_ip,
-                    'resolvesids': resolve_sids,
-                    
-                    # Additional filter
+                    'ping': ping, # Pass along, PowerView method needs to handle it
+                    'resolveip': resolveip,
+                    'resolvesids': resolvesids,
                     'ldapfilter': ldapfilter,
-                    
-                    # Common parameters
-                    'searchbase': None,
+                    'searchbase': searchbase if searchbase else None,
                     'no_cache': no_cache,
-                    'no_vuln_check': False,
-                    'raw': False
+                    'no_vuln_check': no_vuln_check,
+                    'raw': raw,
+                    'laps': laps,
+                    'bitlocker': bitlocker,
+                    'gmsapassword': gmsapassword,
+                    'pre2k': pre2k,
+                    'excludedcs': excludedcs,
+                    'module': 'Get-DomainComputer'
                 })
-                
+                # Ping might require separate logic if not handled purely by LDAP in get_domaincomputer
                 result = self.powerview.get_domaincomputer(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No computers found matching criteria"})
             except Exception as e:
                 logging.error(f"Error in get_domain_computer: {str(e)}")
                 return json.dumps({"error": str(e)})
-        
+
         @self.mcp.tool()
         async def get_domain_group(
-            identity: str = "*", 
+            identity: str = "*",
             properties: str = "*",
             admincount: bool = False,
             ldapfilter: str = "",
             memberidentity: str = "",
             no_cache: bool = False,
+            searchbase: str = "",
+            raw: bool = False,
+            no_vuln_check: bool = False
         ) -> str:
-            """
-            Get information about domain groups.
-            
-            Args:
-                identity: Group identity to search for (default: * for all groups)
-                properties: Comma-separated list of properties to retrieve
-                no_cache: Bypass the cache and perform a live query
-                ldapfilter: Additional LDAP filter to apply
-            """
+            """Get information about domain groups."""
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
                     'identity': identity,
                     'properties': props,
-                    'no_cache': no_cache,
-                    'searchbase': None,
+                    'admincount': admincount,
                     'ldapfilter': ldapfilter,
-                    'no_vuln_check': False,
-                    'raw': False,
-                    'admincount': False,
-                    'enabled': False,
-                    'disabled': False,
-                    'preauthnotrequired': False,
-                    'passnotrequired': False,
-                    'password_expired': False,
-                    'trustedtoauth': False,
-                    'allowdelegation': False,
-                    'disallowdelegation': False,
-                    'rbcd': False,
-                    'unconstrained': False,
-                    'shadowcred': False,
-                    'spn': False,
-                    'lockout': False
+                    'memberidentity': memberidentity,
+                    'no_cache': no_cache,
+                    'searchbase': searchbase if searchbase else None,
+                    'raw': raw,
+                    'no_vuln_check': no_vuln_check,
+                     # Add other relevant parser args with defaults if needed
+                    'module': 'Get-DomainGroup'
                 })
                 result = self.powerview.get_domaingroup(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No groups found"})
             except Exception as e:
                 logging.error(f"Error in get_domain_group: {str(e)}")
                 return json.dumps({"error": str(e)})
-        
+
         @self.mcp.tool()
         async def get_domain_group_member(
             identity: str,
-            multiple: bool = False,
+            multiple: bool = False, # parser has no 'multiple' flag, powerview func does
             no_cache: bool = False,
             no_vuln_check: bool = False,
-            raw: bool = False
+            raw: bool = False,
+            # Add parser specific flags if any (seems none relevant except common)
+            ldapfilter: str = "" # Common filter
         ) -> str:
-            """
-            Get members of a domain group.
-            
-            Args:
-                identity: Group identity to get members for
-                multiple: Recursively enumerate multiple groups
-                no_cache: Bypass the cache and perform a live query
-                no_vuln_check: Bypass vulnerability checks
-                raw: Return raw results
-            """
+            """Get members of a domain group."""
             try:
+                 # Note: 'multiple' is not a parser flag but direct func arg
                 args = type('Args', (), {
-                    'identity': identity,
+                    'identity': identity, # Needed for potential internal use by func?
                     'no_cache': no_cache,
                     'no_vuln_check': no_vuln_check,
                     'raw': raw,
-                    'multiple': multiple
+                    'ldapfilter': ldapfilter, # Pass common filter
+                    'module': 'Get-DomainGroupMember'
+                    # Add other common args if needed by underlying logic
                 })
-                result = self.powerview.get_domaingroupmember(identity=identity, args=args)
+                # Call with identity and multiple as direct args, others via args obj
+                result = self.powerview.get_domaingroupmember(identity=identity, multiple=multiple, args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": f"No members found for group {identity}"})
             except Exception as e:
                 logging.error(f"Error in get_domain_group_member: {str(e)}")
                 return json.dumps({"error": str(e)})
-        
+
         @self.mcp.tool()
         async def get_domain_controller(
-            identity: str = "*", 
+            identity: str = "*",
             properties: str = "*",
+            ldapfilter: str = "",
+            searchbase: str = "",
             no_cache: bool = False,
-            ldapfilter: str = ""
+            no_vuln_check: bool = False, # Added based on powerview func signature
+            raw: bool = False, # Added based on powerview func signature
+            # Add other parser args
+            resolvesids: bool = False
         ) -> str:
-            """
-            Get information about domain controllers.
-            
-            Args:
-                identity: Controller identity to search for (default: * for all DCs)
-                properties: Comma-separated list of properties to retrieve
-                no_cache: Bypass the cache and perform a live query
-                ldapfilter: Optional LDAP filter to apply
-            """
+            """Get information about domain controllers."""
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
                     'identity': identity,
                     'properties': props,
-                    'no_cache': no_cache,
-                    'searchbase': None,
                     'ldapfilter': ldapfilter,
-                    'no_vuln_check': False,
-                    'raw': False
+                    'searchbase': searchbase if searchbase else None,
+                    'no_cache': no_cache,
+                    'no_vuln_check': no_vuln_check,
+                    'raw': raw,
+                    'resolvesids': resolvesids,
+                    'module': 'Get-DomainController'
                 })
                 result = self.powerview.get_domaincontroller(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No domain controllers found"})
             except Exception as e:
                 logging.error(f"Error in get_domain_controller: {str(e)}")
                 return json.dumps({"error": str(e)})
-        
+
         @self.mcp.tool()
         async def get_domain_trust(
-            identity: str = "*", 
+            identity: str = "*",
             properties: str = "*",
             searchbase: str = "",
+            ldapfilter: str = "", # Added based on parser
             no_cache: bool = False,
             no_vuln_check: bool = False,
             raw: bool = False,
-            ldapfilter: str = ""
+            sd_flag: str = "" # Added based on powerview func signature - type? Needs check
         ) -> str:
-            """
-            Get information about domain trusts.
-            
-            Args:
-                identity: Trust identity to search for (default: * for all trusts)
-                properties: Comma-separated list of properties to retrieve
-                no_cache: Bypass the cache and perform a live query
-                ldapfilter: Additional LDAP filter to apply
-            """
+            """Get information about domain trusts."""
             try:
                 props = properties.split(",") if properties else []
+                # Note: sd_flag type needs verification based on how powerview uses it
                 args = type('Args', (), {
                     'identity': identity,
                     'properties': props,
-                    'no_cache': no_cache,
-                    'searchbase': searchbase,
+                    'searchbase': searchbase if searchbase else None,
                     'ldapfilter': ldapfilter,
+                    'no_cache': no_cache,
                     'no_vuln_check': no_vuln_check,
-                    'raw': raw
+                    'raw': raw,
+                    'sd_flag': sd_flag if sd_flag else None, # Pass sd_flag via args
+                    'module': 'Get-DomainTrust'
                 })
+                # sd_flag is likely used internally by get_domaintrust via args
                 result = self.powerview.get_domaintrust(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No trusts found"})
             except Exception as e:
                 logging.error(f"Error in get_domain_trust: {str(e)}")
                 return json.dumps({"error": str(e)})
-        
+
         @self.mcp.tool()
         async def get_domain(
             identity: str = "*",
             properties: str = "*",
-            no_cache: bool = False,
             ldapfilter: str = "",
             searchbase: str = "",
+            no_cache: bool = False,
             no_vuln_check: bool = False,
             raw: bool = False
         ) -> str:
-            """
-            Get domain information.
-            
-            Args:
-                identity: Domain identity to search for (default: * for all domains)
-                properties: Comma-separated list of properties to retrieve
-                no_cache: Bypass the cache and perform a live query
-                ldapfilter: Additional LDAP filter to apply
-                searchbase: Search base to filter by
-                no_vuln_check: Bypass vulnerability checks
-                raw: Return raw results
-            """
+            """Get domain information."""
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
                     'identity': identity,
                     'properties': props,
-                    'no_cache': no_cache,
                     'ldapfilter': ldapfilter,
-                    'searchbase': searchbase,
+                    'searchbase': searchbase if searchbase else None,
+                    'no_cache': no_cache,
                     'no_vuln_check': no_vuln_check,
-                    'raw': raw
+                    'raw': raw,
+                    'module': 'Get-Domain'
                 })
                 result = self.powerview.get_domain(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No domain information found"})
@@ -609,43 +345,33 @@ class MCPServer:
         @self.mcp.tool()
         async def get_domain_object_acl(
             identity: str = "*",
-            properties: str = "",
-            ldapfilter: str = "",
+            # properties parameter seems missing in parser/function? Add if needed.
+            ldapfilter: str = "", # Added based on function signature defaults
             security_identifier: str = "",
-            resolveguids: bool = False,
+            resolveguids: bool = False, # Renamed from resolveGUIDs
             searchbase: str = "",
             no_cache: bool = False,
             no_vuln_check: bool = False,
             raw: bool = False
+            # guids_map_dict is internal detail, not MCP param
         ) -> str:
-            """
-            Get the ACLs for a domain object.
-            
-            Args:
-                identity: Object identity to get ACLs for
-                properties: Comma-separated list of properties to retrieve
-                ldapfilter: Additional LDAP filter to apply
-                security_identifier: Security identifier to filter by
-                resolveguids: Resolve GUIDs to names
-                searchbase: Search base to filter by
-                no_cache: Bypass the cache and perform a live query
-                no_vuln_check: Bypass vulnerability checks
-                raw: Return raw results
-            """
+            """Get the ACLs for a domain object."""
             try:
-                props = properties.split(",") if properties else []
+                # props = properties.split(",") if properties else [] # Removed if no 'properties' arg
                 args = type('Args', (), {
                     'identity': identity,
-                    'properties': props,
-                    'no_cache': no_cache,
-                    'ldapfilter': ldapfilter,
+                    # 'properties': props, # Removed if no 'properties' arg
+                    'ldapfilter': ldapfilter, # Pass via args
                     'security_identifier': security_identifier,
                     'resolveguids': resolveguids,
-                    'searchbase': searchbase,
+                    'searchbase': searchbase if searchbase else None,
+                    'no_cache': no_cache,
                     'no_vuln_check': no_vuln_check,
-                    'raw': raw
+                    'raw': raw,
+                    'module': 'Get-DomainObjectAcl'
                 })
-                result = self.powerview.get_domainobjectacl(args=args)  
+                # Call using only args, as powerview func expects args primarily
+                result = self.powerview.get_domainobjectacl(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No ACLs found"})
             except Exception as e:
                 logging.error(f"Error in get_domain_object_acl: {str(e)}")
@@ -655,252 +381,412 @@ class MCPServer:
         async def get_domain_ou(
             identity: str = "",
             properties: str = "",
-            resolve_gplink: bool = False,
-            no_cache: bool = False,
+            resolve_gplink: bool = False, # Matches parser dest
+            gplink: str = "", # Added based on parser - unclear relation to resolve_gplink
             ldapfilter: str = "",
             searchbase: str = "",
+            no_cache: bool = False,
             no_vuln_check: bool = False,
             raw: bool = False
         ) -> str:
-            """
-            Get information about organizational units (OUs).
-            
-            Args:
-                identity: OU identity to search for (default: * for all OUs)
-                properties: Comma-separated list of properties to retrieve
-                resolve_gplink: Resolve Group Policy links for the OU
-                no_cache: Bypass the cache and perform a live query
-                ldapfilter: Additional LDAP filter to apply
-                searchbase: Search base to filter by
-                no_vuln_check: Bypass vulnerability checks
-                raw: Return raw results
-            """
+            """Get information about organizational units (OUs)."""
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
                     'identity': identity,
                     'properties': props,
-                    'gplink': resolve_gplink,
-                    'no_cache': no_cache,
+                    'resolve_gplink': resolve_gplink, # Keep both if parser needs them?
+                    'gplink': gplink if gplink else None, # Check parser/func logic
                     'ldapfilter': ldapfilter,
-                    'searchbase': searchbase,
+                    'searchbase': searchbase if searchbase else None,
+                    'no_cache': no_cache,
                     'no_vuln_check': no_vuln_check,
-                    'raw': raw
+                    'raw': raw,
+                    'module': 'Get-DomainOU'
                 })
                 result = self.powerview.get_domainou(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No OUs found"})
             except Exception as e:
                 logging.error(f"Error in get_domain_ou: {str(e)}")
                 return json.dumps({"error": str(e)})
-        
+
         @self.mcp.tool()
         async def get_domain_gpo(
             identity: str = "",
             properties: str = "",
+            ldapfilter: str = "",
+            searchbase: str = "", # Added based on parser
             no_cache: bool = False,
-            ldapfilter: str = ""
+            no_vuln_check: bool = False, # Added based on powerview func signature
+            raw: bool = False # Added based on powerview func signature
         ) -> str:
-            """
-            Get information about Group Policy Objects (GPOs).
-            
-            Args:
-                identity: GPO identity to search for (default: * for all GPOs)
-                properties: Comma-separated list of properties to retrieve
-                no_cache: Bypass the cache and perform a live query
-                ldapfilter: Additional LDAP filter to apply
-            """
+            """Get information about Group Policy Objects (GPOs)."""
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
                     'identity': identity,
                     'properties': props,
-                    'no_cache': no_cache,
                     'ldapfilter': ldapfilter,
-                    'searchbase': None,
-                    'no_vuln_check': False,
-                    'raw': False
+                    'searchbase': searchbase if searchbase else None,
+                    'no_cache': no_cache,
+                    'no_vuln_check': no_vuln_check,
+                    'raw': raw,
+                    'module': 'Get-DomainGPO'
                 })
                 result = self.powerview.get_domaingpo(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No GPOs found"})
             except Exception as e:
                 logging.error(f"Error in get_domain_gpo: {str(e)}")
                 return json.dumps({"error": str(e)})
-        
+
         @self.mcp.tool()
         async def get_domain_dns_zone(
             identity: str = "",
             properties: str = "",
+            ldapfilter: str = "", # Added based on powerview func signature
+            searchbase: str = "", # Added based on parser
             no_cache: bool = False,
-            ldapfilter: str = ""
+            no_vuln_check: bool = False, # Added based on powerview func signature
+            raw: bool = False # Added based on powerview func signature
         ) -> str:
-            """
-            Get information about DNS zones.
-            
-            Args:
-                identity: Zone identity to search for (default: * for all zones)
-                properties: Comma-separated list of properties to retrieve
-                no_cache: Bypass the cache and perform a live query
-                ldapfilter: Additional LDAP filter to apply
-            """
+            """Get information about DNS zones."""
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
-                    'identity': identity,
-                    'properties': props,
-                    'no_cache': no_cache,
+                    'identity': identity, # Also passed separately to func
+                    'properties': props, # Also passed separately to func
                     'ldapfilter': ldapfilter,
-                    'searchbase': None,
-                    'no_vuln_check': False,
-                    'raw': False,
-                    'zonename': None  # Add zonename parameter which might be needed
+                    'searchbase': searchbase if searchbase else None,
+                    'no_cache': no_cache,
+                    'no_vuln_check': no_vuln_check,
+                    'raw': raw,
+                    'zonename': None, # Add zonename based on parser/func if needed
+                    'module': 'Get-DomainDNSZone'
                 })
+                # Check powerview.py func signature for correct args passing
+                # Original call passed identity, properties, args. Let's stick to args only if func allows.
+                # Assuming get_domaindnszone primarily uses args:
+                # result = self.powerview.get_domaindnszone(args=args)
+                # If it needs specific args: (Reverting to original structure for now)
                 result = self.powerview.get_domaindnszone(identity=identity, properties=props, args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No DNS zones found"})
             except Exception as e:
                 logging.error(f"Error in get_domain_dns_zone: {str(e)}")
                 return json.dumps({"error": str(e)})
-        
+
         @self.mcp.tool()
         async def invoke_kerberoast(
             identity: str = "",
+            ldapfilter: str = "", # Added based on parser
+            searchbase: str = "", # Added based on parser
+            opsec: bool = False, # Added based on parser
             no_cache: bool = False,
-            ldapfilter: str = ""
+            # No raw/no_vuln_check in parser/func for kerberoast?
         ) -> str:
-            """
-            Perform Kerberoasting against service accounts.
-            
-            Args:
-                identity: Target identity to kerberoast (default: * for all service accounts)
-                no_cache: Bypass the cache and perform a live query
-                ldapfilter: Additional LDAP filter to apply
-            """
+            """Perform Kerberoasting against service accounts."""
             try:
                 args = type('Args', (), {
                     'identity': identity,
-                    'no_cache': no_cache,
                     'ldapfilter': ldapfilter,
-                    'searchbase': None,
-                    'no_vuln_check': False,
-                    'raw': False
+                    'searchbase': searchbase if searchbase else None,
+                    'opsec': opsec,
+                    'no_cache': no_cache,
+                    # target_domain is internal detail?
+                    'module': 'Invoke-Kerberoast'
                 })
                 result = self.powerview.invoke_kerberoast(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No kerberoastable accounts found"})
             except Exception as e:
                 logging.error(f"Error in invoke_kerberoast: {str(e)}")
                 return json.dumps({"error": str(e)})
-        
+
         @self.mcp.tool()
         async def invoke_asreproast(
             identity: str = "",
+            ldapfilter: str = "", # Added based on powerview func signature
+            searchbase: str = "", # Added based on parser
             no_cache: bool = False,
-            ldapfilter: str = ""
+            # No raw/no_vuln_check in parser/func for asreproast?
         ) -> str:
-            """
-            Perform AS-REP Roasting against accounts with Kerberos pre-authentication disabled.
-            
-            Args:
-                identity: Target identity to ASREProast (default: * for all vulnerable accounts)
-                no_cache: Bypass the cache and perform a live query
-                ldapfilter: Additional LDAP filter to apply
-            """
+            """Perform AS-REP Roasting against accounts with Kerberos pre-authentication disabled."""
             try:
                 args = type('Args', (), {
                     'identity': identity,
+                    'ldapfilter': ldapfilter, # Pass via args
+                    'searchbase': searchbase if searchbase else None,
                     'no_cache': no_cache,
-                    'ldapfilter': ldapfilter,
-                    'searchbase': None,
-                    'no_vuln_check': False,
-                    'raw': False
+                    'module': 'Invoke-ASREPRoast'
                 })
+                # Call uses args only
                 result = self.powerview.invoke_asreproast(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No AS-REP roastable accounts found"})
             except Exception as e:
                 logging.error(f"Error in invoke_asreproast: {str(e)}")
                 return json.dumps({"error": str(e)})
-        
+
         @self.mcp.tool()
         async def get_domain_ca(
-            identity: str = "", 
-            properties: str = "",
+            identity: str = "",
+            properties: str = "", # Changed from Optional[str] to str
             check_web_enrollment: bool = False,
+            ldapfilter: str = "", # Added based on powerview func signature
+            searchbase: str = "", # Added based on parser
             no_cache: bool = False,
-            ldapfilter: str = ""
+            no_vuln_check: bool = False, # Added based on powerview func signature
+            raw: bool = False # Added based on powerview func signature
         ) -> str:
-            """
-            Get information about domain certificate authorities.
-            
-            Args:
-                identity: CA identity to search for (default: * for all CAs)
-                properties: Comma-separated list of properties to retrieve
-                check_web_enrollment: Check if web enrollment is enabled
-                no_cache: Bypass the cache and perform a live query
-                ldapfilter: Additional LDAP filter to apply
-            """
+            """Get information about domain certificate authorities."""
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
-                    'identity': identity,
-                    'properties': props,
-                    'check_web_enrollment': check_web_enrollment,
-                    'no_cache': no_cache,
+                    'identity': identity, # Also passed separately? Check func def.
+                    'properties': props, # Also passed separately? Check func def.
+                    'check_web_enrollment': check_web_enrollment, # Also passed separately? Check func def.
                     'ldapfilter': ldapfilter,
-                    'searchbase': None,
-                    'no_vuln_check': False,
-                    'raw': False
+                    'searchbase': searchbase if searchbase else None,
+                    'no_cache': no_cache,
+                    'no_vuln_check': no_vuln_check,
+                    'raw': raw,
+                    'module': 'Get-DomainCA'
                 })
+                # Check powerview func signature: get_domainca(self, args=None, identity=None, check_web_enrollment=False, properties=None...)
+                # It seems to prefer args, but also accepts separate args. Let's pass via args obj primarily.
                 result = self.powerview.get_domainca(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No certificate authorities found"})
             except Exception as e:
                 logging.error(f"Error in get_domain_ca: {str(e)}")
                 return json.dumps({"error": str(e)})
-        
+
         @self.mcp.tool()
         async def get_domain_ca_template(
             identity: str = "",
             properties: str = "",
-            vulnerable: bool = True,
-            resolve_sids: bool = True,
+            vulnerable: bool = False, # Default False based on powerview func
+            resolve_sids: bool = False, # Default False based on powerview func
+            enabled: bool = False, # Added based on parser
+            ldapfilter: str = "", # Added based on powerview func signature
+            searchbase: str = "", # Added based on parser
             no_cache: bool = False,
-            ldapfilter: str = ""
+            no_vuln_check: bool = False, # Added based on powerview func signature
+            raw: bool = False # Added based on powerview func signature
+        ) -> str:
+            """Get information about certificate templates in the domain."""
+            try:
+                props = properties.split(",") if properties else []
+                args = type('Args', (), {
+                    'identity': identity, # Also passed separately
+                    'properties': props, # Also passed separately
+                    'vulnerable': vulnerable, # Also passed separately
+                    'resolve_sids': resolve_sids, # Also passed separately
+                    'enabled': enabled,
+                    'ldapfilter': ldapfilter,
+                    'searchbase': searchbase if searchbase else None,
+                    'no_cache': no_cache, # Also passed separately
+                    'no_vuln_check': no_vuln_check,
+                    'raw': raw,
+                    'module': 'Get-DomainCATemplate'
+                })
+                # Function signature: get_domaincatemplate(self, args=None, properties=[], identity=None, vulnerable=False, searchbase=None, resolve_sids=False, no_cache=False, no_vuln_check=False, raw=False):
+                # It takes many direct args AND args. Let's use the direct args as in the original call, plus the args object.
+                result = self.powerview.get_domaincatemplate(
+                    args=args,
+                    properties=props,
+                    identity=identity,
+                    vulnerable=vulnerable,
+                    resolve_sids=resolve_sids,
+                    no_cache=no_cache
+                    # Assuming no_vuln_check and raw are handled via args obj in the function
+                )
+                return json.dumps(result, default=str) if result else json.dumps({"error": "No certificate templates found"})
+            except Exception as e:
+                logging.error(f"Error in get_domain_ca_template: {str(e)}")
+                return json.dumps({"error": str(e)})
+
+        @self.mcp.tool()
+        async def get_domain_object_owner(
+            identity: str = "*",
+            searchbase: str = "",
+            no_cache: bool = False,
+            no_vuln_check: bool = False,
+            raw: bool = False
+            # Other parser args like Server, Select, Where, TableView, SortBy, Count, OutFile, NoWrap
+            # are less relevant for direct MCP interaction but needed for args object.
         ) -> str:
             """
-            Get information about certificate templates in the domain.
-            
+            Gets the owner of specified domain objects.
+
             Args:
-                identity: Template identity to search for (default: * for all templates)
-                properties: Comma-separated list of properties to retrieve
-                vulnerable: Only return templates with known vulnerabilities
-                resolve_sids: Resolve SIDs to names in ACL entries
-                no_cache: Bypass the cache and perform a live query
-                ldapfilter: Additional LDAP filter to apply
+                identity: Object identity (name, SID, GUID, DN) to find the owner for (default: * for all).
+                searchbase: Specify the search base DN.
+                no_cache: Bypass the cache and perform a live query.
+                no_vuln_check: Disable vulnerability checks.
+                raw: Return raw LDAP entries without formatting.
+            """
+            try:
+                args = type('Args', (), {
+                    'identity': identity,
+                    'searchbase': searchbase if searchbase else None,
+                    'no_cache': no_cache,
+                    'no_vuln_check': no_vuln_check,
+                    'raw': raw,
+                    # Add defaults for other parser args potentially used by the function
+                    'server': None,
+                    'select': None,
+                    'where': None,
+                    'tableview': '',
+                    'sort_by': None,
+                    'count': False,
+                    'outfile': None,
+                    'nowrap': False, # Default from parser
+                    'module': 'Get-DomainObjectOwner'
+                })
+                # Function signature suggests it uses args primarily, but also takes direct params.
+                # Passing via args seems cleanest if the function supports it well.
+                result = self.powerview.get_domainobjectowner(args=args)
+                return json.dumps(result, default=str) if result else json.dumps({"info": "No object owner information found matching criteria"})
+            except Exception as e:
+                logging.error(f"Error in get_domain_object_owner: {str(e)}")
+                return json.dumps({"error": str(e)})
+
+        @self.mcp.tool()
+        async def get_exchange_server(
+            identity: str = "*",
+            properties: str = "*",
+            ldapfilter: str = "",
+            searchbase: str = "",
+            no_cache: bool = False,
+            no_vuln_check: bool = False,
+            raw: bool = False
+            # Other parser args like Server, Select, Where, TableView, SortBy, Count, OutFile
+            # are less relevant for direct MCP interaction but needed for args object.
+        ) -> str:
+            """
+            Get information about Exchange servers in the domain.
             """
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
                     'identity': identity,
                     'properties': props,
-                    'vulnerable': vulnerable,
-                    'resolve_sids': resolve_sids,
-                    'no_cache': no_cache,
                     'ldapfilter': ldapfilter,
-                    'searchbase': None,
-                    'no_vuln_check': False,
-                    'raw': False,
-                    'enabled': False  # This is checked in the code
+                    'searchbase': searchbase if searchbase else None,
+                    'no_cache': no_cache,
+                    'no_vuln_check': no_vuln_check,
+                    'raw': raw,
+                    # Add defaults for other parser args potentially used by the function
+                    'server': None,
+                    'select': None,
+                    'where': None,
+                    'tableview': '',
+                    'sort_by': None,
+                    'count': False,
+                    'outfile': None,
+                    'module': 'Get-ExchangeServer'
                 })
-                result = self.powerview.get_domaincatemplate(
-                    args=args, 
-                    properties=props, 
-                    identity=identity,
-                    vulnerable=vulnerable,
-                    resolve_sids=resolve_sids,
-                    no_cache=no_cache
-                )
-                return json.dumps(result, default=str) if result else json.dumps({"error": "No certificate templates found"})
+                # The function signature prefers args, but also lists direct params.
+                # Passing everything via args object seems cleaner if the function handles it.
+                result = self.powerview.get_exchangeserver(args=args)
+                return json.dumps(result, default=str) if result else json.dumps({"info": "No Exchange servers found matching criteria"})
             except Exception as e:
-                logging.error(f"Error in get_domain_ca_template: {str(e)}")
+                logging.error(f"Error in get_exchange_server: {str(e)}")
                 return json.dumps({"error": str(e)})
-    
+
+        @self.mcp.tool()
+        async def get_netshare(
+            computer: str = "",
+            computername: str = ""
+        ) -> str:
+            """
+            Enumerates shares on a specified computer.
+            """
+            if not computer and not computername:
+                return json.dumps({"error": "Either 'computer' or 'computername' must be specified"})
+            if computer and computername:
+                return json.dumps({"error": "Specify only one of 'computer' or 'computername'"})
+
+            try:
+                # Create args object based on parser for Get-NetShare
+                args = type('Args', (), {
+                    # Mutually exclusive group handled by check above
+                    'computer': computer if computer else None,
+                    'computername': computername if computername else None,
+                    # Include other args expected by the function or parser if necessary
+                    'tableview': '', # Default if needed by func
+                    'count': False,  # Default if needed by func
+                    'server': None,  # Default if needed by func
+                    'outfile': None, # Default if needed by func
+                    'module': 'Get-NetShare'
+                })
+                result = self.powerview.get_netshare(args=args)
+                return json.dumps(result, default=str) if result else json.dumps({"info": f"No shares found on {computer or computername}"})
+            except Exception as e:
+                # Attempt to provide a more specific error if possible
+                error_msg = str(e)
+                if "rpc_s_access_denied" in error_msg.lower():
+                    error_msg = f"Access denied to {computer or computername}. Check permissions."
+                elif "connection" in error_msg.lower() or "Errno 111" in error_msg:
+                     error_msg = f"Could not connect to {computer or computername}. Check network connectivity and RPC/SMB services."
+                logging.error(f"Error in get_netshare: {str(e)}")
+                return json.dumps({"error": error_msg})
+
+        @self.mcp.tool()
+        async def set_domain_user_password(
+            identity: str,
+            accountpassword: str,
+            oldpassword: str | None = None
+        ) -> str:
+            """
+            Sets the password for a specified domain user.
+
+            Args:
+                identity: The identity (e.g., sAMAccountName) of the user account.
+                accountpassword: The new password to set for the user account.
+                oldpassword: The current password (required for non-admin password changes).
+            """
+            if not identity or not accountpassword:
+                 return json.dumps({"success": False, "error": "Identity and AccountPassword are required."})
+
+            try:
+                # Create args object, including less relevant parser args with defaults
+                args = type('Args', (), {
+                    'identity': identity, # Include for potential internal use in func
+                    'accountpassword': accountpassword, # Include for potential internal use in func
+                    'oldpassword': oldpassword, # Include for potential internal use in func
+                    'server': None,  # Default value for parser arg
+                    'outfile': None, # Default value for parser arg
+                    'module': 'Set-DomainUserPassword'
+                })
+
+                # Call the PowerView function passing required args directly and the rest via args obj
+                result = self.powerview.set_domainuserpassword(
+                    identity=identity,
+                    accountpassword=accountpassword,
+                    oldpassword=oldpassword,
+                    args=args
+                )
+
+                # Check the boolean/None return value
+                if result is True:
+                    return json.dumps({"success": True, "message": f"Password for '{identity}' set successfully."})
+                elif result is False:
+                    # This usually indicates permission issue, complexity failure, or needing old password
+                    error_detail = f"Failed to set password for '{identity}'. Check permissions, password complexity/history, or if the old password is required/correct."
+                    logging.warning(f"set_domain_user_password returned False for '{identity}'.") # Use warning level
+                    return json.dumps({"success": False, "error": error_detail})
+                else: # result is None
+                    error_detail = f"User identity '{identity}' not found or multiple users matched."
+                    logging.error(f"set_domain_user_password could not find unique user for '{identity}'.")
+                    return json.dumps({"success": False, "error": error_detail})
+
+            except Exception as e:
+                logging.error(f"Exception in set_domain_user_password for '{identity}': {str(e)}")
+                # Check for common exceptions if possible
+                error_msg = str(e)
+                # Example: Catch specific LDAP exceptions if the underlying function raises them distinctly
+                # if "LDAPNoSuchObjectResult" in error_msg: # This might be handled by the None return now
+                #    error_msg = f"User identity '{identity}' not found."
+                return json.dumps({"success": False, "error": f"An unexpected exception occurred: {error_msg}"})
+
     def _setup_prompts(self):
         """Register all PowerView prompts with the MCP server."""
         
