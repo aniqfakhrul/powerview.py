@@ -35,7 +35,6 @@ class MCPServer:
             host: Host to bind the server to
             port: Port to bind the server to
         """
-        # Check if MCP is available before initializing
         if not MCP_AVAILABLE:
             raise ImportError("MCP dependencies not installed. Install with: pip install .[mcp]")
             
@@ -63,13 +62,12 @@ class MCPServer:
         async def get_domain_user(
             identity: str = "*",
             properties: str = "*",
-            # Flags matching parser dest names (snake_case where possible)
             preauthnotrequired: bool = False,
             passnotrequired: bool = False,
             password_expired: bool = False,
-            admincount: bool = False, # Changed from admin_count to match parser dest
+            admincount: bool = False,
             trustedtoauth: bool = False,
-            allowdelegation: bool = False, # Changed from allowed_to_delegate
+            allowdelegation: bool = False,
             disallowdelegation: bool = False,
             rbcd: bool = False,
             unconstrained: bool = False,
@@ -77,7 +75,7 @@ class MCPServer:
             spn: bool = False,
             enabled: bool = False,
             disabled: bool = False,
-            lockout: bool = False, # Changed from locked
+            lockout: bool = False,
             ldapfilter: str = "",
             searchbase: str = "",
             no_cache: bool = False,
@@ -109,8 +107,7 @@ class MCPServer:
                     'no_cache': no_cache,
                     'no_vuln_check': no_vuln_check,
                     'raw': raw,
-                    # Ensure all relevant parser args have defaults if not in MCP params
-                    'module': 'Get-DomainUser' # Common parser attr
+                    'module': 'Get-DomainUser'
                 })
                 result = self.powerview.get_domainuser(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No users found matching criteria"})
@@ -125,22 +122,21 @@ class MCPServer:
             enabled: bool = False,
             disabled: bool = False,
             unconstrained: bool = False,
-            trustedtoauth: bool = False, # Changed from trusted_to_auth
-            allowdelegation: bool = False, # Changed from allowed_to_delegate
+            trustedtoauth: bool = False,
+            allowdelegation: bool = False,
             disallowdelegation: bool = False,
             rbcd: bool = False,
             shadowcred: bool = False,
             spn: bool = False,
             printers: bool = False,
-            ping: bool = False,  # Note: Ping functionality might be complex via LDAP alone
-            resolveip: bool = False, # Changed from resolve_ip
-            resolvesids: bool = False, # Changed from resolve_sids
+            ping: bool = False,
+            resolveip: bool = False,
+            resolvesids: bool = False,
             ldapfilter: str = "",
             searchbase: str = "",
             no_cache: bool = False,
             no_vuln_check: bool = False,
             raw: bool = False,
-            # Add other parser flags
             laps: bool = False,
             bitlocker: bool = False,
             gmsapassword: bool = False,
@@ -210,7 +206,6 @@ class MCPServer:
                     'searchbase': searchbase if searchbase else None,
                     'raw': raw,
                     'no_vuln_check': no_vuln_check,
-                     # Add other relevant parser args with defaults if needed
                     'module': 'Get-DomainGroup'
                 })
                 result = self.powerview.get_domaingroup(args=args)
@@ -222,26 +217,22 @@ class MCPServer:
         @self.mcp.tool()
         async def get_domain_group_member(
             identity: str,
-            multiple: bool = False, # parser has no 'multiple' flag, powerview func does
+            multiple: bool = False,
             no_cache: bool = False,
             no_vuln_check: bool = False,
             raw: bool = False,
-            # Add parser specific flags if any (seems none relevant except common)
-            ldapfilter: str = "" # Common filter
+            ldapfilter: str = ""
         ) -> str:
             """Get members of a domain group."""
             try:
-                 # Note: 'multiple' is not a parser flag but direct func arg
                 args = type('Args', (), {
-                    'identity': identity, # Needed for potential internal use by func?
+                    'identity': identity,
                     'no_cache': no_cache,
                     'no_vuln_check': no_vuln_check,
                     'raw': raw,
-                    'ldapfilter': ldapfilter, # Pass common filter
+                    'ldapfilter': ldapfilter,
                     'module': 'Get-DomainGroupMember'
-                    # Add other common args if needed by underlying logic
                 })
-                # Call with identity and multiple as direct args, others via args obj
                 result = self.powerview.get_domaingroupmember(identity=identity, multiple=multiple, args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": f"No members found for group {identity}"})
             except Exception as e:
@@ -255,9 +246,8 @@ class MCPServer:
             ldapfilter: str = "",
             searchbase: str = "",
             no_cache: bool = False,
-            no_vuln_check: bool = False, # Added based on powerview func signature
-            raw: bool = False, # Added based on powerview func signature
-            # Add other parser args
+            no_vuln_check: bool = False,
+            raw: bool = False,
             resolvesids: bool = False
         ) -> str:
             """Get information about domain controllers."""
@@ -285,16 +275,15 @@ class MCPServer:
             identity: str = "*",
             properties: str = "*",
             searchbase: str = "",
-            ldapfilter: str = "", # Added based on parser
+            ldapfilter: str = "",
             no_cache: bool = False,
             no_vuln_check: bool = False,
             raw: bool = False,
-            sd_flag: str = "" # Added based on powerview func signature - type? Needs check
+            sd_flag: str = ""
         ) -> str:
             """Get information about domain trusts."""
             try:
                 props = properties.split(",") if properties else []
-                # Note: sd_flag type needs verification based on how powerview uses it
                 args = type('Args', (), {
                     'identity': identity,
                     'properties': props,
@@ -303,10 +292,9 @@ class MCPServer:
                     'no_cache': no_cache,
                     'no_vuln_check': no_vuln_check,
                     'raw': raw,
-                    'sd_flag': sd_flag if sd_flag else None, # Pass sd_flag via args
+                    'sd_flag': sd_flag if sd_flag else None,
                     'module': 'Get-DomainTrust'
                 })
-                # sd_flag is likely used internally by get_domaintrust via args
                 result = self.powerview.get_domaintrust(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No trusts found"})
             except Exception as e:
@@ -345,23 +333,19 @@ class MCPServer:
         @self.mcp.tool()
         async def get_domain_object_acl(
             identity: str = "*",
-            # properties parameter seems missing in parser/function? Add if needed.
-            ldapfilter: str = "", # Added based on function signature defaults
+            ldapfilter: str = "",
             security_identifier: str = "",
-            resolveguids: bool = False, # Renamed from resolveGUIDs
+            resolveguids: bool = False,
             searchbase: str = "",
             no_cache: bool = False,
             no_vuln_check: bool = False,
             raw: bool = False
-            # guids_map_dict is internal detail, not MCP param
         ) -> str:
             """Get the ACLs for a domain object."""
             try:
-                # props = properties.split(",") if properties else [] # Removed if no 'properties' arg
                 args = type('Args', (), {
                     'identity': identity,
-                    # 'properties': props, # Removed if no 'properties' arg
-                    'ldapfilter': ldapfilter, # Pass via args
+                    'ldapfilter': ldapfilter,
                     'security_identifier': security_identifier,
                     'resolveguids': resolveguids,
                     'searchbase': searchbase if searchbase else None,
@@ -370,7 +354,6 @@ class MCPServer:
                     'raw': raw,
                     'module': 'Get-DomainObjectAcl'
                 })
-                # Call using only args, as powerview func expects args primarily
                 result = self.powerview.get_domainobjectacl(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No ACLs found"})
             except Exception as e:
@@ -381,8 +364,8 @@ class MCPServer:
         async def get_domain_ou(
             identity: str = "",
             properties: str = "",
-            resolve_gplink: bool = False, # Matches parser dest
-            gplink: str = "", # Added based on parser - unclear relation to resolve_gplink
+            resolve_gplink: bool = False,
+            gplink: str = "",
             ldapfilter: str = "",
             searchbase: str = "",
             no_cache: bool = False,
@@ -395,8 +378,8 @@ class MCPServer:
                 args = type('Args', (), {
                     'identity': identity,
                     'properties': props,
-                    'resolve_gplink': resolve_gplink, # Keep both if parser needs them?
-                    'gplink': gplink if gplink else None, # Check parser/func logic
+                    'resolve_gplink': resolve_gplink,
+                    'gplink': gplink if gplink else None,
                     'ldapfilter': ldapfilter,
                     'searchbase': searchbase if searchbase else None,
                     'no_cache': no_cache,
@@ -415,10 +398,10 @@ class MCPServer:
             identity: str = "",
             properties: str = "",
             ldapfilter: str = "",
-            searchbase: str = "", # Added based on parser
+            searchbase: str = "",
             no_cache: bool = False,
-            no_vuln_check: bool = False, # Added based on powerview func signature
-            raw: bool = False # Added based on powerview func signature
+            no_vuln_check: bool = False,
+            raw: bool = False
         ) -> str:
             """Get information about Group Policy Objects (GPOs)."""
             try:
@@ -443,11 +426,11 @@ class MCPServer:
         async def get_domain_dns_zone(
             identity: str = "",
             properties: str = "",
-            ldapfilter: str = "", # Added based on powerview func signature
-            searchbase: str = "", # Added based on parser
+            ldapfilter: str = "",
+            searchbase: str = "",
             no_cache: bool = False,
-            no_vuln_check: bool = False, # Added based on powerview func signature
-            raw: bool = False # Added based on powerview func signature
+            no_vuln_check: bool = False,
+            raw: bool = False
         ) -> str:
             """Get information about DNS zones."""
             try:
@@ -460,14 +443,9 @@ class MCPServer:
                     'no_cache': no_cache,
                     'no_vuln_check': no_vuln_check,
                     'raw': raw,
-                    'zonename': None, # Add zonename based on parser/func if needed
+                    'zonename': None,
                     'module': 'Get-DomainDNSZone'
                 })
-                # Check powerview.py func signature for correct args passing
-                # Original call passed identity, properties, args. Let's stick to args only if func allows.
-                # Assuming get_domaindnszone primarily uses args:
-                # result = self.powerview.get_domaindnszone(args=args)
-                # If it needs specific args: (Reverting to original structure for now)
                 result = self.powerview.get_domaindnszone(identity=identity, properties=props, args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No DNS zones found"})
             except Exception as e:
@@ -477,9 +455,9 @@ class MCPServer:
         @self.mcp.tool()
         async def invoke_kerberoast(
             identity: str = "",
-            ldapfilter: str = "", # Added based on parser
-            searchbase: str = "", # Added based on parser
-            opsec: bool = False, # Added based on parser
+            ldapfilter: str = "",
+            searchbase: str = "",
+            opsec: bool = False,
             no_cache: bool = False,
             # No raw/no_vuln_check in parser/func for kerberoast?
         ) -> str:
@@ -503,8 +481,8 @@ class MCPServer:
         @self.mcp.tool()
         async def invoke_asreproast(
             identity: str = "",
-            ldapfilter: str = "", # Added based on powerview func signature
-            searchbase: str = "", # Added based on parser
+            ldapfilter: str = "",
+            searchbase: str = "",
             no_cache: bool = False,
             # No raw/no_vuln_check in parser/func for asreproast?
         ) -> str:
@@ -512,12 +490,11 @@ class MCPServer:
             try:
                 args = type('Args', (), {
                     'identity': identity,
-                    'ldapfilter': ldapfilter, # Pass via args
+                    'ldapfilter': ldapfilter,
                     'searchbase': searchbase if searchbase else None,
                     'no_cache': no_cache,
                     'module': 'Invoke-ASREPRoast'
                 })
-                # Call uses args only
                 result = self.powerview.invoke_asreproast(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No AS-REP roastable accounts found"})
             except Exception as e:
@@ -527,21 +504,21 @@ class MCPServer:
         @self.mcp.tool()
         async def get_domain_ca(
             identity: str = "",
-            properties: str = "", # Changed from Optional[str] to str
+            properties: str = "",
             check_web_enrollment: bool = False,
-            ldapfilter: str = "", # Added based on powerview func signature
-            searchbase: str = "", # Added based on parser
+            ldapfilter: str = "",
+            searchbase: str = "",
             no_cache: bool = False,
-            no_vuln_check: bool = False, # Added based on powerview func signature
-            raw: bool = False # Added based on powerview func signature
+            no_vuln_check: bool = False,
+            raw: bool = False
         ) -> str:
             """Get information about domain certificate authorities."""
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
-                    'identity': identity, # Also passed separately? Check func def.
-                    'properties': props, # Also passed separately? Check func def.
-                    'check_web_enrollment': check_web_enrollment, # Also passed separately? Check func def.
+                    'identity': identity,
+                    'properties': props,
+                    'check_web_enrollment': check_web_enrollment,
                     'ldapfilter': ldapfilter,
                     'searchbase': searchbase if searchbase else None,
                     'no_cache': no_cache,
@@ -549,8 +526,6 @@ class MCPServer:
                     'raw': raw,
                     'module': 'Get-DomainCA'
                 })
-                # Check powerview func signature: get_domainca(self, args=None, identity=None, check_web_enrollment=False, properties=None...)
-                # It seems to prefer args, but also accepts separate args. Let's pass via args obj primarily.
                 result = self.powerview.get_domainca(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No certificate authorities found"})
             except Exception as e:
@@ -561,33 +536,31 @@ class MCPServer:
         async def get_domain_ca_template(
             identity: str = "",
             properties: str = "",
-            vulnerable: bool = False, # Default False based on powerview func
-            resolve_sids: bool = False, # Default False based on powerview func
-            enabled: bool = False, # Added based on parser
-            ldapfilter: str = "", # Added based on powerview func signature
-            searchbase: str = "", # Added based on parser
+            vulnerable: bool = False,
+            resolve_sids: bool = False,
+            enabled: bool = False,
+            ldapfilter: str = "",
+            searchbase: str = "",
             no_cache: bool = False,
-            no_vuln_check: bool = False, # Added based on powerview func signature
-            raw: bool = False # Added based on powerview func signature
+            no_vuln_check: bool = False,
+            raw: bool = False
         ) -> str:
             """Get information about certificate templates in the domain."""
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
-                    'identity': identity, # Also passed separately
-                    'properties': props, # Also passed separately
-                    'vulnerable': vulnerable, # Also passed separately
-                    'resolve_sids': resolve_sids, # Also passed separately
+                    'identity': identity,
+                    'properties': props,
+                    'vulnerable': vulnerable,
+                    'resolve_sids': resolve_sids,
                     'enabled': enabled,
                     'ldapfilter': ldapfilter,
                     'searchbase': searchbase if searchbase else None,
-                    'no_cache': no_cache, # Also passed separately
+                    'no_cache': no_cache,
                     'no_vuln_check': no_vuln_check,
                     'raw': raw,
                     'module': 'Get-DomainCATemplate'
                 })
-                # Function signature: get_domaincatemplate(self, args=None, properties=[], identity=None, vulnerable=False, searchbase=None, resolve_sids=False, no_cache=False, no_vuln_check=False, raw=False):
-                # It takes many direct args AND args. Let's use the direct args as in the original call, plus the args object.
                 result = self.powerview.get_domaincatemplate(
                     args=args,
                     properties=props,
@@ -595,7 +568,6 @@ class MCPServer:
                     vulnerable=vulnerable,
                     resolve_sids=resolve_sids,
                     no_cache=no_cache
-                    # Assuming no_vuln_check and raw are handled via args obj in the function
                 )
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No certificate templates found"})
             except Exception as e:
@@ -609,8 +581,6 @@ class MCPServer:
             no_cache: bool = False,
             no_vuln_check: bool = False,
             raw: bool = False
-            # Other parser args like Server, Select, Where, TableView, SortBy, Count, OutFile, NoWrap
-            # are less relevant for direct MCP interaction but needed for args object.
         ) -> str:
             """
             Gets the owner of specified domain objects.
@@ -629,7 +599,6 @@ class MCPServer:
                     'no_cache': no_cache,
                     'no_vuln_check': no_vuln_check,
                     'raw': raw,
-                    # Add defaults for other parser args potentially used by the function
                     'server': None,
                     'select': None,
                     'where': None,
@@ -637,11 +606,9 @@ class MCPServer:
                     'sort_by': None,
                     'count': False,
                     'outfile': None,
-                    'nowrap': False, # Default from parser
+                    'nowrap': False,
                     'module': 'Get-DomainObjectOwner'
                 })
-                # Function signature suggests it uses args primarily, but also takes direct params.
-                # Passing via args seems cleanest if the function supports it well.
                 result = self.powerview.get_domainobjectowner(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"info": "No object owner information found matching criteria"})
             except Exception as e:
@@ -657,8 +624,6 @@ class MCPServer:
             no_cache: bool = False,
             no_vuln_check: bool = False,
             raw: bool = False
-            # Other parser args like Server, Select, Where, TableView, SortBy, Count, OutFile
-            # are less relevant for direct MCP interaction but needed for args object.
         ) -> str:
             """
             Get information about Exchange servers in the domain.
@@ -673,7 +638,6 @@ class MCPServer:
                     'no_cache': no_cache,
                     'no_vuln_check': no_vuln_check,
                     'raw': raw,
-                    # Add defaults for other parser args potentially used by the function
                     'server': None,
                     'select': None,
                     'where': None,
@@ -683,8 +647,6 @@ class MCPServer:
                     'outfile': None,
                     'module': 'Get-ExchangeServer'
                 })
-                # The function signature prefers args, but also lists direct params.
-                # Passing everything via args object seems cleaner if the function handles it.
                 result = self.powerview.get_exchangeserver(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"info": "No Exchange servers found matching criteria"})
             except Exception as e:
@@ -705,22 +667,18 @@ class MCPServer:
                 return json.dumps({"error": "Specify only one of 'computer' or 'computername'"})
 
             try:
-                # Create args object based on parser for Get-NetShare
                 args = type('Args', (), {
-                    # Mutually exclusive group handled by check above
                     'computer': computer if computer else None,
                     'computername': computername if computername else None,
-                    # Include other args expected by the function or parser if necessary
-                    'tableview': '', # Default if needed by func
-                    'count': False,  # Default if needed by func
-                    'server': None,  # Default if needed by func
-                    'outfile': None, # Default if needed by func
+                    'tableview': '',
+                    'count': False,
+                    'server': None,
+                    'outfile': None,
                     'module': 'Get-NetShare'
                 })
                 result = self.powerview.get_netshare(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"info": f"No shares found on {computer or computername}"})
             except Exception as e:
-                # Attempt to provide a more specific error if possible
                 error_msg = str(e)
                 if "rpc_s_access_denied" in error_msg.lower():
                     error_msg = f"Access denied to {computer or computername}. Check permissions."
@@ -747,17 +705,15 @@ class MCPServer:
                  return json.dumps({"success": False, "error": "Identity and AccountPassword are required."})
 
             try:
-                # Create args object, including less relevant parser args with defaults
                 args = type('Args', (), {
-                    'identity': identity, # Include for potential internal use in func
-                    'accountpassword': accountpassword, # Include for potential internal use in func
-                    'oldpassword': oldpassword, # Include for potential internal use in func
-                    'server': None,  # Default value for parser arg
-                    'outfile': None, # Default value for parser arg
+                    'identity': identity,
+                    'accountpassword': accountpassword,
+                    'oldpassword': oldpassword,
+                    'server': None,
+                    'outfile': None,
                     'module': 'Set-DomainUserPassword'
                 })
 
-                # Call the PowerView function passing required args directly and the rest via args obj
                 result = self.powerview.set_domainuserpassword(
                     identity=identity,
                     accountpassword=accountpassword,
@@ -765,26 +721,20 @@ class MCPServer:
                     args=args
                 )
 
-                # Check the boolean/None return value
                 if result is True:
                     return json.dumps({"success": True, "message": f"Password for '{identity}' set successfully."})
                 elif result is False:
-                    # This usually indicates permission issue, complexity failure, or needing old password
                     error_detail = f"Failed to set password for '{identity}'. Check permissions, password complexity/history, or if the old password is required/correct."
-                    logging.warning(f"set_domain_user_password returned False for '{identity}'.") # Use warning level
+                    logging.warning(f"set_domain_user_password returned False for '{identity}'.")
                     return json.dumps({"success": False, "error": error_detail})
-                else: # result is None
+                else:
                     error_detail = f"User identity '{identity}' not found or multiple users matched."
                     logging.error(f"set_domain_user_password could not find unique user for '{identity}'.")
                     return json.dumps({"success": False, "error": error_detail})
 
             except Exception as e:
                 logging.error(f"Exception in set_domain_user_password for '{identity}': {str(e)}")
-                # Check for common exceptions if possible
                 error_msg = str(e)
-                # Example: Catch specific LDAP exceptions if the underlying function raises them distinctly
-                # if "LDAPNoSuchObjectResult" in error_msg: # This might be handled by the None return now
-                #    error_msg = f"User identity '{identity}' not found."
                 return json.dumps({"success": False, "error": f"An unexpected exception occurred: {error_msg}"})
 
     def _setup_prompts(self):
