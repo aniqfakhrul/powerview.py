@@ -1221,8 +1221,9 @@ class ACLEnum:
                 self.objectdn = entry.get('dn')
                 self.objectsid = objectsid
                 dacl = self.parseDACL(secDesc['Dacl'])
-                dacl_dict['attributes'] = dacl
-                parsed_dacl.append(dacl_dict)
+                if dacl:
+                    dacl_dict['attributes'] = dacl
+                    parsed_dacl.append(dacl_dict)
             except Exception as e:
                 LOG.debug(f'[ACLEnum] Error parsing security descriptor for {entry.get("dn")}: {str(e)}')
                 continue

@@ -44,7 +44,7 @@ class MCPServer:
         self.host = host
         self.port = port
         self.mcp = FastMCP(self.name)
-        self.status = False  # Start with status False until server is actually running
+        self.status = False
         self.server_thread = None
         self._setup_resources()
         self._setup_tools()
@@ -60,7 +60,7 @@ class MCPServer:
         """Register all PowerView resources with the MCP server."""
         
         @self.mcp.resource("powerview://domain/{domain}")
-        def domain_resource(domain: str) -> str:
+        async def domain_resource(domain: str) -> str:
             """Get information about a domain."""
             try:
                 # Pass args=None to maintain compatibility with any extra parameters
@@ -71,7 +71,7 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.resource("powerview://users/{identity}")
-        def users_resource(identity: str) -> str:
+        async def users_resource(identity: str) -> str:
             """Get information about domain users."""
             try:
                 # Creating a mock args object to ensure we handle all flag parameters
@@ -87,7 +87,7 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.resource("powerview://computers/{identity}")
-        def computers_resource(identity: str) -> str:
+        async def computers_resource(identity: str) -> str:
             """Get information about domain computers."""
             try:
                 # Adding resolveip and resolvesids parameters
@@ -103,7 +103,7 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.resource("powerview://groups/{identity}")
-        def groups_resource(identity: str) -> str:
+        async def groups_resource(identity: str) -> str:
             """Get information about domain groups."""
             try:
                 # Include no_cache parameter
@@ -118,7 +118,7 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.resource("powerview://controllers/{identity}")
-        def controllers_resource(identity: str) -> str:
+        async def controllers_resource(identity: str) -> str:
             """Get information about domain controllers."""
             try:
                 # Include no_cache parameter 
@@ -133,7 +133,7 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.resource("powerview://trusts/{identity}")
-        def trusts_resource(identity: str) -> str:
+        async def trusts_resource(identity: str) -> str:
             """Get information about domain trusts."""
             try:
                 # Include searchbase parameter
@@ -149,7 +149,7 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.resource("powerview://gpos/{identity}")
-        def gpos_resource(identity: str) -> str:
+        async def gpos_resource(identity: str) -> str:
             """Get information about group policy objects."""
             try:
                 # Include no_cache parameter
@@ -164,7 +164,7 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.resource("powerview://ous/{identity}")
-        def ous_resource(identity: str) -> str:
+        async def ous_resource(identity: str) -> str:
             """Get information about organizational units."""
             try:
                 # Include resolve_gplink parameter
@@ -182,9 +182,9 @@ class MCPServer:
         """Register all PowerView tools with the MCP server."""
         
         @self.mcp.tool()
-        def get_domain_user(
+        async def get_domain_user(
             identity: str = "*", 
-            properties: str = "",
+            properties: str = "*",
             # Authentication flags
             preauthnotrequired: bool = False,
             passnotrequired: bool = False,
@@ -301,9 +301,9 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.tool()
-        def get_domain_computer(
+        async def get_domain_computer(
             identity: str = "*", 
-            properties: str = "",
+            properties: str = "*",
             
             # Status flags
             enabled: bool = False,
@@ -418,11 +418,13 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.tool()
-        def get_domain_group(
+        async def get_domain_group(
             identity: str = "*", 
-            properties: str = "",
+            properties: str = "*",
+            admincount: bool = False,
+            ldapfilter: str = "",
+            memberidentity: str = "",
             no_cache: bool = False,
-            ldapfilter: str = ""
         ) -> str:
             """
             Get information about domain groups.
@@ -442,7 +444,21 @@ class MCPServer:
                     'searchbase': None,
                     'ldapfilter': ldapfilter,
                     'no_vuln_check': False,
-                    'raw': False
+                    'raw': False,
+                    'admincount': False,
+                    'enabled': False,
+                    'disabled': False,
+                    'preauthnotrequired': False,
+                    'passnotrequired': False,
+                    'password_expired': False,
+                    'trustedtoauth': False,
+                    'allowdelegation': False,
+                    'disallowdelegation': False,
+                    'rbcd': False,
+                    'unconstrained': False,
+                    'shadowcred': False,
+                    'spn': False,
+                    'lockout': False
                 })
                 result = self.powerview.get_domaingroup(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No groups found"})
@@ -451,27 +467,30 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.tool()
-        def get_domain_group_member(
+        async def get_domain_group_member(
             identity: str,
+            multiple: bool = False,
             no_cache: bool = False,
-            recursive: bool = False
+            no_vuln_check: bool = False,
+            raw: bool = False
         ) -> str:
             """
             Get members of a domain group.
             
             Args:
                 identity: Group identity to get members for
+                multiple: Recursively enumerate multiple groups
                 no_cache: Bypass the cache and perform a live query
-                recursive: Recursively enumerate nested group members
+                no_vuln_check: Bypass vulnerability checks
+                raw: Return raw results
             """
             try:
                 args = type('Args', (), {
                     'identity': identity,
                     'no_cache': no_cache,
-                    'recursive': recursive,
-                    'no_vuln_check': False,
-                    'raw': False,
-                    'multiple': False  # Add multiple parameter which is used in get_domaingroupmember
+                    'no_vuln_check': no_vuln_check,
+                    'raw': raw,
+                    'multiple': multiple
                 })
                 result = self.powerview.get_domaingroupmember(identity=identity, args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": f"No members found for group {identity}"})
@@ -480,9 +499,9 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.tool()
-        def get_domain_controller(
+        async def get_domain_controller(
             identity: str = "*", 
-            properties: str = "",
+            properties: str = "*",
             no_cache: bool = False,
             ldapfilter: str = ""
         ) -> str:
@@ -513,32 +532,13 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.tool()
-        def find_local_admin_access(computer: str = "") -> str:
-            """
-            Find local admin access on computers.
-            
-            Args:
-                computer: Computer to check for local admin access
-            """
-            try:
-                args = type('Args', (), {
-                    'computer': computer, 
-                    'computername': None,
-                    'ldapfilter': "",
-                    'searchbase': None,
-                    'no_cache': False
-                })
-                result = self.powerview.find_localadminaccess(args)
-                return json.dumps(result, default=str) if result else json.dumps({"error": "No local admin access found"})
-            except Exception as e:
-                logging.error(f"Error in find_local_admin_access: {str(e)}")
-                return json.dumps({"error": str(e)})
-        
-        @self.mcp.tool()
-        def get_domain_trust(
+        async def get_domain_trust(
             identity: str = "*", 
-            properties: str = "",
+            properties: str = "*",
+            searchbase: str = "",
             no_cache: bool = False,
+            no_vuln_check: bool = False,
+            raw: bool = False,
             ldapfilter: str = ""
         ) -> str:
             """
@@ -556,11 +556,10 @@ class MCPServer:
                     'identity': identity,
                     'properties': props,
                     'no_cache': no_cache,
-                    'searchbase': None,
+                    'searchbase': searchbase,
                     'ldapfilter': ldapfilter,
-                    'sd_flag': None,
-                    'no_vuln_check': False,
-                    'raw': False
+                    'no_vuln_check': no_vuln_check,
+                    'raw': raw
                 })
                 result = self.powerview.get_domaintrust(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No trusts found"})
@@ -569,35 +568,99 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.tool()
-        def get_domain_policy(no_cache: bool = False) -> str:
+        async def get_domain(
+            identity: str = "*",
+            properties: str = "*",
+            no_cache: bool = False,
+            ldapfilter: str = "",
+            searchbase: str = "",
+            no_vuln_check: bool = False,
+            raw: bool = False
+        ) -> str:
             """
-            Get domain policy information.
+            Get domain information.
             
             Args:
+                identity: Domain identity to search for (default: * for all domains)
+                properties: Comma-separated list of properties to retrieve
                 no_cache: Bypass the cache and perform a live query
+                ldapfilter: Additional LDAP filter to apply
+                searchbase: Search base to filter by
+                no_vuln_check: Bypass vulnerability checks
+                raw: Return raw results
             """
             try:
+                props = properties.split(",") if properties else []
                 args = type('Args', (), {
-                    'identity': None,
-                    'properties': [],
+                    'identity': identity,
+                    'properties': props,
                     'no_cache': no_cache,
-                    'no_vuln_check': False,
-                    'ldapfilter': "",
-                    'raw': False
+                    'ldapfilter': ldapfilter,
+                    'searchbase': searchbase,
+                    'no_vuln_check': no_vuln_check,
+                    'raw': raw
                 })
                 result = self.powerview.get_domain(args=args)
-                return json.dumps(result, default=str) if result else json.dumps({"error": "No domain policy information found"})
+                return json.dumps(result, default=str) if result else json.dumps({"error": "No domain information found"})
             except Exception as e:
-                logging.error(f"Error in get_domain_policy: {str(e)}")
+                logging.error(f"Error in get_domain: {str(e)}")
                 return json.dumps({"error": str(e)})
-        
+
         @self.mcp.tool()
-        def get_domain_ou(
+        async def get_domain_object_acl(
             identity: str = "*",
+            properties: str = "",
+            ldapfilter: str = "",
+            security_identifier: str = "",
+            resolveguids: bool = False,
+            searchbase: str = "",
+            no_cache: bool = False,
+            no_vuln_check: bool = False,
+            raw: bool = False
+        ) -> str:
+            """
+            Get the ACLs for a domain object.
+            
+            Args:
+                identity: Object identity to get ACLs for
+                properties: Comma-separated list of properties to retrieve
+                ldapfilter: Additional LDAP filter to apply
+                security_identifier: Security identifier to filter by
+                resolveguids: Resolve GUIDs to names
+                searchbase: Search base to filter by
+                no_cache: Bypass the cache and perform a live query
+                no_vuln_check: Bypass vulnerability checks
+                raw: Return raw results
+            """
+            try:
+                props = properties.split(",") if properties else []
+                args = type('Args', (), {
+                    'identity': identity,
+                    'properties': props,
+                    'no_cache': no_cache,
+                    'ldapfilter': ldapfilter,
+                    'security_identifier': security_identifier,
+                    'resolveguids': resolveguids,
+                    'searchbase': searchbase,
+                    'no_vuln_check': no_vuln_check,
+                    'raw': raw
+                })
+                result = self.powerview.get_domainobjectacl(args=args)  
+                return json.dumps(result, default=str) if result else json.dumps({"error": "No ACLs found"})
+            except Exception as e:
+                logging.error(f"Error in get_domain_object_acl: {str(e)}")
+                return json.dumps({"error": str(e)})
+
+        @self.mcp.tool()
+        async def get_domain_ou(
+            identity: str = "",
             properties: str = "",
             resolve_gplink: bool = False,
             no_cache: bool = False,
-            ldapfilter: str = ""
+            ldapfilter: str = "",
+            searchbase: str = "",
+            no_vuln_check: bool = False,
+            raw: bool = False
         ) -> str:
             """
             Get information about organizational units (OUs).
@@ -608,6 +671,9 @@ class MCPServer:
                 resolve_gplink: Resolve Group Policy links for the OU
                 no_cache: Bypass the cache and perform a live query
                 ldapfilter: Additional LDAP filter to apply
+                searchbase: Search base to filter by
+                no_vuln_check: Bypass vulnerability checks
+                raw: Return raw results
             """
             try:
                 props = properties.split(",") if properties else []
@@ -617,9 +683,9 @@ class MCPServer:
                     'gplink': resolve_gplink,
                     'no_cache': no_cache,
                     'ldapfilter': ldapfilter,
-                    'searchbase': None,
-                    'no_vuln_check': False,
-                    'raw': False
+                    'searchbase': searchbase,
+                    'no_vuln_check': no_vuln_check,
+                    'raw': raw
                 })
                 result = self.powerview.get_domainou(args=args)
                 return json.dumps(result, default=str) if result else json.dumps({"error": "No OUs found"})
@@ -628,8 +694,8 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.tool()
-        def get_domain_gpo(
-            identity: str = "*",
+        async def get_domain_gpo(
+            identity: str = "",
             properties: str = "",
             no_cache: bool = False,
             ldapfilter: str = ""
@@ -661,8 +727,8 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.tool()
-        def get_domain_dns_zone(
-            identity: str = "*",
+        async def get_domain_dns_zone(
+            identity: str = "",
             properties: str = "",
             no_cache: bool = False,
             ldapfilter: str = ""
@@ -695,8 +761,8 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.tool()
-        def invoke_kerberoast(
-            identity: str = "*",
+        async def invoke_kerberoast(
+            identity: str = "",
             no_cache: bool = False,
             ldapfilter: str = ""
         ) -> str:
@@ -724,8 +790,8 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.tool()
-        def invoke_asreproast(
-            identity: str = "*",
+        async def invoke_asreproast(
+            identity: str = "",
             no_cache: bool = False,
             ldapfilter: str = ""
         ) -> str:
@@ -753,8 +819,8 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.tool()
-        def get_domain_ca(
-            identity: str = "*", 
+        async def get_domain_ca(
+            identity: str = "", 
             properties: str = "",
             check_web_enrollment: bool = False,
             no_cache: bool = False,
@@ -789,8 +855,8 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
         
         @self.mcp.tool()
-        def get_domain_ca_template(
-            identity: str = "*",
+        async def get_domain_ca_template(
+            identity: str = "",
             properties: str = "",
             vulnerable: bool = True,
             resolve_sids: bool = True,
@@ -839,7 +905,7 @@ class MCPServer:
         """Register all PowerView prompts with the MCP server."""
         
         @self.mcp.prompt()
-        def find_vulnerable_systems(query: str = "") -> str:
+        async def find_vulnerable_systems(query: str = "") -> str:
             """Create a prompt to find vulnerable systems."""
             return f"""
             Please analyze the Active Directory environment using PowerView 
@@ -858,7 +924,7 @@ class MCPServer:
             """
         
         @self.mcp.prompt()
-        def ad_mapping_prompt(depth: str = "basic") -> str:
+        async def ad_mapping_prompt(depth: str = "basic") -> str:
             """Create a prompt to map the Active Directory environment."""
             detail_level = {
                 "basic": "focus on the high-level structure",
@@ -890,48 +956,30 @@ class MCPServer:
         logging.info("MCP server is ready to accept connections")
 
     def start(self):
-        """Start the MCP server in a separate thread."""
+        """Start the MCP server."""
         if self.server_thread and self.server_thread.is_alive():
             logging.warning("MCP server is already running")
             return
         
         def run_server():
+            import uvicorn
+            
             logging.info(f"Starting MCP server on {self.host}:{self.port}")
             try:
-                # Silence asyncio messages about selector
-                logging.getLogger("asyncio").setLevel(logging.WARNING)
-                
-                # Create an ASGI app with the desired host and port
-                from uvicorn import Config, Server
-                import logging as uvicorn_logging
-                
-                # Silence Uvicorn log messages
-                uvicorn_logging.getLogger("uvicorn").setLevel(uvicorn_logging.WARNING)
-                uvicorn_logging.getLogger("uvicorn.error").setLevel(uvicorn_logging.ERROR)
-                uvicorn_logging.getLogger("uvicorn.access").setLevel(uvicorn_logging.ERROR)
-                
                 # Create an ASGI application from the MCP server
                 app = self.mcp.sse_app()
                 
-                # Configure Uvicorn server
-                config = Config(
-                    app=app, 
-                    host=self.host, 
+                # Set status before starting server
+                self.set_status(True)
+                
+                # Start the server with uvicorn
+                uvicorn.run(
+                    app=app,
+                    host=self.host,
                     port=self.port,
                     log_level="error",
                     access_log=False
                 )
-                server = Server(config)
-
-                # Set status before starting server - this is important!
-                self.set_status(True)
-                
-                # Start the server
-                asyncio.run(server.serve())
-            except OSError as e:
-                self.set_status(False)
-                logging.error(f"Error starting MCP server: {str(e)}")
-                sys.exit(1)
             except Exception as e:
                 self.set_status(False)
                 logging.error(f"Error starting MCP server: {str(e)}")
@@ -941,24 +989,14 @@ class MCPServer:
         self.server_thread = threading.Thread(target=run_server, daemon=True)
         self.server_thread.start()
         
-        # Add a small delay to allow the server to start and update its status
         import time
-        time.sleep(0.2)  # 200ms should be enough for the status to be set
+        time.sleep(0.2)
         
         logging.debug(f"MCP server thread started, status: {self.get_status()}")
-    
+
     def stop(self):
         """Stop the MCP server."""
-        # Improve the stop method to actually attempt to stop the server
         self.set_status(False)
-        logging.info("Stopping MCP server... (Note: Server may continue running until main process exits)")
+        logging.info("Stopping MCP server...")
         
-        # Try to terminate server if possible - though this may not work with all ASGI servers
-        try:
-            # Signal the thread to stop if possible
-            if self.server_thread and self.server_thread.is_alive():
-                # In a real implementation, you'd want a proper shutdown mechanism
-                # This is just a placeholder - uvicorn doesn't expose a clean way to stop from another thread
-                logging.info("Server thread will terminate when the main process exits")
-        except Exception as e:
-            logging.error(f"Error stopping MCP server: {str(e)}") 
+        # The MCP server will stop when the main thread exits since we use a daemon thread 

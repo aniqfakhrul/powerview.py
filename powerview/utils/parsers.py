@@ -69,7 +69,7 @@ def arg_parse():
 	mcp = parser.add_argument_group('mcp')
 	mcp.add_argument('--mcp-host', dest='mcp_host', action='store', default='127.0.0.1', help='Specify custom bind interface for MCP (Default: 127.0.0.1)')
 	mcp.add_argument('--mcp-port', dest='mcp_port', action='store', type=int, default=8080, help='Specify custom port for MCP server (Default: 8080)')
-	mcp.add_argument('--mcp-name', dest='mcp_name', action='store', default='PowerView MCP', help='Specify MCP server name (Default: PowerView MCP)')
+	mcp.add_argument('--mcp-name', dest='mcp_name', action='store', default='PowerView', help='Specify MCP server name (Default: PowerView MCP)')
 	
 	if len(sys.argv) == 1:
 		parser.print_help()
@@ -160,7 +160,7 @@ def powerview_arg_parse(cmd):
 
 	#domainobjectacl
 	get_domainobjectacl_parser = subparsers.add_parser('Get-DomainObjectAcl', aliases=['Get-ObjectAcl'] ,exit_on_error=False)
-	get_domainobjectacl_parser.add_argument('-Identity', action='store', default='*', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domainobjectacl_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainobjectacl_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainobjectacl_parser.add_argument('-Server', action='store', dest='server')
 	get_domainobjectacl_parser.add_argument('-SecurityIdentifier', action='store', dest='security_identifier')

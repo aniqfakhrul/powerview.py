@@ -687,12 +687,11 @@ class PowerView:
 						entry["attributes"]["gPLink"] = gplink_list
 		return entries
 
-	def get_domainobjectacl(self, identity=None, security_identifier=None, resolveguids=False, targetidentity=None, principalidentity=None, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domainobjectacl(self, identity=None, security_identifier=None, resolveguids=False, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		# Use args to set defaults if not provided directly
-		if args:
-			identity = identity or getattr(args, 'identity', None)
-			security_identifier = security_identifier or getattr(args, 'security_identifier', None)
-			searchbase = searchbase or getattr(args, 'searchbase', self.root_dn)
+		identity = identity or getattr(args, 'identity', None)
+		security_identifier = security_identifier or getattr(args, 'security_identifier', None)
+		searchbase = searchbase or getattr(args, 'searchbase', self.root_dn)
 
 		# Use the provided searchbase or default to the root DN
 		if not searchbase:
@@ -1210,7 +1209,7 @@ class PowerView:
 
 		return entries
 
-	def get_domaingroupmember(self, identity, args=None, multiple=False, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domaingroupmember(self, identity, multiple=False, no_cache=False, no_vuln_check=False, raw=False, args=None):
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
@@ -4104,8 +4103,10 @@ displayName=New Group Policy Object
 			entries.append(user)
 		return entries
 
-	def invoke_kerberoast(self, identity=None, searchbase=None, args=None, no_cache=False):
+	def invoke_kerberoast(self, identity=None, target_domain=None, opsec=False, searchbase=None, args=None, no_cache=False):
 		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		target_domain = args.server if hasattr(args, 'server') and args.server else target_domain
+		opsec = args.opsec if hasattr(args, 'opsec') and args.opsec else opsec
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		setattr(args, 'spn', True)
@@ -4121,15 +4122,14 @@ displayName=New Group Policy Object
 			logging.debug("[Invoke-Kerberoast] No identity found")
 			return
 
-		# request TGS for each accounts
-		target_domain = self.domain
-
-		if args.server:
+		if target_domain:
 			target_domain = args.server
+		else:
+			target_domain = self.domain
 
 		kdc_options = None
 		enctype = None
-		if args.opsec:
+		if opsec:
 			enctype = 18 # aes
 			kdc_options = "0x40810000"
 

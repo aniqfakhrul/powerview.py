@@ -21,19 +21,43 @@ class VulnerabilityDetector:
             with open(vulns_file, 'w') as f:
                 json.dump(default_rules, f, indent=4)
             
-            logging.info(f"[VulnerabilityDetector] Created default vulnerability rules at {vulns_file}")
+            logging.debug(f"[VulnerabilityDetector] Created default vulnerability rules at {vulns_file}")
             return default_rules
         
         # Load existing rules
         try:
             with open(vulns_file, 'r') as f:
                 rules = json.load(f)
-            logging.info(f"[VulnerabilityDetector] Loaded vulnerability rules from {vulns_file}")
-            return rules
+            
+            # Compare loaded rules with default rules
+            default_rules = self._get_default_rules()
+            if rules != default_rules:
+                logging.warning(f"[VulnerabilityDetector] Outdated vulnerability rules found in {vulns_file}. Updating with defaults.")
+                try:
+                    with open(vulns_file, 'w') as f:
+                        json.dump(default_rules, f, indent=4)
+                    logging.debug(f"[VulnerabilityDetector] Successfully updated vulnerability rules at {vulns_file}")
+                    return default_rules
+                except Exception as e:
+                    logging.error(f"[VulnerabilityDetector] Error writing updated rules to {vulns_file}: {e}")
+                    # Fallback to returning the outdated rules if update fails
+                    return rules
+            else:
+                logging.debug(f"[VulnerabilityDetector] Loaded up-to-date vulnerability rules from {vulns_file}")
+                return rules
+
         except Exception as e:
             logging.error(f"[VulnerabilityDetector] Error loading vulnerability rules: {e}")
             # Return default rules if there's an error loading the file
-            return self._get_default_rules()
+            default_rules = self._get_default_rules()
+            # Attempt to write defaults if loading failed
+            try:
+                with open(vulns_file, 'w') as f:
+                    json.dump(default_rules, f, indent=4)
+                logging.debug(f"[VulnerabilityDetector] Created default vulnerability rules at {vulns_file} after load error.")
+            except Exception as write_e:
+                 logging.error(f"[VulnerabilityDetector] Error writing default rules after load error to {vulns_file}: {write_e}")
+            return default_rules
     
     def _get_default_rules(self):
         """Return the default vulnerability rules"""
