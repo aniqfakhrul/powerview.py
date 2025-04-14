@@ -1,6 +1,6 @@
 # PowerView.py
 
-[Installation](#installation) | [Basic Usage](#basic-usage) | [Modules](#module-available-so-far) | [Logging](#logging) | [User Defined Rules](#user-defined-rules) | [Testing](#testing)
+[Installation](#installation) | [Basic Usage](#basic-usage) | [Modules](#module-available-so-far) | [Logging](#logging) | [User Defined Rules](#user-defined-rules) | [MCP] (#mcp)
 
 PowerView.py is an alternative for the awesome original [PowerView.ps1](https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1) script. Most of the modules used in PowerView are available here ( some of the flags are changed ). Main goal is to achieve interactive session without having to repeatedly authenticate to ldap.
 
@@ -9,7 +9,7 @@ Since powerview.py now supports Channel Binding and Seal and Sign, [gssapi](http
 * Pypi
 ```bash
 sudo apt install libkrb5-dev
-pip3 install powerview --break-system-packages
+pip3 install powerview
 ```
 
 * Pipx
@@ -29,8 +29,8 @@ curl -L powerview.sh | sh
     3. You can use the command below.
 ```bash
 nix shell github:aniqfakhrul/powerview.py
-
 ```
+
 * Manual
 ```
 git clone https://github.com/aniqfakhrul/powerview.py
@@ -390,6 +390,56 @@ export POWERVIEW_DEBUG_VULN=1
 ```
 
 This will log detailed information about rule matching to help troubleshoot custom rules.
+
+### MCP
+
+> [!note]
+> This is not bundled in the base project installation. You may run `pip3 install .[mcp] or pip3 install powerview[mcp]` to include MCP functionalities.
+
+Powerview.py supports AI Model Context Protocol (MCP) that exposes sse transport protocol server that allows clients to interact over HTTP.
+
+* Start MCP server
+```bash
+powerview domain.local/lowpriv:Password1234@10.10.10.10 --mcp [--mcp-host 0.0.0.0] [--mcp-port 8888]
+```
+
+The MCP server exposes most of PowerView's functionality through a standardized tool interface. This includes the ability to:
+- Query and enumerate Active Directory objects (users, computers, groups, OUs)
+- Retrieve information about domain trusts, GPOs, and group memberships
+- Search for security vulnerabilities and misconfigurations
+- ...
+
+#### Claude Desktop
+Claude Desktop does not support yet support SSE transport [Github](https://github.com/orgs/modelcontextprotocol/discussions/16). You may want to refer to [Cloudflare guides](https://developers.cloudflare.com/agents/guides/remote-mcp-server/#connect-your-remote-mcp-server-to-claude-and-other-mcp-clients-via-a-local-proxy) on setting up a mcp-remote as a proxy to powerview MCP server.
+
+* `%APPDATA%\Claude\claude_desktop_config.json`
+```json
+{
+  "mcpServers": {
+    "Powerview": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://localhost:8787/sse"
+      ]
+    }
+  }
+}
+```
+
+#### Cursor
+You can modify this under cursor settings under MCP options.
+
+```json
+{
+  "mcpServers": {
+    "Powerview": {
+      "url": "http://100.104.95.109:8080/sse"
+    }
+  }
+}
+```
+
 
 ### Testing
 
