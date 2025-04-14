@@ -1,6 +1,6 @@
 # PowerView.py
 
-[Installation](#installation) | [Basic Usage](#basic-usage) | [Modules](#module-available-so-far) | [Logging](#logging) | [User Defined Rules](#user-defined-rules) | [MCP] (#mcp)
+[Installation](#installation) | [Basic Usage](#basic-usage) | [Modules](#module-available-so-far) | [Logging](#logging) | [User Defined Rules](#user-defined-rules) | [MCP](#mcp)
 
 PowerView.py is an alternative for the awesome original [PowerView.ps1](https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1) script. Most of the modules used in PowerView are available here ( some of the flags are changed ). Main goal is to achieve interactive session without having to repeatedly authenticate to ldap.
 
@@ -434,7 +434,7 @@ You can modify this under cursor settings under MCP options.
 {
   "mcpServers": {
     "Powerview": {
-      "url": "http://100.104.95.109:8080/sse"
+      "url": "http://127.0.0.1:8080/sse"
     }
   }
 }
