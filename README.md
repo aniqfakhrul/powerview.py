@@ -440,6 +440,8 @@ You can modify this under cursor settings under MCP options.
 }
 ```
 
+> [!warning]
+> When using MCP with public AI models (like Claude, GPT, etc.), your Active Directory data may be transmitted to and logged by these services according to their data handling policies. Be mindful of sensitive information exposure when using these tools. We are not responsible for any data leakage or security implications resulting from connecting PowerView to third-party AI services. Self-hosted FTW!
 
 ### Testing
 
