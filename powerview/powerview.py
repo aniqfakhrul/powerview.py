@@ -4020,11 +4020,11 @@ displayName=New Group Policy Object
 		}
 
 		if not listener:
-			logging.error("[Invoke-PrinterBug] Listener IP is required")
+			logging.error("[Invoke-PrinterBug] Listener IP [-Listener] is required")
 			return
 			
 		if not target:
-			logging.error("[Invoke-PrinterBug] Target domain is required")
+			logging.error("[Invoke-PrinterBug] Target domain [-Target] is required")
 			return
 		
 		entry['attributes'] = {
