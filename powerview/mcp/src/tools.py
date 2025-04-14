@@ -738,16 +738,8 @@ def setup_tools(mcp, powerview_instance):
 				'raw': raw,
 				'module': 'Get-DomainCATemplate'
 			})
-			# Note: Underlying function signature in PowerView might differ slightly
-			# Adjust call as needed based on actual powerview.py implementation
 			result = powerview_instance.get_domaincatemplate(
-				args=args # Pass the constructed args object
-				# The original call also passed individual parameters, verify if args is sufficient
-				# properties=props,
-				# identity=identity,
-				# vulnerable=vulnerable,
-				# resolve_sids=resolve_sids,
-				# no_cache=no_cache
+				args=args
 			)
 			return _format_mcp_response(data=result, message="No certificate templates found")
 		except Exception as e:
