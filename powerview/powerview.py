@@ -3355,7 +3355,13 @@ displayName=New Group Policy Object
 				rights_guid,
 				inheritance
 			)
-		dacledit.write()
+		success = dacledit.write()
+		if success:
+			logging.info(f'[Add-DomainObjectACL] Success! Added ACL to {target_dn if target_dn else target_sAMAccountName}')
+			return True
+		else:
+			logging.error(f'[Add-DomainObjectACL] Failed to add ACL to {target_dn if target_dn else target_sAMAccountName}')
+			return False
 
 	def remove_domaincomputer(self, computer_name, args=None):
 		parent_dn_entries = self.root_dn

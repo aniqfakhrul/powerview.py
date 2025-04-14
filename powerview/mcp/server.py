@@ -9,7 +9,6 @@ import threading
 import sys
 from typing import Dict, List, Optional, Any, Tuple, Union, Callable
 
-# Import optional MCP dependencies with try/except
 try:
     from mcp.server.fastmcp import FastMCP, Context
     import mcp.types as types
@@ -57,7 +56,7 @@ class MCPServer:
 
     def _setup_tools(self):
         """Register all PowerView tools with the MCP server."""
-        
+
         @self.mcp.tool()
         async def get_domain_user(
             identity: str = "*",
@@ -82,7 +81,31 @@ class MCPServer:
             no_vuln_check: bool = False,
             raw: bool = False
         ) -> str:
-            """Get information about domain users with comprehensive filtering options."""
+            """Get information about domain users with comprehensive filtering options.
+
+            Args:
+                identity: Filter by user identity (sAMAccountName, SID, GUID, DN). Defaults to '*' (all users).
+                properties: Comma-separated list of properties to retrieve. Defaults to '*'.
+                preauthnotrequired: Filter for users with 'DONT_REQ_PREAUTH' set.
+                passnotrequired: Filter for users with 'PASSWORD_NOT_REQUIRED' set.
+                password_expired: Filter for users whose password has expired.
+                admincount: Filter for users with adminCount=1.
+                trustedtoauth: Filter for users/computers trusted for constrained delegation.
+                allowdelegation: Filter for accounts allowed to delegate.
+                disallowdelegation: Filter for accounts explicitly disallowed from delegation.
+                rbcd: Filter for accounts with Resource-Based Constrained Delegation configured.
+                unconstrained: Filter for accounts configured for unconstrained delegation.
+                shadowcred: Filter for accounts vulnerable to Shadow Credentials attack (msDS-KeyCredentialLink).
+                spn: Filter for accounts with a Service Principal Name.
+                enabled: Filter for enabled accounts.
+                disabled: Filter for disabled accounts.
+                lockout: Filter for locked out accounts.
+                ldapfilter: Custom LDAP filter string.
+                searchbase: Specify the search base DN.
+                no_cache: Bypass the cache and perform a live query.
+                no_vuln_check: Disable vulnerability checks.
+                raw: Return raw LDAP entries without formatting.
+            """
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
@@ -143,7 +166,35 @@ class MCPServer:
             pre2k: bool = False,
             excludedcs: bool = False
         ) -> str:
-            """Get information about domain computers with comprehensive filtering options."""
+            """Get information about domain computers with comprehensive filtering options.
+
+            Args:
+                identity: Filter by computer identity (sAMAccountName, DNS Hostname, SID, GUID, DN). Defaults to '*'.
+                properties: Comma-separated list of properties to retrieve. Defaults to '*'.
+                enabled: Filter for enabled computer accounts.
+                disabled: Filter for disabled computer accounts.
+                unconstrained: Filter for computers configured for unconstrained delegation.
+                trustedtoauth: Filter for computers trusted for constrained delegation.
+                allowdelegation: Filter for computers allowed to delegate. (Note: Often used with users)
+                disallowdelegation: Filter for computers explicitly disallowed from delegation. (Note: Often used with users)
+                rbcd: Filter for computers with Resource-Based Constrained Delegation configured.
+                shadowcred: Filter for computers vulnerable to Shadow Credentials attack (msDS-KeyCredentialLink).
+                spn: Filter for computers with a Service Principal Name.
+                printers: Filter for computers that are print servers (may involve heuristics or specific SPNs).
+                ping: Attempt to ping the computer (Note: MCP implementation might not fully support this; relies on underlying library).
+                resolveip: Attempt to resolve the IP address for the computer.
+                resolvesids: Resolve SIDs found in properties like PrimaryGroupID.
+                ldapfilter: Custom LDAP filter string.
+                searchbase: Specify the search base DN.
+                no_cache: Bypass the cache and perform a live query.
+                no_vuln_check: Disable vulnerability checks.
+                raw: Return raw LDAP entries without formatting.
+                laps: Filter for computers potentially managed by LAPS.
+                bitlocker: Filter for computers with BitLocker recovery information.
+                gmsapassword: Filter for computers associated with GMSA passwords.
+                pre2k: Filter for pre-Windows 2000 compatible computers.
+                excludedcs: Exclude Domain Controllers from the results.
+            """
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
@@ -193,7 +244,19 @@ class MCPServer:
             raw: bool = False,
             no_vuln_check: bool = False
         ) -> str:
-            """Get information about domain groups."""
+            """Get information about domain groups.
+
+            Args:
+                identity: Filter by group identity (sAMAccountName, SID, GUID, DN). Defaults to '*'.
+                properties: Comma-separated list of properties to retrieve. Defaults to '*'.
+                admincount: Filter for groups with adminCount=1 (protected groups).
+                ldapfilter: Custom LDAP filter string.
+                memberidentity: Find groups where this identity (user/group DN or sAMAccountName) is a member.
+                no_cache: Bypass the cache and perform a live query.
+                searchbase: Specify the search base DN.
+                raw: Return raw LDAP entries without formatting.
+                no_vuln_check: Disable vulnerability checks.
+            """
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
@@ -223,7 +286,16 @@ class MCPServer:
             raw: bool = False,
             ldapfilter: str = ""
         ) -> str:
-            """Get members of a domain group."""
+            """Get members of a domain group.
+
+            Args:
+                identity: Identity of the group (sAMAccountName, SID, GUID, DN) to get members from.
+                multiple: If specified, handle multiple groups matching the identity (Not typically needed if identity is specific).
+                no_cache: Bypass the cache and perform a live query.
+                no_vuln_check: Disable vulnerability checks.
+                raw: Return raw LDAP entries for members without formatting.
+                ldapfilter: Custom LDAP filter string to apply to the group search itself.
+            """
             try:
                 args = type('Args', (), {
                     'identity': identity,
@@ -250,7 +322,18 @@ class MCPServer:
             raw: bool = False,
             resolvesids: bool = False
         ) -> str:
-            """Get information about domain controllers."""
+            """Get information about domain controllers.
+
+            Args:
+                identity: Filter by DC identity (hostname, DN). Defaults to '*'.
+                properties: Comma-separated list of properties to retrieve. Defaults to '*'.
+                ldapfilter: Custom LDAP filter string.
+                searchbase: Specify the search base DN.
+                no_cache: Bypass the cache and perform a live query.
+                no_vuln_check: Disable vulnerability checks.
+                raw: Return raw LDAP entries without formatting.
+                resolvesids: Resolve SIDs found in properties.
+            """
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
@@ -279,9 +362,20 @@ class MCPServer:
             no_cache: bool = False,
             no_vuln_check: bool = False,
             raw: bool = False,
-            sd_flag: str = ""
+            sd_flag: str = "" # Note: sd_flag is not in parser, might be internal
         ) -> str:
-            """Get information about domain trusts."""
+            """Get information about domain trusts.
+
+            Args:
+                identity: Filter by trust identity (target domain name, DN). Defaults to '*'.
+                properties: Comma-separated list of properties to retrieve. Defaults to '*'.
+                searchbase: Specify the search base DN (usually the domain root or Configuration NC).
+                ldapfilter: Custom LDAP filter string.
+                no_cache: Bypass the cache and perform a live query.
+                no_vuln_check: Disable vulnerability checks.
+                raw: Return raw LDAP entries without formatting.
+                sd_flag: Security Descriptor flag (internal use, likely not needed via MCP).
+            """
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
@@ -311,7 +405,17 @@ class MCPServer:
             no_vuln_check: bool = False,
             raw: bool = False
         ) -> str:
-            """Get domain information."""
+            """Get domain information.
+
+            Args:
+                identity: Filter by domain identity (name, DN). Defaults to '*' or current domain.
+                properties: Comma-separated list of properties to retrieve. Defaults to '*'.
+                ldapfilter: Custom LDAP filter string.
+                searchbase: Specify the search base DN (usually the domain root).
+                no_cache: Bypass the cache and perform a live query.
+                no_vuln_check: Disable vulnerability checks.
+                raw: Return raw LDAP entries without formatting.
+            """
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
@@ -341,7 +445,18 @@ class MCPServer:
             no_vuln_check: bool = False,
             raw: bool = False
         ) -> str:
-            """Get the ACLs for a domain object."""
+            """Get the ACLs for a domain object.
+
+            Args:
+                identity: Identity of the object (DN, sAMAccountName, SID, GUID) to get ACLs for. Defaults to '*'.
+                ldapfilter: Custom LDAP filter string (applied to the object search if identity is wildcard).
+                security_identifier: Filter ACEs to only show those for a specific principal SID.
+                resolveguids: Resolve GUIDs in ACEs to friendly names (requires schema access).
+                searchbase: Specify the search base DN for the object identity.
+                no_cache: Bypass the cache and perform a live query.
+                no_vuln_check: Disable vulnerability checks.
+                raw: Return raw LDAP entries without formatting.
+            """
             try:
                 args = type('Args', (), {
                     'identity': identity,
@@ -372,7 +487,19 @@ class MCPServer:
             no_vuln_check: bool = False,
             raw: bool = False
         ) -> str:
-            """Get information about organizational units (OUs)."""
+            """Get information about organizational units (OUs).
+
+            Args:
+                identity: Filter by OU identity (name, DN). Defaults to empty (likely means all OUs).
+                properties: Comma-separated list of properties to retrieve. Defaults to '*'.
+                resolve_gplink: Resolve gpLink attribute GUIDs to GPO display names.
+                gplink: Filter OUs by a specific GPO GUID linked to them.
+                ldapfilter: Custom LDAP filter string.
+                searchbase: Specify the search base DN.
+                no_cache: Bypass the cache and perform a live query.
+                no_vuln_check: Disable vulnerability checks.
+                raw: Return raw LDAP entries without formatting.
+            """
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
@@ -403,7 +530,17 @@ class MCPServer:
             no_vuln_check: bool = False,
             raw: bool = False
         ) -> str:
-            """Get information about Group Policy Objects (GPOs)."""
+            """Get information about Group Policy Objects (GPOs).
+
+            Args:
+                identity: Filter by GPO identity (DisplayName, GUID, DN). Defaults to empty (likely means all GPOs).
+                properties: Comma-separated list of properties to retrieve. Defaults to '*'.
+                ldapfilter: Custom LDAP filter string.
+                searchbase: Specify the search base DN (usually Configuration NC or domain root).
+                no_cache: Bypass the cache and perform a live query.
+                no_vuln_check: Disable vulnerability checks.
+                raw: Return raw LDAP entries without formatting.
+            """
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
@@ -432,7 +569,17 @@ class MCPServer:
             no_vuln_check: bool = False,
             raw: bool = False
         ) -> str:
-            """Get information about DNS zones."""
+            """Get information about DNS zones.
+
+            Args:
+                identity: Filter by DNS zone identity (name, DN). Defaults to empty (likely means all zones).
+                properties: Comma-separated list of properties to retrieve. Defaults to '*'.
+                ldapfilter: Custom LDAP filter string.
+                searchbase: Specify the search base DN (usually under System container or application partitions).
+                no_cache: Bypass the cache and perform a live query.
+                no_vuln_check: Disable vulnerability checks.
+                raw: Return raw LDAP entries without formatting.
+            """
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
@@ -459,9 +606,16 @@ class MCPServer:
             searchbase: str = "",
             opsec: bool = False,
             no_cache: bool = False,
-            # No raw/no_vuln_check in parser/func for kerberoast?
         ) -> str:
-            """Perform Kerberoasting against service accounts."""
+            """Perform Kerberoasting against service accounts.
+
+            Args:
+                identity: Filter for specific user/computer identities to target.
+                ldapfilter: Custom LDAP filter to find target accounts (e.g., filter by group).
+                searchbase: Specify the search base DN for target accounts.
+                opsec: Perform OpSec-safe Kerberoasting (request TGS for krbtgt).
+                no_cache: Bypass LDAP query cache when searching for targets.
+            """
             try:
                 args = type('Args', (), {
                     'identity': identity,
@@ -484,9 +638,15 @@ class MCPServer:
             ldapfilter: str = "",
             searchbase: str = "",
             no_cache: bool = False,
-            # No raw/no_vuln_check in parser/func for asreproast?
         ) -> str:
-            """Perform AS-REP Roasting against accounts with Kerberos pre-authentication disabled."""
+            """Perform AS-REP Roasting against accounts with Kerberos pre-authentication disabled.
+
+            Args:
+                identity: Filter for specific user identities to target.
+                ldapfilter: Custom LDAP filter to find target accounts.
+                searchbase: Specify the search base DN for target accounts.
+                no_cache: Bypass LDAP query cache when searching for targets.
+            """
             try:
                 args = type('Args', (), {
                     'identity': identity,
@@ -512,7 +672,18 @@ class MCPServer:
             no_vuln_check: bool = False,
             raw: bool = False
         ) -> str:
-            """Get information about domain certificate authorities."""
+            """Get information about domain certificate authorities.
+
+            Args:
+                identity: Filter by CA identity (name, DN). Defaults to empty (all CAs).
+                properties: Comma-separated list of properties to retrieve. Defaults to '*'.
+                check_web_enrollment: Check if web enrollment is enabled on the CA.
+                ldapfilter: Custom LDAP filter string.
+                searchbase: Specify the search base DN (usually Configuration NC).
+                no_cache: Bypass the cache and perform a live query.
+                no_vuln_check: Disable vulnerability checks.
+                raw: Return raw LDAP entries without formatting.
+            """
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
@@ -545,7 +716,20 @@ class MCPServer:
             no_vuln_check: bool = False,
             raw: bool = False
         ) -> str:
-            """Get information about certificate templates in the domain."""
+            """Get information about certificate templates in the domain.
+
+            Args:
+                identity: Filter by template identity (DisplayName, Name, OID, DN). Defaults to empty (all templates).
+                properties: Comma-separated list of properties to retrieve. Defaults to '*'.
+                vulnerable: Filter for templates potentially vulnerable to abuse (e.g., ESC1, ESC2, etc.).
+                resolve_sids: Resolve SIDs in template ACLs/properties to names.
+                enabled: Filter for enabled templates.
+                ldapfilter: Custom LDAP filter string.
+                searchbase: Specify the search base DN (usually Configuration NC).
+                no_cache: Bypass the cache and perform a live query.
+                no_vuln_check: Disable vulnerability checks.
+                raw: Return raw LDAP entries without formatting.
+            """
             try:
                 props = properties.split(",") if properties else []
                 args = type('Args', (), {
@@ -586,7 +770,7 @@ class MCPServer:
             Gets the owner of specified domain objects.
 
             Args:
-                identity: Object identity (name, SID, GUID, DN) to find the owner for (default: * for all).
+                identity: Object identity (name, SID, GUID, DN) to find the owner for. Defaults to '*'.
                 searchbase: Specify the search base DN.
                 no_cache: Bypass the cache and perform a live query.
                 no_vuln_check: Disable vulnerability checks.
@@ -610,6 +794,7 @@ class MCPServer:
                     'module': 'Get-DomainObjectOwner'
                 })
                 result = self.powerview.get_domainobjectowner(args=args)
+                # Underlying function might return list or single dict/error
                 return json.dumps(result, default=str) if result else json.dumps({"info": "No object owner information found matching criteria"})
             except Exception as e:
                 logging.error(f"Error in get_domain_object_owner: {str(e)}")
@@ -627,6 +812,15 @@ class MCPServer:
         ) -> str:
             """
             Get information about Exchange servers in the domain.
+
+            Args:
+                identity: Filter by Exchange server identity (name, DN). Defaults to '*'.
+                properties: Comma-separated list of properties to retrieve. Defaults to '*'.
+                ldapfilter: Custom LDAP filter string.
+                searchbase: Specify the search base DN (usually Configuration NC).
+                no_cache: Bypass the cache and perform a live query.
+                no_vuln_check: Disable vulnerability checks.
+                raw: Return raw LDAP entries without formatting.
             """
             try:
                 props = properties.split(",") if properties else []
@@ -660,6 +854,10 @@ class MCPServer:
         ) -> str:
             """
             Enumerates shares on a specified computer.
+
+            Args:
+                computer: Target computer hostname or IP address.
+                computername: Alias for computer. Specify only one of computer or computername.
             """
             if not computer and not computername:
                 return json.dumps({"error": "Either 'computer' or 'computername' must be specified"})
@@ -737,6 +935,302 @@ class MCPServer:
                 error_msg = str(e)
                 return json.dumps({"success": False, "error": f"An unexpected exception occurred: {error_msg}"})
 
+        @self.mcp.tool()
+        async def add_domain_user(
+            username: str,
+            userpass: str,
+            basedn: str | None = None
+        ) -> str:
+            """
+            Adds a new domain user.
+
+            Args:
+                username: The sAMAccountName for the new user.
+                userpass: The password for the new user.
+                basedn: The distinguished name of the container/OU to add the user to (default: CN=Users,<domainDN>).
+            """
+            if not username or not userpass:
+                return json.dumps({"success": False, "error": "Username and Userpass are required."})
+            try:
+                # The underlying function doesn't heavily rely on args for this operation
+                args = type('Args', (), {'module': 'Add-DomainUser'})
+                result = self.powerview.add_domainuser(
+                    username=username,
+                    userpass=userpass,
+                    basedn=basedn,
+                    args=args
+                )
+                # Assuming the function returns the DN on success or raises an exception on failure
+                if result:
+                    return json.dumps({"success": True, "message": f"User '{username}' added successfully.", "dn": result})
+                else:
+                    # It's more likely to raise an exception on failure, but handle False just in case
+                    logging.warning(f"add_domain_user returned unexpected value for '{username}'.")
+                    return json.dumps({"success": False, "error": f"Failed to add user '{username}'. Check permissions or if user already exists."})
+            except Exception as e:
+                logging.error(f"Exception in add_domain_user for '{username}': {str(e)}")
+                return json.dumps({"success": False, "error": f"An unexpected exception occurred: {str(e)}"})
+
+        @self.mcp.tool()
+        async def remove_domain_user(
+            identity: str
+        ) -> str:
+            """
+            Removes a domain user.
+
+            Args:
+                identity: The identity (e.g., sAMAccountName, DN) of the user to remove.
+            """
+            if not identity:
+                return json.dumps({"success": False, "error": "Identity is required."})
+            try:
+                # Underlying function doesn't seem to use args here
+                result = self.powerview.remove_domainuser(identity=identity)
+                if result is True:
+                    return json.dumps({"success": True, "message": f"User '{identity}' removed successfully."})
+                else: # Assuming False or None indicates failure/not found
+                    logging.warning(f"remove_domain_user returned False/None for '{identity}'.")
+                    return json.dumps({"success": False, "error": f"Failed to remove user '{identity}'. User might not exist or check permissions."})
+            except Exception as e:
+                logging.error(f"Exception in remove_domain_user for '{identity}': {str(e)}")
+                return json.dumps({"success": False, "error": f"An unexpected exception occurred: {str(e)}"})
+
+        @self.mcp.tool()
+        async def add_domain_group_member(
+            identity: str,
+            members: str
+        ) -> str:
+            """
+            Adds one or more members to a domain group.
+
+            Args:
+                identity: The identity (e.g., sAMAccountName, DN) of the group.
+                members: One or more member identities (sAMAccountName, DN) to add, separated by commas. Ensure full DNs are used if needed.
+            """
+            if not identity or not members:
+                return json.dumps({"success": False, "error": "Identity (group) and Members are required."})
+            try:
+                # Pass the members string within a list, assuming underlying function handles list of strings
+                # Avoid splitting DNs by comma here.
+                if not members.strip(): # Check if members string is empty after stripping
+                    return json.dumps({"success": False, "error": "Members string cannot be empty."})
+                member_list = [members.strip()] # Pass as a list containing the single (potentially comma-separated) string
+
+                result = self.powerview.add_domaingroupmember(identity=identity, members=member_list, args=None)
+
+                # The function might return True/False or detailed status - adjust based on actual behavior
+                # Let's assume True means overall success for now.
+                if result is True:
+                     return json.dumps({"success": True, "message": f"Attempted to add members {member_list} to group '{identity}'."})
+                else:
+                     logging.warning(f"add_domaingroupmember might have failed for some members in group '{identity}'.")
+                     # Provide a less definitive success message if the return isn't clear
+                     return json.dumps({"success": "Partial/Unknown", "message": f"Attempted operation for group '{identity}' with members {member_list}. Check group membership manually."})
+            except Exception as e:
+                logging.error(f"Exception in add_domaingroupmember for group '{identity}': {str(e)}")
+                return json.dumps({"success": False, "error": f"An unexpected exception occurred: {str(e)}"})
+
+        @self.mcp.tool()
+        async def remove_domain_group_member(
+            identity: str,
+            members: str
+        ) -> str:
+            """
+            Removes one or more members from a domain group.
+
+            Args:
+                identity: The identity (e.g., sAMAccountName, DN) of the group.
+                members: One or more member identities (sAMAccountName, DN) to remove, separated by commas. Ensure full DNs are used if needed.
+            """
+            if not identity or not members:
+                return json.dumps({"success": False, "error": "Identity (group) and Members are required."})
+            try:
+                # Pass the members string within a list, assuming underlying function handles list of strings
+                # Avoid splitting DNs by comma here.
+                if not members.strip(): # Check if members string is empty after stripping
+                    return json.dumps({"success": False, "error": "Members string cannot be empty."})
+                member_list = [members.strip()] # Pass as a list containing the single (potentially comma-separated) string
+
+                result = self.powerview.remove_domaingroupmember(identity=identity, members=member_list, args=None)
+
+                # Similar uncertainty as add_domaingroupmember about return value
+                if result is True:
+                     return json.dumps({"success": True, "message": f"Attempted to remove members {member_list} from group '{identity}'."})
+                else:
+                     logging.warning(f"remove_domaingroupmember might have failed for some members in group '{identity}'.")
+                     return json.dumps({"success": "Partial/Unknown", "message": f"Attempted operation for group '{identity}' with members {member_list}. Check group membership manually."})
+            except Exception as e:
+                logging.error(f"Exception in remove_domaingroupmember for group '{identity}': {str(e)}")
+                return json.dumps({"success": False, "error": f"An unexpected exception occurred: {str(e)}"})
+
+        @self.mcp.tool()
+        async def add_domain_object_acl(
+            targetidentity: str,
+            principalidentity: str,
+            rights: str = "fullcontrol",
+            rights_guid: str | None = None,
+            ace_type: str = "allowed",
+            inheritance: bool = False
+        ) -> str:
+            """
+            Adds an Access Control Entry (ACE) to a domain object's ACL.
+
+            Args:
+                targetidentity: Identity of the target object (user, group, computer, etc.). Can be a name (sAMAccountName, UPN) or distinguishedName (DN). If a name resolves to multiple objects, specify the DN instead.
+                principalidentity: Identity of the principal (user, group) being granted rights. Can be a name (sAMAccountName, UPN) or distinguishedName (DN). If a name resolves to multiple objects, specify the DN instead.
+                rights: The rights to grant. Defaults to 'fullcontrol'. Common examples include 'fullcontrol', 'genericall', 'genericwrite', 'writeowner', 'writedacl', 'writeproperty', 'self', 'rp', 'wp', 'cr', 'lc', 'cc', 'rc', 'lo', 'dt', 'wd', 'wo'. Parser-specific choices: ['immutable', 'resetpassword', 'writemembers', 'dcsync'].
+                rights_guid: GUID string for specific extended rights or property sets.
+                ace_type: Type of ACE ('allowed' or 'denied'). Defaults to 'allowed'.
+                inheritance: Apply inheritance flags (True/False). Defaults to False.
+            """
+            if not targetidentity or not principalidentity:
+                 return json.dumps({"success": False, "error": "TargetIdentity and PrincipalIdentity are required."})
+            try:
+                # Underlying function doesn't seem to use args here
+                result = self.powerview.add_domainobjectacl(
+                    targetidentity=targetidentity,
+                    principalidentity=principalidentity,
+                    rights=rights,
+                    rights_guid=rights_guid,
+                    ace_type=ace_type,
+                    inheritance=inheritance
+                )
+                # Function likely returns True on success, False/None otherwise
+                if result is True:
+                    return json.dumps({"success": True, "message": f"Successfully added '{rights}' ACE for '{principalidentity}' on '{targetidentity}'."})
+                else:
+                    logging.warning(f"add_domain_object_acl returned non-True for target '{targetidentity}'.")
+                    return json.dumps({"success": False, "error": f"Failed to add ACE for '{principalidentity}' on '{targetidentity}'. Check inputs and permissions."})
+            except Exception as e:
+                logging.error(f"Exception in add_domain_object_acl for target '{targetidentity}': {str(e)}")
+                return json.dumps({"success": False, "error": f"An unexpected exception occurred: {str(e)}"})
+
+        @self.mcp.tool()
+        async def remove_domain_object_acl(
+            targetidentity: str,
+            principalidentity: str,
+            rights: str = "fullcontrol",
+            rights_guid: str | None = None,
+            ace_type: str = "allowed",
+            inheritance: bool = False
+        ) -> str:
+            """
+            Removes an Access Control Entry (ACE) from a domain object's ACL.
+
+            Args:
+                targetidentity: Identity of the target object (user, group, computer, etc.).
+                principalidentity: Identity of the principal (user, group) whose rights are being removed.
+                rights: The rights to remove. Must match the ACE being removed. Defaults to 'fullcontrol'. Common examples are the same as for adding ACEs. Parser-specific choices: ['immutable', 'resetpassword', 'writemembers', 'dcsync'].
+                rights_guid: GUID string if removing specific extended rights or property sets.
+                ace_type: Type of ACE ('allowed' or 'denied'). Defaults to 'allowed'.
+                inheritance: Match inheritance flags (True/False). Defaults to False.
+            """
+            if not targetidentity or not principalidentity:
+                 return json.dumps({"success": False, "error": "TargetIdentity and PrincipalIdentity are required."})
+            try:
+                # Underlying function doesn't seem to use args here
+                result = self.powerview.remove_domainobjectacl(
+                    targetidentity=targetidentity,
+                    principalidentity=principalidentity,
+                    rights=rights,
+                    rights_guid=rights_guid,
+                    ace_type=ace_type,
+                    inheritance=inheritance
+                )
+                # Function likely returns True on success, False/None otherwise
+                if result is True:
+                    return json.dumps({"success": True, "message": f"Successfully removed '{rights}' ACE for '{principalidentity}' from '{targetidentity}'."})
+                else:
+                    logging.warning(f"remove_domain_object_acl returned non-True for target '{targetidentity}'.")
+                    return json.dumps({"success": False, "error": f"Failed to remove ACE for '{principalidentity}' from '{targetidentity}'. Check if ACE exists with specified parameters and check permissions."})
+            except Exception as e:
+                logging.error(f"Exception in remove_domain_object_acl for target '{targetidentity}': {str(e)}")
+                return json.dumps({"success": False, "error": f"An unexpected exception occurred: {str(e)}"})
+
+        @self.mcp.tool()
+        async def set_domain_object_owner(
+            targetidentity: str,
+            principalidentity: str,
+            searchbase: str | None = None
+        ) -> str:
+            """
+            Sets the owner for a specified domain object.
+
+            Args:
+                targetidentity: Identity of the target object (user, group, computer, etc.).
+                principalidentity: Identity of the principal (user, group) to set as the new owner.
+                searchbase: Specify the search base DN for the target object.
+            """
+            if not targetidentity or not principalidentity:
+                 return json.dumps({"success": False, "error": "TargetIdentity and PrincipalIdentity are required."})
+            try:
+                # Underlying function doesn't seem to use args here
+                result = self.powerview.set_domainobjectowner(
+                    targetidentity=targetidentity,
+                    principalidentity=principalidentity,
+                    searchbase=searchbase,
+                    args=None # Args not used by underlying function for core logic
+                )
+                if result is True:
+                     return json.dumps({"success": True, "message": f"Successfully set '{principalidentity}' as owner of '{targetidentity}'."})
+                else:
+                     logging.warning(f"set_domain_object_owner returned non-True for target '{targetidentity}'.")
+                     return json.dumps({"success": False, "error": f"Failed to set owner for '{targetidentity}'. Check identities and permissions."})
+            except Exception as e:
+                 logging.error(f"Exception in set_domain_object_owner for target '{targetidentity}': {str(e)}")
+                 return json.dumps({"success": False, "error": f"An unexpected exception occurred: {str(e)}"})
+
+        @self.mcp.tool()
+        async def set_domain_computer_password(
+            identity: str,
+            accountpassword: str,
+            oldpassword: str | None = None
+        ) -> str:
+            """
+            Sets the password for a specified domain computer account.
+
+            Args:
+                identity: The identity (e.g., sAMAccountName) of the computer account.
+                accountpassword: The new password to set for the computer account.
+                oldpassword: The current password (might be required in some contexts).
+            """
+            if not identity or not accountpassword:
+                return json.dumps({"success": False, "error": "Identity and AccountPassword are required."})
+            try:
+                 args = type('Args', (), {
+                    'identity': identity,
+                    'accountpassword': accountpassword,
+                    'oldpassword': oldpassword,
+                    'server': None,
+                    'outfile': None,
+                    'module': 'Set-DomainComputerPassword'
+                 })
+                 result = self.powerview.set_domaincomputerpassword(
+                     identity=identity,
+                     accountpassword=accountpassword,
+                     oldpassword=oldpassword,
+                     args=args
+                 )
+                 if result is True:
+                     return json.dumps({"success": True, "message": f"Password for computer '{identity}' set successfully."})
+                 else:
+                     error_detail = f"Failed to set password for computer '{identity}'. Check permissions or identity."
+                     logging.warning(f"set_domain_computer_password returned non-True for '{identity}'.")
+                     return json.dumps({"success": False, "error": error_detail})
+            except Exception as e:
+                 logging.error(f"Exception in set_domain_computer_password for '{identity}': {str(e)}")
+                 return json.dumps({"success": False, "error": f"An unexpected exception occurred: {str(e)}"})
+
+        @self.mcp.tool()
+        async def get_current_auth_context() -> str:
+            """Get the current authenticated user context for the PowerView session."""
+            try:
+                identity = self.powerview.conn.who_am_i()
+                return json.dumps({"identity": identity.split("\\")[1]})
+            except Exception as e:
+                logging.error(f"Error in get_current_auth_context: {str(e)}")
+                return json.dumps({"error": str(e)})
+
     def _setup_prompts(self):
         """Register all PowerView prompts with the MCP server."""
         
@@ -785,7 +1279,44 @@ class MCPServer:
             
             Provide a structured overview of the environment with notable findings.
             """
-    
+
+        @self.mcp.prompt()
+        async def find_attack_path_from_current_context() -> str:
+            """Create a prompt to find attack paths from the current user context."""
+            current_user = "Unknown"
+            try:
+                current_user = self.powerview.conn.who_am_i().split("\\")[1]
+            except Exception as e:
+                 logging.warning(f"Could not get current user for attack path prompt: {e}")
+
+            return f"""
+            You are currently authenticated as: {current_user}
+
+            Investigate potential attack paths starting from this user context.
+            Focus on actions that {current_user} might be able to perform, such as:
+
+            1.  Check Group Memberships: Does {current_user} belong to any privileged or interesting groups?
+                - Use `get_domain_group` with `memberidentity='{current_user}'`
+            2.  Find Outgoing ACLs: Does {current_user} have permissions ON other objects (users, groups, computers)?
+                - Use `get_domain_object_acl` with `security_identifier='{current_user}'`
+                - Pay attention to: GenericAll, GenericWrite, WriteOwner, WriteDACL, WriteProperty (especially on group memberships or userAccountControl), User-Force-Change-Password, AddMembers, etc.
+            3.  Check for Owned Objects: Does {current_user} own any objects?
+                - Use `get_domain_object_owner` with `identity='{current_user}'` (This might not work directly if identity expects the target object, check tool usage)
+                - Alternative: If the above doesn't work, consider querying all objects and filtering for the owner SID corresponding to {current_user} (might be slow).
+            4.  Check Delegation Rights:
+                - Is {current_user} configured for Unconstrained Delegation? (`get_domain_user` with `identity='{current_user}'` and check `userAccountControl`)
+                - Is {current_user} configured for Constrained Delegation (`TRUSTED_TO_AUTH_FOR_DELEGATION`)? (`get_domain_user` with `identity='{current_user}'` and check `msDS-AllowedToDelegateTo`)
+                - Is {current_user} allowed to delegate TO other services/computers (Resource-Based Constrained Delegation)? (`get_domain_user` with `identity='{current_user}'` and check `msDS-AllowedToActOnBehalfOfOtherIdentity`)
+            5.  Check Local Admin Rights: Can {current_user} access administrative shares (C$, ADMIN$) or perform administrative actions on any computers? (Requires external tooling or specific RPC calls not directly exposed as simple MCP tools here, e.g., trying `get_netshare` on `\\\\TARGET\\C$`).
+            6.  Kerberoasting/ASREPRoasting: Can {current_user} request service tickets for accounts with weak passwords or find users vulnerable to ASREPRoasting?
+                - Use `invoke_kerberoast`
+                - Use `invoke_asreproast`
+            7.  Certificate Abuse: Can {current_user} request certificates from templates vulnerable to ESC1/ESC4 etc.?
+                - Use `get_domain_ca_template` with `-Vulnerable` flag.
+
+            Prioritize findings based on potential impact (e.g., direct control of admin accounts/groups is higher priority than control of standard users/computers).
+            """
+
     async def _server_started(self):
         """Callback that runs when the server is actually ready to accept connections"""
         self.set_status(True)
