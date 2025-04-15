@@ -1,6 +1,7 @@
 import enum
 
 from impacket.structure import Structure
+from impacket.ldap.ldaptypes import LDAP_SID
 from powerview.utils.helpers import to_pascal_case
 
 class IntFlag(enum.IntFlag):
@@ -2014,6 +2015,59 @@ PWD_FLAGS = {
 	20 : "REFUSE_PASSWORD_CHANGE",
 
 }
+
+##### Structure
+
+class FOREST_TRUST_INFO_RECORD(Structure):
+    structure = (
+        ('RecordLen','<I'),
+        ('Flags','<I'),
+        ('Timestamp','<Q'),
+        ('RecordType','B'),
+        ('DataLen','_-Data','self["RecordLen"]-13'),
+        ('Data',':')
+    )
+    def fromString(self, data):
+        Structure.fromString(self, data)
+        if self['RecordType'] == 2:
+            self['Data'] = FOREST_TRUST_RECORD_DOMAININFO(self['Data'])
+        else:
+            # 1 or 0 means FOREST_TRUST_RECORD_TOPLEVELNAME or FOREST_TRUST_RECORD_TOPLEVELNAME_EX
+            self['Data'] = FOREST_TRUST_RECORD_TOPLEVELNAME(self['Data'])
+
+
+class FOREST_TRUST_RECORD_TOPLEVELNAME(Structure):
+    structure = (
+        ('NameLen','<I-Name'),
+        ('Name',':')
+    )
+
+class FOREST_TRUST_RECORD_TOPLEVELNAME_EX(FOREST_TRUST_RECORD_TOPLEVELNAME):
+    pass
+
+class FOREST_TRUST_RECORD_DOMAININFO(Structure):
+    structure = (
+        ('SidLen','<I-Sid'),
+        ('Sid', ':', LDAP_SID),
+        ('DnsNameLen','<I-DnsName'),
+        ('DnsName',':'),
+        ('NetbiosNameLen','<I-NetbiosName'),
+        ('NetbiosName',':')
+    )
+
+class FOREST_TRUST_INFO(Structure):
+    structure = (
+        ('Version','<I'),
+        ('Recordcount','<I'),
+        ('Records',':')
+    )
+    def fromString(self, data):
+        Structure.fromString(self, data)
+        rdata = self['Records']
+        self['Records'] = []
+        for i in range(self['Recordcount']):
+            self['Records'].append(FOREST_TRUST_INFO_RECORD(rdata))
+            rdata = rdata[len(self['Records'][-1]):]
 
 class MSDS_MANAGEDPASSWORD_BLOB(Structure):
 	structure = (

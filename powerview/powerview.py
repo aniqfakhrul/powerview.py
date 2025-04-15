@@ -1004,16 +1004,16 @@ class PowerView:
 
 		return entries
 
-	def get_domainrbcd(self, identity=None, args=None, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domainrbcd(self, identity=None, args=None, no_cache=False, no_vuln_check=False, raw=True):
 		properties = [
-					"sAMAccountName",
-					"sAMAccountType",
-					"objectSID",
-					"userAccountControl",
-					"distinguishedName",
-					"servicePrincipalName",
-					"msDS-AllowedToActOnBehalfOfOtherIdentity"
-				] 
+			"sAMAccountName",
+			"sAMAccountType",
+			"objectSID",
+			"userAccountControl",
+			"distinguishedName",
+			"servicePrincipalName",
+			"msDS-AllowedToActOnBehalfOfOtherIdentity"
+		] 
 
 		entries = []
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -1560,6 +1560,7 @@ class PowerView:
 			'flatName',
 			'whenCreated',
 			'whenChanged',
+			"msDS-TrustForestTrustInfo"
 		]
 
 		properties = set(properties or def_prop)
@@ -2824,20 +2825,22 @@ displayName=New Group Policy Object
 		template_guids.clear()
 		return entries
 
-	def set_domainrbcd(self, identity, delegatefrom, searchbase=None, args=None):
+	def set_domainrbcd(self, identity, delegatefrom, searchbase=None, args=None, raw=True):
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
 		# verify that the identity exists
-		_identity = self.get_domainobject(identity=identity, properties = [
-			"sAMAccountName",
-			"objectSid",
-			"distinguishedName",
-			"msDS-AllowedToActOnBehalfOfOtherIdentity"
-			],
-			searchbase=searchbase,
-			sd_flag=0x01
-		)
+		_identity = self.get_domainobject(identity=identity,
+					properties = [
+						"sAMAccountName",
+						"objectSid",
+						"distinguishedName",
+						"msDS-AllowedToActOnBehalfOfOtherIdentity"
+					],
+					searchbase=searchbase,
+					sd_flag=0x01,
+					raw=raw
+					)
 
 		if len(_identity) > 1:
 			logging.error("[Set-DomainRBCD] More then one identity found")

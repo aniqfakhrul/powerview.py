@@ -40,7 +40,7 @@ sys.modules['ldap3.extend.standard.PagedSearch'].paged_search_accumulator = mock
 
 from powerview.utils.connections import CONNECTION
 from powerview.powerview import PowerView
-from powerview.utils.vulnerabilities import VulnerabilityDetector
+from powerview.modules.vulnerabilities import VulnerabilityDetector
 from powerview.utils.storage import Storage
 from powerview.utils.formatter import FORMATTER
 

@@ -462,11 +462,10 @@ def main():
                                 else:
                                     entries = powerview.invoke_asreproast(args=pv_args)
                             elif pv_args.module.casefold() == 'invoke-kerberoast':
-                                properties = pv_args.properties if pv_args.properties else None
                                 if temp_powerview:
-                                    entries = temp_powerview.invoke_kerberoast(args=pv_args, properties=properties)
+                                    entries = temp_powerview.invoke_kerberoast(args=pv_args)
                                 else:
-                                    entries = powerview.invoke_kerberoast(args=pv_args, properties=properties)
+                                    entries = powerview.invoke_kerberoast(args=pv_args)
                             elif pv_args.module.casefold() == 'invoke-printerbug':
                                 if temp_powerview:
                                     entries = temp_powerview.invoke_printerbug(args=pv_args)

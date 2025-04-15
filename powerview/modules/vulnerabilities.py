@@ -604,7 +604,7 @@ class VulnerabilityDetector:
                     {
                         "attribute": "objectClass",
                         "condition": "contains",
-                        "value": "domainDNS"
+                        "value": "domain"
                     },
                     {
                         "attribute": "ms-DS-MachineAccountQuota",
@@ -823,6 +823,35 @@ class VulnerabilityDetector:
                 "id": "VULN-039",
                 "rule_operator": "AND"
             },
+            "forest_trust_sid_filtering_disabled": {
+                "description": "Forest trust with SID filtering disabled (potential cross-forest attack vector)",
+                "rules": [
+                    {
+                        "attribute": "objectClass",
+                        "condition": "contains",
+                        "value": "trustedDomain"
+                    },
+                    {
+                        "attribute": "trustType", 
+                        "condition": "equals",
+                        "value": 2  # TRUST_TYPE_UPLEVEL (used for forest trusts)
+                    },
+                    {
+                        "attribute": "trustAttributes",
+                        "condition": "has_flag",
+                        "value": 0x00000008  # TRUST_ATTRIBUTE_TREAT_AS_EXTERNAL
+                    },
+                    {
+                        "attribute": "trustAttributes",
+                        "condition": "missing_flag",
+                        "value": 0x00000004  # TRUST_ATTRIBUTE_NO_TGT_DELEGATION (SID filtering enabled flag)
+                    }
+                ],
+                "exclusions": [],
+                "severity": "critical",
+                "id": "VULN-044",
+                "rule_operator": "AND"
+            },
             "user_password_not_required_and_enabled": {
                 "description": "User with PASSWORD_NOT_REQUIRED flag set and account enabled",
                 "rules": [
@@ -858,12 +887,12 @@ class VulnerabilityDetector:
                     {
                         "attribute": "userAccountControl",
                         "condition": "any_flag_set",
-                        "value": [32, 64, 8388608]  # PASSWD_NOTREQD, DONT_EXPIRE_PASSWORD, PASSWORD_EXPIRED
+                        "value": ["PASSWD_NOTREQD", "DONT_EXPIRE_PASSWORD", "PASSWORD_EXPIRED"]
                     },
                     {
                         "attribute": "userAccountControl",
                         "condition": "missing_flag",
-                        "value": 2  # UF_ACCOUNTDISABLE
+                        "value": "UF_ACCOUNTDISABLE"
                     }
                 ],
                 "exclusions": [],
@@ -882,12 +911,12 @@ class VulnerabilityDetector:
                     {
                         "attribute": "userAccountControl",
                         "condition": "has_flag",
-                        "value": 8192  # UF_SERVER_TRUST_ACCOUNT
+                        "value": "UF_SERVER_TRUST_ACCOUNT"
                     },
                     {
                         "attribute": "msDS-SupportedEncryptionTypes",
                         "condition": "missing_flag",
-                        "value": 24  # Check for missing AES (8 + 16)
+                        "value": "AES256_HMAC_SHA1"
                     }
                 ],
                 "exclusions": [],
@@ -906,7 +935,7 @@ class VulnerabilityDetector:
                     {
                         "attribute": "userAccountControl",
                         "condition": "missing_flag",
-                        "value": 2  # UF_ACCOUNTDISABLE
+                        "value": "UF_ACCOUNTDISABLE"
                     },
                     {
                         "attribute": "objectClass",

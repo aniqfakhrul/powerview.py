@@ -11,7 +11,7 @@ from .obfuscate import (
 
 import logging
 from powerview.utils.storage import Storage
-from powerview.utils.vulnerabilities import VulnerabilityDetector
+from powerview.modules.vulnerabilities import VulnerabilityDetector
 from powerview.utils.helpers import strip_entry
 
 class CustomStandardExtendedOperations(StandardExtendedOperations):

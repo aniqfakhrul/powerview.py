@@ -365,6 +365,7 @@ class CONNECTION:
 		
 		if not success:
 			logging.error("Maximum LDAP reconnection attempts reached")
+			sys.exit(0)
 		
 		return success
 
@@ -560,7 +561,11 @@ class CONNECTION:
 				"trustAttributes": TRUST.resolve_trustAttributes,
 				"trustType": TRUST.resolve_trustType,
 				"trustDirection": TRUST.resolve_trustDirection,
-				"msExchVersion": EXCHANGE.resolve_msExchVersion
+				"msExchVersion": EXCHANGE.resolve_msExchVersion,
+				"msDS-AllowedToActOnBehalfOfOtherIdentity": LDAP.resolve_msDSAllowedToActOnBehalfOfOtherIdentity,
+				"msDS-TrustForestTrustInfo": LDAP.resolve_msDSTrustForestTrustInfo,
+				"pKIExpirationPeriod": LDAP.resolve_pKIExpirationPeriod,
+				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod
 			}
 		}
 
@@ -633,7 +638,11 @@ class CONNECTION:
 				"trustAttributes": TRUST.resolve_trustAttributes,
 				"trustType": TRUST.resolve_trustType,
 				"trustDirection": TRUST.resolve_trustDirection,
-				"msExchVersion": EXCHANGE.resolve_msExchVersion
+				"msExchVersion": EXCHANGE.resolve_msExchVersion,
+				"msDS-AllowedToActOnBehalfOfOtherIdentity": LDAP.resolve_msDSAllowedToActOnBehalfOfOtherIdentity,
+				"msDS-TrustForestTrustInfo": LDAP.resolve_msDSTrustForestTrustInfo,
+				"pKIExpirationPeriod": LDAP.resolve_pKIExpirationPeriod,
+				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod
 			}
 		}
 
@@ -730,7 +739,11 @@ class CONNECTION:
 				"trustAttributes": TRUST.resolve_trustAttributes,
 				"trustType": TRUST.resolve_trustType,
 				"trustDirection": TRUST.resolve_trustDirection,
-				"msExchVersion": EXCHANGE.resolve_msExchVersion
+				"msExchVersion": EXCHANGE.resolve_msExchVersion,
+				"msDS-AllowedToActOnBehalfOfOtherIdentity": LDAP.resolve_msDSAllowedToActOnBehalfOfOtherIdentity,
+				"msDS-TrustForestTrustInfo": LDAP.resolve_msDSTrustForestTrustInfo,
+				"pKIExpirationPeriod": LDAP.resolve_pKIExpirationPeriod,
+				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod
 			}
 		}
 

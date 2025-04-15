@@ -1,8 +1,9 @@
 import datetime
 from dateutil.relativedelta import relativedelta
-from impacket.uuid import bin_to_string
+
 from ldap3.protocol.formatters.formatters import format_sid
 from impacket.ldap.ldaptypes import SR_SECURITY_DESCRIPTOR
+from impacket.uuid import bin_to_string
 
 from powerview.modules.gmsa import GMSA
 from powerview.utils.constants import (
@@ -14,10 +15,12 @@ from powerview.utils.constants import (
 	switcher_trustType,
 	switcher_trustAttributes,
 	PWD_FLAGS,
+	FOREST_TRUST_INFO
 )
 from powerview.modules.ldapattack import (
 	RBCD
 )
+from powerview.utils.helpers import filetime_to_str
 
 class UAC:
 	@staticmethod
@@ -66,10 +69,40 @@ class sAMAccountType:
 
 class LDAP:
 	@staticmethod
-	def resolve_msDSAllowedToActOnBehalfOfOtherIdentity(data):
-		parser = RBCD(entries)
-		sids = parser.read()
+	def resolve_pKIExpirationPeriod(data):
+		try:
+			return filetime_to_str(data)
+		except Exception as e:
+			return data
+
+	@staticmethod
+	def resolve_pKIOverlapPeriod(data):
+		try:
+			return filetime_to_str(data)
+		except Exception as e:
+			return data
+
+	@staticmethod
+	def resolve_msDSTrustForestTrustInfo(data):
+		sids = []
+		parser = FOREST_TRUST_INFO(data)
+		for record in parser['Records']:
+			try:
+				sids.append(record['Data']['Sid'].formatCanonical())
+			except KeyError:
+				pass
 		return sids
+
+	@staticmethod
+	def resolve_msDSAllowedToActOnBehalfOfOtherIdentity(data):
+		sids = []
+		sd = SR_SECURITY_DESCRIPTOR(data=data)
+		if len(sd['Dacl'].aces) > 0:
+			for ace in sd['Dacl'].aces:
+				sids.append(ace['Ace']['Sid'].formatCanonical())
+			return sids
+		else:
+			return data
 
 	@staticmethod
 	def resolve_err_status(error_status):
