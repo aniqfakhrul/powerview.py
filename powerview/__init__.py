@@ -357,9 +357,17 @@ def main():
                             elif pv_args.module.casefold() == 'get-namedpipes':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     if temp_powerview:
-                                        entries = temp_powerview.get_namedpipes(pv_args)
+                                        entries = temp_powerview.get_namedpipes(
+                                            pv_args, 
+                                            timeout=pv_args.timeout, 
+                                            max_threads=pv_args.max_threads
+                                        )
                                     else:
-                                        entries = powerview.get_namedpipes(pv_args)
+                                        entries = powerview.get_namedpipes(
+                                            pv_args, 
+                                            timeout=pv_args.timeout, 
+                                            max_threads=pv_args.max_threads
+                                        )
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'get-netshare':

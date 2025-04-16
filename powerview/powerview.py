@@ -63,6 +63,7 @@ from ldap3.utils.conv import escape_filter_chars
 import re
 import inspect
 import sys  # Add this near your other imports if not already present
+import concurrent.futures
 
 class PowerView:
 	def __init__(self, conn, args, target_server=None, target_domain=None):
@@ -3554,7 +3555,21 @@ displayName=New Group Policy Object
 		else:
 			return False
 
-	def get_namedpipes(self, args=None):
+	def get_namedpipes(self, args=None, timeout=5, max_threads=10):
+		"""
+		Get named pipes from a target computer using parallel processing
+		
+		Args:
+			args: Command line arguments
+			timeout: Connection timeout in seconds (default: 5)
+			max_threads: Maximum number of concurrent threads to use (default: 10)
+			
+		Returns:
+			List of dictionaries containing pipe information
+		"""
+		import concurrent.futures
+		import time
+		
 		host = ""
 		is_fqdn = False
 		host_inp = args.computer if args.computer else args.computername
@@ -3588,17 +3603,7 @@ displayName=New Group Policy Object
 			logging.error('[Get-NamedPipes] Host not found')
 			return
 
-		result = {
-				"headers":["Name", "Protocol", "Description", "Authenticated"],
-				"rows":[]
-				}
 		entries = []
-		entry = {
-			"Name": None,
-			"Protocol": None,
-			"Description": None,
-			"Authenticated": None
-		}
 		binding_params = {
 				'lsarpc': {
 					'stringBinding': r'ncacn_np:%s[\PIPE\lsarpc]' % host,
@@ -3646,45 +3651,86 @@ displayName=New Group Policy Object
 					'description': 'Microsoft AT-Scheduler Service',
 					},
 				}
-
+		
+		# Create a cache for pipe check results to avoid duplicate checks
+		pipe_check_cache = {}
+		
+		def check_pipe(pipe_name):
+			"""Helper function to check a single pipe with timeout and caching"""
+			start_time = time.time()
+			
+			# Create a unique entry for each check
+			entry = {
+				"Name": pipe_name,
+				"Protocol": binding_params[pipe_name]['protocol'],
+				"Description": binding_params[pipe_name]['description'],
+				"Authenticated": None
+			}
+			
+			# Check if we have this result cached
+			if pipe_name in pipe_check_cache:
+				entry["Authenticated"] = pipe_check_cache[pipe_name]
+				return {"attributes": dict(entry)}
+			
+			# First try unauthenticated
+			auth_required = True
+			conn_result = self.conn.connectRPCTransport(
+				host=host, 
+				stringBindings=binding_params[pipe_name]['stringBinding'], 
+				auth=False, 
+				set_authn=True
+			)
+			
+			if conn_result:
+				# No authentication required
+				entry["Authenticated"] = f'{bcolors.WARNING}No{bcolors.ENDC}'
+				auth_required = False
+				pipe_check_cache[pipe_name] = entry["Authenticated"]
+			
+			# If first attempt failed, try authenticated
+			if auth_required:
+				conn_result = self.conn.connectRPCTransport(
+					host=host, 
+					stringBindings=binding_params[pipe_name]['stringBinding'], 
+					set_authn=True
+				)
+				
+				if conn_result:
+					entry["Authenticated"] = f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'
+					pipe_check_cache[pipe_name] = entry["Authenticated"]
+				else:
+					# Pipe not accessible or doesn't exist
+					return None
+			
+			if time.time() - start_time > timeout:
+				logging.debug(f"[Get-NamedPipes] Pipe check for {pipe_name} timed out after {timeout} seconds")
+			
+			return {"attributes": dict(entry)}
+		
+		# If checking a specific pipe
 		if args.name:
 			if args.name in list(binding_params.keys()):
-				pipe = args.name
-				entry["Name"] = pipe
-				entry["Protocol"] = binding_params[pipe]['protocol']
-				entry["Description"] = binding_params[pipe]['description']
-				if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False, set_authn=True):
-					#result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.WARNING}No{bcolors.ENDC}'])
-					entry ["Authenticated"] = f'{bcolors.WARNING}No{bcolors.ENDC}'
-				elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], set_authn=True):
-					#result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
-					entry ["Authenticated"] = f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'
-				entries.append(
-					{
-						"attributes": dict(entry)
-					}
-				)
+				result = check_pipe(args.name)
+				if result:
+					entries.append(result)
 			else:
 				logging.error("[Get-NamedPipes] Pipe not found")
 				return
 		else:
-			for pipe in binding_params.keys():
-				# TODO: Return entries
-				entry["Name"] = pipe
-				entry["Protocol"] = binding_params[pipe]['protocol']
-				entry["Description"] = binding_params[pipe]['description']
-				if self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], auth=False, set_authn=True):
-					#logging.debug(f"Found named pipe: {pipe}")
-					#result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.WARNING}No{bcolors.ENDC}'])
-					entry ["Authenticated"] = f'{bcolors.WARNING}No{bcolors.ENDC}'
-				elif self.conn.connectRPCTransport(host, binding_params[pipe]['stringBinding'], set_authn=True):
-					#result["rows"].append([pipe, binding_params[pipe]['protocol'], binding_params[pipe]['description'], f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'])
-					entry ["Authenticated"] = f'{bcolors.OKGREEN}Yes{bcolors.ENDC}'
-				entries.append(
-					{
-						"attributes": dict(entry)
-					}
-				)
+			# Process all pipes in parallel
+			with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
+				# Submit all pipe checks
+				future_to_pipe = {executor.submit(check_pipe, pipe): pipe for pipe in binding_params.keys()}
+				
+				# Process results as they complete
+				for future in concurrent.futures.as_completed(future_to_pipe):
+					pipe = future_to_pipe[future]
+					try:
+						result = future.result()
+						if result:
+							entries.append(result)
+					except Exception as exc:
+						logging.debug(f"[Get-NamedPipes] Pipe {pipe} check failed with: {exc}")
 
 		return entries
 

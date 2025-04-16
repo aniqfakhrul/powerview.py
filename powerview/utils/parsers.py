@@ -560,6 +560,8 @@ def powerview_arg_parse(cmd):
 	get_namedpipes_parser.add_argument('-Server', action='store', dest='server')
 	get_namedpipes_parser.add_argument('-Count', action='store_true', dest='count')
 	get_namedpipes_parser.add_argument('-OutFile', action='store', dest='outfile')
+	get_namedpipes_parser.add_argument('-Timeout', action='store', dest='timeout', type=int, default=5, help="Connection timeout in seconds (default: 5)")
+	get_namedpipes_parser.add_argument('-MaxThreads', action='store', dest='max_threads', type=int, default=10, help="Maximum number of concurrent threads (default: 10)")
 
 	# shares
 	get_netshare_parser = subparsers.add_parser('Get-NetShare', exit_on_error=False)
