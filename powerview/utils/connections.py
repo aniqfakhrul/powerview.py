@@ -1137,12 +1137,50 @@ class CONNECTION:
 
 	# stole from PetitPotam.py
 	# TODO: FIX kerberos auth
-	def connectRPCTransport(self, host=None, stringBindings=None, interface_uuid=None, port=445, auth=True, set_authn=False, raise_exceptions=False):
+	def connectRPCTransport(self,
+		host=None,
+		username=None,
+		password=None,
+		domain=None,
+		lmhash=None,
+		nthash=None,
+		stringBindings=None,
+		interface_uuid=None,
+		port=445,
+		auth=True,
+		set_authn=False,
+		raise_exceptions=False
+	):
 		if self.stack_trace:
 			raise_exceptions = True
 
 		if not host:
 			host = self.dc_ip
+
+		if not domain:
+			domain = self.domain
+
+		if not username:
+			username = self.username
+
+		if username:
+			if '\\' in username:
+				domain, username = username.split('\\')
+			elif '@' in username:
+				username, domain = username.split('@')
+			elif '/' in username:
+				domain, username = username.split('/')
+
+		if not password:
+			password = self.password
+
+		if not nthash:
+			nthash = self.nthash
+
+		if not lmhash:
+			lmhash = self.lmhash
+
+		logging.debug("[ConnectRPCTransport] Using credentials: %s, %s, %s, %s, %s" % (username, password, domain, lmhash, nthash))
 
 		if not stringBindings:
 			stringBindings = epm.hept_map(host, samr.MSRPC_UUID_SAMR, protocol ='ncacn_ip_tcp')
@@ -1152,7 +1190,7 @@ class CONNECTION:
 		rpctransport.set_dport(port)
 
 		if hasattr(rpctransport, 'set_credentials') and auth:
-			rpctransport.set_credentials(self.username, self.password, self.domain, self.lmhash, self.nthash, TGT=self.TGT)
+			rpctransport.set_credentials(username, password, domain, lmhash, nthash, TGT=self.TGT)
 
 		if hasattr(rpctransport, 'set_kerberos') and self.use_kerberos and auth:
 			rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.kdcHost)

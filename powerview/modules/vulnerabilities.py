@@ -294,16 +294,26 @@ class VulnerabilityDetector:
                 "id": "VULN-009",
                 "rule_operator": "AND"
             },
-            "smb_signing_disabled": {
-                "description": "Computer with SMB signing disabled (vulnerable to NTLM relay)",
+            "old_computer_operating_system": {
+                "description": "Computer with old operating system",
                 "rules": [
                     {
-                        "attribute": "dNSHostName",
-                        "condition": "exists"
+                        "attribute": "objectClass",
+                        "condition": "contains",
+                        "value": "computer"
                     },
                     {
                         "attribute": "operatingSystem",
-                        "condition": "exists"
+                        "condition": "contains",
+                        "value": [
+                            "Windows 2000", 
+                            "Windows XP",
+                            "Windows Server 2003",
+                            "Windows Vista",
+                            "Windows 7",
+                            "Windows 8",
+                            "Windows 8.1"
+                        ]
                     }
                 ],
                 "exclusions": [
@@ -313,7 +323,7 @@ class VulnerabilityDetector:
                         "value": "ACCOUNTDISABLE"
                     }
                 ],
-                "severity": "high",
+                "severity": "low",
                 "id": "VULN-010",
                 "rule_operator": "AND"
             },

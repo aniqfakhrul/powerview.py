@@ -4238,7 +4238,42 @@ displayName=New Group Policy Object
 
 		return entries
 
-	def get_netloggedon(self, computer_name, port=445, args=None):
+	def get_netloggedon(self, computer_name, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		"""
+		Get logged-on users from a remote computer using the NetWkstaUserEnum function.
+		Uses either supplied credentials or falls back to the currently authenticated user.
+		
+		Args:
+			computer_name: The target computer name or IP address
+			username: Optional username for authentication (overrides current credentials)
+			password: Optional password for authentication
+			domain: Optional domain for authentication
+			lmhash: Optional LM hash for authentication
+			nthash: Optional NT hash for authentication
+			port: SMB port (defaults to 445)
+			args: Optional argparse namespace with additional parameters
+			
+		Returns:
+			List of dictionaries containing logged-on user information
+		"""
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Get-NetLoggedOn] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'hash') and args.hash:
+				if ':' in args.hash:
+					lmhash, nthash = args.hash.split(':')
+				else:
+					nthash = args.hash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+
+		if username and not (password or lmhash or nthash):
+			logging.error("[Get-NetLoggedOn] Password or hash is required when specifying a username")
+			return
+
 		KNOWN_PROTOCOLS = {
 			139: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
 			445: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
@@ -4252,7 +4287,19 @@ displayName=New Group Policy Object
 			computer_name = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
-		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding, interface_uuid = wkst.MSRPC_UUID_WKST)
+		
+		# Call connectRPCTransport with all parameters - the method will use the current
+		# user credentials for any parameters that are None or empty
+		dce = self.conn.connectRPCTransport(
+			host=computer_name,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			stringBindings=stringBinding,
+			interface_uuid=wkst.MSRPC_UUID_WKST
+		)
 		
 		if not dce:
 			logging.error("[Get-NetLoggedOn] Failed to connect to %s" % (computer_name))
@@ -4778,7 +4825,25 @@ displayName=New Group Policy Object
 		dce.disconnect()
 		return entries
 
-	def get_netsession(self, identity=None, port=445, args=None):
+	def get_netsession(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Get-NetSession] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'hash') and args.hash:
+				if ':' in args.hash:
+					lmhash, nthash = args.hash.split(':')
+				else:
+					nthash = args.hash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+
+		if username and not (password or lmhash or nthash):
+			logging.error("[Get-NetSession] Password or hash is required when specifying a username")
+			return
+
 		KNOWN_PROTOCOLS = {
 			139: {'bindstr': r'ncacn_np:%s[\pipe\srvsvc]', 'set_host': True},
 			445: {'bindstr': r'ncacn_np:%s[\pipe\srvsvc]', 'set_host': True},
@@ -4792,7 +4857,16 @@ displayName=New Group Policy Object
 			identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % identity
-		dce = self.conn.connectRPCTransport(host=identity, stringBindings=stringBinding, interface_uuid = srvs.MSRPC_UUID_SRVS)
+		dce = self.conn.connectRPCTransport(
+			host=identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			stringBindings=stringBinding,
+			interface_uuid = srvs.MSRPC_UUID_SRVS
+		)
 
 		if dce is None:
 			logging.error("[Get-NetSession] Failed to connect to %s" % (identity))
@@ -4802,26 +4876,39 @@ displayName=New Group Policy Object
 			resp = srvs.hNetrSessionEnum(dce, '\x00', NULL, 10)
 		except Exception as e:
 			if 'rpc_s_access_denied' in str(e):
-				logging.info('Access denied while enumerating Sessions on %s' % (identity))
+				logging.error('Access denied while enumerating Sessions on %s' % (identity))
 			else:
-				logging.info(str(e))
+				logging.error(str(e))
 			return
 
 		sessions = []
 		for session in resp['InfoStruct']['SessionInfo']['Level10']['Buffer']:
 			ip = session['sesi10_cname'][:-1]
 			userName = session['sesi10_username'][:-1]
-			time = session['sesi10_time']
+			timeActive = session['sesi10_time']
+			if timeActive >= 3600:
+				hours = timeActive // 3600
+				minutes = (timeActive % 3600) // 60
+				seconds = timeActive % 60
+				timeActive = f"{hours} hours, {minutes} minutes, {seconds} seconds"
+			else:
+				timeActive = f"{timeActive} seconds"
 			idleTime = session['sesi10_idle_time']
+			if idleTime >= 60:
+				idleMinutes = idleTime // 60
+				remainingSeconds = idleTime % 60
+				idleTime = f"{idleMinutes} minutes, {remainingSeconds} seconds"
+			else:
+				idleTime = f"{idleTime} seconds"
 
-			if userName[:-1] == "$":
+			if userName[-1] == "$":
 				continue
 
 			sessions.append({
 				"attributes": {
 					"IP": ip,
 					"Username": userName,
-					"Time": time,
+					"Time Active": timeActive,
 					"Idle Time": idleTime,
 					"Computer": identity,
 					}

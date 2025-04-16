@@ -84,8 +84,11 @@ def main():
                     try:
                         cmd = shlex.split(cmd)
                     except ValueError as e:
-                        logging.error(str(e))
-                        continue
+                        if args.stack_trace:
+                            raise e
+                        else:
+                            logging.error(str(e))
+                            continue
 
                     pv_args = powerview_arg_parse(cmd)
 
