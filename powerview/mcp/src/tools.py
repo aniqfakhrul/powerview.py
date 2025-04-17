@@ -1505,3 +1505,27 @@ def setup_tools(mcp, powerview_instance):
 			import traceback
 			trace = traceback.format_exc()
 			return _format_mcp_response(error=f"Failed to generate report: {str(e)}\n{trace}")
+
+	@mcp.tool()
+	async def find_localadminaccess(
+		computer: str = "",
+		no_cache: bool = False,
+	) -> str:
+		"""
+		Enumerate computers where the current user has local admin access. Accepts a single computer or checks all domain computers if not specified.
+		
+		Args:
+			computer: The computer to check for local admin access. Leave blank to check all domain computers.
+			no_cache: Whether to use cached results.
+		"""
+		try:
+			args = type('Args', (), {
+				'computer': computer if computer else None,
+				'no_cache': no_cache,
+				'module': 'Find-LocalAdminAccess'
+			})
+			result = powerview_instance.find_localadminaccess(args=args)
+			return _format_mcp_response(data=result, message="No local admin access found on any host.")
+		except Exception as e:
+			logging.error(f"Error in find_localadminaccess: {str(e)}")
+			return _format_mcp_response(error=str(e))

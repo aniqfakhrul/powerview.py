@@ -4192,12 +4192,11 @@ displayName=New Group Policy Object
 		entries = userspn.run(entries)
 		return entries
 
-	def find_localadminaccess(self, computer=None, no_cache=False, no_vuln_check=False, args=None):
+	def find_localadminaccess(self, computer=None, no_cache=False, args=None):
 		import concurrent.futures
 		host_entries = []
 		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
-		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		max_threads = 20
 		def resolve_host(entry):
 			try:
@@ -4214,7 +4213,7 @@ displayName=New Group Policy Object
 			if resolved:
 				host_entries.append(resolved)
 		else:
-			entries = self.get_domaincomputer(properties=['dnsHostName'])
+			entries = self.get_domaincomputer(properties=['dnsHostName'], no_cache=no_cache)
 			for entry in entries:
 				dnshostname = entry.get('attributes', {}).get('dNSHostName', '').lower()
 				if dnshostname:

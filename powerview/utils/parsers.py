@@ -689,6 +689,7 @@ def powerview_arg_parse(cmd):
 	find_localadminaccess_parser.add_argument('-Server', action='store', dest='server')
 	find_localadminaccess_parser.add_argument('-Count', action='store_true', dest='count')
 	find_localadminaccess_parser.add_argument('-OutFile', action='store', dest='outfile')
+	find_localadminaccess_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
 
 	# invoke asreproast
 	invoke_asreproast_parser = subparsers.add_parser('Invoke-ASREPRoast', exit_on_error=False)

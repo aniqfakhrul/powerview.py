@@ -60,7 +60,7 @@ COMMANDS = {
     'Get-NetLoggedOn':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Get-RegLoggedOn':['-Computer','-ComputerName','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Get-NetService':['-Name','-Computer','-ComputerName','-IsRunning','-IsStopped','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
-    'Find-LocalAdminAccess':['-Computer','-ComputerName','-Server', '-Count', '-OutFile'],
+    'Find-LocalAdminAccess':['-Computer','-ComputerName','-Server', '-Count', '-OutFile', '-NoCache'],
     'Invoke-ASREPRoast':['-Identity', '-SearchBase', '-NoCache', '-Server', '-Select', '-NoWrap', '-OutFile', '-TableView', '-SortBy', '-NoCache'],
     'Invoke-Kerberoast':['-Identity', '-Opsec','-LDAPFilter','-Server', '-Select', '-NoWrap', '-OutFile', '-TableView', '-SortBy', '-NoCache'],
     'Invoke-PrinterBug':['-Target', '-Listener', '-Port', '-Server', '-OutFile', '-TableView', '-Select', '-Where', '-SortBy', '-Count', '-NoWrap'],
