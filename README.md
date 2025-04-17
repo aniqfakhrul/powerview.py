@@ -449,39 +449,6 @@ You can modify this under cursor settings under MCP options.
 > [!warning]
 > When using MCP with public AI models (like Claude, GPT, etc.), your Active Directory data may be transmitted to and logged by these services according to their data handling policies. Be mindful of sensitive information exposure when using these tools. We are not responsible for any data leakage or security implications resulting from connecting PowerView to third-party AI services. Self-hosted FTW!
 
-### Testing
-
-You can run the tests by executing:
-
-```bash
-# Clone the repository
-git clone https://github.com/aniqfakhrul/powerview.py
-cd powerview.py
-
-# Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run tests
-cd tests
-python test_modules.py
-```
-
-The tests verify that parameters like `no_cache` and `no_vuln_check` are correctly propagated to the PowerView methods.
-
-### To-Do
-* ~~Add logging function to track and monitor what have been run.~~
-* ~~Add cache functionality to minimize network interaction.~~
-* Support more authentication flexibility.
-    * ~~Channel Binding~~
-    * ~~Sign and Seal~~
-    * ~~Simple Authentication~~
-    * ~~Schannel. Authentication with pfx~~
-* ~~Add `ProtectedFromAccidentalDeletion` attribute to `Get-DomainOU`~~
-
 ### Credits
 * https://github.com/SecureAuthCorp/impacket
 * https://github.com/CravateRouge/bloodyAD
