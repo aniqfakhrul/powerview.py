@@ -473,9 +473,9 @@ def main():
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'find-localadminaccess':
                                 if temp_powerview:
-                                    entries = temp_powerview.find_localadminaccess(pv_args)
+                                    entries = temp_powerview.find_localadminaccess(args=pv_args)
                                 else:
-                                    entries = powerview.find_localadminaccess(pv_args)
+                                    entries = powerview.find_localadminaccess(args=pv_args)
                             elif pv_args.module.casefold() == 'invoke-asreproast':
                                 if temp_powerview:
                                     entries = temp_powerview.invoke_asreproast(args=pv_args)

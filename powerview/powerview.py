@@ -62,6 +62,9 @@ from ldap3.utils.conv import escape_filter_chars
 import re
 import inspect
 import sys
+import concurrent.futures
+import random
+import time
 
 class PowerView:
 	def __init__(self, conn, args, target_server=None, target_domain=None):
@@ -4190,60 +4193,53 @@ displayName=New Group Policy Object
 		entries = userspn.run(entries)
 		return entries
 
-	def find_localadminaccess(self, args):
+	def find_localadminaccess(self, computer=None, no_cache=False, no_vuln_check=False, args=None):
 		host_entries = []
-		hosts = {}
-
-		computer = args.computer if args.computer else args.computername
-
-		if not is_valid_fqdn(computer) and self.use_kerberos:
-			logging.error('[Find-LocaAdminAccess] FQDN must be used for kerberos authentication')
-			return
-
+		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		max_threads = 20
+		def resolve_host(entry):
+			try:
+				if is_ipaddress(entry):
+					return {'address': entry, 'hostname': entry}
+				if not is_valid_fqdn(entry):
+					entry = f"{entry}.{self.domain}"
+				ip = host2ip(entry, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+				return {'address': ip, 'hostname': entry}
+			except Exception:
+				return None
 		if computer:
-			if not is_valid_fqdn(computer):
-				computer = "%s.%s" % (computer,self.domain)
-
-			if is_ipaddress(computer):
-				hosts['address'] = computer
-			else:
-				hosts['address'] = host2ip(computer, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
-				hosts['hostname'] = computer
-			host_entries.append(hosts)
+			resolved = resolve_host(computer.lower())
+			if resolved:
+				host_entries.append(resolved)
 		else:
 			entries = self.get_domaincomputer(properties=['dnsHostName'])
-
-			logging.info(f"[Find-LocaAdminAccess] Found {len(entries)} computers in the domain")
-			if len(entries) > 100:
-				logging.info("[Find-LocalAdminAccess] There are more than 100 computers in the domain. This might take some time")
-
 			for entry in entries:
-				try:
-					if len(entry['attributes']['dnsHostName']) <= 0:
-						continue
-
-					hosts['address'] = host2ip(entry['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
-					hosts['hostname'] = entry['attributes']['dnsHostname']
-					host_entries.append(hosts.copy())
-				except IndexError:
-					pass
-
-		local_admin_pcs = []
-		for ent in host_entries:
-			pc_attr = {}
-
-			if self.use_kerberos:
-				smbconn = self.conn.init_smb_session(ent['hostname'])
-			else:
-				smbconn = self.conn.init_smb_session(ent['address'])
-
+				dnshostname = entry.get('attributes', {}).get('dNSHostName', '').lower()
+				if dnshostname:
+					resolved = resolve_host(dnshostname)
+					if resolved:
+						host_entries.append(resolved)
+		results = []
+		def check_admin(ent):
 			try:
+				if self.use_kerberos:
+					smbconn = self.conn.init_smb_session(ent['hostname'])
+				else:
+					smbconn = self.conn.init_smb_session(ent['address'] if is_ipaddress(ent['address']) else ent['hostname'])
 				smbconn.connectTree("C$")
-				pc_attr['attributes'] = {'Name': ent['address'], 'Hostname': ent['hostname']}
-				local_admin_pcs.append(pc_attr.copy())
-			except:
-				pass
-		return local_admin_pcs
+				return {'attributes': {'Address': ent['address'], 'Hostname': ent['hostname']}}
+			except Exception as e:
+				logging.debug(f"[Find-LocalAdminAccess] Failed to connect to {ent['hostname']}")
+				return None
+		with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
+			future_to_host = {executor.submit(check_admin, ent): ent for ent in host_entries}
+			for future in concurrent.futures.as_completed(future_to_host):
+				res = future.result()
+				if res:
+					results.append(res)
+		return results
 
 	def get_regloggedon(self, computer_name, port=445, args=None):
 		entries = list()
@@ -4444,7 +4440,7 @@ displayName=New Group Policy Object
 		if not dce:
 			logging.error("[Get-ComputerInfo] Failed to connect to %s" % (computer_name))
 			return
-		
+
 		entries = []
 		attributes = {}
 		try:
@@ -4547,7 +4543,7 @@ displayName=New Group Policy Object
 		finally:
 			self.conn.disconnect_wmi_session()
 
-		entries.append({
+			entries.append({
 			"attributes": attributes
 		})
 

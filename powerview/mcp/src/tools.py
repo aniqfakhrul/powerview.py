@@ -3,6 +3,7 @@
 import logging
 import json
 from typing import Any, Optional
+import datetime
 
 def _format_mcp_response(
 	data: Any = None,
@@ -1315,3 +1316,192 @@ def setup_tools(mcp, powerview_instance):
 		except Exception as e:
 			logging.error(f"Error in get_current_auth_context: {str(e)}")
 			return _format_mcp_response(error=str(e))
+
+	@mcp.tool()
+	async def generate_findings_report(
+		custom_findings: str,
+		report_title: str = "PowerView Findings Report",
+		target_domain: str = "",
+		report_format: str = "markdown"
+	) -> str:
+		"""Generate a custom security findings report based on user-defined findings.
+		
+		Args:
+			custom_findings: JSON string containing custom finding dictionaries with keys like "Title", "Description", "Risk", "Recommendation" etc.
+			report_title: Title for the report
+			target_domain: Target domain name for the report context
+			report_format: Output format (markdown, json, or text)
+		"""
+		try:
+			# Parse the custom findings from JSON string
+			findings_list = json.loads(custom_findings)
+			if not isinstance(findings_list, list):
+				findings_list = [findings_list]  # Convert single dict to list
+				
+			# Initialize report data
+			timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+			
+			# Process each custom finding dict and normalize keys
+			normalized_findings = []
+			for finding in findings_list:
+				# Normalize keys (case-insensitive matching)
+				normalized = {}
+				key_map = {
+					"title": ["title", "name", "finding", "issue"],
+					"risk": ["risk", "severity", "level", "criticality"],
+					"description": ["description", "desc", "details", "info"],
+					"affected_entity": ["affected_entity", "affected_objects", "affected", "entity", "entities", "target"],
+					"recommendation": ["recommendation", "remediation", "fix", "solution", "mitigation"],
+					"notes": ["notes", "comments", "additional", "context"]
+				}
+				
+				# Try to map keys from the input dict to our normalized structure
+				for norm_key, possible_keys in key_map.items():
+					for pk in possible_keys:
+						for k in finding.keys():
+							if k.lower() == pk.lower():
+								normalized[norm_key] = finding[k]
+								break
+						if norm_key in normalized:
+							break
+						
+				# Ensure required fields exist with defaults if missing
+				if "title" not in normalized:
+					normalized["title"] = "Unnamed Finding"
+				if "risk" not in normalized:
+					normalized["risk"] = "Medium"  # Default risk level
+				if "description" not in normalized:
+					normalized["description"] = "No description provided."
+				if "recommendation" not in normalized:
+					normalized["recommendation"] = "No specific recommendation provided."
+
+				# Handle affected_entity field specially (could be string or list or dict)
+				if "affected_entity" in normalized:
+					if isinstance(normalized["affected_entity"], str):
+						normalized["affected_objects"] = [{"name": normalized["affected_entity"]}]
+					elif isinstance(normalized["affected_entity"], list):
+						if all(isinstance(item, str) for item in normalized["affected_entity"]):
+							normalized["affected_objects"] = [{"name": item} for item in normalized["affected_entity"]]
+						else:
+							normalized["affected_objects"] = normalized["affected_entity"]
+					elif isinstance(normalized["affected_entity"], dict):
+						normalized["affected_objects"] = [normalized["affected_entity"]]
+					normalized["count"] = len(normalized["affected_objects"])
+				else:
+					normalized["affected_objects"] = []
+					normalized["count"] = 0
+					
+				# Add any extra fields not in our mapping
+				for k, v in finding.items():
+					if not any(k.lower() == pk.lower() for norm_keys in key_map.values() for pk in norm_keys):
+						normalized[k] = v
+						
+				normalized_findings.append(normalized)
+				
+			# Format the report
+			report = {
+				"title": report_title,
+				"target_domain": target_domain,
+				"timestamp": timestamp,
+				"summary": {
+					"total_findings": len(normalized_findings),
+					"risk_breakdown": {
+						"Critical": len([f for f in normalized_findings if f["risk"].lower() == "critical"]),
+						"High": len([f for f in normalized_findings if f["risk"].lower() == "high"]),
+						"Medium": len([f for f in normalized_findings if f["risk"].lower() == "medium"]),
+						"Low": len([f for f in normalized_findings if f["risk"].lower() == "low"])
+					}
+				},
+				"findings": normalized_findings
+			}
+			
+			# Generate report based on requested format
+			if report_format.lower() == "json":
+				return _format_mcp_response(data=report)
+			elif report_format.lower() == "markdown":
+				md_report = f"# {report_title}\n\n"
+				md_report += f"**Target Domain:** {target_domain}\n"
+				md_report += f"**Report Generated:** {timestamp}\n\n"
+				
+				md_report += "## Summary\n\n"
+				md_report += f"**Total Findings:** {report['summary']['total_findings']}\n\n"
+				md_report += "**Risk Breakdown:**\n"
+				md_report += f"- Critical: {report['summary']['risk_breakdown']['Critical']}\n"
+				md_report += f"- High: {report['summary']['risk_breakdown']['High']}\n"
+				md_report += f"- Medium: {report['summary']['risk_breakdown']['Medium']}\n"
+				md_report += f"- Low: {report['summary']['risk_breakdown']['Low']}\n\n"
+				
+				if normalized_findings:
+					md_report += "## Findings\n\n"
+					for i, finding in enumerate(normalized_findings, 1):
+						md_report += f"### {i}. {finding['title']} ({finding['risk']})\n\n"
+						md_report += f"**Description:** {finding['description']}\n\n"
+						
+						if finding.get('affected_objects'):
+							md_report += f"**Affected Objects:** {finding['count']}\n\n"
+							md_report += "**Examples:**\n\n"
+							md_report += "```\n"
+							for obj in finding['affected_objects'][:5]:  # Limit to 5 examples
+								md_report += json.dumps(obj, indent=2) + "\n"
+							md_report += "```\n\n"
+						
+						md_report += f"**Recommendation:** {finding['recommendation']}\n\n"
+						
+						# Add notes if present
+						if 'notes' in finding:
+							md_report += f"**Notes:** {finding['notes']}\n\n"
+							
+						# Add any custom fields
+						custom_fields = [k for k in finding.keys() if k not in ["title", "risk", "description", "affected_objects", "count", "recommendation", "notes"]]
+						if custom_fields:
+							md_report += "**Additional Information:**\n\n"
+							for field in custom_fields:
+								md_report += f"- **{field}:** {finding[field]}\n"
+							md_report += "\n"
+						
+						md_report += "---\n\n"
+				else:
+					md_report += "## No Findings\n\n"
+					md_report += "No security findings were provided.\n\n"
+				
+				return _format_mcp_response(data={"report": md_report})
+			else:  # text format
+				text_report = f"{report_title}\n"
+				text_report += f"Target Domain: {target_domain}\n"
+				text_report += f"Report Generated: {timestamp}\n\n"
+				
+				text_report += "SUMMARY:\n"
+				text_report += f"Total Findings: {report['summary']['total_findings']}\n\n"
+				text_report += "Risk Breakdown:\n"
+				text_report += f"Critical: {report['summary']['risk_breakdown']['Critical']}\n"
+				text_report += f"High: {report['summary']['risk_breakdown']['High']}\n"
+				text_report += f"Medium: {report['summary']['risk_breakdown']['Medium']}\n"
+				text_report += f"Low: {report['summary']['risk_breakdown']['Low']}\n\n"
+				
+				if normalized_findings:
+					text_report += "FINDINGS:\n\n"
+					for i, finding in enumerate(normalized_findings, 1):
+						text_report += f"{i}. {finding['title']} ({finding['risk']})\n\n"
+						text_report += f"Description: {finding['description']}\n\n"
+						
+						if finding.get('affected_objects'):
+							text_report += f"Affected Objects: {finding['count']}\n\n"
+						
+						text_report += f"Recommendation: {finding['recommendation']}\n\n"
+						
+						# Add notes if present
+						if 'notes' in finding:
+							text_report += f"Notes: {finding['notes']}\n\n"
+						
+						text_report += "----------\n\n"
+				else:
+					text_report += "NO FINDINGS\n\n"
+					text_report += "No security findings were provided.\n\n"
+				
+				return _format_mcp_response(data={"report": text_report})
+				
+		except Exception as e:
+			logging.error(f"Error in generate_custom_findings_report: {str(e)}")
+			import traceback
+			trace = traceback.format_exc()
+			return _format_mcp_response(error=f"Failed to generate report: {str(e)}\n{trace}")
