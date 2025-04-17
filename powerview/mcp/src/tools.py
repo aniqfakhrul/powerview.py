@@ -1508,19 +1508,31 @@ def setup_tools(mcp, powerview_instance):
 
 	@mcp.tool()
 	async def find_localadminaccess(
-		computer: str = "",
+		computer: str = None,
+		username: str = None,
+		password: str = None,
+		nthash: str = None,
+		lmhash: str = None,
 		no_cache: bool = False,
 	) -> str:
 		"""
-		Enumerate computers where the current user has local admin access. Accepts a single computer or checks all domain computers if not specified.
+		Enumerate computers where the current user has local admin access. Accepts a single computer or checks all domain computers if not specified. When computer is not specified, it will check all domain computers (careful because you might be dealing with thousands of hosts).
 		
 		Args:
 			computer: The computer to check for local admin access. Leave blank to check all domain computers.
+			username: The username to use for authentication. Ignore to use current user context.
+			password: The password to use for authentication. Ignore to use current user context.
+			nthash: The NTHash to use for authentication. Ignore to use current user context.
+			lmhash: The LMHash to use for authentication. Ignore to use current user context.
 			no_cache: Whether to use cached results.
 		"""
 		try:
 			args = type('Args', (), {
-				'computer': computer if computer else None,
+				'computer': computer,
+				'username': username,
+				'password': password,
+				'nthash': nthash,
+				'lmhash': lmhash,
 				'no_cache': no_cache,
 				'module': 'Find-LocalAdminAccess'
 			})

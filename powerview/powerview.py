@@ -4192,10 +4192,30 @@ displayName=New Group Policy Object
 		entries = userspn.run(entries)
 		return entries
 
-	def find_localadminaccess(self, computer=None, no_cache=False, args=None):
+	def find_localadminaccess(self, computer=None, username=None, password=None, domain=None, nthash=None, lmhash=None, no_cache=False, args=None):
 		import concurrent.futures
 		host_entries = []
 		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Find-LocalAdminAccess] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'hash') and args.hash:
+				if ':' in args.hash:
+					lmhash, nthash = args.hash.split(':')
+				else:
+					nthash = args.hash
+			if lmhash is None and hasattr(args, 'lmhash') and args.lmhash:
+				lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+
+		if username and not (password or lmhash or nthash):
+			logging.error("[Find-LocalAdminAccess] Password or hash is required when specifying a username")
+			return
+
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		max_threads = 20
 		def resolve_host(entry):
@@ -4224,9 +4244,9 @@ displayName=New Group Policy Object
 		def check_admin(ent):
 			try:
 				if self.use_kerberos:
-					smbconn = self.conn.init_smb_session(ent['hostname'])
+					smbconn = self.conn.init_smb_session(ent['hostname'], username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash)
 				else:
-					smbconn = self.conn.init_smb_session(ent['address'] if is_ipaddress(ent['address']) else ent['hostname'])
+					smbconn = self.conn.init_smb_session(ent['address'] if is_ipaddress(ent['address']) else ent['hostname'], username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash)
 				smbconn.connectTree("C$")
 				return {'attributes': {'Address': ent['address'], 'Hostname': ent['hostname']}}
 			except Exception as e:
@@ -4306,6 +4326,8 @@ displayName=New Group Policy Object
 					lmhash, nthash = args.hash.split(':')
 				else:
 					nthash = args.hash
+			if lmhash is None and hasattr(args, 'lmhash') and args.lmhash:
+				lmhash = args.lmhash
 			if domain is None and hasattr(args, 'domain') and args.domain:
 				domain = args.domain
 
@@ -5041,6 +5063,8 @@ displayName=New Group Policy Object
 					lmhash, nthash = args.hash.split(':')
 				else:
 					nthash = args.hash
+			if lmhash is None and hasattr(args, 'lmhash') and args.lmhash:
+				lmhash = args.lmhash
 			if domain is None and hasattr(args, 'domain') and args.domain:
 				domain = args.domain
 
