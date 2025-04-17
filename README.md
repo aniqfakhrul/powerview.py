@@ -410,18 +410,24 @@ The MCP server exposes most of PowerView's functionality through a standardized 
 - ...
 
 #### Claude Desktop
-Claude Desktop does not support yet support SSE transport [Github](https://github.com/orgs/modelcontextprotocol/discussions/16). You may want to refer to [Cloudflare guides](https://developers.cloudflare.com/agents/guides/remote-mcp-server/#connect-your-remote-mcp-server-to-claude-and-other-mcp-clients-via-a-local-proxy) on setting up a mcp-remote as a proxy to powerview MCP server.
+Claude Desktop does not support yet support SSE transport [Github](https://github.com/orgs/modelcontextprotocol/discussions/16). You may want to use [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy).
 
-* `%APPDATA%\Claude\claude_desktop_config.json`
+* Install `mcp-proxy`
+```bash
+# Option 1: With uv (recommended)
+uv tool install mcp-proxy
+
+# Option 2: With pipx (alternative)
+pipx install mcp-proxy
+``` 
+
+* Modify `%APPDATA%\Claude\claude_desktop_config.json`
 ```json
 {
   "mcpServers": {
-    "Powerview": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "http://localhost:8787/sse"
-      ]
+    "Powerview.py": {
+        "command": "mcp-proxy",
+        "args": ["http://10.10.10.10/sse"],
     }
   }
 }

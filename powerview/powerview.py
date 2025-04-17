@@ -1357,7 +1357,7 @@ class PowerView:
 		ldap_filter = ""
 		identity_filter = ""
 		if identity:
-			identity_filter = f"(|(cn=*{identity}*)(displayName={identity}))"
+			identity_filter = f"(|(distinguishedName={identity})(cn=*{identity}*)(displayName={identity}))"
 
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
@@ -4388,7 +4388,7 @@ displayName=New Group Policy Object
 		dce.disconnect()
 		return entries
 
-	def get_computerinfo(self,
+	def get_netcomputerinfo(self,
 		computer_name,
 		username=None,
 		password=None,

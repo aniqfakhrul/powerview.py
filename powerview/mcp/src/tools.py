@@ -553,6 +553,54 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
+	async def get_domain_gpo_localgroup(
+		identity: str = "",
+	) -> str:
+		"""Get local group membership from GPOs."""
+		try:
+			args = type('Args', (), {
+				'identity': identity,
+				'module': 'Get-DomainGPOLocalGroup'
+			})
+			result = powerview_instance.get_domaingpolocalgroup(args=args)
+			return _format_mcp_response(data=result, message="No GPO local group info found")
+		except Exception as e:
+			logging.error(f"Error in get_domain_gpo_localgroup: {str(e)}")
+			return _format_mcp_response(error=str(e))
+
+	@mcp.tool()
+	async def get_domain_gpo_settings(
+		identity: str = "",
+		no_cache: bool = False,
+		no_vuln_check: bool = False,
+		raw: bool = False
+	) -> str:
+		"""Parse and return GPO settings from SYSVOL.
+
+		Args:
+			identity: Filter by GPO identity (DisplayName, GUID, DN). Required, get gpo name with `get_domain_gpo` tool.
+			no_cache: Bypass the cache and perform a live query.
+			no_vuln_check: Disable vulnerability checks.
+			raw: Return raw LDAP entries without formatting.
+		"""
+		try:
+			if not identity:
+				return _format_mcp_response(error="Identity is required")
+
+			args = type('Args', (), {
+				'identity': identity,
+				'no_cache': no_cache,
+				'no_vuln_check': no_vuln_check,
+				'raw': raw,
+				'module': 'Get-DomainGPOSettings'
+			})
+			result = powerview_instance.get_domaingposettings(args=args)
+			return _format_mcp_response(data=result, message="No GPO settings found")
+		except Exception as e:
+			logging.error(f"Error in get_domain_gpo_settings: {str(e)}")
+			return _format_mcp_response(error=str(e))
+
+	@mcp.tool()
 	async def get_domain_dns_zone(
 		identity: str = "",
 		properties: str = "",

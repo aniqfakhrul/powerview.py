@@ -584,19 +584,19 @@ def powerview_arg_parse(cmd):
 	get_regloggedon_parser.add_argument('-Count', action='store_true', dest='count')
 	get_regloggedon_parser.add_argument('-OutFile', action='store', dest='outfile')
 
-	# get-computerinfo
-	get_computerinfo_parser = subparsers.add_parser('Get-ComputerInfo', exit_on_error=False)
-	get_computerinfo_parser.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
-	get_computerinfo_parser.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
-	get_computerinfo_parser.add_argument('-Username', action='store', default=None, dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
-	get_computerinfo_cred_group = get_computerinfo_parser.add_mutually_exclusive_group()
-	get_computerinfo_cred_group.add_argument('-Password', action='store', default=None, dest='password')
-	get_computerinfo_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
-	get_computerinfo_parser.add_argument('-Server', action='store', dest='server')
-	get_computerinfo_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
-	get_computerinfo_parser.add_argument('-SortBy', action='store', dest='sort_by')
-	get_computerinfo_parser.add_argument('-Count', action='store_true', dest='count')
-	get_computerinfo_parser.add_argument('-OutFile', action='store', dest='outfile')
+	# get-netcomputerinfo
+	get_netcomputerinfo_parser = subparsers.add_parser('Get-NetComputerInfo', exit_on_error=False)
+	get_netcomputerinfo_parser.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_netcomputerinfo_parser.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_netcomputerinfo_parser.add_argument('-Username', action='store', default=None, dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_netcomputerinfo_cred_group = get_netcomputerinfo_parser.add_mutually_exclusive_group()
+	get_netcomputerinfo_cred_group.add_argument('-Password', action='store', default=None, dest='password')
+	get_netcomputerinfo_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
+	get_netcomputerinfo_parser.add_argument('-Server', action='store', dest='server')
+	get_netcomputerinfo_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	get_netcomputerinfo_parser.add_argument('-SortBy', action='store', dest='sort_by')
+	get_netcomputerinfo_parser.add_argument('-Count', action='store_true', dest='count')
+	get_netcomputerinfo_parser.add_argument('-OutFile', action='store', dest='outfile')
 
 	# get-netloggedon
 	get_netloggedon_parser = subparsers.add_parser('Get-NetLoggedOn', exit_on_error=False)
