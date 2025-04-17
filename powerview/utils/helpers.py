@@ -20,6 +20,7 @@ import re
 import configparser
 import validators
 import random
+import locale
 
 from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
@@ -31,6 +32,7 @@ from impacket.krb5 import constants
 from impacket.krb5.types import Principal
 from impacket.krb5.kerberosv5 import getKerberosTGT
 
+from powerview.utils.constants import WINDOWS_VERSION_MAP, LCID_TO_LOCALE
 from powerview.lib.dns import (
 	STORED_ADDR
 )
@@ -168,23 +170,28 @@ def span_to_str(span: int) -> str:
 def filetime_to_str(filetime: str) -> str:
 	return span_to_str(filetime_to_span(filetime))
 
-def format_datetime(dt: datetime) -> str:
-    """
-    Format a datetime object into a human-readable string.
-    
-    Args:
-        dt: datetime object to format
-        
-    Returns:
-        Formatted datetime string
-    """
-    if not dt:
-        return "Never"
-    return dt.strftime("%Y-%m-%d %H:%M:%S")
+def wmi_time_to_str(wmi_time):
+	if not wmi_time:
+		return ""
+	try:
+		dt = datetime.datetime.strptime(wmi_time[:14], "%Y%m%d%H%M%S")
+		return dt.strftime("%d/%m/%Y, %I:%M:%S %p")
+	except Exception:
+		return wmi_time
 
-def to_pascal_case(snake_str: str) -> str:
-	components = snake_str.split("_")
-	return "".join(x.title() for x in components)
+def format_datetime(dt: datetime) -> str:
+	"""
+	Format a datetime object into a human-readable string.
+	
+	Args:
+		dt: datetime object to format
+		
+	Returns:
+		Formatted datetime string
+	"""
+	if not dt:
+		return "Never"
+	return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 def is_admin_sid(sid: str):
 	return (
@@ -216,6 +223,9 @@ def strip_entry(entry):
 				if not isinstance(v[0], str):
 					continue
 				entry["attributes"][k] = v[0]
+
+def resolve_windows_version(major, minor):
+	return WINDOWS_VERSION_MAP.get((major, minor), "Unknown")
 
 def from_json_to_entry(entry):
 	return json.loads(entry)
@@ -791,3 +801,67 @@ class IDict(dict):
 		if i not in range(len(self)):
 			return None
 		return list(self.values())[i]
+
+def kb_to_mb_str(val):
+	try:
+		if val is None or val == '':
+			return ''
+		if isinstance(val, str):
+			val = int(val)
+		mb = val // 1024
+		return str(mb)
+	except Exception:
+		return ''
+
+def lcid_to_locale(lcid):
+	if not isinstance(lcid, (str, int)):
+		return None
+	
+	if isinstance(lcid, int):
+		lcid = format(lcid, '04x')
+	elif isinstance(lcid, str) and lcid.isdigit():
+		lcid = format(int(lcid), '04x')
+	
+	lcid = lcid.lower()
+	
+	if lcid in LCID_TO_LOCALE:
+		return "%s;%s" % (LCID_TO_LOCALE[lcid][0], LCID_TO_LOCALE[lcid][1])
+	
+	return None
+
+def locale_to_lcid(locale_id):
+	if not isinstance(locale_id, str):
+		return None
+	
+	inverted_map = {lang_tag: int(code, 16) for code, (lang_tag, _) in LCID_TO_LOCALE.items()}
+	
+	if locale_id in inverted_map:
+		return inverted_map[locale_id]
+	
+	return None
+
+def get_timezone_display_name(wmi_timezone_props):
+	try:
+		if not wmi_timezone_props:
+			return ''
+		caption = wmi_timezone_props.get('Caption', {}).get('value', '')
+		desc = wmi_timezone_props.get('Description', {}).get('value', '')
+		if caption:
+			return caption
+		if desc:
+			return desc
+		return ''
+	except Exception:
+		return ''
+
+def resolve_time_zone(tz_offset):
+	try:
+		if tz_offset is None or tz_offset == '':
+			return ''
+		tz_offset = int(tz_offset)
+		sign = '+' if tz_offset >= 0 else '-'
+		hours = abs(tz_offset) // 60
+		minutes = abs(tz_offset) % 60
+		return f'UTC{sign}{hours:02d}:{minutes:02d}'
+	except Exception:
+		return str(tz_offset)

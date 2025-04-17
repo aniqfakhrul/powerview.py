@@ -2,9 +2,13 @@ import enum
 
 from impacket.structure import Structure
 from impacket.ldap.ldaptypes import LDAP_SID
-from powerview.utils.helpers import to_pascal_case
 
 class IntFlag(enum.IntFlag):
+	@staticmethod
+	def to_pascal_case(snake_str: str) -> str:
+		components = snake_str.split("_")
+		return "".join(x.title() for x in components)
+
 	def to_list(self):
 		cls = self.__class__
 		members, _ = enum._decompose(cls, self._value_)
@@ -16,19 +20,81 @@ class IntFlag(enum.IntFlag):
 	def __str__(self):
 		cls = self.__class__
 		if self._name_ is not None:
-			return "%s" % (to_pascal_case(self._name_))
+			return "%s" % (self.to_pascal_case(self._name_))
 		members, _ = enum._decompose(cls, self._value_)
 		if len(members) == 1 and members[0]._name_ is None:
 			return "%r" % (members[0]._value_)
 		else:
 			return "%s" % (
 				", ".join(
-					[to_pascal_case(str(m._name_ or m._value_)) for m in members]
+					[self.to_pascal_case(str(m._name_ or m._value_)) for m in members]
 				),
 			)
 
 	def __repr__(self):
 		return str(self)
+
+
+LCID_TO_LOCALE = {
+	'0409': ('en-us', 'English (United States)'),
+	'0407': ('de-de', 'German (Germany)'),
+	'040c': ('fr-fr', 'French (France)'),
+	'0410': ('it-it', 'Italian (Italy)'),
+	'0411': ('ja-jp', 'Japanese (Japan)'),
+	'0809': ('en-gb', 'English (United Kingdom)'),
+	'0c0a': ('es-es', 'Spanish (Spain)'),
+	'0416': ('pt-br', 'Portuguese (Brazil)'),
+	'0419': ('ru-ru', 'Russian (Russia)'),
+	'0401': ('zh-cn', 'Chinese (Simplified)'),
+	'0402': ('zh-tw', 'Chinese (Traditional)'),
+	'0404': ('nl-nl', 'Dutch (Netherlands)'),
+	'0405': ('sv-se', 'Swedish (Sweden)'),
+	'0406': ('it-ch', 'Italian (Switzerland)'),
+	'0408': ('en-au', 'English (Australia)'),
+	'040b': ('en-nz', 'English (New Zealand)'),
+	'040d': ('en-za', 'English (South Africa)'),
+	'040e': ('da-dk', 'Danish (Denmark)'),
+	'040f': ('de-at', 'German (Austria)'),
+	'0412': ('ko-kr', 'Korean (Korea)'),
+	'0413': ('hu-hu', 'Hungarian (Hungary)'),
+	'0414': ('pl-pl', 'Polish (Poland)'),
+	'0415': ('pt-pt', 'Portuguese (Portugal)'),
+	'0417': ('ro-ro', 'Romanian (Romania)'),
+	'0418': ('ru-ru', 'Russian (Russia)'),
+	'041a': ('sr-cyrl-cs', 'Serbian (Cyrillic)'),
+	'041b': ('sr-latn-cs', 'Serbian (Latin)'),
+	'041c': ('sv-se', 'Swedish (Sweden)'),
+	'041d': ('th-th', 'Thai (Thailand)'),
+	'041e': ('tr-tr', 'Turkish (Turkey)'),
+	'041f': ('ur-pk', 'Urdu (Pakistan)'),
+	'0420': ('id-id', 'Indonesian (Indonesia)'),
+	'0421': ('uk-ua', 'Ukrainian (Ukraine)'),
+	'0422': ('be-by', 'Belarusian (Belarus)'),
+	'0423': ('sl-si', 'Slovenian (Slovenia)'),
+	'0424': ('et-ee', 'Estonian (Estonia)'),
+	'0425': ('lv-lv', 'Latvian (Latvia)'),
+	'0426': ('lt-lt', 'Lithuanian (Lithuania)'),
+	'0427': ('tg-cyrl-tj', 'Tajik (Tajikistan)'),
+	'0428': ('az-az', 'Azerbaijani (Azerbaijan)'),
+	'0429': ('eu-es', 'Basque (Spain)'),
+	'042a': ('hsb-de', 'Upper Sorbian (Germany)'),
+	'042b': ('mk-mk', 'Macedonian (North Macedonia)'),
+	'042c': ('se-se', 'Sami (Northern)'),
+	'042d': ('ga-ie', 'Irish (Ireland)'),
+	'042e': ('ms-my', 'Malay (Malaysia)'),
+	'042f': ('kk-kz', 'Kazakh (Kazakhstan)'),
+	'0430': ('ky-kg', 'Kyrgyz (Kyrgyzstan)'),
+	'0431': ('sw-ke', 'Swahili (Kenya)'),
+	'0432': ('tk-tm', 'Turkmen (Turkmenistan)'),
+	'0433': ('uz-uz', 'Uzbek (Uzbekistan)'),
+	'0434': ('tt-ru', 'Tatar (Russia)'),
+	'0435': ('bn-in', 'Bengali (India)'),
+	'0436': ('pa-in', 'Punjabi (India)'),
+	'0437': ('gu-in', 'Gujarati (India)'),
+	'0438': ('or-in', 'Odia (India)'),
+	'0439': ('ta-in', 'Tamil (India)'),
+	'0199': ('en-us', 'English (United States)'),
+}
 
 # constants for service access codes in a class
 class SERVICE_ACCESS_CODES(IntFlag):
@@ -168,6 +234,16 @@ class MS_PKI_CERTIFICATE_AUTHORITY_FLAG(IntFlag):
 	CA_SUPPORTS_MANUAL_AUTHENTICATION = 0x00000004
 	CA_SERVERTYPE_ADVANCED = 0x00000008
 
+WINDOWS_VERSION_MAP = {
+    (5, 0): "Windows 2000",
+    (5, 1): "Windows XP",
+    (5, 2): "Windows Server 2003",
+    (6, 0): "Windows Vista / 2008",
+    (6, 1): "Windows 7 / 2008 R2",
+    (6, 2): "Windows 8 / 2012",
+    (6, 3): "Windows 8.1 / 2012 R2",
+    (10, 0): "Windows 10 / 2016+",
+}
 
 # https://www.pkisolutions.com/object-identifiers-oid-in-pki/
 OID_TO_STR_MAP = {

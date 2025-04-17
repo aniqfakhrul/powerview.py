@@ -442,10 +442,10 @@ class PARSE_TEMPLATE:
         )
 
         # resolve validity period
-        self.set_validity_period(filetime_to_str(self.template.get("pKIExpirationPeriod")))
+        self.set_validity_period(self.template.get("pKIExpirationPeriod"))
 
         # resolve renewal_period
-        self.set_renewal_period(filetime_to_str(self.template.get("pKIOverlapPeriod")))
+        self.set_renewal_period(self.template.get("pKIOverlapPeriod"))
 
     def can_user_enroll_template(self):
         enrollable_sids = []

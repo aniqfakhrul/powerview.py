@@ -387,6 +387,15 @@ def main():
                                         entries = powerview.get_regloggedon(computer_name=computername, args=pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'get-computerinfo':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        entries = temp_powerview.get_computerinfo(computer_name=computername, args=pv_args)
+                                    else:
+                                        entries = powerview.get_computerinfo(computer_name=computername, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'get-netloggedon':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     computername = pv_args.computer if pv_args.computer else pv_args.computername

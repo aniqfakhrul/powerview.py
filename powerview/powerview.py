@@ -54,7 +54,6 @@ from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.web.api.server import APIServer
 
 import chardet
-import time
 from io import BytesIO
 import ldap3
 from ldap3.protocol.microsoft import security_descriptor_control
@@ -62,8 +61,7 @@ from ldap3.extend.microsoft import addMembersToGroups, modifyPassword, removeMem
 from ldap3.utils.conv import escape_filter_chars
 import re
 import inspect
-import sys  # Add this near your other imports if not already present
-import concurrent.futures
+import sys
 
 class PowerView:
 	def __init__(self, conn, args, target_server=None, target_domain=None):
@@ -4388,6 +4386,171 @@ displayName=New Group Policy Object
 			logging.info('[Get-NetLoggedOn] No sessions found!')
 
 		dce.disconnect()
+		return entries
+
+	def get_computerinfo(self,
+		computer_name,
+		username=None,
+		password=None,
+		domain=None,
+		lmhash=None,
+		nthash=None,
+		port=445,
+		args=None
+	):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Get-NetLoggedOn] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'hash') and args.hash:
+				if ':' in args.hash:
+					lmhash, nthash = args.hash.split(':')
+				else:
+					nthash = args.hash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+
+		if username and not (password or lmhash or nthash):
+			logging.error("[Get-ComputerInfo] Password or hash is required when specifying a username")
+			return
+
+		KNOWN_PROTOCOLS = {
+			139: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
+			445: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
+		}
+
+		if is_ipaddress(computer_name) and self.use_kerberos:
+			logging.error("[Get-ComputerInfo] Use FQDN when using kerberos")
+			return
+
+		if is_valid_fqdn(computer_name) and not self.use_kerberos:
+			computer_name = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
+		
+		dce = self.conn.connectRPCTransport(
+			host=computer_name,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			stringBindings=stringBinding,
+			interface_uuid=wkst.MSRPC_UUID_WKST
+		)
+
+		if not dce:
+			logging.error("[Get-ComputerInfo] Failed to connect to %s" % (computer_name))
+			return
+		
+		entries = []
+		attributes = {}
+		try:
+			resp = wkst.hNetrWkstaGetInfo(dce, 100)
+			attributes = {
+				"ComputerName": resp['WkstaInfo']['WkstaInfo100']['wki100_computername'][:-1],
+				"Langroup": resp['WkstaInfo']['WkstaInfo100']['wki100_langroup'][:-1],
+				"VersionMajor": resp['WkstaInfo']['WkstaInfo100']['wki100_ver_major'],
+				"VersionMinor": resp['WkstaInfo']['WkstaInfo100']['wki100_ver_minor'],
+				"PlatformId": resp['WkstaInfo']['WkstaInfo100']['wki100_platform_id'],
+				"WindowsVersion": resolve_windows_version(resp['WkstaInfo']['WkstaInfo100']['wki100_ver_major'], resp['WkstaInfo']['WkstaInfo100']['wki100_ver_minor']),
+			}
+		except Exception as e:
+			if str(e).find('[Get-ComputerInfo] Broken pipe') >= 0:
+				logging.error('[Get-ComputerInfo] Connection failed - skipping host!')
+				return
+			elif str(e).upper().find('ACCESS_DENIED'):
+				logging.error('[Get-ComputerInfo] Access denied - you must be admin to enumerate sessions this way')
+				dce.disconnect()
+				return
+			else:
+				raise
+		finally:
+			dce.disconnect()
+
+		try:
+			dcom, wmi_conn = self.conn.init_wmi_session(computer_name)
+			if not dcom or not wmi_conn:
+				logging.warning(f"[Get-ComputerInfo] Failed to initialize WMI session for {computer_name}. Skipping and use RPC instead...")
+			else:
+				OperatingSystem = wmi_conn.ExecQuery('SELECT * from Win32_OperatingSystem')
+				Processor = wmi_conn.ExecQuery('SELECT * from Win32_Processor')
+				ComputerSystem = wmi_conn.ExecQuery('SELECT * from Win32_ComputerSystem')
+				NetworkCard = wmi_conn.ExecQuery('SELECT * from Win32_NetworkAdapterConfiguration')
+				while True:
+					try:
+						os_obj = OperatingSystem.Next(0xffffffff, 1)[0]
+						processor_obj = Processor.Next(0xffffffff, 1)[0]
+						computer_system_obj = ComputerSystem.Next(0xffffffff, 1)[0]
+						network_card_obj = NetworkCard.Next(0xffffffff, 1)[0]
+						os_props = dict(os_obj.getProperties())
+						processor_props = dict(processor_obj.getProperties())
+						computer_system_props = dict(computer_system_obj.getProperties())
+						network_card_props = dict(network_card_obj.getProperties())
+						name_split = os_props['Name']['value'].split('|') if 'Name' in os_props and os_props['Name']['value'] else ["", "", ""]
+						attributes.update({
+							"Host Name": os_props.get('CSName', {}).get('value', ''),
+							"OS Name": os_props.get('Caption', {}).get('value', ''),
+							"OS Version": os_props.get('Version', {}).get('value', '') + " Build " + os_props.get('BuildNumber', {}).get('value', ''),
+							"OS Manufacturer": os_props.get('Manufacturer', {}).get('value', ''),
+							"OS Configuration": '',
+							"OS Build Type": os_props.get('BuildType', {}).get('value', ''),
+							"Registered Owner": os_props.get('RegisteredUser', {}).get('value', ''),
+							"Registered Organization": os_props.get('Organization', {}).get('value', ''),
+							"Product ID": os_props.get('SerialNumber', {}).get('value', ''),
+							"Original Install Date": wmi_time_to_str(os_props.get('InstallDate', {}).get('value', '')),
+							"System Boot Time": wmi_time_to_str(os_props.get('LastBootUpTime', {}).get('value', '')),
+							"System Manufacturer": computer_system_props.get('Manufacturer', {}).get('value', ''),
+							"System Model": computer_system_props.get('Model', {}).get('value', ''),
+							"System Type": os_props.get('OSArchitecture', {}).get('value', ''),
+							"Processor(s)": processor_props.get('Name', {}).get('value', ''),
+							"BIOS Version": os_props.get('Manufacturer', {}).get('value', '') + " " + os_props.get('Version', {}).get('value', ''),
+							"Windows Directory": os_props.get('WindowsDirectory', {}).get('value', ''),
+							"System Directory": os_props.get('SystemDirectory', {}).get('value', ''),
+							"Boot Device": os_props.get('BootDevice', {}).get('value', ''),
+							"System Locale": lcid_to_locale(os_props.get('Locale', {}).get('value', '')) or os_props.get('Locale', {}).get('value', ''),
+							"Input Locale": lcid_to_locale(os_props.get('UserLocale', {}).get('value', '')) or os_props.get('UserLocale', {}).get('value', ''),
+							"Time Zone": resolve_time_zone(os_props.get('CurrentTimeZone', {}).get('value', '')),
+							"Total Physical Memory": "%s MB" % kb_to_mb_str(os_props.get('TotalVisibleMemorySize', {}).get('value', '')),
+							"Available Physical Memory": "%s MB" % kb_to_mb_str(os_props.get('FreePhysicalMemory', {}).get('value', '')),
+							"Virtual Memory: Max Size": "%s MB" % kb_to_mb_str(os_props.get('TotalVirtualMemorySize', {}).get('value', '')),
+							"Virtual Memory: Available": "%s MB" % kb_to_mb_str(os_props.get('FreeVirtualMemory', {}).get('value', '')),
+							"Virtual Memory: In Use": "%s MB" % kb_to_mb_str(os_props.get('TotalVirtualMemorySize', {}).get('value', '')),
+							"Page File Location(s)": os_props.get('PageFile', {}).get('value', ''),
+							"Domain": computer_system_props.get('Domain', {}).get('value', ''),
+							"Logon Server": computer_system_props.get('Name', {}).get('value', ''),
+							"Network Card(s)": network_card_props.get('Description', {}).get('value', ''),
+						})
+					except (IndexError, Exception) as e:
+						from impacket.dcerpc.v5.dcom.wmi import DCERPCSessionError
+						if isinstance(e, DCERPCSessionError):
+							if hasattr(e, 'error_code') and e.error_code == 0x1:
+								break
+							elif hasattr(e, 'error_code') and e.error_code == 0x80041003:
+								break
+						if isinstance(e, IndexError):
+							break
+						else:
+							raise
+		except Exception as e:
+			self.conn.disconnect_wmi_session()
+			if self.args.stack_trace:
+				raise
+
+			if 'WBEM_E_ACCESS_DENIED' in str(e) or '0x80041003' in str(e):
+				logging.warning(f"[Get-ComputerInfo] Access denied - you must be admin to enumerate sessions this way. Skipping...")
+				return
+			else:
+				logging.error(f"[Get-ComputerInfo] WMI query failed: {e}")
+		finally:
+			self.conn.disconnect_wmi_session()
+
+		entries.append({
+			"attributes": attributes
+		})
+
 		return entries
 
 	def get_netshare(self, args):

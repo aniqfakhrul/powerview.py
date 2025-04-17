@@ -3,6 +3,7 @@ from impacket.smbconnection import SMBConnection, SessionError
 from impacket.smb3structs import FILE_READ_DATA, FILE_WRITE_DATA
 from impacket.dcerpc.v5 import samr, epm, transport, rpcrt, rprn, srvs, wkst, scmr, drsuapi
 from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_AUTHN_GSS_NEGOTIATE
+from impacket.dcerpc.v5.dtypes import NULL
 from impacket.spnego import SPNEGO_NegTokenInit, TypesMech, SPNEGO_NegTokenResp 
 # for relay used
 from impacket.examples.ntlmrelayx.servers.httprelayserver import HTTPRelayServer
@@ -11,6 +12,9 @@ from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.examples.ntlmrelayx.utils.targetsutils import TargetsProcessor
 from impacket.ntlm import NTLMAuthChallenge, NTLMSSP_AV_FLAGS, AV_PAIRS, NTLMAuthNegotiate, NTLMSSP_NEGOTIATE_SIGN, NTLMSSP_NEGOTIATE_ALWAYS_SIGN, NTLMAuthChallengeResponse, NTLMSSP_NEGOTIATE_KEY_EXCH, NTLMSSP_NEGOTIATE_VERSION, NTLMSSP_NEGOTIATE_UNICODE
 from impacket.nt_errors import STATUS_SUCCESS, STATUS_ACCESS_DENIED
+from impacket.dcerpc.v5.dcomrt import DCOMConnection
+from impacket.dcerpc.v5.dcom import wmi
+from impacket.dcerpc.v5.dcom.wmi import DCERPCSessionError
 
 from powerview.utils.helpers import (
 	get_machine_name,
@@ -133,6 +137,8 @@ class CONNECTION:
 		self.ldap_server = None
 
 		self.rpc_conn = None
+		self.wmi_conn = None
+		self.dcom = None
 		self.samr = None
 		self.TGT = None
 		self.TGS = None
@@ -1262,6 +1268,55 @@ class CONNECTION:
 			self.rpc_conn = dce
 
 		return self.rpc_conn
+
+	def init_wmi_session(self, target, username=None, password=None, domain=None, lmhash=None, nthash=None, aesKey=None, do_kerberos=False, namespace='//./root/cimv2'):
+		self.dcom = DCOMConnection(
+				target,
+				username if username is not None else self.username,
+				password if password is not None else self.password,
+				domain if domain is not None else self.domain,
+				lmhash if lmhash is not None else self.lmhash,
+				nthash if nthash is not None else self.nthash,
+				aesKey if aesKey is not None else getattr(self, 'auth_aes_key', None),
+				oxidResolver=True,
+				doKerberos=do_kerberos if do_kerberos is not None else getattr(self, 'use_kerberos', False)
+			)
+		try:
+			iInterface = self.dcom.CoCreateInstanceEx(wmi.CLSID_WbemLevel1Login, wmi.IID_IWbemLevel1Login)
+			iWbemLevel1Login = wmi.IWbemLevel1Login(iInterface)
+			self.wmi_conn = iWbemLevel1Login.NTLMLogin(namespace, NULL, NULL)
+			iWbemLevel1Login.RemRelease()
+			return self.dcom, self.wmi_conn
+		except DCERPCSessionError as e:
+			if hasattr(e, 'error_code') and e.error_code == 0x80041003:
+				logging.debug(f"[init_wmi_session] Access denied (0x80041003): {e}")
+				return self.dcom, self.wmi_conn
+			raise
+		except Exception as e:
+			if 'WBEM_E_ACCESS_DENIED' in str(e) or '0x80041003' in str(e):
+				logging.debug(f"[init_wmi_session] Access denied: {e}")
+				return self.dcom, self.wmi_conn
+			self.disconnect_wmi_session()
+			raise
+
+	def disconnect_wmi_session(self):
+		try:
+			if self.wmi_conn:
+				try:
+					self.wmi_conn.RemRelease()
+				except Exception as e:
+					logging.debug(f"[disconnect_wmi_session] RemRelease failed: {e}")
+				finally:
+					self.wmi_conn = None
+			if self.dcom:
+				try:
+					self.dcom.disconnect()
+				except Exception as e:
+					logging.debug(f"[disconnect_wmi_session] dcom.disconnect failed: {e}")
+				finally:
+					self.dcom = None
+		except Exception as e:
+			logging.debug(f"[disconnect_wmi_session] Unexpected error: {e}")
 
 	def init_rpc_session(self, host, pipe=r'\srvsvc'):
 		if not self.rpc_conn:
