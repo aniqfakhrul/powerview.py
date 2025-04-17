@@ -62,7 +62,6 @@ from ldap3.utils.conv import escape_filter_chars
 import re
 import inspect
 import sys
-import concurrent.futures
 import random
 import time
 
@@ -4194,6 +4193,7 @@ displayName=New Group Policy Object
 		return entries
 
 	def find_localadminaccess(self, computer=None, no_cache=False, no_vuln_check=False, args=None):
+		import concurrent.futures
 		host_entries = []
 		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
