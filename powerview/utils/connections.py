@@ -400,7 +400,6 @@ class CONNECTION:
 				pass
 
 	def init_ldap_session(self, ldap_address=None, use_ldap=False, use_gc_ldap=False):
-		
 		if self.targetDomain and self.targetDomain != self.domain and self.kdcHost:
 			self.kdcHost = None
 

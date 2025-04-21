@@ -9,6 +9,7 @@ else:
 
 COMMANDS = {
     'Clear-Cache':[''],
+    'Login-As':['-Username','-Password','-Domain','-Hash'],
     'Get-Domain':['-Identity','-Properties', '-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-NetDomain':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'ConvertFrom-SID':['-ObjectSID','-Server', '-Outfile', '-NoCache'],

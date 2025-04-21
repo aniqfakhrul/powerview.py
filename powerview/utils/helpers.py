@@ -480,7 +480,7 @@ def parse_identity(args):
 		lmhash = ''
 		nthash = ''
 
-	return domain, username, password, lmhash, nthash, address
+	return {'domain': domain, 'username': username, 'password': password, 'lmhash': lmhash, 'nthash': nthash, 'ldap_address': address}
 
 def get_user_info(samname, ldap_session, domain_dumper):
 	ldap_session.search(domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars(samname),
@@ -865,3 +865,35 @@ def resolve_time_zone(tz_offset):
 		return f'UTC{sign}{hours:02d}:{minutes:02d}'
 	except Exception:
 		return str(tz_offset)
+
+def parse_hashes(hash_string):
+	"""Parses a hash string into LM, NTLM, or AES key components."""
+	lmhash = None
+	nthash = None
+	auth_aes_key = None
+	if hash_string:
+		if len(hash_string.strip()) == 32:
+			nthash = hash_string
+			lmhash = "AAD3B435B51404EEAAD3B435B51404EE"
+		elif ":" in hash_string:
+			lmhash, nthash = hash_string.split(":", 1)
+		elif len(hash_string.strip()) > 33:
+			auth_aes_key = hash_string
+		else:
+			raise ValueError("Invalid hash string")
+	
+	if lmhash is None or lmhash == '':
+		lmhash = "AAD3B435B51404EEAAD3B435B51404EE"
+	
+	return {'lmhash': lmhash, 'nthash': nthash, 'auth_aes_key': auth_aes_key}
+
+def parse_username(username):
+	domain = None
+	if '\\' in username:
+		domain, username = username.split('\\', 1)
+	elif '@' in username:
+		username, domain = username.split('@', 1)
+	elif '/' in username:
+		domain, username = username.split('/', 1)
+
+	return {'domain': domain, 'username': username}

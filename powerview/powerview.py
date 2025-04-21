@@ -70,10 +70,14 @@ class PowerView:
 		self.conn = conn
 		self.args = args
 		
+		if target_domain:
+			self.domain = target_domain
+		else:
+			self.domain = conn.get_domain()
+		
 		self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
 
-		self.custom_paged_search = CustomExtendedOperationsRoot(self.ldap_session, server=self.ldap_server, obfuscate=self.args.obfuscate, no_cache=self.args.no_cache, no_vuln_check=self.args.no_vuln_check, raw=self.args.raw)
-		self.ldap_session.extend.standard.paged_search = self.custom_paged_search.standard.paged_search
+		self._initialize_attributes_from_connection()
 
 		self.username = args.username if args.username else self.conn.get_username()
 		self.password = args.password
@@ -88,25 +92,11 @@ class PowerView:
 		self.use_kerberos = args.use_kerberos
 		self.target_server = target_server
 
-		if target_domain:
-			self.domain = target_domain
-		else:
-			self.domain = conn.get_domain()
-
-		self.use_ldaps = self.ldap_session.server.ssl
-		self.forest_dn = self.ldap_server.info.other["rootDomainNamingContext"][0]
-		self.root_dn = self.ldap_server.info.other["defaultNamingContext"][0]
-		self.configuration_dn = self.ldap_server.info.other["configurationNamingContext"][0]
-		if not self.domain:
-			self.domain = dn2domain(self.root_dn)
-		self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
-		self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
 		if not target_domain:
 			self.is_admin = self.is_admin()
 
 		# Get current user's SID from the LDAP connection
 		self.current_user_sid = None
-		self.whoami = self.conn.who_am_i()
 		if self.whoami and self.whoami != 'ANONYMOUS':
 			user = self.get_domainobject(identity=self.whoami.split('\\')[1], properties=['objectSid'])
 			if user and len(user) > 0:
@@ -151,6 +141,21 @@ class PowerView:
 				if args.stack_trace:
 					raise
 				sys.exit(1)
+
+	def _initialize_attributes_from_connection(self):
+		self.custom_paged_search = CustomExtendedOperationsRoot(self.ldap_session, server=self.ldap_server, obfuscate=self.args.obfuscate, no_cache=self.args.no_cache, no_vuln_check=self.args.no_vuln_check, raw=self.args.raw)
+		self.ldap_session.extend.standard.paged_search = self.custom_paged_search.standard.paged_search
+
+		self.use_ldaps = self.ldap_session.server.ssl
+		self.forest_dn = self.ldap_server.info.other["rootDomainNamingContext"][0]
+		self.root_dn = self.ldap_server.info.other["defaultNamingContext"][0]
+		self.configuration_dn = self.ldap_server.info.other["configurationNamingContext"][0]
+		if not self.domain:
+			self.domain = dn2domain(self.root_dn)
+		self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
+		self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
+
+		self.whoami = self.conn.who_am_i()
 
 	def get_target_domain(self):
 		"""
@@ -4243,14 +4248,30 @@ displayName=New Group Policy Object
 		results = []
 		def check_admin(ent):
 			try:
-				if self.use_kerberos:
-					smbconn = self.conn.init_smb_session(ent['hostname'], username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash)
-				else:
-					smbconn = self.conn.init_smb_session(ent['address'] if is_ipaddress(ent['address']) else ent['hostname'], username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash)
+				# Use provided creds if available, otherwise use current connection context
+				current_username = username or self.conn.get_username()
+				current_password = password or self.conn.get_password()
+				current_domain = domain or self.conn.get_domain()
+				current_lmhash = lmhash or self.conn.lmhash
+				current_nthash = nthash or self.conn.nthash
+
+				smbconn = self.conn.init_smb_session(
+					ent['address'] if is_ipaddress(ent['address']) else ent['hostname'],
+					username=current_username,
+					password=current_password,
+					domain=current_domain,
+					lmhash=current_lmhash,
+					nthash=current_nthash
+				)
+
+				if not smbconn:
+					logging.debug(f"[Find-LocalAdminAccess] Failed SMB connection to {ent['hostname']}")
+					return None
+					
 				smbconn.connectTree("C$")
 				return {'attributes': {'Address': ent['address'], 'Hostname': ent['hostname']}}
 			except Exception as e:
-				logging.debug(f"[Find-LocalAdminAccess] Failed to connect to {ent['hostname']}")
+				logging.debug(f"[Find-LocalAdminAccess] Failed to connect/check admin on {ent['hostname']}: {str(e)}")
 				return None
 		with concurrent.futures.ThreadPoolExecutor(max_workers=max_threads) as executor:
 			future_to_host = {executor.submit(check_admin, ent): ent for ent in host_entries}
@@ -4298,35 +4319,15 @@ displayName=New Group Policy Object
 		return entries
 
 	def get_netloggedon(self, computer_name, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
-		"""
-		Get logged-on users from a remote computer using the NetWkstaUserEnum function.
-		Uses either supplied credentials or falls back to the currently authenticated user.
-		
-		Args:
-			computer_name: The target computer name or IP address
-			username: Optional username for authentication (overrides current credentials)
-			password: Optional password for authentication
-			domain: Optional domain for authentication
-			lmhash: Optional LM hash for authentication
-			nthash: Optional NT hash for authentication
-			port: SMB port (defaults to 445)
-			args: Optional argparse namespace with additional parameters
-			
-		Returns:
-			List of dictionaries containing logged-on user information
-		"""
 		if args:
 			if username is None and hasattr(args, 'username') and args.username:
 				logging.warning(f"[Get-NetLoggedOn] Using identity {args.username} from supplied username. Ignoring current user context...")
 				username = args.username
 			if password is None and hasattr(args, 'password') and args.password:
 				password = args.password
-			if nthash is None and hasattr(args, 'hash') and args.hash:
-				if ':' in args.hash:
-					lmhash, nthash = args.hash.split(':')
-				else:
-					nthash = args.hash
-			if lmhash is None and hasattr(args, 'lmhash') and args.lmhash:
+			if nthash is None and hasattr(args, 'nthash'):
+				nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
 				lmhash = args.lmhash
 			if domain is None and hasattr(args, 'domain') and args.domain:
 				domain = args.domain
@@ -4417,15 +4418,14 @@ displayName=New Group Policy Object
 	):
 		if args:
 			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Get-NetLoggedOn] Using identity {args.username} from supplied username. Ignoring current user context...")
+				logging.warning(f"[Get-NetComputerInfo] Using identity {args.username} from supplied username. Ignoring current user context...")
 				username = args.username
 			if password is None and hasattr(args, 'password') and args.password:
 				password = args.password
-			if nthash is None and hasattr(args, 'hash') and args.hash:
-				if ':' in args.hash:
-					lmhash, nthash = args.hash.split(':')
-				else:
-					nthash = args.hash
+			if nthash is None and hasattr(args, 'nthash'):
+				nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
 			if domain is None and hasattr(args, 'domain') and args.domain:
 				domain = args.domain
 
@@ -5058,16 +5058,13 @@ displayName=New Group Policy Object
 				username = args.username
 			if password is None and hasattr(args, 'password') and args.password:
 				password = args.password
-			if nthash is None and hasattr(args, 'hash') and args.hash:
-				if ':' in args.hash:
-					lmhash, nthash = args.hash.split(':')
-				else:
-					nthash = args.hash
-			if lmhash is None and hasattr(args, 'lmhash') and args.lmhash:
-				lmhash = args.lmhash
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
 			if domain is None and hasattr(args, 'domain') and args.domain:
 				domain = args.domain
-
+		
 		if username and not (password or lmhash or nthash):
 			logging.error("[Get-NetSession] Password or hash is required when specifying a username")
 			return
@@ -5513,3 +5510,46 @@ displayName=New Group Policy Object
 			})
 		
 		return formatted_results
+
+	def login_as(self, username=None, password='', domain=None, nthash=None, lmhash=None, auth_aes_key=None, args=None):
+		self.clear_cache()
+		self.conn.close()
+		if args:
+			if hasattr(args, 'username'):
+				self.conn.username = args.username
+			if hasattr(args, 'password') and args.password:
+				self.conn.password = args.password
+			if hasattr(args, 'domain') and args.domain:
+				self.conn.domain = args.domain
+			if hasattr(args, 'nthash') and args.nthash:
+				self.conn.nthash = args.nthash
+			if hasattr(args, 'lmhash') and args.lmhash:
+				self.conn.lmhash = args.lmhash
+			if hasattr(args, 'auth_aes_key') and args.auth_aes_key:
+				self.conn.auth_aes_key = args.auth_aes_key
+		else:
+			if username:
+				self.conn.username = username
+			if password:
+				self.conn.password = password
+			if domain:
+				self.conn.domain = domain
+			if nthash:
+				self.conn.nthash = nthash
+			if lmhash:
+				self.conn.lmhash = lmhash
+			if auth_aes_key:
+				self.conn.auth_aes_key = auth_aes_key
+
+		logging.info(f"[Login-As] Logging in as {self.conn.get_username()}@{self.conn.get_domain()}")
+		try:
+			self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
+			logging.info(f"[Login-As] Successfully logged in as {self.conn.get_username()}@{self.conn.get_domain()}")
+			self._initialize_attributes_from_connection()
+			return True
+		except Exception as e:
+			if self.args.stack_trace:
+				raise e
+			else:
+				logging.error(f"[Login-As] Failed to login as {self.conn.get_username()}@{self.conn.get_domain()}: {e}")
+				return False

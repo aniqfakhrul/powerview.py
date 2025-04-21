@@ -76,6 +76,7 @@ class APIServer:
 		self.app.add_url_rule('/api/smb/rm', 'smb_rm', self.handle_smb_rm, methods=['POST'])
 		self.app.add_url_rule('/api/smb/mkdir', 'smb_mkdir', self.handle_smb_mkdir, methods=['POST'])
 		self.app.add_url_rule('/api/smb/rmdir', 'smb_rmdir', self.handle_smb_rmdir, methods=['POST'])
+		self.app.add_url_rule('/api/login_as', 'login_as', self.handle_login_as, methods=['POST'])
 
 		self.nav_items = [
 			{"name": "Explorer", "icon": "fas fa-folder-tree", "link": "/"},
@@ -798,3 +799,53 @@ class APIServer:
 		except Exception as e:
 			logging.error(f"[SMB RMDIR] Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500
+
+	def handle_login_as(self):
+		"""Handles requests to the /api/login_as endpoint."""
+		try:
+			data = request.json
+			username = data.get('username')
+			password = data.get('password')
+			domain = data.get('domain')
+			lmhash = data.get('lmhash')
+			nthash = data.get('nthash')
+			auth_aes_key = data.get('auth_aes_key')
+
+			if not username:
+				return jsonify({'error': 'Username is required'}), 400
+
+			success = self.powerview.login_as(
+				username=username,
+				password=password,
+				domain=domain,
+				lmhash=lmhash,
+				nthash=nthash,
+				auth_aes_key=auth_aes_key
+			)
+
+			if success:
+				try:
+					current_identity = self.powerview.conn.who_am_i()
+					message = f"Successfully logged in as {current_identity}"
+					connection_info = {
+						'domain': self.powerview.domain,
+						'username': self.powerview.conn.get_username(),
+						'sid': self.powerview.current_user_sid,
+						'is_admin': self.powerview.is_admin,
+						'status': 'OK' if self.powerview.is_connection_alive() else 'KO',
+						'protocol': self.powerview.conn.get_proto(),
+						'ldap_address': self.powerview.conn.get_ldap_address(),
+						'nameserver': self.powerview.conn.get_nameserver(),
+					}
+					return jsonify({'status': 'success', 'message': message, 'connection_info': connection_info}), 200
+				except Exception as inner_e:
+					logging.error(f"Error fetching identity after login_as for {username}: {str(inner_e)}")
+					return jsonify({'status': 'success', 'message': f"Login attempt for {username} processed, but failed to confirm new identity."}), 200
+			else:
+				message = f"Failed to login as {username}@{domain or self.powerview.domain}. Check credentials or permissions."
+				logging.warning(message)
+				return jsonify({'status': 'failure', 'error': message}), 401 # Use 401 for authentication failure
+
+		except Exception as e:
+			logging.error(f"Unexpected exception during login_as for {username}: {str(e)}")
+			return jsonify({'error': f"An unexpected error occurred during login: {str(e)}"}), 500

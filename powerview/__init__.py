@@ -24,19 +24,10 @@ def main():
     """
     args = arg_parse()
 
-    domain, username, password, lmhash, nthash, ldap_address = parse_identity(args)
-
-    setattr(args,'domain',domain)
-    setattr(args,'username',username)
-    setattr(args,'password',password)
-    setattr(args,'lmhash',lmhash)
-    setattr(args,'nthash', nthash)
-    setattr(args, 'ldap_address', ldap_address)
-
-    flat_domain = domain.split('.')[0] if '.' in domain else domain
+    flat_domain = args.domain.split('.')[0] if '.' in args.domain else args.domain
     flat_domain = sanitize_component(flat_domain.lower())
-    username = sanitize_component(username.lower())
-    ldap_address = sanitize_component(ldap_address.lower())
+    username = sanitize_component(args.username.lower())
+    ldap_address = sanitize_component(args.ldap_address.lower())
 
     components = [flat_domain, username, ldap_address]
     folder_name = '-'.join(filter(None, components)) or "default-log"
@@ -54,16 +45,6 @@ def main():
         is_admin = False
 
         powerview = PowerView(conn, args)
-        
-        if not args.no_admin_check:
-            is_admin = powerview.get_admin_status()
-        server_dns = powerview.get_server_dns()
-        mcp_running = powerview.mcp_server.get_status() if args.mcp and hasattr(powerview, 'mcp_server') else False
-        web_running = powerview.api_server.get_status() if args.web and hasattr(powerview, 'api_server') else False
-        init_proto = conn.get_proto()
-        server_ip = conn.get_ldap_address()
-        temp_powerview = None
-        cur_user = conn.who_am_i() if not is_admin else "%s%s%s" % (bcolors.WARNING, conn.who_am_i(), bcolors.ENDC)
 
         comp = Completer()
         comp.setup_completer()
@@ -75,6 +56,16 @@ def main():
 
         while True:
             try:
+                if not args.no_admin_check:
+                    is_admin = powerview.get_admin_status()
+                server_dns = powerview.get_server_dns()
+                mcp_running = powerview.mcp_server.get_status() if args.mcp and hasattr(powerview, 'mcp_server') else False
+                web_running = powerview.api_server.get_status() if args.web and hasattr(powerview, 'api_server') else False
+                init_proto = conn.get_proto()
+                server_ip = conn.get_ldap_address()
+                temp_powerview = None
+                cur_user = conn.who_am_i() if not is_admin else "%s%s%s" % (bcolors.WARNING, conn.who_am_i(), bcolors.ENDC)
+
                 if args.query:
                     cmd = args.query
                 else:
@@ -354,6 +345,11 @@ def main():
                                 else:
                                     powerview.clear_cache()
                                 using_cache = False
+                            elif pv_args.module.casefold() == 'login-as':
+                                if temp_powerview:
+                                    powerview.login_as(args=pv_args)
+                                else:
+                                    powerview.login_as(args=pv_args)
                             elif pv_args.module.casefold() == 'get-namedpipes':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     if temp_powerview:

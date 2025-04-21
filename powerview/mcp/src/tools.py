@@ -53,6 +53,49 @@ def setup_tools(mcp, powerview_instance):
 	"""Register all PowerView tools with the MCP server."""
 
 	@mcp.tool()
+	async def login_as(
+		username: str,
+		password: str | None = None,
+		domain: str | None = None,
+		lmhash: str | None = None,
+		nthash: str | None = None,
+		auth_aes_key: str | None = None
+	) -> str:
+		"""
+		Login as a different user from the current context.
+		
+		Args:
+			username: The username to login as.
+			password: The password to login with. Mutually exclusive with lmhash and nthash and auth_aes_key.
+			domain: The domain to login to. Optional, will use current domain if not provided.
+			lmhash: The LM hash to use for the login. Mutually exclusive with password.
+			nthash: The NTHash to use for the login. Mutually exclusive with password. If 32 hash length, will be considered as NTHash. Leave blank for lmhash and password.
+			auth_aes_key: The AES key to use for the login. Mutually exclusive with password. If longer than 32 characters, will be considered as auth_aes_key. Leave blank for password.
+		"""
+		try:
+			success = powerview_instance.login_as(
+				username=username,
+				password=password,
+				domain=domain,
+				lmhash=lmhash,
+				nthash=nthash,
+				auth_aes_key=auth_aes_key
+			)
+
+			if success:
+				current_identity = powerview_instance.conn.who_am_i()
+				message = f"Successfully logged in as {current_identity}"
+				return _format_mcp_response(success=True, message=message)
+			else:
+				message = f"Failed to login as {username}@{domain or powerview_instance.domain}. Check credentials or permissions."
+				logging.warning(message)
+				return _format_mcp_response(success=False, message=message)
+
+		except Exception as e:
+			logging.error(f"Unexpected exception during login_as for {username}: {str(e)}")
+			return _format_mcp_response(error=f"An unexpected error occurred during login: {str(e)}")
+
+	@mcp.tool()
 	async def get_domain_user(
 		identity: str = "*",
 		properties: str = "*",

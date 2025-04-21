@@ -5,7 +5,7 @@ import logging
 from impacket import version
 from powerview.utils.completer import COMMANDS
 from powerview.utils.colors import bcolors, Gradient
-from powerview.utils.helpers import escape_filter_chars_except_asterisk
+from powerview.utils.helpers import escape_filter_chars_except_asterisk, parse_hashes, parse_username, parse_identity
 from powerview._version import BANNER,__version__
 
 # https://stackoverflow.com/questions/14591168/argparse-dont-show-usage-on-h
@@ -77,6 +77,14 @@ def arg_parse():
 
 	args = parser.parse_args()
 
+	parsed_identity = parse_identity(args)
+	args.domain = parsed_identity['domain']
+	args.username = parsed_identity['username']
+	args.password = parsed_identity['password']
+	args.lmhash = parsed_identity['lmhash']
+	args.nthash = parsed_identity['nthash']
+	args.ldap_address = parsed_identity['ldap_address']
+
 	# check for mutually exclusive
 	if args.use_kerberos and (args.relay):
 		logging.error("Kerberos option cannot be used in relay mode. Exiting...")
@@ -106,6 +114,15 @@ def powerview_arg_parse(cmd):
 
 	#clear cache
 	clear_cache_parser = subparsers.add_parser('Clear-Cache', exit_on_error=False)
+
+	#login-as
+	login_as_parser = subparsers.add_parser('Login-As', exit_on_error=False)
+	login_as_parser.add_argument('-Username', action='store', dest='username')
+	login_as_parser.add_argument('-Domain', action='store', dest='domain')
+	login_as_parser_cred = login_as_parser.add_mutually_exclusive_group()
+	login_as_parser_cred.add_argument('-Password', action='store', dest='password')
+	login_as_parser_cred.add_argument('-Hash', action='store', dest='hash')
+
 	#domain
 	get_domain_parser = subparsers.add_parser('Get-Domain', aliases=['Get-NetDomain'], exit_on_error=False)
 	get_domain_parser.add_argument('-Identity', action='store',default='*', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
@@ -1094,6 +1111,17 @@ def powerview_arg_parse(cmd):
 						return None
 					return args
 			return parser.parse_args(cmd)
+
+		if hasattr(args, 'hash') and args.hash:
+			parsed_hash = parse_hashes(args.hash)
+			args.lmhash = parsed_hash['lmhash']
+			args.nthash = parsed_hash['nthash']
+			args.auth_aes_key = parsed_hash['auth_aes_key']
+
+		if hasattr(args, 'username') and args.username:
+			parsed_username = parse_username(args.username)
+			args.domain = parsed_username['domain']
+			args.username = parsed_username['username']
 
 		return args
 	except argparse.ArgumentError as e:
