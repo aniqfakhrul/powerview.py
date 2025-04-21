@@ -92,7 +92,7 @@ def get_user_sids(domain_sid, objectsid, ldap_session=None):
 			)
 			
 			# Search for direct group memberships
-			entry_generator = ldap_session.extend.standard.paged_search(
+			entries = ldap_session.extend.standard.paged_search(
 				search_base=base_dn,
 				search_filter=search_filter,
 				attributes=['distinguishedName', 'memberOf', 'objectSid'],
@@ -101,17 +101,17 @@ def get_user_sids(domain_sid, objectsid, ldap_session=None):
 				generator=True
 			)
 
-			for _entries in entry_generator:
-				if _entries['type'] != 'searchResEntry':
-					continue
+			for _entries in entries:
 				attributes = _entries.get('attributes', {})
 				# Check if objectSid is in attributes
 				if 'objectSid' in attributes:
 					user_sids.add(str(attributes.get('objectSid')))
 				# Check if memberOf is in attributes
 				if 'memberOf' in attributes:
+					if not isinstance(attributes.get('memberOf'), list):
+						attributes['memberOf'] = [attributes.get('memberOf')]
 					for group_dn in attributes.get('memberOf'):
-						entry_generator = ldap_session.extend.standard.paged_search(
+						group_entries = ldap_session.extend.standard.paged_search(
 							search_base=group_dn,
 							search_filter='(objectClass=*)',
 							attributes=['objectSid'],
@@ -119,13 +119,10 @@ def get_user_sids(domain_sid, objectsid, ldap_session=None):
 							paged_size = 1000,
 							generator=True
 						)
-						for _entries in entry_generator:
-							if _entries['type'] != 'searchResEntry':
-								continue
-							attributes = _entries.get('attributes', {})
-							if 'objectSid' in attributes:
-								user_sids.add(str(attributes.get('objectSid')))
-
+						for _entries in group_entries:
+							group_attributes = _entries.get('attributes', {})
+							if 'objectSid' in group_attributes:
+								user_sids.add(str(group_attributes.get('objectSid')))
 		except Exception as e:
 			logging.warning(f"Failed to get group memberships: {str(e)}")
 
