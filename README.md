@@ -434,7 +434,10 @@ pipx install mcp-proxy
 ```
 
 #### Cursor
-You can modify this under cursor settings under MCP options.
+You can modify this in cursor settings under MCP options button.
+
+>[!tip]
+>Enable YOLO mode to enable autonomous mode so you don't have to click on "Run Tool" button each time. Read more [here](https://docs.cursor.com/chat/agent#yolo-mode)
 
 ```json
 {
