@@ -475,21 +475,18 @@ class APIServer:
 		try:
 			data = request.json
 			computer = data.get('computer').lower()
-			# Add optional credential parameters
 			username = data.get('username')
 			password = data.get('password')
 			nthash = data.get('nthash')
 			lmhash = data.get('lmhash')
 			domain = data.get('domain')
 
-			# Parse domain from username if in Windows format
 			if username and ('/' in username or '\\' in username):
 				domain, username = username.replace('/', '\\').split('\\')
 			
 			if not computer:
 				return jsonify({'error': 'Computer name/IP is required'}), 400
 
-			# Reuse get_netshare logic for connection
 			is_fqdn = False
 			host = ""
 
@@ -514,7 +511,6 @@ class APIServer:
 			if not host:
 				return jsonify({'error': 'Host not found'}), 404
 
-			# Pass optional credentials to init_smb_session
 			client = self.powerview.conn.init_smb_session(
 				host,
 				username=username,
@@ -527,10 +523,9 @@ class APIServer:
 			if not client:
 				return jsonify({'error': f'Failed to connect to {host}'}), 400
 
-			# Store SMB client in session
-			if not hasattr(self, 'smb_sessions'):
-				self.smb_sessions = {}
-			self.smb_sessions[host] = client
+			if not hasattr(self.powerview.conn, 'smb_sessions'):
+				self.powerview.conn.smb_sessions = {}
+			self.powerview.conn.smb_sessions[computer] = client
 
 			return jsonify({
 				'status': 'connected',
@@ -549,10 +544,10 @@ class APIServer:
 			if not host:
 				return jsonify({'error': 'Computer name/IP is required'}), 400
 
-			if not hasattr(self, 'smb_sessions') or host not in self.smb_sessions:
+			if not hasattr(self.powerview.conn, 'smb_sessions') or host not in self.powerview.conn.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.smb_sessions[host]
+			client = self.powerview.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 			shares = smb_client.shares()
 
@@ -582,20 +577,18 @@ class APIServer:
 			if not host or not share:
 				return jsonify({'error': 'Computer name/IP and share name are required'}), 400
 
-			if not hasattr(self, 'smb_sessions') or host not in self.smb_sessions:
+			if not hasattr(self.powerview.conn, 'smb_sessions') or host not in self.powerview.conn.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 			
-			client = self.smb_sessions[host]
+			client = self.powerview.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 			
 			files = smb_client.ls(share, path)
 			logging.debug(f"[SMB LS] Listing {path} on {host} with share {share}")
 			
-			# Format file listing and filter out . and ..
 			file_list = []
 			for f in files:
 				name = f.get_longname()
-				# Skip . and .. entries
 				if name in ['.', '..']:
 					continue
 				
@@ -625,10 +618,10 @@ class APIServer:
 			if not host or not share or not path:
 				return jsonify({'error': 'Computer name/IP, share name, and file path are required'}), 400
 
-			if not hasattr(self, 'smb_sessions') or host not in self.smb_sessions:
+			if not hasattr(self.powerview.conn, 'smb_sessions') or host not in self.powerview.conn.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.smb_sessions[host]
+			client = self.powerview.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 			
 			try:
@@ -673,10 +666,10 @@ class APIServer:
 			if not computer or not share:
 				return jsonify({'error': 'Computer name/IP and share name are required'}), 400
 
-			if not hasattr(self, 'smb_sessions') or computer not in self.smb_sessions:
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.smb_sessions[computer]
+			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 			
 			# Save file temporarily
@@ -707,7 +700,7 @@ class APIServer:
 			if not all([computer, share, path]):
 				return jsonify({'error': 'Missing required parameters'}), 400
 
-			client = self.smb_sessions[computer]
+			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 			content = smb_client.cat(share, path)
 			if content is None:
@@ -729,10 +722,10 @@ class APIServer:
 			if not all([computer, share, path]):
 				return jsonify({'error': 'Missing required parameters'}), 400
 
-			if not hasattr(self, 'smb_sessions') or computer not in self.smb_sessions:
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.smb_sessions[computer]
+			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 			
 			try:
@@ -756,10 +749,10 @@ class APIServer:
 			if not all([computer, share, path]):
 				return jsonify({'error': 'Missing required parameters'}), 400
 
-			if not hasattr(self, 'smb_sessions') or computer not in self.smb_sessions:
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.smb_sessions[computer]
+			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 			
 			try:
@@ -783,10 +776,10 @@ class APIServer:
 			if not all([computer, share, path]):
 				return jsonify({'error': 'Missing required parameters'}), 400
 
-			if not hasattr(self, 'smb_sessions') or computer not in self.smb_sessions:
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.smb_sessions[computer]
+			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 			
 			try:

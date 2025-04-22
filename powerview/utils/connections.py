@@ -142,6 +142,7 @@ class CONNECTION:
 		self.samr = None
 		self.TGT = None
 		self.TGS = None
+		self.smb_sessions = {}
 
 		# stolen from https://github.com/the-useless-one/pywerview/blob/master/pywerview/requester.py#L90
 		try:
@@ -1042,12 +1043,15 @@ class CONNECTION:
 
 	def init_smb_session(self, host, username=None, password=None, nthash=None, lmhash=None, domain=None, timeout=10, useCache=True):
 		try:
-			# Use provided credentials or fall back to self values
 			username = username or self.username
 			password = password or self.password 
 			nthash = nthash or self.nthash
 			lmhash = lmhash or self.lmhash
 			domain = domain or self.domain
+
+			if host in self.smb_sessions:
+				logging.debug(f"[Connection: init_smb_session] Returning stored SMB session for {host}")
+				return self.smb_sessions[host]
 
 			logging.debug(f"[Connection: init_smb_session] Default timeout is set to {timeout}. Expect a delay")
 			conn = SMBConnection(host, host, sess_port=445, timeout=timeout)
@@ -1100,10 +1104,9 @@ class CONNECTION:
 							logging.debug('Username retrieved from CCache: %s' % username)
 				
 				conn.kerberosLogin(username, password, domain, lmhash, nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
-				#conn.kerberosLogin(username, password, domain, lmhash, nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
-				# havent support kerberos authentication yet
 			else:
 				conn.login(username, password, domain, lmhash, nthash)
+			self.smb_sessions[host] = conn
 			return conn
 		except OSError as e:
 			logging.debug(str(e))
@@ -1169,12 +1172,10 @@ class CONNECTION:
 			username = self.username
 
 		if username:
-			if '\\' in username:
-				domain, username = username.split('\\')
+			if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\')
 			elif '@' in username:
 				username, domain = username.split('@')
-			elif '/' in username:
-				domain, username = username.split('/')
 
 		if not password:
 			password = self.password

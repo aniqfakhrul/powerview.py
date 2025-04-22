@@ -4,6 +4,9 @@ import logging
 import json
 from typing import Any, Optional
 import datetime
+import os
+from powerview.modules.smbclient import SMBClient
+from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip
 
 def _format_mcp_response(
 	data: Any = None,
@@ -1583,4 +1586,179 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(data=result, message="No local admin access found on any host.")
 		except Exception as e:
 			logging.error(f"Error in find_localadminaccess: {str(e)}")
+			return _format_mcp_response(error=str(e))
+
+	@mcp.tool()
+	async def smb_connect(
+		computer: str,
+		username: str = "",
+		password: str = "",
+		nthash: str = "",
+		lmhash: str = "",
+		domain: str = ""
+	) -> str:
+		"""
+		Establish an SMB connection to target system.
+		
+		This function establishes a connection to a remote system using SMB protocol, 
+		which can be leveraged for file operations, privilege escalation, lateral movement,
+		or intelligence gathering. Supports multiple authentication methods including
+		NTLM hash pass-the-hash attacks.
+		
+		Parameters:
+			computer: Target hostname or IP address
+			username: Optional: Account username (optional if using current context)
+			password: Optional: Account password in cleartext
+			nthash: Optional: NT hash for pass-the-hash attacks
+			lmhash: Optional: LM hash (default: None)
+			domain: Optional: Domain name (will use current domain if not specified)
+		
+		Returns:
+			Connection status information
+		"""
+		try:
+			if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\')
+			
+			if not computer:
+				return _format_mcp_response(error="Computer name/IP is required")
+
+			is_fqdn = False
+			host = ""
+
+			if not is_ipaddress(computer):
+				is_fqdn = True
+				if not is_valid_fqdn(computer):
+					host = f"{computer}.{powerview_instance.domain}"
+				else:
+					host = computer
+			else:
+				host = computer
+
+			if powerview_instance.use_kerberos:
+				if is_ipaddress(computer):
+					return _format_mcp_response(error="FQDN must be used for kerberos authentication")
+			else:
+				if is_fqdn:
+					host = host2ip(host, powerview_instance.nameserver, 3, True, 
+							use_system_ns=powerview_instance.use_system_nameserver)
+
+			if not host:
+				return _format_mcp_response(error="Host not found")
+
+			client = powerview_instance.conn.init_smb_session(
+				host,
+				username=username,
+				password=password,
+				nthash=nthash,
+				lmhash=lmhash,
+				domain=domain
+			)
+			
+			if not client:
+				return _format_mcp_response(error=f"Failed to connect to {host}")
+
+			if not hasattr(powerview_instance.conn, 'smb_sessions'):
+				powerview_instance.conn.smb_sessions = {}
+			powerview_instance.conn.smb_sessions[computer.lower()] = client
+
+			return _format_mcp_response(data={"status": "connected", "host": host})
+		except Exception as e:
+			return _format_mcp_response(error=str(e))
+
+	@mcp.tool()
+	async def smb_shares(
+		computer: str
+	) -> str:
+		"""List available SMB shares on a target system.
+		
+		Enumerates available SMB shares on a target system, useful for reconnaissance
+		and identifying valuable data.
+		
+		Parameters:
+			computer: Target hostname or IP address
+		
+		Returns:
+			List of available SMB shares of the target computer
+		"""
+		try:
+			host = computer.lower()
+			
+			if not host:
+				return _format_mcp_response(error="Computer name/IP is required")
+			
+			if not hasattr(powerview_instance.conn, 'smb_sessions') or host not in powerview_instance.conn.smb_sessions:
+				return _format_mcp_response(error="No active SMB session. Please connect first")
+
+			client = powerview_instance.conn.smb_sessions[host]
+			smb_client = SMBClient(client)
+			shares = smb_client.shares()
+
+			formatted_shares = []
+			for share in shares:
+				entry = {
+					"Name": share['shi1_netname'][:-1],
+					"Remark": share['shi1_remark'][:-1],
+					"Address": host
+				}
+				formatted_shares.append({"attributes": entry})
+
+			return _format_mcp_response(data=formatted_shares)
+		except Exception as e:
+			return _format_mcp_response(error=str(e))
+
+	@mcp.tool()
+	async def smb_ls(
+		computer: str,
+		share: str,
+		path: str = ""
+	) -> str:
+		"""List contents of a directory on a remote SMB share.
+		
+		Enumerates files and directories within a specified share path, useful for
+		reconnaissance, identifying valuable data, and planning exfiltration.
+		Directory traversal is supported to explore the target filesystem.
+		
+		Parameters:
+			computer: Target hostname or IP address
+			share: Share name to access (e.g., "C$", "ADMIN$", "NETLOGON")
+			path: Directory path within the share to list (default: root of share) (i.e.: "\\Users\\Public\\Desktop")
+		
+		Returns:
+			File listing with metadata (size, timestamps, attributes)
+		"""
+		try:
+			host = computer.lower()
+			
+			if not host or not share:
+				return _format_mcp_response(error="Computer name/IP and share name are required")
+
+			if not hasattr(powerview_instance.conn, 'smb_sessions') or host not in powerview_instance.conn.smb_sessions:
+				return _format_mcp_response(error="No active SMB session. Please connect first")
+			
+			client = powerview_instance.conn.smb_sessions[host]
+			smb_client = SMBClient(client)
+			
+			files = smb_client.ls(share, path)
+			logging.debug(f"[SMB LS] Listing {path} on {host} with share {share}")
+			
+			file_list = []
+			for f in files:
+				name = f.get_longname()
+				if name in ['.', '..']:
+					continue
+				
+				file_info = {
+					"name": name,
+					"size": f.get_filesize(),
+					"is_directory": f.is_directory(),
+					"created": str(f.get_ctime()),
+					"modified": str(f.get_mtime()),
+					"accessed": str(f.get_atime())
+				}
+				file_list.append(file_info)
+
+			return _format_mcp_response(data=file_list)
+		except Exception as e:
+			logging.error(f"[SMB LS] Error: {str(e)}")
 			return _format_mcp_response(error=str(e))

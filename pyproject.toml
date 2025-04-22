@@ -37,6 +37,7 @@ dependencies = [
     "requests_ntlm",
     "python-dateutil",
     "flask",
+    "mcp[cli]"
 ]
 
 [project.optional-dependencies]

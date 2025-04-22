@@ -886,11 +886,9 @@ def parse_hashes(hash_string):
 
 def parse_username(username):
 	domain = None
-	if '\\' in username:
-		domain, username = username.split('\\', 1)
+	if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\')
 	elif '@' in username:
 		username, domain = username.split('@', 1)
-	elif '/' in username:
-		domain, username = username.split('/', 1)
 
 	return {'domain': domain, 'username': username}
