@@ -20,6 +20,20 @@ from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip
 class APIServer:
 	def __init__(self, powerview, host="127.0.0.1", port=5000):
 		self.app = Flask(__name__, static_folder='../../web/front-end/static', template_folder='../../web/front-end/templates')
+		
+		self.basic_auth = None
+		self.web_auth_user = powerview.args.web_auth['web_auth_user']
+		self.web_auth_password = powerview.args.web_auth['web_auth_password']
+		if self.web_auth_user and self.web_auth_password:
+			try:
+				from flask_basicauth import BasicAuth
+				self.app.config['BASIC_AUTH_USERNAME'] = self.web_auth_user
+				self.app.config['BASIC_AUTH_PASSWORD'] = self.web_auth_password
+				self.basic_auth = BasicAuth(self.app)
+			except ImportError:
+				logging.error("flask_basicauth is not installed. Please install it using 'pip install flask-basicauth'")
+				sys.exit(1)
+		
 		cli = sys.modules['flask.cli']
 		cli.show_server_banner = lambda *x: None
 
@@ -35,48 +49,7 @@ class APIServer:
 		self.history_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, '.powerview_history')
 
 		# Define routes
-		self.app.add_url_rule('/', 'index', self.render_index, methods=['GET'])
-		self.app.add_url_rule('/dashboard', 'dashboard', self.render_dashboard, methods=['GET'])
-		self.app.add_url_rule('/users', 'users', self.render_users, methods=['GET'])
-		self.app.add_url_rule('/computers', 'computers', self.render_computers, methods=['GET'])
-		self.app.add_url_rule('/dns', 'dns', self.render_dns, methods=['GET'])
-		self.app.add_url_rule('/groups', 'groups', self.render_groups, methods=['GET'])
-		self.app.add_url_rule('/ca', 'ca', self.render_ca, methods=['GET'])
-		self.app.add_url_rule('/ou', 'ou', self.render_ou, methods=['GET'])
-		self.app.add_url_rule('/gpo', 'gpo', self.render_gpo, methods=['GET'])
-		self.app.add_url_rule('/smb', 'smb', self.render_smb, methods=['GET'])
-		self.app.add_url_rule('/utils', 'utils', self.render_utils, methods=['GET'])
-		self.app.add_url_rule('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
-		self.app.add_url_rule('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
-		self.app.add_url_rule('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
-		self.app.add_url_rule('/api/add/<method_name>', 'add_operation', self.handle_add_operation, methods=['POST'])
-		self.app.add_url_rule('/api/invoke/<method_name>', 'invoke_operation', self.handle_invoke_operation, methods=['POST'])
-		self.app.add_url_rule('/api/remove/<method_name>', 'remove_operation', self.handle_remove_operation, methods=['POST'])
-		self.app.add_url_rule('/api/start/<method_name>', 'start_operation', self.handle_start_operation, methods=['POST'])
-		self.app.add_url_rule('/api/stop/<method_name>', 'stop_operation', self.handle_stop_operation, methods=['POST'])
-		self.app.add_url_rule('/api/convertfrom/<method_name>', 'convert_from_operation', self.handle_convert_from_operation, methods=['POST'])
-		self.app.add_url_rule('/api/convertto/<method_name>', 'convert_to_operation', self.handle_convert_to_operation, methods=['POST'])
-		self.app.add_url_rule('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, methods=['GET'])
-		self.app.add_url_rule('/health', 'health', self.handle_health, methods=['GET'])
-		self.app.add_url_rule('/api/connectioninfo', 'connectioninfo', self.handle_connection_info, methods=['GET'])
-		self.app.add_url_rule('/api/logs', 'logs', self.generate_log_stream, methods=['GET'])
-		self.app.add_url_rule('/api/history', 'history', self.render_history, methods=['GET'])
-		self.app.add_url_rule('/api/ldap/rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
-		self.app.add_url_rule('/api/ldap/close', 'ldap_close', self.handle_ldap_close, methods=['GET'])
-		self.app.add_url_rule('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
-		self.app.add_url_rule('/api/constants', 'constants', self.handle_constants, methods=['GET'])
-		self.app.add_url_rule('/api/clear-cache', 'clear_cache', self.handle_clear_cache, methods=['GET'])
-		self.app.add_url_rule('/api/settings', 'settings', self.handle_settings, methods=['GET'])
-		self.app.add_url_rule('/api/smb/connect', 'smb_connect', self.handle_smb_connect, methods=['POST'])
-		self.app.add_url_rule('/api/smb/shares', 'smb_shares', self.handle_smb_shares, methods=['POST'])
-		self.app.add_url_rule('/api/smb/ls', 'smb_ls', self.handle_smb_ls, methods=['POST'])
-		self.app.add_url_rule('/api/smb/get', 'smb_get', self.handle_smb_get, methods=['POST'])
-		self.app.add_url_rule('/api/smb/put', 'smb_put', self.handle_smb_put, methods=['POST'])
-		self.app.add_url_rule('/api/smb/cat', 'smb_cat', self.handle_smb_cat, methods=['POST'])
-		self.app.add_url_rule('/api/smb/rm', 'smb_rm', self.handle_smb_rm, methods=['POST'])
-		self.app.add_url_rule('/api/smb/mkdir', 'smb_mkdir', self.handle_smb_mkdir, methods=['POST'])
-		self.app.add_url_rule('/api/smb/rmdir', 'smb_rmdir', self.handle_smb_rmdir, methods=['POST'])
-		self.app.add_url_rule('/api/login_as', 'login_as', self.handle_login_as, methods=['POST'])
+		self._register_routes()
 
 		self.nav_items = [
 			{"name": "Explorer", "icon": "fas fa-folder-tree", "link": "/"},
@@ -95,6 +68,56 @@ class APIServer:
 			{"name": "Logs", "icon": "far fa-file-alt", "button_id": "toggle-command-history"},
 			{"name": "Settings", "icon": "fas fa-cog", "button_id": "toggle-settings"}
 		]
+
+	def _register_routes(self):
+		def add_route_with_auth(rule, endpoint, view_func, **options):
+			decorated_view = view_func
+			if self.basic_auth:
+				decorated_view = self.basic_auth.required(view_func)
+			self.app.add_url_rule(rule, endpoint, decorated_view, **options)
+
+		add_route_with_auth('/', 'index', self.render_index, methods=['GET'])
+		add_route_with_auth('/dashboard', 'dashboard', self.render_dashboard, methods=['GET'])
+		add_route_with_auth('/users', 'users', self.render_users, methods=['GET'])
+		add_route_with_auth('/computers', 'computers', self.render_computers, methods=['GET'])
+		add_route_with_auth('/dns', 'dns', self.render_dns, methods=['GET'])
+		add_route_with_auth('/groups', 'groups', self.render_groups, methods=['GET'])
+		add_route_with_auth('/ca', 'ca', self.render_ca, methods=['GET'])
+		add_route_with_auth('/ou', 'ou', self.render_ou, methods=['GET'])
+		add_route_with_auth('/gpo', 'gpo', self.render_gpo, methods=['GET'])
+		add_route_with_auth('/smb', 'smb', self.render_smb, methods=['GET'])
+		add_route_with_auth('/utils', 'utils', self.render_utils, methods=['GET'])
+		add_route_with_auth('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
+		add_route_with_auth('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
+		add_route_with_auth('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
+		add_route_with_auth('/api/add/<method_name>', 'add_operation', self.handle_add_operation, methods=['POST'])
+		add_route_with_auth('/api/invoke/<method_name>', 'invoke_operation', self.handle_invoke_operation, methods=['POST'])
+		add_route_with_auth('/api/remove/<method_name>', 'remove_operation', self.handle_remove_operation, methods=['POST'])
+		add_route_with_auth('/api/start/<method_name>', 'start_operation', self.handle_start_operation, methods=['POST'])
+		add_route_with_auth('/api/stop/<method_name>', 'stop_operation', self.handle_stop_operation, methods=['POST'])
+		add_route_with_auth('/api/convertfrom/<method_name>', 'convert_from_operation', self.handle_convert_from_operation, methods=['POST'])
+		add_route_with_auth('/api/convertto/<method_name>', 'convert_to_operation', self.handle_convert_to_operation, methods=['POST'])
+		add_route_with_auth('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, methods=['GET'])
+		add_route_with_auth('/health', 'health', self.handle_health, methods=['GET'])
+		add_route_with_auth('/api/connectioninfo', 'connectioninfo', self.handle_connection_info, methods=['GET'])
+		add_route_with_auth('/api/logs', 'logs', self.generate_log_stream, methods=['GET'])
+		add_route_with_auth('/api/history', 'history', self.render_history, methods=['GET'])
+		add_route_with_auth('/api/ldap/rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
+		add_route_with_auth('/api/ldap/close', 'ldap_close', self.handle_ldap_close, methods=['GET'])
+		add_route_with_auth('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
+		add_route_with_auth('/api/constants', 'constants', self.handle_constants, methods=['GET'])
+		add_route_with_auth('/api/clear-cache', 'clear_cache', self.handle_clear_cache, methods=['GET'])
+		add_route_with_auth('/api/settings', 'settings', self.handle_settings, methods=['GET'])
+		add_route_with_auth('/api/smb/connect', 'smb_connect', self.handle_smb_connect, methods=['POST'])
+		add_route_with_auth('/api/smb/shares', 'smb_shares', self.handle_smb_shares, methods=['POST'])
+		add_route_with_auth('/api/smb/ls', 'smb_ls', self.handle_smb_ls, methods=['POST'])
+		add_route_with_auth('/api/smb/get', 'smb_get', self.handle_smb_get, methods=['POST'])
+		add_route_with_auth('/api/smb/put', 'smb_put', self.handle_smb_put, methods=['POST'])
+		add_route_with_auth('/api/smb/cat', 'smb_cat', self.handle_smb_cat, methods=['POST'])
+		add_route_with_auth('/api/smb/rm', 'smb_rm', self.handle_smb_rm, methods=['POST'])
+		add_route_with_auth('/api/smb/mkdir', 'smb_mkdir', self.handle_smb_mkdir, methods=['POST'])
+		add_route_with_auth('/api/smb/rmdir', 'smb_rmdir', self.handle_smb_rmdir, methods=['POST'])
+		add_route_with_auth('/api/login_as', 'login_as', self.handle_login_as, methods=['POST'])
 
 	def set_status(self, status):
 		self.status = status

@@ -439,10 +439,12 @@ def resolve_domain(domain, nameserver):
 	return answer
 
 def get_machine_name(domain, args=None):
-	if args and args.ldap_address is not None:
+
+	if args and args.ldap_address is not None and args.dc_ip is not None:
 		s = SMBConnection(args.ldap_address, args.dc_ip)
 	else:
 		s = SMBConnection(domain, domain)
+	
 	try:
 		s.login('', '')
 	except Exception:
@@ -450,7 +452,7 @@ def get_machine_name(domain, args=None):
 			raise Exception('Error while anonymous logging into %s' % domain)
 	else:
 		s.logoff()
-	#return s.getServerName()
+	
 	return "%s.%s" % (s.getServerName(), s.getServerDNSDomainName())
 
 

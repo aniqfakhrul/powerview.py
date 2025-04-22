@@ -65,6 +65,7 @@ def arg_parse():
 	web = parser.add_argument_group('web')
 	web.add_argument('--web-host', dest='web_host', action='store', default='127.0.0.1', help='Specify custom bind interface (Default: 127.0.0.1)')
 	web.add_argument('--web-port', dest='web_port', action='store', type=int, default=5000, help='Specify custom port for web interface (Default: 5000)')
+	web.add_argument('--web-auth', dest='web_auth', action='store', default=None, help='Enable authentication for web interface (format: username:password)', type=Helper.parse_web_auth)
 	
 	mcp = parser.add_argument_group('mcp')
 	mcp.add_argument('--mcp-host', dest='mcp_host', action='store', default='127.0.0.1', help='Specify custom bind interface for MCP (Default: 127.0.0.1)')
@@ -102,6 +103,17 @@ class Helper:
 		if value.isdigit():
 			return int(value)
 		return value.strip().split(',') if value else []
+
+	def parse_web_auth(web_auth):
+		web_auth_user = None
+		web_auth_password = None
+		if web_auth:
+			try:
+				web_auth_user, web_auth_password = web_auth.split(':')
+			except Exception:
+				raise ValueError("Invalid web auth string")
+				sys.exit(1)
+		return {'web_auth_user': web_auth_user, 'web_auth_password': web_auth_password}
 
 def powerview_arg_parse(cmd):
 	parser = PowerViewParser(exit_on_error=False)

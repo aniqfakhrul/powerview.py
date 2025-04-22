@@ -1069,11 +1069,9 @@ class CONNECTION:
 					try:
 						ccache = CCache.loadFile(os.getenv('KRB5CCNAME'))
 					except Exception as e:
-					   # No cache present
 						logging.info(str(e))
 						return
 					else:
-						# retrieve domain information from CCache file if needed
 						if domain == '':
 							domain = ccache.principal.realm['data'].decode('utf-8')
 							logging.debug('Domain retrieved from CCache: %s' % domain)
