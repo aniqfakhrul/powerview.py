@@ -108,7 +108,6 @@
                 {% include 'views/commandhistory.html' %}
                 {% include 'views/settings.html' %}
                 {% include 'views/detailspanel.html' %}
-                {% include 'views/modal.html' %}
                 {% include 'views/tableview.html' %}
                 {% include 'views/alert.html' %}
             </div>
@@ -124,6 +123,7 @@
                 <span class="sr-only">sidebar toggle</span>
             </button>
         </div>
+        {% include 'views/modal.html' %}
 
         {% block scripts %}
         {% endblock %}
