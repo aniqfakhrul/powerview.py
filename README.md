@@ -53,15 +53,9 @@ powerview range.net/lowpriv:Password123@192.168.86.192 [--dc-ip 192.168.86.192] 
 
 * Start web interface
 ```
-powerview range.net/lowpriv:Password123@192.168.86.192 --web [--web-host 0.0.0.0] [--web-port 3000]
+powerview range.net/lowpriv:Password123@192.168.86.192 --web [--web-host 0.0.0.0] [--web-port 3000] [--web-auth user:password1234]
 ```
 ![IMG_4602](https://github.com/user-attachments/assets/15bcd3e3-0693-4b0c-9c58-c8f36d899486)
-
-* Start MCP server for AI assistants
-```
-powerview range.net/lowpriv:Password123@192.168.86.192 --mcp [--mcp-host 0.0.0.0] [--mcp-port 8080] [--mcp-name "PowerView MCP"]
-```
-This enables the Model Context Protocol server, allowing AI assistants to interact with PowerView functionality through a standardized interface. See the [MCP documentation](powerview/mcp/README.md) for more details.
 
 * Init connection with specific authentication. Note that `--use-sign-and-seal` and `--use-channel-binding` is only available if you install `ldap3` library directly from this [branch](https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3/tree/tls_cb_and_seal_for_ntlm) 
 ```
@@ -396,7 +390,7 @@ This will log detailed information about rule matching to help troubleshoot cust
 > [!note]
 > This is not bundled in the base project installation. You may run `pip3 install .[mcp] or pip3 install powerview[mcp]` to include MCP functionalities.
 
-Powerview.py supports AI Model Context Protocol (MCP) that exposes sse transport protocol server that allows clients to interact over HTTP.
+This enables the Model Context Protocol server, allowing AI assistants to interact with PowerView functionality through a standardized interface via HTTP SSE transport. See the [MCP documentation](powerview/mcp/README.md) for more details.
 
 * Start MCP server
 ```bash
