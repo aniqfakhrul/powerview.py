@@ -247,7 +247,7 @@ class LDAPAttack(ProtocolAttack):
         self.client.search(target_dn, '(objectClass=*)', search_scope=ldap3.BASE, attributes=['SAMAccountName', 'objectSid', 'msDS-KeyCredentialLink'])
         results = None
         for entry in self.client.response:
-            if hasattr(entry, 'type') and entry['type'] != 'searchResEntry':
+            if entry['type'] != 'searchResEntry':
                 continue
             results = entry
         if not results:
@@ -293,7 +293,7 @@ class LDAPAttack(ProtocolAttack):
         target_entries = self.client.entries
         targetuser = None
         for entry in self.client.response:
-            if hasattr(entry, 'type') and entry['type'] != 'searchResEntry':
+            if entry['type'] != 'searchResEntry':
                 continue
             targetuser = entry
         if not targetuser:

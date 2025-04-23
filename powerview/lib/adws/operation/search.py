@@ -222,7 +222,8 @@ def parse_adws_pull_response(xml_string: str) -> list[dict]:
             results.append({
                 'dn': entry_dn_placeholder,
                 'attributes': processed_attributes,
-                'raw_attributes': raw_attributes
+                'raw_attributes': raw_attributes,
+                'type': 'searchResEntry'
             })
 
     except ElementTree.ParseError as e:

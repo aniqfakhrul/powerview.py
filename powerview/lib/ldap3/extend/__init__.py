@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from ldap3.extend.standard.PagedSearch import paged_search_generator, paged_search_accumulator
+from powerview.lib.adws.extend.standard.PagedSearch import adws_paged_search_generator, adws_paged_search_accumulator
 from ldap3.extend import StandardExtendedOperations, ExtendedOperationsRoot
 from ldap3 import SUBTREE, DEREF_ALWAYS
 from .obfuscate import (
@@ -122,7 +123,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 
 			if generator:
 				if self.use_adws:
-					results = self._connection.search(modified_dn, modified_filter, search_scope, attributes, size_limit, time_limit, types_only, get_operational_attributes, controls, paged_size, paged_criticality)
+					results = list(adws_paged_search_generator(self._connection, modified_dn, modified_filter, search_scope, attributes, size_limit, time_limit, types_only, get_operational_attributes, controls, paged_size, paged_criticality))
 				else:
 					# Get all results first so we can post-process them
 					results = list(paged_search_generator(self._connection,
@@ -142,7 +143,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				# Filter out non-search results
 				filtered_results = []
 				for entry in results:
-					if hasattr(entry, 'type') and entry['type'] != 'searchResEntry':
+					if entry['type'] != 'searchResEntry':
 						continue
 					
 					# Strip entries if requested
@@ -170,7 +171,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				return filtered_results
 			else:
 				if self.use_adws:
-					results = self._connection.search(search_base, search_filter, search_scope, attributes, size_limit, time_limit, types_only, get_operational_attributes, controls, paged_size, paged_criticality)
+					results = list(adws_paged_search_accumulator(self._connection, search_base, search_filter, search_scope, attributes, size_limit, time_limit, types_only, get_operational_attributes, controls, paged_size, paged_criticality))
 				else:
 					results = list(paged_search_accumulator(self._connection,
 												search_base,
