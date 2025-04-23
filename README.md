@@ -48,7 +48,7 @@ sudo apt install libkrb5-dev
 
 * Init connection
 ```
-powerview range.net/lowpriv:Password123@192.168.86.192 [--dc-ip 192.168.86.192] [-k] [--use-ldap | --use-ldaps]
+powerview range.net/lowpriv:Password123@192.168.86.192 [--dc-ip 192.168.86.192] [-k] [--use-ldap | --use-ldaps | --use-gc | --use-gc-ldaps | --use-adws]
 ```
 
 * Start web interface
@@ -457,3 +457,4 @@ You can modify this in cursor settings under MCP options button.
 * https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3/tree/tls_cb_and_seal_for_ntlm
 * https://github.com/ly4k/Certipy
 * https://github.com/MaLDAPtive/Invoke-Maldaptive
+* https://github.com/xforcered/SoaPy
