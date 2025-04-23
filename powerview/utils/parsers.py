@@ -38,6 +38,7 @@ def arg_parse():
 	group.add_argument('--use-ldaps', dest='use_ldaps', action='store_true', help='[Optional] Use LDAPS instead of LDAP')
 	group.add_argument('--use-gc', dest='use_gc', action='store_true', help='[Optional] Use GlobalCatalog (GC) protocol')
 	group.add_argument('--use-gc-ldaps', dest='use_gc_ldaps', action='store_true', help='[Optional] Use GlobalCatalog (GC) protocol for LDAPS')
+	group.add_argument('--use-adws', dest='use_adws', action='store_true', help='[Optional] Use ADWS protocol')
 
 	auth = parser.add_argument_group('authentication')
 	auth.add_argument('-H','--hashes', action="store", metavar = "LMHASH:NTHASH", help='NTLM hashes, format is LMHASH:NTHASH')

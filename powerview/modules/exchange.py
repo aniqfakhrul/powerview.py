@@ -571,7 +571,7 @@ class ExchangeEnum:
         results = {}
         
         for obj in objects:
-            if obj['type'] != 'searchResEntry':
+            if hasattr(obj, 'type') and obj['type'] != 'searchResEntry':
                 continue
                 
             attrs = obj.get('attributes', {})
@@ -640,7 +640,7 @@ class ExchangeEnum:
         results = {}
         
         for mailbox in mailboxes:
-            if mailbox['type'] != 'searchResEntry':
+            if hasattr(mailbox, 'type') and mailbox['type'] != 'searchResEntry':
                 continue
                 
             attrs = mailbox.get('attributes', {})
@@ -710,7 +710,7 @@ class ExchangeEnum:
         versions = {}
         
         for obj in exchange_objects:
-            if obj['type'] != 'searchResEntry':
+            if hasattr(obj, 'type') and obj['type'] != 'searchResEntry':
                 continue
                 
             attrs = obj.get('attributes', {})

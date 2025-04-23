@@ -86,14 +86,7 @@ class CAEnum:
         logging.debug(f'LDAP Base: {ca_search_base}')
         logging.debug(f'LDAP Filter: {enroll_filter}')
         
-        entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(ca_search_base, enroll_filter, attributes=list(properties), paged_size=1000, generator=True)
-        for _entries in entry_generator:
-            if _entries['type'] != 'searchResEntry':
-                continue
-            strip_entry(_entries)
-            entries.append(_entries)
-        return entries
+        return self.ldap_session.extend.standard.paged_search(ca_search_base, enroll_filter, attributes=list(properties), paged_size=1000, generator=True)
 
     def fetch_enrollment_services(self,
             properties=[
@@ -228,7 +221,7 @@ class CAEnum:
         searchbase = f"CN=OID,CN=Public Key Services,CN=Services,{self.configuration_dn}"
         ldap_filter = "(objectclass=msPKI-Enterprise-Oid)"
         entries = []
-        entry_generator = self.ldap_session.extend.standard.paged_search(
+        return self.ldap_session.extend.standard.paged_search(
             searchbase,
             ldap_filter,
             attributes=list(properties), 
@@ -239,12 +232,6 @@ class CAEnum:
             no_vuln_check=no_vuln_check,
             raw=raw
         )
-        for _entries in entry_generator:
-            if _entries['type'] != 'searchResEntry':
-                continue
-            strip_entry(_entries)
-            entries.append(_entries)
-        return entries
     
     def add_oid(self, template_name, template_oid, displayname=None, flags=0x01):
         oa = {

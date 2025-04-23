@@ -75,7 +75,10 @@ class PowerView:
 		else:
 			self.domain = conn.get_domain()
 		
-		self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
+		if self.args.use_adws:
+			self.ldap_server, self.ldap_session = self.conn.init_adws_session()
+		else:
+			self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
 
 		self._initialize_attributes_from_connection()
 
@@ -143,16 +146,18 @@ class PowerView:
 				sys.exit(1)
 
 	def _initialize_attributes_from_connection(self):
-		self.custom_paged_search = CustomExtendedOperationsRoot(self.ldap_session, server=self.ldap_server, obfuscate=self.args.obfuscate, no_cache=self.args.no_cache, no_vuln_check=self.args.no_vuln_check, raw=self.args.raw)
+		self.custom_paged_search = CustomExtendedOperationsRoot(self.ldap_session, server=self.ldap_server, obfuscate=self.args.obfuscate, no_cache=self.args.no_cache, no_vuln_check=self.args.no_vuln_check, use_adws=self.args.use_adws, raw=self.args.raw)
+		if not hasattr(self.ldap_session, 'extend'):
+			self.ldap_session.extend = type('ExtendedOperations', (), {'standard': type('StandardOperations', (), {})()})()
 		self.ldap_session.extend.standard.paged_search = self.custom_paged_search.standard.paged_search
 
 		self.use_ldaps = self.ldap_session.server.ssl
-		self.forest_dn = self.ldap_server.info.other["rootDomainNamingContext"][0]
-		self.root_dn = self.ldap_server.info.other["defaultNamingContext"][0]
-		self.configuration_dn = self.ldap_server.info.other["configurationNamingContext"][0]
+		self.forest_dn = self.ldap_server.info.other["rootDomainNamingContext"][0] if isinstance(self.ldap_server.info.other["rootDomainNamingContext"], list) else self.ldap_server.info.other["rootDomainNamingContext"]
+		self.root_dn = self.ldap_server.info.other["defaultNamingContext"][0] if isinstance(self.ldap_server.info.other["defaultNamingContext"], list) else self.ldap_server.info.other["defaultNamingContext"]
+		self.configuration_dn = self.ldap_server.info.other["configurationNamingContext"][0] if isinstance(self.ldap_server.info.other["configurationNamingContext"], list) else self.ldap_server.info.other["configurationNamingContext"]
 		if not self.domain:
 			self.domain = dn2domain(self.root_dn)
-		self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0]
+		self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0] if isinstance(self.ldap_server.info.other["ldapServiceName"], list) else self.ldap_server.info.other["ldapServiceName"].split("@")[-1].split(".")[0]
 		self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
 
 		self.whoami = self.conn.who_am_i()
@@ -521,7 +526,6 @@ class PowerView:
 
 		ldap_filter = f'(&(objectClass=*){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
-
 		return self.ldap_session.extend.standard.paged_search(
 			searchbase,
 			ldap_filter,

@@ -15,12 +15,13 @@ from powerview.modules.vulnerabilities import VulnerabilityDetector
 from powerview.utils.helpers import strip_entry
 
 class CustomStandardExtendedOperations(StandardExtendedOperations):
-	def __init__(self, connection, server=None, obfuscate=False, no_cache=False, no_vuln_check=False, raw=False):
+	def __init__(self, connection, server=None, obfuscate=False, no_cache=False, no_vuln_check=False, use_adws=False, raw=False):
 		super().__init__(connection)
 		self.server = server
 		self.obfuscate = obfuscate
 		self.no_cache = no_cache
 		self.no_vuln_check = no_vuln_check
+		self.use_adws = use_adws
 		self.raw = raw
 		self.storage = Storage()
 		self.vulnerability_detector = VulnerabilityDetector(self.storage)
@@ -120,27 +121,30 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				logging.debug("[CustomStandardExtendedOperations] Modified Attributes: {}".format(modified_attributes))
 
 			if generator:
-				# Get all results first so we can post-process them
-				results = list(paged_search_generator(self._connection,
-											  modified_dn,
-											  modified_filter,
-											  search_scope,
-											  dereference_aliases,
-											  attributes,
-											  size_limit,
-											  time_limit,
-											  types_only,
-											  get_operational_attributes,
-											  controls,
-											  paged_size,
-											  paged_criticality))
-				
+				if self.use_adws:
+					results = self._connection.search(modified_dn, modified_filter, search_scope, attributes, size_limit, time_limit, types_only, get_operational_attributes, controls, paged_size, paged_criticality)
+				else:
+					# Get all results first so we can post-process them
+					results = list(paged_search_generator(self._connection,
+												modified_dn,
+												modified_filter,
+												search_scope,
+												dereference_aliases,
+												attributes,
+												size_limit,
+												time_limit,
+												types_only,
+												get_operational_attributes,
+												controls,
+												paged_size,
+												paged_criticality))
+					
 				# Filter out non-search results
 				filtered_results = []
 				for entry in results:
-					if entry['type'] != 'searchResEntry':
+					if hasattr(entry, 'type') and entry['type'] != 'searchResEntry':
 						continue
-						
+					
 					# Strip entries if requested
 					if strip_entries:
 						strip_entry(entry)
@@ -163,10 +167,12 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 							del entry['attributes']['from_cache']
 					
 					self.storage.cache_results(search_base, search_filter, search_scope, attributes, filtered_results, raw=raw)
-					
 				return filtered_results
 			else:
-				results = list(paged_search_accumulator(self._connection,
+				if self.use_adws:
+					results = self._connection.search(search_base, search_filter, search_scope, attributes, size_limit, time_limit, types_only, get_operational_attributes, controls, paged_size, paged_criticality)
+				else:
+					results = list(paged_search_accumulator(self._connection,
 												search_base,
 												search_filter,
 												search_scope,
@@ -183,7 +189,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				# Filter out non-search results and strip entries if requested
 				filtered_results = []
 				for entry in results:
-					if entry['type'] != 'searchResEntry':
+					if hasattr(entry, 'type') and entry['type'] != 'searchResEntry':
 						continue
 						
 					# Strip entries if requested
@@ -208,7 +214,6 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 							del entry['attributes']['from_cache']
 					
 					self.storage.cache_results(search_base, search_filter, search_scope, attributes, filtered_results, raw=raw)
-				
 				return filtered_results
 		finally:
 			# Restore the original formatter
@@ -216,6 +221,6 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				self.server.custom_formatter = original_formatter
 
 class CustomExtendedOperationsRoot(ExtendedOperationsRoot):
-	def __init__(self, connection, server=None, obfuscate=False, no_cache=False, no_vuln_check=False, raw=False):
+	def __init__(self, connection, server=None, obfuscate=False, no_cache=False, no_vuln_check=False, use_adws=False, raw=False):
 		super().__init__(connection)
-		self.standard = CustomStandardExtendedOperations(self._connection, server, obfuscate, no_cache, no_vuln_check, raw)
+		self.standard = CustomStandardExtendedOperations(self._connection, server, obfuscate, no_cache, no_vuln_check, use_adws, raw)

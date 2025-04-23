@@ -45,6 +45,7 @@ from time import sleep
 import tempfile
 from ldap3.operation import bind
 from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
+import powerview.lib.adws as adws
 
 class CONNECTION:
 	def __init__(self, args):
@@ -59,6 +60,7 @@ class CONNECTION:
 		self.use_ldaps = args.use_ldaps
 		self.use_gc = args.use_gc
 		self.use_gc_ldaps = args.use_gc_ldaps
+		self.use_adws = args.use_adws
 		self.proto = None
 		self.port = args.port
 		self.hashes = args.hashes
@@ -129,6 +131,7 @@ class CONNECTION:
 		self.targetDomain = None
 		self.flatname = None
 
+		# if no protocol is specified, use ldaps
 		if not self.use_ldap and not self.use_ldaps and not self.use_gc and not self.use_gc_ldaps:
 			self.use_ldaps = True
 
@@ -312,7 +315,7 @@ class CONNECTION:
 			whoami = self.ldap_session.extend.standard.who_am_i()
 			if whoami:
 				whoami = whoami.split(":")[-1]
-		except ldap3.core.exceptions.LDAPExtensionError:
+		except Exception as e:
 			whoami = "%s\\%s" % (self.get_domain(), self.get_username())
 		return whoami if whoami else "ANONYMOUS"
 
@@ -544,6 +547,15 @@ class CONNECTION:
 				self.ldap_server, self.ldap_session = self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash, auth_method=self.auth_method)
 			return self.ldap_server, self.ldap_session
 
+	def init_adws_session(self):
+		if self.auth_method != ldap3.NTLM:
+			logging.error("ADWS protocol only supports NTLM authentication as of now")
+			sys.exit(0)
+
+		target = self.ldap_address
+		self.ldap_server, self.ldap_session = self.init_adws_connection(target, self.domain, self.username, self.password, self.lmhash, self.nthash)
+		return self.ldap_server, self.ldap_session
+
 	def init_ldap_anonymous(self, target, tls=None):
 		ldap_server_kwargs = {
 			"host": target,
@@ -711,13 +723,32 @@ class CONNECTION:
 			logging.error(f"AuthError: {str(ldap_session.result['message'])}")
 			sys.exit(0)
 
-		# check if domain is empty
-		self.domain = dn2domain(ldap_server.info.other.get('rootDomainNamingContext')[0])
-		who_am_i = ldap_session.extend.standard.who_am_i().lstrip("u:").split("\\")
-		self.username = who_am_i[-1]
-		self.flatname = who_am_i[0]
-
 		return ldap_server, ldap_session
+
+	def init_adws_connection(self, target, domain=None, username=None, password=None, lmhash=None, nthash=None, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM):
+		logging.debug("Using ADWS protocol")
+		self.proto = "ADWS"
+		
+		adws_server_kwargs = {
+			"host": target,
+			"port": 9389
+		}
+		adws_server = adws.Server(**adws_server_kwargs)
+
+		adws_connection_kwargs = {
+			"user": username,
+			"password": password,
+			"domain": domain,
+			"lmhash": lmhash,
+			"nthash": nthash
+		}
+		try:
+			adws_connection = adws.Connection(adws_server, **adws_connection_kwargs)
+			adws_server, adws_session = adws_connection.connect()
+			return adws_server, adws_session
+		except Exception as e:
+			logging.error(f"Error during ADWS authentication with error: {str(e)}")
+			sys.exit(0)
 
 	def init_ldap_connection(self, target, tls, domain=None, username=None, password=None, lmhash=None, nthash=None, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM):
 		ldap_server_kwargs = {
@@ -859,13 +890,6 @@ class CONNECTION:
 			else:
 				logging.debug("Bind SUCCESS!")
 
-		# check if domain is empty
-		if not self.domain or not is_valid_fqdn(self.domain):
-			self.domain = dn2domain(ldap_server.info.other.get('rootDomainNamingContext')[0])
-		
-		who_am_i = ldap_session.extend.standard.who_am_i().lstrip("u:").split("\\")
-		self.username = who_am_i[-1]
-		self.flatname = who_am_i[0]
 		return ldap_server, ldap_session
 
 	def ldap3_kerberos_login(self, connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True):
