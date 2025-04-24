@@ -270,12 +270,12 @@ def ini_to_dict(obj):
 	try:
 		config_string = '[dummy_section]\n' + obj
 		t = configparser.ConfigParser(converters={'list': lambda x: [int(i) if i.isnumeric() else i.strip() for i in x.replace("|",",").split(',')]})
+		t.optionxform = str
 		t.read_string(config_string)
 	except configparser.ParsingError as e:
 		return None
 	for k in t['dummy_section'].keys():
 		d['attribute'] = k
-		#In case the value is a Distinguished Name
 		if re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', t.get('dummy_section', k)):
 			d['value'] = t.get('dummy_section', k)
 		else:

@@ -92,13 +92,6 @@ LDAP_PUT_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-e
             <a:To s:mustUnderstand="1">net.tcp://{fqdn}:9389/ActiveDirectoryWebServices/Windows/Resource</a:To>
         </s:Header>
         <s:Body>
-            <da:ModifyRequest Dialect="http://schemas.microsoft.com/2008/1/ActiveDirectory/Dialect/XPath-Level-1">
-                <da:Change Operation="{operation}">
-                    <da:AttributeType>{attribute}</da:AttributeType>
-                    <da:AttributeValue>
-                        <ad:value xsi:type="xsd:{data_type}">{value}</ad:value>
-                    </da:AttributeValue>
-                </da:Change>
-            </da:ModifyRequest>
+            {attributes}
         </s:Body>
     </s:Envelope>"""

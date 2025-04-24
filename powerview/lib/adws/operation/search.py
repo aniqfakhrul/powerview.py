@@ -1,10 +1,125 @@
 from ..templates import LDAP_QUERY_FSTRING, LDAP_PULL_FSTRING, NAMESPACES
 from ..error import ADWSError
+from powerview.utils.helpers import IDict
 
 from uuid import uuid4
 from xml.etree import ElementTree
 import base64
 import logging
+
+# save this for later
+def xml_to_dict(xml_string: str) -> dict:
+    try:
+        root = ElementTree.fromstring(xml_string)
+        result = {}
+        
+        # Extract header information from SOAP envelope
+        header = root.find(".//{http://www.w3.org/2003/05/soap-envelope}Header") or root.find(".//s:Header", NAMESPACES)
+        if header is not None:
+            for child in header:
+                tag = child.tag.split("}")[-1]
+                if child.text and child.text.strip():
+                    result[tag] = child.text.strip()
+        
+        # Handle SOAP faults
+        fault = root.find(".//soapenv:Fault", NAMESPACES) or root.find(".//s:Fault", NAMESPACES)
+        if fault:
+            code = fault.find(".//soapenv:Value", NAMESPACES) or fault.find(".//s:Value", NAMESPACES)
+            if code is not None and code.text:
+                result["FaultCode"] = code.text
+            
+            subcode = fault.find(".//soapenv:Subcode/soapenv:Value", NAMESPACES) or fault.find(".//s:Subcode/s:Value", NAMESPACES)
+            if subcode is not None and subcode.text:
+                result["FaultSubcode"] = subcode.text
+            
+            reason = fault.find(".//soapenv:Text", NAMESPACES) or fault.find(".//s:Text", NAMESPACES)
+            if reason is not None and reason.text:
+                result["Error"] = reason.text
+            
+            detail = fault.find(".//soapenv:Detail", NAMESPACES) or root.find(".//s:Detail", NAMESPACES)
+            if detail is not None:
+                detail_dict = {}
+                # Recursively parse the detail element and its children
+                def parse_element(element, current_dict):
+                    for sub_element in element:
+                        sub_tag = sub_element.tag.split("}")[-1]
+                        if sub_element.text:
+                            current_dict[sub_tag] = sub_element.text
+                        elif len(sub_element) > 0:
+                            nested_dict = {}
+                            parse_element(sub_element, nested_dict)
+                            current_dict[sub_tag] = nested_dict
+                parse_element(detail, detail_dict)
+                result["ErrorDetail"] = detail_dict
+            
+            return result
+        
+        # Handle enumeration context for paged results
+        enum_context = root.find(".//wsen:EnumerationContext", NAMESPACES)
+        if enum_context is not None and enum_context.text:
+            result["EnumerationContext"] = enum_context.text
+        
+        # Handle expiration information
+        expires = root.find(".//wsen:Expires", NAMESPACES)
+        if expires is not None and expires.text:
+            result["Expires"] = expires.text
+        
+        # Handle end of sequence marker
+        end_of_sequence = root.find(".//wsen:EndOfSequence", NAMESPACES)
+        if end_of_sequence is not None:
+            result["EndOfSequence"] = True
+        
+        entries = []
+        
+        # Process all AD object types
+        object_types = ["user", "computer", "group", "organizationalUnit", "container", "domainDNS"]
+        for obj_type in object_types:
+            objects = root.findall(f".//addata:{obj_type}", NAMESPACES)
+            
+            for obj in objects:
+                obj_data = {"objectClass": obj_type}
+                
+                for attr in obj:
+                    attr_tag = attr.tag.split("}")[-1]
+                    ldap_syntax = attr.attrib.get('LdapSyntax', '')
+                    values = []
+                    
+                    for val in attr.findall(".//ad:value", NAMESPACES):
+                        if val.text is None:
+                            continue
+                            
+                        value = val.text
+                        xsi_type = val.get("{http://www.w3.org/2001/XMLSchema-instance}type")
+                        
+                        if xsi_type == "xsd:base64Binary":
+                            try:
+                                value = base64.b64decode(value)
+                            except:
+                                pass
+                        elif xsi_type == "xsd:boolean":
+                            value = value.lower() == "true"
+                        elif xsi_type == "xsd:integer" or xsi_type == "xsd:int" or ldap_syntax == "Integer":
+                            try:
+                                value = int(value)
+                            except:
+                                pass
+                        
+                        values.append(value)
+                    
+                    if values:
+                        if len(values) == 1:
+                            obj_data[attr_tag] = values[0]
+                        else:
+                            obj_data[attr_tag] = values
+                
+                entries.append(obj_data)
+        
+        if entries:
+            result["entries"] = entries
+        
+        return result
+    except Exception as e:
+        return {"Error": str(e), "RawXML": xml_string[:200] + "..." if len(xml_string) > 200 else xml_string}
 
 def handle_str_to_xml(xmlstr):
     """Takes an xml string and returns an Element of the root
@@ -221,8 +336,8 @@ def parse_adws_pull_response(xml_string: str) -> list[dict]:
 
             results.append({
                 'dn': entry_dn_placeholder,
-                'attributes': processed_attributes,
-                'raw_attributes': raw_attributes,
+                'attributes': IDict(processed_attributes),
+                'raw_attributes': IDict(raw_attributes),
                 'type': 'searchResEntry'
             })
 

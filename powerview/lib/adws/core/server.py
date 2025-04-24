@@ -1,13 +1,14 @@
-from .. import RESOURCE, RESOURCE_FACTORY, ENUMERATION, ACCOUNT_MANAGEMENT, TOPOLOGY_MANAGEMENT
+from .. import ENUMERATION
 from ldap3 import DSA, SCHEMA, ALL, BASE, SUBTREE, SEQUENCE_TYPES
 from ldap3.protocol.rfc4512 import SchemaInfo, DsaInfo
 
 class Server(object):
-    def __init__(self, host, ssl=False, port=9389, get_info=ALL, formatter=None, resource=None):
+    def __init__(self, host, ssl=False, port=9389, get_info=ALL, formatter=None, validator=None, resource=ENUMERATION):
         self.host = host
         self.port = port
         self.ssl = ssl
         self.custom_formatter = formatter
+        self.custom_validator = validator
         self.resource = resource
         self.get_info = get_info
         self._dsa_info = None

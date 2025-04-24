@@ -743,11 +743,12 @@ class CONNECTION:
 			"password": password,
 			"domain": domain,
 			"lmhash": lmhash,
-			"nthash": nthash
+			"nthash": nthash,
+			"raise_exceptions": True
 		}
 		try:
 			adws_connection = adws.Connection(adws_server, **adws_connection_kwargs)
-			adws_server, adws_session = adws_connection.connect()
+			adws_server, adws_session = adws_connection.connect(get_info=True)
 			return adws_server, adws_session
 		except Exception as e:
 			logging.error(f"Error during ADWS authentication with error: {str(e)}")

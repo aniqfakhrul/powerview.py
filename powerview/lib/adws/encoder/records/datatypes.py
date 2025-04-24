@@ -1,10 +1,6 @@
-import logging
 import struct
 
 from typing import Self
-
-log = logging.getLogger(__name__)
-
 
 class MultiByteInt31(object):
     def __init__(self, value: int):

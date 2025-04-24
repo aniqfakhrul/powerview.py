@@ -28,6 +28,7 @@ from powerview.modules.ldapattack import (
 	RBCD,
 	Trust
 )
+from powerview.lib.adws.error import ADWSError
 from powerview.utils.colors import bcolors
 from powerview.utils.constants import (
 	WELL_KNOWN_SIDS,
@@ -1702,17 +1703,43 @@ class PowerView:
 		ldap_filter = f'(&(objectClass=domain){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-Domain] LDAP search filter: {ldap_filter}')
 
-		return self.ldap_session.extend.standard.paged_search(
-			searchbase,
-			ldap_filter,
-			attributes=properties,
-			paged_size=1000,
-			generator=True,
-			search_scope=search_scope,
-			no_cache=no_cache,
-			no_vuln_check=no_vuln_check,
-			raw=raw
-		)
+		try:
+			return self.ldap_session.extend.standard.paged_search(
+				searchbase,
+				ldap_filter,
+				attributes=properties,
+				paged_size=1000,
+				generator=True,
+				search_scope=search_scope,
+				no_cache=no_cache,
+				no_vuln_check=no_vuln_check,
+				raw=raw
+			)
+		except ADWSError as e:
+			if 'The size limit was exceeded' in str(e):
+				logging.warning("[Get-Domain: ADWSError] The size limit was exceeded. Retying with smaller attributes")
+				properties = [
+					'name',
+					'objectGUID',
+					'objectCategory',
+					'dSCorePropagationData',
+					'dc',
+					'whenCreated',
+					'whenChanged',
+					'objectSid',
+					'sAMAccountName',
+					'userAccountControl',
+					'memberOf',
+					'objectClass',
+					'distinguishedName',
+					'ms-DS-MachineAccountQuota',
+					'maxPwdAge',
+					'minPwdAge',
+					'instanceType'
+				]
+				return self.get_domain(args=args, properties=properties, identity=identity, searchbase=searchbase, search_scope=search_scope, no_cache=no_cache, no_vuln_check=no_vuln_check, raw=raw)
+			else:
+				raise e
 
 	def get_domaindnszone(self, identity=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
@@ -3845,18 +3872,9 @@ displayName=New Group Policy Object
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
-		targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['*'], sd_flag=sd_flag)
-		if len(targetobject) > 1:
-			logging.error(f"[Set-DomainObject] More than one identity found. Use distinguishedName instead")
-			return False
-		elif len(targetobject) == 0:
-			logging.error(f"[Set-DomainObject] Identity {identity} not found in domain")
-			return False
-
 		attr_clear = args.clear if hasattr(args,'clear') and args.clear else clear
 		attr_set = args.set if hasattr(args, 'set') and args.set else _set
 		attr_append = args.append if hasattr(args, 'append') and args.append else append
-
 		attr_key = ""
 		attr_val = []
 
@@ -3877,6 +3895,14 @@ displayName=New Group Policy Object
 					attrs = ini_to_dict(attr_append)
 			if not attrs:
 				raise ValueError(f"[Set-DomainObject] Parsing {'-Set' if args.set else '-Append'} value failed")
+
+			targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=[attrs['attribute'], "distinguishedName"], sd_flag=sd_flag)
+			if len(targetobject) > 1:
+				logging.error(f"[Set-DomainObject] More than one identity found. Use distinguishedName instead")
+				return False
+			elif len(targetobject) == 0:
+				logging.error(f"[Set-DomainObject] Identity {identity} not found in domain")
+				return False
 
 			# check if value is a file
 			if len(attrs['value']) == 1 and isinstance(attrs['value'][0], str) and not isinstance(attrs['value'][0], bytes) and attrs['value'][0].startswith("@"):
@@ -3916,13 +3942,14 @@ displayName=New Group Policy Object
 				if not targetobject[0]["attributes"].get(attrs['attribute']):
 					logging.warning(f"[Set-DomainObject] {attrs['attribute']} property not found in target identity")
 					logging.warning(f"[Set-DomainObject] Attempting to force add attribute {attrs['attribute']} to target object")
-					return self.set_domainobject(identity, _set={
-						'attribute': attrs['attribute'],
-						'value': attrs['value'],
-						},
-												 searchbase=searchbase,
-												 sd_flag=sd_flag
-												 )
+					return self.set_domainobject(identity, 
+												_set={
+													'attribute': attrs['attribute'],
+													'value': attrs['value'],
+												},
+												searchbase=searchbase,
+												sd_flag=sd_flag
+												)
 
 				temp_list = []
 				if isinstance(targetobject[0]["attributes"][attrs['attribute']], str):
@@ -3945,17 +3972,12 @@ displayName=New Group Policy Object
 
 			attr_key = attrs['attribute']
 			attr_val = attrs['value']
-
-		try:
-			succeeded = self.ldap_session.modify(targetobject[0]["attributes"]["distinguishedName"], {
-				attr_key:[
-					(ldap3.MODIFY_REPLACE,attr_val)
-					]
-				}, controls=security_descriptor_control(sdflags=sd_flag) if sd_flag else None)
-		except ldap3.core.exceptions.LDAPInsufficientAccessRightsResult as e:
-			raise ValueError(f"[Set-DomainObject] Insufficient access rights to modify {attr_key}: {str(e)}")
-		except ldap3.core.exceptions.LDAPInvalidValueError as e:
-			raise ValueError(f"[Set-DomainObject] Invalid value for {attr_key}: {str(e)}")
+		
+		succeeded = self.ldap_session.modify(targetobject[0]["attributes"]["distinguishedName"], {
+											 attr_key:[
+												(ldap3.MODIFY_REPLACE,attr_val)
+											 ]
+											}, controls=security_descriptor_control(sdflags=sd_flag) if sd_flag else None)
 
 		if not succeeded:
 			logging.error(f"[Set-DomainObject] Failed to modify attribute {attr_key} for {targetobject[0]['attributes']['distinguishedName']}")
