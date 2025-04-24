@@ -132,7 +132,7 @@ class CONNECTION:
 		self.flatname = None
 
 		# if no protocol is specified, use ldaps
-		if not self.use_ldap and not self.use_ldaps and not self.use_gc and not self.use_gc_ldaps:
+		if not self.use_ldap and not self.use_ldaps and not self.use_gc and not self.use_gc_ldaps and not self.use_adws:
 			self.use_ldaps = True
 
 		self.args = args
@@ -540,6 +540,9 @@ class CONNECTION:
 						self.use_gc = True
 						self.use_gc_ldaps = False
 					return self.init_ldap_session()
+		elif self.use_adws:
+			self.ldap_server, self.ldap_session = self.init_adws_session()
+			return self.ldap_server, self.ldap_session
 		else:
 			if _anonymous:
 				self.ldap_server, self.ldap_session = self.init_ldap_anonymous(target)

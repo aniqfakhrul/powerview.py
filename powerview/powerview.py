@@ -75,10 +75,7 @@ class PowerView:
 		else:
 			self.domain = conn.get_domain()
 		
-		if self.args.use_adws:
-			self.ldap_server, self.ldap_session = self.conn.init_adws_session()
-		else:
-			self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
+		self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
 
 		self._initialize_attributes_from_connection()
 
