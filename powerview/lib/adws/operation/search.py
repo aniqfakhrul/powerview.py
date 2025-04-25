@@ -6,14 +6,15 @@ from uuid import uuid4
 from xml.etree import ElementTree
 import base64
 import logging
-
-# save this for later
-def xml_to_dict(xml_string: str) -> dict:
+def xml_to_dict(xml_string: str, attributes: list[str] = None) -> dict:
     try:
         root = ElementTree.fromstring(xml_string)
         result = {}
+        entries = []
         
-        # Extract header information from SOAP envelope
+        # Convert attributes to lowercase for case-insensitive comparison
+        attributes_lower = [attr.lower() for attr in attributes] if attributes else None
+        
         header = root.find(".//{http://www.w3.org/2003/05/soap-envelope}Header") or root.find(".//s:Header", NAMESPACES)
         if header is not None:
             for child in header:
@@ -21,7 +22,6 @@ def xml_to_dict(xml_string: str) -> dict:
                 if child.text and child.text.strip():
                     result[tag] = child.text.strip()
         
-        # Handle SOAP faults
         fault = root.find(".//soapenv:Fault", NAMESPACES) or root.find(".//s:Fault", NAMESPACES)
         if fault:
             code = fault.find(".//soapenv:Value", NAMESPACES) or fault.find(".//s:Value", NAMESPACES)
@@ -36,10 +36,9 @@ def xml_to_dict(xml_string: str) -> dict:
             if reason is not None and reason.text:
                 result["Error"] = reason.text
             
-            detail = fault.find(".//soapenv:Detail", NAMESPACES) or root.find(".//s:Detail", NAMESPACES)
+            detail = root.find(".//soapenv:Detail", NAMESPACES) or root.find(".//s:Detail", NAMESPACES)
             if detail is not None:
                 detail_dict = {}
-                # Recursively parse the detail element and its children
                 def parse_element(element, current_dict):
                     for sub_element in element:
                         sub_tag = sub_element.tag.split("}")[-1]
@@ -52,71 +51,98 @@ def xml_to_dict(xml_string: str) -> dict:
                 parse_element(detail, detail_dict)
                 result["ErrorDetail"] = detail_dict
             
-            return result
-        
-        # Handle enumeration context for paged results
         enum_context = root.find(".//wsen:EnumerationContext", NAMESPACES)
         if enum_context is not None and enum_context.text:
             result["EnumerationContext"] = enum_context.text
         
-        # Handle expiration information
         expires = root.find(".//wsen:Expires", NAMESPACES)
         if expires is not None and expires.text:
             result["Expires"] = expires.text
         
-        # Handle end of sequence marker
         end_of_sequence = root.find(".//wsen:EndOfSequence", NAMESPACES)
         if end_of_sequence is not None:
             result["EndOfSequence"] = True
         
-        entries = []
-        
-        # Process all AD object types
-        object_types = ["user", "computer", "group", "organizationalUnit", "container", "domainDNS"]
-        for obj_type in object_types:
-            objects = root.findall(f".//addata:{obj_type}", NAMESPACES)
+        items = root.findall(".//wsen:Items/*", NAMESPACES)
+        for obj in items:
+            entry_dn = None
+            attributes_dict = {}
+            raw_attributes_dict = {}
             
-            for obj in objects:
-                obj_data = {"objectClass": obj_type}
+            dn_element = obj.find(".//ad:distinguishedName/ad:value", NAMESPACES)
+            if dn_element is not None and dn_element.text:
+                entry_dn = dn_element.text
+            
+            for attr in obj:
+                attr_tag = attr.tag.split("}")[-1]
                 
-                for attr in obj:
-                    attr_tag = attr.tag.split("}")[-1]
-                    ldap_syntax = attr.attrib.get('LdapSyntax', '')
-                    values = []
+                if attributes and attr_tag.lower() not in attributes_lower:
+                    continue
                     
-                    for val in attr.findall(".//ad:value", NAMESPACES):
-                        if val.text is None:
-                            continue
-                            
-                        value = val.text
-                        xsi_type = val.get("{http://www.w3.org/2001/XMLSchema-instance}type")
-                        
-                        if xsi_type == "xsd:base64Binary":
-                            try:
-                                value = base64.b64decode(value)
-                            except:
-                                pass
-                        elif xsi_type == "xsd:boolean":
-                            value = value.lower() == "true"
-                        elif xsi_type == "xsd:integer" or xsi_type == "xsd:int" or ldap_syntax == "Integer":
-                            try:
-                                value = int(value)
-                            except:
-                                pass
-                        
-                        values.append(value)
-                    
-                    if values:
-                        if len(values) == 1:
-                            obj_data[attr_tag] = values[0]
-                        else:
-                            obj_data[attr_tag] = values
+                ldap_syntax = attr.attrib.get('LdapSyntax', '')
+                values = []
+                raw_values = []
                 
-                entries.append(obj_data)
+                for val in attr.findall(".//ad:value", NAMESPACES):
+                    if val.text is None:
+                        continue
+                        
+                    raw_value_str = val.text
+                    raw_value_bytes = raw_value_str.encode('utf-8')
+                    
+                    value = raw_value_str
+                    xsi_type = val.get("{http://www.w3.org/2001/XMLSchema-instance}type")
+                    
+                    if xsi_type == "xsd:base64Binary":
+                        try:
+                            value = base64.b64decode(raw_value_str + '==')
+                        except base64.binascii.Error:
+                            logging.warning(f"Failed to decode base64 value for {attr_tag}: {raw_value_str}")
+                            value = raw_value_bytes
+                    elif xsi_type and xsi_type.lower() == 'xsd:integer':
+                        try:
+                            value = int(raw_value_str)
+                        except Exception:
+                            pass
+                    elif ldap_syntax == 'integer':
+                        try:
+                            value = int(raw_value_str)
+                        except Exception:
+                            pass
+                    
+                    values.append(value)
+                    raw_values.append(raw_value_bytes)
+                
+                if values:
+                    if attr_tag not in attributes_dict:
+                        attributes_dict[attr_tag] = values[0] if len(values) == 1 else values
+                        raw_attributes_dict[attr_tag] = raw_values[0] if len(raw_values) == 1 else raw_values
+            
+            if entry_dn is None:
+                if 'distinguishedName' in attributes_dict:
+                    entry_dn = attributes_dict['distinguishedName']
+                else:
+                    fallback_id = next(iter(raw_attributes_dict.values())) if raw_attributes_dict else str(uuid4())
+                    if isinstance(fallback_id, bytes):
+                        try:
+                            fallback_id = fallback_id.decode('utf-8', errors='ignore')
+                        except:
+                            fallback_id = str(uuid4())
+                    entry_dn = f"Object_{fallback_id}"
+            
+            entries.append({
+                'dn': entry_dn,
+                'attributes': IDict(attributes_dict),
+                'raw_attributes': IDict(raw_attributes_dict),
+                'type': 'searchResEntry'
+            })
         
         if entries:
             result["entries"] = entries
         
+        if not result:
+            raise ValueError("was unable to parse xml from the server response")
+
         return result
     except Exception as e:
         return {"Error": str(e), "RawXML": xml_string[:200] + "..." if len(xml_string) > 200 else xml_string}
@@ -223,7 +249,6 @@ def handle_enum_ctx(fqdn: str, enum_ctx: str):
     }
 
     return LDAP_PULL_FSTRING.format(**_vars)
-
 def parse_adws_pull_response(xml_string: str) -> list[dict]:
     """
     Parses the XML string from an ADWS PullResponse into a list of dictionaries,
@@ -236,16 +261,14 @@ def parse_adws_pull_response(xml_string: str) -> list[dict]:
         A list of dictionaries, where each dictionary represents an AD object.
         Example entry:
         {
-            'dn': '<GUID identifying the object>', # Using GUID as DN placeholder
+            'dn': 'CN=DC01,OU=Domain Controllers,DC=oa,DC=bbl',
             'attributes': {
-                'objectClass': ['user'], # Extracted from tag name
+                'objectClass': ['user'], 
                 'sAMAccountName': ['krbtgt'],
-                'objectSid': [b'decoded_sid'], # Decoded value
-                # ... other attributes
+                'objectSid': [b'decoded_sid'],
             },
             'raw_attributes': {
-                'objectSid': [b'base64_encoded_sid_bytes'] # Raw value
-                # ... other raw attributes
+                'objectSid': [b'base64_encoded_sid_bytes']
             }
         }
     """
@@ -254,7 +277,7 @@ def parse_adws_pull_response(xml_string: str) -> list[dict]:
         for prefix, uri in NAMESPACES.items():
             ElementTree.register_namespace(prefix, uri)
         
-        root = handle_str_to_xml(xml_string)
+        root = ElementTree.fromstring(xml_string)
         items_element = root.find(".//wsen:Items", NAMESPACES)
 
         if items_element is None:
@@ -265,18 +288,22 @@ def parse_adws_pull_response(xml_string: str) -> list[dict]:
                 return []
 
         for entry_element in items_element:
-            entry_dn_placeholder = None
+            entry_dn = None
             attributes = {}
             raw_attributes = {}
+
+            dn_element = entry_element.find(".//ad:distinguishedName/ad:value", NAMESPACES)
+            if dn_element is not None and dn_element.text:
+                entry_dn = dn_element.text
 
             for attr_element in entry_element:
                 attr_tag_parts = attr_element.tag.split('}')
                 attr_name = attr_tag_parts[-1] if len(attr_tag_parts) > 1 else attr_element.tag
 
-                if attr_name == 'objectReferenceProperty':
+                if attr_name == 'distinguishedName':
                     value_element = attr_element.find(".//ad:value", NAMESPACES)
                     if value_element is not None and value_element.text:
-                        entry_dn_placeholder = f"GUID={value_element.text}"
+                        entry_dn = value_element.text
                     continue
 
                 if attr_name not in attributes:
@@ -285,12 +312,8 @@ def parse_adws_pull_response(xml_string: str) -> list[dict]:
 
                 value_elements = attr_element.findall(".//ad:value", NAMESPACES)
                 if not value_elements:
-                    if attr_name not in attributes:
-                         attributes[attr_name] = []
-                         raw_attributes[attr_name] = []
                     continue
 
-                # Check for LdapSyntax attribute on the parent (e.g., LdapSyntax="Integer")
                 ldap_syntax = attr_element.attrib.get('LdapSyntax', '').lower()
 
                 for value_element in value_elements:
@@ -313,8 +336,6 @@ def parse_adws_pull_response(xml_string: str) -> list[dict]:
                                     value = int(raw_value_str)
                                 except Exception:
                                     pass
-                            #print(xsi_type, attr_name, value)
-                        # Also check LdapSyntax for integer conversion
                         elif ldap_syntax == 'integer':
                             try:
                                 value = int(raw_value_str)
@@ -323,9 +344,15 @@ def parse_adws_pull_response(xml_string: str) -> list[dict]:
                         attributes[attr_name].append(value)
                         raw_attributes[attr_name].append(raw_value_bytes)
 
-            if entry_dn_placeholder is None:
-                 fallback_id = next(iter(raw_attributes.values()))[0].decode('utf-8', errors='ignore') if raw_attributes else uuid4()
-                 entry_dn_placeholder = f"Object_{fallback_id}"
+            if entry_dn is None:
+                if 'objectReferenceProperty' in attributes:
+                    entry_dn = f"GUID={attributes['objectReferenceProperty'][0]}"
+                else:
+                    try:
+                        fallback_id = next(iter(raw_attributes.values()))[0].decode('utf-8', errors='ignore') if raw_attributes else str(uuid4())
+                        entry_dn = f"Object_{fallback_id}"
+                    except:
+                        entry_dn = f"Object_{str(uuid4())}"
 
             processed_attributes = {}
             for attr_name_final, attr_values_final in attributes.items():
@@ -335,7 +362,7 @@ def parse_adws_pull_response(xml_string: str) -> list[dict]:
                     processed_attributes[attr_name_final] = attr_values_final
 
             results.append({
-                'dn': entry_dn_placeholder,
+                'dn': entry_dn,
                 'attributes': IDict(processed_attributes),
                 'raw_attributes': IDict(raw_attributes),
                 'type': 'searchResEntry'
@@ -345,7 +372,6 @@ def parse_adws_pull_response(xml_string: str) -> list[dict]:
         raise ADWSError(f"Failed to parse PullResponse XML: {e}\nXML: {xml_string[:500]}...") from e
     except Exception as e:
         raise ADWSError(f"Error processing PullResponse items: {e}\nXML: {xml_string[:500]}...") from e
-
 
     return results
     

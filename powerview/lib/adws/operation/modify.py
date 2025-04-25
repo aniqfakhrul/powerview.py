@@ -90,3 +90,6 @@ def modify_operation(fqdn,
         "attributes": mRequest,
     }
     return LDAP_PUT_FSTRING.format(**put_vars)
+
+def modify_response_to_dict(response):
+    pass

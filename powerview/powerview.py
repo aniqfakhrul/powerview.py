@@ -3880,6 +3880,14 @@ displayName=New Group Policy Object
 
 		if attr_clear:
 			attr_key = attr_clear
+
+			targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=[attr_clear, "distinguishedName"], sd_flag=sd_flag)
+			if len(targetobject) > 1:
+				logging.error(f"[Set-DomainObject] More than one identity found. Use distinguishedName instead")
+				return False
+			elif len(targetobject) == 0:
+				logging.error(f"[Set-DomainObject] Identity {identity} not found in domain")
+				return False
 		else:
 			attrs = {}
 
@@ -3981,7 +3989,6 @@ displayName=New Group Policy Object
 
 		if not succeeded:
 			logging.error(f"[Set-DomainObject] Failed to modify attribute {attr_key} for {targetobject[0]['attributes']['distinguishedName']}")
-			logging.error(self.ldap_session.result['message'] )
 		else:
 			logging.info(f'[Set-DomainObject] Success! modified attribute {attr_key} for {targetobject[0]["attributes"]["distinguishedName"]}')
 

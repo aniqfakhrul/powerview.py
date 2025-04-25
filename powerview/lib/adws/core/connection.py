@@ -1,6 +1,8 @@
 from .. import OPERATIONAL_ATTRIBUTES, RESOURCE, RESOURCE_FACTORY, ENUMERATION, ACCOUNT_MANAGEMENT, TOPOLOGY_MANAGEMENT, COMMON_ATTRIBUTES
 from ..operation.search import search_operation, handle_str_to_xml, handle_enum_ctx, parse_adws_pull_response, xml_to_dict
 from ..operation.modify import modify_operation
+from ..operation.delete import delete_operation
+from ..operation.add import add_operation
 from ..nns import NNS
 from ..nmf import NMFConnection
 from ..templates import NAMESPACES
@@ -29,6 +31,7 @@ class Connection(object):
         self.authentication = authentication
         self.check_names = check_names
         self.auto_encode = auto_encode
+        self.result = {}
 
     def _create_NNS_from_auth(self, sock: socket.socket) -> NNS:
         if self.authentication == NTLM:
@@ -42,6 +45,19 @@ class Connection(object):
                 lm=self.lmhash if self.lmhash else ""
             )
         raise NotImplementedError
+
+    def _prepare_return_value(self, response):
+        error_detail = response.get("ErrorDetail", {})
+        fault_detail = error_detail.get("FaultDetail", {})
+        directory_error = fault_detail.get("DirectoryError", {})
+        
+        self.result['message'] = directory_error.get("ExtendedErrorMessage", fault_detail.get("ExtendedErrorMessage", "Unknown error"))
+        self.result['description'] = directory_error.get("Message", fault_detail.get("ExtendedErrorDescription", "Unknown error"))
+        self.result['result'] = int(directory_error.get("ErrorCode", fault_detail.get("ErrorCode", 0)))
+        self.result['win32_error_code'] = directory_error.get("Win32ErrorCode", 0)
+        self.result['short_message'] = directory_error.get("ShortMessage", fault_detail.get("ShortError", "Unknown"))
+        self.entries = response.get("entries", [])
+        response['entries'] = self.entries
 
     def refresh_server_info(self):
         logging.debug("Refreshing server info")
@@ -129,8 +145,10 @@ class Connection(object):
             # now we need to pull the results from the server
             pull_request = handle_enum_ctx(self.host, enum_ctx)
             response = self.send_and_recv(pull_request)
-            results = parse_adws_pull_response(response)
-            return results
+            #results = parse_adws_pull_response(response)
+            resp_dict = xml_to_dict(response, attributes)
+            #self._prepare_return_value(resp_dict)
+            return resp_dict.get('entries', [])
         except ADWSError as e:
             if "size limit was exceeded" in str(e).lower() and attributes and isinstance(attributes, list):
                 logging.warning("Size limit was exceeded, trying default attributes")
@@ -193,11 +211,16 @@ class Connection(object):
         
         request = modify_operation(self.host, dn, changelist, self.auto_encode, self.server.schema if self.server else None, validator=self.server.custom_validator if self.server else None, check_names=self.check_names)
         response = self.send_and_recv(request)
-        et = handle_str_to_xml(response)
-        if not et:
-            raise ValueError("was unable to parse xml from the server response")
-
-        return True
+        resp_dict = xml_to_dict(response)
+        self._prepare_return_value(resp_dict)
+        if resp_dict.get("Error"):
+            if self.raise_exceptions:
+                raise ADWSError(self.result['message'])
+            else:
+                logging.error(self.result['message'])
+                return False
+        else:
+            return True
 
     def add(self,
             dn,
@@ -212,10 +235,17 @@ class Connection(object):
         ['val1', 'val2', ...] for multivalued attributes
         """
         if self.resource != RESOURCE:
-            logging.warning("Add is only supported for the \"Resource\" resource, reconnecting to the server")
+            logging.debug("Add is only supported for the \"Resource\" resource, reconnecting to the server")
             self.reconnect(RESOURCE)
 
-        pass
+        request = add_operation(self.host, dn, object_class, attributes)
+        response = self.send_and_recv(request)
+        resp_dict = xml_to_dict(response)
+        self._prepare_return_value(resp_dict)
+        if self.raise_exceptions and resp_dict.get("Error"):
+            raise ADWSError(self.result['message'])
+        else:
+            return True
 
     def delete(self,
                dn,
@@ -224,10 +254,21 @@ class Connection(object):
         Delete the entry identified by the DN from the DIB.
         """
         if self.resource != RESOURCE:
-            logging.warning("Delete is only supported for the \"Resource\" resource, reconnecting to the server")
+            logging.debug("Delete is only supported for the \"Resource\" resource, reconnecting to the server")
             self.reconnect(RESOURCE)
 
-        pass
+        request = delete_operation(self.host, dn)
+        response = self.send_and_recv(request)
+        resp_dict = xml_to_dict(response)
+        self._prepare_return_value(resp_dict)
+        if resp_dict.get("Error"):
+            if self.raise_exceptions:
+                raise ADWSError(self.result['message'])
+            else:
+                logging.error(self.result['message'])
+                return False
+        else:
+            return True
 
     def connect(self, resource=None, get_info=False):
         """Connect to the specified ADWS endpoint at the

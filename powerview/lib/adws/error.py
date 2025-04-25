@@ -60,14 +60,19 @@ class ADWSError(Exception):
 
                 if "ErrorDetail" in fault_data:
                     error_detail = fault_data["ErrorDetail"]
-                    if "DirectoryError" in error_detail:
-                        dir_error = error_detail["DirectoryError"]
+                    if "FaultDetail" in error_detail and "DirectoryError" in error_detail["FaultDetail"]:
+                        dir_error = error_detail["FaultDetail"]["DirectoryError"]
                         self.message = dir_error.get("Message")
                         self.errorcode = dir_error.get("ErrorCode")
                         self.detail_error = dir_error.get("Message", "Unknown ADWS Error")
                     elif "Message" in error_detail:
                         self.message = error_detail.get("Message")
                         self.detail_error = error_detail.get("Message", "Unknown ADWS Error")
+            elif isinstance(fault_data, list):
+                # Handle list data
+                self.detail_error = "Multiple ADWS Errors"
+                self.message = "Multiple ADWS Errors"
+                self.errorcode = "Multiple"
 
         except ET.ParseError:
             self.detail_error = self.raw_fault.split("<")[0].strip() if "<" in self.raw_fault else self.raw_fault

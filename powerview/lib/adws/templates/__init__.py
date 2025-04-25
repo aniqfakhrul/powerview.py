@@ -42,6 +42,7 @@ LDAP_QUERY_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap
                 </adlq:LdapQuery>
             </wsen:Filter>
             <ad:Selection Dialect="http://schemas.microsoft.com/2008/1/ActiveDirectory/Dialect/XPath-Level-1">
+                <ad:SelectionProperty>ad:distinguishedName</ad:SelectionProperty>
                 {attributes}
             </ad:Selection>
         </wsen:Enumerate>
@@ -95,3 +96,46 @@ LDAP_PUT_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-e
             {attributes}
         </s:Body>
     </s:Envelope>"""
+
+LDAP_DELETE_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:a="http://www.w3.org/2005/08/addressing"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:ad="http://schemas.microsoft.com/2008/1/ActiveDirectory">
+  <s:Header>
+    <a:Action s:mustUnderstand="1">http://schemas.xmlsoap.org/ws/2004/09/transfer/Delete</a:Action>
+    <ad:instance>ldap:389</ad:instance>
+    <ad:objectReferenceProperty>{object_ref}</ad:objectReferenceProperty>
+    <a:MessageID>urn:uuid:{uuid}</a:MessageID>
+    <a:ReplyTo>
+      <a:Address>http://www.w3.org/2005/08/addressing/anonymous</a:Address>
+    </a:ReplyTo>
+    <a:To s:mustUnderstand="1">net.tcp://{fqdn}:9389/ActiveDirectoryWebServices/Windows/Resource</a:To>
+  </s:Header>
+  <s:Body>
+  </s:Body>
+</s:Envelope>
+"""
+
+LDAP_ADD_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:a="http://www.w3.org/2005/08/addressing"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:ad="http://schemas.microsoft.com/2008/1/ActiveDirectory"
+            xmlns:addata="http://schemas.microsoft.com/2008/1/ActiveDirectory/Data"
+            xmlns:da="http://schemas.microsoft.com/2006/11/IdentityManagement/DirectoryAccess">
+  <s:Header>
+    <a:Action s:mustUnderstand="1">http://schemas.xmlsoap.org/ws/2004/09/transfer/Create</a:Action>
+    <ad:instance>ldap:389</ad:instance>
+    <a:MessageID>urn:uuid:{uuid}</a:MessageID>
+    <a:ReplyTo>
+      <a:Address>http://www.w3.org/2005/08/addressing/anonymous</a:Address>
+    </a:ReplyTo>
+    <a:To s:mustUnderstand="1">net.tcp://{fqdn}:9389/ActiveDirectoryWebServices/Windows/Resource</a:To>
+  </s:Header>
+  <s:Body>
+    <addata:{object_class} xmlns:addata="http://schemas.microsoft.com/2008/1/ActiveDirectory/Data">
+      {attributes}
+    </addata:{object_class}>
+  </s:Body>
+</s:Envelope>"""
