@@ -40,4 +40,3 @@ COMMON_ATTRIBUTES = [
 
 from .core.server import Server
 from .core.connection import Connection
-

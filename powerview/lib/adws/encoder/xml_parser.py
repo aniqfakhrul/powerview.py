@@ -1,6 +1,6 @@
 import base64
-import logging as log
 import re
+import logging
 from html import unescape
 from html.parser import HTMLParser
 from typing import TextIO
@@ -155,32 +155,25 @@ class XMLParser(HTMLParser):
                 cls_name = "Element" + prefix.upper() + "Record"
                 if name in INVERTED_DICT:
                     cls_name = "PrefixDictionary" + cls_name
-                    log.debug("New %s: %s" % (cls_name, name))
                     return classes[cls_name](INVERTED_DICT[name])
                 else:
                     cls_name = "Prefix" + cls_name
-                    log.debug("New %s: %s" % (cls_name, name))
                     return classes[cls_name](name)
             else:
                 if name in INVERTED_DICT:
-                    log.debug("New DictionaryElementRecord: %s:%s" % (prefix, name))
                     return DictionaryElementRecord(prefix, INVERTED_DICT[name])
                 else:
-                    log.debug("New ElementRecord: %s:%s" % (prefix, name))
                     return ElementRecord(prefix, name)
         else:
             if tag in INVERTED_DICT:
-                log.debug("New ShortDictionaryElementRecord: %s" % (tag,))
                 return ShortDictionaryElementRecord(INVERTED_DICT[tag])
             else:
-                log.debug("New ShortElementRecord: %s" % (tag,))
                 return ShortElementRecord(tag)
 
     def _store_data(self, data, end=False):
         textrecord = self._parse_data(data)
         if isinstance(textrecord, EmptyTextRecord):
             return
-        log.debug("New %s: %s" % (type(textrecord).__name__, data))
 
         self.last_record.childs.append(textrecord)
 
@@ -355,7 +348,7 @@ class XMLParser(HTMLParser):
             # look for MS Office ]> ending
             match = _msmarkedsectionclose.search(rawdata, i + 3)
         else:
-            log.error(
+            logging.error(
                 "unknown status keyword %r in marked section" % rawdata[i + 3 : j]
             )
 

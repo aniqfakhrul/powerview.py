@@ -729,7 +729,6 @@ class CONNECTION:
 		return ldap_server, ldap_session
 
 	def init_adws_connection(self, target, domain=None, username=None, password=None, lmhash=None, nthash=None, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM):
-		logging.debug("Using ADWS protocol")
 		self.proto = "ADWS"
 		
 		adws_server_kwargs = {

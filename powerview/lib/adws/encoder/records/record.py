@@ -1,8 +1,6 @@
 import struct
-
+import logging
 from typing import Self, Type
-
-import logging as log
 
 from .datatypes import MultiByteInt31, Utf8String
 
@@ -65,8 +63,6 @@ class record:
             type: int = struct.unpack("<B", type_byte)[0]
 
             if type in record.records:
-                log.debug("%s found" % record.records[type].__name__)
-
                 obj = record.records[type].parse(fp)
 
                 if isinstance(obj, EndElementRecord):
@@ -86,22 +82,18 @@ class record:
                 else:
                     records.append(obj)
 
-                log.debug("Value: %s" % str(obj))
-
+            # if the type isnt already in the declared types,
+            # then it is a '*WithEnd' type record
             # if the type isnt already in the declared types,
             # then it is a '*WithEnd' type record
             elif type - 1 in record.records:
-                log.debug(
-                    "%s with end element found (0x%x)"
-                    % (record.records[type - 1].__name__, type)
-                )
                 records.append(record.records[type - 1].parse(fp))
                 last_el = None
 
                 if parents:
                     records = parents.pop()
             else:
-                log.warn("type 0x%x not found" % type)
+                logging.warn("type 0x%x not found" % type)
 
         return root
 

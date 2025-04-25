@@ -87,6 +87,7 @@ class PowerView:
 		self.nthash = args.nthash
 		self.auth_aes_key = args.auth_aes_key
 		self.use_ldaps = args.use_ldaps
+		self.use_adws = args.use_adws
 		self.nameserver = args.nameserver
 		self.use_system_nameserver = args.use_system_ns
 		self.dc_ip = args.dc_ip
@@ -3776,7 +3777,7 @@ displayName=New Group Policy Object
 			logging.error(f'[Set-DomainUserPassword] Multiple principal objects found in domain. Use specific identifier')
 			return
 		logging.info(f'[Set-DomainUserPassword] Principal {"".join(entries[0]["attributes"]["distinguishedName"])} found in domain')
-		if self.use_ldaps:
+		if self.use_ldaps or self.use_adws:
 			logging.debug("[Set-DomainUserPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
 			succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0]["attributes"]["distinguishedName"], accountpassword, old_password=oldpassword)
 			if succeed:
@@ -3826,7 +3827,7 @@ displayName=New Group Policy Object
 			logging.error("[Get-DomainComputerPassword] Multiple computers found in domain")
 			return False
 
-		if self.use_ldaps:
+		if self.use_ldaps or self.use_adws:
 			logging.debug("[Set-DomainComputerPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
 			succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0]["attributes"]["distinguishedName"], accountpassword, old_password=oldpassword)
 			if succeed:

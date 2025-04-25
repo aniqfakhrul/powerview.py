@@ -372,7 +372,6 @@ class NNS:
 		self._sequence = 0
 
 		if self._flags & impacket.ntlm.NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY:
-			logging.debug("We are doing extended ntlm security")
 			self._client_signing_key = impacket.ntlm.SIGNKEY(
 				self._flags, self._session_key
 			)

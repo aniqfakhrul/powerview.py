@@ -9,16 +9,27 @@ from ..templates import NAMESPACES
 from ..error import ADWSError
 
 from ldap3.utils.dn import safe_dn
-from ldap3 import ALL_ATTRIBUTES, NO_ATTRIBUTES, ALL_OPERATIONAL_ATTRIBUTES, NTLM, BASE, LEVEL, SUBTREE, STRING_TYPES, get_config_parameter, SEQUENCE_TYPES, MODIFY_ADD, MODIFY_DELETE, MODIFY_REPLACE, MODIFY_INCREMENT
+from ldap3 import ALL_ATTRIBUTES, NO_ATTRIBUTES, ALL_OPERATIONAL_ATTRIBUTES, NTLM, BASE, LEVEL, SUBTREE, STRING_TYPES, get_config_parameter, SEQUENCE_TYPES, MODIFY_ADD, MODIFY_DELETE, MODIFY_REPLACE, MODIFY_INCREMENT, SYNC
+from ldap3.core.connection import CLIENT_STRATEGIES
 from ldap3.protocol.rfc2696 import paged_search_control
-from ldap3.core.exceptions import LDAPChangeError, LDAPAttributeError
+from ldap3.core.exceptions import LDAPChangeError, LDAPAttributeError, LDAPUnknownStrategyError
 from ldap3.protocol.formatters.standard import format_attribute_values
+from ldap3.strategy.sync import SyncStrategy
+from ldap3.strategy.safeSync import SafeSyncStrategy
+from ldap3.strategy.safeRestartable import SafeRestartableStrategy
+from ldap3.strategy.mockAsync import MockAsyncStrategy
+from ldap3.strategy.asynchronous import AsyncStrategy
+from ldap3.strategy.reusable import ReusableStrategy
+from ldap3.strategy.restartable import RestartableStrategy
+from ldap3.strategy.ldifProducer import LdifProducerStrategy
+from ldap3.strategy.mockSync import MockSyncStrategy
+from ldap3.strategy.asyncStream import AsyncStreamStrategy
 
 import logging
 import socket
 
 class Connection(object):
-    def __init__(self, server, user, password, domain, lmhash, nthash, raise_exceptions=False, authentication=NTLM, check_names=True, auto_encode=True):
+    def __init__(self, server, user, password, domain, lmhash, nthash, raise_exceptions=False, authentication=NTLM, check_names=True, auto_encode=True, client_strategy=SYNC):
         self.server = server
         self.host = server.host
         self.port = server.port
@@ -33,6 +44,44 @@ class Connection(object):
         self.check_names = check_names
         self.auto_encode = auto_encode
         self.result = {}
+
+        conf_default_pool_name = get_config_parameter('DEFAULT_THREADED_POOL_NAME')
+        if client_strategy not in CLIENT_STRATEGIES:
+            if self.raise_exceptions:
+                raise LDAPUnknownStrategyError('unknown client connection strategy')
+            else:
+                logging.error('unknown client connection strategy')
+                return
+        
+        self.strategy_type = client_strategy
+        if self.strategy_type == SYNC:
+            self.strategy = SyncStrategy(self)
+        elif self.strategy_type == SAFE_SYNC:
+            self.strategy = SafeSyncStrategy(self)
+        elif self.strategy_type == SAFE_RESTARTABLE:
+            self.strategy = SafeRestartableStrategy(self)
+        elif self.strategy_type == ASYNC:
+            self.strategy = AsyncStrategy(self)
+        elif self.strategy_type == LDIF:
+            self.strategy = LdifProducerStrategy(self)
+        elif self.strategy_type == RESTARTABLE:
+            self.strategy = RestartableStrategy(self)
+        elif self.strategy_type == REUSABLE:
+            self.strategy = ReusableStrategy(self)
+            self.lazy = False
+        elif self.strategy_type == MOCK_SYNC:
+            self.strategy = MockSyncStrategy(self)
+        elif self.strategy_type == MOCK_ASYNC:
+            self.strategy = MockAsyncStrategy(self)
+        elif self.strategy_type == ASYNC_STREAM:
+            self.strategy = AsyncStreamStrategy(self)
+        else:
+            if self.raise_exceptions:
+                raise LDAPUnknownStrategyError('unknown strategy')
+            else:
+                logging.error('unknown strategy')
+        
+        
 
     def _create_NNS_from_auth(self, sock: socket.socket) -> NNS:
         if self.authentication == NTLM:
@@ -61,7 +110,6 @@ class Connection(object):
         response['entries'] = self.entries
 
     def refresh_server_info(self):
-        logging.debug("Refreshing server info")
         self.server.get_info_from_server(self)
 
     def send_and_recv(self, request):
