@@ -734,7 +734,33 @@ class CONNECTION:
 		
 		adws_server_kwargs = {
 			"host": target,
-			"port": 9389
+			"port": 9389,
+			"formatter": {
+				"sAMAccountType": LDAP.resolve_samaccounttype,
+				"lastLogon": LDAP.ldap2datetime,
+				"whenCreated": LDAP.resolve_generalized_time,
+				"whenChanged": LDAP.resolve_generalized_time,
+				"pwdLastSet": LDAP.ldap2datetime,
+				"badPasswordTime": LDAP.ldap2datetime,
+				"lastLogonTimestamp": LDAP.ldap2datetime,
+				"objectGUID": LDAP.bin_to_guid,
+				"objectSid": LDAP.bin_to_sid,
+				"securityIdentifier": LDAP.bin_to_sid,
+				"mS-DS-CreatorSID": LDAP.bin_to_sid,
+				"msDS-ManagedPassword": LDAP.formatGMSApass,
+				"msDS-GroupMSAMembership": LDAP.parseGMSAMembership,
+				"pwdProperties": LDAP.resolve_pwdProperties,
+				"userAccountControl": LDAP.resolve_uac,
+				"msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
+				"trustAttributes": TRUST.resolve_trustAttributes,
+				"trustType": TRUST.resolve_trustType,
+				"trustDirection": TRUST.resolve_trustDirection,
+				"msExchVersion": EXCHANGE.resolve_msExchVersion,
+				"msDS-AllowedToActOnBehalfOfOtherIdentity": LDAP.resolve_msDSAllowedToActOnBehalfOfOtherIdentity,
+				"msDS-TrustForestTrustInfo": LDAP.resolve_msDSTrustForestTrustInfo,
+				"pKIExpirationPeriod": LDAP.resolve_pKIExpirationPeriod,
+				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod
+			}
 		}
 		adws_server = adws.Server(**adws_server_kwargs)
 
@@ -751,7 +777,10 @@ class CONNECTION:
 			adws_server, adws_session = adws_connection.connect(get_info=True)
 			return adws_server, adws_session
 		except Exception as e:
-			logging.error(f"Error during ADWS authentication with error: {str(e)}")
+			if self.args.stack_trace:
+				raise e
+			else:
+				logging.error(f"Error during ADWS authentication with error: {str(e)}")
 			sys.exit(0)
 
 	def init_ldap_connection(self, target, tls, domain=None, username=None, password=None, lmhash=None, nthash=None, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM):

@@ -1,6 +1,7 @@
 from .. import ENUMERATION
 from ldap3 import DSA, SCHEMA, ALL, BASE, SUBTREE, SEQUENCE_TYPES
 from ldap3.protocol.rfc4512 import SchemaInfo, DsaInfo
+from ldap3.protocol.formatters.standard import format_attribute_values
 
 class Server(object):
     def __init__(self, host, ssl=False, port=9389, get_info=ALL, formatter=None, validator=None, resource=ENUMERATION):
@@ -86,6 +87,12 @@ class Server(object):
                                             'modifyTimestamp'
                                         ])
             self._schema_info = SchemaInfo(schema_entry, response[0]['attributes'], response[0]['raw_attributes'])
+            if self._schema_info:  # if schema is valid tries to apply formatter to the "other" dict with raw values for schema and info
+                for attribute in self._schema_info.other:
+                    self._schema_info.other[attribute] = format_attribute_values(self._schema_info, attribute, self._schema_info.raw[attribute], self.custom_formatter)
+                if self._dsa_info:  # try to apply formatter to the "other" dict with dsa info raw values
+                    for attribute in self._dsa_info.other:
+                        self._dsa_info.other[attribute] = format_attribute_values(self._schema_info, attribute, self._dsa_info.raw[attribute], self.custom_formatter)
 
     @property
     def info(self):

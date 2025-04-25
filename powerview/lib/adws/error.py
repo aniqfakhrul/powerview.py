@@ -1,6 +1,5 @@
 import xml.etree.ElementTree as ET
 from .templates import NAMESPACES
-
 class ADWSError(Exception):
     """Custom exception for ADWS SOAP Faults."""
     def __init__(self, fault_data):
@@ -60,14 +59,24 @@ class ADWSError(Exception):
 
                 if "ErrorDetail" in fault_data:
                     error_detail = fault_data["ErrorDetail"]
-                    if "FaultDetail" in error_detail and "DirectoryError" in error_detail["FaultDetail"]:
-                        dir_error = error_detail["FaultDetail"]["DirectoryError"]
-                        self.message = dir_error.get("Message")
-                        self.errorcode = dir_error.get("ErrorCode")
-                        self.detail_error = dir_error.get("Message", "Unknown ADWS Error")
+                    if "FaultDetail" in error_detail:
+                        fault_detail = error_detail["FaultDetail"]
+                        if "DirectoryError" in fault_detail:
+                            dir_error = fault_detail["DirectoryError"]
+                            self.message = dir_error.get("Message")
+                            self.errorcode = dir_error.get("ErrorCode")
+                            extended_error = dir_error.get("ExtendedErrorMessage")
+                            if extended_error:
+                                self.detail_error = extended_error
+                            elif self.message:
+                                self.detail_error = self.message
+                        elif "ExtendedErrorMessage" in fault_detail:
+                            self.detail_error = fault_detail["ExtendedErrorMessage"]
+                        elif "ExtendedErrorDescription" in fault_detail:
+                            self.detail_error = fault_detail["ExtendedErrorDescription"]
                     elif "Message" in error_detail:
                         self.message = error_detail.get("Message")
-                        self.detail_error = error_detail.get("Message", "Unknown ADWS Error")
+                        self.detail_error = self.message
             elif isinstance(fault_data, list):
                 # Handle list data
                 self.detail_error = "Multiple ADWS Errors"

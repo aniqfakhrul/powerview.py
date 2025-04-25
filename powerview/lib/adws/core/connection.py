@@ -12,6 +12,7 @@ from ldap3.utils.dn import safe_dn
 from ldap3 import ALL_ATTRIBUTES, NO_ATTRIBUTES, ALL_OPERATIONAL_ATTRIBUTES, NTLM, BASE, LEVEL, SUBTREE, STRING_TYPES, get_config_parameter, SEQUENCE_TYPES, MODIFY_ADD, MODIFY_DELETE, MODIFY_REPLACE, MODIFY_INCREMENT
 from ldap3.protocol.rfc2696 import paged_search_control
 from ldap3.core.exceptions import LDAPChangeError, LDAPAttributeError
+from ldap3.protocol.formatters.standard import format_attribute_values
 
 import logging
 import socket
@@ -147,6 +148,10 @@ class Connection(object):
             response = self.send_and_recv(pull_request)
             #results = parse_adws_pull_response(response)
             resp_dict = xml_to_dict(response, attributes)
+            if resp_dict.get('entries'):
+                for entry in resp_dict['entries']:
+                    for attribute in entry['attributes']:
+                        entry['attributes'][attribute] = format_attribute_values(self.server.schema, attribute, entry['attributes'][attribute], self.server.custom_formatter)
             #self._prepare_return_value(resp_dict)
             return resp_dict.get('entries', [])
         except ADWSError as e:
