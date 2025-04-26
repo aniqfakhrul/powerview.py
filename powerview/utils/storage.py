@@ -13,27 +13,32 @@ class Storage:
         try:
             home_path = os.path.expanduser('~')
             if os.path.exists(home_path) and os.access(home_path, os.W_OK):
-                self.root_folder = os.path.join(home_path, ".powerview", "storage")
+                self.root_folder = os.path.join(home_path, ".powerview")
+                self.storage_folder = os.path.join(self.root_folder, "storage")
             else:
-                self.root_folder = os.path.join(tempfile.gettempdir(), "powerview_storage")
+                self.root_folder = os.path.join(tempfile.gettempdir(), "powerview")
+                self.storage_folder = os.path.join(self.root_folder, "storage")
             
             self.cache_folder = "ldap_cache"
-            self.cache_path = os.path.join(self.root_folder, self.cache_folder)
+            self.cache_path = os.path.join(self.storage_folder, self.cache_folder)
             
             os.makedirs(self.cache_path, mode=0o700, exist_ok=True)
+            os.makedirs(self.root_folder, mode=0o700, exist_ok=True)
+            
             logging.info(f"[Storage] Using cache directory: {self.cache_path}")
             
         except Exception as e:
             temp_dir = tempfile.mkdtemp(prefix="powerview_")
             self.root_folder = temp_dir
+            self.storage_folder = temp_dir
             self.cache_path = os.path.join(temp_dir, "ldap_cache")
             os.makedirs(self.cache_path, mode=0o700, exist_ok=True)
             logging.warning(f"[Storage] Using temporary directory for storage: {self.cache_path}")
             logging.error(f"[Storage] Original error: {e}")
 
-    def _generate_cache_key(self, search_base, search_filter, search_scope, attributes):
+    def _generate_cache_key(self, search_base, search_filter, search_scope, attributes, raw=False):
         """Generate a unique cache key based on search parameters"""
-        cache_string = f"{search_base.lower()}|{search_filter.lower()}|{search_scope.lower()}|{str(sorted(attributes) if attributes else 'None')}"
+        cache_string = f"{search_base.lower()}|{search_filter.lower()}|{search_scope.lower()}|{str(sorted(attributes) if attributes else 'None')}|{raw}"
         return hashlib.md5(cache_string.encode()).hexdigest()
 
     def _serialize_complex_types(self, obj):
@@ -69,15 +74,16 @@ class Storage:
             return [self._deserialize_complex_types(item) for item in obj]
         return obj
 
-    def cache_results(self, search_base, search_filter, search_scope, attributes, results):
+    def cache_results(self, search_base, search_filter, search_scope, attributes, results, raw=False):
         """Cache LDAP query results"""
-        cache_key = self._generate_cache_key(search_base, search_filter, search_scope, attributes)
+        cache_key = self._generate_cache_key(search_base, search_filter, search_scope, attributes, raw)
         cache_file = os.path.join(self.cache_path, f"{cache_key}.json")
 
         try:
             serialized_results = self._serialize_complex_types(results)
             cache_data = {
                 'timestamp': datetime.now().isoformat(),
+                'raw': raw,
                 'search_base': search_base,
                 'search_filter': search_filter,
                 'search_scope': search_scope,
@@ -90,9 +96,9 @@ class Storage:
         except Exception as e:
             logging.error(f"Error caching results: {e}")
 
-    def get_cached_results(self, search_base, search_filter, search_scope, attributes, cache_ttl=1800):
+    def get_cached_results(self, search_base, search_filter, search_scope, attributes, cache_ttl=1800, raw=False):
         """Retrieve cached LDAP query results if they exist and are not expired"""
-        cache_key = self._generate_cache_key(search_base, search_filter, search_scope, attributes)
+        cache_key = self._generate_cache_key(search_base, search_filter, search_scope, attributes, raw)
         cache_file = os.path.join(self.cache_path, f"{cache_key}.json")
 
         try:
@@ -109,6 +115,8 @@ class Storage:
                         logging.debug(f"[Storage] Deleted expired cache file: {cache_key}")
                     except Exception as e:
                         logging.error(f"[Storage] Error deleting expired cache file: {e}")
+            else:
+                logging.debug(f"[Storage] No cache found for key: {cache_key}")
         except Exception as e:
             logging.error(f"[Storage] Error reading cache: {e}")
         

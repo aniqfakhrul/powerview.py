@@ -20,12 +20,27 @@ from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip
 class APIServer:
 	def __init__(self, powerview, host="127.0.0.1", port=5000):
 		self.app = Flask(__name__, static_folder='../../web/front-end/static', template_folder='../../web/front-end/templates')
+		
+		self.basic_auth = None
+		self.web_auth_user = powerview.args.web_auth['web_auth_user']
+		self.web_auth_password = powerview.args.web_auth['web_auth_password']
+		if self.web_auth_user and self.web_auth_password:
+			try:
+				from flask_basicauth import BasicAuth
+				self.app.config['BASIC_AUTH_USERNAME'] = self.web_auth_user
+				self.app.config['BASIC_AUTH_PASSWORD'] = self.web_auth_password
+				self.basic_auth = BasicAuth(self.app)
+			except ImportError:
+				logging.error("flask_basicauth is not installed. Please install it using 'pip install flask-basicauth'")
+				sys.exit(1)
+		
 		cli = sys.modules['flask.cli']
 		cli.show_server_banner = lambda *x: None
 
 		self.powerview = powerview
 		self.host = host
 		self.port = port
+		self.status = False
 		
 		components = [self.powerview.flatName.lower(), self.powerview.args.username.lower(), self.powerview.args.ldap_address.lower()]
 		folder_name = '-'.join(filter(None, components)) or "default-log"
@@ -34,47 +49,7 @@ class APIServer:
 		self.history_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, '.powerview_history')
 
 		# Define routes
-		self.app.add_url_rule('/', 'index', self.render_index, methods=['GET'])
-		self.app.add_url_rule('/dashboard', 'dashboard', self.render_dashboard, methods=['GET'])
-		self.app.add_url_rule('/users', 'users', self.render_users, methods=['GET'])
-		self.app.add_url_rule('/computers', 'computers', self.render_computers, methods=['GET'])
-		self.app.add_url_rule('/dns', 'dns', self.render_dns, methods=['GET'])
-		self.app.add_url_rule('/groups', 'groups', self.render_groups, methods=['GET'])
-		self.app.add_url_rule('/ca', 'ca', self.render_ca, methods=['GET'])
-		self.app.add_url_rule('/ou', 'ou', self.render_ou, methods=['GET'])
-		self.app.add_url_rule('/gpo', 'gpo', self.render_gpo, methods=['GET'])
-		self.app.add_url_rule('/smb', 'smb', self.render_smb, methods=['GET'])
-		self.app.add_url_rule('/utils', 'utils', self.render_utils, methods=['GET'])
-		self.app.add_url_rule('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
-		self.app.add_url_rule('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
-		self.app.add_url_rule('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
-		self.app.add_url_rule('/api/add/<method_name>', 'add_operation', self.handle_add_operation, methods=['POST'])
-		self.app.add_url_rule('/api/invoke/<method_name>', 'invoke_operation', self.handle_invoke_operation, methods=['POST'])
-		self.app.add_url_rule('/api/remove/<method_name>', 'remove_operation', self.handle_remove_operation, methods=['POST'])
-		self.app.add_url_rule('/api/start/<method_name>', 'start_operation', self.handle_start_operation, methods=['POST'])
-		self.app.add_url_rule('/api/stop/<method_name>', 'stop_operation', self.handle_stop_operation, methods=['POST'])
-		self.app.add_url_rule('/api/convertfrom/<method_name>', 'convert_from_operation', self.handle_convert_from_operation, methods=['POST'])
-		self.app.add_url_rule('/api/convertto/<method_name>', 'convert_to_operation', self.handle_convert_to_operation, methods=['POST'])
-		self.app.add_url_rule('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, methods=['GET'])
-		self.app.add_url_rule('/health', 'health', self.handle_health, methods=['GET'])
-		self.app.add_url_rule('/api/connectioninfo', 'connectioninfo', self.handle_connection_info, methods=['GET'])
-		self.app.add_url_rule('/api/logs', 'logs', self.generate_log_stream, methods=['GET'])
-		self.app.add_url_rule('/api/history', 'history', self.render_history, methods=['GET'])
-		self.app.add_url_rule('/api/ldap/rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
-		self.app.add_url_rule('/api/ldap/close', 'ldap_close', self.handle_ldap_close, methods=['GET'])
-		self.app.add_url_rule('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
-		self.app.add_url_rule('/api/constants', 'constants', self.handle_constants, methods=['GET'])
-		self.app.add_url_rule('/api/clear-cache', 'clear_cache', self.handle_clear_cache, methods=['GET'])
-		self.app.add_url_rule('/api/settings', 'settings', self.handle_settings, methods=['GET'])
-		self.app.add_url_rule('/api/smb/connect', 'smb_connect', self.handle_smb_connect, methods=['POST'])
-		self.app.add_url_rule('/api/smb/shares', 'smb_shares', self.handle_smb_shares, methods=['POST'])
-		self.app.add_url_rule('/api/smb/ls', 'smb_ls', self.handle_smb_ls, methods=['POST'])
-		self.app.add_url_rule('/api/smb/get', 'smb_get', self.handle_smb_get, methods=['POST'])
-		self.app.add_url_rule('/api/smb/put', 'smb_put', self.handle_smb_put, methods=['POST'])
-		self.app.add_url_rule('/api/smb/cat', 'smb_cat', self.handle_smb_cat, methods=['POST'])
-		self.app.add_url_rule('/api/smb/rm', 'smb_rm', self.handle_smb_rm, methods=['POST'])
-		self.app.add_url_rule('/api/smb/mkdir', 'smb_mkdir', self.handle_smb_mkdir, methods=['POST'])
-		self.app.add_url_rule('/api/smb/rmdir', 'smb_rmdir', self.handle_smb_rmdir, methods=['POST'])
+		self._register_routes()
 
 		self.nav_items = [
 			{"name": "Explorer", "icon": "fas fa-folder-tree", "link": "/"},
@@ -93,6 +68,62 @@ class APIServer:
 			{"name": "Logs", "icon": "far fa-file-alt", "button_id": "toggle-command-history"},
 			{"name": "Settings", "icon": "fas fa-cog", "button_id": "toggle-settings"}
 		]
+
+	def _register_routes(self):
+		def add_route_with_auth(rule, endpoint, view_func, **options):
+			decorated_view = view_func
+			if self.basic_auth:
+				decorated_view = self.basic_auth.required(view_func)
+			self.app.add_url_rule(rule, endpoint, decorated_view, **options)
+
+		add_route_with_auth('/', 'index', self.render_index, methods=['GET'])
+		add_route_with_auth('/dashboard', 'dashboard', self.render_dashboard, methods=['GET'])
+		add_route_with_auth('/users', 'users', self.render_users, methods=['GET'])
+		add_route_with_auth('/computers', 'computers', self.render_computers, methods=['GET'])
+		add_route_with_auth('/dns', 'dns', self.render_dns, methods=['GET'])
+		add_route_with_auth('/groups', 'groups', self.render_groups, methods=['GET'])
+		add_route_with_auth('/ca', 'ca', self.render_ca, methods=['GET'])
+		add_route_with_auth('/ou', 'ou', self.render_ou, methods=['GET'])
+		add_route_with_auth('/gpo', 'gpo', self.render_gpo, methods=['GET'])
+		add_route_with_auth('/smb', 'smb', self.render_smb, methods=['GET'])
+		add_route_with_auth('/utils', 'utils', self.render_utils, methods=['GET'])
+		add_route_with_auth('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
+		add_route_with_auth('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
+		add_route_with_auth('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
+		add_route_with_auth('/api/add/<method_name>', 'add_operation', self.handle_add_operation, methods=['POST'])
+		add_route_with_auth('/api/invoke/<method_name>', 'invoke_operation', self.handle_invoke_operation, methods=['POST'])
+		add_route_with_auth('/api/remove/<method_name>', 'remove_operation', self.handle_remove_operation, methods=['POST'])
+		add_route_with_auth('/api/start/<method_name>', 'start_operation', self.handle_start_operation, methods=['POST'])
+		add_route_with_auth('/api/stop/<method_name>', 'stop_operation', self.handle_stop_operation, methods=['POST'])
+		add_route_with_auth('/api/convertfrom/<method_name>', 'convert_from_operation', self.handle_convert_from_operation, methods=['POST'])
+		add_route_with_auth('/api/convertto/<method_name>', 'convert_to_operation', self.handle_convert_to_operation, methods=['POST'])
+		add_route_with_auth('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, methods=['GET'])
+		add_route_with_auth('/health', 'health', self.handle_health, methods=['GET'])
+		add_route_with_auth('/api/connectioninfo', 'connectioninfo', self.handle_connection_info, methods=['GET'])
+		add_route_with_auth('/api/logs', 'logs', self.generate_log_stream, methods=['GET'])
+		add_route_with_auth('/api/history', 'history', self.render_history, methods=['GET'])
+		add_route_with_auth('/api/ldap/rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
+		add_route_with_auth('/api/ldap/close', 'ldap_close', self.handle_ldap_close, methods=['GET'])
+		add_route_with_auth('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
+		add_route_with_auth('/api/constants', 'constants', self.handle_constants, methods=['GET'])
+		add_route_with_auth('/api/clear-cache', 'clear_cache', self.handle_clear_cache, methods=['GET'])
+		add_route_with_auth('/api/settings', 'settings', self.handle_settings, methods=['GET'])
+		add_route_with_auth('/api/smb/connect', 'smb_connect', self.handle_smb_connect, methods=['POST'])
+		add_route_with_auth('/api/smb/shares', 'smb_shares', self.handle_smb_shares, methods=['POST'])
+		add_route_with_auth('/api/smb/ls', 'smb_ls', self.handle_smb_ls, methods=['POST'])
+		add_route_with_auth('/api/smb/get', 'smb_get', self.handle_smb_get, methods=['POST'])
+		add_route_with_auth('/api/smb/put', 'smb_put', self.handle_smb_put, methods=['POST'])
+		add_route_with_auth('/api/smb/cat', 'smb_cat', self.handle_smb_cat, methods=['POST'])
+		add_route_with_auth('/api/smb/rm', 'smb_rm', self.handle_smb_rm, methods=['POST'])
+		add_route_with_auth('/api/smb/mkdir', 'smb_mkdir', self.handle_smb_mkdir, methods=['POST'])
+		add_route_with_auth('/api/smb/rmdir', 'smb_rmdir', self.handle_smb_rmdir, methods=['POST'])
+		add_route_with_auth('/api/login_as', 'login_as', self.handle_login_as, methods=['POST'])
+
+	def set_status(self, status):
+		self.status = status
+
+	def get_status(self):
+		return self.status
 
 	def render_index(self):
 		context = {
@@ -296,14 +327,16 @@ class APIServer:
 		try:
 			obfuscate = request.json.get('obfuscate', False)
 			no_cache = request.json.get('no_cache', False)
-			logging.info(f"obfuscate: {obfuscate}, no_cache: {no_cache}")
+			no_vuln_check = request.json.get('no_vuln_check', False)
+			logging.info(f"obfuscate: {obfuscate}, no_cache: {no_cache}, no_vuln_check: {no_vuln_check}")
 			
 			# Update powerview args
 			self.powerview.args.obfuscate = obfuscate
 			self.powerview.args.no_cache = no_cache
+			self.powerview.args.no_vuln_check = no_vuln_check
 			
 			# Create new CustomExtendedOperationsRoot instance with updated settings
-			self.powerview.custom_paged_search = CustomExtendedOperationsRoot(self.powerview.ldap_session, obfuscate=obfuscate, no_cache=no_cache)
+			self.powerview.custom_paged_search = CustomExtendedOperationsRoot(self.powerview.ldap_session, obfuscate=obfuscate, no_cache=no_cache, no_vuln_check=no_vuln_check)
 			self.powerview.ldap_session.extend.standard = self.powerview.custom_paged_search.standard
 			
 			return jsonify({'status': 'OK'})
@@ -457,6 +490,7 @@ class APIServer:
 				kwargs={'host': self.host, 'port': self.port, 'debug': False},
 				daemon=True
 			)
+			self.set_status(True)
 			logging.info(f"Powerview web listening on {self.host}:{self.port}")
 			self.api_server_thread.start()
 
@@ -464,21 +498,18 @@ class APIServer:
 		try:
 			data = request.json
 			computer = data.get('computer').lower()
-			# Add optional credential parameters
 			username = data.get('username')
 			password = data.get('password')
 			nthash = data.get('nthash')
 			lmhash = data.get('lmhash')
 			domain = data.get('domain')
 
-			# Parse domain from username if in Windows format
 			if username and ('/' in username or '\\' in username):
 				domain, username = username.replace('/', '\\').split('\\')
 			
 			if not computer:
 				return jsonify({'error': 'Computer name/IP is required'}), 400
 
-			# Reuse get_netshare logic for connection
 			is_fqdn = False
 			host = ""
 
@@ -503,7 +534,6 @@ class APIServer:
 			if not host:
 				return jsonify({'error': 'Host not found'}), 404
 
-			# Pass optional credentials to init_smb_session
 			client = self.powerview.conn.init_smb_session(
 				host,
 				username=username,
@@ -516,10 +546,9 @@ class APIServer:
 			if not client:
 				return jsonify({'error': f'Failed to connect to {host}'}), 400
 
-			# Store SMB client in session
-			if not hasattr(self, 'smb_sessions'):
-				self.smb_sessions = {}
-			self.smb_sessions[host] = client
+			if not hasattr(self.powerview.conn, 'smb_sessions'):
+				self.powerview.conn.smb_sessions = {}
+			self.powerview.conn.smb_sessions[computer] = client
 
 			return jsonify({
 				'status': 'connected',
@@ -538,10 +567,10 @@ class APIServer:
 			if not host:
 				return jsonify({'error': 'Computer name/IP is required'}), 400
 
-			if not hasattr(self, 'smb_sessions') or host not in self.smb_sessions:
+			if not hasattr(self.powerview.conn, 'smb_sessions') or host not in self.powerview.conn.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.smb_sessions[host]
+			client = self.powerview.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 			shares = smb_client.shares()
 
@@ -571,20 +600,18 @@ class APIServer:
 			if not host or not share:
 				return jsonify({'error': 'Computer name/IP and share name are required'}), 400
 
-			if not hasattr(self, 'smb_sessions') or host not in self.smb_sessions:
+			if not hasattr(self.powerview.conn, 'smb_sessions') or host not in self.powerview.conn.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 			
-			client = self.smb_sessions[host]
+			client = self.powerview.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 			
 			files = smb_client.ls(share, path)
 			logging.debug(f"[SMB LS] Listing {path} on {host} with share {share}")
 			
-			# Format file listing and filter out . and ..
 			file_list = []
 			for f in files:
 				name = f.get_longname()
-				# Skip . and .. entries
 				if name in ['.', '..']:
 					continue
 				
@@ -614,10 +641,10 @@ class APIServer:
 			if not host or not share or not path:
 				return jsonify({'error': 'Computer name/IP, share name, and file path are required'}), 400
 
-			if not hasattr(self, 'smb_sessions') or host not in self.smb_sessions:
+			if not hasattr(self.powerview.conn, 'smb_sessions') or host not in self.powerview.conn.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.smb_sessions[host]
+			client = self.powerview.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 			
 			try:
@@ -662,10 +689,10 @@ class APIServer:
 			if not computer or not share:
 				return jsonify({'error': 'Computer name/IP and share name are required'}), 400
 
-			if not hasattr(self, 'smb_sessions') or computer not in self.smb_sessions:
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.smb_sessions[computer]
+			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 			
 			# Save file temporarily
@@ -696,7 +723,7 @@ class APIServer:
 			if not all([computer, share, path]):
 				return jsonify({'error': 'Missing required parameters'}), 400
 
-			client = self.smb_sessions[computer]
+			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 			content = smb_client.cat(share, path)
 			if content is None:
@@ -718,10 +745,10 @@ class APIServer:
 			if not all([computer, share, path]):
 				return jsonify({'error': 'Missing required parameters'}), 400
 
-			if not hasattr(self, 'smb_sessions') or computer not in self.smb_sessions:
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.smb_sessions[computer]
+			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 			
 			try:
@@ -745,10 +772,10 @@ class APIServer:
 			if not all([computer, share, path]):
 				return jsonify({'error': 'Missing required parameters'}), 400
 
-			if not hasattr(self, 'smb_sessions') or computer not in self.smb_sessions:
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.smb_sessions[computer]
+			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 			
 			try:
@@ -772,10 +799,10 @@ class APIServer:
 			if not all([computer, share, path]):
 				return jsonify({'error': 'Missing required parameters'}), 400
 
-			if not hasattr(self, 'smb_sessions') or computer not in self.smb_sessions:
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.smb_sessions[computer]
+			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 			
 			try:
@@ -788,3 +815,53 @@ class APIServer:
 		except Exception as e:
 			logging.error(f"[SMB RMDIR] Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500
+
+	def handle_login_as(self):
+		"""Handles requests to the /api/login_as endpoint."""
+		try:
+			data = request.json
+			username = data.get('username')
+			password = data.get('password')
+			domain = data.get('domain')
+			lmhash = data.get('lmhash')
+			nthash = data.get('nthash')
+			auth_aes_key = data.get('auth_aes_key')
+
+			if not username:
+				return jsonify({'error': 'Username is required'}), 400
+
+			success = self.powerview.login_as(
+				username=username,
+				password=password,
+				domain=domain,
+				lmhash=lmhash,
+				nthash=nthash,
+				auth_aes_key=auth_aes_key
+			)
+
+			if success:
+				try:
+					current_identity = self.powerview.conn.who_am_i()
+					message = f"Successfully logged in as {current_identity}"
+					connection_info = {
+						'domain': self.powerview.domain,
+						'username': self.powerview.conn.get_username(),
+						'sid': self.powerview.current_user_sid,
+						'is_admin': self.powerview.is_admin,
+						'status': 'OK' if self.powerview.is_connection_alive() else 'KO',
+						'protocol': self.powerview.conn.get_proto(),
+						'ldap_address': self.powerview.conn.get_ldap_address(),
+						'nameserver': self.powerview.conn.get_nameserver(),
+					}
+					return jsonify({'status': 'success', 'message': message, 'connection_info': connection_info}), 200
+				except Exception as inner_e:
+					logging.error(f"Error fetching identity after login_as for {username}: {str(inner_e)}")
+					return jsonify({'status': 'success', 'message': f"Login attempt for {username} processed, but failed to confirm new identity."}), 200
+			else:
+				message = f"Failed to login as {username}@{domain or self.powerview.domain}. Check credentials or permissions."
+				logging.warning(message)
+				return jsonify({'status': 'failure', 'error': message}), 401 # Use 401 for authentication failure
+
+		except Exception as e:
+			logging.error(f"Unexpected exception during login_as for {username}: {str(e)}")
+			return jsonify({'error': f"An unexpected error occurred during login: {str(e)}"}), 500

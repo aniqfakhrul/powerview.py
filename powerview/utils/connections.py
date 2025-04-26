@@ -3,6 +3,7 @@ from impacket.smbconnection import SMBConnection, SessionError
 from impacket.smb3structs import FILE_READ_DATA, FILE_WRITE_DATA
 from impacket.dcerpc.v5 import samr, epm, transport, rpcrt, rprn, srvs, wkst, scmr, drsuapi
 from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_AUTHN_GSS_NEGOTIATE
+from impacket.dcerpc.v5.dtypes import NULL
 from impacket.spnego import SPNEGO_NegTokenInit, TypesMech, SPNEGO_NegTokenResp 
 # for relay used
 from impacket.examples.ntlmrelayx.servers.httprelayserver import HTTPRelayServer
@@ -11,6 +12,9 @@ from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.examples.ntlmrelayx.utils.targetsutils import TargetsProcessor
 from impacket.ntlm import NTLMAuthChallenge, NTLMSSP_AV_FLAGS, AV_PAIRS, NTLMAuthNegotiate, NTLMSSP_NEGOTIATE_SIGN, NTLMSSP_NEGOTIATE_ALWAYS_SIGN, NTLMAuthChallengeResponse, NTLMSSP_NEGOTIATE_KEY_EXCH, NTLMSSP_NEGOTIATE_VERSION, NTLMSSP_NEGOTIATE_UNICODE
 from impacket.nt_errors import STATUS_SUCCESS, STATUS_ACCESS_DENIED
+from impacket.dcerpc.v5.dcomrt import DCOMConnection
+from impacket.dcerpc.v5.dcom import wmi
+from impacket.dcerpc.v5.dcom.wmi import DCERPCSessionError
 
 from powerview.utils.helpers import (
 	get_machine_name,
@@ -23,7 +27,8 @@ from powerview.utils.helpers import (
 )
 from powerview.lib.resolver import (
 	LDAP,
-	TRUST
+	TRUST,
+	EXCHANGE,
 )
 from powerview.utils.certificate import (
 	load_pfx,
@@ -40,6 +45,7 @@ from time import sleep
 import tempfile
 from ldap3.operation import bind
 from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
+import powerview.lib.adws as adws
 
 class CONNECTION:
 	def __init__(self, args):
@@ -54,6 +60,7 @@ class CONNECTION:
 		self.use_ldaps = args.use_ldaps
 		self.use_gc = args.use_gc
 		self.use_gc_ldaps = args.use_gc_ldaps
+		self.use_adws = args.use_adws
 		self.proto = None
 		self.port = args.port
 		self.hashes = args.hashes
@@ -124,7 +131,8 @@ class CONNECTION:
 		self.targetDomain = None
 		self.flatname = None
 
-		if not self.use_ldap and not self.use_ldaps and not self.use_gc and not self.use_gc_ldaps:
+		# if no protocol is specified, use ldaps
+		if not self.use_ldap and not self.use_ldaps and not self.use_gc and not self.use_gc_ldaps and not self.use_adws:
 			self.use_ldaps = True
 
 		self.args = args
@@ -132,9 +140,12 @@ class CONNECTION:
 		self.ldap_server = None
 
 		self.rpc_conn = None
+		self.wmi_conn = None
+		self.dcom = None
 		self.samr = None
 		self.TGT = None
 		self.TGS = None
+		self.smb_sessions = {}
 
 		# stolen from https://github.com/the-useless-one/pywerview/blob/master/pywerview/requester.py#L90
 		try:
@@ -196,10 +207,22 @@ class CONNECTION:
 	def get_domain(self):
 		return self.domain.lower()
 
-	def set_targetDomain(self, targetDomain):
-		self.targetDomain = targetDomain
-
+	def set_targetDomain(self, domain):
+		"""
+		Set or reset the target domain for cross-domain operations.
+		
+		Args:
+			domain: The target domain name or None to reset to primary domain
+		"""
+		self.targetDomain = domain
+			
 	def get_targetDomain(self):
+		"""
+		Get the current target domain if set for cross-domain operations.
+		
+		Returns:
+			String: The target domain name or None if operating in primary domain
+		"""
 		return self.targetDomain
 
 	def set_username(self, username):
@@ -248,15 +271,28 @@ class CONNECTION:
 				return None
 		
 		if is_valid_fqdn(server):
-			ldap_address = get_principal_dc_address(server, self.nameserver, use_system_ns=self.use_system_ns)
+			# Get principal DC address, respecting proxy mode if applicable
+			ldap_address = get_principal_dc_address(
+				server, 
+				self.nameserver, 
+				use_system_ns=self.use_system_ns
+			)
+			# In proxy mode, ldap_address will be set to the original domain
 		elif is_ipaddress(server):
 			ldap_address = server 
 		else:
 			logging.error("Invalid server address. Must be either an FQDN or IP address.")
 			return None
 
+		# Set the target domain and ldap address
 		self.ldap_address = ldap_address
 		self.targetDomain = server.lower()
+		
+		# Log the appropriate message based on whether we're in proxy mode
+		if self.nameserver is None and not self.use_system_ns and is_valid_fqdn(ldap_address):
+			logging.debug(f"Using proxy-compatible mode for {server} -> {ldap_address}")
+		else:
+			logging.debug(f"Updated LDAP address to {ldap_address} for domain {self.targetDomain}")
 
 		return ldap_address
 
@@ -279,18 +315,95 @@ class CONNECTION:
 			whoami = self.ldap_session.extend.standard.who_am_i()
 			if whoami:
 				whoami = whoami.split(":")[-1]
-		except ldap3.core.exceptions.LDAPExtensionError:
+		except Exception as e:
 			whoami = "%s\\%s" % (self.get_domain(), self.get_username())
 		return whoami if whoami else "ANONYMOUS"
 
-	def reset_connection(self):
-		self.ldap_session.rebind()
+	def reset_connection(self, max_retries=3):
+		"""
+		Reset and reconnect the LDAP connection using exponential backoff strategy
+		
+		Args:
+			max_retries (int): Maximum number of reconnection attempts
+			
+		Returns:
+			bool: True if reconnection successful, False otherwise
+		"""
+		import random
+		import time
+		
+		retry_count = 0
+		success = False
+		
+		while retry_count < max_retries and not success:
+			try:
+				if retry_count > 0:  # Only delay if this is a retry
+					# Calculate backoff with jitter
+					backoff_time = (2 ** retry_count) + random.uniform(0, 1)
+					logging.info(f"LDAP reconnection attempt {retry_count+1}/{max_retries} after {backoff_time:.2f} seconds")
+					time.sleep(backoff_time)
+				
+				# Actual reconnection
+				self.ldap_session.rebind()
+				
+				# Verify connection is alive
+				if self.is_connection_alive():
+					logging.info("LDAP reconnection successful")
+					success = True
+				else:
+					logging.warning("LDAP connection not functional after rebind attempt")
+					retry_count += 1
+				
+			except ldap3.core.exceptions.LDAPSocketOpenError as e:
+				logging.error(f"Socket open error during reconnection: {str(e)}")
+				retry_count += 1
+			except ldap3.core.exceptions.LDAPSessionTerminatedByServerError as e:
+				logging.error(f"Session terminated by server during reconnection: {str(e)}")
+				retry_count += 1
+			except ldap3.core.exceptions.LDAPSocketSendError as e:
+				logging.error(f"Socket send error during reconnection: {str(e)}")
+				retry_count += 1
+			except ldap3.core.exceptions.LDAPSocketReceiveError as e:
+				logging.error(f"Socket receive error during reconnection: {str(e)}")
+				retry_count += 1
+			except ldap3.core.exceptions.LDAPBindError as e:
+				logging.error(f"Bind error during reconnection: {str(e)}")
+				retry_count += 1
+			except Exception as e:
+				logging.error(f"Unexpected error during reconnection: {str(e)}")
+				retry_count += 1
+		
+		if not success:
+			logging.error("Maximum LDAP reconnection attempts reached")
+			sys.exit(0)
+		
+		return success
 
 	def close(self):
-		return self.ldap_session.unbind()
+		"""Close all connections and resources properly"""
+		# First unbind LDAP session if it exists
+		if hasattr(self, 'ldap_session') and self.ldap_session:
+			try:
+				self.ldap_session.unbind()
+			except:
+				pass
+		
+		# Shutdown relay instance if it exists
+		if hasattr(self, 'relay_instance') and self.relay_instance:
+			try:
+				self.relay_instance.shutdown()
+				del self.relay_instance
+			except Exception as e:
+				logging.error(f"Error shutting down relay server: {str(e)}")
+		
+		# Make sure to clean up other resources as needed
+		if hasattr(self, 'rpc_conn') and self.rpc_conn:
+			try:
+				self.rpc_conn.disconnect()
+			except:
+				pass
 
 	def init_ldap_session(self, ldap_address=None, use_ldap=False, use_gc_ldap=False):
-		
 		if self.targetDomain and self.targetDomain != self.domain and self.kdcHost:
 			self.kdcHost = None
 
@@ -358,14 +471,24 @@ class CONNECTION:
 		if not self.domain and not self.username and (not self.password or not self.nthash or not self.lmhash):
 			if self.relay:
 				target = "ldaps://%s" % (self.ldap_address) if self.use_ldaps else "ldap://%s" % (self.ldap_address)
-				logging.info(f"Targeting {target}")
+				logging.info(f"[Relay] Targeting {target}")
 
-				relay = Relay(target, self.relay_host, self.relay_port, self.args)
-				relay.start()
+				try:
+					# Store the relay instance as a class attribute
+					self.relay_instance = Relay(target, self.relay_host, self.relay_port, self.args)
+					self.relay_instance.start()
+				except PermissionError as e:
+					if "Permission denied" in str(e):
+						logging.error(f"[Relay] Permission denied when setting up relay server on port {self.relay_port}.")
+						logging.error(f"[Relay] Try running with sudo or using a port above 1024 with --relay-port option.")
+						sys.exit(1)
+					else:
+						# Re-raise any other permission errors
+						raise
 
-				self.ldap_session = relay.get_ldap_session()
-				self.ldap_server = relay.get_ldap_server()
-				self.proto = relay.get_scheme()
+				self.ldap_session = self.relay_instance.get_ldap_session()
+				self.ldap_server = self.relay_instance.get_ldap_server()
+				self.proto = self.relay_instance.get_scheme()
 
 				# setting back to default
 				self.relay = False
@@ -417,12 +540,24 @@ class CONNECTION:
 						self.use_gc = True
 						self.use_gc_ldaps = False
 					return self.init_ldap_session()
+		elif self.use_adws:
+			self.ldap_server, self.ldap_session = self.init_adws_session()
+			return self.ldap_server, self.ldap_session
 		else:
 			if _anonymous:
 				self.ldap_server, self.ldap_session = self.init_ldap_anonymous(target)
 			else:
 				self.ldap_server, self.ldap_session = self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash, auth_method=self.auth_method)
 			return self.ldap_server, self.ldap_session
+
+	def init_adws_session(self):
+		if self.auth_method != ldap3.NTLM:
+			logging.error("ADWS protocol only supports NTLM authentication as of now")
+			sys.exit(0)
+
+		target = self.ldap_address
+		self.ldap_server, self.ldap_session = self.init_adws_connection(target, self.domain, self.username, self.password, self.lmhash, self.nthash)
+		return self.ldap_server, self.ldap_session
 
 	def init_ldap_anonymous(self, target, tls=None):
 		ldap_server_kwargs = {
@@ -446,7 +581,12 @@ class CONNECTION:
 				"msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
 				"trustAttributes": TRUST.resolve_trustAttributes,
 				"trustType": TRUST.resolve_trustType,
-				"trustDirection": TRUST.resolve_trustDirection
+				"trustDirection": TRUST.resolve_trustDirection,
+				"msExchVersion": EXCHANGE.resolve_msExchVersion,
+				"msDS-AllowedToActOnBehalfOfOtherIdentity": LDAP.resolve_msDSAllowedToActOnBehalfOfOtherIdentity,
+				"msDS-TrustForestTrustInfo": LDAP.resolve_msDSTrustForestTrustInfo,
+				"pKIExpirationPeriod": LDAP.resolve_pKIExpirationPeriod,
+				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod
 			}
 		}
 
@@ -518,7 +658,12 @@ class CONNECTION:
 				"msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
 				"trustAttributes": TRUST.resolve_trustAttributes,
 				"trustType": TRUST.resolve_trustType,
-				"trustDirection": TRUST.resolve_trustDirection
+				"trustDirection": TRUST.resolve_trustDirection,
+				"msExchVersion": EXCHANGE.resolve_msExchVersion,
+				"msDS-AllowedToActOnBehalfOfOtherIdentity": LDAP.resolve_msDSAllowedToActOnBehalfOfOtherIdentity,
+				"msDS-TrustForestTrustInfo": LDAP.resolve_msDSTrustForestTrustInfo,
+				"pKIExpirationPeriod": LDAP.resolve_pKIExpirationPeriod,
+				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod
 			}
 		}
 
@@ -581,13 +726,61 @@ class CONNECTION:
 			logging.error(f"AuthError: {str(ldap_session.result['message'])}")
 			sys.exit(0)
 
-		# check if domain is empty
-		self.domain = dn2domain(ldap_server.info.other.get('rootDomainNamingContext')[0])
-		who_am_i = ldap_session.extend.standard.who_am_i().lstrip("u:").split("\\")
-		self.username = who_am_i[-1]
-		self.flatname = who_am_i[0]
-
 		return ldap_server, ldap_session
+
+	def init_adws_connection(self, target, domain=None, username=None, password=None, lmhash=None, nthash=None, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM):
+		self.proto = "ADWS"
+		
+		adws_server_kwargs = {
+			"host": target,
+			"port": 9389,
+			"formatter": {
+				"sAMAccountType": LDAP.resolve_samaccounttype,
+				"lastLogon": LDAP.ldap2datetime,
+				"whenCreated": LDAP.resolve_generalized_time,
+				"whenChanged": LDAP.resolve_generalized_time,
+				"pwdLastSet": LDAP.ldap2datetime,
+				"badPasswordTime": LDAP.ldap2datetime,
+				"lastLogonTimestamp": LDAP.ldap2datetime,
+				"objectGUID": LDAP.bin_to_guid,
+				"objectSid": LDAP.bin_to_sid,
+				"securityIdentifier": LDAP.bin_to_sid,
+				"mS-DS-CreatorSID": LDAP.bin_to_sid,
+				"msDS-ManagedPassword": LDAP.formatGMSApass,
+				"msDS-GroupMSAMembership": LDAP.parseGMSAMembership,
+				"pwdProperties": LDAP.resolve_pwdProperties,
+				"userAccountControl": LDAP.resolve_uac,
+				"msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
+				"trustAttributes": TRUST.resolve_trustAttributes,
+				"trustType": TRUST.resolve_trustType,
+				"trustDirection": TRUST.resolve_trustDirection,
+				"msExchVersion": EXCHANGE.resolve_msExchVersion,
+				"msDS-AllowedToActOnBehalfOfOtherIdentity": LDAP.resolve_msDSAllowedToActOnBehalfOfOtherIdentity,
+				"msDS-TrustForestTrustInfo": LDAP.resolve_msDSTrustForestTrustInfo,
+				"pKIExpirationPeriod": LDAP.resolve_pKIExpirationPeriod,
+				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod
+			}
+		}
+		adws_server = adws.Server(**adws_server_kwargs)
+
+		adws_connection_kwargs = {
+			"user": username,
+			"password": password,
+			"domain": domain,
+			"lmhash": lmhash,
+			"nthash": nthash,
+			"raise_exceptions": True
+		}
+		try:
+			adws_connection = adws.Connection(adws_server, **adws_connection_kwargs)
+			adws_server, adws_session = adws_connection.connect(get_info=True)
+			return adws_server, adws_session
+		except Exception as e:
+			if self.args.stack_trace:
+				raise e
+			else:
+				logging.error(f"Error during ADWS authentication with error: {str(e)}")
+			sys.exit(0)
 
 	def init_ldap_connection(self, target, tls, domain=None, username=None, password=None, lmhash=None, nthash=None, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM):
 		ldap_server_kwargs = {
@@ -614,7 +807,12 @@ class CONNECTION:
 				"msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
 				"trustAttributes": TRUST.resolve_trustAttributes,
 				"trustType": TRUST.resolve_trustType,
-				"trustDirection": TRUST.resolve_trustDirection
+				"trustDirection": TRUST.resolve_trustDirection,
+				"msExchVersion": EXCHANGE.resolve_msExchVersion,
+				"msDS-AllowedToActOnBehalfOfOtherIdentity": LDAP.resolve_msDSAllowedToActOnBehalfOfOtherIdentity,
+				"msDS-TrustForestTrustInfo": LDAP.resolve_msDSTrustForestTrustInfo,
+				"pKIExpirationPeriod": LDAP.resolve_pKIExpirationPeriod,
+				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod
 			}
 		}
 
@@ -724,13 +922,6 @@ class CONNECTION:
 			else:
 				logging.debug("Bind SUCCESS!")
 
-		# check if domain is empty
-		if not self.domain or not is_valid_fqdn(self.domain):
-			self.domain = dn2domain(ldap_server.info.other.get('rootDomainNamingContext')[0])
-		
-		who_am_i = ldap_session.extend.standard.who_am_i().lstrip("u:").split("\\")
-		self.username = who_am_i[-1]
-		self.flatname = who_am_i[0]
 		return ldap_server, ldap_session
 
 	def ldap3_kerberos_login(self, connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True):
@@ -908,12 +1099,15 @@ class CONNECTION:
 
 	def init_smb_session(self, host, username=None, password=None, nthash=None, lmhash=None, domain=None, timeout=10, useCache=True):
 		try:
-			# Use provided credentials or fall back to self values
 			username = username or self.username
 			password = password or self.password 
 			nthash = nthash or self.nthash
 			lmhash = lmhash or self.lmhash
 			domain = domain or self.domain
+
+			if host in self.smb_sessions:
+				logging.debug(f"[Connection: init_smb_session] Returning stored SMB session for {host}")
+				return self.smb_sessions[host]
 
 			logging.debug(f"[Connection: init_smb_session] Default timeout is set to {timeout}. Expect a delay")
 			conn = SMBConnection(host, host, sess_port=445, timeout=timeout)
@@ -931,11 +1125,9 @@ class CONNECTION:
 					try:
 						ccache = CCache.loadFile(os.getenv('KRB5CCNAME'))
 					except Exception as e:
-					   # No cache present
 						logging.info(str(e))
 						return
 					else:
-						# retrieve domain information from CCache file if needed
 						if domain == '':
 							domain = ccache.principal.realm['data'].decode('utf-8')
 							logging.debug('Domain retrieved from CCache: %s' % domain)
@@ -966,10 +1158,9 @@ class CONNECTION:
 							logging.debug('Username retrieved from CCache: %s' % username)
 				
 				conn.kerberosLogin(username, password, domain, lmhash, nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
-				#conn.kerberosLogin(username, password, domain, lmhash, nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
-				# havent support kerberos authentication yet
 			else:
 				conn.login(username, password, domain, lmhash, nthash)
+			self.smb_sessions[host] = conn
 			return conn
 		except OSError as e:
 			logging.debug(str(e))
@@ -1008,12 +1199,48 @@ class CONNECTION:
 
 	# stole from PetitPotam.py
 	# TODO: FIX kerberos auth
-	def connectRPCTransport(self, host=None, stringBindings=None, interface_uuid=None, port=445, auth=True, set_authn=False, raise_exceptions=False):
+	def connectRPCTransport(self,
+		host=None,
+		username=None,
+		password=None,
+		domain=None,
+		lmhash=None,
+		nthash=None,
+		stringBindings=None,
+		interface_uuid=None,
+		port=445,
+		auth=True,
+		set_authn=False,
+		raise_exceptions=False
+	):
 		if self.stack_trace:
 			raise_exceptions = True
 
 		if not host:
 			host = self.dc_ip
+
+		if not domain:
+			domain = self.domain
+
+		if not username:
+			username = self.username
+
+		if username:
+			if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\')
+			elif '@' in username:
+				username, domain = username.split('@')
+
+		if not password:
+			password = self.password
+
+		if not nthash:
+			nthash = self.nthash
+
+		if not lmhash:
+			lmhash = self.lmhash
+
+		logging.debug("[ConnectRPCTransport] Using credentials: %s, %s, %s, %s, %s" % (username, password, domain, lmhash, nthash))
 
 		if not stringBindings:
 			stringBindings = epm.hept_map(host, samr.MSRPC_UUID_SAMR, protocol ='ncacn_ip_tcp')
@@ -1023,7 +1250,7 @@ class CONNECTION:
 		rpctransport.set_dport(port)
 
 		if hasattr(rpctransport, 'set_credentials') and auth:
-			rpctransport.set_credentials(self.username, self.password, self.domain, self.lmhash, self.nthash, TGT=self.TGT)
+			rpctransport.set_credentials(username, password, domain, lmhash, nthash, TGT=self.TGT)
 
 		if hasattr(rpctransport, 'set_kerberos') and self.use_kerberos and auth:
 			rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.kdcHost)
@@ -1096,11 +1323,105 @@ class CONNECTION:
 
 		return self.rpc_conn
 
+	def init_wmi_session(self, target, username=None, password=None, domain=None, lmhash=None, nthash=None, aesKey=None, do_kerberos=False, namespace='//./root/cimv2'):
+		self.dcom = DCOMConnection(
+				target,
+				username if username is not None else self.username,
+				password if password is not None else self.password,
+				domain if domain is not None else self.domain,
+				lmhash if lmhash is not None else self.lmhash,
+				nthash if nthash is not None else self.nthash,
+				aesKey if aesKey is not None else getattr(self, 'auth_aes_key', None),
+				oxidResolver=True,
+				doKerberos=do_kerberos if do_kerberos is not None else getattr(self, 'use_kerberos', False)
+			)
+		try:
+			iInterface = self.dcom.CoCreateInstanceEx(wmi.CLSID_WbemLevel1Login, wmi.IID_IWbemLevel1Login)
+			iWbemLevel1Login = wmi.IWbemLevel1Login(iInterface)
+			self.wmi_conn = iWbemLevel1Login.NTLMLogin(namespace, NULL, NULL)
+			iWbemLevel1Login.RemRelease()
+			return self.dcom, self.wmi_conn
+		except DCERPCSessionError as e:
+			if hasattr(e, 'error_code') and e.error_code == 0x80041003:
+				logging.debug(f"[init_wmi_session] Access denied (0x80041003): {e}")
+				return self.dcom, self.wmi_conn
+			raise
+		except Exception as e:
+			if 'WBEM_E_ACCESS_DENIED' in str(e) or '0x80041003' in str(e):
+				logging.debug(f"[init_wmi_session] Access denied: {e}")
+				return self.dcom, self.wmi_conn
+			self.disconnect_wmi_session()
+			raise
+
+	def disconnect_wmi_session(self):
+		try:
+			if self.wmi_conn:
+				try:
+					self.wmi_conn.RemRelease()
+				except Exception as e:
+					logging.debug(f"[disconnect_wmi_session] RemRelease failed: {e}")
+				finally:
+					self.wmi_conn = None
+			if self.dcom:
+				try:
+					self.dcom.disconnect()
+				except Exception as e:
+					logging.debug(f"[disconnect_wmi_session] dcom.disconnect failed: {e}")
+				finally:
+					self.dcom = None
+		except Exception as e:
+			logging.debug(f"[disconnect_wmi_session] Unexpected error: {e}")
+
 	def init_rpc_session(self, host, pipe=r'\srvsvc'):
 		if not self.rpc_conn:
 			return self.create_rpc_connection(host=host, pipe=pipe)
 		else:
 			return self.rpc_conn
+
+	def is_connection_alive(self):
+		"""
+		Check if the LDAP connection is alive and functional
+		
+		Returns:
+			bool: True if connection is alive, False otherwise
+		"""
+		try:
+			# Try a simple operation to verify connection
+			if self.ldap_session and self.ldap_session.bound:
+				# Perform a simple search operation
+				result = self.ldap_session.search(
+					search_base=self.ldap_server.info.other['defaultNamingContext'][0],
+					search_filter='(objectClass=*)',
+					search_scope='BASE',
+					attributes=['1.1']
+				)
+				return result
+			return False
+		except Exception:
+			return False
+
+	def keep_alive(self):
+		"""
+		Perform a lightweight LDAP operation to keep the connection alive
+		
+		Returns:
+			bool: True if connection is still alive, False otherwise
+		"""
+		try:
+			# Perform a simple search with minimal overhead
+			result = self.is_connection_alive()
+			logging.debug("[Connection] Connection keep-alive check: Success")
+			return result
+		except Exception as e:
+			logging.debug(f"[Connection] Connection keep-alive check failed: {str(e)}")
+			return False
+
+	def __del__(self):
+		"""Destructor to ensure all resources are properly cleaned up"""
+		try:
+			self.close()
+		except:
+			pass
 
 class LDAPRelayServer(LDAPRelayClient):
 	def initConnection(self):
@@ -1154,10 +1475,24 @@ class LDAPRelayServer(LDAPRelayClient):
 				logging.error('Server rejected authentication because LDAP signing is enabled. Try connecting with TLS enabled (specify target as ldaps://hostname )')
 		return None, STATUS_ACCESS_DENIED
 
-class LDAPSRelayServer(LDAPRelayServer):
-	def __init__(self, serverConfig, target, targetPort = 636, extendedSecurity=True ):
-		LDAPRelayClient.__init__(self, serverConfig, target, targetPort, extendedSecurity)
+	def cleanup(self):
+		"""Properly cleanup LDAP connections"""
+		try:
+			if hasattr(self, 'session') and self.session:
+				if self.session.bound:
+					self.session.unbind()
+				self.session = None
+		except Exception as e:
+			logging.error(f"Error during LDAP relay server cleanup: {str(e)}")
 
+	def __del__(self):
+		"""Destructor to ensure cleanup"""
+		self.cleanup()
+
+class LDAPSRelayServer(LDAPRelayServer):
+	def __init__(self, serverConfig, target, targetPort = 636, extendedSecurity=True):
+		LDAPRelayClient.__init__(self, serverConfig, target, targetPort, extendedSecurity)
+	
 	def initConnection(self):
 		self.ldap_relay.scheme = "LDAPS"
 		self.server = ldap3.Server("ldaps://%s:%s" % (self.targetHost, self.targetPort), get_info=ldap3.ALL)
@@ -1186,7 +1521,8 @@ class HTTPRelayServer(HTTPRelayServer):
 					ntlm_nego = self.do_ntlm_negotiate(token, proxy=proxy)
 				except ldap3.core.exceptions.LDAPSocketOpenError as e:
 					logging.debug(str(e))
-					sys.exit(-1)
+					self.cleanup_connections()  # Add cleanup before exit
+					return  # Return instead of exit to allow proper cleanup
 
 				if not ntlm_nego:
 					# Connection failed
@@ -1291,6 +1627,41 @@ class HTTPRelayServer(HTTPRelayServer):
 							self.authUser, self.client_address[0], self.target.scheme, self.target.netloc))
 						self.do_REDIRECT()
 
+		def cleanup_connections(self):
+			"""Clean up any open connections"""
+			try:
+				if hasattr(self, 'target') and self.target:
+					if hasattr(self.target, 'session') and self.target.session:
+						if getattr(self.target.session, 'bound', False):
+							self.target.session.unbind()
+						self.target.session = None
+			except Exception as e:
+				logging.error(f"Error during HTTP handler cleanup: {str(e)}")
+
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
+		self._active_connections = []
+	
+	def cleanup(self):
+		"""Clean up server resources"""
+		try:
+			# Clean up active connections
+			for conn in self._active_connections:
+				if conn and hasattr(conn, 'cleanup'):
+					conn.cleanup()
+			self._active_connections = []
+			
+			# Close server socket
+			if hasattr(self, 'socket') and self.socket:
+				self.socket.close()
+				self.socket = None
+		except Exception as e:
+			logging.error(f"Error during HTTP relay server cleanup: {str(e)}")
+	
+	def __del__(self):
+		"""Destructor to ensure cleanup"""
+		self.cleanup()
+
 class Relay:
 	def __init__(self, target, interface="0.0.0.0", port=80, args=None):
 		self.target = target
@@ -1322,6 +1693,8 @@ class Relay:
 		config.setDisableMulti(True)
 		self.server = HTTPRelayServer(config)
 
+		self._servers = []  # Track active servers
+
 	def get_scheme(self):
 		return self.scheme
 
@@ -1349,15 +1722,32 @@ class Relay:
 			sys.exit()
 
 	def get_relay_ldap_server(self, *args, **kwargs) -> LDAPRelayClient:
-		relay_server = LDAPRelayServer(*args, **kwargs)
-		relay_server.ldap_relay = self
-		return relay_server
+		server = super().get_relay_ldap_server(*args, **kwargs)
+		if server:
+			self._servers.append(server)
+		return server
 
 	def get_relay_ldaps_server(self, *args, **kwargs) -> LDAPRelayClient:
-		relay_server = LDAPSRelayServer(*args, **kwargs)
-		relay_server.ldap_relay = self
-		return relay_server
+		server = super().get_relay_ldaps_server(*args, **kwargs)
+		if server:
+			self._servers.append(server)
+		return server
 
 	def shutdown(self):
-		logging.info("Exiting...")
-		sys.exit(0)
+		"""Enhanced shutdown to ensure all resources are released"""
+		try:
+			# Close all tracked servers
+			for server in self._servers:
+				if hasattr(server, 'cleanup'):
+					server.cleanup()
+			self._servers = []
+			
+			# Call parent shutdown if it exists
+			if hasattr(super(), 'shutdown'):
+				super().shutdown()
+		except Exception as e:
+			logging.error(f"Error during relay shutdown: {str(e)}")
+	
+	def __del__(self):
+		"""Destructor to ensure shutdown"""
+		self.shutdown()

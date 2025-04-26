@@ -11,3 +11,5 @@ argparse
 requests_ntlm
 python-dateutil
 flask
+flask-basicauth
+mcp[cli]

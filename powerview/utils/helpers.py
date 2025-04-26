@@ -20,6 +20,7 @@ import re
 import configparser
 import validators
 import random
+import locale
 
 from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
@@ -31,6 +32,7 @@ from impacket.krb5 import constants
 from impacket.krb5.types import Principal
 from impacket.krb5.kerberosv5 import getKerberosTGT
 
+from powerview.utils.constants import WINDOWS_VERSION_MAP, LCID_TO_LOCALE
 from powerview.lib.dns import (
 	STORED_ADDR
 )
@@ -90,7 +92,7 @@ def get_user_sids(domain_sid, objectsid, ldap_session=None):
 			)
 			
 			# Search for direct group memberships
-			entry_generator = ldap_session.extend.standard.paged_search(
+			entries = ldap_session.extend.standard.paged_search(
 				search_base=base_dn,
 				search_filter=search_filter,
 				attributes=['distinguishedName', 'memberOf', 'objectSid'],
@@ -99,17 +101,17 @@ def get_user_sids(domain_sid, objectsid, ldap_session=None):
 				generator=True
 			)
 
-			for _entries in entry_generator:
-				if _entries['type'] != 'searchResEntry':
-					continue
+			for _entries in entries:
 				attributes = _entries.get('attributes', {})
 				# Check if objectSid is in attributes
 				if 'objectSid' in attributes:
 					user_sids.add(str(attributes.get('objectSid')))
 				# Check if memberOf is in attributes
 				if 'memberOf' in attributes:
+					if not isinstance(attributes.get('memberOf'), list):
+						attributes['memberOf'] = [attributes.get('memberOf')]
 					for group_dn in attributes.get('memberOf'):
-						entry_generator = ldap_session.extend.standard.paged_search(
+						group_entries = ldap_session.extend.standard.paged_search(
 							search_base=group_dn,
 							search_filter='(objectClass=*)',
 							attributes=['objectSid'],
@@ -117,13 +119,10 @@ def get_user_sids(domain_sid, objectsid, ldap_session=None):
 							paged_size = 1000,
 							generator=True
 						)
-						for _entries in entry_generator:
-							if _entries['type'] != 'searchResEntry':
-								continue
-							attributes = _entries.get('attributes', {})
-							if 'objectSid' in attributes:
-								user_sids.add(str(attributes.get('objectSid')))
-
+						for _entries in group_entries:
+							group_attributes = _entries.get('attributes', {})
+							if 'objectSid' in group_attributes:
+								user_sids.add(str(group_attributes.get('objectSid')))
 		except Exception as e:
 			logging.warning(f"Failed to get group memberships: {str(e)}")
 
@@ -168,9 +167,28 @@ def span_to_str(span: int) -> str:
 def filetime_to_str(filetime: str) -> str:
 	return span_to_str(filetime_to_span(filetime))
 
-def to_pascal_case(snake_str: str) -> str:
-	components = snake_str.split("_")
-	return "".join(x.title() for x in components)
+def wmi_time_to_str(wmi_time):
+	if not wmi_time:
+		return ""
+	try:
+		dt = datetime.datetime.strptime(wmi_time[:14], "%Y%m%d%H%M%S")
+		return dt.strftime("%d/%m/%Y, %I:%M:%S %p")
+	except Exception:
+		return wmi_time
+
+def format_datetime(dt: datetime) -> str:
+	"""
+	Format a datetime object into a human-readable string.
+	
+	Args:
+		dt: datetime object to format
+		
+	Returns:
+		Formatted datetime string
+	"""
+	if not dt:
+		return "Never"
+	return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 def is_admin_sid(sid: str):
 	return (
@@ -202,6 +220,9 @@ def strip_entry(entry):
 				if not isinstance(v[0], str):
 					continue
 				entry["attributes"][k] = v[0]
+
+def resolve_windows_version(major, minor):
+	return WINDOWS_VERSION_MAP.get((major, minor), "Unknown")
 
 def from_json_to_entry(entry):
 	return json.loads(entry)
@@ -249,12 +270,12 @@ def ini_to_dict(obj):
 	try:
 		config_string = '[dummy_section]\n' + obj
 		t = configparser.ConfigParser(converters={'list': lambda x: [int(i) if i.isnumeric() else i.strip() for i in x.replace("|",",").split(',')]})
+		t.optionxform = str
 		t.read_string(config_string)
 	except configparser.ParsingError as e:
 		return None
 	for k in t['dummy_section'].keys():
 		d['attribute'] = k
-		#In case the value is a Distinguished Name
 		if re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', t.get('dummy_section', k)):
 			d['value'] = t.get('dummy_section', k)
 		else:
@@ -336,19 +357,24 @@ def is_ipaddress(address):
 		return False
 
 def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_ns=True):
-	answer = None
+	domain = str(domain)
+	if domain in list(STORED_ADDR.keys()):
+		return STORED_ADDR[domain]
 
-	basequery = f'_ldap._tcp.pdc._msdcs.{domain}'
 	dnsresolver = None
-	
 	if nameserver:
-		logging.debug(f'Querying domain controller information from DNS server {nameserver}')
+		logging.debug(f"Querying domain controller for {domain} from DNS server {nameserver}")
 		dnsresolver = resolver.Resolver(configure=False)
 		dnsresolver.nameservers = [nameserver]
-	else:
-		logging.debug(f'No nameserver provided, using system\'s dns to resolve {domain}')
+	elif use_system_ns:
+		logging.debug(f"Using host's resolver to find domain controller for {domain}")
 		dnsresolver = resolver.Resolver()
+	else:
+		logging.debug(f"Proxy-compatible mode: Returning domain '{domain}' without DC resolution")
+		return domain
 
+	answer = None
+	basequery = f'_ldap._tcp.pdc._msdcs.{domain}'
 	dnsresolver.lifetime = float(3)
 
 	try:
@@ -360,7 +386,7 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
 
 		for r in q:
 			dc = str(r.target).removesuffix('.')
-		#resolve ip for principal dc
+		# Resolve IP for principal DC with same DNS settings
 		answer = host2ip(dc, nameserver, 3, dns_tcp, use_system_ns)
 		return answer
 	except resolver.NXDOMAIN as e:
@@ -372,7 +398,7 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
 		pass
 	except dns.resolver.LifetimeTimeout as e:
 		logging.debug("Domain resolution timed out")
-		return
+		pass
 
 	try:
 		logging.debug("Querying all DCs")
@@ -388,6 +414,14 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
 	except dns.resolver.NoAnswer as e:
 		logging.debug(str(e))
 		pass
+	except Exception as e:
+		logging.debug(f"Error resolving DC address: {str(e)}")
+		pass
+	
+	# If resolution fails, try direct domain resolution
+	logging.debug(f"DC resolution failed, attempting direct domain resolution")
+	answer = host2ip(domain, nameserver, 3, dns_tcp, use_system_ns)
+	
 	return answer
 
 def resolve_domain(domain, nameserver):
@@ -405,10 +439,12 @@ def resolve_domain(domain, nameserver):
 	return answer
 
 def get_machine_name(domain, args=None):
-	if args and args.ldap_address is not None:
+
+	if args and args.ldap_address is not None and args.dc_ip is not None:
 		s = SMBConnection(args.ldap_address, args.dc_ip)
 	else:
 		s = SMBConnection(domain, domain)
+	
 	try:
 		s.login('', '')
 	except Exception:
@@ -416,7 +452,7 @@ def get_machine_name(domain, args=None):
 			raise Exception('Error while anonymous logging into %s' % domain)
 	else:
 		s.logoff()
-	#return s.getServerName()
+	
 	return "%s.%s" % (s.getServerName(), s.getServerDNSDomainName())
 
 
@@ -443,7 +479,7 @@ def parse_identity(args):
 		lmhash = ''
 		nthash = ''
 
-	return domain, username, password, lmhash, nthash, address
+	return {'domain': domain, 'username': username, 'password': password, 'lmhash': lmhash, 'nthash': nthash, 'ldap_address': address}
 
 def get_user_info(samname, ldap_session, domain_dumper):
 	ldap_session.search(domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars(samname),
@@ -459,6 +495,21 @@ def get_system_nameserver():
 	return resolver.get_default_resolver().nameservers[0]
 
 def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_ns=True, type=str):
+	"""
+	Resolve hostname to IP address with flexible resolution options.
+	
+	Parameters:
+		hostname: The hostname to resolve
+		nameserver: Optional specific DNS server to use
+		dns_timeout: Timeout for DNS queries in seconds
+		dns_tcp: Whether to use TCP for DNS queries
+		use_system_ns: Whether to use system nameservers if no nameserver provided
+		type: Return type (str for single IP, list for multiple IPs)
+		
+	Special behaviors:
+		- When nameserver=None and use_system_ns=False: Returns hostname without 
+		  resolution (proxy-compatible mode for use with proxychains)
+	"""
 	hostname = str(hostname)
 	if hostname in list(STORED_ADDR.keys()):
 		return STORED_ADDR[hostname]
@@ -472,6 +523,7 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 		logging.debug(f"Using host's resolver to resolve {hostname}")
 		dnsresolver = resolver.Resolver()
 	else:
+		logging.debug(f"Proxy-compatible mode: Returning hostname '{hostname}' without resolution")
 		return hostname
 
 	dnsresolver.lifetime = float(dns_timeout)
@@ -504,7 +556,8 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 		elif len(addr) > 1 and type == list:
 			return addr
 		else:
-			logging.error("Error resolving address with unknown error")
+			logging.error(f"No address records found for {hostname}")
+			return None
 
 		return ip
 
@@ -747,3 +800,97 @@ class IDict(dict):
 		if i not in range(len(self)):
 			return None
 		return list(self.values())[i]
+
+def kb_to_mb_str(val):
+	try:
+		if val is None or val == '':
+			return ''
+		if isinstance(val, str):
+			val = int(val)
+		mb = val // 1024
+		return str(mb)
+	except Exception:
+		return ''
+
+def lcid_to_locale(lcid):
+	if not isinstance(lcid, (str, int)):
+		return None
+	
+	if isinstance(lcid, int):
+		lcid = format(lcid, '04x')
+	elif isinstance(lcid, str) and lcid.isdigit():
+		lcid = format(int(lcid), '04x')
+	
+	lcid = lcid.lower()
+	
+	if lcid in LCID_TO_LOCALE:
+		return "%s;%s" % (LCID_TO_LOCALE[lcid][0], LCID_TO_LOCALE[lcid][1])
+	
+	return None
+
+def locale_to_lcid(locale_id):
+	if not isinstance(locale_id, str):
+		return None
+	
+	inverted_map = {lang_tag: int(code, 16) for code, (lang_tag, _) in LCID_TO_LOCALE.items()}
+	
+	if locale_id in inverted_map:
+		return inverted_map[locale_id]
+	
+	return None
+
+def get_timezone_display_name(wmi_timezone_props):
+	try:
+		if not wmi_timezone_props:
+			return ''
+		caption = wmi_timezone_props.get('Caption', {}).get('value', '')
+		desc = wmi_timezone_props.get('Description', {}).get('value', '')
+		if caption:
+			return caption
+		if desc:
+			return desc
+		return ''
+	except Exception:
+		return ''
+
+def resolve_time_zone(tz_offset):
+	try:
+		if tz_offset is None or tz_offset == '':
+			return ''
+		tz_offset = int(tz_offset)
+		sign = '+' if tz_offset >= 0 else '-'
+		hours = abs(tz_offset) // 60
+		minutes = abs(tz_offset) % 60
+		return f'UTC{sign}{hours:02d}:{minutes:02d}'
+	except Exception:
+		return str(tz_offset)
+
+def parse_hashes(hash_string):
+	"""Parses a hash string into LM, NTLM, or AES key components."""
+	lmhash = None
+	nthash = None
+	auth_aes_key = None
+	if hash_string:
+		if len(hash_string.strip()) == 32:
+			nthash = hash_string
+			lmhash = "AAD3B435B51404EEAAD3B435B51404EE"
+		elif ":" in hash_string:
+			lmhash, nthash = hash_string.split(":", 1)
+		elif len(hash_string.strip()) > 33:
+			auth_aes_key = hash_string
+		else:
+			raise ValueError("Invalid hash string")
+	
+	if lmhash is None or lmhash == '':
+		lmhash = "AAD3B435B51404EEAAD3B435B51404EE"
+	
+	return {'lmhash': lmhash, 'nthash': nthash, 'auth_aes_key': auth_aes_key}
+
+def parse_username(username):
+	domain = None
+	if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\')
+	elif '@' in username:
+		username, domain = username.split('@', 1)
+
+	return {'domain': domain, 'username': username}

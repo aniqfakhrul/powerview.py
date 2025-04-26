@@ -1,6 +1,6 @@
 # PowerView.py
 
-[Installation](#installation) | [Basic Usage](#basic-usage) | [Modules](#module-available-so-far) | [Logging](#logging)
+[Installation](#installation) | [Basic Usage](#basic-usage) | [Modules](#module-available-so-far) | [Logging](#logging) | [User Defined Rules](#user-defined-rules) | [MCP](#mcp)
 
 PowerView.py is an alternative for the awesome original [PowerView.ps1](https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1) script. Most of the modules used in PowerView are available here ( some of the flags are changed ). Main goal is to achieve interactive session without having to repeatedly authenticate to ldap.
 
@@ -9,7 +9,7 @@ Since powerview.py now supports Channel Binding and Seal and Sign, [gssapi](http
 * Pypi
 ```bash
 sudo apt install libkrb5-dev
-pip3 install powerview --break-system-packages
+pip3 install powerview
 ```
 
 * Pipx
@@ -29,8 +29,8 @@ curl -L powerview.sh | sh
     3. You can use the command below.
 ```bash
 nix shell github:aniqfakhrul/powerview.py
-
 ```
+
 * Manual
 ```
 git clone https://github.com/aniqfakhrul/powerview.py
@@ -48,12 +48,12 @@ sudo apt install libkrb5-dev
 
 * Init connection
 ```
-powerview range.net/lowpriv:Password123@192.168.86.192 [--dc-ip 192.168.86.192] [-k] [--use-ldap | --use-ldaps]
+powerview range.net/lowpriv:Password123@192.168.86.192 [--dc-ip 192.168.86.192] [-k] [--use-ldap | --use-ldaps | --use-gc | --use-gc-ldaps | --use-adws]
 ```
 
 * Start web interface
 ```
-powerview range.net/lowpriv:Password123@192.168.86.192 --web [--web-host 0.0.0.0] [--web-port 3000]
+powerview range.net/lowpriv:Password123@192.168.86.192 --web [--web-host 0.0.0.0] [--web-port 3000] [--web-auth user:password1234]
 ```
 ![IMG_4602](https://github.com/user-attachments/assets/15bcd3e3-0693-4b0c-9c58-c8f36d899486)
 
@@ -144,24 +144,24 @@ Add-DomainComputer             Get-DomainDNSRecord            Get-NetGPO        
 Add-DomainDNSRecord            Get-DomainDNSZone              Get-NetGroup                   Remove-GroupMember 
 Add-DomainGPO                  Get-DomainForeignGroupMember   Get-NetGroupmember             Remove-OU 
 Add-DomainGroup                Get-DomainForeignUser          Get-NetLoggedOn                Remove-ObjectAcl 
-Add-DomainGroupMember          Get-DomainGMSA                 Get-NetOU                      Set-ADObject 
-Add-DomainOU                   Get-DomainGPO                  Get-NetService                 Set-ADObjectDN 
-Add-DomainObjectAcl            Get-DomainGPOLocalGroup        Get-NetSession                 Set-CATemplate 
-Add-DomainUser                 Get-DomainGPOSettings          Get-NetShare                   Set-DomainCATemplate 
-Add-GPLink                     Get-DomainGroup                Get-NetTrust                   Set-DomainComputerPassword 
-Add-GPO                        Get-DomainGroupMember          Get-NetUser                    Set-DomainDNSRecord 
-Add-GroupMember                Get-DomainOU                   Get-ObjectAcl                  Set-DomainObject 
-Add-OU                         Get-DomainObject               Get-ObjectOwner                Set-DomainObjectDN 
-Add-ObjectAcl                  Get-DomainObjectAcl            Get-RBCD                       Set-DomainObjectOwner 
-Clear-Cache                    Get-DomainObjectOwner          Get-RegLoggedOn                Set-DomainRBCD 
-ConvertFrom-SID                Get-DomainRBCD                 Get-SCCM                       Set-DomainUserPassword 
+Add-DomainGroupMember          Get-DomainGMSA                 Get-NetService                 Set-ADObject 
+Add-DomainOU                   Get-DomainGPO                  Get-NetSession                 Set-ADObjectDN 
+Add-DomainObjectAcl            Get-DomainGPOLocalGroup        Get-NetShare                   Set-CATemplate 
+Add-DomainUser                 Get-DomainGPOSettings          Get-NetTrust                   Set-DomainCATemplate 
+Add-GPLink                     Get-DomainGroup                Get-NetUser                    Set-DomainComputerPassword 
+Add-GPO                        Get-DomainGroupMember          Get-ObjectAcl                  Set-DomainDNSRecord 
+Add-GroupMember                Get-DomainOU                   Get-ObjectOwner                Set-DomainObject 
+Add-OU                         Get-DomainObject               Get-RBCD                       Set-DomainObjectDN 
+Add-ObjectAcl                  Get-DomainObjectAcl            Get-RegLoggedOn                Set-DomainObjectOwner 
+Clear-Cache                    Get-DomainObjectOwner          Get-SCCM                       Set-DomainRBCD 
+ConvertFrom-SID                Get-DomainRBCD                 Invoke-DFSCoerce               Set-DomainUserPassword 
 ConvertFrom-UACValue           Get-DomainSCCM                 Invoke-Kerberoast              Set-ObjectOwner 
-Disable-DomainDNSRecord        Get-DomainTrust                Remove-ADComputer              Set-RBCD 
-Find-ForeignGroup              Get-DomainUser                 Remove-ADObject                Unlock-ADAccount 
-Find-ForeignUser               Get-Exchange                   Remove-ADUser                  clear 
-Find-LocalAdminAccess          Get-ExchangeServer             Remove-CATemplate              exit 
-Get-ADObject                   Get-GMSA                       Remove-DomainCATemplate        
-Get-CA                         Get-GPOLocalGroup              Remove-DomainComputer  
+Disable-DomainDNSRecord        Get-DomainTrust                Invoke-PrinterBug              Set-RBCD 
+Find-ForeignGroup              Get-DomainUser                 Remove-ADComputer              Unlock-ADAccount 
+Find-ForeignUser               Get-Exchange                   Remove-ADObject                clear 
+Find-LocalAdminAccess          Get-ExchangeServer             Remove-ADUser                  exit 
+Get-ADObject                   Get-GMSA                       Remove-CATemplate              
+Get-CA                         Get-GPOLocalGroup              Remove-DomainCATemplate        
 ```
 
 ### Domain/LDAP Functions
@@ -255,7 +255,9 @@ Get-CA                         Get-GPOLocalGroup              Remove-DomainCompu
 |ConvertFrom-SID||Convert a given security identifier (SID) to user/group name|
 |ConvertFrom-UACValue||Converts a UAC int value to human readable form|
 |Get-NamedPipes||List out Named Pipes for a specific computer|
+|Invoke-DFSCoerce||Coerces machine account authentication via MS-DFSNM NetrDfsRemoveStdRoot()|
 |Invoke-Kerberoast||Requests kerberos ticket for a specified service principal name (SPN)|
+|Invoke-PrinterBug||Triggers the MS-RPRN RpcRemoteFindFirstPrinterChangeNotificationEx function to force a server to authenticate to a specified machine|
 |Unlock-ADAccount||Unlock domain accounts by modifying lockoutTime attribute|
 |Find-LocalAdminAccess||Finds computer on the local domain where the current has a Local Administrator access|
 
@@ -264,15 +266,185 @@ Get-CA                         Get-GPOLocalGroup              Remove-DomainCompu
 We will never miss logging to keep track of the actions done. By default, powerview creates a `.powerview` folder in current user home directory _(~)_. Each log file is generated based on current date.
 Example path: `/root/.powerview/logs/bionic.local/2024-02-13.log`
 
-### To-Do
-* ~~Add logging function to track and monitor what have been run.~~
-* ~~Add cache functionality to minimize network interaction.~~
-* Support more authentication flexibility.
-    * ~~Channel Binding~~
-    * ~~Sign and Seal~~
-    * ~~Simple Authentication~~
-    * ~~Schannel. Authentication with pfx~~
-* ~~Add `ProtectedFromAccidentalDeletion` attribute to `Get-DomainOU`~~
+### Vulnerability Detection
+
+PowerView.py includes an integrated vulnerability detection system that automatically identifies common Active Directory security issues. When querying objects, vulnerabilities will be displayed in the output:
+
+```
+vulnerabilities: [VULN-026] Domain with high machine account quota (allows users to add computer accounts) (MEDIUM)
+                 [VULN-029] Domain with weak minimum password length policy (less than 8 characters) (HIGH)
+```
+
+#### User Defined Rules
+
+You can define custom vulnerability detection rules by modifying the `vulns.json` file located in the PowerView storage directory (`~/.powerview/vulns.json`).
+
+Each vulnerability rule has the following structure:
+
+```json
+"rule_name": {
+    "description": "Human-readable description of the vulnerability",
+    "rules": [
+        {
+            "attribute": "attributeName",
+            "condition": "condition_type",
+            "value": "value_to_check"
+        },
+        {
+            "attribute": "anotherAttribute",
+            "condition": "another_condition",
+            "value": "another_value"
+        }
+    ],
+    "exclusions": [
+        {
+            "attribute": "attributeName",
+            "condition": "condition_type",
+            "value": "value_to_exclude"
+        }
+    ],
+    "severity": "low|medium|high|critical",
+    "id": "VULN-XXX",
+    "rule_operator": "AND|OR",
+    "exclusion_operator": "AND|OR",
+    "details": "Optional detailed explanation of the vulnerability and remediation steps"
+}
+```
+
+**Rule Components:**
+
+- **rules**: List of conditions that must be met for the vulnerability to be detected
+- **exclusions**: List of conditions that, if met, will exclude an object from detection even if it matches the rules
+- **rule_operator**: How to combine multiple rules (default: "OR")
+  - "AND": All rules must match
+  - "OR": Any rule can match
+- **exclusion_operator**: How to combine multiple exclusions (default: "OR")
+  - "OR": Any exclusion can match to exclude the object
+  - "AND": All exclusions must match to exclude the object
+- **negate**: Optional boolean (True/False) that can be added to any rule to invert its result
+
+**Supported Conditions:**
+
+| Condition | Description |
+| --------- | ----------- |
+| `exists` | Attribute exists |
+| `not_exists` | Attribute does not exist |
+| `equals` | Exact match (case-insensitive) |
+| `not_equals` | Not an exact match |
+| `contains` | Substring match (case-insensitive) |
+| `not_contains` | No substring match |
+| `startswith` | Starts with string (case-insensitive) |
+| `endswith` | Ends with string (case-insensitive) |
+| `older_than` | Date is older than specified number of days |
+| `newer_than` | Date is newer than specified number of days |
+| `greater_than` | Numeric value is greater than specified |
+| `less_than` | Numeric value is less than specified |
+| `greater_than_or_equal` | Numeric value is greater than or equal to specified |
+| `less_than_or_equal` | Numeric value is less than or equal to specified |
+| `has_flag` | Bit flag is set in a numeric value |
+| `missing_flag` | Bit flag is not set in a numeric value |
+| `any_flag_set` | Any of the specified flags are set |
+| `all_flags_set` | All of the specified flags are set |
+
+**Multiple Values:**
+
+You can specify multiple values for a condition using:
+1. Pipe-separated string: `"value": "value1|value2|value3"`
+2. List format: `"value": ["value1", "value2", "value3"]`
+
+**Example Rule:**
+
+```json
+"weak_password_policy": {
+    "description": "Domain with weak minimum password length policy (less than 8 characters)",
+    "rules": [
+        {
+            "attribute": "objectClass",
+            "condition": "contains",
+            "value": "domainDNS"
+        },
+        {
+            "attribute": "minPwdLength",
+            "condition": "less_than",
+            "value": 8
+        }
+    ],
+    "exclusions": [],
+    "severity": "high",
+    "id": "VULN-029",
+    "rule_operator": "AND"
+}
+```
+
+**Debug Mode:**
+
+Enable vulnerability detection debug mode by setting the environment variable:
+```bash
+export POWERVIEW_DEBUG_VULN=1
+```
+
+This will log detailed information about rule matching to help troubleshoot custom rules.
+
+### MCP
+
+> [!note]
+> This is not bundled in the base project installation. You may run `pip3 install .[mcp] or pip3 install powerview[mcp]` to include MCP functionalities.
+
+This enables the Model Context Protocol server, allowing AI assistants to interact with PowerView functionality through a standardized interface via HTTP SSE transport. See the [MCP documentation](powerview/mcp/README.md) for more details.
+
+* Start MCP server
+```bash
+powerview domain.local/lowpriv:Password1234@10.10.10.10 --mcp [--mcp-host 0.0.0.0] [--mcp-port 8888]
+```
+
+The MCP server exposes most of PowerView's functionality through a standardized tool interface. This includes the ability to:
+- Query and enumerate Active Directory objects (users, computers, groups, OUs)
+- Retrieve information about domain trusts, GPOs, and group memberships
+- Search for security vulnerabilities and misconfigurations
+- ...
+
+#### Claude Desktop
+Claude Desktop does not support yet support SSE transport [Github](https://github.com/orgs/modelcontextprotocol/discussions/16). You may want to use [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy).
+
+* Install `mcp-proxy`
+```bash
+# Option 1: With uv (recommended)
+uv tool install mcp-proxy
+
+# Option 2: With pipx (alternative)
+pipx install mcp-proxy
+``` 
+
+* Modify `%APPDATA%\Claude\claude_desktop_config.json`
+```json
+{
+  "mcpServers": {
+    "Powerview.py": {
+        "command": "mcp-proxy",
+        "args": ["http://10.10.10.10/sse"],
+    }
+  }
+}
+```
+
+#### Cursor
+You can modify this in cursor settings under MCP options button.
+
+>[!tip]
+>Enable YOLO mode to enable autonomous mode so you don't have to click on "Run Tool" button each time. Read more [here](https://docs.cursor.com/chat/agent#yolo-mode)
+
+```json
+{
+  "mcpServers": {
+    "Powerview": {
+      "url": "http://127.0.0.1:8080/sse"
+    }
+  }
+}
+```
+
+> [!warning]
+> When using MCP with public AI models (like Claude, GPT, etc.), your Active Directory data may be transmitted to and logged by these services according to their data handling policies. Be mindful of sensitive information exposure when using these tools. We are not responsible for any data leakage or security implications resulting from connecting PowerView to third-party AI services. Self-hosted FTW!
 
 ### Credits
 * https://github.com/SecureAuthCorp/impacket
@@ -285,3 +457,4 @@ Example path: `/root/.powerview/logs/bionic.local/2024-02-13.log`
 * https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3/tree/tls_cb_and_seal_for_ntlm
 * https://github.com/ly4k/Certipy
 * https://github.com/MaLDAPtive/Invoke-Maldaptive
+* https://github.com/xforcered/SoaPy

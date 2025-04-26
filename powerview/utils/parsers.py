@@ -5,7 +5,7 @@ import logging
 from impacket import version
 from powerview.utils.completer import COMMANDS
 from powerview.utils.colors import bcolors, Gradient
-from powerview.utils.helpers import escape_filter_chars_except_asterisk
+from powerview.utils.helpers import escape_filter_chars_except_asterisk, parse_hashes, parse_username, parse_identity
 from powerview._version import BANNER,__version__
 
 # https://stackoverflow.com/questions/14591168/argparse-dont-show-usage-on-h
@@ -21,9 +21,12 @@ def arg_parse():
 	parser.add_argument('-d','--debug', dest='debug', action='store_true', help='Enable debug output')
 	parser.add_argument('--stack-trace', dest='stack_trace', action='store_true', help='raise exceptions and exit if unhandled errors')
 	parser.add_argument('-q','--query', dest='query', action='store', help='PowerView query to be executed one-time')
-	parser.add_argument('--no-admin-check', dest='no_admin_check', action='store_true', help='Skip admin check when first logging in')
-	parser.add_argument('--obfuscate', dest='obfuscate', action='store_true', help='Obfuscate search filter')
-	parser.add_argument('--no-cache', dest='no_cache', action='store_true', help='Disable caching of LDAP queries')
+	parser.add_argument('--no-admin-check', dest='no_admin_check', default=False, action='store_true', help='Skip admin check when first logging in')
+	parser.add_argument('--obfuscate', dest='obfuscate', default=False, action='store_true', help='Obfuscate search filter')
+	parser.add_argument('--no-cache', dest='no_cache', default=False, action='store_true', help='Disable caching of LDAP queries')
+	parser.add_argument('--no-vuln-check', dest='no_vuln_check', default=False, action='store_true', help='Disable vulnerability detection')
+	parser.add_argument('--raw', dest='raw', default=False, action='store_true', help='Return raw LDAP entries without formatting')
+
 	ns_group_parser = parser.add_mutually_exclusive_group()
 	ns_group_parser.add_argument('--use-system-nameserver', action='store_true', default=False, dest='use_system_ns', help='Use system nameserver to resolve hostname/domain')
 	ns_group_parser.add_argument('-ns','--nameserver', dest='nameserver', action='store', help='Specify custom nameserver. If not specified, domain controller will be used instead')
@@ -35,6 +38,7 @@ def arg_parse():
 	group.add_argument('--use-ldaps', dest='use_ldaps', action='store_true', help='[Optional] Use LDAPS instead of LDAP')
 	group.add_argument('--use-gc', dest='use_gc', action='store_true', help='[Optional] Use GlobalCatalog (GC) protocol')
 	group.add_argument('--use-gc-ldaps', dest='use_gc_ldaps', action='store_true', help='[Optional] Use GlobalCatalog (GC) protocol for LDAPS')
+	group.add_argument('--use-adws', dest='use_adws', action='store_true', help='[Optional] Use ADWS protocol')
 
 	auth = parser.add_argument_group('authentication')
 	auth.add_argument('-H','--hashes', action="store", metavar = "LMHASH:NTHASH", help='NTLM hashes, format is LMHASH:NTHASH')
@@ -53,6 +57,7 @@ def arg_parse():
 	mode_group = parser.add_mutually_exclusive_group()
 	mode_group.add_argument('--relay', dest='relay', action='store_true', help='Enable relay mode')
 	mode_group.add_argument('--web', dest='web', action='store_true', help='Enable web interface for LDAP queries')
+	mode_group.add_argument('--mcp', dest='mcp', action='store_true', help='Enable Model Context Protocol mode for AI assistants')
 
 	relay = parser.add_argument_group('relay')
 	relay.add_argument('--relay-host', dest='relay_host', action='store', default="0.0.0.0", help='Bind interface to expose HTTP server (Default: 0.0.0.0)')
@@ -61,12 +66,26 @@ def arg_parse():
 	web = parser.add_argument_group('web')
 	web.add_argument('--web-host', dest='web_host', action='store', default='127.0.0.1', help='Specify custom bind interface (Default: 127.0.0.1)')
 	web.add_argument('--web-port', dest='web_port', action='store', type=int, default=5000, help='Specify custom port for web interface (Default: 5000)')
+	web.add_argument('--web-auth', dest='web_auth', action='store', default=None, help='Enable authentication for web interface (format: username:password)', type=Helper.parse_web_auth)
+	
+	mcp = parser.add_argument_group('mcp')
+	mcp.add_argument('--mcp-host', dest='mcp_host', action='store', default='127.0.0.1', help='Specify custom bind interface for MCP (Default: 127.0.0.1)')
+	mcp.add_argument('--mcp-port', dest='mcp_port', action='store', type=int, default=8080, help='Specify custom port for MCP server (Default: 8080)')
+	mcp.add_argument('--mcp-name', dest='mcp_name', action='store', default='PowerView', help='Specify MCP server name (Default: PowerView MCP)')
 	
 	if len(sys.argv) == 1:
 		parser.print_help()
 		sys.exit(1)
 
 	args = parser.parse_args()
+
+	parsed_identity = parse_identity(args)
+	args.domain = parsed_identity['domain']
+	args.username = parsed_identity['username']
+	args.password = parsed_identity['password']
+	args.lmhash = parsed_identity['lmhash']
+	args.nthash = parsed_identity['nthash']
+	args.ldap_address = parsed_identity['ldap_address']
 
 	# check for mutually exclusive
 	if args.use_kerberos and (args.relay):
@@ -86,6 +105,17 @@ class Helper:
 			return int(value)
 		return value.strip().split(',') if value else []
 
+	def parse_web_auth(web_auth):
+		web_auth_user = None
+		web_auth_password = None
+		if web_auth:
+			try:
+				web_auth_user, web_auth_password = web_auth.split(':')
+			except Exception:
+				raise ValueError("Invalid web auth string")
+				sys.exit(1)
+		return {'web_auth_user': web_auth_user, 'web_auth_password': web_auth_password}
+
 def powerview_arg_parse(cmd):
 	parser = PowerViewParser(exit_on_error=False)
 	subparsers = parser.add_subparsers(dest='module')
@@ -97,6 +127,15 @@ def powerview_arg_parse(cmd):
 
 	#clear cache
 	clear_cache_parser = subparsers.add_parser('Clear-Cache', exit_on_error=False)
+
+	#login-as
+	login_as_parser = subparsers.add_parser('Login-As', exit_on_error=False)
+	login_as_parser.add_argument('-Username', action='store', dest='username')
+	login_as_parser.add_argument('-Domain', action='store', dest='domain')
+	login_as_parser_cred = login_as_parser.add_mutually_exclusive_group()
+	login_as_parser_cred.add_argument('-Password', action='store', dest='password')
+	login_as_parser_cred.add_argument('-Hash', action='store', dest='hash')
+
 	#domain
 	get_domain_parser = subparsers.add_parser('Get-Domain', aliases=['Get-NetDomain'], exit_on_error=False)
 	get_domain_parser.add_argument('-Identity', action='store',default='*', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
@@ -112,6 +151,8 @@ def powerview_arg_parse(cmd):
 	get_domain_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domain_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domain_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domain_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domain_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 	
 	#domainobject
 	get_domainobject_parser = subparsers.add_parser('Get-DomainObject', aliases=['Get-ADObject'] ,exit_on_error=False)
@@ -128,6 +169,8 @@ def powerview_arg_parse(cmd):
 	get_domainobject_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainobject_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domainobject_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainobject_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domainobject_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	#domainobjectowner
 	get_domainobjectowner_parser = subparsers.add_parser('Get-DomainObjectOwner', aliases=['Get-ObjectOwner'] ,exit_on_error=False)
@@ -142,10 +185,12 @@ def powerview_arg_parse(cmd):
 	get_domainobjectowner_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainobjectowner_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domainobjectowner_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainobjectowner_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domainobjectowner_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	#domainobjectacl
 	get_domainobjectacl_parser = subparsers.add_parser('Get-DomainObjectAcl', aliases=['Get-ObjectAcl'] ,exit_on_error=False)
-	get_domainobjectacl_parser.add_argument('-Identity', action='store', default='*', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domainobjectacl_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainobjectacl_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainobjectacl_parser.add_argument('-Server', action='store', dest='server')
 	get_domainobjectacl_parser.add_argument('-SecurityIdentifier', action='store', dest='security_identifier')
@@ -157,7 +202,8 @@ def powerview_arg_parse(cmd):
 	get_domainobjectacl_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainobjectacl_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domainobjectacl_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
-
+	get_domainobjectacl_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domainobjectacl_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 	#group
 	get_domaingroup_parser = subparsers.add_parser('Get-DomainGroup', aliases=['Get-NetGroup'], exit_on_error=False)
 	get_domaingroup_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
@@ -175,6 +221,8 @@ def powerview_arg_parse(cmd):
 	get_domaingroup_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaingroup_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domaingroup_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaingroup_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domaingroup_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# foreignuser
 	get_domainforeignuser_parser = subparsers.add_parser('Get-DomainForeignUser', aliases=['Find-ForeignUser'], exit_on_error=False)
@@ -212,6 +260,9 @@ def powerview_arg_parse(cmd):
 	get_domaingroupmember_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaingroupmember_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaingroupmember_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaingroupmember_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaingroupmember_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domaingroupmember_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	#user
 	get_domainuser_parser = subparsers.add_parser('Get-DomainUser', aliases=['Get-NetUser'], exit_on_error=False)
@@ -242,6 +293,8 @@ def powerview_arg_parse(cmd):
 	get_domainuser_parser.add_argument('-Disabled', action='store_true', default=False, dest='disabled')
 	get_domainuser_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domainuser_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainuser_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domainuser_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# get-localuser
 	get_localuser_parser = subparsers.add_parser('Get-LocalUser', exit_on_error=False)
@@ -286,6 +339,9 @@ def powerview_arg_parse(cmd):
 	get_domaincomputer_parser.add_argument('-Printers', action='store_true', default=False, dest='printers')
 	get_domaincomputer_parser.add_argument('-ExcludeDCs', action='store_true', default=False, dest='excludedcs')
 	get_domaincomputer_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaincomputer_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaincomputer_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domaincomputer_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	#domain controller
 	get_domaincontroller_parser = subparsers.add_parser('Get-DomainController', aliases=['Get-NetDomainController'], exit_on_error=False)
@@ -303,6 +359,8 @@ def powerview_arg_parse(cmd):
 	get_domaincontroller_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaincontroller_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domaincontroller_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaincontroller_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domaincontroller_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	#gpo
 	get_domaingpo_parser = subparsers.add_parser('Get-DomainGPO', aliases=['Get-NetGPO'], exit_on_error=False)
@@ -318,6 +376,9 @@ def powerview_arg_parse(cmd):
 	get_domaingpo_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaingpo_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaingpo_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaingpo_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaingpo_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domaingpo_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	#gpo local group / restricted groups
 	get_domaingpolocalgroup_parser = subparsers.add_parser('Get-DomainGPOLocalGroup', aliases=['Get-GPOLocalGroup'], exit_on_error=False)
@@ -344,6 +405,9 @@ def powerview_arg_parse(cmd):
 	get_domaingposettings_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaingposettings_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaingposettings_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaingposettings_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaingposettings_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domaingposettings_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# OU
 	get_domainou_parser = subparsers.add_parser('Get-DomainOU', aliases=['Get-NetOU'], exit_on_error=False)
@@ -361,6 +425,9 @@ def powerview_arg_parse(cmd):
 	get_domainou_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainou_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainou_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domainou_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainou_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domainou_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# Find DNS Zone
 	get_domaindnszone_parser = subparsers.add_parser('Get-DomainDNSZone', exit_on_error=False)
@@ -376,6 +443,8 @@ def powerview_arg_parse(cmd):
 	get_domaindnszone_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaindnszone_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domaindnszone_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaindnszone_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domaindnszone_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# Get DNS Record
 	get_domaindnsrecord_parser = subparsers.add_parser('Get-DomainDNSRecord', exit_on_error=False)
@@ -392,6 +461,8 @@ def powerview_arg_parse(cmd):
 	get_domaindnsrecord_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaindnsrecord_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domaindnsrecord_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaindnsrecord_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domaindnsrecord_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# Get SCCM
 	get_domainsccm_parser = subparsers.add_parser('Get-DomainSCCM', aliases=['Get-SCCM'], exit_on_error=False)
@@ -408,6 +479,9 @@ def powerview_arg_parse(cmd):
 	get_domainsccm_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainsccm_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainsccm_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domainsccm_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainsccm_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domainsccm_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# Get-DomainGMSA
 	get_domaingmsa_parser = subparsers.add_parser('Get-DomainGMSA', aliases=['Get-GMSA'], exit_on_error=False)
@@ -422,6 +496,9 @@ def powerview_arg_parse(cmd):
 	get_domaingmsa_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaingmsa_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaingmsa_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaingmsa_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaingmsa_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domaingmsa_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# Get-DomainRBCD
 	get_domainrbcd_parser = subparsers.add_parser('Get-DomainRBCD', aliases=['Get-RBCD'], exit_on_error=False)
@@ -436,6 +513,9 @@ def powerview_arg_parse(cmd):
 	get_domainrbcd_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainrbcd_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainrbcd_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domainrbcd_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainrbcd_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domainrbcd_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# Find CAs
 	get_domainca_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-CA'], exit_on_error=False)
@@ -450,6 +530,9 @@ def powerview_arg_parse(cmd):
 	get_domainca_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainca_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainca_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domainca_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domainca_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domainca_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# Find CA Templates
 	get_domaincatemplate_parser = subparsers.add_parser('Get-DomainCATemplate', aliases=['Get-CATemplate'], exit_on_error=False)
@@ -467,6 +550,9 @@ def powerview_arg_parse(cmd):
 	get_domaincatemplate_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaincatemplate_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaincatemplate_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaincatemplate_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaincatemplate_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domaincatemplate_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	remove_domaincatemplate_parser = subparsers.add_parser('Remove-DomainCATemplate', aliases=['Remove-CATemplate'], exit_on_error=False)
 	remove_domaincatemplate_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
@@ -504,6 +590,8 @@ def powerview_arg_parse(cmd):
 	get_namedpipes_parser.add_argument('-Server', action='store', dest='server')
 	get_namedpipes_parser.add_argument('-Count', action='store_true', dest='count')
 	get_namedpipes_parser.add_argument('-OutFile', action='store', dest='outfile')
+	get_namedpipes_parser.add_argument('-Timeout', action='store', dest='timeout', type=int, default=5, help="Connection timeout in seconds (default: 5)")
+	get_namedpipes_parser.add_argument('-MaxThreads', action='store', dest='max_threads', type=int, default=10, help="Maximum number of concurrent threads (default: 10)")
 
 	# shares
 	get_netshare_parser = subparsers.add_parser('Get-NetShare', exit_on_error=False)
@@ -526,11 +614,29 @@ def powerview_arg_parse(cmd):
 	get_regloggedon_parser.add_argument('-Count', action='store_true', dest='count')
 	get_regloggedon_parser.add_argument('-OutFile', action='store', dest='outfile')
 
+	# get-netcomputerinfo
+	get_netcomputerinfo_parser = subparsers.add_parser('Get-NetComputerInfo', exit_on_error=False)
+	get_netcomputerinfo_parser.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_netcomputerinfo_parser.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_netcomputerinfo_parser.add_argument('-Username', action='store', default=None, dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_netcomputerinfo_cred_group = get_netcomputerinfo_parser.add_mutually_exclusive_group()
+	get_netcomputerinfo_cred_group.add_argument('-Password', action='store', default=None, dest='password')
+	get_netcomputerinfo_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
+	get_netcomputerinfo_parser.add_argument('-Server', action='store', dest='server')
+	get_netcomputerinfo_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	get_netcomputerinfo_parser.add_argument('-SortBy', action='store', dest='sort_by')
+	get_netcomputerinfo_parser.add_argument('-Count', action='store_true', dest='count')
+	get_netcomputerinfo_parser.add_argument('-OutFile', action='store', dest='outfile')
+
 	# get-netloggedon
 	get_netloggedon_parser = subparsers.add_parser('Get-NetLoggedOn', exit_on_error=False)
 	get_netloggedon_group = get_netloggedon_parser.add_mutually_exclusive_group()
-	get_netloggedon_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
-	get_netloggedon_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_netloggedon_group.add_argument('-Computer', action='store', default=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_netloggedon_group.add_argument('-ComputerName', action='store', default=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_netloggedon_parser.add_argument('-Username', action='store', default=None, dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_netloggedon_cred_group = get_netloggedon_parser.add_mutually_exclusive_group()
+	get_netloggedon_cred_group.add_argument('-Password', action='store', default=None, dest='password')
+	get_netloggedon_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
 	get_netloggedon_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
 	get_netloggedon_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_netloggedon_parser.add_argument('-Server', action='store', dest='server')
@@ -542,6 +648,10 @@ def powerview_arg_parse(cmd):
 	get_netsession_group = get_netsession_parser.add_mutually_exclusive_group()
 	get_netsession_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netsession_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_netsession_parser.add_argument('-Username', action='store', default=None, dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_netsession_cred_group = get_netsession_parser.add_mutually_exclusive_group()
+	get_netsession_cred_group.add_argument('-Password', action='store', default=None, dest='password')
+	get_netsession_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
 	get_netsession_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
 	get_netsession_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_netsession_parser.add_argument('-Server', action='store', dest='server')
@@ -606,14 +716,30 @@ def powerview_arg_parse(cmd):
 	find_localadminaccess_group = find_localadminaccess_parser.add_mutually_exclusive_group()
 	find_localadminaccess_group.add_argument('-Computer', action='store', dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
 	find_localadminaccess_group.add_argument('-ComputerName', action='store', dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+	find_localadminaccess_parser.add_argument('-Username', action='store', dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
+	find_localadminaccess_parser.add_argument('-Password', action='store', dest='password')
+	find_localadminaccess_parser.add_argument('-Hash', action='store', dest='hash')
 	find_localadminaccess_parser.add_argument('-Server', action='store', dest='server')
 	find_localadminaccess_parser.add_argument('-Count', action='store_true', dest='count')
 	find_localadminaccess_parser.add_argument('-OutFile', action='store', dest='outfile')
+	find_localadminaccess_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
 
+	# invoke asreproast
+	invoke_asreproast_parser = subparsers.add_parser('Invoke-ASREPRoast', exit_on_error=False)
+	invoke_asreproast_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_asreproast_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_asreproast_parser.add_argument('-Server', action='store', dest='server')
+	invoke_asreproast_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
+	invoke_asreproast_parser.add_argument('-OutFile', action='store', dest='outfile')
+	invoke_asreproast_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	invoke_asreproast_parser.add_argument('-SortBy', action='store', dest='sort_by')
+	invoke_asreproast_parser.add_argument('-Count', action='store_true', dest='count')
+	invoke_asreproast_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	invoke_asreproast_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	
 	# invoke kerberoast
 	invoke_kerberoast_parser = subparsers.add_parser('Invoke-Kerberoast', exit_on_error=False)
 	invoke_kerberoast_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
-	invoke_kerberoast_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	invoke_kerberoast_parser.add_argument('-Opsec', action='store_true', default=False, dest='opsec')
 	invoke_kerberoast_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
 	invoke_kerberoast_parser.add_argument('-Server', action='store', dest='server')
@@ -624,9 +750,38 @@ def powerview_arg_parse(cmd):
 	invoke_kerberoast_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	invoke_kerberoast_parser.add_argument('-Count', action='store_true', dest='count')
 	invoke_kerberoast_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	invoke_kerberoast_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+
+	# invoke printerbug
+	invoke_printerbug_parser = subparsers.add_parser('Invoke-PrinterBug', exit_on_error=False)
+	invoke_printerbug_parser.add_argument('-Target', action='store', dest='target', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_printerbug_parser.add_argument('-Listener', action='store', dest='listener', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_printerbug_parser.add_argument('-Port', action='store', dest='port', type=int)
+	invoke_printerbug_parser.add_argument('-Server', action='store', dest='server')
+	invoke_printerbug_parser.add_argument('-OutFile', action='store', dest='outfile')
+	invoke_printerbug_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	invoke_printerbug_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
+	invoke_printerbug_parser.add_argument('-Where', action='store', dest='where')
+	invoke_printerbug_parser.add_argument('-SortBy', action='store', dest='sort_by')
+	invoke_printerbug_parser.add_argument('-Count', action='store_true', dest='count')
+	invoke_printerbug_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+
+	# invoke dfscoerce
+	invoke_dfscoerce_parser = subparsers.add_parser('Invoke-DFSCoerce', exit_on_error=False)
+	invoke_dfscoerce_parser.add_argument('-Target', action='store', dest='target', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_dfscoerce_parser.add_argument('-Listener', action='store', dest='listener', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_dfscoerce_parser.add_argument('-Port', action='store', dest='port', type=int)
+	invoke_dfscoerce_parser.add_argument('-Server', action='store', dest='server')
+	invoke_dfscoerce_parser.add_argument('-OutFile', action='store', dest='outfile')
+	invoke_dfscoerce_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	invoke_dfscoerce_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
+	invoke_dfscoerce_parser.add_argument('-Where', action='store', dest='where')
+	invoke_dfscoerce_parser.add_argument('-SortBy', action='store', dest='sort_by')
+	invoke_dfscoerce_parser.add_argument('-Count', action='store_true', dest='count')
+	invoke_dfscoerce_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
 	# get exchange server
-	get_exchangeserver_parser = subparsers.add_parser('Get-ExchangeServer',aliases=['Get-Exchange'], exit_on_error=False)
+	get_exchangeserver_parser = subparsers.add_parser('Get-ExchangeServer', exit_on_error=False)
 	get_exchangeserver_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_exchangeserver_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	get_exchangeserver_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
@@ -638,6 +793,43 @@ def powerview_arg_parse(cmd):
 	get_exchangeserver_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_exchangeserver_parser.add_argument('-Count', action='store_true', dest='count')
 	get_exchangeserver_parser.add_argument('-OutFile', action='store', dest='outfile')
+	get_exchangeserver_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_exchangeserver_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_exchangeserver_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
+
+	# get exchange mailbox
+	get_exchangemailbox_parser = subparsers.add_parser('Get-ExchangeMailbox', exit_on_error=False)
+	get_exchangemailbox_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_exchangemailbox_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
+	get_exchangemailbox_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_exchangemailbox_parser.add_argument('-Server', action='store', dest='server')
+	get_exchangemailbox_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
+	get_exchangemailbox_parser.add_argument('-Where', action='store', dest='where')
+	get_exchangemailbox_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	get_exchangemailbox_parser.add_argument('-SortBy', action='store', dest='sort_by')
+	get_exchangemailbox_parser.add_argument('-OutFile', action='store', dest='outfile')
+	get_exchangemailbox_parser.add_argument('-Count', action='store_true', dest='count')
+	get_exchangemailbox_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_exchangemailbox_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_exchangemailbox_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_exchangemailbox_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
+
+	# get exchange database
+	get_exchangedatabase_parser = subparsers.add_parser('Get-ExchangeDatabase', exit_on_error=False)
+	get_exchangedatabase_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_exchangedatabase_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
+	get_exchangedatabase_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_exchangedatabase_parser.add_argument('-Server', action='store', dest='server')
+	get_exchangedatabase_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
+	get_exchangedatabase_parser.add_argument('-Where', action='store', dest='where')
+	get_exchangedatabase_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	get_exchangedatabase_parser.add_argument('-SortBy', action='store', dest='sort_by')
+	get_exchangedatabase_parser.add_argument('-OutFile', action='store', dest='outfile')
+	get_exchangedatabase_parser.add_argument('-Count', action='store_true', dest='count')
+	get_exchangedatabase_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_exchangedatabase_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_exchangedatabase_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_exchangedatabase_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# unlock_adaccount
 	unlock_adaccount_parser = subparsers.add_parser('Unlock-ADAccount',aliases=['Unlock-ADAccount'], exit_on_error=False)
@@ -660,6 +852,25 @@ def powerview_arg_parse(cmd):
 	get_domaintrust_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domaintrust_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 	get_domaintrust_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaintrust_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domaintrust_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
+
+	#trust key
+	get_domaintrustkey_parser = subparsers.add_parser('Get-DomainTrustKey', aliases=['Get-TrustKey'], exit_on_error=False)
+	get_domaintrustkey_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domaintrustkey_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
+	get_domaintrustkey_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domaintrustkey_parser.add_argument('-Server', action='store', dest='server')
+	get_domaintrustkey_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
+	get_domaintrustkey_parser.add_argument('-Where', action='store', dest='where')
+	get_domaintrustkey_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	get_domaintrustkey_parser.add_argument('-SortBy', action='store', dest='sort_by')
+	get_domaintrustkey_parser.add_argument('-OutFile', action='store', dest='outfile')
+	get_domaintrustkey_parser.add_argument('-Count', action='store_true', dest='count')
+	get_domaintrustkey_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaintrustkey_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaintrustkey_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domaintrustkey_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# convert from uac value
 	convertfrom_uacvalue_parser = subparsers.add_parser('ConvertFrom-UACValue' ,exit_on_error=False)
@@ -913,6 +1124,17 @@ def powerview_arg_parse(cmd):
 						return None
 					return args
 			return parser.parse_args(cmd)
+
+		if hasattr(args, 'hash') and args.hash:
+			parsed_hash = parse_hashes(args.hash)
+			args.lmhash = parsed_hash['lmhash']
+			args.nthash = parsed_hash['nthash']
+			args.auth_aes_key = parsed_hash['auth_aes_key']
+
+		if hasattr(args, 'username') and args.username:
+			parsed_username = parse_username(args.username)
+			args.domain = parsed_username['domain']
+			args.username = parsed_username['username']
 
 		return args
 	except argparse.ArgumentError as e:

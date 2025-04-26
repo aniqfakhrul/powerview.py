@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ zonename: zoneName, properties: ['name', 'Address'] })
+                body: JSON.stringify({ zonename: zoneName})
             });
 
             await handleHttpError(response);

@@ -175,7 +175,6 @@ class DACLedit(object):
     def read(self):
         parsed_dacl = self.parseDACL(self.principal_security_descriptor['Dacl'])
         self.printparsedDACL(parsed_dacl)
-        return
 
     # Main write function
     # Attempts to add a new ACE to a DACL
@@ -197,8 +196,7 @@ class DACLedit(object):
                 self.principal_security_descriptor['Dacl'].aces.append(self.create_object_ace(rights_guid, self.principal_SID, self.ace_type))
         # Backups current DACL before add the new one
         # Effectively push the DACL with the new ACE
-        self.modify_secDesc_for_dn(self.target_DN, self.principal_security_descriptor)
-        return
+        return self.modify_secDesc_for_dn(self.target_DN, self.principal_security_descriptor)
 
 
     # Attempts to remove an ACE from the DACL
@@ -457,7 +455,8 @@ class DACLedit(object):
         logging.debug('Attempts to modify the Security Descriptor.')
         self.ldap_session.modify(dn, {'nTSecurityDescriptor': (ldap3.MODIFY_REPLACE, [data])}, controls=controls)
         if self.ldap_session.result['result'] == 0:
-            logging.info('DACL modified successfully!')
+            logging.debug('DACL modified successfully!')
+            return True
         else:
             if self.ldap_session.result['result'] == 50:
                 logging.error('Could not modify object, the server reports insufficient rights: %s',
@@ -467,6 +466,7 @@ class DACLedit(object):
                               self.ldap_session.result['message'])
             else:
                 logging.error('The server returned an error: %s', self.ldap_session.result['message'])
+            return False
 
 
     # Builds a standard ACE for a specified access mask (rights) and a specified SID (the principal who obtains the right)

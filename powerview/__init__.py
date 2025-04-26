@@ -8,7 +8,7 @@ from powerview.utils.connections import CONNECTION
 from powerview.utils.logging import LOG
 from powerview.utils.parsers import powerview_arg_parse, arg_parse
 from powerview.utils.shell import get_prompt
-from powerview.utils.colors import bcolors
+from powerview.utils.colors import bcolors, Gradient
 
 import ldap3
 import random
@@ -24,19 +24,10 @@ def main():
     """
     args = arg_parse()
 
-    domain, username, password, lmhash, nthash, ldap_address = parse_identity(args)
-
-    setattr(args,'domain',domain)
-    setattr(args,'username',username)
-    setattr(args,'password',password)
-    setattr(args,'lmhash',lmhash)
-    setattr(args,'nthash', nthash)
-    setattr(args, 'ldap_address', ldap_address)
-
-    flat_domain = domain.split('.')[0] if '.' in domain else domain
+    flat_domain = args.domain.split('.')[0] if '.' in args.domain else args.domain
     flat_domain = sanitize_component(flat_domain.lower())
-    username = sanitize_component(username.lower())
-    ldap_address = sanitize_component(ldap_address.lower())
+    username = sanitize_component(args.username.lower())
+    ldap_address = sanitize_component(args.ldap_address.lower())
 
     components = [flat_domain, username, ldap_address]
     folder_name = '-'.join(filter(None, components)) or "default-log"
@@ -54,44 +45,78 @@ def main():
         is_admin = False
 
         powerview = PowerView(conn, args)
-        
-        if not args.no_admin_check:
-            is_admin = powerview.get_admin_status()
-        server_dns = powerview.get_server_dns()
-        init_proto = conn.get_proto()
-        server_ip = conn.get_ldap_address()
-        temp_powerview = None
-        cur_user = conn.who_am_i() if not is_admin else "%s%s%s" % (bcolors.WARNING, conn.who_am_i(), bcolors.ENDC)
 
         comp = Completer()
         comp.setup_completer()
 
+        domain_connections = {}
+        current_target_domain = None
+
+        using_cache = False
+
         while True:
             try:
+                if not args.no_admin_check:
+                    is_admin = powerview.get_admin_status()
+                server_dns = powerview.get_server_dns()
+                mcp_running = powerview.mcp_server.get_status() if args.mcp and hasattr(powerview, 'mcp_server') else False
+                web_running = powerview.api_server.get_status() if args.web and hasattr(powerview, 'api_server') else False
+                init_proto = conn.get_proto()
+                server_ip = conn.get_ldap_address()
+                temp_powerview = None
+                cur_user = conn.who_am_i() if not is_admin else "%s%s%s" % (bcolors.WARNING, conn.who_am_i(), bcolors.ENDC)
+
                 if args.query:
                     cmd = args.query
                 else:
-                    cmd = input(get_prompt(init_proto,server_dns,cur_user))
+                    cmd = input(get_prompt(init_proto, server_dns, cur_user, current_target_domain, using_cache, mcp_running=mcp_running, web_running=web_running))
 
                 if cmd:
                     try:
                         cmd = shlex.split(cmd)
                     except ValueError as e:
-                        logging.error(str(e))
-                        continue
+                        if args.stack_trace:
+                            raise e
+                        else:
+                            logging.error(str(e))
+                            continue
 
                     pv_args = powerview_arg_parse(cmd)
 
                     if pv_args:
                         if pv_args.server and pv_args.server.casefold() != args.domain.casefold():
-                            conn.update_temp_ldap_address(pv_args.server)
+                            # Update current target domain for display in prompt
+                            current_target_domain = pv_args.server
                             
-                            try:
-                                temp_powerview = PowerView(conn, args, target_domain=pv_args.server)
-                            except:
-                                logging.error(f'Domain {pv_args.server} not found or probably not alive')
-                                continue
+                            if pv_args.server in domain_connections:
+                                temp_conn = domain_connections[pv_args.server]
+                            else:
+                                temp_conn = CONNECTION(args)
+                                temp_conn.update_temp_ldap_address(pv_args.server)
+                                domain_connections[pv_args.server] = temp_conn
 
+                            try:
+                                temp_powerview = PowerView(temp_conn, args, target_domain=pv_args.server)
+                            except ldap3.core.exceptions.LDAPSocketOpenError as e:
+                                logging.error(f'Connection to domain {pv_args.server} failed: {str(e)}')
+                                current_target_domain = None
+                                continue
+                            except ldap3.core.exceptions.LDAPBindError as e:
+                                logging.error(f'Authentication to domain {pv_args.server} failed: {str(e)}')
+                                current_target_domain = None
+                                continue
+                            except Exception as e:
+                                logging.error(f'Domain {pv_args.server} operation failed: {str(e)}')
+                                current_target_domain = None
+                                if args.stack_trace:
+                                    import traceback
+                                    logging.debug(traceback.format_exc())
+                                continue
+                        else:
+                            # No server specified or same as current domain
+                            current_target_domain = None
+                            temp_powerview = None
+                            
                         try:
                             entries = None
                             if pv_args.module.casefold() == 'get-domain' or pv_args.module.casefold() == 'get-netdomain':
@@ -291,6 +316,11 @@ def main():
                                     entries = temp_powerview.get_domaintrust(pv_args, properties, identity, searchbase=pv_args.searchbase)
                                 else:
                                     entries = powerview.get_domaintrust(pv_args, properties, identity, searchbase=pv_args.searchbase)
+                            elif pv_args.module.casefold() == 'get-domaintrustkey' or pv_args.module.casefold() == 'get-trustkey':
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaintrustkey(args=pv_args)
+                                else:
+                                    entries = powerview.get_domaintrustkey(args=pv_args)
                             elif pv_args.module.casefold() == 'convertfrom-uacvalue':
                                 if pv_args.value:
                                     value = pv_args.value.strip()
@@ -314,12 +344,26 @@ def main():
                                     temp_powerview.clear_cache()
                                 else:
                                     powerview.clear_cache()
+                                using_cache = False
+                            elif pv_args.module.casefold() == 'login-as':
+                                if temp_powerview:
+                                    powerview.login_as(args=pv_args)
+                                else:
+                                    powerview.login_as(args=pv_args)
                             elif pv_args.module.casefold() == 'get-namedpipes':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     if temp_powerview:
-                                        entries = temp_powerview.get_namedpipes(pv_args)
+                                        entries = temp_powerview.get_namedpipes(
+                                            pv_args, 
+                                            timeout=pv_args.timeout, 
+                                            max_threads=pv_args.max_threads
+                                        )
                                     else:
-                                        entries = powerview.get_namedpipes(pv_args)
+                                        entries = powerview.get_namedpipes(
+                                            pv_args, 
+                                            timeout=pv_args.timeout, 
+                                            max_threads=pv_args.max_threads
+                                        )
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'get-netshare':
@@ -337,6 +381,15 @@ def main():
                                         entries = temp_powerview.get_regloggedon(computer_name=computername, args=pv_args)
                                     else:
                                         entries = powerview.get_regloggedon(computer_name=computername, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'get-netcomputerinfo':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        entries = temp_powerview.get_netcomputerinfo(computer_name=computername, args=pv_args)
+                                    else:
+                                        entries = powerview.get_netcomputerinfo(computer_name=computername, args=pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'get-netloggedon':
@@ -416,15 +469,29 @@ def main():
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'find-localadminaccess':
                                 if temp_powerview:
-                                    entries = temp_powerview.find_localadminaccess(pv_args)
+                                    entries = temp_powerview.find_localadminaccess(args=pv_args)
                                 else:
-                                    entries = powerview.find_localadminaccess(pv_args)
-                            elif pv_args.module.casefold() == 'invoke-kerberoast':
-                                properties = pv_args.properties if pv_args.properties else None
+                                    entries = powerview.find_localadminaccess(args=pv_args)
+                            elif pv_args.module.casefold() == 'invoke-asreproast':
                                 if temp_powerview:
-                                    entries = temp_powerview.invoke_kerberoast(pv_args, properties)
+                                    entries = temp_powerview.invoke_asreproast(args=pv_args)
                                 else:
-                                    entries = powerview.invoke_kerberoast(pv_args, properties)
+                                    entries = powerview.invoke_asreproast(args=pv_args)
+                            elif pv_args.module.casefold() == 'invoke-kerberoast':
+                                if temp_powerview:
+                                    entries = temp_powerview.invoke_kerberoast(args=pv_args)
+                                else:
+                                    entries = powerview.invoke_kerberoast(args=pv_args)
+                            elif pv_args.module.casefold() == 'invoke-printerbug':
+                                if temp_powerview:
+                                    entries = temp_powerview.invoke_printerbug(args=pv_args)
+                                else:
+                                    entries = powerview.invoke_printerbug(args=pv_args)
+                            elif pv_args.module.casefold() == 'invoke-dfscoerce':
+                                if temp_powerview:
+                                    entries = temp_powerview.invoke_dfscoerce(args=pv_args)
+                                else:
+                                    entries = powerview.invoke_dfscoerce(args=pv_args)
                             elif pv_args.module.casefold() == 'get-exchangeserver' or pv_args.module.casefold() == 'get-exchange':
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
@@ -432,6 +499,20 @@ def main():
                                     entries = temp_powerview.get_exchangeserver(identity=identity, properties=properties, args=pv_args)
                                 else:
                                     entries = powerview.get_exchangeserver(identity=identity, properties=properties, args=pv_args)
+                            elif pv_args.module.casefold() == 'get-exchangemailbox':
+                                properties = pv_args.properties if pv_args.properties else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                if temp_powerview:
+                                    entries = temp_powerview.get_exchangemailbox(identity=identity, properties=properties, args=pv_args)
+                                else:
+                                    entries = powerview.get_exchangemailbox(identity=identity, properties=properties, args=pv_args)
+                            elif pv_args.module.casefold() == 'get-exchangedatabase':
+                                properties = pv_args.properties if pv_args.properties else None
+                                identity = pv_args.identity.strip() if pv_args.identity else None
+                                if temp_powerview:
+                                    entries = temp_powerview.get_exchangedatabase(identity=identity, properties=properties, args=pv_args)
+                                else:
+                                    entries = powerview.get_exchangedatabase(identity=identity, properties=properties, args=pv_args)
                             elif pv_args.module.casefold() == 'unlock-adaccount':
                                 if pv_args.identity is not None:
                                     if temp_powerview:
@@ -707,6 +788,8 @@ def main():
                                 else:
                                     logging.error("-GUID and -TargetIdentity flags are required")
                             elif pv_args.module.casefold() == 'exit':
+                                if mcp_running:
+                                    powerview.mcp_server.stop()
                                 log_handler.save_history()
                                 sys.exit(0)
                             elif pv_args.module.casefold() == 'clear':
@@ -743,7 +826,13 @@ def main():
                                         else:
                                             formatter.print(entries)
 
+                            # After displaying results, check if they came from cache
+                            if entries and len(entries) > 0:
+                                first_entry = entries[0]
+                                using_cache = isinstance(first_entry, dict) and first_entry.get('from_cache', False)
+
                             temp_powerview = None
+                            current_target_domain = None
                             conn.set_ldap_address(init_ldap_address)
                             conn.set_targetDomain(None)
                         except ldap3.core.exceptions.LDAPInvalidFilterError as e:
@@ -757,9 +846,13 @@ def main():
                             logging.error(str(e))
                             conn.reset_connection()
             except KeyboardInterrupt:
+                if mcp_running:
+                    powerview.mcp_server.stop()
                 log_handler.save_history()
                 print()
             except EOFError:
+                if mcp_running:
+                    powerview.mcp_server.stop()
                 log_handler.save_history()
                 print("Exiting...")
                 conn.close()
