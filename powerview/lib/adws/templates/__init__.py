@@ -118,24 +118,51 @@ LDAP_DELETE_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soa
 """
 
 LDAP_ADD_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
-            xmlns:a="http://www.w3.org/2005/08/addressing"
-            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-            xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    xmlns:wsa="http://www.w3.org/2005/08/addressing">
+    <s:Header>
+        <wsa:Action s:mustUnderstand="1">http://schemas.xmlsoap.org/ws/2004/09/transfer/Create</wsa:Action>
+        <IdentityManagementOperation s:mustUnderstand="1"
+            xmlns="http://schemas.microsoft.com/2006/11/IdentityManagement/DirectoryAccess" />
+        <instance xmlns="http://schemas.microsoft.com/2008/1/ActiveDirectory">ldap:389</instance>
+        <wsa:MessageID>urn:uuid:{uuid}</wsa:MessageID>
+        <wsa:ReplyTo>
+            <wsa:Address>http://www.w3.org/2005/08/addressing/anonymous</wsa:Address>
+        </wsa:ReplyTo>
+        <wsa:To s:mustUnderstand="1">net.tcp://{fqdn}:9389/ActiveDirectoryWebServices/Windows/ResourceFactory</wsa:To>
+    </s:Header>
+    <s:Body>
+        <AddRequest Dialect="http://schemas.microsoft.com/2008/1/ActiveDirectory/Dialect/XPath-Level-1"
+            xmlns="http://schemas.microsoft.com/2006/11/IdentityManagement/DirectoryAccess"
             xmlns:ad="http://schemas.microsoft.com/2008/1/ActiveDirectory"
             xmlns:addata="http://schemas.microsoft.com/2008/1/ActiveDirectory/Data"
-            xmlns:da="http://schemas.microsoft.com/2006/11/IdentityManagement/DirectoryAccess">
-  <s:Header>
-    <a:Action s:mustUnderstand="1">http://schemas.xmlsoap.org/ws/2004/09/transfer/Create</a:Action>
-    <ad:instance>ldap:389</ad:instance>
-    <a:MessageID>urn:uuid:{uuid}</a:MessageID>
-    <a:ReplyTo>
-      <a:Address>http://www.w3.org/2005/08/addressing/anonymous</a:Address>
-    </a:ReplyTo>
-    <a:To s:mustUnderstand="1">net.tcp://{fqdn}:9389/ActiveDirectoryWebServices/Windows/Resource</a:To>
-  </s:Header>
-  <s:Body>
-    <addata:{object_class} xmlns:addata="http://schemas.microsoft.com/2008/1/ActiveDirectory/Data">
-      {attributes}
-    </addata:{object_class}>
-  </s:Body>
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+            {attributes}
+        </AddRequest>
+    </s:Body>
+</s:Envelope>"""
+
+LDAP_MODIFY_DN_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+    xmlns:a="http://www.w3.org/2005/08/addressing"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    xmlns:ad="http://schemas.microsoft.com/2008/1/ActiveDirectory">
+    <s:Header>
+        <a:Action s:mustUnderstand="1">http://schemas.microsoft.com/2008/1/ActiveDirectory/Data/ModifyDNRequest</a:Action>
+        <ad:instance>ldap:389</ad:instance>
+        <ad:objectReferenceProperty>{object_ref}</ad:objectReferenceProperty>
+        <a:MessageID>urn:uuid:{uuid}</a:MessageID>
+        <a:ReplyTo>
+            <a:Address>http://www.w3.org/2005/08/addressing/anonymous</a:Address>
+        </a:ReplyTo>
+        <a:To s:mustUnderstand="1">net.tcp://{fqdn}:9389/ActiveDirectoryWebServices/Windows/Resource</a:To>
+    </s:Header>
+    <s:Body>
+        <da:ModifyDNRequest xmlns:da="http://schemas.microsoft.com/2008/1/ActiveDirectory/Data">
+            <da:DistinguishedName>{object_ref}</da:DistinguishedName>
+            <da:NewName>{relative_dn}</da:NewName>
+            <da:DeleteOldRdn>{delete_old_rdn}</da:DeleteOldRdn>
+            <da:NewParentDistinguishedName>{new_superior}</da:NewParentDistinguishedName>
+        </da:ModifyDNRequest>
+    </s:Body>
 </s:Envelope>"""

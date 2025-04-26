@@ -70,6 +70,14 @@ class ADWSError(Exception):
                                 self.detail_error = extended_error
                             elif self.message:
                                 self.detail_error = self.message
+                        elif "ArgumentError" in fault_detail:
+                            arg_error = fault_detail["ArgumentError"]
+                            self.message = arg_error.get("Message")
+                            # ArgumentError might not have a standard ErrorCode,
+                            # but we can capture ShortMessage if available
+                            self.errorcode = arg_error.get("ShortMessage")
+                            if self.message:
+                                self.detail_error = self.message
                         elif "ExtendedErrorMessage" in fault_detail:
                             self.detail_error = fault_detail["ExtendedErrorMessage"]
                         elif "ExtendedErrorDescription" in fault_detail:

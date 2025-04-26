@@ -6,6 +6,7 @@ from uuid import uuid4
 from xml.etree import ElementTree
 import base64
 import logging
+
 def xml_to_dict(xml_string: str, attributes: list[str] = None) -> dict:
     try:
         root = ElementTree.fromstring(xml_string)
@@ -142,7 +143,7 @@ def xml_to_dict(xml_string: str, attributes: list[str] = None) -> dict:
         
         if not result:
             raise ValueError("was unable to parse xml from the server response")
-
+        
         return result
     except Exception as e:
         return {"Error": str(e), "RawXML": xml_string[:200] + "..." if len(xml_string) > 200 else xml_string}

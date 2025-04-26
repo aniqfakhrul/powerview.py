@@ -88,6 +88,8 @@ class PowerView:
 		self.auth_aes_key = args.auth_aes_key
 		self.use_ldaps = args.use_ldaps
 		self.use_adws = args.use_adws
+		self.use_gc_ldaps = args.use_gc_ldaps
+		self.use_gc = args.use_gc
 		self.nameserver = args.nameserver
 		self.use_system_nameserver = args.use_system_ns
 		self.dc_ip = args.dc_ip
@@ -3215,7 +3217,7 @@ displayName=New Group Policy Object
 		if hasattr(args, 'basedn') and args.basedn:
 			parent_dn_entries = args.basedn
 
-		entries = self.get_domainobject(identity=parent_dn_entries)
+		entries = self.get_domainobject(identity=parent_dn_entries, properties=['distinguishedName'])
 		if len(entries) <= 0:
 			logging.error(f"[Add-DomainUser] {parent_dn_entries} could not be found in the domain")
 			return
@@ -3227,12 +3229,12 @@ displayName=New Group Policy Object
 
 		logging.debug(f"[Add-DomainUser] Adding user in {parent_dn_entries}")
 		
-		if self.use_ldaps:
-			logging.warning("[Add-DomainUser] Adding user through LDAPS")
+		if self.use_ldaps or self.use_gc_ldaps:
+			logging.debug("[Add-DomainUser] Adding user through %s" % self.conn.proto)
 			au = ADUser(self.ldap_session, self.root_dn, parent = parent_dn_entries)
 			succeed = au.addUser(username, userpass)
 		else:
-			logging.warning("[Add-DomainUser] Adding user through LDAP")
+			logging.debug("[Add-DomainUser] Adding user through %s" % self.conn.proto)
 			udn = "CN=%s,%s" % (
 						username,
 						parent_dn_entries
@@ -3240,13 +3242,16 @@ displayName=New Group Policy Object
 			ucd = {
 				'displayName': username,
 				'sAMAccountName': username,
-				'userPrincipalName': f"{username}@{self.root_dn}",
+				'userPrincipalName': f"{username}@{self.domain}",
 				'name': username,
 				'givenName': username,
 				'sn': username,
 				'userAccountControl': ['66080'],
 			}
-			succeed = self.ldap_session.add(udn, ['top', 'person', 'organizationalPerson', 'user'], ucd)
+			object_class = ['user']
+			if not self.use_adws:
+				object_class.extend(['top', 'person', 'organizationalPerson'])
+			succeed = self.ldap_session.add(udn, object_class, ucd)
 			
 		if not succeed:
 			logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainUser] Failed adding {username} to domain ({self.ldap_session.result['description']})")
@@ -3777,7 +3782,7 @@ displayName=New Group Policy Object
 			logging.error(f'[Set-DomainUserPassword] Multiple principal objects found in domain. Use specific identifier')
 			return
 		logging.info(f'[Set-DomainUserPassword] Principal {"".join(entries[0]["attributes"]["distinguishedName"])} found in domain')
-		if self.use_ldaps or self.use_adws:
+		if self.use_ldaps or self.use_gc_ldaps or self.use_adws:
 			logging.debug("[Set-DomainUserPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
 			succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0]["attributes"]["distinguishedName"], accountpassword, old_password=oldpassword)
 			if succeed:
@@ -3827,7 +3832,7 @@ displayName=New Group Policy Object
 			logging.error("[Get-DomainComputerPassword] Multiple computers found in domain")
 			return False
 
-		if self.use_ldaps or self.use_adws:
+		if self.use_ldaps or self.use_gc_ldaps or self.use_adws:
 			logging.debug("[Set-DomainComputerPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
 			succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0]["attributes"]["distinguishedName"], accountpassword, old_password=oldpassword)
 			if succeed:
@@ -3904,7 +3909,6 @@ displayName=New Group Policy Object
 					attrs = ini_to_dict(attr_append)
 			if not attrs:
 				raise ValueError(f"[Set-DomainObject] Parsing {'-Set' if args.set else '-Append'} value failed")
-
 			targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=[attrs['attribute'], "distinguishedName"], sd_flag=sd_flag)
 			if len(targetobject) > 1:
 				logging.error(f"[Set-DomainObject] More than one identity found. Use distinguishedName instead")
@@ -4000,7 +4004,7 @@ displayName=New Group Policy Object
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
 		# verify if the identity exists
-		targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['*'], sd_flag=sd_flag)
+		targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=['distinguishedName'], sd_flag=sd_flag)
 		if len(targetobject) > 1:
 			logging.error(f"[Set-DomainObjectDN] More than one {identity} object found in domain. Try using distinguishedName instead")
 			return False
@@ -4009,7 +4013,7 @@ displayName=New Group Policy Object
 			return False
 
 		# verify if the destination_dn exists
-		new_dn = self.get_domainobject(identity=destination_dn, searchbase=searchbase, properties=['*'])
+		new_dn = self.get_domainobject(identity=destination_dn, searchbase=searchbase, properties=['distinguishedName'])
 		if not new_dn:
 			logging.error(f"[Set-DomainObjectDN] Object {destination_dn} not found in domain")
 			return False

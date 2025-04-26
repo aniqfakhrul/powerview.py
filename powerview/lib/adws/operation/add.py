@@ -1,24 +1,43 @@
 from ..templates import LDAP_ADD_FSTRING
 
+from ldap3 import SEQUENCE_TYPES
+from ldap3.protocol.rfc4511 import LDAPDN
 from uuid import uuid4
 
-def add_operation(fqdn, dn: str, object_class: str, attributes: dict):
+ATTRIBUTE_TYPE_AND_VALUE_FSTRING = """<AttributeTypeAndValue>
+    <AttributeType>{attribute}</AttributeType>
+    <AttributeValue>
+        <ad:value xsi:type="xsd:string">{value}</ad:value>
+    </AttributeValue>
+</AttributeTypeAndValue>"""
+
+def get_rdn(dn: str):
+    return dn.split(',')[0]
+
+def get_parent_dn(dn: str):
+    return ','.join(dn.split(',')[1:])
+
+def add_operation(fqdn: str, dn: str,  attributes: dict):
     attr_xml = ""
-    for attr_name, attr_values in attributes.items():
-        if not isinstance(attr_values, list):
-            attr_values = [attr_values]
-        
-        attr_xml += f'<addata:{attr_name}>'
-        for value in attr_values:
-            attr_xml += f'<addata:value>{value}</addata:value>'
-        attr_xml += f'</addata:{attr_name}>'
+
+    parent_dn = get_parent_dn(dn)
+    rdn = get_rdn(dn)
+    if parent_dn:
+        attr_xml += ATTRIBUTE_TYPE_AND_VALUE_FSTRING.format(attribute="ad:container-hierarchy-parent", value=parent_dn)
+
+    if rdn:
+        attr_xml += ATTRIBUTE_TYPE_AND_VALUE_FSTRING.format(attribute="ad:relativeDistinguishedName", value=rdn)
     
+    for pos, attribute in enumerate(attributes):
+        if isinstance(attributes[attribute], SEQUENCE_TYPES):
+            for index, value in enumerate(attributes[attribute]):
+                attr_xml += ATTRIBUTE_TYPE_AND_VALUE_FSTRING.format(attribute=f"addata:{attribute}", value=value)
+        else:
+            attr_xml += ATTRIBUTE_TYPE_AND_VALUE_FSTRING.format(attribute=f"addata:{attribute}", value=attributes[attribute])
     add_vars = {
         "fqdn": fqdn,
         "uuid": str(uuid4()),
-        "object_ref": dn,
-        "object_class": object_class,
-        "attributes": attr_xml,
+        "attributes": attr_xml.strip(),
     }
     request = LDAP_ADD_FSTRING.format(**add_vars)
     return request

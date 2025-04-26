@@ -3,6 +3,7 @@ from ..operation.search import search_operation, handle_str_to_xml, handle_enum_
 from ..operation.modify import modify_operation
 from ..operation.delete import delete_operation
 from ..operation.add import add_operation
+from ..operation.modifyDN import modify_dn_operation
 from ..nns import NNS
 from ..nmf import NMFConnection
 from ..templates import NAMESPACES
@@ -12,7 +13,7 @@ from ldap3.utils.dn import safe_dn
 from ldap3 import ALL_ATTRIBUTES, NO_ATTRIBUTES, ALL_OPERATIONAL_ATTRIBUTES, NTLM, BASE, LEVEL, SUBTREE, STRING_TYPES, get_config_parameter, SEQUENCE_TYPES, MODIFY_ADD, MODIFY_DELETE, MODIFY_REPLACE, MODIFY_INCREMENT, SYNC
 from ldap3.core.connection import CLIENT_STRATEGIES
 from ldap3.protocol.rfc2696 import paged_search_control
-from ldap3.core.exceptions import LDAPChangeError, LDAPAttributeError, LDAPUnknownStrategyError
+from ldap3.core.exceptions import LDAPChangeError, LDAPAttributeError, LDAPUnknownStrategyError, LDAPObjectClassError
 from ldap3.protocol.formatters.standard import format_attribute_values
 from ldap3.strategy.sync import SyncStrategy
 from ldap3.strategy.safeSync import SafeSyncStrategy
@@ -24,9 +25,12 @@ from ldap3.strategy.restartable import RestartableStrategy
 from ldap3.strategy.ldifProducer import LdifProducerStrategy
 from ldap3.strategy.mockSync import MockSyncStrategy
 from ldap3.strategy.asyncStream import AsyncStreamStrategy
+from ldap3.utils.conv import to_unicode
 
 import logging
 import socket
+from copy import deepcopy
+from functools import reduce
 
 class Connection(object):
     def __init__(self, server, user, password, domain, lmhash, nthash, raise_exceptions=False, authentication=NTLM, check_names=True, auto_encode=True, client_strategy=SYNC):
@@ -99,13 +103,30 @@ class Connection(object):
     def _prepare_return_value(self, response):
         error_detail = response.get("ErrorDetail", {})
         fault_detail = error_detail.get("FaultDetail", {})
-        directory_error = fault_detail.get("DirectoryError", {})
-        
-        self.result['message'] = directory_error.get("ExtendedErrorMessage", fault_detail.get("ExtendedErrorMessage", "Unknown error"))
-        self.result['description'] = directory_error.get("Message", fault_detail.get("ExtendedErrorDescription", "Unknown error"))
-        self.result['result'] = int(directory_error.get("ErrorCode", fault_detail.get("ErrorCode", 0)))
-        self.result['win32_error_code'] = directory_error.get("Win32ErrorCode", 0)
-        self.result['short_message'] = directory_error.get("ShortMessage", fault_detail.get("ShortError", "Unknown"))
+        specific_error = {}
+
+        if isinstance(fault_detail, dict) and fault_detail:
+            specific_error = next(iter(fault_detail.values()), {})
+            if not isinstance(specific_error, dict):
+                specific_error = {}
+
+        self.result['message'] = specific_error.get("ExtendedErrorMessage", fault_detail.get("ExtendedErrorMessage", response.get("Error", "Unknown error")))
+        self.result['description'] = specific_error.get("Message", fault_detail.get("ExtendedErrorDescription", response.get("Error", "Unknown error")))
+
+        error_code_val = specific_error.get("ErrorCode", fault_detail.get("ErrorCode", 0))
+        try:
+            self.result['result'] = int(error_code_val)
+        except (ValueError, TypeError):
+            self.result['result'] = str(error_code_val) if error_code_val else 0
+
+        win32_error_code_val = specific_error.get("Win32ErrorCode", 0)
+        try:
+            self.result['win32_error_code'] = int(win32_error_code_val)
+        except (ValueError, TypeError):
+            self.result['win32_error_code'] = 0
+
+        self.result['short_message'] = specific_error.get("ShortMessage", fault_detail.get("ShortError", "Unknown"))
+
         self.entries = response.get("entries", [])
         response['entries'] = self.entries
 
@@ -268,9 +289,37 @@ class Connection(object):
         self._prepare_return_value(resp_dict)
         if resp_dict.get("Error"):
             if self.raise_exceptions:
-                raise ADWSError(self.result['message'])
+                raise ADWSError(f"{self.result['short_message']}: {self.result['description']}")
             else:
-                logging.error(self.result['message'])
+                logging.error(f"{self.result['short_message']}: {self.result['description']}")
+                return False
+        else:
+            return True
+
+    def modify_dn(self,
+                  dn,
+                  relative_dn,
+                  delete_old_dn=True,
+                  new_superior=None,
+                  controls=None):
+        """
+        Modify DN of the entry or performs a move of the entry in the
+        DIT.
+        """
+
+        if self.resource != RESOURCE:
+            logging.debug("ModifyDN is only supported for the \"Resource\" resource, reconnecting to the server")
+            self.reconnect(RESOURCE)
+
+        request = modify_dn_operation(self.host, dn, relative_dn, delete_old_dn, new_superior)
+        response = self.send_and_recv(request)
+        resp_dict = xml_to_dict(response)
+        self._prepare_return_value(resp_dict)
+        if resp_dict.get("Error"):
+            if self.raise_exceptions:
+                raise ADWSError(f"{self.result['short_message']}: {self.result['description']}")
+            else:
+                logging.error(f"{self.result['short_message']}: {self.result['description']}")
                 return False
         else:
             return True
@@ -287,16 +336,67 @@ class Connection(object):
         Attributes is a dictionary in the form 'attr': 'val' or 'attr':
         ['val1', 'val2', ...] for multivalued attributes
         """
-        if self.resource != RESOURCE:
-            logging.debug("Add is only supported for the \"Resource\" resource, reconnecting to the server")
-            self.reconnect(RESOURCE)
+        if self.resource != RESOURCE_FACTORY:
+            logging.debug("Add is only supported for the \"ResourceFactory\" resource, reconnecting to the server")
+            self.reconnect(RESOURCE_FACTORY)
 
-        request = add_operation(self.host, dn, object_class, attributes)
+        conf_attributes_excluded_from_check = [v.lower() for v in get_config_parameter('ATTRIBUTES_EXCLUDED_FROM_CHECK')]
+        conf_classes_excluded_from_check = [v.lower() for v in get_config_parameter('CLASSES_EXCLUDED_FROM_CHECK')]
+
+        self.last_error = None
+        _attributes = deepcopy(attributes)
+        if self.check_names:
+            dn = safe_dn(dn)
+
+        attr_object_class = []
+        if object_class is None:
+            parm_object_class = []
+        else:
+            parm_object_class = list(object_class) if isinstance(object_class, SEQUENCE_TYPES) else [object_class]
+
+        object_class_attr_name = ''
+        if _attributes:
+            for attr in _attributes:
+                if attr.lower() == 'objectclass':
+                    object_class_attr_name = attr
+                    attr_object_class = list(_attributes[object_class_attr_name]) if isinstance(_attributes[object_class_attr_name], SEQUENCE_TYPES) else [_attributes[object_class_attr_name]]
+                    break
+        else:
+            _attributes = dict()
+
+        if not object_class_attr_name:
+                object_class_attr_name = 'objectClass'
+
+        attr_object_class = [to_unicode(object_class) for object_class in attr_object_class]  # converts objectclass to unicode in case of bytes value
+        _attributes[object_class_attr_name] = reduce(lambda x, y: x + [y] if y not in x else x, parm_object_class + attr_object_class, [])  # remove duplicate ObjectClasses
+
+        if not _attributes[object_class_attr_name]:
+            raise LDAPObjectClassError('objectClass attribute is mandatory')
+
+        if self.server and self.server.schema and self.check_names:
+            for object_class_name in _attributes[object_class_attr_name]:
+                if object_class_name.lower() not in conf_classes_excluded_from_check and object_class_name not in self.server.schema.object_classes:
+                    raise LDAPObjectClassError('invalid object class ' + str(object_class_name))
+
+            for attribute_name in _attributes:
+                if ';' in attribute_name:  # remove tags for checking
+                    attribute_name_to_check = attribute_name.split(';')[0]
+                else:
+                    attribute_name_to_check = attribute_name
+
+                if attribute_name_to_check.lower() not in conf_attributes_excluded_from_check and attribute_name_to_check not in self.server.schema.attribute_types:
+                    raise LDAPAttributeError('invalid attribute type ' + attribute_name_to_check)
+
+        request = add_operation(self.host, dn, _attributes)
         response = self.send_and_recv(request)
         resp_dict = xml_to_dict(response)
         self._prepare_return_value(resp_dict)
-        if self.raise_exceptions and resp_dict.get("Error"):
-            raise ADWSError(self.result['message'])
+        if resp_dict.get("Error"):
+            if self.raise_exceptions:
+                raise ADWSError(f"{self.result['short_message']}: {self.result['description']}")
+            else:
+                logging.error(f"{self.result['short_message']}: {self.result['description']}")
+                return False
         else:
             return True
 
