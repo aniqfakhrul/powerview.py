@@ -22,8 +22,8 @@ class APIServer:
 		self.app = Flask(__name__, static_folder='../../web/front-end/static', template_folder='../../web/front-end/templates')
 		
 		self.basic_auth = None
-		self.web_auth_user = powerview.args.web_auth['web_auth_user']
-		self.web_auth_password = powerview.args.web_auth['web_auth_password']
+		self.web_auth_user = powerview.args.web_auth['web_auth_user'] if powerview.args.web_auth else None
+		self.web_auth_password = powerview.args.web_auth['web_auth_password'] if powerview.args.web_auth else None
 		if self.web_auth_user and self.web_auth_password:
 			try:
 				from flask_basicauth import BasicAuth

@@ -419,9 +419,9 @@ pipx install mcp-proxy
 ```json
 {
   "mcpServers": {
-    "Powerview.py": {
+    "Powerview": {
         "command": "mcp-proxy",
-        "args": ["http://10.10.10.10/sse"],
+        "args": ["http://10.10.10.10/sse"]
     }
   }
 }

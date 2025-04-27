@@ -120,47 +120,34 @@ def main():
                         try:
                             entries = None
                             if pv_args.module.casefold() == 'get-domain' or pv_args.module.casefold() == 'get-netdomain':
-                                properties = pv_args.properties if pv_args.properties else None
-                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domain(pv_args, properties, identity)
+                                    entries = temp_powerview.get_domain(args=pv_args)
                                 else:
-                                    entries = powerview.get_domain(pv_args, properties, identity)
+                                    entries = powerview.get_domain(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainobject' or pv_args.module.casefold() == 'get-adobject':
-                                properties = pv_args.properties if pv_args.properties else None
-                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainobject(pv_args, properties, identity)
+                                    entries = temp_powerview.get_domainobject(args=pv_args)
                                 else:
-                                    entries = powerview.get_domainobject(pv_args, properties, identity)
+                                    entries = powerview.get_domainobject(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainobjectowner' or pv_args.module.casefold() == 'get-objectowner':
-                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainobjectowner(identity=identity, args=pv_args)
+                                    entries = temp_powerview.get_domainobjectowner(args=pv_args)
                                 else:
-                                    entries = powerview.get_domainobjectowner(identity=identity, args=pv_args)
+                                    entries = powerview.get_domainobjectowner(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainobjectacl' or pv_args.module.casefold() == 'get-objectacl':
-                                identity = pv_args.identity.strip() if hasattr(pv_args, 'identity') else None
-
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainobjectacl(
-                                        identity=identity,
-                                        security_identifier=pv_args.security_identifier,
                                         args=pv_args
                                     )
                                 else:
                                     entries = powerview.get_domainobjectacl(
-                                        identity=identity,
-                                        security_identifier=pv_args.security_identifier,
                                         args=pv_args
                                     )
                             elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
-                                properties = pv_args.properties if pv_args.properties else None
-                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainuser(pv_args, properties, identity)
+                                    entries = temp_powerview.get_domainuser(args=pv_args)
                                 else:
-                                    entries = powerview.get_domainuser(pv_args, properties, identity)
+                                    entries = powerview.get_domainuser(args=pv_args)
                             elif pv_args.module.casefold() == 'get-localuser':
                                 properties = pv_args.properties if pv_args.properties else None
                                 computername = pv_args.computer if pv_args.computer else pv_args.computername
@@ -169,15 +156,10 @@ def main():
                                 else:
                                     entries = powerview.get_localuser(computer_name=computername, identity=pv_args.identity, properties=properties, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domaincomputer' or pv_args.module.casefold() == 'get-netcomputer':
-                                if pv_args.resolveip and not pv_args.identity:
-                                    logging.error("-ResolveIP can only be used with -Identity")
-                                    continue
-                                properties = pv_args.properties if pv_args.properties else None
-                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaincomputer(pv_args, properties, identity, resolveip=pv_args.resolveip, resolvesids=pv_args.resolvesids)
+                                    entries = temp_powerview.get_domaincomputer(args=pv_args)
                                 else:
-                                    entries = powerview.get_domaincomputer(pv_args, properties, identity, resolveip=pv_args.resolveip, resolvesids=pv_args.resolvesids)
+                                    entries = powerview.get_domaincomputer(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domaingroup' or pv_args.module.casefold() == 'get-netgroup':
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
@@ -202,38 +184,32 @@ def main():
                                 else:
                                     entries = powerview.get_domainforeignuser(pv_args)
                             elif pv_args.module.casefold() == 'get-domaincontroller' or pv_args.module.casefold() == 'get-netdomaincontroller':
-                                properties = pv_args.properties if pv_args.properties else None
-                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaincontroller(pv_args, properties, identity)
+                                    entries = temp_powerview.get_domaincontroller(args=pv_args)
                                 else:
-                                    entries = powerview.get_domaincontroller(pv_args, properties, identity)
+                                    entries = powerview.get_domaincontroller(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domaingpo' or pv_args.module.casefold() == 'get-netgpo':
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaingpo(pv_args, properties, identity)
+                                    entries = temp_powerview.get_domaingpo(args=pv_args)
                                 else:
-                                    entries = powerview.get_domaingpo(pv_args, properties, identity)
+                                    entries = powerview.get_domaingpo(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domaingpolocalgroup' or pv_args.module.casefold() == 'get-gpolocalgroup':
-                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaingpolocalgroup(pv_args, identity)
+                                    entries = temp_powerview.get_domaingpolocalgroup(args=pv_args)
                                 else:
-                                    entries = powerview.get_domaingpolocalgroup(pv_args, identity)
+                                    entries = powerview.get_domaingpolocalgroup(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domaingposettings' or pv_args.module.casefold() == 'get-gposettings':
-                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaingposettings(pv_args, identity)
+                                    entries = temp_powerview.get_domaingposettings(args=pv_args)
                                 else:
-                                    entries = powerview.get_domaingposettings(pv_args, identity)
+                                    entries = powerview.get_domaingposettings(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainou' or pv_args.module.casefold() == 'get-netou':
-                                properties = pv_args.properties if pv_args.properties else None
-                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainou(pv_args, properties, identity, resolve_gplink=pv_args.resolve_gplink)
+                                    entries = temp_powerview.get_domainou(args=pv_args)
                                 else:
-                                    entries = powerview.get_domainou(pv_args, properties, identity, resolve_gplink=pv_args.resolve_gplink)
+                                    entries = powerview.get_domainou(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domaindnszone':
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 properties = pv_args.properties if pv_args.properties else None
@@ -257,11 +233,10 @@ def main():
                                 else:
                                     entries = powerview.get_domainsccm(pv_args, properties, identity)
                             elif pv_args.module.casefold() == 'get-domaingmsa' or pv_args.module.casefold() == 'get-gmsa':
-                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaingmsa(identity, pv_args)
+                                    entries = temp_powerview.get_domaingmsa(args=pv_args)
                                 else:
-                                    entries = powerview.get_domaingmsa(identity, pv_args)
+                                    entries = powerview.get_domaingmsa(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainrbcd' or pv_args.module.casefold() == 'get-rbcd':
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
