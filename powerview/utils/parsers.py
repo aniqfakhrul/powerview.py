@@ -97,7 +97,9 @@ def arg_parse():
 class Helper:
 	def parse_properties(value):
 		"""Parse the properties argument into a list."""
-		return value.strip().split(',') if value else []
+		if not value:
+			return []
+		return [prop for prop in value.strip().split(',') if prop]
 
 	def parse_select(value):
 		"""Parse the select argument into a list or return the digit if value is a digit."""
@@ -1135,6 +1137,9 @@ def powerview_arg_parse(cmd):
 			parsed_username = parse_username(args.username)
 			args.domain = parsed_username['domain']
 			args.username = parsed_username['username']
+
+		if hasattr(args, 'identity') and args.identity:
+			args.identity = args.identity.strip()
 
 		return args
 	except argparse.ArgumentError as e:
