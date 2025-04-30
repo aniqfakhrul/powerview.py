@@ -37,6 +37,7 @@ dependencies = [
     "python-dateutil",
     "flask",
     "flask-basicauth",
+    "pycryptodome",
     "mcp[cli]"
 ]
 

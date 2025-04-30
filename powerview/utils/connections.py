@@ -300,7 +300,34 @@ class CONNECTION:
 		return self.proto
 
 	def set_proto(self, proto):
-		self.proto = proto
+		if proto.lower() == "ldaps":
+			self.use_ldaps = True
+			self.use_ldap = False
+			self.use_gc_ldaps = False
+			self.use_gc = False
+		elif proto.lower() == "ldap":
+			self.use_ldaps = False
+			self.use_ldap = True
+			self.use_gc_ldaps = False
+			self.use_gc = False
+		elif proto.lower() == "gc":
+			self.use_ldaps = False
+			self.use_ldap = False
+			self.use_gc_ldaps = False
+			self.use_gc = True
+		elif proto.lower() == "gc_ldaps":
+			self.use_ldaps = False
+			self.use_ldap = False
+			self.use_gc_ldaps = True
+			self.use_gc = False
+		elif proto.lower() == "adws":
+			self.use_ldaps = False
+			self.use_ldap = False
+			self.use_gc_ldaps = False
+			self.use_gc = False
+			self.use_adws = True
+		else:
+			raise ValueError(f"Invalid protocol: {proto}")
 
 	def get_nameserver(self):
 		if not self.nameserver and not self.use_system_ns:
@@ -533,12 +560,10 @@ class CONNECTION:
 				except:
 					if self.use_ldaps:
 						logging.debug('Error bind to LDAPS, trying LDAP')
-						self.use_ldap = True
-						self.use_ldaps = False
+						self.set_proto("ldap")
 					elif self.use_gc_ldaps:
-						logging.debug('Error bind to GS ssl, trying GC')
-						self.use_gc = True
-						self.use_gc_ldaps = False
+						logging.debug('Error bind to GC ssl, trying GC')
+						self.set_proto("gc")
 					return self.init_ldap_session()
 		elif self.use_adws:
 			self.ldap_server, self.ldap_session = self.init_adws_session()
