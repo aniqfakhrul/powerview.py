@@ -723,7 +723,7 @@ class PowerView:
 				if rights_guid and display_name:
 					guids_dict[rights_guid] = display_name
 		except ldap3.core.exceptions.LDAPOperationResult as e:
-			logging.error(f"[Get-DomainObjectAcl] Error searching for GUIDs in {self.root_dn}: {e}. Continuing...")
+			logging.error(f"[Get-DomainObjectAcl] Error searching for GUIDs in {self.root_dn}. Ignoring...")
 
 		principal_SID = None
 		if security_identifier:
@@ -915,15 +915,12 @@ class PowerView:
 			raw=raw
 		)
 		for entry in entries:
-			if resolveip and entry.get('attributes').get('dnsHostName'):
+			if resolveip and entry.get('attributes', {}).get('dnsHostName'):
 				ip = host2ip(entry['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver, type=list)
-				entry = modify_entry(
-					entry,
-					new_attributes = {
-						'IPAddress':ip
-					}
-				)
-			# resolve msDS-AllowedToActOnBehalfOfOtherIdentity
+				if ip and ip != entry.get('attributes', {}).get('dnsHostName'):
+					entry['attributes']['IPAddress'] = ip
+					logging.debug(f"[Get-DomainComputer] Resolved {entry['attributes']['dnsHostName']} to {ip}")
+			
 			try:
 				if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(entry["attributes"].keys()):
 					parser = RBCD(entry)
@@ -935,7 +932,6 @@ class PowerView:
 			except:
 				pass
 
-			# resolve msDS-GroupMSAMembership
 			try:
 				if "msDS-GroupMSAMembership" in list(entry["attributes"].keys()):
 					entry["attributes"]["msDS-GroupMSAMembership"] = self.convertfrom_sid(entry["attributes"]["msDS-GroupMSAMembership"])
