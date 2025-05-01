@@ -484,16 +484,20 @@ class PowerView:
 		
 		)
 
-		if hasattr(args, 'resolvesids') and args.resolvesids:
-			try:
-				if entries.get("attributes", {}).get("msDS-AllowedToActOnBehalfOfOtherIdentity", None) is not None:
-					if isinstance(entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"], list):
-						for i in range(len(entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"])):
-							entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"][i] = self.convertfrom_sid(entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"][i])
-					else:
-						entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = self.convertfrom_sid(entries["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"])
-			except Exception as e:
-				logging.error(f"[Get-DomainController] Error resolving sids: {e}")
+		for entry in entries:
+			if hasattr(args, 'resolvesids') and args.resolvesids:
+				try:
+					allowed_to_act = entry["attributes"].get("msDS-AllowedToActOnBehalfOfOtherIdentity", None)
+					if allowed_to_act is not None:
+						if isinstance(allowed_to_act, list):
+							resolved_sids = []
+							for sid in allowed_to_act:
+								resolved_sids.append(self.convertfrom_sid(sid))
+							entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = resolved_sids
+						else:
+							entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = self.convertfrom_sid(allowed_to_act)
+				except Exception as e:
+					logging.debug(f"[Get-DomainController] Error resolving sids: {str(e)}")
 
 		return entries
 
@@ -501,6 +505,8 @@ class PowerView:
 		def_prop = [
 			'*'
 		]
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		properties = args.properties if hasattr(args, 'properties') and args.properties else properties
 		properties = set(properties or def_prop)
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
@@ -513,7 +519,6 @@ class PowerView:
 
 		identity_filter = "" if not identity_filter else identity_filter
 		ldap_filter = "" if not ldap_filter else ldap_filter
-		identity = None if not identity else identity
 		if identity and not identity_filter:
 			identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
 		
@@ -521,13 +526,13 @@ class PowerView:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
 		logging.debug(f"[Get-DomainObject] Using search base: {searchbase}")
-		if args and args.ldapfilter:
+		if args and hasattr(args, 'ldapfilter') and args.ldapfilter:
 			logging.debug(f'[Get-DomainObject] Using additional LDAP filter from args: {args.ldapfilter}')
 			ldap_filter = f"{args.ldapfilter}"
 
 		ldap_filter = f'(&(objectClass=*){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
-		return self.ldap_session.extend.standard.paged_search(
+		entries = self.ldap_session.extend.standard.paged_search(
 			searchbase,
 			ldap_filter,
 			attributes=list(properties),
@@ -539,6 +544,8 @@ class PowerView:
 			no_vuln_check=no_vuln_check,
 			raw=raw
 		)
+
+		return entries
 
 	def remove_domainobject(self, identity, searchbase=None, args=None, search_scope=ldap3.SUBTREE):
 		if not searchbase:
@@ -696,34 +703,44 @@ class PowerView:
 		return entries
 
 	def get_domainobjectacl(self, identity=None, security_identifier=None, resolveguids=False, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
-		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
-		security_identifier = args.security_identifier if hasattr(args, 'security_identifier') and args.security_identifier else security_identifier
-		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
+		if args:
+			identity = args.identity if hasattr(args, 'identity') else identity
+			security_identifier = args.security_identifier if hasattr(args, 'security_identifier') else security_identifier
+			searchbase = args.searchbase if hasattr(args, 'searchbase') else searchbase
+			no_cache = args.no_cache if hasattr(args, 'no_cache') else no_cache
+			no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') else no_vuln_check
+			raw = args.raw if hasattr(args, 'raw') else raw
 
-		if not searchbase:
-			searchbase = self.root_dn
+		searchbase = searchbase or self.root_dn
 
-		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
-		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
-		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+		guids_dict = guids_map_dict or {}
+		if not guids_map_dict:
+			try:
+				logging.debug(f"[Get-DomainObjectAcl] Searching for GUIDs in CN=Extended-Rights,CN=Configuration,{searchbase}")
+				entries = self.ldap_session.extend.standard.paged_search(
+					f"CN=Extended-Rights,CN=Configuration,{searchbase}", 
+					"(rightsGuid=*)", 
+					attributes=['displayName', 'rightsGuid'], 
+					paged_size=1000, 
+					generator=True, 
+					search_scope=search_scope, 
+					no_cache=no_cache, 
+					no_vuln_check=no_vuln_check,
+					raw=True
+				)
+				for entry in entries:
+					rights_guid = entry['attributes'].get('rightsGuid')
+					display_name = entry['attributes'].get('displayName')
 
-		guids_dict = {}
-		try:
-			logging.debug(f"[Get-DomainObjectAcl] Searching for GUIDs in {self.root_dn}")
-			entries = self.ldap_session.extend.standard.paged_search(f"CN=Extended-Rights,CN=Configuration,{self.root_dn}", "(rightsGuid=*)", attributes=['displayName', 'rightsGuid'], paged_size=1000, generator=True, search_scope=search_scope, no_cache=no_cache, no_vuln_check=no_vuln_check)
-			for entry in entries:
-				rights_guid = entry['attributes'].get('rightsGuid')
-				display_name = entry['attributes'].get('displayName')
+					if isinstance(rights_guid, list) and rights_guid:
+						rights_guid = rights_guid[0]
+					if isinstance(display_name, list) and display_name:
+						display_name = display_name[0]
 
-				if isinstance(rights_guid, list):
-					rights_guid = rights_guid[0]
-				if isinstance(display_name, list):
-					display_name = display_name[0]
-
-				if rights_guid and display_name:
-					guids_dict[rights_guid] = display_name
-		except ldap3.core.exceptions.LDAPOperationResult as e:
-			logging.error(f"[Get-DomainObjectAcl] Error searching for GUIDs in {self.root_dn}. Ignoring...")
+					if rights_guid and display_name:
+						guids_dict[rights_guid] = display_name
+			except ldap3.core.exceptions.LDAPOperationResult:
+				logging.error(f"[Get-DomainObjectAcl] Error searching for GUIDs in {searchbase}. Ignoring...")
 
 		principal_SID = None
 		if security_identifier:
@@ -735,23 +752,24 @@ class PowerView:
 				no_vuln_check=no_vuln_check,
 				raw=raw
 			)
+			
 			if not principalsid_entry:
 				logging.debug('[Get-DomainObjectAcl] Principal not found. Searching in Well Known SIDs...')
 				principal_SID = resolve_WellKnownSID(security_identifier)
 
 				if principal_SID:
 					principal_SID = principal_SID.get("objectSid")
-					logging.debug("[Get-DomainObjectAcl] Found in well known SID: %s" % principal_SID)
+					logging.debug(f"[Get-DomainObjectAcl] Found in well known SID: {principal_SID}")
 				else:
 					logging.error(f'[Get-DomainObjectAcl] Principal {security_identifier} not found. Try to use DN')
-					return
-
+					return None
 			elif len(principalsid_entry) > 1:
-				logging.error(f'[Get-DomainObjectAcl] Multiple identities found. Use exact match')
-				return
+				logging.error('[Get-DomainObjectAcl] Multiple identities found. Use exact match')
+				return None
 
 			security_identifier = principalsid_entry[0]['attributes']['objectSid'] if not principal_SID else principal_SID
 
+		target_dn = None
 		if identity:
 			identity_entries = self.get_domainobject(
 				identity=identity, 
@@ -761,19 +779,24 @@ class PowerView:
 				no_vuln_check=no_vuln_check,
 				raw=raw
 			)
-			if len(identity_entries) == 0:
+			
+			if not identity_entries:
 				logging.error(f'[Get-DomainObjectAcl] Identity {identity} not found. Try to use DN')
-				return
+				return None
 			elif len(identity_entries) > 1:
-				logging.error(f'[Get-DomainObjectAcl] Multiple identities found. Use exact match')
-				return
-			logging.debug(f'[Get-DomainObjectAcl] Target identity found in domain {"".join(identity_entries[0]["attributes"]["distinguishedName"])}')
-			identity = "".join(identity_entries[0]['attributes']['distinguishedName'])
+				logging.error('[Get-DomainObjectAcl] Multiple identities found. Use exact match')
+				return None
+			
+			target_dn = identity_entries[0]["attributes"]["distinguishedName"]
+			if isinstance(target_dn, list):
+				target_dn = "".join(target_dn)
+				
+			logging.debug(f'[Get-DomainObjectAcl] Target identity found in domain {target_dn}')
+			identity = target_dn
+			logging.debug(f"[Get-DomainObjectAcl] Searching for identity {identity}")
 		else:
-			logging.info('[Get-DomainObjectAcl] Recursing all domain objects. This might take a while')
-
-		logging.debug(f"[Get-DomainObjectAcl] Searching for identity %s" % (identity))
-		
+			logging.warning('[Get-DomainObjectAcl] Recursing all domain objects. This might take a while')
+			
 		entries = self.get_domainobject(
 			identity=identity, 
 			properties=['nTSecurityDescriptor', 'sAMAccountName', 'distinguishedName', 'objectSid'], 
@@ -785,12 +808,11 @@ class PowerView:
 		)
 
 		if not entries:
-			logging.error(f'[Get-DomainObjectAcl] Identity not found in domain')
-			return
+			logging.error('[Get-DomainObjectAcl] Identity not found in domain')
+			return None
 
 		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=security_identifier, guids_map_dict=guids_dict)
-		entries_dacl = enum.read_dacl()
-		return entries_dacl
+		return enum.read_dacl()
 
 	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolveip=False, resolvesids=False, ldapfilter=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [

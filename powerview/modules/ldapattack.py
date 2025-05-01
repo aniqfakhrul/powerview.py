@@ -1212,7 +1212,7 @@ class ACLEnum:
             if isinstance(secDescData, list):
                 secDescData = secDescData[0]
             
-            objectsid = entry.get('attributes', {}).get('objectSid')
+            objectsid = entry.get('attributes', {}).get('objectSid') or None
             if isinstance(objectsid, list) and len(objectsid) > 0:
                 objectsid = objectsid[0]
             
