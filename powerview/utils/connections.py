@@ -442,8 +442,10 @@ class CONNECTION:
 			try:
 				if ldap_address and is_ipaddress(ldap_address):
 					target = get_machine_name(ldap_address)
+					self.kdcHost = target
 				elif self.ldap_address is not None and is_ipaddress(self.ldap_address):
 					target = get_machine_name(self.ldap_address)
+					self.kdcHost = target
 				else:
 					target = self.ldap_address
 			except Exception as e:
@@ -888,11 +890,14 @@ class CONNECTION:
 		logging.debug(f"Connecting to %s, Port: %s, SSL: %s" % (ldap_server_kwargs["host"], ldap_server_kwargs["port"], ldap_server_kwargs["use_ssl"]))
 		if self.use_kerberos:
 			ldap_session = ldap3.Connection(ldap_server, auto_referrals=False)
-			bind = ldap_session.bind()
 			try:
+				bind = ldap_session.bind()
 				self.ldap3_kerberos_login(ldap_session, target, username, password, domain, lmhash, nthash, self.auth_aes_key, kdcHost=self.kdcHost, useCache=self.no_pass)
 			except Exception as e:
-				logging.error(str(e))
+				if "invalid server address" in str(e):
+					logging.error("Cannot resolve server address ({}).".format(target))
+				else:
+					logging.error(str(e))
 				sys.exit(0)
 		else:
 			if self.hashes is not None:
