@@ -858,6 +858,12 @@ def main():
         print(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
         print(str(e))
+    except Exception as e:
+        if args.stack_trace:
+            log_handler.save_history()
+            raise
+        else:
+            logging.error(str(e))
 
 if __name__ == '__main__':
     main()

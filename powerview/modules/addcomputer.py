@@ -395,9 +395,17 @@ class ADDCOMPUTER:
                     checkForUser = samr.hSamrLookupNamesInDomain(dce, domainHandle, [self.__computerName])
                 except samr.DCERPCSessionError as e:
                     if e.error_code == 0xc0000073:
-                        raise Exception("Account %s not found in domain %s!" % (self.__computerName, selectedDomain))
+                        if self.options.stack_trace:           
+                            raise 
+                        else:
+                            logging.error('Account %s not found in domain %s!' % (self.__computerName, selectedDomain))
+                            return
                     else:
-                        raise
+                        if self.options.stack_trace:
+                            raise 
+                        else:
+                            logging.error('Error: Please use --stack-trace to see the full error.')
+                            return
 
                 userRID = checkForUser['RelativeIds']['Element'][0]
                 if self.__delete:
@@ -411,9 +419,18 @@ class ADDCOMPUTER:
                     userHandle = openUser['UserHandle']
                 except samr.DCERPCSessionError as e:
                     if e.error_code == 0xc0000022:
-                        raise Exception("User %s doesn't have right to %s %s!" % (self.__username, message, self.__computerName))
+                        if self.options.stack_trace:
+                            logging.error('User %s doesn\'t have right to %s %s!' % (self.__username, message, self.__computerName))
+                            raise 
+                        else:
+                            logging.error('User %s doesn\'t have right to %s %s!' % (self.__username, message, self.__computerName))
+                            return
                     else:
-                        raise
+                        if self.options.stack_trace:
+                            raise 
+                        else:
+                            logging.error('Error: Please use --stack-trace to see the full error.')
+                            return
             else:
                 if self.__computerName is not None:
                     try:
@@ -421,7 +438,11 @@ class ADDCOMPUTER:
                         raise Exception("Account %s already exists! If you just want to set a password, use -no-add." % self.__computerName)
                     except samr.DCERPCSessionError as e:
                         if e.error_code != 0xc0000073:
-                            raise
+                            if self.options.stack_trace:
+                                raise
+                            else:
+                                logging.error('Error: Please use --stack-trace to see the full error.')
+                                return
                 else:
                     foundUnused = False
                     while not foundUnused:
@@ -432,15 +453,27 @@ class ADDCOMPUTER:
                             if e.error_code == 0xc0000073:
                                 foundUnused = True
                             else:
-                                raise
+                                if self.options.stack_trace:
+                                    raise
+                                else:
+                                    logging.error('Error: Please use --stack-trace to see the full error.')
+                                    return
 
                 try:
                     createUser = samr.hSamrCreateUser2InDomain(dce, domainHandle, self.__computerName, samr.USER_WORKSTATION_TRUST_ACCOUNT, samr.USER_FORCE_PASSWORD_CHANGE,)
                 except samr.DCERPCSessionError as e:
                     if e.error_code == 0xc0000022:
-                        raise Exception("User %s doesn't have right to create a machine account!" % self.__username)
+                        if self.options.stack_trace:
+                            raise 
+                        else:
+                            logging.error('User %s doesn\'t have right to create a machine account!' % self.__username)
+                            return
                     elif e.error_code == 0xc00002e7:
-                        raise Exception("User %s machine quota exceeded!" % self.__username)
+                        if self.options.stack_trace:
+                            raise 
+                        else:
+                            logging.error('User %s machine quota exceeded!' % self.__username)
+                            return
                     else:
                         raise
 
