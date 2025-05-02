@@ -25,7 +25,7 @@ class Storage:
             os.makedirs(self.cache_path, mode=0o700, exist_ok=True)
             os.makedirs(self.root_folder, mode=0o700, exist_ok=True)
             
-            logging.info(f"[Storage] Using cache directory: {self.cache_path}")
+            logging.debug(f"[Storage] Using cache directory: {self.cache_path}")
             
         except Exception as e:
             temp_dir = tempfile.mkdtemp(prefix="powerview_")
