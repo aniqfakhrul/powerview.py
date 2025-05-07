@@ -81,16 +81,16 @@ class PowerView:
 
 		self._initialize_attributes_from_connection()
 
-		self.username = args.username if args.username else self.conn.get_username()
-		self.password = args.password
+		self.username = conn.username or args.username
+		self.password = conn.password or args.password
 
-		self.lmhash = args.lmhash
-		self.nthash = args.nthash
-		self.auth_aes_key = args.auth_aes_key
-		self.nameserver = args.nameserver
-		self.use_system_nameserver = args.use_system_ns
-		self.dc_ip = args.dc_ip
-		self.use_kerberos = self.conn.use_kerberos
+		self.lmhash = conn.lmhash or args.lmhash
+		self.nthash = conn.nthash or args.nthash
+		self.auth_aes_key = conn.auth_aes_key or args.auth_aes_key
+		self.nameserver = conn.nameserver or args.nameserver
+		self.use_system_nameserver = conn.use_system_ns or args.use_system_ns
+		self.dc_ip = conn.dc_ip or args.dc_ip
+		self.use_kerberos = conn.use_kerberos or args.use_kerberos
 		self.target_server = target_server
 
 		if not target_domain:
@@ -1576,6 +1576,7 @@ class PowerView:
 
 	def get_domaintrust(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, sd_flag=None, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
+			'objectClass',
 			'name',
 			'objectGUID',
 			'securityIdentifier',
@@ -1601,8 +1602,17 @@ class PowerView:
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
-		identity_filter = f"(name={identity})" if identity else ""
-		ldap_filter = f'(&(objectClass=trustedDomain){identity_filter})'
+		ldap_filter = ""
+		identity_filter = ""
+		if identity:
+			identity_filter = f"(name={identity})"
+		
+		if args:
+			if args.ldapfilter:
+				logging.debug(f'[Get-DomainTrust] Using additional LDAP filter: {args.ldapfilter}')
+				ldap_filter += f"{args.ldapfilter}"
+		
+		ldap_filter = f'(&(objectClass=trustedDomain){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainTrust] LDAP search filter: {ldap_filter}')
 
 		return self.ldap_session.extend.standard.paged_search(
@@ -3892,16 +3902,19 @@ displayName=New Group Policy Object
 				return False
 
 
-	def set_domainobject(self, identity, clear=None, _set=None, append=None, searchbase=None, sd_flag=None, args=None):
-		if _set and clear and append:
-			raise ValueError("Cannot use 'clear', 'set', and 'append' options simultaneously. Choose one operation.")
+	def set_domainobject(self, identity, clear=None, _set=None, append=None, remove=None, searchbase=None, sd_flag=None, args=None):
+		operations = [op for op in [_set, clear, append, remove] if op]
+		if len(operations) > 1:
+			raise ValueError(f"Cannot use multiple operations simultaneously: {', '.join([op_name for op_name, op in zip(['set', 'clear', 'append', 'remove'], [_set, clear, append, remove]) if op])}. Choose one operation.")
 
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
+		operation = ldap3.MODIFY_REPLACE
 		attr_clear = args.clear if hasattr(args,'clear') and args.clear else clear
 		attr_set = args.set if hasattr(args, 'set') and args.set else _set
 		attr_append = args.append if hasattr(args, 'append') and args.append else append
+		attr_remove = args.remove if hasattr(args, 'remove') and args.remove else remove
 		attr_key = ""
 		attr_val = []
 
@@ -3915,6 +3928,38 @@ displayName=New Group Policy Object
 			elif len(targetobject) == 0:
 				logging.error(f"[Set-DomainObject] Identity {identity} not found in domain")
 				return False
+		elif attr_remove:
+			operation = ldap3.MODIFY_DELETE
+			attrs = {}
+
+			if isinstance(attr_remove, dict):
+				attrs = attr_remove
+			else:
+				attrs = ini_to_dict(attr_remove)
+			
+			if not attrs:
+				raise ValueError(f"[Set-DomainObject] Parsing {'-Remove' if args.remove else '-Clear'} value failed")
+			
+			targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=[attrs['attribute'], "distinguishedName"], sd_flag=sd_flag)
+			if len(targetobject) > 1:
+				logging.error(f"[Set-DomainObject] More than one identity found. Use distinguishedName instead")
+				return False
+			elif len(targetobject) == 0:
+				logging.error(f"[Set-DomainObject] Identity {identity} not found in domain")
+				return False
+			
+			# check if value is a file
+			if len(attrs['value']) == 1 and isinstance(attrs['value'][0], str) and not isinstance(attrs['value'][0], bytes) and attrs['value'][0].startswith("@"):
+				path = attrs['value'][0].lstrip("@")
+				try:
+					logging.debug("[Set-DomainObject] Reading from file")
+					attrs['value'][0] = read_file(path, mode ="rb")
+				except Exception as e:
+					logging.error("[Set-DomainObject] %s" % str(e))
+					return
+
+			attr_key = attrs['attribute']
+			attr_val = attrs['value']
 		else:
 			attrs = {}
 
@@ -3928,6 +3973,7 @@ displayName=New Group Policy Object
 					attrs = attr_append
 				else:
 					attrs = ini_to_dict(attr_append)
+
 			if not attrs:
 				raise ValueError(f"[Set-DomainObject] Parsing {'-Set' if args.set else '-Append'} value failed")
 			targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=[attrs['attribute'], "distinguishedName"], sd_flag=sd_flag)
@@ -3948,29 +3994,32 @@ displayName=New Group Policy Object
 					logging.error("[Set-DomainObject] %s" % str(e))
 					return
 
-			try:
-				if isinstance(attrs['value'], list):
-					for val in attrs['value']:
-						try:
-							values = targetobject[0]["attributes"].get(attrs['attribute'])
-							if isinstance(values, list):
-								for ori_val in values:
-									if isinstance(ori_val, str) and isinstance(val, str):
-										if val.casefold() == ori_val.casefold():
-											raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-									else:
-										if val == values:
-											raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-							elif isinstance(values, str):
-								if val.casefold() == values.casefold():
-									raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-							else:
-								if val == values:
-									raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-						except KeyError as e:
-							logging.warning(f"[Set-DomainObject] Attribute {attrs['attribute']} not exists in object. Modifying anyway...")
-			except ldap3.core.exceptions.LDAPKeyError as e:
-				logging.error(f"[Set-DomainObject] Key {attrs['attribute']} not found in template attribute. Adding anyway...")
+			# try:
+			# 	if isinstance(attrs['value'], list):
+			# 		for val in attrs['value']:
+			# 			try:
+			# 				values = targetobject[0]["attributes"].get(attrs['attribute'])
+			# 				if isinstance(values, list):
+			# 					for ori_val in values:
+			# 						if isinstance(ori_val, str) and isinstance(val, str):
+			# 							if val.casefold() == ori_val.casefold():
+			# 								raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
+			# 						else:
+			# 							if val == values:
+			# 								raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
+			# 				elif isinstance(values, str):
+			# 					if val.casefold() == values.casefold():
+			# 						raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
+			# 				elif isinstance(values, int):
+			# 					if val == values:
+			# 						raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
+			# 				else:
+			# 					if val == values:
+			# 						raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
+			# 			except KeyError as e:
+			# 				logging.warning(f"[Set-DomainObject] Attribute {attrs['attribute']} not exists in object. Modifying anyway...")
+			# except ldap3.core.exceptions.LDAPKeyError as e:
+			# 	logging.error(f"[Set-DomainObject] Key {attrs['attribute']} not found in template attribute. Adding anyway...")
 
 			if attr_append:
 				if not targetobject[0]["attributes"].get(attrs['attribute']):
@@ -4007,9 +4056,18 @@ displayName=New Group Policy Object
 			attr_key = attrs['attribute']
 			attr_val = attrs['value']
 		
+		# if the attribute is a UAC flag and check if not a digit, we need to convert the value to a numeric value
+		if attr_key and attr_key.lower() == 'useraccountcontrol' and attr_val:
+			if isinstance(attr_val, list):
+				if not attr_val[0].isdigit():
+					attr_val = UAC.parse_uac_namestrings_to_value(attr_val)
+			else:
+				if not attr_val.isdigit():
+					attr_val = UAC.parse_uac_namestrings_to_value(attr_val)
+
 		succeeded = self.ldap_session.modify(targetobject[0]["attributes"]["distinguishedName"], {
 											 attr_key:[
-												(ldap3.MODIFY_REPLACE,attr_val)
+												(operation,attr_val)
 											 ]
 											}, controls=security_descriptor_control(sdflags=sd_flag) if sd_flag else None)
 

@@ -279,7 +279,7 @@ def ini_to_dict(obj):
 		if re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', t.get('dummy_section', k)):
 			d['value'] = t.get('dummy_section', k)
 		else:
-			d['value'] = t.getlist('dummy_section', k)
+			d['value'] = [i.strip() for i in t.get('dummy_section', k).split(",")]
 	return d
 
 def read_file(path, mode="r"):
@@ -362,13 +362,13 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
 		return STORED_ADDR[domain]
 
 	dnsresolver = None
-	if nameserver:
+	if use_system_ns:
+		logging.debug(f"Using host's resolver to find domain controller for {domain}")
+		dnsresolver = resolver.Resolver()
+	elif nameserver:
 		logging.debug(f"Querying domain controller for {domain} from DNS server {nameserver}")
 		dnsresolver = resolver.Resolver(configure=False)
 		dnsresolver.nameservers = [nameserver]
-	elif use_system_ns:
-		logging.debug(f"Using host's resolver to find domain controller for {domain}")
-		dnsresolver = resolver.Resolver()
 	else:
 		logging.debug(f"Proxy-compatible mode: Returning domain '{domain}' without DC resolution")
 		return domain
@@ -510,18 +510,21 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 		- When nameserver=None and use_system_ns=False: Returns hostname without 
 		  resolution (proxy-compatible mode for use with proxychains)
 	"""
+	if is_ipaddress(hostname):
+		return hostname
+
 	hostname = str(hostname)
 	if hostname in list(STORED_ADDR.keys()):
 		return STORED_ADDR[hostname]
 
 	dnsresolver = None
-	if nameserver:
+	if use_system_ns:
+		logging.debug(f"Using host's resolver to resolve {hostname}")
+		dnsresolver = resolver.Resolver()
+	elif nameserver:
 		logging.debug(f"Querying {hostname} from DNS server {nameserver}")
 		dnsresolver = resolver.Resolver(configure=False)
 		dnsresolver.nameservers = [nameserver]
-	elif use_system_ns:
-		logging.debug(f"Using host's resolver to resolve {hostname}")
-		dnsresolver = resolver.Resolver()
 	else:
 		logging.debug(f"Proxy-compatible mode: Returning hostname '{hostname}' without resolution")
 		return hostname

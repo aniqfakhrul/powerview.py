@@ -45,6 +45,39 @@ class UAC:
 
 		return flags
 
+	@staticmethod
+	def parse_uac_namestrings_to_value(uac_names, type=list):
+		"""Convert UAC flag names to numeric value
+		Args:
+			uac_names (str): UAC flag names
+		Returns:
+			int: Combined UAC numeric value
+		"""
+		if not uac_names:
+			return 0
+		if isinstance(uac_names, str):
+			names = [name.strip() for name in uac_names.split(",")]
+		elif isinstance(uac_names, list):
+			names = [name.strip() for name in uac_names]
+		else:
+			raise TypeError("uac_names must be a string or a list")
+
+		uac_value = 0
+		reverse_uac = {value: key for key, value in UAC_DICT.items()}
+
+		for name in names:
+			if name in reverse_uac:
+				uac_value |= reverse_uac[name]
+			else:
+				raise ValueError(f"Invalid UAC name: {name}")
+		
+		if type == list:
+			return [uac_value]
+		elif type == int:
+			return int(uac_value)
+		else:
+			return uac_value
+
 class ENCRYPTION_TYPE:
 	@staticmethod
 	def parse_value(enc_value):

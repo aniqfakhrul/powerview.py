@@ -65,10 +65,16 @@ class CONNECTION:
 		self.port = args.port
 		self.hashes = args.hashes
 		self.auth_aes_key = args.auth_aes_key
-		if self.auth_aes_key is not None:
+		if self.auth_aes_key is not None and self.use_kerberos is False:
 			self.use_kerberos = True
 		self.no_pass = args.no_pass
-		self.nameserver = args.nameserver
+		if args.nameserver is None and is_ipaddress(args.ldap_address):
+			logging.debug(f"Using {args.ldap_address} as nameserver")
+			self.nameserver = args.ldap_address
+		elif args.nameserver:
+			self.nameserver = args.nameserver
+		else:
+			self.nameserver = None
 		self.use_system_ns = args.use_system_ns
 		self.stack_trace = args.stack_trace
 
