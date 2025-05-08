@@ -73,7 +73,7 @@ class CONNECTION:
 		if args.nameserver is None and is_ipaddress(args.ldap_address) and not is_proxychains():
 			logging.debug(f"Using {args.ldap_address} as nameserver")
 			self.nameserver = args.ldap_address
-		elif args.nameserver:
+		elif args.nameserver and is_ipaddress(args.nameserver):
 			self.nameserver = args.nameserver
 		else:
 			self.nameserver = None
@@ -338,9 +338,9 @@ class CONNECTION:
 			raise ValueError(f"Invalid protocol: {proto}")
 
 	def get_nameserver(self):
-		if not self.nameserver and not self.use_system_ns:
+		if self.use_system_ns:
 			return get_system_nameserver()
-		return self.nameserver or self.use_system_ns
+		return self.nameserver
 
 	def set_nameserver(self, nameserver):
 		self.nameserver = nameserver

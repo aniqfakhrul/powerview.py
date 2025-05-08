@@ -37,6 +37,7 @@ class bcolors:
 	ITALIC = '\033[3m'
 	STRIKETHROUGH = '\033[9m'
 	INVERT = '\033[7m'
+	GREY = '\033[2;37m'
 
 class Gradient:
 	"""

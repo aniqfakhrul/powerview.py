@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from powerview.utils.colors import bcolors, Gradient
 
-def get_prompt(init_proto, server_dns, cur_user, target_domain=None, using_cache=False, mcp_running=False, web_running=False):
+def get_prompt(init_proto, server_dns, cur_user, nameserver, target_domain=None, using_cache=False, mcp_running=False, web_running=False):
 	"""
 	Creates a visually enhanced prompt for the PowerView shell.
 	
@@ -9,6 +9,7 @@ def get_prompt(init_proto, server_dns, cur_user, target_domain=None, using_cache
 		init_proto: The protocol being used (LDAP/LDAPS)
 		server_dns: The DNS name of the server
 		cur_user: The current authenticated user
+		nameserver: The DNS nameserver being used
 		target_domain: Optional target domain for cross-domain operations
 		using_cache: Indicates if the last results came from cache
 		mcp_running: Indicates if MCP server is running
@@ -50,6 +51,7 @@ def get_prompt(init_proto, server_dns, cur_user, target_domain=None, using_cache
 			  f'{cache_indicator}'
 			  f'{mcp_indicator}'
 			  f'{web_indicator}'
+			  f'{bcolors.OKBLUE} [NS:{nameserver if nameserver else "<auto>"}]{bcolors.ENDC}'
 			  f'\n{bcolors.OKBLUE}╰─{bcolors.BOLD}PV{bcolors.ENDC} {bcolors.OKGREEN}❯{bcolors.ENDC} ')
 	
 	return prompt

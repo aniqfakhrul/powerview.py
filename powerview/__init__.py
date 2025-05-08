@@ -65,11 +65,11 @@ def main():
                 server_ip = conn.get_ldap_address()
                 temp_powerview = None
                 cur_user = conn.who_am_i() if not is_admin else "%s%s%s" % (bcolors.WARNING, conn.who_am_i(), bcolors.ENDC)
-
+                nameserver = conn.get_nameserver()
                 if args.query:
                     cmd = args.query
                 else:
-                    cmd = input(get_prompt(init_proto, server_dns, cur_user, current_target_domain, using_cache, mcp_running=mcp_running, web_running=web_running))
+                    cmd = input(get_prompt(init_proto, server_dns, cur_user, nameserver, current_target_domain, using_cache, mcp_running=mcp_running, web_running=web_running))
 
                 if cmd:
                     try:
