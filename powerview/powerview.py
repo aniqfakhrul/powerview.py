@@ -938,7 +938,7 @@ class PowerView:
 		)
 		for entry in entries:
 			if resolveip and entry.get('attributes', {}).get('dnsHostName'):
-				ip = host2ip(entry['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver, type=list)
+				ip = host2ip(entry['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver, type=list, no_prompt=True)
 				if ip and ip != entry.get('attributes', {}).get('dnsHostName'):
 					entry['attributes']['IPAddress'] = ip
 					logging.debug(f"[Get-DomainComputer] Resolved {entry['attributes']['dnsHostName']} to {ip}")

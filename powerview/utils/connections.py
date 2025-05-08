@@ -19,6 +19,7 @@ from impacket.dcerpc.v5.dcom.wmi import DCERPCSessionError
 from powerview.utils.helpers import (
 	get_machine_name,
 	host2ip,
+	ip2host,
 	is_valid_fqdn,
 	dn2domain,
 	is_ipaddress,
@@ -456,8 +457,11 @@ class CONNECTION:
 				else:
 					target = self.ldap_address
 			except Exception as e:
-				logging.warning(f"Failed to get computer hostname. The domain probably does not support NTLM authentication. Skipping...")
-				target = self.ldap_address
+				logging.debug("Performing reverse DNS lookup")
+				target = ip2host(self.ldap_address, nameserver=self.nameserver, timeout=5)
+				if not target:
+					logging.warning(f"Failed to get computer hostname. The domain probably does not support NTLM authentication. Skipping...")
+					target = self.ldap_address
 
 			if not is_valid_fqdn(target):
 				logging.error("Keberos authentication requires FQDN instead of IP")
