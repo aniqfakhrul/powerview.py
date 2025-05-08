@@ -1,6 +1,14 @@
 let activeComputer = null;
+let stickyHeaderContainerElement = null;
+let smbTableHeadersElement = null;
+let contextMenuElement = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+    stickyHeaderContainerElement = document.getElementById('sticky-header-container');
+    smbTableHeadersElement = document.getElementById('smb-table-headers');
+    contextMenuElement = document.getElementById('smb-context-menu'); // Get reference to context menu
+    updateStickyHeaders(); // Initialize sticky headers (which will also position table headers)
+
     const connectButton = document.getElementById('smb-connect-button');
     const connectAsButton = document.getElementById('smb-connect-as-button');
     const connectAsForm = document.getElementById('connect-as-form');
@@ -86,12 +94,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const tab = document.createElement('div');
         tab.dataset.computer = computer;
         tab.id = `tab-${computer}`;
-        tab.className = 'flex items-center gap-2 px-4 py-2 text-sm font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer border-b-2 border-transparent';
+        tab.className = 'flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer border-b-2 border-transparent';
         tab.innerHTML = `
-            <i class="fas fa-computer"></i>
+            <i class="fas fa-computer fa-sm"></i>
             <span>${computer}</span>
-            <button class="close-tab ml-2 text-neutral-400 hover:text-red-500">
-                <i class="fas fa-times"></i>
+            <button class="close-tab ml-1.5 text-neutral-400 hover:text-red-500">
+                <i class="fas fa-times fa-sm"></i>
             </button>
         `;
         
@@ -121,6 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Switching to PC:', computer);
         // Update active computer
         activeComputer = computer;
+        updateStickyHeaders(); // Update sticky headers to show computer
 
         // Update tabs
         document.querySelectorAll('#pc-tabs > div').forEach(tab => {
@@ -139,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function disconnectPC(computer) {
+    async function disconnectPC(computer) {
         // Remove tab
         const tab = document.getElementById(`tab-${computer}`);
         if (tab) tab.remove();
@@ -151,12 +160,35 @@ document.addEventListener('DOMContentLoaded', () => {
         // Remove from tracking
         connectedPCs.delete(computer);
 
+        // Call the disconnect API
+        try {
+            const response = await fetch('/api/smb/disconnect', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ computer })
+            });
+            if (!response.ok) {
+                const error = await response.json();
+                console.error('Failed to disconnect SMB session:', error.error);
+                showErrorAlert(`Failed to disconnect from ${computer}: ${error.error}`);
+            } else {
+                showSuccessAlert(`Disconnected from ${computer}`);
+            }
+        } catch (error) {
+            console.error('Error during SMB disconnect:', error);
+            showErrorAlert(`Error disconnecting from ${computer}: ${error.message}`);
+        }
+
         // If we're disconnecting the active computer, switch to another one
         if (activeComputer === computer) {
             activeComputer = null;
             const remainingPC = connectedPCs.values().next().value;
             if (remainingPC) {
                 switchToPC(remainingPC);
+            } else {
+                updateStickyHeaders(); // Clear sticky headers
             }
         }
     }
@@ -265,12 +297,29 @@ document.addEventListener('DOMContentLoaded', () => {
             showLoadingIndicator();
             const computer = activeComputer;
             
-            // Reconnect to SMB
-            await connectToSMB({computer});
+            // Call the reconnect API
+            const response = await fetch('/api/smb/reconnect', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ computer })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to reconnect SMB session');
+            }
             
-            showSuccessAlert(`Refreshed connection to ${computer}`);
+            const result = await response.json();
+            if (result.status === 'reconnected') {
+                showSuccessAlert(`Successfully reconnected to ${computer}`);
+            } else {
+                throw new Error(result.error || 'Reconnect failed with unknown error');
+            }
+
         } catch (error) {
-            console.error('Refresh error:', error);
+            console.error('Reconnect error:', error);
             showErrorAlert(error.message);
         } finally {
             // Remove spinning class and re-enable button
@@ -360,20 +409,20 @@ function buildSMBTreeView(shares, computer) {
     shares.forEach(share => {
         const shareName = share.attributes.Name;
         html += `
-            <li class="smb-tree-item" data-share="${shareName}" data-computer="${computer}">
-                <div class="grid grid-cols-12 gap-4 items-center hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer py-0.5 px-2">
+            <li class="smb-tree-item text-sm" data-share="${shareName}" data-computer="${computer}">
+                <div class="grid grid-cols-12 gap-2 items-center hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer py-0 px-1.5">
                     <div class="col-span-6">
-                        <div class="flex items-center gap-2 min-w-0">
+                        <div class="flex items-center gap-1.5 min-w-0">
                             <span class="text-yellow-500 flex-shrink-0">${icons.smbshareIcon}</span>
                             <span class="text-neutral-900 dark:text-white truncate">${shareName}</span>
-                            <span class="text-xs text-neutral-500 dark:text-neutral-400">${share.attributes.Remark}</span>
+                            <span class="text-xs text-neutral-500 dark:text-neutral-400 truncate">${share.attributes.Remark || ''}</span>
                             <span class="spinner-container flex-shrink-0"></span>
                         </div>
                     </div>
-                    <div class="col-span-1 text-sm text-neutral-500 dark:text-neutral-400">--</div>
-                    <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400">--</div>
-                    <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400">--</div>
-                    <div class="col-span-1 text-sm text-neutral-500 dark:text-neutral-400 text-right">--</div>
+                    <div class="col-span-1 text-neutral-500 dark:text-neutral-400">--</div>
+                    <div class="col-span-2 text-neutral-500 dark:text-neutral-400">--</div>
+                    <div class="col-span-2 text-neutral-500 dark:text-neutral-400">--</div>
+                    <div class="col-span-1 text-neutral-500 dark:text-neutral-400 text-right">--</div>
                 </div>
                 <ul class="hidden"></ul>
             </li>
@@ -394,6 +443,11 @@ function attachTreeViewListeners() {
             const share = item.dataset.share;
             const computer = item.dataset.computer;
             
+            if (activeComputer !== computer) {
+                // If the click is on a share of a non-active computer tab, switch first
+                switchToPC(computer);
+            }
+
             if (!isLoaded) {
                 try {
                     showInlineSpinner(spinnerContainer);
@@ -402,6 +456,7 @@ function attachTreeViewListeners() {
                     isLoaded = true;
                     subList.classList.remove('hidden');
                     attachFileListeners();
+                    updateStickyHeaders(share);
                 } catch (error) {
                     console.error('Error loading files:', error);
                 } finally {
@@ -409,8 +464,30 @@ function attachTreeViewListeners() {
                 }
             } else {
                 subList.classList.toggle('hidden');
+                // Update UNC path based on visibility. If visible, it's this share.
+                if (!subList.classList.contains('hidden')) {
+                    updateStickyHeaders(share);
+                } else {
+                    // If collapsing the share, path reverts to just computer (or last active folder in another share)
+                    // For simplicity, let's show computer path. More complex state needed for perfect recall.
+                    updateStickyHeaders();
+                }
             }
         };
+
+        // Add context menu listener for shares
+        shareDiv.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            const itemData = {
+                computer: item.dataset.computer,
+                share: item.dataset.share,
+                name: item.dataset.share, // Share name acts as the item name here
+                path: '', // Path is empty for a share itself
+                isDirectory: true, // Treat shares like directories for context actions
+                isShare: true // Add a flag to differentiate
+            };
+            showContextMenu(event, itemData);
+        });
     });
 }
 
@@ -473,20 +550,38 @@ function attachFileListeners() {
             fileDiv.onclick = async () => {
                 if (isLoading) return;
 
+                const currentShare = item.dataset.share;
+                const currentItemPath = item.dataset.path; // Path of the directory itself
+
                 if (subList.children.length > 0) {
                     subList.classList.toggle('hidden');
+                    // Update UNC path when toggling folder visibility
+                    if (!subList.classList.contains('hidden')) {
+                        updateStickyHeaders(currentShare, currentItemPath);
+                    } else {
+                        // If collapsing, path reverts to parent (share in this case for top-level folder)
+                        // Or more accurately, path of the item being clicked itself if we are just collapsing it.
+                        // For simplicity, if we collapse a folder, let the path be its parent (the share)
+                        const pathSegments = currentItemPath.replace(/^\/+/, '').split('/');
+                        if (pathSegments.length > 1) {
+                            const parentPath = '/' + pathSegments.slice(0, -1).join('/');
+                            updateStickyHeaders(currentShare, parentPath);
+                        } else {
+                            updateStickyHeaders(currentShare);
+                        }
+                    }
                     return;
                 }
 
                 try {
                     isLoading = true;
                     showInlineSpinner(spinnerContainer);
-                    const currentPath = item.dataset.path;
-                    const cleanPath = currentPath.replace(/^\//, '').replace(/\//g, '\\');
-                    const files = await listSMBPath(computer, share, cleanPath);
-                    subList.innerHTML = buildFileList(files, share, currentPath, computer);
+                    const cleanPath = currentItemPath.replace(/^\//, '').replace(/\//g, '\\');
+                    const files = await listSMBPath(computer, currentShare, cleanPath);
+                    subList.innerHTML = buildFileList(files, currentShare, currentItemPath, computer);
                     subList.classList.remove('hidden');
                     attachFileListeners();
+                    updateStickyHeaders(currentShare, currentItemPath);
                 } catch (error) {
                     console.error('Error loading files:', error);
                 } finally {
@@ -566,6 +661,20 @@ function attachFileListeners() {
                 }
             };
         }
+
+        // Add context menu listener for files/folders
+        fileDiv.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            const itemData = {
+                computer: item.dataset.computer,
+                share: item.dataset.share,
+                name: item.dataset.path.split('/').pop(), // Get name from path
+                path: item.dataset.path,
+                isDirectory: item.getAttribute('data-is-dir') === '16' || item.getAttribute('data-is-dir') === '48',
+                isShare: false
+            };
+            showContextMenu(event, itemData);
+        });
     });
 }
 
@@ -592,14 +701,14 @@ async function downloadSMBFile(computer, share, path, raw = false) {
             const downloadsList = document.getElementById('downloads-list');
             downloadEntry = document.createElement('div');
             downloadEntry.id = `download-${downloadId}`;
-            downloadEntry.className = 'bg-white dark:bg-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-700 p-3';
+            downloadEntry.className = 'bg-white dark:bg-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700 p-2 text-sm';
             downloadEntry.innerHTML = `
                 <div class="flex items-center justify-between gap-2">
                     <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2">
-                            <i class="fas fa-file text-blue-500 dark:text-yellow-500"></i>
+                        <div class="flex items-center gap-1.5">
+                            <i class="fas fa-file fa-lg text-blue-500 dark:text-yellow-500"></i>
                             <div class="truncate">
-                                <div class="text-sm font-medium text-neutral-900 dark:text-white truncate">
+                                <div class="font-medium text-neutral-900 dark:text-white truncate">
                                     ${filename}
                                 </div>
                                 <div class="text-xs text-neutral-500 dark:text-neutral-400">
@@ -607,14 +716,14 @@ async function downloadSMBFile(computer, share, path, raw = false) {
                                 </div>
                             </div>
                         </div>
-                        <div class="mt-1 flex items-center gap-2">
-                            <div class="flex-1 bg-neutral-200 dark:bg-neutral-700 rounded-full h-1.5">
-                                <div class="download-progress bg-blue-500 dark:bg-yellow-500 h-1.5 rounded-full" style="width: 0%"></div>
+                        <div class="mt-1 flex items-center gap-1.5">
+                            <div class="flex-1 bg-neutral-200 dark:bg-neutral-700 rounded-full h-1">
+                                <div class="download-progress bg-blue-500 dark:bg-yellow-500 h-1 rounded-full" style="width: 0%"></div>
                             </div>
                             <span class="text-xs text-neutral-500 dark:text-neutral-400 download-status">Starting...</span>
                         </div>
                     </div>
-                    <button onclick="clearDownload(${downloadId})" class="text-neutral-400 hover:text-neutral-500 dark:hover:text-neutral-300">
+                    <button onclick="clearDownload(${downloadId})" class="text-neutral-400 hover:text-neutral-500 dark:hover:text-neutral-300 p-0.5">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -659,7 +768,6 @@ async function downloadSMBFile(computer, share, path, raw = false) {
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
 
             // Update download entry to show completion
             const progressBar = downloadEntry.querySelector('.download-progress');
@@ -681,25 +789,25 @@ async function downloadSMBFile(computer, share, path, raw = false) {
 function createDownloadEntry(id, filename) {
     const entry = document.createElement('div');
     entry.id = `download-${id}`;
-    entry.className = 'bg-neutral-50 dark:bg-neutral-800 rounded-lg p-2 mb-2';
+    entry.className = 'bg-neutral-50 dark:bg-neutral-800 rounded-md p-1.5 mb-1.5 text-sm';
 
     const filenameSpan = document.createElement('span');
-    filenameSpan.className = 'text-sm text-neutral-900 dark:text-white';
+    filenameSpan.className = 'text-neutral-900 dark:text-white';
     filenameSpan.textContent = filename;
 
     entry.innerHTML = `
         <div class="flex items-center justify-between">
             ${filenameSpan.outerHTML}
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1">
                 <button onclick="clearDownload('${id}')"
-                    class="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-1">
+                    class="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
         </div>
-        <div class="h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full mt-2">
+        <div class="h-1.5 bg-neutral-200 dark:bg-neutral-700 rounded-full mt-1.5">
             <div id="download-progress-${id}" 
-                class="bg-blue-500 dark:bg-yellow-500 h-2 rounded-full transition-all duration-300" 
+                class="bg-blue-500 dark:bg-yellow-500 h-1.5 rounded-full transition-all duration-300" 
                 style="width: 0%">
             </div>
         </div>
@@ -738,69 +846,66 @@ function buildFileList(files, share, currentPath, computer) {
         const isDirectory = file.is_directory;
         const fileIcon = getFileIcon(file.name, isDirectory);
         
-        // Convert Windows FILETIME to JavaScript Date
         const windowsTimestamp = BigInt(file.modified);
         const unixTimestamp = Number((windowsTimestamp - BigInt(116444736000000000)) / BigInt(10000));
-        const modifiedDate = new Date(unixTimestamp).toLocaleString();
+        const modifiedDate = new Date(unixTimestamp).toLocaleString([], { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-        // Convert Windows FILETIME to JavaScript Date for created date
         const windowsCreatedTimestamp = BigInt(file.created);
         const unixCreatedTimestamp = Number((windowsCreatedTimestamp - BigInt(116444736000000000)) / BigInt(10000));
-        const createdDate = new Date(unixCreatedTimestamp).toLocaleString();
+        const createdDate = new Date(unixCreatedTimestamp).toLocaleString([], { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
         
-        // Calculate indentation level based on path depth
         const pathSegments = currentPath.split('/').filter(segment => segment.length > 0);
         const indentLevel = pathSegments.length + 1;
-        const marginLeft = indentLevel * 1.5;
+        const marginLeft = indentLevel * 1.25;
         
         html += `
-            <li class="file-item" 
+            <li class="file-item text-sm" 
                 data-path="${currentPath}/${file.name}" 
                 data-is-dir="${file.is_directory ? '16' : '0'}"
                 data-computer="${computer}"
                 data-share="${share}"
                 title="${file.name}">
-                <div class="grid grid-cols-12 gap-4 items-center hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer py-0.5 px-2">
+                <div class="grid grid-cols-12 gap-2 items-center hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer py-0 px-1.5">
                     <div class="col-span-6">
-                        <div class="flex items-center gap-2 min-w-0" style="margin-left: ${marginLeft}rem;">
+                        <div class="flex items-center gap-1.5 min-w-0" style="margin-left: ${marginLeft}rem;">
                             ${fileIcon.isCustomSvg 
-                                ? `<span class="w-4 h-4 flex-shrink-0">${fileIcon.icon}</span>`
+                                ? `<span class="w-4 h-4 flex-shrink-0 ${fileIcon.iconClass}">${fileIcon.icon}</span>`
                                 : `<i class="fas ${fileIcon.icon} ${fileIcon.iconClass} flex-shrink-0"></i>`
                             }
                             <span class="text-neutral-900 dark:text-white truncate">${file.name}</span>
                             <span class="spinner-container flex-shrink-0"></span>
                         </div>
                     </div>
-                    <div class="col-span-1 text-sm text-neutral-500 dark:text-neutral-400">
+                    <div class="col-span-1 text-neutral-500 dark:text-neutral-400">
                         ${formatFileSize(file.size)}
                     </div>
-                    <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400">
+                    <div class="col-span-2 text-neutral-500 dark:text-neutral-400">
                         ${createdDate}
                     </div>
-                    <div class="col-span-2 text-sm text-neutral-500 dark:text-neutral-400">
+                    <div class="col-span-2 text-neutral-500 dark:text-neutral-400">
                         ${modifiedDate}
                     </div>
-                    <div class="col-span-1 flex items-center gap-2 justify-end">
+                    <div class="col-span-1 flex items-center gap-1 justify-end">
                         ${isDirectory ? `
-                            <button class="upload-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="Upload">
-                                <i class="fas fa-upload"></i>
+                            <button class="upload-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="Upload">
+                                <i class="fas fa-upload fa-sm"></i>
                             </button>
-                            <button class="new-folder-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="New Folder">
-                                <i class="fas fa-folder-plus"></i>
+                            <button class="new-folder-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="New Folder">
+                                <i class="fas fa-folder-plus fa-sm"></i>
                             </button>
-                            <button class="download-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="Download Directory">
-                                <i class="fas fa-download"></i>
+                            <button class="download-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="Download Directory">
+                                <i class="fas fa-download fa-sm"></i>
                             </button>
                         ` : `
-                            <button class="view-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="View">
-                                <i class="fas fa-eye"></i>
+                            <button class="view-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="View">
+                                <i class="fas fa-eye fa-sm"></i>
                             </button>
-                            <button class="download-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300" title="Download">
-                                <i class="fas fa-download"></i>
+                            <button class="download-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="Download">
+                                <i class="fas fa-download fa-sm"></i>
                             </button>
                         `}
-                        <button class="delete-btn text-neutral-500 hover:text-red-600 dark:hover:text-red-400" title="Delete">
-                            <i class="fas fa-trash"></i>
+                        <button class="delete-btn text-neutral-500 hover:text-red-600 dark:hover:text-red-400 p-0.5" title="Delete">
+                            <i class="fas fa-trash fa-sm"></i>
                         </button>
                     </div>
                 </div>
@@ -855,9 +960,26 @@ async function uploadSMBFile(computer, share, currentPath) {
 
             // Refresh the current directory listing
             const files = await listSMBPath(computer, share, currentPath);
-            const parentList = document.querySelector(`[data-path="${currentPath}"]`).parentElement;
-            parentList.innerHTML = buildFileList(files, share, currentPath, computer);
-            attachFileListeners();
+            
+            // Find the list element (UL) associated with the directory we uploaded into.
+            // If currentPath is empty, it means we uploaded to the share root.
+            let targetListElement;
+            if (currentPath === '') {
+                targetListElement = document.querySelector(`.smb-tree-item[data-share="${share}"][data-computer="${computer}"] > ul`);
+            } else {
+                targetListElement = document.querySelector(`.file-item[data-path="${currentPath}"][data-share="${share}"][data-computer="${computer}"] > ul`);
+            }
+            
+            if (targetListElement) {
+                targetListElement.innerHTML = buildFileList(files, share, currentPath, computer);
+                attachFileListeners(); // Re-attach listeners to the newly created elements
+                targetListElement.classList.remove('hidden'); // Ensure the list is visible if it was previously empty/hidden
+            } else {
+                console.error('Could not find the target list element to refresh after upload.');
+                // Optionally, force a full refresh of the share as a fallback
+                const shareRootElement = document.querySelector(`.smb-tree-item[data-share="${share}"][data-computer="${computer}"] > div`);
+                shareRootElement?.click(); // Simulate clicking the share again
+            }
             
             showSuccessAlert('File uploaded successfully');
 
@@ -1147,8 +1269,13 @@ async function downloadSMBDirectory(computer, share, path, directoryName) {
         const downloadsPanel = document.getElementById('downloads-panel');
         downloadsPanel.classList.remove('hidden', 'translate-x-full');
         
-        // List all files in the directory recursively
-        const files = await listSMBDirectoryContents(computer, share, path);
+        // Normalize the root path for the directory being downloaded.
+        // path comes from item.dataset.path (e.g., "/FolderA" or "/FolderA/SubFolder")
+        const initialPathForListing = path.replace(/^\/+/, ''); // Remove leading slash
+
+        // List all files in the directory recursively.
+        // listSMBDirectoryContents returns file paths relative to the share root, using \ separator.
+        const files = await listSMBDirectoryContents(computer, share, initialPathForListing, []);
         const totalFiles = files.length;
         let completedFiles = 0;
         
@@ -1159,12 +1286,55 @@ async function downloadSMBDirectory(computer, share, path, directoryName) {
         // Create a JSZip instance
         const zip = new JSZip();
 
+        // This is the root path of the download operation, normalized (e.g., "FolderA" or "FolderA\SubFolder")
+        const normalizedDownloadRootPath = initialPathForListing.replace(/\//g, '\\');
+        const lowerNormalizedDownloadRootPath = normalizedDownloadRootPath.toLowerCase();
+
         // Download each file
         for (const file of files) {
+            // file.path is the full path from share root, e.g., "FolderA\file.txt" or "FolderA\SubFolderB\file.txt"
+            // file.name is the basename, e.g., "file.txt"
+
+            let pathInZip;
+            const lowerFilePath = file.path.toLowerCase();
+
+            if (normalizedDownloadRootPath === '') { 
+                // Downloading from share root
+                pathInZip = file.path;
+            } else {
+                // Prefix for length calculation (original case)
+                const prefixOriginalCase = normalizedDownloadRootPath + '\\';
+                // Prefix for comparison (lowercase)
+                const prefixLowerCase = lowerNormalizedDownloadRootPath + '\\';
+
+                if (lowerFilePath.startsWith(prefixLowerCase)) {
+                    // Use original file.path and original prefix length for substring to preserve casing
+                    pathInZip = file.path.substring(prefixOriginalCase.length);
+                } else if (lowerFilePath === lowerNormalizedDownloadRootPath) {
+                    // This case handles if normalizedDownloadRootPath was a file itself and is being "downloaded as a directory"
+                    pathInZip = file.name;
+                } else {
+                    console.warn(`File path ${file.path} (lc: ${lowerFilePath}) does not match download root ${normalizedDownloadRootPath} (lc: ${lowerNormalizedDownloadRootPath}, prefix lc: ${prefixLowerCase}). Using basename ${file.name}.`);
+                    pathInZip = file.name; // Fallback
+                }
+            }
+
+            // Ensure pathInZip is not empty or just a separator, fallback to file.name
+            // This might happen if file.path was exactly normalizedDownloadRootPath and substring resulted in empty string.
+            if (!pathInZip || pathInZip === '\\') {
+                if (pathInZip === '' && lowerFilePath === lowerNormalizedDownloadRootPath) {
+                    // Correctly handle case where the item itself is the root, pathInZip should be its name
+                    pathInZip = file.name;
+                } else {
+                    console.warn(`pathInZip became invalid ('${pathInZip}') for file ${file.path} (root: ${normalizedDownloadRootPath}). Defaulting to basename ${file.name}.`);
+                    pathInZip = file.name;
+                }
+            }
+
             try {
-                const blob = await downloadSMBFile(computer, share, file.path, true);
+                const blob = await downloadSMBFile(computer, share, file.path, true); // downloadSMBFile needs full path from share root
                 if (blob) {
-                    zip.file(file.name, blob);
+                    zip.file(pathInZip, blob); // Use the calculated relative path for the zip entry
                 }
                 completedFiles++;
                 
@@ -1290,3 +1460,188 @@ function closeFileViewer() {
         zoomLevel = 1.0;
     }, 300);
 }
+
+// Helper function to add a separator to sticky headers
+function addStickySeparator(container) {
+    const separator = document.createElement('span');
+    separator.className = 'text-neutral-400 dark:text-neutral-500 px-0.5';
+    separator.textContent = '>';
+    container.appendChild(separator);
+}
+
+// Function to update the sticky directory headers
+function updateStickyHeaders(currentShare = '', currentDirectoryPath = '') {
+    if (!stickyHeaderContainerElement || !smbTableHeadersElement) return;
+
+    stickyHeaderContainerElement.innerHTML = ''; // Clear existing headers
+
+    // If no share is selected, or no active computer, hide the sticky header.
+    if (!activeComputer || !currentShare) {
+        stickyHeaderContainerElement.classList.add('hidden');
+        smbTableHeadersElement.style.top = '0px'; // Table headers stick to the very top
+        return;
+    }
+
+    stickyHeaderContainerElement.classList.remove('hidden');
+    // Ensure sticky header itself uses text-sm, which should be inherited by spans if not overridden
+    stickyHeaderContainerElement.classList.remove('text-xs'); // Remove if present from an older version
+    stickyHeaderContainerElement.classList.add('text-sm');
+
+
+    // Share part (now the first element if present)
+    const shareSpan = document.createElement('span');
+    shareSpan.className = 'cursor-pointer hover:underline text-neutral-700 dark:text-neutral-300';
+    shareSpan.textContent = currentShare;
+    shareSpan.onclick = () => {
+        console.log('Navigate to share:', currentShare);
+        // TODO: Implement navigation to share root.
+        updateStickyHeaders(currentShare);
+        // Also ensure UI reflects this (e.g., specific share is highlighted/expanded, no subfolders selected)
+        // And list the root of the share.
+        const shareListItem = document.querySelector(`.smb-tree-item[data-share="${currentShare}"][data-computer="${activeComputer}"] > div`);
+        if (shareListItem) {
+            shareListItem.click(); // Simulate click to expand/load share root
+             // After clicking, ensure only the share is in the path, not deeper folders from previous state
+            setTimeout(() => updateStickyHeaders(currentShare, ''), 0);
+        }
+    };
+    stickyHeaderContainerElement.appendChild(shareSpan);
+
+    if (currentDirectoryPath) {
+        const normalizedPath = currentDirectoryPath.replace(/^\/+/, ''); // Remove leading slashes
+        const pathSegments = normalizedPath.split('/').filter(Boolean); // Filter out empty segments
+        
+        let accumulatedPath = '';
+        pathSegments.forEach((segment, index) => {
+            accumulatedPath += (index === 0 ? '' : '/') + segment;
+            addStickySeparator(stickyHeaderContainerElement);
+            const segmentSpan = document.createElement('span');
+            segmentSpan.className = 'cursor-pointer hover:underline text-neutral-700 dark:text-neutral-300';
+            segmentSpan.textContent = segment;
+            
+            const fullPathForSegment = '/' + accumulatedPath;
+            segmentSpan.onclick = () => {
+                console.log('Navigate to path segment:', fullPathForSegment, 'within share:', currentShare);
+                // TODO: Implement proper navigation to this specific path.
+                updateStickyHeaders(currentShare, fullPathForSegment);
+                // This would involve finding the directory list item for fullPathForSegment and programmatically clicking it.
+                const targetDirElement = document.querySelector(`.file-item[data-share="${currentShare}"][data-computer="${activeComputer}"][data-path="${fullPathForSegment}"] > div`);
+                if (targetDirElement) {
+                    targetDirElement.click();
+                }
+            };
+            stickyHeaderContainerElement.appendChild(segmentSpan);
+        });
+    }
+
+    // After populating stickyHeaderContainerElement, set top for smbTableHeadersElement
+    const stickyHeaderHeight = stickyHeaderContainerElement.offsetHeight;
+    smbTableHeadersElement.style.top = `${stickyHeaderHeight}px`;
+}
+
+// --- Context Menu Functions ---
+
+function hideContextMenu() {
+    if (contextMenuElement) {
+        contextMenuElement.classList.add('hidden');
+        contextMenuElement.innerHTML = ''; // Clear menu items
+    }
+}
+
+function createMenuItem(text, iconClass, action) {
+    const menuItem = document.createElement('a');
+    menuItem.href = '#'; // Prevent default link behavior
+    menuItem.className = 'flex items-center gap-2 px-4 py-1.5 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700';
+    menuItem.innerHTML = `<i class="${iconClass} fa-fw"></i> ${text}`;
+    menuItem.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // Prevent document click listener from firing immediately
+        action();
+        hideContextMenu();
+    };
+    return menuItem;
+}
+
+function createMenuSeparator() {
+    const separator = document.createElement('div');
+    separator.className = 'my-1 h-px bg-neutral-200 dark:bg-neutral-700';
+    return separator;
+}
+
+function showContextMenu(event, itemData) {
+    if (!contextMenuElement) return;
+
+    hideContextMenu(); // Hide any existing menu first
+
+    // Populate menu based on item type
+    if (itemData.isDirectory) {
+        // Folder/Share actions
+        if (!itemData.isShare) { // Don't allow opening a share inside itself
+            contextMenuElement.appendChild(createMenuItem('Open', 'fas fa-folder-open', () => {
+                // Find the element and simulate a click
+                const targetElement = document.querySelector(`.file-item[data-path="${itemData.path}"] > div`);
+                targetElement?.click();
+            }));
+        }
+        contextMenuElement.appendChild(createMenuItem('Download', 'fas fa-download', () => {
+            downloadSMBDirectory(itemData.computer, itemData.share, itemData.path, itemData.name);
+        }));
+        contextMenuElement.appendChild(createMenuSeparator());
+        contextMenuElement.appendChild(createMenuItem('Upload Here', 'fas fa-upload', () => {
+            uploadSMBFile(itemData.computer, itemData.share, itemData.path);
+        }));
+        contextMenuElement.appendChild(createMenuItem('New Folder', 'fas fa-folder-plus', () => {
+            createSMBDirectory(itemData.computer, itemData.share, itemData.path);
+        }));
+    } else {
+        // File actions
+        contextMenuElement.appendChild(createMenuItem('View', 'fas fa-eye', () => {
+            viewSMBFile(itemData.computer, itemData.share, itemData.path);
+        }));
+        contextMenuElement.appendChild(createMenuItem('Download', 'fas fa-download', () => {
+            downloadSMBFile(itemData.computer, itemData.share, itemData.path);
+        }));
+    }
+
+    // Common actions (Delete, Rename - future, Properties - future)
+    contextMenuElement.appendChild(createMenuSeparator());
+    contextMenuElement.appendChild(createMenuItem('Delete', 'fas fa-trash text-red-600 dark:text-red-500', () => {
+        deleteSMBFileOrDirectory(itemData.computer, itemData.share, itemData.path, itemData.isDirectory);
+    }));
+    // Add Rename placeholder
+    const renameItem = createMenuItem('Rename', 'fas fa-pencil-alt', () => alert('Rename functionality not yet implemented.'));
+    renameItem.classList.add('text-neutral-400', 'dark:text-neutral-500', 'cursor-not-allowed');
+    contextMenuElement.appendChild(renameItem);
+    // Add Properties placeholder
+    const propsItem = createMenuItem('Properties', 'fas fa-info-circle', () => alert('Properties functionality not yet implemented.'));
+    propsItem.classList.add('text-neutral-400', 'dark:text-neutral-500', 'cursor-not-allowed');
+    contextMenuElement.appendChild(propsItem);
+
+    // Position and show the menu
+    const x = event.pageX;
+    const y = event.pageY;
+
+    contextMenuElement.style.left = `${x}px`;
+    contextMenuElement.style.top = `${y}px`;
+    contextMenuElement.classList.remove('hidden');
+
+    // Adjust position if menu goes off-screen (basic implementation)
+    const menuRect = contextMenuElement.getBoundingClientRect();
+    if (menuRect.right > window.innerWidth) {
+        contextMenuElement.style.left = `${x - menuRect.width}px`;
+    }
+    if (menuRect.bottom > window.innerHeight) {
+        contextMenuElement.style.top = `${y - menuRect.height}px`;
+    }
+}
+
+// Add global listener to hide context menu on left-click
+document.addEventListener('click', (event) => {
+    // Check if the click is outside the context menu
+    if (contextMenuElement && !contextMenuElement.contains(event.target)) {
+        hideContextMenu();
+    }
+});
+
+// Also hide on scroll within the pc-views container
+document.getElementById('pc-views')?.addEventListener('scroll', hideContextMenu);

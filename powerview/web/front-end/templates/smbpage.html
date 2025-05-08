@@ -1,97 +1,95 @@
 {% extends "base/layouts.html" %}
 
 {% block content %}
-<div class="flex flex-col h-screen bg-white dark:bg-neutral-900">
+<div class="flex flex-col h-screen bg-white dark:bg-neutral-900 text-sm">
     <!-- Fixed Connection Header -->
-    <div class="p-4">
+    <div class="p-2 border-b border-neutral-200 dark:border-neutral-700">
         <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
                 <i class="fa-solid fa-share-nodes text-neutral-500 dark:text-neutral-400"></i>
-                <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">SMB Browser</h2>
+                <h2 class="font-semibold text-neutral-900 dark:text-white">SMB Browser</h2>
             </div>
-            <div class="flex items-center gap-2">
-                <!-- Add this button before the connect form -->
+            <div class="flex items-center gap-1">
                 <button id="toggle-downloads" type="button" 
-                    class="whitespace-nowrap px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white border border-neutral-200 dark:border-neutral-700 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                    class="px-2 py-1 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white border border-neutral-200 dark:border-neutral-700 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700">
                     <i class="fas fa-download fa-sm mr-1"></i>
                     Downloads
                 </button>
-                <!-- Connect As Form (initially hidden) -->
-                <div id="connect-as-form" class="hidden flex items-center gap-2">
+                <div id="connect-as-form" class="hidden flex items-center gap-1">
                     <input type="text" id="smb-username" 
-                        placeholder="domain\username" 
-                        class="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800">
+                        placeholder="domain\\username" 
+                        class="rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800 focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none" style="width: 150px;">
                     <input type="password" id="smb-password" 
                         placeholder="Password" 
-                        class="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800">
+                        class="rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800 focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none" style="width: 120px;">
                 </div>
-
                 <input type="text" id="smb-computer" 
-                    placeholder="Enter computer name or IP" 
-                    class="w-64 rounded-md border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800">
-                
+                    placeholder="Computer name or IP" 
+                    class="rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800 focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none" style="width: 180px;">
                 <button id="smb-connect-as-button" type="button" 
-                    class="whitespace-nowrap px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white border border-neutral-200 dark:border-neutral-700 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                    class="px-2 py-1 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white border border-neutral-200 dark:border-neutral-700 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700">
                     <i class="fas fa-user-shield fa-sm mr-1"></i>
                     Connect As
                 </button>
-
                 <button id="smb-connect-button" type="button" 
-                    class="whitespace-nowrap px-3 py-1.5 text-sm font-medium text-white dark:text-black bg-neutral-900 dark:bg-yellow-500 rounded-md hover:bg-neutral-800 dark:hover:bg-yellow-600">
+                    class="px-2 py-1 text-sm font-medium text-white dark:text-black bg-neutral-900 dark:bg-yellow-500 rounded-md hover:bg-neutral-800 dark:hover:bg-yellow-600">
                     <i class="fas fa-plug fa-sm mr-1"></i>
                     Connect
                 </button>
-
-                <!-- Add refresh button -->
                 <button id="smb-refresh-button" type="button" 
-                    class="whitespace-nowrap px-3 py-1.5 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white border border-neutral-200 dark:border-neutral-700 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                    class="px-2 py-1 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white border border-neutral-200 dark:border-neutral-700 rounded-md hover:bg-neutral-50 dark:hover:bg-neutral-700">
                     <i class="fas fa-sync-alt fa-sm"></i>
                 </button>
             </div>
         </div>
-        <div id="smb-connection-status" class="mt-2 text-sm"></div>
+        <div id="smb-connection-status" class="mt-1 text-sm"></div>
     </div>
 
     <!-- Fixed Tabs and Headers -->
     <div class="bg-white dark:bg-neutral-900">
         <!-- PC Tabs -->
         <div class="border-b border-neutral-200 dark:border-neutral-700">
-            <div id="pc-tabs" class="flex overflow-x-auto scrollbar-thin">
+            <div id="pc-tabs" class="flex overflow-x-auto scrollbar-thin text-xs">
                 <!-- Tabs will be dynamically added here -->
             </div>
-        </div>
-
-        <!-- Table Headers -->
-        <div class="px-4 py-1 border-b border-neutral-200 dark:border-neutral-700 grid grid-cols-12">
-            <div class="col-span-6 text-sm font-medium text-neutral-500 dark:text-neutral-400">Name</div>
-            <div class="col-span-1 text-sm font-medium text-neutral-500 dark:text-neutral-400">Size</div>
-            <div class="col-span-2 text-sm font-medium text-neutral-500 dark:text-neutral-400">Created</div>
-            <div class="col-span-2 text-sm font-medium text-neutral-500 dark:text-neutral-400">Modified</div>
-            <div class="col-span-1 text-sm font-medium text-neutral-500 dark:text-neutral-400 text-right">Actions</div>
         </div>
     </div>
 
     <!-- Scrollable Content Area -->
-    <div class="flex-1 min-h-0"> <!-- min-h-0 is important for nested flex scroll -->
-        <div id="pc-views" class="h-full overflow-y-auto scrollbar p-2">
+    <div class="flex-1 min-h-0 flex flex-col relative">
+        <div id="sticky-header-container" 
+             class="sticky top-0 z-20 bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-700 px-2 py-1 text-sm flex items-center gap-1 flex-wrap">
+            <!-- Sticky headers will be populated here by JS -->
+        </div>
+
+        <!-- Table Headers - MOVED HERE -->
+        <div id="smb-table-headers" class="sticky z-10 bg-white dark:bg-neutral-900 px-2 py-1 border-b border-neutral-200 dark:border-neutral-700 grid grid-cols-12 gap-2 text-sm font-medium text-neutral-500 dark:text-neutral-400">
+            <div class="col-span-6">Name</div>
+            <div class="col-span-1">Size</div>
+            <div class="col-span-2">Created</div>
+            <div class="col-span-2">Modified</div>
+            <div class="col-span-1 text-right">Actions</div>
+        </div>
+        
+        <div id="pc-views" class="flex-1 overflow-y-auto scrollbar p-1">
             <!-- Each PC view will be dynamically added here -->
         </div>
     </div>
 
     <!-- File Viewer Panel -->
-    <div id="file-viewer-panel" class="fixed top-0 right-0 bottom-0 w-1/2 bg-white dark:bg-neutral-900 border-l border-neutral-300 dark:border-neutral-700 shadow-2xl shadow-neutral-950/10 dark:shadow-black/50 transform transition-transform duration-300 ease-in-out translate-x-full z-50 hidden">
+    <div id="file-viewer-panel" class="fixed top-0 right-0 bottom-0 w-2/5 bg-white dark:bg-neutral-900 border-l border-neutral-300 dark:border-neutral-700 shadow-lg transform transition-transform duration-300 ease-in-out translate-x-full z-50 hidden">
         <div class="flex flex-col h-full">
             <!-- Header -->
-            <div class="flex items-center justify-between gap-2 p-4 border-b sticky top-0 bg-white dark:bg-neutral-900 z-10 border-neutral-200 dark:border-neutral-700">
+            <div class="flex items-center justify-between gap-2 p-2 border-b sticky top-0 bg-white dark:bg-neutral-900 z-10 border-neutral-200 dark:border-neutral-700">
                 <div class="flex items-center gap-2 min-w-0">
                     <i id="file-viewer-icon" class="fas fa-file-alt text-blue-500 dark:text-yellow-500"></i>
-                    <h2 id="file-viewer-title" class="text-lg font-semibold text-neutral-900 dark:text-white truncate">File Content</h2>
+                    <h2 id="file-viewer-title" class="text-base font-semibold text-neutral-900 dark:text-white truncate">File Content</h2>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button id="file-viewer-download" class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200" title="Download">
+                    <button id="file-viewer-download" class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 p-1" title="Download">
                         <i class="fas fa-download"></i>
                     </button>
-                    <button id="close-file-viewer" class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200">
+                    <button id="close-file-viewer" class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 p-1">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -100,50 +98,50 @@
             <!-- Content -->
             <div class="flex-1 overflow-auto relative">
                 <!-- Loading Spinner -->
-                <div id="file-viewer-spinner" class="hidden absolute inset-0 bg-neutral-900/50 flex items-center justify-center">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                <div id="file-viewer-spinner" class="hidden absolute inset-0 bg-neutral-900/30 dark:bg-black/50 flex items-center justify-center z-20">
+                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 dark:border-yellow-500"></div>
                 </div>
 
                 <!-- Image View -->
-                <div id="image-viewer" class="hidden h-full flex items-center justify-center p-4 bg-neutral-100 dark:bg-neutral-800">
+                <div id="image-viewer" class="hidden h-full flex items-center justify-center p-2 bg-neutral-100 dark:bg-neutral-800">
                     <img id="image-content" class="max-w-full max-h-full object-contain" alt="File preview">
                 </div>
 
                 <!-- PDF View -->
                 <div id="pdf-viewer" class="hidden h-full flex flex-col">
-                    <div class="flex items-center justify-between p-2 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
-                        <div class="flex items-center gap-2">
-                            <button id="pdf-prev" class="px-2 py-1 text-sm rounded text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700">
+                    <div class="flex items-center justify-between p-1 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm">
+                        <div class="flex items-center gap-1">
+                            <button id="pdf-prev" class="px-1.5 py-0.5 rounded text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700">
                                 <i class="fas fa-chevron-left"></i>
                             </button>
-                            <span id="pdf-page-num" class="text-sm text-neutral-600 dark:text-neutral-300">Page 1 of 1</span>
-                            <button id="pdf-next" class="px-2 py-1 text-sm rounded text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700">
+                            <span id="pdf-page-num" class="text-neutral-600 dark:text-neutral-300">Page 1 of 1</span>
+                            <button id="pdf-next" class="px-1.5 py-0.5 rounded text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700">
                                 <i class="fas fa-chevron-right"></i>
                             </button>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <button id="pdf-zoom-out" class="px-2 py-1 text-sm rounded text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700">
+                        <div class="flex items-center gap-1">
+                            <button id="pdf-zoom-out" class="px-1.5 py-0.5 rounded text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700">
                                 <i class="fas fa-search-minus"></i>
                             </button>
-                            <span id="pdf-zoom-level" class="text-sm text-neutral-600 dark:text-neutral-300">100%</span>
-                            <button id="pdf-zoom-in" class="px-2 py-1 text-sm rounded text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700">
+                            <span id="pdf-zoom-level" class="text-neutral-600 dark:text-neutral-300">100%</span>
+                            <button id="pdf-zoom-in" class="px-1.5 py-0.5 rounded text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700">
                                 <i class="fas fa-search-plus"></i>
                             </button>
                         </div>
                     </div>
-                    <div id="pdf-container" class="flex-1 overflow-auto bg-white dark:bg-neutral-800 p-4">
-                        <canvas id="pdf-canvas" class="mx-auto shadow-lg"></canvas>
+                    <div id="pdf-container" class="flex-1 overflow-auto bg-white dark:bg-neutral-800 p-2">
+                        <canvas id="pdf-canvas" class="mx-auto shadow-md"></canvas>
                     </div>
                 </div>
 
                 <!-- Text View -->
-                <div id="text-viewer" class="hidden">
-                    <pre id="text-content" class="p-4 font-mono text-sm text-neutral-900 dark:text-white whitespace-pre-wrap"></pre>
+                <div id="text-viewer" class="hidden h-full">
+                    <pre id="text-content" class="p-2 font-mono text-sm text-neutral-900 dark:text-white whitespace-pre-wrap h-full overflow-auto scrollbar"></pre>
                 </div>
             </div>
 
             <!-- Footer -->
-            <div id="file-viewer-footer" class="p-4 border-t border-neutral-200 dark:border-neutral-700">
+            <div id="file-viewer-footer" class="p-2 border-t border-neutral-200 dark:border-neutral-700">
                 <div class="flex items-center justify-between text-sm text-neutral-500 dark:text-neutral-400">
                     <span id="file-size">--</span>
                     <span id="file-type">--</span>
@@ -153,26 +151,35 @@
     </div>
 
     <!-- Downloads Panel -->
-    <div id="downloads-panel" class="fixed top-0 right-0 bottom-0 w-96 bg-white dark:bg-neutral-900 border-l border-neutral-300 dark:border-neutral-700 shadow-2xl shadow-neutral-950/10 dark:shadow-black/50 transform transition-transform duration-300 ease-in-out translate-x-full z-50 hidden">
+    <div id="downloads-panel" class="fixed top-0 right-0 bottom-0 w-80 bg-white dark:bg-neutral-900 border-l border-neutral-300 dark:border-neutral-700 shadow-lg transform transition-transform duration-300 ease-in-out translate-x-full z-50 hidden">
         <div class="flex flex-col h-full">
             <!-- Header -->
-            <div class="flex items-center justify-between gap-2 p-4 border-b sticky top-0 bg-white dark:bg-neutral-900 z-10 border-neutral-200 dark:border-neutral-700">
+            <div class="flex items-center justify-between gap-2 p-2 border-b sticky top-0 bg-white dark:bg-neutral-900 z-10 border-neutral-200 dark:border-neutral-700">
                 <div class="flex items-center gap-2">
                     <i class="fas fa-download text-blue-500 dark:text-yellow-500"></i>
-                    <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Downloads</h2>
+                    <h2 class="text-base font-semibold text-neutral-900 dark:text-white">Downloads</h2>
                 </div>
-                <button id="close-downloads-panel" class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200">
+                <button id="close-downloads-panel" class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 p-1">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
 
             <!-- Downloads List -->
-            <div class="flex-1 overflow-auto p-4 scrollbar">
-                <div id="downloads-list" class="space-y-4">
+            <div class="flex-1 overflow-auto p-2 scrollbar">
+                <div id="downloads-list" class="space-y-2">
                     <!-- Downloads will be dynamically added here -->
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="smb-context-menu" class="hidden absolute z-50 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md shadow-lg py-1 text-sm">
+        <!-- Menu items will be populated by JS -->
+        <!-- Example item structure:
+        <a href="#" class="block px-4 py-1.5 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-700">Action Name</a>
+        <div class="my-1 h-px bg-neutral-200 dark:bg-neutral-700"></div> // Separator
+        -->
     </div>
 </div>
 {% endblock %}
