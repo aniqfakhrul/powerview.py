@@ -47,11 +47,11 @@ def get_prompt(init_proto, server_dns, cur_user, nameserver, target_domain=None,
 			  f'{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}'
 			  f'{bcolors.OKBLUE}─[{bcolors.ENDC}{bcolors.OKCYAN}{server_dns}{bcolors.ENDC}{bcolors.OKBLUE}]{bcolors.ENDC}'
 			  f'{bcolors.OKBLUE}─[{bcolors.ENDC}{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}'
-			  f'{domain_indicator}'
-			  f'{cache_indicator}'
 			  f'{mcp_indicator}'
 			  f'{web_indicator}'
 			  f'{bcolors.OKBLUE} [NS:{nameserver if nameserver else "<auto>"}]{bcolors.ENDC}'
+			  f'{domain_indicator}'
+			  f'{cache_indicator}'
 			  f'\n{bcolors.OKBLUE}╰─{bcolors.BOLD}PV{bcolors.ENDC} {bcolors.OKGREEN}❯{bcolors.ENDC} ')
 	
 	return prompt
