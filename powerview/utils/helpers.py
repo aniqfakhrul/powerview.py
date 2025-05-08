@@ -11,7 +11,6 @@ from binascii import unhexlify
 import os
 import json
 import logging
-from impacket import version
 from dns import resolver
 import struct
 from ldap3.utils.conv import escape_filter_chars
@@ -24,7 +23,6 @@ import locale
 
 from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
-from impacket import version
 from impacket.dcerpc.v5 import samr, dtypes
 from impacket.examples import logger
 from impacket.examples.utils import parse_credentials, parse_target
@@ -355,6 +353,27 @@ def is_ipaddress(address):
 		return True
 	except ValueError:
 		return False
+
+def is_proxychains():
+	"""
+	Check if current process is running under proxychains
+	"""
+	try:
+		ld_preload = os.environ.get("LD_PRELOAD", "")
+		if 'proxychains' in ld_preload.lower():
+			return True
+	except Exception:
+		pass
+	
+	try:
+		with open("/proc/self/maps", "r") as f:
+			for line in f:
+				if "libproxychains" in line:
+					return True
+	except Exception:
+		pass
+	
+	return False
 
 def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_ns=True):
 	domain = str(domain)

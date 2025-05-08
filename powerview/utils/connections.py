@@ -23,7 +23,8 @@ from powerview.utils.helpers import (
 	dn2domain,
 	is_ipaddress,
 	get_principal_dc_address,
-	get_system_nameserver
+	get_system_nameserver,
+	is_proxychains
 )
 from powerview.lib.resolver import (
 	LDAP,
@@ -68,7 +69,7 @@ class CONNECTION:
 		if self.auth_aes_key is not None and self.use_kerberos is False:
 			self.use_kerberos = True
 		self.no_pass = args.no_pass
-		if args.nameserver is None and is_ipaddress(args.ldap_address):
+		if args.nameserver is None and is_ipaddress(args.ldap_address) and not is_proxychains():
 			logging.debug(f"Using {args.ldap_address} as nameserver")
 			self.nameserver = args.ldap_address
 		elif args.nameserver:
