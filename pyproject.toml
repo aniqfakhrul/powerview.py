@@ -52,3 +52,9 @@ repository = 'https://github.com/aniqfakhrul/powerview.py'
 
 [project.scripts]
 powerview = "powerview:main"
+
+[tool.setuptools.packages.find]
+include = ["powerview", "powerview.mcp", "powerview.web"]
+
+[tool.setuptools.package-data]
+"powerview.web" = ["front-end/templates/**/*", "front-end/static/css/*", "front-end/static/js/*", "front-end/static/images/*"]

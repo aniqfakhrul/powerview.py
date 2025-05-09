@@ -6,8 +6,8 @@ let contextMenuElement = null;
 document.addEventListener('DOMContentLoaded', () => {
     stickyHeaderContainerElement = document.getElementById('sticky-header-container');
     smbTableHeadersElement = document.getElementById('smb-table-headers');
-    contextMenuElement = document.getElementById('smb-context-menu'); // Get reference to context menu
-    updateStickyHeaders(); // Initialize sticky headers (which will also position table headers)
+    contextMenuElement = document.getElementById('smb-context-menu');
+    updateStickyHeaders();
 
     const connectButton = document.getElementById('smb-connect-button');
     const connectAsButton = document.getElementById('smb-connect-as-button');
@@ -15,6 +15,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const pcViews = document.getElementById('pc-views');
     const pcTabs = document.getElementById('pc-tabs');
     const computerInput = document.getElementById('smb-computer');
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const computerFromUrl = urlParams.get('computer');
+    if (computerFromUrl && computerInput) {
+        computerInput.value = computerFromUrl;
+        setTimeout(() => {
+            connectButton.click();
+        }, 500);
+    }
     
     // Keep track of connected PCs
     const connectedPCs = new Set();

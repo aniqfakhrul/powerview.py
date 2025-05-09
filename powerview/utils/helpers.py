@@ -559,6 +559,7 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 			ip = addr[0] 
 		elif len(addr) > 1 and type == str:
 			if no_prompt:
+				logging.debug(f"Multiple IPs found. Selecting first IP for {hostname}: {addr[0]}")
 				ip = addr[0] # Automatically select first IP without prompting
 			else:
 				c_key = 0
@@ -576,11 +577,13 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 						pass
 				ip = addr[c_key]
 		elif len(addr) > 1 and type == list:
+			logging.debug(f"Multiple IPs found for {hostname}: {', '.join(addr)}")
 			return addr
 		else:
 			logging.error(f"No address records found for {hostname}")
 			return None
 
+		logging.debug(f"Resolved {hostname} to {ip}")
 		return ip
 
 	except resolver.NXDOMAIN as e:
