@@ -75,7 +75,6 @@ class Storage:
         return obj
 
     def cache_results(self, search_base, search_filter, search_scope, attributes, host, results, raw=False):
-        print(host)
         """Cache LDAP query results"""
         cache_key = self._generate_cache_key(search_base, search_filter, search_scope, attributes, host, raw)
         cache_file = os.path.join(self.cache_path, f"{cache_key}.json")
@@ -89,6 +88,7 @@ class Storage:
                 'search_filter': search_filter,
                 'search_scope': search_scope,
                 'attributes': attributes,
+                'host': host,
                 'results': serialized_results
             }
 
