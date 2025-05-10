@@ -36,9 +36,9 @@ class Storage:
             logging.warning(f"[Storage] Using temporary directory for storage: {self.cache_path}")
             logging.error(f"[Storage] Original error: {e}")
 
-    def _generate_cache_key(self, search_base, search_filter, search_scope, attributes, raw=False):
+    def _generate_cache_key(self, search_base, search_filter, search_scope, attributes, host, raw=False):
         """Generate a unique cache key based on search parameters"""
-        cache_string = f"{search_base.lower()}|{search_filter.lower()}|{search_scope.lower()}|{str(sorted(attributes) if attributes else 'None')}|{raw}"
+        cache_string = f"{search_base.lower()}|{search_filter.lower()}|{search_scope.lower()}|{str(sorted(attributes) if attributes else 'None')}|{host.lower()}|{raw}"
         return hashlib.md5(cache_string.encode()).hexdigest()
 
     def _serialize_complex_types(self, obj):
@@ -74,9 +74,10 @@ class Storage:
             return [self._deserialize_complex_types(item) for item in obj]
         return obj
 
-    def cache_results(self, search_base, search_filter, search_scope, attributes, results, raw=False):
+    def cache_results(self, search_base, search_filter, search_scope, attributes, host, results, raw=False):
+        print(host)
         """Cache LDAP query results"""
-        cache_key = self._generate_cache_key(search_base, search_filter, search_scope, attributes, raw)
+        cache_key = self._generate_cache_key(search_base, search_filter, search_scope, attributes, host, raw)
         cache_file = os.path.join(self.cache_path, f"{cache_key}.json")
 
         try:
@@ -96,9 +97,9 @@ class Storage:
         except Exception as e:
             logging.error(f"Error caching results: {e}")
 
-    def get_cached_results(self, search_base, search_filter, search_scope, attributes, cache_ttl=1800, raw=False):
+    def get_cached_results(self, search_base, search_filter, search_scope, attributes, host, cache_ttl=1800, raw=False):
         """Retrieve cached LDAP query results if they exist and are not expired"""
-        cache_key = self._generate_cache_key(search_base, search_filter, search_scope, attributes, raw)
+        cache_key = self._generate_cache_key(search_base, search_filter, search_scope, attributes, host, raw)
         cache_file = os.path.join(self.cache_path, f"{cache_key}.json")
 
         try:
