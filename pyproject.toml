@@ -54,7 +54,7 @@ repository = 'https://github.com/aniqfakhrul/powerview.py'
 powerview = "powerview:main"
 
 [tool.setuptools.packages.find]
-include = ["powerview", "powerview.mcp", "powerview.web", "powerview.lib", "powerview.modules", "powerview.utils", "powerview.lib.adws", "powerview.lib.adws.core", "powerview.lib.adws.encoder", "powerview.lib.adws.extend", "powerview.lib.adws.operation", "powerview.lib.adws.templates"]
+include = ["powerview", "powerview.mcp", "powerview.web", "powerview.lib", "powerview.modules", "powerview.utils", "powerview.lib.adws", "powerview.lib.adws.core", "powerview.lib.adws.encoder", "powerview.lib.adws.encoder.records", "powerview.lib.adws.extend", "powerview.lib.adws.operation", "powerview.lib.adws.templates"]
 
 [tool.setuptools.package-data]
 "powerview.web" = ["front-end/templates/**/*", "front-end/static/css/*", "front-end/static/js/*", "front-end/static/images/*"]
