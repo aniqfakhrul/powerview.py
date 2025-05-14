@@ -1676,6 +1676,10 @@ async function openSearchPanel(computer, share, path = '') {
     const searchHostSelect = document.getElementById('search-host');
     const searchPathInput = document.getElementById('search-path');
     
+    // Hide export button
+    const exportCsvButton = document.getElementById('export-search-csv');
+    exportCsvButton.classList.add('hidden');
+    
     // Populate the host dropdown
     await populateHostDropdown(searchHostSelect, computer);
     
@@ -1733,6 +1737,75 @@ async function populateHostDropdown(selectElement, selectedComputer) {
     }
 }
 
+function convertToCSV(searchResults, searchInfo) {
+    // Create headers
+    const headers = ['Name', 'Path', 'Share', 'Computer', 'Type', 'Size', 'Match Type', 'Content Match'];
+    let csv = headers.join(',') + '\n';
+    
+    // Add search info as comment in first line
+    const searchMode = searchInfo.search_mode || 'pattern';
+    const searchPattern = searchInfo.pattern || '';
+    const caseInfo = searchInfo.case_sensitive ? 'case-sensitive' : 'case-insensitive';
+    csv = `# Search: ${searchPattern}, Mode: ${searchMode}, ${caseInfo}, Host: ${searchInfo.host}, Share: ${searchInfo.share}\n` + csv;
+    
+    // Process each result item
+    searchResults.forEach(item => {
+        const type = item.is_directory ? 'Directory' : 'File';
+        const size = item.size || 0;
+        const matchType = item.match_type || 'name';
+        // Escape any commas or quotes in content match
+        let contentMatch = (item.content_match || '').replace(/"/g, '""');
+        contentMatch = contentMatch ? `"${contentMatch}"` : '';
+        
+        // Escape any commas or quotes in name & path
+        const safeName = item.name.includes(',') ? `"${item.name}"` : item.name;
+        const safePath = item.path.includes(',') ? `"${item.path}"` : item.path;
+        
+        const row = [
+            safeName,
+            safePath,
+            item.share,
+            searchInfo.host,
+            type,
+            size,
+            matchType,
+            contentMatch
+        ];
+        
+        csv += row.join(',') + '\n';
+    });
+    
+    return csv;
+}
+
+function exportSearchResultsToCSV(items, searchInfo) {
+    if (!items || items.length === 0) return;
+    
+    // Convert the search results to CSV
+    const csv = convertToCSV(items, searchInfo);
+    
+    // Create a Blob and generate download link
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `smb_search_${searchInfo.host}_${searchInfo.share}_${timestamp}.csv`;
+    
+    // Create download link and trigger click
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    showSuccessAlert(`Exported ${items.length} results to ${filename}`);
+}
+
 async function performSearch() {
     const searchPanel = document.getElementById('search-panel');
     const searchResults = document.getElementById('search-results');
@@ -1740,6 +1813,10 @@ async function performSearch() {
     const searchQuery = document.getElementById('search-query').value;
     const searchHostSelect = document.getElementById('search-host');
     const searchPathInput = document.getElementById('search-path').value;
+    const exportCsvButton = document.getElementById('export-search-csv');
+    
+    // Hide export button until we have results
+    exportCsvButton.classList.add('hidden');
     
     // Get the selected host
     const computer = searchHostSelect.value;
@@ -1815,6 +1892,9 @@ async function performSearch() {
         
         const result = await response.json();
         
+        // Store search results for CSV export
+        window.lastSearchResults = result;
+        
         // Display search results
         const searchMode = result.search_info.search_mode || 'pattern';
         const totalItems = result.total;
@@ -1826,6 +1906,13 @@ async function performSearch() {
                 <div class="text-xs mt-1">Mode: ${searchMode}, Paths searched: ${result.search_info.paths_searched}, Errors: ${result.search_info.error_paths}</div>
             </div>
         `;
+        
+        // Show export button if we have results
+        if (totalItems > 0) {
+            exportCsvButton.classList.remove('hidden');
+        } else {
+            exportCsvButton.classList.add('hidden');
+        }
         
         if (totalItems === 0) {
             searchResults.innerHTML = '<div class="p-4 text-center text-neutral-500 dark:text-neutral-400">No results found</div>';
@@ -1900,8 +1987,29 @@ async function performSearch() {
     } catch (error) {
         console.error('Search error:', error);
         searchStatus.innerHTML = `<div class="text-red-500 font-medium">Search failed: ${error.message}</div>`;
+        exportCsvButton.classList.add('hidden');
     }
 }
+
+// Add event listener for the export button
+document.addEventListener('DOMContentLoaded', () => {
+    // ... existing code ...
+    
+    // Export CSV button
+    const exportCsvButton = document.getElementById('export-search-csv');
+    if (exportCsvButton) {
+        exportCsvButton.addEventListener('click', () => {
+            if (window.lastSearchResults) {
+                exportSearchResultsToCSV(
+                    window.lastSearchResults.items, 
+                    window.lastSearchResults.search_info
+                );
+            } else {
+                showErrorAlert('No search results to export');
+            }
+        });
+    }
+});
 
 function attachSearchResultListeners() {
     const searchPanel = document.getElementById('search-panel');
