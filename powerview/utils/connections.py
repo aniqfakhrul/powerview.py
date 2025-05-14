@@ -19,11 +19,13 @@ from impacket.dcerpc.v5.dcom.wmi import DCERPCSessionError
 from powerview.utils.helpers import (
 	get_machine_name,
 	host2ip,
+	ip2host,
 	is_valid_fqdn,
 	dn2domain,
 	is_ipaddress,
 	get_principal_dc_address,
-	get_system_nameserver
+	get_system_nameserver,
+	is_proxychains
 )
 from powerview.lib.resolver import (
 	LDAP,
@@ -65,10 +67,16 @@ class CONNECTION:
 		self.port = args.port
 		self.hashes = args.hashes
 		self.auth_aes_key = args.auth_aes_key
-		if self.auth_aes_key is not None:
+		if self.auth_aes_key is not None and self.use_kerberos is False:
 			self.use_kerberos = True
 		self.no_pass = args.no_pass
-		self.nameserver = args.nameserver
+		if args.nameserver is None and is_ipaddress(args.ldap_address) and not is_proxychains():
+			logging.debug(f"Using {args.ldap_address} as nameserver")
+			self.nameserver = args.ldap_address
+		elif args.nameserver and is_ipaddress(args.nameserver):
+			self.nameserver = args.nameserver
+		else:
+			self.nameserver = None
 		self.use_system_ns = args.use_system_ns
 		self.stack_trace = args.stack_trace
 
@@ -330,9 +338,9 @@ class CONNECTION:
 			raise ValueError(f"Invalid protocol: {proto}")
 
 	def get_nameserver(self):
-		if not self.nameserver and not self.use_system_ns:
+		if self.use_system_ns:
 			return get_system_nameserver()
-		return self.nameserver or self.use_system_ns
+		return self.nameserver
 
 	def set_nameserver(self, nameserver):
 		self.nameserver = nameserver
@@ -449,8 +457,11 @@ class CONNECTION:
 				else:
 					target = self.ldap_address
 			except Exception as e:
-				logging.warning(f"Failed to get computer hostname. The domain probably does not support NTLM authentication. Skipping...")
-				target = self.ldap_address
+				logging.debug("Performing reverse DNS lookup")
+				target = ip2host(self.ldap_address, nameserver=self.nameserver, timeout=5)
+				if not target:
+					logging.warning(f"Failed to get computer hostname. The domain probably does not support NTLM authentication. Skipping...")
+					target = self.ldap_address
 
 			if not is_valid_fqdn(target):
 				logging.error("Keberos authentication requires FQDN instead of IP")

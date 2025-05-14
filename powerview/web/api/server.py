@@ -109,6 +109,8 @@ class APIServer:
 		add_route_with_auth('/api/clear-cache', 'clear_cache', self.handle_clear_cache, methods=['GET'])
 		add_route_with_auth('/api/settings', 'settings', self.handle_settings, methods=['GET'])
 		add_route_with_auth('/api/smb/connect', 'smb_connect', self.handle_smb_connect, methods=['POST'])
+		add_route_with_auth('/api/smb/reconnect', 'smb_reconnect', self.handle_smb_reconnect, methods=['POST'])
+		add_route_with_auth('/api/smb/disconnect', 'smb_disconnect', self.handle_smb_disconnect, methods=['POST'])
 		add_route_with_auth('/api/smb/shares', 'smb_shares', self.handle_smb_shares, methods=['POST'])
 		add_route_with_auth('/api/smb/ls', 'smb_ls', self.handle_smb_ls, methods=['POST'])
 		add_route_with_auth('/api/smb/get', 'smb_get', self.handle_smb_get, methods=['POST'])
@@ -529,7 +531,7 @@ class APIServer:
 			else:
 				if is_fqdn:
 					host = host2ip(host, self.powerview.nameserver, 3, True, 
-												use_system_ns=self.powerview.use_system_nameserver)
+												use_system_ns=self.powerview.use_system_nameserver, no_prompt=True)
 
 			if not host:
 				return jsonify({'error': 'Host not found'}), 404
@@ -557,6 +559,51 @@ class APIServer:
 
 		except Exception as e:
 			logging.error(f"SMB Connect Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_reconnect(self):
+		try:
+			data = request.json
+			computer = data.get('computer').lower()
+			
+			if not computer:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			logging.debug(f"SMB Reconnect: Attempting to reconnect to {computer}")
+			client = self.powerview.conn.smb_sessions[computer]
+			if client.reconnect():
+				logging.debug(f"SMB Reconnect: Successfully reconnected to {computer}")
+				self.powerview.conn.smb_sessions[computer] = client
+				return jsonify({'status': 'reconnected'})
+			else:
+				logging.error(f"SMB Reconnect: Failed to reconnect to {computer}")
+				del self.powerview.conn.smb_sessions[computer]
+				return jsonify({'error': 'Failed to reconnect'}), 500
+		except Exception as e:
+			logging.error(f"SMB Reconnect Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_disconnect(self):
+		try:
+			data = request.json
+			computer = data.get('computer').lower()
+			
+			if not computer:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+				
+			client = self.powerview.conn.smb_sessions[computer]
+			client.close()
+			del self.powerview.conn.smb_sessions[computer]
+
+			return jsonify({'status': 'disconnected'})
+		except Exception as e:
+			logging.error(f"SMB Disconnect Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500
 
 	def handle_smb_shares(self):
@@ -700,9 +747,19 @@ class APIServer:
 			file.save(temp_path)
 			
 			try:
-				# Upload file to SMB share
-				upload_path = os.path.join(current_path, file.filename).replace('/', '\\')
-				smb_client.put(share, temp_path)
+				# Construct the remote path correctly
+				# current_path might be like "/FolderA" or "" for root
+				# file.filename is the original filename
+				clean_dest_dir = current_path.strip('/').replace('/', '\\')
+				remote_target_path = os.path.join(clean_dest_dir, file.filename).replace('/', '\\')
+				
+				logging.debug(f"[SMB PUT] Uploading {temp_path} to share '{share}', path: '{remote_target_path}'")
+				
+				# Reverting to the 3-argument call based on [Errno 2] indicating the path was likely accessed
+				# without the correct share context.
+				# Assumed signature: put(self, share_name, remote_path_in_share, local_path)
+				smb_client.put(share, remote_target_path, temp_path)
+				
 				return jsonify({'message': 'File uploaded successfully'})
 			finally:
 				# Clean up temporary file

@@ -41,18 +41,24 @@ class SMBClient:
         finally:
             fh.close()
 
-    def put(self, share, path):
+    def put(self, share, remote_path, local_path):
         if self.client is None:
             logging.error("[SMBClient: put] Not logged in")
             return
         
-        src_path = path
-        dst_name = os.path.basename(src_path)
-        
-        fh = open(src_path, 'rb')
-        finalpath = ntpath.normpath(dst_name)
-        self.client.putFile(share, finalpath, fh.read)
-        fh.close()
+        try:
+            with open(local_path, 'rb') as fh:
+                # Normalize the remote path for the target OS (Windows)
+                normalized_remote_path = remote_path.replace('/', '\\')
+                final_remote_path = ntpath.normpath(normalized_remote_path)
+                logging.debug(f"[SMBClient: put] Uploading local '{local_path}' to share '{share}' path '{final_remote_path}'")
+                self.client.putFile(share, final_remote_path, fh.read)
+        except FileNotFoundError:
+            logging.error(f"[SMBClient: put] Local file not found: {local_path}")
+            raise Exception(f"Local file not found: {local_path}")
+        except Exception as e:
+            logging.error(f"[SMBClient: put] Error during upload to {share}\\{remote_path}: {e}")
+            raise e
 
     def cat(self, share, path):
         if self.client is None:

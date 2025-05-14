@@ -69,7 +69,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 
 		try:
 			if not no_cache:
-				cached_results = self.storage.get_cached_results(search_base, search_filter, search_scope, attributes, raw=raw)
+				cached_results = self.storage.get_cached_results(search_base, search_filter, search_scope, attributes, host=self.server.host, raw=raw)
 				if cached_results is not None:
 					logging.debug("[CustomStandardExtendedOperations] Returning cached results for query")
 					
@@ -167,7 +167,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 						if 'attributes' in entry and 'from_cache' in entry['attributes']:
 							del entry['attributes']['from_cache']
 					
-					self.storage.cache_results(search_base, search_filter, search_scope, attributes, filtered_results, raw=raw)
+					self.storage.cache_results(search_base, search_filter, search_scope, attributes, host=self.server.host, results=filtered_results, raw=raw)
 				return filtered_results
 			else:
 				if self.use_adws:
@@ -214,7 +214,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 						if 'attributes' in entry and 'from_cache' in entry['attributes']:
 							del entry['attributes']['from_cache']
 					
-					self.storage.cache_results(search_base, search_filter, search_scope, attributes, filtered_results, raw=raw)
+					self.storage.cache_results(search_base, search_filter, search_scope, attributes, host=self.server.host, results=filtered_results, raw=raw)
 				return filtered_results
 		finally:
 			# Restore the original formatter

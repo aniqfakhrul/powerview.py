@@ -1,0 +1,4 @@
+graft powerview/web
+prune powerview/web/.git
+prune powerview/web/*/__pycache__
+prune powerview/web/*/*/__pycache__ 

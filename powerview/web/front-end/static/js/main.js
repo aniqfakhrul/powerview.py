@@ -1254,13 +1254,6 @@ function handleAddNewAttribute(identity) {
     });
 }
 
-// Add a success alert function if you don't have one
-function showSuccessAlert(message) {
-    // Implementation depends on your alert system
-    console.log('Success:', message);
-    // Example: You might want to show a toast notification or some other UI feedback
-}
-
 async function fetchConstants(constantType) {
     try {
         showLoadingIndicator();
@@ -2970,143 +2963,75 @@ function getFileIcon(fileName, isDirectory) {
     if (isDirectory) {
         return {
             icon: icons.folderIcon,
-            iconClass: '',
+            iconClass: '', // Folders typically don't need specific coloring here
             isCustomSvg: true
         };
     }
 
     const fileExt = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
-    
-    // Check for executable file extensions
-    const executableExtensions = ['.exe', '.msi', '.bat', '.cmd', '.com', '.scr'];
-    if (executableExtensions.includes(fileExt)) {
-        return {
-            icon: icons.executableIcon,
-            iconClass: '',
-            isCustomSvg: true
-        };
-    }
-
-    // Check for Excel file extensions
-    const excelExtensions = ['.xlsx', '.xls', '.xlsm', '.xlsb', '.xltx', '.xltm', '.xlt', '.csv'];
-    if (excelExtensions.includes(fileExt)) {
-        return {
-            icon: icons.xlsxIcon,
-            iconClass: '',
-            isCustomSvg: true
-        };
-    }
-
-    // Check for registry file extensions
-    const registryExtensions = ['.reg', '.regx'];
-    if (registryExtensions.includes(fileExt)) {
-        return {
-            icon: icons.registryIcon,
-            iconClass: '',
-            isCustomSvg: true
-        };
-    }
-
-    // Check for Word file extensions
-    const wordExtensions = ['.docx', '.doc', '.docm', '.dotx', '.dotm', '.dot'];
-    if (wordExtensions.includes(fileExt)) {
-        return {
-            icon: icons.docxIcon,
-            iconClass: '',
-            isCustomSvg: true
-        };
-    }
-
-    // Check for Text file extensions
-    const textExtensions = ['.txt', '.log', '.ini', '.cfg', '.conf', '.text', '.md'];
-    if (textExtensions.includes(fileExt)) {
-        return {
-            icon: icons.txtIcon,
-            iconClass: '',
-            isCustomSvg: true
-        };
-    }
-
-    // Check for DLL file extensions
-    const dllExtensions = ['.dll', '.sys', '.drv', '.ocx'];
-    if (dllExtensions.includes(fileExt)) {
-        return {
-            icon: icons.dllIcon,
-            iconClass: '',
-            isCustomSvg: true
-        };
-    }
-
-    // Check for Outlook file extensions
-    const outlookExtensions = ['.pst', '.ost', '.msg', '.eml', '.nst', '.oft'];
-    if (outlookExtensions.includes(fileExt)) {
-        return {
-            icon: icons.outlookIcon,
-            iconClass: '',
-            isCustomSvg: true
-        };
-    }
-
-    // Check for PowerPoint file extensions
-    const powerpointExtensions = ['.ppt', '.pptx', '.pptm', '.potx', '.potm', '.ppsx', '.ppsm'];
-    if (powerpointExtensions.includes(fileExt)) {
-        return {
-            icon: icons.powerpointIcon,
-            iconClass: '',
-            isCustomSvg: true
-        };
-    }
-
-    // Check for Compressed file extensions
-    const compressedExtensions = ['.zip', '.rar', '.7z', '.gz', '.tar', '.bz2', '.xz', '.cab'];
-    if (compressedExtensions.includes(fileExt)) {
-        return {
-            icon: icons.zipIcon,
-            iconClass: '',
-            isCustomSvg: true
-        };
-    }
-
-    // Check for PDF file extension
-    if (fileExt === '.pdf') {
-        return {
-            icon: icons.pdfIcon,
-            iconClass: '',
-            isCustomSvg: true
-        };
-    }
-
-    // Add certificate file extensions check (before other checks)
-    const certificateExtensions = ['.pfx', '.p12', '.der', '.cer', '.crt', '.p7b', '.p7c', '.pem', '.key'];
-    if (certificateExtensions.includes(fileExt)) {
-        return {
-            icon: icons.certIcon,
-            iconClass: '',
-            isCustomSvg: true
-        };
-    }
-
-    // Check for jpg file extension
-    if (fileExt === '.jpg') {
-        return {
-            icon: icons.jpgIcon,
-            iconClass: '',
-            isCustomSvg: true
-        };
-    }
-
-    // Check for png file extension
-    if (fileExt === '.png') {
-        return {
-            icon: icons.pngIcon,
-            iconClass: '',
-            isCustomSvg: true
-        };
-    }
-
-    return {
+    let details = {
         icon: icons.unknownFileIcon,
-        iconClass: 'text-neutral-400',
+        iconClass: 'text-neutral-500 dark:text-neutral-400', // Default color
         isCustomSvg: true
     };
+
+    // Group extensions by type for easier color assignment
+    const executableExtensions = ['.exe', '.msi', '.bat', '.cmd', '.com', '.scr'];
+    const scriptExtensions = ['.ps1', '.sh', '.py', '.js', '.vbs', '.vba']; // Added
+    const excelExtensions = ['.xlsx', '.xls', '.xlsm', '.xlsb', '.xltx', '.xltm', '.xlt', '.csv'];
+    const registryExtensions = ['.reg', '.regx'];
+    const wordExtensions = ['.docx', '.doc', '.docm', '.dotx', '.dotm', '.dot'];
+    const textExtensions = ['.txt', '.log', '.ini', '.cfg', '.conf', '.text', '.md', '.yaml', '.yml', '.json', '.xml']; // Added more
+    const dllExtensions = ['.dll', '.sys', '.drv', '.ocx', '.so', '.dylib']; // Added more system libs
+    const outlookExtensions = ['.pst', '.ost', '.msg', '.eml', '.nst', '.oft'];
+    const powerpointExtensions = ['.ppt', '.pptx', '.pptm', '.potx', '.potm', '.ppsx', '.ppsm'];
+    const compressedExtensions = ['.zip', '.rar', '.7z', '.gz', '.tar', '.bz2', '.xz', '.cab'];
+    const pdfExtensions = ['.pdf'];
+    const certificateExtensions = ['.pfx', '.p12', '.der', '.cer', '.crt', '.p7b', '.p7c', '.pem', '.key'];
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.tif', '.tiff', '.ico']; // Added more
+    const audioExtensions = ['.mp3', '.wav', '.ogg', '.aac', '.flac', '.m4a']; // Added
+    const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.wmv']; // Added
+    const diskImageExtensions = ['.iso', '.img', '.vhd', '.vhdx']; // Added
+
+    if (executableExtensions.includes(fileExt)) {
+        details = { icon: icons.executableIcon, iconClass: 'text-red-500 dark:text-red-400', isCustomSvg: true };
+    } else if (scriptExtensions.includes(fileExt)) {
+        // Using txtIcon as a stand-in for generic code/script icon, color it differently
+        details = { icon: icons.txtIcon, iconClass: 'text-blue-500 dark:text-blue-400', isCustomSvg: true }; 
+    } else if (excelExtensions.includes(fileExt)) {
+        details = { icon: icons.xlsxIcon, iconClass: 'text-green-600 dark:text-green-500', isCustomSvg: true };
+    } else if (registryExtensions.includes(fileExt)) {
+        details = { icon: icons.registryIcon, iconClass: 'text-cyan-600 dark:text-cyan-500', isCustomSvg: true };
+    } else if (wordExtensions.includes(fileExt)) {
+        details = { icon: icons.docxIcon, iconClass: 'text-blue-600 dark:text-blue-500', isCustomSvg: true };
+    } else if (textExtensions.includes(fileExt)) {
+        details = { icon: icons.txtIcon, iconClass: 'text-gray-600 dark:text-gray-400', isCustomSvg: true };
+    } else if (dllExtensions.includes(fileExt)) {
+        details = { icon: icons.dllIcon, iconClass: 'text-teal-500 dark:text-teal-400', isCustomSvg: true };
+    } else if (outlookExtensions.includes(fileExt)) {
+        details = { icon: icons.outlookIcon, iconClass: 'text-sky-600 dark:text-sky-500', isCustomSvg: true };
+    } else if (powerpointExtensions.includes(fileExt)) {
+        details = { icon: icons.powerpointIcon, iconClass: 'text-orange-600 dark:text-orange-500', isCustomSvg: true };
+    } else if (compressedExtensions.includes(fileExt)) {
+        details = { icon: icons.zipIcon, iconClass: 'text-amber-600 dark:text-amber-500', isCustomSvg: true };
+    } else if (pdfExtensions.includes(fileExt)) {
+        details = { icon: icons.pdfIcon, iconClass: 'text-red-700 dark:text-red-600', isCustomSvg: true };
+    } else if (certificateExtensions.includes(fileExt)) {
+        details = { icon: icons.certIcon, iconClass: 'text-lime-600 dark:text-lime-500', isCustomSvg: true };
+    } else if (imageExtensions.includes(fileExt)) {
+        // Using jpg/png icons as representative image icons
+        details = { icon: (fileExt === '.png' ? icons.pngIcon : icons.jpgIcon), iconClass: 'text-purple-500 dark:text-purple-400', isCustomSvg: true };
+    } else if (audioExtensions.includes(fileExt)) {
+        // Using a default file icon, colored differently
+        details = { icon: icons.unknownFileIcon, iconClass: 'text-pink-500 dark:text-pink-400', isCustomSvg: true }; 
+    } else if (videoExtensions.includes(fileExt)) {
+        // Using a default file icon, colored differently
+        details = { icon: icons.unknownFileIcon, iconClass: 'text-indigo-500 dark:text-indigo-400', isCustomSvg: true }; 
+    } else if (diskImageExtensions.includes(fileExt)) {
+         // Using zipIcon as a stand-in, colored differently
+        details = { icon: icons.zipIcon, iconClass: 'text-blue-400 dark:text-blue-300', isCustomSvg: true }; 
+    }
+    // Default case is handled by the initial `details` declaration
+
+    return details;
 }

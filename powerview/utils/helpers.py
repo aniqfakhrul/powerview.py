@@ -11,7 +11,6 @@ from binascii import unhexlify
 import os
 import json
 import logging
-from impacket import version
 from dns import resolver
 import struct
 from ldap3.utils.conv import escape_filter_chars
@@ -24,7 +23,6 @@ import locale
 
 from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
-from impacket import version
 from impacket.dcerpc.v5 import samr, dtypes
 from impacket.examples import logger
 from impacket.examples.utils import parse_credentials, parse_target
@@ -279,7 +277,7 @@ def ini_to_dict(obj):
 		if re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', t.get('dummy_section', k)):
 			d['value'] = t.get('dummy_section', k)
 		else:
-			d['value'] = t.getlist('dummy_section', k)
+			d['value'] = [i.strip() for i in t.get('dummy_section', k).split(",")]
 	return d
 
 def read_file(path, mode="r"):
@@ -356,19 +354,40 @@ def is_ipaddress(address):
 	except ValueError:
 		return False
 
+def is_proxychains():
+	"""
+	Check if current process is running under proxychains
+	"""
+	try:
+		ld_preload = os.environ.get("LD_PRELOAD", "")
+		if 'proxychains' in ld_preload.lower():
+			return True
+	except Exception:
+		pass
+	
+	try:
+		with open("/proc/self/maps", "r") as f:
+			for line in f:
+				if "libproxychains" in line:
+					return True
+	except Exception:
+		pass
+	
+	return False
+
 def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_ns=True):
 	domain = str(domain)
 	if domain in list(STORED_ADDR.keys()):
 		return STORED_ADDR[domain]
 
 	dnsresolver = None
-	if nameserver:
+	if use_system_ns:
+		logging.debug(f"Using host's resolver to find domain controller for {domain}")
+		dnsresolver = resolver.Resolver()
+	elif nameserver:
 		logging.debug(f"Querying domain controller for {domain} from DNS server {nameserver}")
 		dnsresolver = resolver.Resolver(configure=False)
 		dnsresolver.nameservers = [nameserver]
-	elif use_system_ns:
-		logging.debug(f"Using host's resolver to find domain controller for {domain}")
-		dnsresolver = resolver.Resolver()
 	else:
 		logging.debug(f"Proxy-compatible mode: Returning domain '{domain}' without DC resolution")
 		return domain
@@ -494,7 +513,7 @@ def get_user_info(samname, ldap_session, domain_dumper):
 def get_system_nameserver():
 	return resolver.get_default_resolver().nameservers[0]
 
-def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_ns=True, type=str):
+def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_ns=True, type=str, no_prompt=False):
 	"""
 	Resolve hostname to IP address with flexible resolution options.
 	
@@ -505,23 +524,23 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 		dns_tcp: Whether to use TCP for DNS queries
 		use_system_ns: Whether to use system nameservers if no nameserver provided
 		type: Return type (str for single IP, list for multiple IPs)
-		
-	Special behaviors:
-		- When nameserver=None and use_system_ns=False: Returns hostname without 
-		  resolution (proxy-compatible mode for use with proxychains)
+		no_prompt: If True, automatically select first IP without prompting
 	"""
+	if is_ipaddress(hostname):
+		return hostname
+
 	hostname = str(hostname)
 	if hostname in list(STORED_ADDR.keys()):
 		return STORED_ADDR[hostname]
 
 	dnsresolver = None
-	if nameserver:
+	if use_system_ns:
+		logging.debug(f"Using host's resolver to resolve {hostname}")
+		dnsresolver = resolver.Resolver()
+	elif nameserver:
 		logging.debug(f"Querying {hostname} from DNS server {nameserver}")
 		dnsresolver = resolver.Resolver(configure=False)
 		dnsresolver.nameservers = [nameserver]
-	elif use_system_ns:
-		logging.debug(f"Using host's resolver to resolve {hostname}")
-		dnsresolver = resolver.Resolver()
 	else:
 		logging.debug(f"Proxy-compatible mode: Returning hostname '{hostname}' without resolution")
 		return hostname
@@ -539,26 +558,32 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 			STORED_ADDR[hostname] = addr[0]
 			ip = addr[0] 
 		elif len(addr) > 1 and type == str:
-			c_key = 0
-			logging.info('We have more than one ip. Please choose one that is reachable')
-			cnt = 0
-			for name in addr:
-				print(f"{cnt}: {name}")
-				cnt += 1
-			while True:
-				try:
-					c_key = int(input(">>> Your choice: "))
-					if c_key in range(len(addr)):
-						break
-				except Exception:
-					pass
-			ip = addr[c_key]
+			if no_prompt:
+				logging.debug(f"Multiple IPs found. Selecting first IP for {hostname}: {addr[0]}")
+				ip = addr[0] # Automatically select first IP without prompting
+			else:
+				c_key = 0
+				logging.info('We have more than one ip. Please choose one that is reachable')
+				cnt = 0
+				for name in addr:
+					print(f"{cnt}: {name}")
+					cnt += 1
+				while True:
+					try:
+						c_key = int(input(">>> Your choice: "))
+						if c_key in range(len(addr)):
+							break
+					except Exception:
+						pass
+				ip = addr[c_key]
 		elif len(addr) > 1 and type == list:
+			logging.debug(f"Multiple IPs found for {hostname}: {', '.join(addr)}")
 			return addr
 		else:
 			logging.error(f"No address records found for {hostname}")
 			return None
 
+		logging.debug(f"Resolved {hostname} to {ip}")
 		return ip
 
 	except resolver.NXDOMAIN as e:
@@ -569,6 +594,31 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 		return None
 	except dns.resolver.NoNameservers as e:
 		logging.debug(str(e))
+		return None
+
+def ip2host(ip, nameserver=None, timeout=5):
+	"""
+	Perform reverse DNS lookup on an IP using a specific DNS server.
+
+	Parameters:
+		ip (str): The IP address to reverse-resolve.
+		nameserver (str): Optional DNS server to query (e.g., a Domain Controller).
+		timeout (int): Query timeout in seconds.
+
+	Returns:
+		str or None: The resolved hostname, or None if lookup fails.
+	"""
+	try:
+		rev_name = dns.reversename.from_address(ip)
+		res = dns.resolver.Resolver()
+		if nameserver:
+			res.nameservers = [nameserver]
+			res.configure = False
+		res.lifetime = timeout
+		answer = res.resolve(rev_name, "PTR")
+		return str(answer[0]).rstrip('.')
+	except Exception as e:
+		logging.debug(f"Reverse DNS lookup failed for {ip}: {e}")
 		return None
 
 def get_dc_host(ldap_session, domain_dumper, options):

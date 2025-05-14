@@ -312,7 +312,11 @@ class VulnerabilityDetector:
                             "Windows Vista",
                             "Windows 7",
                             "Windows 8",
-                            "Windows 8.1"
+                            "Windows 8.1",
+                            "Windows Server 2008",
+                            "Windows Server 2008 R2",
+                            "Windows Server 2012",
+                            "Windows Server 2012 R2"
                         ]
                     }
                 ],
@@ -833,35 +837,6 @@ class VulnerabilityDetector:
                 "id": "VULN-039",
                 "rule_operator": "AND"
             },
-            "forest_trust_sid_filtering_disabled": {
-                "description": "Forest trust with SID filtering disabled (potential cross-forest attack vector)",
-                "rules": [
-                    {
-                        "attribute": "objectClass",
-                        "condition": "contains",
-                        "value": "trustedDomain"
-                    },
-                    {
-                        "attribute": "trustType", 
-                        "condition": "equals",
-                        "value": 2  # TRUST_TYPE_UPLEVEL (used for forest trusts)
-                    },
-                    {
-                        "attribute": "trustAttributes",
-                        "condition": "has_flag",
-                        "value": 0x00000008  # TRUST_ATTRIBUTE_TREAT_AS_EXTERNAL
-                    },
-                    {
-                        "attribute": "trustAttributes",
-                        "condition": "missing_flag",
-                        "value": 0x00000004  # TRUST_ATTRIBUTE_NO_TGT_DELEGATION (SID filtering enabled flag)
-                    }
-                ],
-                "exclusions": [],
-                "severity": "critical",
-                "id": "VULN-044",
-                "rule_operator": "AND"
-            },
             "user_password_not_required_and_enabled": {
                 "description": "User with PASSWORD_NOT_REQUIRED flag set and account enabled",
                 "rules": [
@@ -957,8 +932,27 @@ class VulnerabilityDetector:
                 "severity": "high",
                 "id": "VULN-043",
                 "rule_operator": "AND"
+            },
+            "sid_history_enabled": {
+                "description": "Domain with SID history enabled",
+                "rules": [
+                    {
+                        "attribute": "objectClass",
+                        "condition": "contains",
+                        "value": "trustedDomain"
+                    },
+                    {
+                        "attribute": "trustAttributes",
+                        "condition": "contains",
+                        "value": "TREAT_AS_EXTERNAL"
+                    }
+                ],
+                "exclusions": [],
+                "severity": "high",
+                "id": "VULN-044",
+                "rule_operator": "AND"
             }
-        }
+        }  
     
     def detect_vulnerabilities(self, entry):
         """Detect vulnerabilities in an LDAP entry based on loaded rules"""

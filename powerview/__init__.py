@@ -65,11 +65,11 @@ def main():
                 server_ip = conn.get_ldap_address()
                 temp_powerview = None
                 cur_user = conn.who_am_i() if not is_admin else "%s%s%s" % (bcolors.WARNING, conn.who_am_i(), bcolors.ENDC)
-
+                nameserver = conn.get_nameserver()
                 if args.query:
                     cmd = args.query
                 else:
-                    cmd = input(get_prompt(init_proto, server_dns, cur_user, current_target_domain, using_cache, mcp_running=mcp_running, web_running=web_running))
+                    cmd = input(get_prompt(init_proto, server_dns, cur_user, nameserver, current_target_domain, using_cache, mcp_running=mcp_running, web_running=web_running))
 
                 if cmd:
                     try:
@@ -85,7 +85,6 @@ def main():
 
                     if pv_args:
                         if pv_args.server and pv_args.server.casefold() != args.domain.casefold():
-                            # Update current target domain for display in prompt
                             current_target_domain = pv_args.server
                             
                             if pv_args.server in domain_connections:
@@ -599,13 +598,10 @@ def main():
                                 else:
                                     logging.error('-Identity and -Members flags required')
                             elif pv_args.module.casefold() == 'set-domainobject' or pv_args.module.casefold() == 'set-adobject':
-                                if pv_args.identity and (pv_args.clear or pv_args.set or pv_args.append):
-                                    if temp_powerview:
-                                        succeed = temp_powerview.set_domainobject(pv_args.identity, args=pv_args)
-                                    else:
-                                        succeed = powerview.set_domainobject(pv_args.identity, args=pv_args)
+                                if temp_powerview:
+                                    succeed = temp_powerview.set_domainobject(pv_args.identity, args=pv_args)
                                 else:
-                                    logging.error('-Identity and [-Clear][-Set][-Append] flags required')
+                                    succeed = powerview.set_domainobject(pv_args.identity, args=pv_args)
                             elif pv_args.module.casefold() == 'set-domainobjectdn' or pv_args.module.casefold() == 'set-adobjectdn':
                                 if pv_args.identity and pv_args.destination_dn:
                                     if temp_powerview:

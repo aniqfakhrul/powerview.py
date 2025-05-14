@@ -843,6 +843,7 @@ def powerview_arg_parse(cmd):
 	#trust
 	get_domaintrust_parser = subparsers.add_parser('Get-DomainTrust', aliases=['Get-NetTrust'], exit_on_error=False)
 	get_domaintrust_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domaintrust_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
 	get_domaintrust_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	get_domaintrust_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaintrust_parser.add_argument('-Server', action='store', dest='server')
@@ -1000,9 +1001,10 @@ def powerview_arg_parse(cmd):
 
 	# set domain object properties
 	set_domainobject_parser = subparsers.add_parser('Set-DomainObject', aliases=['Set-ADObject'], exit_on_error=False)
-	set_domainobject_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
-	set_domainobject_group = set_domainobject_parser.add_mutually_exclusive_group()
+	set_domainobject_parser.add_argument('-Identity', action='store', dest='identity', required=True, type=lambda value: escape_filter_chars_except_asterisk(value))
+	set_domainobject_group = set_domainobject_parser.add_mutually_exclusive_group(required=True)
 	set_domainobject_group.add_argument('-Set', dest='set')
+	set_domainobject_group.add_argument('-Remove', dest='remove')
 	set_domainobject_group.add_argument('-Append', dest='append')
 	set_domainobject_group.add_argument('-Clear',action='store', dest='clear')
 	set_domainobject_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))

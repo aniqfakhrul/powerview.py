@@ -303,6 +303,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 actionTd.appendChild(deleteButton);
 
+                // Add Connect to SMB button
+                const connectSmbButton = document.createElement('button');
+                connectSmbButton.className = 'text-blue-600 hover:text-blue-700 dark:text-blue-500 dark:hover:text-blue-400 p-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors ml-2';
+                connectSmbButton.innerHTML = '<i class="fas fa-share-nodes"></i>';
+                connectSmbButton.title = 'Connect to SMB';
+                connectSmbButton.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    const computerHostname = computer.attributes.dNSHostName || computer.attributes.sAMAccountName?.replace('$','');
+                    if (computerHostname) {
+                        window.location.href = `/smb?computer=${encodeURIComponent(computerHostname)}`;
+                    } else {
+                        showErrorAlert('Computer hostname not found for SMB connection.');
+                    }
+                });
+                actionTd.appendChild(connectSmbButton);
+
                 tr.appendChild(actionTd);
                 tbody.appendChild(tr);
             });

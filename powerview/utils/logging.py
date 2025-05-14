@@ -63,7 +63,10 @@ class HistoryConsole:
 class LOG:
     def __init__(self, folder_name, root_folder=None):
         if not root_folder:
-            self.root_folder = os.path.join(os.path.expanduser('~'), ".powerview")
+            if os.name == 'nt':
+                self.root_folder = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), "powerview")
+            else:
+                self.root_folder = os.path.join(os.path.expanduser('~'), ".powerview")
         else:
             self.root_folder = root_folder
         
