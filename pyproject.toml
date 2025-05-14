@@ -52,3 +52,6 @@ repository = 'https://github.com/aniqfakhrul/powerview.py'
 
 [project.scripts]
 powerview = "powerview:main"
+
+[tool.setuptools]
+include-package-data = true
