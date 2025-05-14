@@ -25,6 +25,99 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 500);
     }
     
+    // Add toggles for search panel
+    const searchPanel = document.getElementById('search-panel');
+    const closeSearchButton = document.getElementById('close-search-panel');
+    const searchButton = document.getElementById('search-button');
+    const searchClearButton = document.getElementById('search-clear');
+    const searchQuery = document.getElementById('search-query');
+    const searchResults = document.getElementById('search-results');
+    const searchStatus = document.getElementById('search-status');
+    
+    // Add toggle search panel button handler
+    const toggleSearchButton = document.getElementById('toggle-search');
+    if (toggleSearchButton) {
+        toggleSearchButton.addEventListener('click', async () => {
+            // If panel is visible (not translated), hide it
+            if (!searchPanel.classList.contains('translate-x-full')) {
+                searchPanel.classList.add('translate-x-full');
+                setTimeout(() => {
+                    searchPanel.classList.add('hidden');
+                }, 300);
+            } else {
+                // Show panel with default computer if active
+                if (activeComputer) {
+                    await populateHostDropdown(document.getElementById('search-host'), activeComputer);
+                    // If we have an active share and path, populate that too
+                    const shareHeader = document.querySelector('#sticky-header-container span:first-child');
+                    if (shareHeader) {
+                        const share = shareHeader.textContent;
+                        let path = '';
+                        // Collect path segments if they exist
+                        const pathSegments = Array.from(document.querySelectorAll('#sticky-header-container span:not(:first-child)'))
+                            .filter(span => !span.textContent.includes('>'))
+                            .map(span => span.textContent);
+                        
+                        if (pathSegments.length > 0) {
+                            path = pathSegments.join('\\');
+                        }
+                        
+                        const searchPathInput = document.getElementById('search-path');
+                        searchPathInput.value = path ? `${share}\\${path}` : share;
+                    }
+                }
+                // Show panel
+                searchPanel.classList.remove('hidden');
+                setTimeout(() => {
+                    searchPanel.classList.remove('translate-x-full');
+                    // Focus the search input
+                    document.getElementById('search-query').focus();
+                }, 10);
+            }
+        });
+    }
+    
+    // Search panel close button
+    if (closeSearchButton) {
+        closeSearchButton.addEventListener('click', () => {
+            searchPanel.classList.add('translate-x-full');
+            setTimeout(() => {
+                searchPanel.classList.add('hidden');
+            }, 300);
+        });
+    }
+    
+    // Search button click handler
+    if (searchButton) {
+        searchButton.addEventListener('click', () => {
+            performSearch();
+        });
+    }
+    
+    // Search input enter key handler
+    if (searchQuery) {
+        searchQuery.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+    }
+    
+    // Search clear button
+    if (searchClearButton) {
+        searchClearButton.addEventListener('click', () => {
+            searchQuery.value = '';
+            searchResults.innerHTML = '';
+            searchStatus.textContent = '';
+            document.getElementById('search-content').checked = false;
+            document.getElementById('search-regex').checked = false;
+            document.getElementById('search-case-sensitive').checked = false;
+            document.getElementById('search-cred-hunt').checked = false;
+            document.getElementById('search-depth').value = '3';
+            document.getElementById('search-path').value = '';
+        });
+    }
+    
     // Keep track of connected PCs
     const connectedPCs = new Set();
 
@@ -251,6 +344,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('click', (e) => {
         const fileViewer = document.getElementById('file-viewer-panel');
         const downloadsPanel = document.getElementById('downloads-panel');
+        const searchPanel = document.getElementById('search-panel');
 
         // Handle file viewer panel
         if (fileViewer && !fileViewer.classList.contains('hidden')) {
@@ -278,10 +372,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 300);
             }
         }
+        
+        // Handle search panel
+        if (searchPanel && !searchPanel.classList.contains('hidden')) {
+            // Check if click is outside the panel and not on the toggle button
+            if (!searchPanel.contains(e.target) && !e.target.closest('#toggle-search') && !e.target.closest('.fa-search')) {
+                searchPanel.classList.add('translate-x-full');
+                setTimeout(() => {
+                    searchPanel.classList.add('hidden');
+                }, 300);
+            }
+        }
     });
 
     // Prevent panel closing when clicking inside the panels
-    const panels = document.querySelectorAll('#file-viewer-panel, #downloads-panel');
+    const panels = document.querySelectorAll('#file-viewer-panel, #downloads-panel, #search-panel');
     panels.forEach(panel => {
         panel.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1548,6 +1653,378 @@ function updateStickyHeaders(currentShare = '', currentDirectoryPath = '') {
     smbTableHeadersElement.style.top = `${stickyHeaderHeight}px`;
 }
 
+// Add this function to fetch and populate available SMB sessions
+async function fetchSMBSessions() {
+    try {
+        const response = await fetch('/api/smb/sessions');
+        if (!response.ok) {
+            throw new Error('Failed to fetch SMB sessions');
+        }
+        
+        const data = await response.json();
+        return data.sessions || {};
+    } catch (error) {
+        console.error('Error fetching SMB sessions:', error);
+        return {};
+    }
+}
+
+// Search Functions
+async function openSearchPanel(computer, share, path = '') {
+    const searchPanel = document.getElementById('search-panel');
+    const searchStatus = document.getElementById('search-status');
+    const searchHostSelect = document.getElementById('search-host');
+    const searchPathInput = document.getElementById('search-path');
+    
+    // Populate the host dropdown
+    await populateHostDropdown(searchHostSelect, computer);
+    
+    // Format the combined share and path
+    let combinedPath = share || '';
+    if (path) {
+        const formattedPath = path.replace(/^\/+/, '').replace(/\//g, '\\');
+        combinedPath += formattedPath ? '\\' + formattedPath : '';
+    }
+    searchPathInput.value = combinedPath;
+    
+    // Update search status
+    searchStatus.innerHTML = `Ready to search`;
+    
+    // Clear previous results
+    document.getElementById('search-results').innerHTML = '';
+    
+    // Show panel
+    searchPanel.classList.remove('hidden');
+    setTimeout(() => {
+        searchPanel.classList.remove('translate-x-full');
+        // Focus the search input
+        document.getElementById('search-query').focus();
+    }, 10);
+}
+
+async function populateHostDropdown(selectElement, selectedComputer) {
+    // Clear existing options
+    selectElement.innerHTML = '';
+    
+    // Get all active SMB sessions
+    const sessions = await fetchSMBSessions();
+    
+    // If no sessions, add a default option
+    if (Object.keys(sessions).length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.text = 'No active SMB connections';
+        selectElement.appendChild(option);
+        return;
+    }
+    
+    // Add options for each computer
+    for (const [computer, sessionInfo] of Object.entries(sessions)) {
+        const option = document.createElement('option');
+        option.value = computer;
+        option.text = computer;
+        
+        // Set as selected if it matches the provided computer
+        if (computer === selectedComputer) {
+            option.selected = true;
+        }
+        
+        selectElement.appendChild(option);
+    }
+}
+
+async function performSearch() {
+    const searchPanel = document.getElementById('search-panel');
+    const searchResults = document.getElementById('search-results');
+    const searchStatus = document.getElementById('search-status');
+    const searchQuery = document.getElementById('search-query').value;
+    const searchHostSelect = document.getElementById('search-host');
+    const searchPathInput = document.getElementById('search-path').value;
+    
+    // Get the selected host
+    const computer = searchHostSelect.value;
+    if (!computer) {
+        searchStatus.innerHTML = '<span class="text-red-500 font-medium">Please select a host</span>';
+        return;
+    }
+    
+    // Parse the share and path from the path input
+    if (!searchPathInput) {
+        searchStatus.innerHTML = '<span class="text-red-500 font-medium">Please enter a share and path</span>';
+        return;
+    }
+    
+    // Extract share and path from the combined input
+    const pathParts = searchPathInput.split('\\');
+    const share = pathParts[0];
+    const startPath = pathParts.length > 1 ? pathParts.slice(1).join('/') : '';
+    
+    if (!share) {
+        searchStatus.innerHTML = '<span class="text-red-500 font-medium">Please specify a share in the path field</span>';
+        return;
+    }
+    
+    // Get search parameters
+    const depth = parseInt(document.getElementById('search-depth').value);
+    const contentSearch = document.getElementById('search-content').checked;
+    const useRegex = document.getElementById('search-regex').checked;
+    const caseSensitive = document.getElementById('search-case-sensitive').checked;
+    const credHunt = document.getElementById('search-cred-hunt').checked;
+    
+    // Validate search query
+    if (!credHunt && !searchQuery) {
+        searchStatus.innerHTML = '<span class="text-red-500 font-medium">Please enter a search query or enable Cred Hunt</span>';
+        return;
+    }
+    
+    // Prepare the search data
+    const searchData = {
+        computer: computer,
+        share: share,
+        start_path: startPath,
+        depth: depth,
+        content_search: contentSearch,
+        use_regex: useRegex,
+        case_sensitive: caseSensitive,
+        cred_hunt: credHunt
+    };
+    
+    // Only add query if it's present or if credHunt is not enabled
+    if (searchQuery || !credHunt) {
+        searchData.query = searchQuery;
+    }
+    
+    try {
+        // Show loading state
+        searchStatus.innerHTML = `<div class="flex items-center gap-2"><span class="animate-spin h-4 w-4 border-2 border-blue-500 dark:border-yellow-500 border-t-transparent dark:border-t-transparent rounded-full"></span> Searching in \\\\${computer}\\${share}${startPath ? '\\' + startPath.replace(/\//g, '\\') : ''}...</div>`;
+        searchResults.innerHTML = '';
+        
+        // Make API call
+        const response = await fetch('/api/smb/search', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(searchData)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Search failed');
+        }
+        
+        const result = await response.json();
+        
+        // Display search results
+        const searchMode = result.search_info.search_mode || 'pattern';
+        const totalItems = result.total;
+        const items = result.items || [];
+        
+        searchStatus.innerHTML = `
+            <div class="mb-2">
+                <div class="text-neutral-900 dark:text-white font-medium">Search Results (${totalItems})</div>
+                <div class="text-xs mt-1">Mode: ${searchMode}, Paths searched: ${result.search_info.paths_searched}, Errors: ${result.search_info.error_paths}</div>
+            </div>
+        `;
+        
+        if (totalItems === 0) {
+            searchResults.innerHTML = '<div class="p-4 text-center text-neutral-500 dark:text-neutral-400">No results found</div>';
+            return;
+        }
+        
+        // Build results HTML
+        let resultsHTML = '';
+        for (const item of items) {
+            const isDirectory = item.is_directory;
+            const fileIcon = getFileIcon(item.name, isDirectory);
+            const matchType = item.match_type || 'name';
+            let matchBadge = '';
+            
+            if (matchType === 'content') {
+                matchBadge = '<span class="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded">Content</span>';
+            } else if (matchType === 'credential_file') {
+                matchBadge = '<span class="text-xs px-1.5 py-0.5 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded">Credential</span>';
+            }
+            
+            // Create result item
+            resultsHTML += `
+                <div class="search-result-item bg-white dark:bg-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700 p-2 hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2 min-w-0">
+                            ${fileIcon.isCustomSvg 
+                                ? `<span class="w-4 h-4 flex-shrink-0 ${fileIcon.iconClass}">${fileIcon.icon}</span>`
+                                : `<i class="fas ${fileIcon.icon} ${fileIcon.iconClass} flex-shrink-0"></i>`
+                            }
+                            <div class="truncate">
+                                <div class="font-medium text-neutral-900 dark:text-white truncate">
+                                    ${item.name}
+                                </div>
+                                <div class="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+                                    ${item.path.replace(/\\/g, '\\\\')}
+                                </div>
+                            </div>
+                            ${matchBadge}
+                        </div>
+                        <div class="flex items-center gap-1">
+                            ${isDirectory ? `
+                                <button class="open-result-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="Open"
+                                    data-computer="${computer}" data-share="${share}" data-path="${item.path}">
+                                    <i class="fas fa-folder-open fa-sm"></i>
+                                </button>
+                            ` : `
+                                <button class="view-result-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="View"
+                                    data-computer="${computer}" data-share="${share}" data-path="${item.path}">
+                                    <i class="fas fa-eye fa-sm"></i>
+                                </button>
+                            `}
+                            <button class="download-result-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="Download"
+                                data-computer="${computer}" data-share="${share}" data-path="${item.path}" data-is-dir="${isDirectory}">
+                                <i class="fas fa-download fa-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+                    ${item.content_match ? `
+                        <div class="mt-1.5 p-1.5 bg-neutral-100 dark:bg-neutral-900 rounded text-xs font-mono whitespace-pre-wrap text-neutral-800 dark:text-neutral-200 max-h-20 overflow-y-auto">
+                            ${escapeHTML(item.content_match)}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        searchResults.innerHTML = resultsHTML;
+        
+        // Attach event listeners to result items
+        attachSearchResultListeners();
+        
+    } catch (error) {
+        console.error('Search error:', error);
+        searchStatus.innerHTML = `<div class="text-red-500 font-medium">Search failed: ${error.message}</div>`;
+    }
+}
+
+function attachSearchResultListeners() {
+    const searchPanel = document.getElementById('search-panel');
+    
+    // Function to hide search panel
+    const hideSearchPanel = () => {
+        searchPanel.classList.add('translate-x-full');
+        setTimeout(() => {
+            searchPanel.classList.add('hidden');
+        }, 300);
+    };
+    
+    // Attach view button listeners
+    document.querySelectorAll('.search-result-item .view-result-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const computer = btn.dataset.computer;
+            const share = btn.dataset.share;
+            const path = btn.dataset.path;
+            hideSearchPanel();
+            viewSMBFile(computer, share, path);
+        });
+    });
+    
+    // Attach open button listeners
+    document.querySelectorAll('.search-result-item .open-result-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const computer = btn.dataset.computer;
+            const share = btn.dataset.share;
+            const path = btn.dataset.path;
+            hideSearchPanel();
+            // Simulate navigation to this directory
+            if (computer !== activeComputer) {
+                switchToPC(computer);
+            }
+            
+            // Find the directory in the tree view and click it
+            const targetElement = findTreeElement(computer, share, path);
+            if (targetElement) {
+                targetElement.click();
+            } else {
+                // If element not found in tree (not expanded yet), expand from the share
+                navigateToPath(computer, share, path);
+            }
+        });
+    });
+    
+    // Attach download button listeners
+    document.querySelectorAll('.search-result-item .download-result-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const computer = btn.dataset.computer;
+            const share = btn.dataset.share;
+            const path = btn.dataset.path;
+            const isDir = btn.dataset.isDir === 'true';
+            hideSearchPanel();
+            
+            if (isDir) {
+                const dirName = path.split('\\').pop();
+                downloadSMBDirectory(computer, share, path, dirName);
+            } else {
+                downloadSMBFile(computer, share, path);
+            }
+        });
+    });
+}
+
+function findTreeElement(computer, share, path) {
+    if (!path) {
+        return document.querySelector(`.smb-tree-item[data-share="${share}"][data-computer="${computer}"] > div`);
+    }
+    
+    // Normalize path - convert backslashes to forward slashes
+    const normalizedPath = '/' + path.replace(/\\/g, '/').replace(/^\/+/, '');
+    return document.querySelector(`.file-item[data-share="${share}"][data-computer="${computer}"][data-path="${normalizedPath}"] > div`);
+}
+
+async function navigateToPath(computer, share, path) {
+    // This function handles navigating to a path by expanding the tree
+    // Starting from the share root
+    const shareElement = document.querySelector(`.smb-tree-item[data-share="${share}"][data-computer="${computer}"] > div`);
+    if (!shareElement) return;
+    
+    // First click on the share to expand it
+    shareElement.click();
+    
+    // Split the path into segments
+    const pathSegments = path.replace(/\\/g, '/').replace(/^\/+/, '').split('/');
+    let currentPath = '';
+    
+    // Navigate through each segment
+    for (let i = 0; i < pathSegments.length; i++) {
+        const segment = pathSegments[i];
+        if (!segment) continue;
+        
+        currentPath += '/' + segment;
+        const elementSelector = `.file-item[data-share="${share}"][data-computer="${computer}"][data-path="${currentPath}"] > div`;
+        
+        // Wait for the element to be available (after previous click has loaded its children)
+        let element = null;
+        let attempts = 0;
+        while (!element && attempts < 10) {
+            element = document.querySelector(elementSelector);
+            if (!element) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+        }
+        
+        if (element) {
+            element.click();
+        } else {
+            console.error(`Could not find element for path segment: ${currentPath}`);
+            break;
+        }
+    }
+}
+
+// Helper function to safely escape HTML
+function escapeHTML(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // --- Context Menu Functions ---
 
 function hideContextMenu() {
@@ -1594,6 +2071,10 @@ function showContextMenu(event, itemData) {
         }
         contextMenuElement.appendChild(createMenuItem('Download', 'fas fa-download', () => {
             downloadSMBDirectory(itemData.computer, itemData.share, itemData.path, itemData.name);
+        }));
+        // Add Search option for directories and shares
+        contextMenuElement.appendChild(createMenuItem('Search', 'fas fa-search', () => {
+            openSearchPanel(itemData.computer, itemData.share, itemData.path);
         }));
         contextMenuElement.appendChild(createMenuSeparator());
         contextMenuElement.appendChild(createMenuItem('Upload Here', 'fas fa-upload', () => {
