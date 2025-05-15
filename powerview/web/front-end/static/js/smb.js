@@ -115,6 +115,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('search-cred-hunt').checked = false;
             document.getElementById('search-depth').value = '3';
             document.getElementById('search-path').value = '';
+            document.getElementById('search-item-type').value = 'all';
+            document.getElementById('export-search-csv').classList.add('hidden');
         });
     }
     
@@ -1847,13 +1849,14 @@ async function performSearch() {
     const useRegex = document.getElementById('search-regex').checked;
     const caseSensitive = document.getElementById('search-case-sensitive').checked;
     const credHunt = document.getElementById('search-cred-hunt').checked;
-    
+    const itemType = document.getElementById('search-item-type').value;
+
     // Validate search query
     if (!credHunt && !searchQuery) {
         searchStatus.innerHTML = '<span class="text-red-500 font-medium">Please enter a search query or enable Cred Hunt</span>';
         return;
     }
-    
+
     // Prepare the search data
     const searchData = {
         computer: computer,
@@ -1863,7 +1866,8 @@ async function performSearch() {
         content_search: contentSearch,
         use_regex: useRegex,
         case_sensitive: caseSensitive,
-        cred_hunt: credHunt
+        cred_hunt: credHunt,
+        item_type: itemType
     };
     
     // Only add query if it's present or if credHunt is not enabled
@@ -1871,124 +1875,78 @@ async function performSearch() {
         searchData.query = searchQuery;
     }
     
-    try {
-        // Show loading state
-        searchStatus.innerHTML = `<div class="flex items-center gap-2"><span class="animate-spin h-4 w-4 border-2 border-blue-500 dark:border-yellow-500 border-t-transparent dark:border-t-transparent rounded-full"></span> Searching in \\\\${computer}\\${share}${startPath ? '\\' + startPath.replace(/\//g, '\\') : ''}...</div>`;
-        searchResults.innerHTML = '';
-        
-        // Make API call
-        const response = await fetch('/api/smb/search', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(searchData)
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Search failed');
-        }
-        
-        const result = await response.json();
-        
-        // Store search results for CSV export
-        window.lastSearchResults = result;
-        
-        // Display search results
-        const searchMode = result.search_info.search_mode || 'pattern';
-        const totalItems = result.total;
-        const items = result.items || [];
-        
-        searchStatus.innerHTML = `
-            <div class="mb-2">
-                <div class="text-neutral-900 dark:text-white font-medium">Search Results (${totalItems})</div>
-                <div class="text-xs mt-1">Mode: ${searchMode}, Paths searched: ${result.search_info.paths_searched}, Errors: ${result.search_info.error_paths}</div>
-            </div>
-        `;
-        
-        // Show export button if we have results
-        if (totalItems > 0) {
-            exportCsvButton.classList.remove('hidden');
-        } else {
-            exportCsvButton.classList.add('hidden');
-        }
-        
-        if (totalItems === 0) {
-            searchResults.innerHTML = '<div class="p-4 text-center text-neutral-500 dark:text-neutral-400">No results found</div>';
-            return;
-        }
-        
-        // Build results HTML
-        let resultsHTML = '';
-        for (const item of items) {
-            const isDirectory = item.is_directory;
-            const fileIcon = getFileIcon(item.name, isDirectory);
-            const matchType = item.match_type || 'name';
-            let matchBadge = '';
-            
-            if (matchType === 'content') {
-                matchBadge = '<span class="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded">Content</span>';
-            } else if (matchType === 'credential_file') {
-                matchBadge = '<span class="text-xs px-1.5 py-0.5 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded">Credential</span>';
+    // --- Progressive search via Server-Sent Events ---
+    const params = new URLSearchParams();
+    Object.entries(searchData).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) params.append(k, v);
+    });
+    const url = `/api/smb/search-stream?${params.toString()}`;
+
+    searchStatus.innerHTML = `<div class="flex items-center gap-2"><span class="animate-spin h-4 w-4 border-2 border-blue-500 dark:border-yellow-500 border-t-transparent dark:border-t-transparent rounded-full"></span> Searching in \\${computer}\\${share}${startPath ? '\\' + startPath.replace(/\//g, '\\') : ''}...</div>`;
+    searchResults.innerHTML = '';
+
+    window.lastSearchResults = { items: [], search_info: { host: computer, share: share, search_mode: useRegex ? 'regex' : 'pattern' } };
+
+    const es = new EventSource(url);
+
+    es.onmessage = (ev) => {
+        const data = JSON.parse(ev.data);
+        if (data.type === 'found') {
+            window.lastSearchResults.items.push(data.item);
+            searchResults.insertAdjacentHTML('beforeend', buildSearchResultItemHTML(data.item, computer, share));
+            attachSearchResultListeners();
+            if (window.lastSearchResults.items.length % 5 === 0) {
+                searchStatus.innerHTML = `<div class="text-neutral-500 dark:text-neutral-400">Found ${window.lastSearchResults.items.length} so far...</div>`;
             }
-            
-            // Create result item
-            resultsHTML += `
-                <div class="search-result-item bg-white dark:bg-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700 p-2 hover:bg-neutral-50 dark:hover:bg-neutral-700">
-                    <div class="flex items-center justify-between gap-2">
-                        <div class="flex items-center gap-2 min-w-0">
-                            ${fileIcon.isCustomSvg 
-                                ? `<span class="w-4 h-4 flex-shrink-0 ${fileIcon.iconClass}">${fileIcon.icon}</span>`
-                                : `<i class="fas ${fileIcon.icon} ${fileIcon.iconClass} flex-shrink-0"></i>`
-                            }
-                            <div class="truncate">
-                                <div class="font-medium text-neutral-900 dark:text-white truncate">
-                                    ${item.name}
-                                </div>
-                                <div class="text-xs text-neutral-500 dark:text-neutral-400 truncate">
-                                    ${item.path.replace(/\\/g, '\\\\')}
-                                </div>
-                            </div>
-                            ${matchBadge}
-                        </div>
-                        <div class="flex items-center gap-1">
-                            ${isDirectory ? `
-                                <button class="open-result-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="Open"
-                                    data-computer="${computer}" data-share="${share}" data-path="${item.path}">
-                                    <i class="fas fa-folder-open fa-sm"></i>
-                                </button>
-                            ` : `
-                                <button class="view-result-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="View"
-                                    data-computer="${computer}" data-share="${share}" data-path="${item.path}">
-                                    <i class="fas fa-eye fa-sm"></i>
-                                </button>
-                            `}
-                            <button class="download-result-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="Download"
-                                data-computer="${computer}" data-share="${share}" data-path="${item.path}" data-is-dir="${isDirectory}">
-                                <i class="fas fa-download fa-sm"></i>
-                            </button>
-                        </div>
-                    </div>
-                    ${item.content_match ? `
-                        <div class="mt-1.5 p-1.5 bg-neutral-100 dark:bg-neutral-900 rounded text-xs font-mono whitespace-pre-wrap text-neutral-800 dark:text-neutral-200 max-h-20 overflow-y-auto">
-                            ${escapeHTML(item.content_match)}
-                        </div>
-                    ` : ''}
-                </div>
-            `;
+        } else if (data.type === 'done') {
+            es.close();
+            const total = data.total || window.lastSearchResults.items.length;
+            searchStatus.innerHTML = `<div class="mb-2"><div class="text-neutral-900 dark:text-white font-medium">Search Results (${total})</div></div>`;
+            if (total > 0) {
+                exportCsvButton.classList.remove('hidden');
+            }
         }
-        
-        searchResults.innerHTML = resultsHTML;
-        
-        // Attach event listeners to result items
-        attachSearchResultListeners();
-        
-    } catch (error) {
-        console.error('Search error:', error);
-        searchStatus.innerHTML = `<div class="text-red-500 font-medium">Search failed: ${error.message}</div>`;
-        exportCsvButton.classList.add('hidden');
+    };
+
+    es.onerror = (err) => {
+        console.error('SSE search error', err);
+        es.close();
+        searchStatus.innerHTML = '<span class="text-red-500 font-medium">Search failed</span>';
+    };
+    return;
+}
+
+function buildSearchResultItemHTML(item, computer, share) {
+    const isDirectory = item.is_directory;
+    const fileIcon = getFileIcon(item.name, isDirectory);
+    const matchType = item.match_type || 'name';
+    let matchBadge = '';
+    if (matchType === 'content') {
+        matchBadge = '<span class="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded">Content</span>';
+    } else if (matchType === 'credential_file') {
+        matchBadge = '<span class="text-xs px-1.5 py-0.5 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded">Credential</span>';
     }
+    return `
+        <div class="search-result-item bg-white dark:bg-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700 p-2 hover:bg-neutral-50 dark:hover:bg-neutral-700">
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 min-w-0">
+                    ${fileIcon.isCustomSvg ? `<span class="w-4 h-4 flex-shrink-0 ${fileIcon.iconClass}">${fileIcon.icon}</span>` : `<i class="fas ${fileIcon.icon} ${fileIcon.iconClass} flex-shrink-0"></i>`}
+                    <div class="truncate">
+                        <div class="font-medium text-neutral-900 dark:text-white truncate">${item.name}</div>
+                        <div class="text-xs text-neutral-500 dark:text-neutral-400 truncate">${item.path.replace(/\\/g, "\\\\")}</div>
+                    </div>
+                    ${matchBadge}
+                </div>
+                <div class="flex items-center gap-1">
+                    ${isDirectory ? `
+                        <button class="open-result-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="Open" data-computer="${computer}" data-share="${share}" data-path="${item.path}"><i class="fas fa-folder-open fa-sm"></i></button>` : `
+                        <button class="view-result-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="View" data-computer="${computer}" data-share="${share}" data-path="${item.path}"><i class="fas fa-eye fa-sm"></i></button>`}
+                    <button class="download-result-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="Download" data-computer="${computer}" data-share="${share}" data-path="${item.path}" data-is-dir="${isDirectory}"><i class="fas fa-download fa-sm"></i></button>
+                </div>
+            </div>
+            ${item.content_match ? `<div class="mt-1.5 p-1.5 bg-neutral-100 dark:bg-neutral-900 rounded text-xs font-mono whitespace-pre-wrap text-neutral-800 dark:text-neutral-200 max-h-20 overflow-y-auto">${escapeHTML(item.content_match)}</div>` : ''}
+        </div>
+    `;
 }
 
 // Add event listener for the export button

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from flask import Flask, jsonify, request, render_template, Response
+from flask import Flask, jsonify, request, render_template, Response, stream_with_context
 import logging
 from contextlib import redirect_stdout, redirect_stderr
 import io
@@ -17,6 +17,7 @@ from powerview._version import __version__ as version
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.modules.smbclient import SMBClient
 from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip
+import json
 
 class APIServer:
 	def __init__(self, powerview, host="127.0.0.1", port=5000):
@@ -121,6 +122,7 @@ class APIServer:
 		add_route_with_auth('/api/smb/mkdir', 'smb_mkdir', self.handle_smb_mkdir, methods=['POST'])
 		add_route_with_auth('/api/smb/rmdir', 'smb_rmdir', self.handle_smb_rmdir, methods=['POST'])
 		add_route_with_auth('/api/smb/search', 'smb_search', self.handle_smb_search, methods=['POST'])
+		add_route_with_auth('/api/smb/search-stream', 'smb_search_stream', self.handle_smb_search_stream, methods=['GET'])
 		add_route_with_auth('/api/smb/sessions', 'smb_sessions', self.handle_smb_sessions, methods=['GET'])
 		add_route_with_auth('/api/login_as', 'login_as', self.handle_login_as, methods=['POST'])
 
@@ -888,6 +890,7 @@ class APIServer:
 			content_search = data.get('content_search', False)
 			case_sensitive = data.get('case_sensitive', False)
 			cred_hunt = data.get('cred_hunt', False)
+			item_type = data.get('item_type', 'all')
 			max_file_size = int(data.get('max_file_size', 5 * 1024 * 1024))  # Default 5MB
 			file_extensions = data.get('file_extensions', ['.txt', '.cfg', '.conf', '.config', '.xml', '.json', '.ini', '.ps1', '.bat', '.cmd', '.vbs', '.js', '.html', '.htm', '.log', '.sql', '.yml', '.yaml'])
 			
@@ -1070,6 +1073,13 @@ class APIServer:
 							"match_type": "name"
 						}
 
+						# Skip based on item type filter
+						if (item_type == 'files' and item.is_directory()) or (item_type == 'directories' and not item.is_directory()):
+							if item.is_directory():
+								# Still search directories even if we're only looking for files
+								search_recursive(full_item_path, current_depth + 1)
+							continue
+
 						# Check for credential files first
 						if not item.is_directory() and cred_hunt and is_credential_file(item_name):
 							cred_file_details = item_details.copy()
@@ -1134,6 +1144,7 @@ class APIServer:
 					'share': share,
 					'host': host,
 					'max_depth': depth,
+					'item_type': item_type,
 					'paths_searched': len(visited_paths),
 					'error_paths': len(error_paths),
 					'file_extensions_searched': file_extensions if content_search else None
@@ -1211,4 +1222,145 @@ class APIServer:
 			return jsonify({'sessions': sessions})
 		except Exception as e:
 			logging.error(f"Error fetching SMB sessions: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_search_stream(self):
+		"""Server-Sent Event progressive search wrapper around handle_smb_search logic."""
+		try:
+			# Grab and normalise parameters from query-string
+			args = request.args
+			host = args.get('computer', '').lower()
+			share = args.get('share')
+			query = args.get('query', '')
+			start_path = args.get('start_path', '')
+			depth = int(args.get('depth', 3))
+			use_regex = args.get('use_regex', 'false').lower() == 'true'
+			content_search = args.get('content_search', 'false').lower() == 'true'
+			case_sensitive = args.get('case_sensitive', 'false').lower() == 'true'
+			cred_hunt = args.get('cred_hunt', 'false').lower() == 'true'
+			item_type = args.get('item_type', 'all')
+
+			if not host or not share:
+				return jsonify({'error': 'Computer and share are required'}), 400
+
+			if not hasattr(self.powerview.conn, 'smb_sessions') or host not in self.powerview.conn.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			client = self.powerview.conn.smb_sessions[host]
+			smb_client = SMBClient(client)
+
+			# Prepare helpers
+			import re, fnmatch, os
+			regex_pattern = None
+			if use_regex and query:
+				flags = re.MULTILINE | (0 if case_sensitive else re.IGNORECASE)
+				try:
+					regex_pattern = re.compile(query, flags)
+				except re.error:
+					return jsonify({'error': 'Invalid regex pattern'}), 400
+
+			def name_match(filename):
+				if not query:
+					return False
+				if use_regex and regex_pattern:
+					return bool(regex_pattern.search(filename))
+				if case_sensitive:
+					return fnmatch.fnmatch(filename, query)
+				return fnmatch.fnmatch(filename.lower(), query.lower())
+
+			def content_match(path, filename):
+				if not content_search and not cred_hunt:
+					return False, None
+				try:
+					blob = smb_client.cat(share, path)
+					if not blob:
+						return False, None
+					try:
+						text = blob.decode('utf-8', errors='replace')
+					except Exception:
+						text = str(blob)
+
+					if cred_hunt:
+						return True, None
+					if query:
+						if use_regex and regex_pattern:
+							m = regex_pattern.search(text)
+							if m:
+								return True, text[m.start():m.end()+100]
+						else:
+							needle = query if case_sensitive else query.lower()
+							hay = text if case_sensitive else text.lower()
+							idx = hay.find(needle)
+							if idx != -1:
+								return True, text[idx:idx+100]
+					return False, None
+				except Exception:
+					return False, None
+
+			def event_stream():
+				visited = set()
+				stack = [(start_path, 0)]
+				total = 0
+				while stack:
+					current_path, cur_depth = stack.pop()
+					if cur_depth > depth or current_path in visited:
+						continue
+					visited.add(current_path)
+					try:
+						items = smb_client.ls(share, current_path)
+					except Exception:
+						continue
+					for itm in items:
+						name = itm.get_longname()
+						if name in ['.', '..']:
+							continue
+						full_path = os.path.join(current_path, name).replace('/', '\\')
+						if full_path.startswith('\\') and not current_path:
+							full_path = full_path[1:]
+
+						is_directory = itm.is_directory()
+						item_details = {
+							'name': name,
+							'path': full_path,
+							'is_directory': is_directory,
+							'size': itm.get_filesize(),
+							'share': share,
+							'match_type': 'name'
+						}
+
+						# Skip based on item type filter
+						if (item_type == 'files' and is_directory) or (item_type == 'directories' and not is_directory):
+							if is_directory:
+								# Still search directories even if we're only looking for files
+								stack.append((full_path, cur_depth + 1))
+							continue
+
+						matched = False
+						if name_match(name):
+							matched = True
+						elif not is_directory:
+							cm, ctx = content_match(full_path, name)
+							if cm:
+								matched = True
+								item_details['match_type'] = 'content'
+								if ctx:
+									item_details['content_match'] = ctx
+
+						if matched:
+							yield f"data: {json.dumps({'type':'found','item': item_details})}\n\n"
+							total += 1
+
+						if is_directory:
+							stack.append((full_path, cur_depth + 1))
+
+				yield f"data: {json.dumps({'type':'done','total': total})}\n\n"
+
+			headers = {
+				'Content-Type': 'text/event-stream',
+				'Cache-Control': 'no-cache',
+				'X-Accel-Buffering': 'no'
+			}
+			return Response(stream_with_context(event_stream()), headers=headers)
+		except Exception as e:
+			logging.error(f"[SMB SEARCH STREAM] Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500
