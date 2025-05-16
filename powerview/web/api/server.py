@@ -6,7 +6,7 @@ import io
 import os
 import sys
 import threading
-from datetime import date
+from datetime import date,datetime
 import shlex
 import fnmatch
 from argparse import Namespace
@@ -46,7 +46,7 @@ class APIServer:
 		
 		components = [self.powerview.flatName.lower(), self.powerview.args.username.lower(), self.powerview.args.ldap_address.lower()]
 		folder_name = '-'.join(filter(None, components)) or "default-log"
-		file_name = "%s.log" % date.today()
+		file_name = "%s.log" % datetime.now().strftime("%Y-%m-%d")
 		self.log_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, file_name)
 		self.history_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, '.powerview_history')
 
@@ -115,6 +115,7 @@ class APIServer:
 		add_route_with_auth('/api/smb/disconnect', 'smb_disconnect', self.handle_smb_disconnect, methods=['POST'])
 		add_route_with_auth('/api/smb/shares', 'smb_shares', self.handle_smb_shares, methods=['POST'])
 		add_route_with_auth('/api/smb/ls', 'smb_ls', self.handle_smb_ls, methods=['POST'])
+		add_route_with_auth('/api/smb/mv', 'smb_mv', self.handle_smb_mv, methods=['POST'])
 		add_route_with_auth('/api/smb/get', 'smb_get', self.handle_smb_get, methods=['POST'])
 		add_route_with_auth('/api/smb/put', 'smb_put', self.handle_smb_put, methods=['POST'])
 		add_route_with_auth('/api/smb/cat', 'smb_cat', self.handle_smb_cat, methods=['POST'])
@@ -125,6 +126,7 @@ class APIServer:
 		add_route_with_auth('/api/smb/search-stream', 'smb_search_stream', self.handle_smb_search_stream, methods=['GET'])
 		add_route_with_auth('/api/smb/sessions', 'smb_sessions', self.handle_smb_sessions, methods=['GET'])
 		add_route_with_auth('/api/login_as', 'login_as', self.handle_login_as, methods=['POST'])
+		add_route_with_auth('/api/smb/properties', 'smb_properties', self.handle_smb_properties, methods=['POST'])
 
 	def set_status(self, status):
 		self.status = status
@@ -681,6 +683,30 @@ class APIServer:
 
 		except Exception as e:
 			logging.error(f"[SMB LS] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_mv(self):
+		try:
+			data = request.json
+			computer = data.get('computer').lower()
+			share = data.get('share')
+			source = data.get('source')
+			destination = data.get('destination')
+
+			if not all([computer, share, source, destination]):
+				return jsonify({'error': 'Missing required parameters'}), 400
+				
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			client = self.powerview.conn.smb_sessions[computer]
+			smb_client = SMBClient(client)
+
+			smb_client.mv(share, source, destination)	
+			return jsonify({'message': 'File moved successfully'})
+	
+		except Exception as e:
+			logging.error(f"[SMB MV] Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500
 
 	def handle_smb_get(self):
@@ -1363,4 +1389,63 @@ class APIServer:
 			return Response(stream_with_context(event_stream()), headers=headers)
 		except Exception as e:
 			logging.error(f"[SMB SEARCH STREAM] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_properties(self):
+		try:
+			data = request.json
+			computer = data.get('computer').lower()
+			share = data.get('share')
+			path = data.get('path')
+
+			if not all([computer, share, path]):
+				return jsonify({'error': 'Missing required parameters'}), 400
+
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			client = self.powerview.conn.smb_sessions[computer]
+			smb_client = SMBClient(client)
+			
+			try:
+				# Get basic file info first
+				file_info = smb_client.get_file_info(share, path)
+				file_info['owner'] = self.powerview.convertfrom_sid(file_info['sd_info']['OwnerSid'])
+				file_info['group'] = self.powerview.convertfrom_sid(file_info['sd_info']['GroupSid'])
+				file_info['dacl'] = file_info['sd_info']['Dacl']
+				for ace in file_info['dacl']:
+					ace['trustee'] = self.powerview.convertfrom_sid(ace['trustee'])
+
+				# Format timestamps for better readability
+				for ts_field in ['created', 'modified', 'accessed']:
+					if ts_field in file_info:
+						try:
+							# Keep the original timestamp string but add a formatted version
+							ts_str = file_info[ts_field]
+							# Windows FILETIME objects might be present, format them nicely
+							file_info[ts_field + '_formatted'] = ts_str
+						except Exception as e:
+							logging.debug(f"Could not format timestamp {ts_field}: {str(e)}")
+				
+				# Add additional system properties if possible 
+				try:
+					if not file_info.get('is_directory', False):
+						# Get file attributes
+						attrs = smb_client.get_attributes(share, path)
+						if attrs:
+							file_info['extended_attributes'] = attrs
+					
+					# Add full path information
+					file_info['full_path'] = f"\\\\{computer}\\{share}\\{path.replace('/', '\\')}"
+					file_info['computer'] = computer
+					file_info['share'] = share
+				except Exception as attr_err:
+					logging.warning(f"Could not get additional file attributes: {str(attr_err)}")
+				return jsonify(file_info)
+				
+			except Exception as e:
+				return jsonify({'error': f'Failed to get file properties: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB PROPERTIES] Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500
