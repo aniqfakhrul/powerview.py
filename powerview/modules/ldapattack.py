@@ -1198,6 +1198,7 @@ class ACLEnum:
         # Create reverse mapping for lookups by name
         self.__rights_name_map = {v: k for k, v in self.__guids_map_dict.items()}
 
+
     def read_dacl(self):
         parsed_dacl = []
         LOG.debug("[ACLEnum] Parsing DACL")

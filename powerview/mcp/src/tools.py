@@ -753,7 +753,7 @@ def setup_tools(mcp, powerview_instance):
 	async def get_domain_ca(
 		identity: str = "",
 		properties: str = "",
-		check_web_enrollment: bool = False,
+		check_all: bool = False,
 		ldapfilter: str = "",
 		searchbase: str = "",
 		no_cache: bool = False,
@@ -765,7 +765,7 @@ def setup_tools(mcp, powerview_instance):
 		Args:
 			identity: Filter by CA identity (name, DN). Defaults to empty (all CAs).
 			properties: Comma-separated list of properties to retrieve. Defaults to '*'.
-			check_web_enrollment: Check if web enrollment is enabled on the CA.
+			check_all: Check all CA configurations.
 			ldapfilter: Custom LDAP filter string.
 			searchbase: Specify the search base DN (usually Configuration NC).
 			no_cache: Bypass the cache and perform a live query.
@@ -777,7 +777,7 @@ def setup_tools(mcp, powerview_instance):
 			args = type('Args', (), {
 				'identity': identity,
 				'properties': props,
-				'check_web_enrollment': check_web_enrollment,
+				'check_all': check_all,
 				'ldapfilter': ldapfilter,
 				'searchbase': searchbase if searchbase else None,
 				'no_cache': no_cache,

@@ -2361,6 +2361,17 @@ class MSDS_MANAGEDPASSWORD_BLOB(Structure):
 			self["UnchangedPasswordIntervalOffset"] :
 		]
 
+# SMB Share Permissions
+SHARE_PERMISSIONS = {
+    0x00000001: "ACCESS_READ",         # Permission to read data and execute
+    0x00000002: "ACCESS_WRITE",        # Permission to write data
+    0x00000004: "ACCESS_CREATE",       # Permission to create resources
+    0x00000008: "ACCESS_EXEC",         # Permission to execute resources
+    0x00000010: "ACCESS_DELETE",       # Permission to delete resources
+    0x00000020: "ACCESS_ATRIB",        # Permission to modify attributes
+    0x00000040: "ACCESS_PERM",         # Permission to modify permissions
+    0x00000000: "ACCESS_ALL"           # Full control - all permissions
+}
 
 SCHEMA_OBJECTS = {
 	'2a132580-9373-11d1-aebc-0000f80367c1': 'FRS-Partner-Auth-Level',

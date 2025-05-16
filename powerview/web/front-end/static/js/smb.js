@@ -3,6 +3,17 @@ let stickyHeaderContainerElement = null;
 let smbTableHeadersElement = null;
 let contextMenuElement = null;
 
+// Add this near the top of the file or after the DOM content loaded event
+let renameModalData = {
+    computer: null,
+    share: null,
+    path: null,
+    isDirectory: false,
+    isShare: false,
+    oldName: null,
+    dirPath: null
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     stickyHeaderContainerElement = document.getElementById('sticky-header-container');
     smbTableHeadersElement = document.getElementById('smb-table-headers');
@@ -23,6 +34,101 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             connectButton.click();
         }, 500);
+    }
+    
+    // Add toggles for search panel
+    const searchPanel = document.getElementById('search-panel');
+    const closeSearchButton = document.getElementById('close-search-panel');
+    const searchButton = document.getElementById('search-button');
+    const searchClearButton = document.getElementById('search-clear');
+    const searchQuery = document.getElementById('search-query');
+    const searchResults = document.getElementById('search-results');
+    const searchStatus = document.getElementById('search-status');
+    
+    // Add toggle search panel button handler
+    const toggleSearchButton = document.getElementById('toggle-search');
+    if (toggleSearchButton) {
+        toggleSearchButton.addEventListener('click', async () => {
+            // If panel is visible (not translated), hide it
+            if (!searchPanel.classList.contains('translate-x-full')) {
+                searchPanel.classList.add('translate-x-full');
+                setTimeout(() => {
+                    searchPanel.classList.add('hidden');
+                }, 300);
+            } else {
+                // Show panel with default computer if active
+                if (activeComputer) {
+                    await populateHostDropdown(document.getElementById('search-host'), activeComputer);
+                    // If we have an active share and path, populate that too
+                    const shareHeader = document.querySelector('#sticky-header-container span:first-child');
+                    if (shareHeader) {
+                        const share = shareHeader.textContent;
+                        let path = '';
+                        // Collect path segments if they exist
+                        const pathSegments = Array.from(document.querySelectorAll('#sticky-header-container span:not(:first-child)'))
+                            .filter(span => !span.textContent.includes('>'))
+                            .map(span => span.textContent);
+                        
+                        if (pathSegments.length > 0) {
+                            path = pathSegments.join('\\');
+                        }
+                        
+                        const searchPathInput = document.getElementById('search-path');
+                        searchPathInput.value = path ? `${share}\\${path}` : share;
+                    }
+                }
+                // Show panel
+                searchPanel.classList.remove('hidden');
+                setTimeout(() => {
+                    searchPanel.classList.remove('translate-x-full');
+                    // Focus the search input
+                    document.getElementById('search-query').focus();
+                }, 10);
+            }
+        });
+    }
+    
+    // Search panel close button
+    if (closeSearchButton) {
+        closeSearchButton.addEventListener('click', () => {
+            searchPanel.classList.add('translate-x-full');
+            setTimeout(() => {
+                searchPanel.classList.add('hidden');
+            }, 300);
+        });
+    }
+    
+    // Search button click handler
+    if (searchButton) {
+        searchButton.addEventListener('click', () => {
+            performSearch();
+        });
+    }
+    
+    // Search input enter key handler
+    if (searchQuery) {
+        searchQuery.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+    }
+    
+    // Search clear button
+    if (searchClearButton) {
+        searchClearButton.addEventListener('click', () => {
+            searchQuery.value = '';
+            searchResults.innerHTML = '';
+            searchStatus.textContent = '';
+            document.getElementById('search-content').checked = false;
+            document.getElementById('search-regex').checked = false;
+            document.getElementById('search-case-sensitive').checked = false;
+            document.getElementById('search-cred-hunt').checked = false;
+            document.getElementById('search-depth').value = '3';
+            document.getElementById('search-path').value = '';
+            document.getElementById('search-item-type').value = 'all';
+            document.getElementById('export-search-csv').classList.add('hidden');
+        });
     }
     
     // Keep track of connected PCs
@@ -251,6 +357,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('click', (e) => {
         const fileViewer = document.getElementById('file-viewer-panel');
         const downloadsPanel = document.getElementById('downloads-panel');
+        const searchPanel = document.getElementById('search-panel');
+        const propertiesPanel = document.getElementById('properties-panel');
 
         // Handle file viewer panel
         if (fileViewer && !fileViewer.classList.contains('hidden')) {
@@ -278,10 +386,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 300);
             }
         }
+        
+        // Handle search panel
+        if (searchPanel && !searchPanel.classList.contains('hidden')) {
+            // Check if click is outside the panel and not on the toggle button
+            if (!searchPanel.contains(e.target) && !e.target.closest('#toggle-search') && !e.target.closest('.fa-search')) {
+                searchPanel.classList.add('translate-x-full');
+                setTimeout(() => {
+                    searchPanel.classList.add('hidden');
+                }, 300);
+            }
+        }
+        
+        // Handle properties panel
+        if (propertiesPanel && !propertiesPanel.classList.contains('hidden')) {
+            // Check if click is outside the panel and not on context menu elements
+            if (!propertiesPanel.contains(e.target) && 
+                !e.target.closest('.fa-info-circle') && 
+                !contextMenuElement?.contains(e.target)) {
+                
+                // Add a small delay to ensure we don't close immediately after opening from context menu
+                setTimeout(() => {
+                    propertiesPanel.classList.add('translate-x-full');
+                    setTimeout(() => {
+                        propertiesPanel.classList.add('hidden');
+                    }, 300);
+                }, 50);
+            }
+        }
     });
 
     // Prevent panel closing when clicking inside the panels
-    const panels = document.querySelectorAll('#file-viewer-panel, #downloads-panel');
+    const panels = document.querySelectorAll('#file-viewer-panel, #downloads-panel, #search-panel, #properties-panel');
     panels.forEach(panel => {
         panel.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -338,6 +474,36 @@ document.addEventListener('DOMContentLoaded', () => {
             hideLoadingIndicator();
         }
     };
+
+    // Add rename modal event listeners
+    const renameConfirmBtn = document.getElementById('rename-confirm-btn');
+    const renameCancelBtn = document.getElementById('rename-cancel-btn');
+    const renameInput = document.getElementById('rename-input');
+    
+    if (renameConfirmBtn && renameCancelBtn && renameInput) {
+        renameConfirmBtn.addEventListener('click', () => {
+            const newName = renameInput.value.trim();
+            if (newName && newName !== renameModalData.oldName) {
+                performRename(newName);
+            }
+            hideRenameModal();
+        });
+        
+        renameCancelBtn.addEventListener('click', hideRenameModal);
+        
+        // Handle Enter key in the input
+        renameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const newName = renameInput.value.trim();
+                if (newName && newName !== renameModalData.oldName) {
+                    performRename(newName);
+                }
+                hideRenameModal();
+            } else if (e.key === 'Escape') {
+                hideRenameModal();
+            }
+        });
+    }
 });
 
 // Reuse the existing SMB functions from main.js
@@ -967,27 +1133,30 @@ async function uploadSMBFile(computer, share, currentPath) {
                 throw new Error(error.error || 'Failed to upload file');
             }
 
-            // Refresh the current directory listing
-            const files = await listSMBPath(computer, share, currentPath);
+            // Use refreshDirectory to update the directory content
+            const normalizedUploadPath = currentPath.replace(/\\/g, '/');
+            const parentPathForRefresh = '/' + normalizedUploadPath.replace(/^\/+/, '');
             
-            // Find the list element (UL) associated with the directory we uploaded into.
-            // If currentPath is empty, it means we uploaded to the share root.
-            let targetListElement;
-            if (currentPath === '') {
-                targetListElement = document.querySelector(`.smb-tree-item[data-share="${share}"][data-computer="${computer}"] > ul`);
-            } else {
-                targetListElement = document.querySelector(`.file-item[data-path="${currentPath}"][data-share="${share}"][data-computer="${computer}"] > ul`);
-            }
-            
-            if (targetListElement) {
-                targetListElement.innerHTML = buildFileList(files, share, currentPath, computer);
-                attachFileListeners(); // Re-attach listeners to the newly created elements
-                targetListElement.classList.remove('hidden'); // Ensure the list is visible if it was previously empty/hidden
-            } else {
-                console.error('Could not find the target list element to refresh after upload.');
-                // Optionally, force a full refresh of the share as a fallback
+            try {
+                await refreshDirectory(computer, share, currentPath, parentPathForRefresh);
+                
+                // Ensure the list is visible if it was previously empty/hidden
+                if (currentPath === '') {
+                    const listElement = document.querySelector(`.smb-tree-item[data-share="${share}"][data-computer="${computer}"] > ul`);
+                    if (listElement) {
+                        listElement.classList.remove('hidden');
+                    }
+                } else {
+                    const listElement = document.querySelector(`.file-item[data-path="${parentPathForRefresh}"][data-share="${share}"][data-computer="${computer}"] > ul`);
+                    if (listElement) {
+                        listElement.classList.remove('hidden');
+                    }
+                }
+            } catch (refreshError) {
+                console.error('Could not refresh directory after upload:', refreshError);
+                // Fallback: force a full refresh of the share as a last resort
                 const shareRootElement = document.querySelector(`.smb-tree-item[data-share="${share}"][data-computer="${computer}"] > div`);
-                shareRootElement?.click(); // Simulate clicking the share again
+                shareRootElement?.click();
             }
             
             showSuccessAlert('File uploaded successfully');
@@ -1140,6 +1309,213 @@ function clearDownload(id) {
                 }, 300);
             }
         }, 300);
+    }
+}
+
+// Add these functions near the bottom of the file
+function showRenameModal(computer, share, path, isDirectory, isShare) {
+    const modal = document.getElementById('rename-modal');
+    const renameInput = document.getElementById('rename-input');
+    const pathDisplay = document.getElementById('rename-modal-path');
+    const titleElement = document.getElementById('rename-modal-title');
+    
+    // Normalize path to use backslashes for consistent processing
+    const normalizedPath = path.replace(/\//g, '\\');
+    
+    // Parse the path to get the filename/folder name
+    const pathParts = normalizedPath.split('\\');
+    // Filter out empty parts in case of leading/trailing slashes
+    const filteredParts = pathParts.filter(part => part.length > 0); 
+    
+    // The last part is the filename/folder name
+    const oldName = filteredParts.length > 0 ? filteredParts[filteredParts.length - 1] : '';
+    
+    // Get the directory path (everything before the last part)
+    let dirPath = '';
+    if (filteredParts.length > 1) {
+        // Remove the last part (file/folder name) and join the rest
+        dirPath = filteredParts.slice(0, -1).join('\\');
+    }
+    
+    // Update modal title based on item type
+    titleElement.textContent = `Rename ${isDirectory ? 'Folder' : 'File'}`;
+    
+    // Display the path using original format for consistency in UI
+    pathDisplay.textContent = `\\\\${computer}\\${share}\\${path}`;
+    
+    // Set initial value in the input
+    renameInput.value = oldName;
+    
+    // Store data for later use
+    renameModalData = {
+        computer,
+        share,
+        path: normalizedPath,  // Store normalized path with backslashes
+        isDirectory,
+        isShare,
+        oldName,
+        dirPath
+    };
+    
+    console.log('Path parts:', filteredParts);
+    console.log('Modal data:', renameModalData);
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    
+    // Focus and select all text in input for easy editing
+    setTimeout(() => {
+        renameInput.focus();
+        renameInput.select();
+    }, 100);
+}
+
+function hideRenameModal() {
+    const modal = document.getElementById('rename-modal');
+    modal.classList.add('hidden');
+}
+
+// Replace the existing renameSMBFileOrDirectory function with this
+async function renameSMBFileOrDirectory(computer, share, path, isDirectory, isShare) {
+    if (computer !== activeComputer) {
+        console.warn(`Attempted to rename file from ${computer} while ${activeComputer} is active`);
+        return;
+    }   
+
+    // Show the custom modal instead of prompt()
+    showRenameModal(computer, share, path, isDirectory, isShare);
+}
+
+// Add this new function that does the actual rename operation
+async function performRename(newName) {
+    const { computer, share, path, dirPath, isDirectory, isShare, oldName } = renameModalData;
+    
+    console.log('renameModalData:', renameModalData);
+    try {
+        showLoadingIndicator();
+        
+        // Construct the source and destination paths
+        const source = path;
+        
+        // If we have a directory path, join it with the new name, otherwise just use the new name
+        const destination = dirPath ? `${dirPath}\\${newName}` : newName;
+        
+        console.log('Source:', source);
+        console.log('Destination:', destination);
+        
+        const response = await fetch('/api/smb/mv', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                computer, 
+                share, 
+                source, 
+                destination 
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to rename file');
+        }
+
+        // Refresh the directory where the renamed item was located
+        try {
+            // For shares, refresh the whole view
+            if (isShare) {
+                const shareRootElement = document.querySelector(`.smb-tree-item[data-share="${share}"][data-computer="${computer}"] > div`);
+                if (shareRootElement) {
+                    shareRootElement.click();
+                }
+                return;
+            }
+            
+            // Normalize paths for comparison
+            const parentPathNormalized = '/' + (dirPath || '').replace(/\\/g, '/');
+            
+            // Check if the renamed item is a directory and currently expanded
+            if (isDirectory) {
+                // If we're renaming a directory, check if it's currently expanded
+                const normalizedItemPath = '/' + path.replace(/\\/g, '/');
+                const renamedDirElement = document.querySelector(`.file-item[data-path="${normalizedItemPath}"][data-share="${share}"][data-computer="${computer}"]`);
+                if (renamedDirElement && renamedDirElement.querySelector('ul') && !renamedDirElement.querySelector('ul').classList.contains('hidden')) {
+                    // Directory is expanded, we need to update its path and refresh its contents
+                    // First, refresh the parent to update the folder listing with new name
+                    await refreshDirectory(computer, share, dirPath, parentPathNormalized);
+                    
+                    // Then, find and click the renamed folder to expand it again
+                    setTimeout(() => {
+                        // Construct the new path with the new name
+                        const newPathNormalized = parentPathNormalized === '/' ? 
+                            `/${newName}` : 
+                            `${parentPathNormalized}/${newName}`;
+                        
+                        console.log('Looking for renamed folder at:', newPathNormalized);
+                        const newFolderElement = document.querySelector(`.file-item[data-path="${newPathNormalized}"][data-share="${share}"][data-computer="${computer}"] > div`);
+                        if (newFolderElement) {
+                            newFolderElement.click();
+                        } else {
+                            console.warn('Could not find renamed folder element:', newPathNormalized);
+                        }
+                    }, 100);
+                    return;
+                }
+            }
+            
+            // Standard case: Just refresh the parent directory
+            await refreshDirectory(computer, share, dirPath, parentPathNormalized);
+            
+        } catch (error) {
+            console.error('Error refreshing directory after rename:', error);
+        }
+        
+        showSuccessAlert(`Successfully renamed to ${newName}`);
+    } catch (error) {
+        showErrorAlert(error.message);
+        console.error('Rename error:', error);
+    } finally {
+        hideLoadingIndicator();
+    }   
+}
+
+async function refreshDirectory(computer, share, dirPath, normalizedPath) {
+    try {
+        const files = await listSMBPath(computer, share, dirPath);
+        let parentList;
+        
+        if (dirPath === '') {
+            parentList = document.querySelector(`.smb-tree-item[data-share="${share}"][data-computer="${computer}"] > ul`);
+        } else {
+            const cleanNormalizedPath = normalizedPath.startsWith('/') ? normalizedPath : '/' + normalizedPath;
+            parentList = document.querySelector(`.file-item[data-path="${cleanNormalizedPath}"][data-share="${share}"][data-computer="${computer}"] > ul`);
+        }
+        
+        if (parentList) {
+            const parentScrollContainer = document.getElementById('pc-views');
+            const scrollTop = parentScrollContainer ? parentScrollContainer.scrollTop : 0;
+            
+            let currentPathFormatted = dirPath;
+            
+            if (dirPath.startsWith('/') || dirPath.startsWith('\\')) {
+                currentPathFormatted = dirPath.substring(1);
+            }
+            
+            currentPathFormatted = currentPathFormatted.replace(/\\/g, '/');
+            
+            console.log('Refreshing directory with formatted path:', currentPathFormatted);
+            
+            parentList.innerHTML = buildFileList(files, share, currentPathFormatted, computer);
+            attachFileListeners();
+            
+            if (parentScrollContainer) {
+                parentScrollContainer.scrollTop = scrollTop;
+            }
+        }
+    } catch (error) {
+        console.error(`Error refreshing directory ${dirPath}:`, error);
+        throw error;
     }
 }
 
@@ -1548,6 +1924,442 @@ function updateStickyHeaders(currentShare = '', currentDirectoryPath = '') {
     smbTableHeadersElement.style.top = `${stickyHeaderHeight}px`;
 }
 
+// Add this function to fetch and populate available SMB sessions
+async function fetchSMBSessions() {
+    try {
+        const response = await fetch('/api/smb/sessions');
+        if (!response.ok) {
+            throw new Error('Failed to fetch SMB sessions');
+        }
+        
+        const data = await response.json();
+        return data.sessions || {};
+    } catch (error) {
+        console.error('Error fetching SMB sessions:', error);
+        return {};
+    }
+}
+
+// Search Functions
+async function openSearchPanel(computer, share, path = '') {
+    const searchPanel = document.getElementById('search-panel');
+    const searchStatus = document.getElementById('search-status');
+    const searchHostSelect = document.getElementById('search-host');
+    const searchPathInput = document.getElementById('search-path');
+    
+    // Hide export button
+    const exportCsvButton = document.getElementById('export-search-csv');
+    exportCsvButton.classList.add('hidden');
+    
+    // Populate the host dropdown
+    await populateHostDropdown(searchHostSelect, computer);
+    
+    // Format the combined share and path
+    let combinedPath = share || '';
+    if (path) {
+        const formattedPath = path.replace(/^\/+/, '').replace(/\//g, '\\');
+        combinedPath += formattedPath ? '\\' + formattedPath : '';
+    }
+    searchPathInput.value = combinedPath;
+    
+    // Update search status
+    searchStatus.innerHTML = `Ready to search`;
+    
+    // Clear previous results
+    document.getElementById('search-results').innerHTML = '';
+    
+    // Show panel
+    searchPanel.classList.remove('hidden');
+    setTimeout(() => {
+        searchPanel.classList.remove('translate-x-full');
+        // Focus the search input
+        document.getElementById('search-query').focus();
+    }, 10);
+}
+
+async function populateHostDropdown(selectElement, selectedComputer) {
+    // Clear existing options
+    selectElement.innerHTML = '';
+    
+    // Get all active SMB sessions
+    const sessions = await fetchSMBSessions();
+    
+    // If no sessions, add a default option
+    if (Object.keys(sessions).length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.text = 'No active SMB connections';
+        selectElement.appendChild(option);
+        return;
+    }
+    
+    // Add options for each computer
+    for (const [computer, sessionInfo] of Object.entries(sessions)) {
+        const option = document.createElement('option');
+        option.value = computer;
+        option.text = computer;
+        
+        // Set as selected if it matches the provided computer
+        if (computer === selectedComputer) {
+            option.selected = true;
+        }
+        
+        selectElement.appendChild(option);
+    }
+}
+
+function convertToCSV(searchResults, searchInfo) {
+    // Create headers
+    const headers = ['Name', 'Path', 'Share', 'Computer', 'Type', 'Size', 'Match Type', 'Content Match'];
+    let csv = headers.join(',') + '\n';
+    
+    // Add search info as comment in first line
+    const searchMode = searchInfo.search_mode || 'pattern';
+    const searchPattern = searchInfo.pattern || '';
+    const caseInfo = searchInfo.case_sensitive ? 'case-sensitive' : 'case-insensitive';
+    csv = `# Search: ${searchPattern}, Mode: ${searchMode}, ${caseInfo}, Host: ${searchInfo.host}, Share: ${searchInfo.share}\n` + csv;
+    
+    // Process each result item
+    searchResults.forEach(item => {
+        const type = item.is_directory ? 'Directory' : 'File';
+        const size = item.size || 0;
+        const matchType = item.match_type || 'name';
+        // Escape any commas or quotes in content match
+        let contentMatch = (item.content_match || '').replace(/"/g, '""');
+        contentMatch = contentMatch ? `"${contentMatch}"` : '';
+        
+        // Escape any commas or quotes in name & path
+        const safeName = item.name.includes(',') ? `"${item.name}"` : item.name;
+        const safePath = item.path.includes(',') ? `"${item.path}"` : item.path;
+        
+        const row = [
+            safeName,
+            safePath,
+            item.share,
+            searchInfo.host,
+            type,
+            size,
+            matchType,
+            contentMatch
+        ];
+        
+        csv += row.join(',') + '\n';
+    });
+    
+    return csv;
+}
+
+function exportSearchResultsToCSV(items, searchInfo) {
+    if (!items || items.length === 0) return;
+    
+    // Convert the search results to CSV
+    const csv = convertToCSV(items, searchInfo);
+    
+    // Create a Blob and generate download link
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `smb_search_${searchInfo.host}_${searchInfo.share}_${timestamp}.csv`;
+    
+    // Create download link and trigger click
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    showSuccessAlert(`Exported ${items.length} results to ${filename}`);
+}
+
+async function performSearch() {
+    const searchPanel = document.getElementById('search-panel');
+    const searchResults = document.getElementById('search-results');
+    const searchStatus = document.getElementById('search-status');
+    const searchQuery = document.getElementById('search-query').value;
+    const searchHostSelect = document.getElementById('search-host');
+    const searchPathInput = document.getElementById('search-path').value;
+    const exportCsvButton = document.getElementById('export-search-csv');
+    
+    // Hide export button until we have results
+    exportCsvButton.classList.add('hidden');
+    
+    // Get the selected host
+    const computer = searchHostSelect.value;
+    if (!computer) {
+        searchStatus.innerHTML = '<span class="text-red-500 font-medium">Please select a host</span>';
+        return;
+    }
+    
+    // Parse the share and path from the path input
+    if (!searchPathInput) {
+        searchStatus.innerHTML = '<span class="text-red-500 font-medium">Please enter a share and path</span>';
+        return;
+    }
+    
+    // Extract share and path from the combined input
+    const pathParts = searchPathInput.split('\\');
+    const share = pathParts[0];
+    const startPath = pathParts.length > 1 ? pathParts.slice(1).join('/') : '';
+    
+    if (!share) {
+        searchStatus.innerHTML = '<span class="text-red-500 font-medium">Please specify a share in the path field</span>';
+        return;
+    }
+    
+    // Get search parameters
+    const depth = parseInt(document.getElementById('search-depth').value);
+    const contentSearch = document.getElementById('search-content').checked;
+    const useRegex = document.getElementById('search-regex').checked;
+    const caseSensitive = document.getElementById('search-case-sensitive').checked;
+    const credHunt = document.getElementById('search-cred-hunt').checked;
+    const itemType = document.getElementById('search-item-type').value;
+
+    // Validate search query
+    if (!credHunt && !searchQuery) {
+        searchStatus.innerHTML = '<span class="text-red-500 font-medium">Please enter a search query or enable Cred Hunt</span>';
+        return;
+    }
+
+    // Prepare the search data
+    const searchData = {
+        computer: computer,
+        share: share,
+        start_path: startPath,
+        depth: depth,
+        content_search: contentSearch,
+        use_regex: useRegex,
+        case_sensitive: caseSensitive,
+        cred_hunt: credHunt,
+        item_type: itemType
+    };
+    
+    // Only add query if it's present or if credHunt is not enabled
+    if (searchQuery || !credHunt) {
+        searchData.query = searchQuery;
+    }
+    
+    // --- Progressive search via Server-Sent Events ---
+    const params = new URLSearchParams();
+    Object.entries(searchData).forEach(([k, v]) => {
+        if (v !== undefined && v !== null) params.append(k, v);
+    });
+    const url = `/api/smb/search-stream?${params.toString()}`;
+
+    searchStatus.innerHTML = `<div class="flex items-center gap-2"><span class="animate-spin h-4 w-4 border-2 border-blue-500 dark:border-yellow-500 border-t-transparent dark:border-t-transparent rounded-full"></span> Searching in \\${computer}\\${share}${startPath ? '\\' + startPath.replace(/\//g, '\\') : ''}...</div>`;
+    searchResults.innerHTML = '';
+
+    window.lastSearchResults = { items: [], search_info: { host: computer, share: share, search_mode: useRegex ? 'regex' : 'pattern' } };
+
+    const es = new EventSource(url);
+
+    es.onmessage = (ev) => {
+        const data = JSON.parse(ev.data);
+        if (data.type === 'found') {
+            window.lastSearchResults.items.push(data.item);
+            searchResults.insertAdjacentHTML('beforeend', buildSearchResultItemHTML(data.item, computer, share));
+            attachSearchResultListeners();
+            if (window.lastSearchResults.items.length % 5 === 0) {
+                searchStatus.innerHTML = `<div class="text-neutral-500 dark:text-neutral-400">Found ${window.lastSearchResults.items.length} so far...</div>`;
+            }
+        } else if (data.type === 'done') {
+            es.close();
+            const total = data.total || window.lastSearchResults.items.length;
+            searchStatus.innerHTML = `<div class="mb-2"><div class="text-neutral-900 dark:text-white font-medium">Search Results (${total})</div></div>`;
+            if (total > 0) {
+                exportCsvButton.classList.remove('hidden');
+            }
+        }
+    };
+
+    es.onerror = (err) => {
+        console.error('SSE search error', err);
+        es.close();
+        searchStatus.innerHTML = '<span class="text-red-500 font-medium">Search failed</span>';
+    };
+    return;
+}
+
+function buildSearchResultItemHTML(item, computer, share) {
+    const isDirectory = item.is_directory;
+    const fileIcon = getFileIcon(item.name, isDirectory);
+    const matchType = item.match_type || 'name';
+    let matchBadge = '';
+    if (matchType === 'content') {
+        matchBadge = '<span class="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded">Content</span>';
+    } else if (matchType === 'credential_file') {
+        matchBadge = '<span class="text-xs px-1.5 py-0.5 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded">Credential</span>';
+    }
+    return `
+        <div class="search-result-item bg-white dark:bg-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-700 p-2 hover:bg-neutral-50 dark:hover:bg-neutral-700">
+            <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 min-w-0">
+                    ${fileIcon.isCustomSvg ? `<span class="w-4 h-4 flex-shrink-0 ${fileIcon.iconClass}">${fileIcon.icon}</span>` : `<i class="fas ${fileIcon.icon} ${fileIcon.iconClass} flex-shrink-0"></i>`}
+                    <div class="truncate">
+                        <div class="font-medium text-neutral-900 dark:text-white truncate">${item.name}</div>
+                        <div class="text-xs text-neutral-500 dark:text-neutral-400 truncate">${item.path.replace(/\\/g, "\\\\")}</div>
+                    </div>
+                    ${matchBadge}
+                </div>
+                <div class="flex items-center gap-1">
+                    ${isDirectory ? `
+                        <button class="open-result-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="Open" data-computer="${computer}" data-share="${share}" data-path="${item.path}"><i class="fas fa-folder-open fa-sm"></i></button>` : `
+                        <button class="view-result-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="View" data-computer="${computer}" data-share="${share}" data-path="${item.path}"><i class="fas fa-eye fa-sm"></i></button>`}
+                    <button class="download-result-btn text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 p-0.5" title="Download" data-computer="${computer}" data-share="${share}" data-path="${item.path}" data-is-dir="${isDirectory}"><i class="fas fa-download fa-sm"></i></button>
+                </div>
+            </div>
+            ${item.content_match ? `<div class="mt-1.5 p-1.5 bg-neutral-100 dark:bg-neutral-900 rounded text-xs font-mono whitespace-pre-wrap text-neutral-800 dark:text-neutral-200 max-h-20 overflow-y-auto">${escapeHTML(item.content_match)}</div>` : ''}
+        </div>
+    `;
+}
+
+// Add event listener for the export button
+document.addEventListener('DOMContentLoaded', () => {
+    // ... existing code ...
+    
+    // Export CSV button
+    const exportCsvButton = document.getElementById('export-search-csv');
+    if (exportCsvButton) {
+        exportCsvButton.addEventListener('click', () => {
+            if (window.lastSearchResults) {
+                exportSearchResultsToCSV(
+                    window.lastSearchResults.items, 
+                    window.lastSearchResults.search_info
+                );
+            } else {
+                showErrorAlert('No search results to export');
+            }
+        });
+    }
+});
+
+function attachSearchResultListeners() {
+    const searchPanel = document.getElementById('search-panel');
+    
+    // Function to hide search panel
+    const hideSearchPanel = () => {
+        searchPanel.classList.add('translate-x-full');
+        setTimeout(() => {
+            searchPanel.classList.add('hidden');
+        }, 300);
+    };
+    
+    // Attach view button listeners
+    document.querySelectorAll('.search-result-item .view-result-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const computer = btn.dataset.computer;
+            const share = btn.dataset.share;
+            const path = btn.dataset.path;
+            hideSearchPanel();
+            viewSMBFile(computer, share, path);
+        });
+    });
+    
+    // Attach open button listeners
+    document.querySelectorAll('.search-result-item .open-result-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const computer = btn.dataset.computer;
+            const share = btn.dataset.share;
+            const path = btn.dataset.path;
+            hideSearchPanel();
+            // Simulate navigation to this directory
+            if (computer !== activeComputer) {
+                switchToPC(computer);
+            }
+            
+            // Find the directory in the tree view and click it
+            const targetElement = findTreeElement(computer, share, path);
+            if (targetElement) {
+                targetElement.click();
+            } else {
+                // If element not found in tree (not expanded yet), expand from the share
+                navigateToPath(computer, share, path);
+            }
+        });
+    });
+    
+    // Attach download button listeners
+    document.querySelectorAll('.search-result-item .download-result-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const computer = btn.dataset.computer;
+            const share = btn.dataset.share;
+            const path = btn.dataset.path;
+            const isDir = btn.dataset.isDir === 'true';
+            hideSearchPanel();
+            
+            if (isDir) {
+                const dirName = path.split('\\').pop();
+                downloadSMBDirectory(computer, share, path, dirName);
+            } else {
+                downloadSMBFile(computer, share, path);
+            }
+        });
+    });
+}
+
+function findTreeElement(computer, share, path) {
+    if (!path) {
+        return document.querySelector(`.smb-tree-item[data-share="${share}"][data-computer="${computer}"] > div`);
+    }
+    
+    // Normalize path - convert backslashes to forward slashes
+    const normalizedPath = '/' + path.replace(/\\/g, '/').replace(/^\/+/, '');
+    return document.querySelector(`.file-item[data-share="${share}"][data-computer="${computer}"][data-path="${normalizedPath}"] > div`);
+}
+
+async function navigateToPath(computer, share, path) {
+    // This function handles navigating to a path by expanding the tree
+    // Starting from the share root
+    const shareElement = document.querySelector(`.smb-tree-item[data-share="${share}"][data-computer="${computer}"] > div`);
+    if (!shareElement) return;
+    
+    // First click on the share to expand it
+    shareElement.click();
+    
+    // Split the path into segments
+    const pathSegments = path.replace(/\\/g, '/').replace(/^\/+/, '').split('/');
+    let currentPath = '';
+    
+    // Navigate through each segment
+    for (let i = 0; i < pathSegments.length; i++) {
+        const segment = pathSegments[i];
+        if (!segment) continue;
+        
+        currentPath += '/' + segment;
+        const elementSelector = `.file-item[data-share="${share}"][data-computer="${computer}"][data-path="${currentPath}"] > div`;
+        
+        // Wait for the element to be available (after previous click has loaded its children)
+        let element = null;
+        let attempts = 0;
+        while (!element && attempts < 10) {
+            element = document.querySelector(elementSelector);
+            if (!element) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                attempts++;
+            }
+        }
+        
+        if (element) {
+            element.click();
+        } else {
+            console.error(`Could not find element for path segment: ${currentPath}`);
+            break;
+        }
+    }
+}
+
+// Helper function to safely escape HTML
+function escapeHTML(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // --- Context Menu Functions ---
 
 function hideContextMenu() {
@@ -1595,6 +2407,10 @@ function showContextMenu(event, itemData) {
         contextMenuElement.appendChild(createMenuItem('Download', 'fas fa-download', () => {
             downloadSMBDirectory(itemData.computer, itemData.share, itemData.path, itemData.name);
         }));
+        // Add Search option for directories and shares
+        contextMenuElement.appendChild(createMenuItem('Search', 'fas fa-search', () => {
+            openSearchPanel(itemData.computer, itemData.share, itemData.path);
+        }));
         contextMenuElement.appendChild(createMenuSeparator());
         contextMenuElement.appendChild(createMenuItem('Upload Here', 'fas fa-upload', () => {
             uploadSMBFile(itemData.computer, itemData.share, itemData.path);
@@ -1612,19 +2428,21 @@ function showContextMenu(event, itemData) {
         }));
     }
 
-    // Common actions (Delete, Rename - future, Properties - future)
+    // Common actions (Delete, Rename, Properties)
     contextMenuElement.appendChild(createMenuSeparator());
     contextMenuElement.appendChild(createMenuItem('Delete', 'fas fa-trash text-red-600 dark:text-red-500', () => {
         deleteSMBFileOrDirectory(itemData.computer, itemData.share, itemData.path, itemData.isDirectory);
     }));
-    // Add Rename placeholder
-    const renameItem = createMenuItem('Rename', 'fas fa-pencil-alt', () => alert('Rename functionality not yet implemented.'));
-    renameItem.classList.add('text-neutral-400', 'dark:text-neutral-500', 'cursor-not-allowed');
-    contextMenuElement.appendChild(renameItem);
-    // Add Properties placeholder
-    const propsItem = createMenuItem('Properties', 'fas fa-info-circle', () => alert('Properties functionality not yet implemented.'));
-    propsItem.classList.add('text-neutral-400', 'dark:text-neutral-500', 'cursor-not-allowed');
-    contextMenuElement.appendChild(propsItem);
+    
+    // Rename is now functional - don't add the disabled styling classes
+    contextMenuElement.appendChild(createMenuItem('Rename', 'fas fa-pencil-alt', () => {
+        renameSMBFileOrDirectory(itemData.computer, itemData.share, itemData.path, itemData.isDirectory, itemData.isShare);
+    }));
+    
+    // Properties is now functional
+    contextMenuElement.appendChild(createMenuItem('Properties', 'fas fa-info-circle', () => {
+        showProperties(itemData.computer, itemData.share, itemData.path, itemData.isDirectory);
+    }));
 
     // Position and show the menu
     const x = event.pageX;
@@ -1654,3 +2472,581 @@ document.addEventListener('click', (event) => {
 
 // Also hide on scroll within the pc-views container
 document.getElementById('pc-views')?.addEventListener('scroll', hideContextMenu);
+
+// Add this after the context menu code section
+
+// Properties Functions
+async function showProperties(computer, share, path, isDirectory) {
+    const propertiesPanel = document.getElementById('properties-panel');
+    const propertiesSpinner = document.getElementById('properties-spinner');
+    const propertiesContent = document.getElementById('properties-content');
+    const propertiesItemIcon = document.getElementById('properties-item-icon');
+    const propertiesItemName = document.getElementById('properties-item-name');
+    const propertiesItemPath = document.getElementById('properties-item-path');
+    const propertiesBasicInfo = document.getElementById('properties-basic-info');
+    const propertiesAttributes = document.getElementById('properties-attributes');
+    const propertiesExtendedSection = document.getElementById('properties-extended-section');
+    const propertiesExtendedInfo = document.getElementById('properties-extended-info');
+    const propertiesSecuritySection = document.getElementById('properties-security-section');
+    const propertiesSecurityInfo = document.getElementById('properties-security-info');
+    
+    // Reset and show the panel
+    propertiesBasicInfo.innerHTML = '';
+    propertiesAttributes.innerHTML = '';
+    propertiesExtendedInfo.innerHTML = '';
+    propertiesSecurityInfo.innerHTML = '';
+    propertiesExtendedSection.classList.add('hidden');
+    propertiesSecuritySection.classList.add('hidden');
+    
+    propertiesPanel.classList.remove('hidden');
+    setTimeout(() => {
+        propertiesPanel.classList.remove('translate-x-full');
+    }, 0);
+    
+    // Show loading state
+    propertiesSpinner.classList.remove('hidden');
+    propertiesContent.classList.add('opacity-50');
+    
+    try {
+        // Normalize path separators for display - Windows uses backslashes
+        const normalizedPath = path.replace(/\//g, '\\');
+        
+        // Get file/folder name from path
+        const itemName = normalizedPath.split('\\').pop();
+        propertiesItemName.textContent = itemName;
+        
+        // Format UNC path properly - make sure there are no double slashes
+        const uncPath = `\\\\${computer}\\${share}\\${normalizedPath.replace(/^[\/\\]+/, '')}`;
+        propertiesItemPath.textContent = uncPath;
+        
+        // Set icon based on type
+        if (isDirectory) {
+            propertiesItemIcon.className = 'fas fa-folder text-yellow-500';
+        } else {
+            const fileIcon = getFileIcon(itemName, false);
+            if (fileIcon.isCustomSvg) {
+                propertiesItemIcon.outerHTML = `<span id="properties-item-icon" class="w-4 h-4 ${fileIcon.iconClass}">${fileIcon.icon}</span>`;
+            } else {
+                propertiesItemIcon.className = `fas ${fileIcon.icon} ${fileIcon.iconClass}`;
+            }
+        }
+        
+        // Fetch properties from API
+        const response = await fetch('/api/smb/properties', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ computer, share, path })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to fetch properties');
+        }
+        
+        const properties = await response.json();
+        
+        // Basic info table
+        const basicInfoFields = [
+            { key: 'type', label: 'Type', value: isDirectory ? 'Folder' : getFileType(itemName) },
+            { key: 'size', label: 'Size', value: formatFileSize(properties.size || 0) },
+            { key: 'owner', label: 'Owner', value: properties.owner || 'Unknown', highlight: true },
+            { key: 'created', label: 'Created', value: convertWindowsTime(properties.created) },
+            { key: 'modified', label: 'Modified', value: convertWindowsTime(properties.modified) },
+            { key: 'accessed', label: 'Last Accessed', value: convertWindowsTime(properties.accessed) }
+        ];
+        
+        // Add Windows timestamps in raw format (useful for red teamers)
+        if (properties.created_windows) {
+            basicInfoFields.push({ 
+                key: 'created_windows', 
+                label: 'Created (Win)', 
+                value: properties.created_windows,
+                class: 'text-xs font-mono'
+            });
+        }
+        
+        if (properties.modified_windows) {
+            basicInfoFields.push({ 
+                key: 'modified_windows', 
+                label: 'Modified (Win)', 
+                value: properties.modified_windows,
+                class: 'text-xs font-mono'
+            });
+        }
+        
+        // UNC path - useful for exploitation
+        basicInfoFields.push({ 
+            key: 'unc_path', 
+            label: 'UNC Path', 
+            value: properties.full_path || `\\\\${computer}\\${share}\\${path}`,
+            class: 'text-xs font-mono break-all'
+        });
+        
+        basicInfoFields.forEach(field => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="py-1 pr-2 text-neutral-600 dark:text-neutral-400">${field.label}:</td>
+                <td class="py-1 text-neutral-900 dark:text-white ${field.highlight ? 'font-medium' : ''} ${field.class || ''}">${field.value}</td>
+            `;
+            propertiesBasicInfo.appendChild(row);
+        });
+        
+        // Attributes badges
+        if (properties.attribute_flags && properties.attribute_flags.length > 0) {
+            const securityRelevantAttributes = ['HIDDEN', 'SYSTEM', 'ENCRYPTED', 'REPARSE_POINT', 'OFFLINE', 'INTEGRITY_STREAM'];
+            
+            properties.attribute_flags.forEach(attr => {
+                const badge = document.createElement('span');
+                // Highlight security-relevant attributes
+                const isSecurityRelevant = securityRelevantAttributes.includes(attr);
+                badge.className = `px-1.5 py-0.5 ${isSecurityRelevant ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200' : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400'} rounded-md text-xs whitespace-nowrap mb-1 mr-1 inline-block`;
+                badge.textContent = attr;
+                propertiesAttributes.appendChild(badge);
+            });
+            
+            // Add raw attribute value
+            if (properties.attributes !== undefined) {
+                const hexValue = document.createElement('div');
+                hexValue.className = 'mt-1 text-xs font-mono text-neutral-500 dark:text-neutral-400';
+                hexValue.textContent = `Hex: 0x${properties.attributes.toString(16).toUpperCase()}`;
+                propertiesAttributes.appendChild(hexValue);
+            }
+        } else {
+            propertiesAttributes.innerHTML = '<span class="text-neutral-500 dark:text-neutral-400 text-xs">No attributes</span>';
+        }
+        
+        // Security information
+        if (properties.dacl && properties.dacl.length > 0) {
+            propertiesSecuritySection.classList.remove('hidden');
+            
+            // Group permissions by trustee for a Windows-like display
+            const permissionsByTrustee = {};
+            properties.dacl.forEach(ace => {
+                if (!permissionsByTrustee[ace.trustee]) {
+                    permissionsByTrustee[ace.trustee] = {
+                        trustee: ace.trustee,
+                        permissions: new Set(),
+                        isHighRisk: false,
+                        details: []
+                    };
+                }
+                
+                // Add the permission
+                if (typeof ace.permissions === 'string') {
+                    permissionsByTrustee[ace.trustee].permissions.add(ace.permissions);
+                } else if (Array.isArray(ace.permissions)) {
+                    ace.permissions.forEach(perm => {
+                        permissionsByTrustee[ace.trustee].permissions.add(perm);
+                    });
+                }
+                
+                // Check if this is a high-risk permission
+                if ((typeof ace.permissions === 'string' && 
+                     (ace.permissions === 'FullControl' || ace.permissions.includes('Write'))) ||
+                    (Array.isArray(ace.permissions) && 
+                     ace.permissions.some(p => p === 'FullControl' || p.includes('Write')))) {
+                    permissionsByTrustee[ace.trustee].isHighRisk = true;
+                }
+                
+                // Store detailed information
+                permissionsByTrustee[ace.trustee].details.push({
+                    type: ace.type,
+                    flags: ace.ace_flags,
+                    access_mask: ace.access_mask_raw
+                });
+            });
+            
+            // Create permission table
+            const permissionTable = document.createElement('table');
+            permissionTable.className = 'w-full text-xs border-collapse';
+            const tableHead = document.createElement('thead');
+            tableHead.innerHTML = `
+                <tr>
+                    <th class="text-left py-1 font-medium text-neutral-700 dark:text-neutral-300">Principal</th>
+                    <th class="text-left py-1 font-medium text-neutral-700 dark:text-neutral-300">Permissions</th>
+                </tr>
+            `;
+            permissionTable.appendChild(tableHead);
+            
+            const tableBody = document.createElement('tbody');
+            
+            // Sort trustees to show Administrator/System first, then others
+            const sortedTrustees = Object.keys(permissionsByTrustee).sort((a, b) => {
+                // Administrator and system accounts first
+                const isAPriority = a.includes('Administrator') || a.includes('SYSTEM') || a === 'Local System';
+                const isBPriority = b.includes('Administrator') || b.includes('SYSTEM') || b === 'Local System';
+                
+                if (isAPriority && !isBPriority) return -1;
+                if (!isAPriority && isBPriority) return 1;
+                
+                // Then sort by high-risk permissions
+                if (permissionsByTrustee[a].isHighRisk && !permissionsByTrustee[b].isHighRisk) return -1;
+                if (!permissionsByTrustee[a].isHighRisk && permissionsByTrustee[b].isHighRisk) return 1;
+                
+                // Then alphabetically
+                return a.localeCompare(b);
+            });
+            
+            sortedTrustees.forEach(trustee => {
+                const trusteeInfo = permissionsByTrustee[trustee];
+                const row = document.createElement('tr');
+                row.className = trusteeInfo.isHighRisk ? 'hover:bg-red-50 dark:hover:bg-red-900/20' : 'hover:bg-neutral-50 dark:hover:bg-neutral-800';
+                
+                // Format permissions nicely
+                let formattedPermissions = Array.from(trusteeInfo.permissions).join(', ');
+                
+                // Simplify permissions if needed
+                if (trusteeInfo.permissions.has('FullControl')) {
+                    formattedPermissions = 'Full Control';
+                } else if (trusteeInfo.permissions.has('ReadAndExecute') && 
+                          !Array.from(trusteeInfo.permissions).some(p => p.includes('Write') || p.includes('Modify'))) {
+                    formattedPermissions = 'Read & Execute';
+                } else if (trusteeInfo.permissions.has('GenericRead') && 
+                          trusteeInfo.permissions.has('GenericExecute') &&
+                          !Array.from(trusteeInfo.permissions).some(p => p.includes('Write') || p.includes('Modify'))) {
+                    formattedPermissions = 'Read & Execute';
+                }
+                
+                row.innerHTML = `
+                    <td class="py-1 border-t border-neutral-200 dark:border-neutral-700 pr-2 font-medium ${trusteeInfo.isHighRisk ? 'text-red-600 dark:text-red-400' : 'text-neutral-800 dark:text-neutral-200'}">${trustee}</td>
+                    <td class="py-1 border-t border-neutral-200 dark:border-neutral-700 ${trusteeInfo.isHighRisk ? 'text-red-600 dark:text-red-400' : 'text-neutral-600 dark:text-neutral-400'}">${formattedPermissions}</td>
+                `;
+                
+                // Add click handler to show more details
+                row.style.cursor = 'pointer';
+                row.addEventListener('click', () => {
+                    showPermissionDetails(trustee, trusteeInfo);
+                });
+                
+                tableBody.appendChild(row);
+            });
+            
+            permissionTable.appendChild(tableBody);
+            propertiesSecurityInfo.appendChild(permissionTable);
+            
+            // Add a note about clicking for more details
+            const detailsNote = document.createElement('div');
+            detailsNote.className = 'mt-2 text-xs text-neutral-500 dark:text-neutral-400 text-center';
+            detailsNote.innerHTML = '<i class="fas fa-info-circle mr-1"></i> Click on a principal to view detailed permissions';
+            propertiesSecurityInfo.appendChild(detailsNote);
+        }
+        
+        // Alternate streams - often important for red teamers
+        if (properties.extended_attributes && properties.extended_attributes.alternate_streams && 
+            properties.extended_attributes.alternate_streams.length > 0) {
+            propertiesExtendedSection.classList.remove('hidden');
+            
+            const adsTitle = document.createElement('div');
+            adsTitle.className = 'font-medium text-neutral-700 dark:text-neutral-300 mb-1';
+            adsTitle.textContent = 'Alternate Data Streams';
+            propertiesExtendedInfo.appendChild(adsTitle);
+            
+            const adsTable = document.createElement('table');
+            adsTable.className = 'w-full text-xs border-collapse';
+            
+            properties.extended_attributes.alternate_streams.forEach(stream => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="py-1 text-neutral-600 dark:text-neutral-400">${stream.name}:</td>
+                    <td class="py-1 text-red-600 dark:text-red-400 font-medium">${formatFileSize(stream.size)} (ADS)</td>
+                `;
+                adsTable.appendChild(row);
+            });
+            
+            propertiesExtendedInfo.appendChild(adsTable);
+            
+            // Add a security warning about ADS
+            const adsWarning = document.createElement('div');
+            adsWarning.className = 'mt-2 text-xs text-red-500 dark:text-red-400';
+            adsWarning.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> Alternate Data Streams can be used to hide malicious content';
+            propertiesExtendedInfo.appendChild(adsWarning);
+        }
+        
+    } catch (error) {
+        console.error('Properties error:', error);
+        showErrorAlert(error.message);
+    } finally {
+        // Hide loading state
+        propertiesSpinner.classList.add('hidden');
+        propertiesContent.classList.remove('opacity-50');
+    }
+}
+
+// Add this function to display detailed permissions for a specific trustee
+function showPermissionDetails(trustee, trusteeInfo) {
+    // Create modal for showing detailed permissions
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white dark:bg-neutral-900 rounded-lg shadow-lg p-4 max-w-lg w-full max-h-[80vh] overflow-y-auto permission-details-modal">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-semibold text-neutral-900 dark:text-white">Permissions for ${trustee}</h3>
+                <button class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 p-1 close-modal-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div>
+                <h4 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Effective Permissions</h4>
+                <div class="flex flex-wrap gap-1 mb-4">
+                    ${Array.from(trusteeInfo.permissions).map(perm => 
+                        `<span class="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded-md text-xs">${perm}</span>`
+                    ).join('')}
+                </div>
+                
+                <h4 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Access Control Entries</h4>
+                <div class="space-y-2">
+                    ${trusteeInfo.details.map(detail => `
+                        <div class="p-2 bg-neutral-50 dark:bg-neutral-800 rounded-md">
+                            <div class="text-xs font-medium text-neutral-900 dark:text-white">${detail.type}</div>
+                            ${detail.flags && detail.flags.length > 0 ? `
+                                <div class="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                                    <span class="font-medium">Flags:</span> ${detail.flags.join(', ')}
+                                </div>
+                            ` : ''}
+                            <div class="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+                                <span class="font-medium">Access Mask:</span> 0x${detail.access_mask.toString(16).toUpperCase()}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button class="px-3 py-1 bg-neutral-900 dark:bg-yellow-500 text-white dark:text-black rounded-md text-sm font-medium close-modal-btn">Close</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Prevent clicks inside the modal from propagating to document
+    const modalContent = modal.querySelector('.permission-details-modal');
+    modalContent.addEventListener('click', e => {
+        e.stopPropagation();
+    });
+    
+    // Add event listeners to close the modal
+    const closeButtons = modal.querySelectorAll('.close-modal-btn');
+    closeButtons.forEach(button => {
+        button.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation(); // Stop event from reaching document
+            document.body.removeChild(modal);
+        });
+    });
+    
+    // Close on click outside of modal content
+    modal.addEventListener('click', e => {
+        if (e.target === modal) {
+            e.preventDefault();
+            e.stopPropagation(); // Stop event from reaching document
+            document.body.removeChild(modal);
+        }
+    });
+}
+
+// Helper to get readable file type
+function getFileType(filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    const typeMap = {
+        'txt': 'Text Document',
+        'doc': 'Word Document',
+        'docx': 'Word Document',
+        'pdf': 'PDF Document',
+        'jpg': 'JPEG Image',
+        'jpeg': 'JPEG Image',
+        'png': 'PNG Image',
+        'gif': 'GIF Image',
+        'mp3': 'MP3 Audio',
+        'mp4': 'MP4 Video',
+        'zip': 'ZIP Archive',
+        'rar': 'RAR Archive',
+        'exe': 'Executable',
+        'dll': 'Dynamic Link Library',
+        'xls': 'Excel Spreadsheet',
+        'xlsx': 'Excel Spreadsheet',
+        'ppt': 'PowerPoint Presentation',
+        'pptx': 'PowerPoint Presentation',
+        'html': 'HTML Document',
+        'htm': 'HTML Document',
+        'css': 'CSS Stylesheet',
+        'js': 'JavaScript File',
+        'json': 'JSON File',
+        'xml': 'XML File',
+        'bat': 'Batch File',
+        'sh': 'Shell Script',
+        'py': 'Python Script',
+        'c': 'C Source File',
+        'cpp': 'C++ Source File',
+        'h': 'Header File',
+        'java': 'Java Source File',
+        'php': 'PHP Script',
+        'ini': 'Configuration File',
+        'cfg': 'Configuration File',
+        'conf': 'Configuration File',
+        'log': 'Log File'
+    };
+    
+    return typeMap[ext] || `${ext.toUpperCase()} File`;
+}
+
+// Add close button handler for properties panel
+document.addEventListener('DOMContentLoaded', () => {
+    // ... existing code ...
+    
+    // Add properties panel close button handler
+    const closePropertiesButton = document.getElementById('close-properties-panel');
+    if (closePropertiesButton) {
+        closePropertiesButton.addEventListener('click', () => {
+            const propertiesPanel = document.getElementById('properties-panel');
+            propertiesPanel.classList.add('translate-x-full');
+            setTimeout(() => {
+                propertiesPanel.classList.add('hidden');
+            }, 300);
+        });
+    }
+    
+    // Prevent properties panel closing when clicking inside
+    const propertiesPanel = document.getElementById('properties-panel');
+    if (propertiesPanel) {
+        propertiesPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+    
+    // Update panels array to include properties panel
+    const panels = document.querySelectorAll('#file-viewer-panel, #downloads-panel, #search-panel, #properties-panel');
+    panels.forEach(panel => {
+        panel.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    });
+    
+    // ... existing code ...
+});
+
+// Update the context menu function to make Properties functional
+function showContextMenu(event, itemData) {
+    if (!contextMenuElement) return;
+
+    hideContextMenu(); // Hide any existing menu first
+
+    // Populate menu based on item type
+    if (itemData.isDirectory) {
+        // Folder/Share actions
+        if (!itemData.isShare) { // Don't allow opening a share inside itself
+            contextMenuElement.appendChild(createMenuItem('Open', 'fas fa-folder-open', () => {
+                // Find the element and simulate a click
+                const targetElement = document.querySelector(`.file-item[data-path="${itemData.path}"] > div`);
+                targetElement?.click();
+            }));
+        }
+        contextMenuElement.appendChild(createMenuItem('Download', 'fas fa-download', () => {
+            downloadSMBDirectory(itemData.computer, itemData.share, itemData.path, itemData.name);
+        }));
+        // Add Search option for directories and shares
+        contextMenuElement.appendChild(createMenuItem('Search', 'fas fa-search', () => {
+            openSearchPanel(itemData.computer, itemData.share, itemData.path);
+        }));
+        contextMenuElement.appendChild(createMenuSeparator());
+        contextMenuElement.appendChild(createMenuItem('Upload Here', 'fas fa-upload', () => {
+            uploadSMBFile(itemData.computer, itemData.share, itemData.path);
+        }));
+        contextMenuElement.appendChild(createMenuItem('New Folder', 'fas fa-folder-plus', () => {
+            createSMBDirectory(itemData.computer, itemData.share, itemData.path);
+        }));
+    } else {
+        // File actions
+        contextMenuElement.appendChild(createMenuItem('View', 'fas fa-eye', () => {
+            viewSMBFile(itemData.computer, itemData.share, itemData.path);
+        }));
+        contextMenuElement.appendChild(createMenuItem('Download', 'fas fa-download', () => {
+            downloadSMBFile(itemData.computer, itemData.share, itemData.path);
+        }));
+    }
+
+    // Common actions (Delete, Rename, Properties)
+    contextMenuElement.appendChild(createMenuSeparator());
+    contextMenuElement.appendChild(createMenuItem('Delete', 'fas fa-trash text-red-600 dark:text-red-500', () => {
+        deleteSMBFileOrDirectory(itemData.computer, itemData.share, itemData.path, itemData.isDirectory);
+    }));
+    
+    // Rename is now functional - don't add the disabled styling classes
+    contextMenuElement.appendChild(createMenuItem('Rename', 'fas fa-pencil-alt', () => {
+        renameSMBFileOrDirectory(itemData.computer, itemData.share, itemData.path, itemData.isDirectory, itemData.isShare);
+    }));
+    
+    // Properties is now functional
+    contextMenuElement.appendChild(createMenuItem('Properties', 'fas fa-info-circle', () => {
+        showProperties(itemData.computer, itemData.share, itemData.path, itemData.isDirectory);
+    }));
+
+    // Position and show the menu
+    const x = event.pageX;
+    const y = event.pageY;
+
+    contextMenuElement.style.left = `${x}px`;
+    contextMenuElement.style.top = `${y}px`;
+    contextMenuElement.classList.remove('hidden');
+
+    // Adjust position if menu goes off-screen (basic implementation)
+    const menuRect = contextMenuElement.getBoundingClientRect();
+    if (menuRect.right > window.innerWidth) {
+        contextMenuElement.style.left = `${x - menuRect.width}px`;
+    }
+    if (menuRect.bottom > window.innerHeight) {
+        contextMenuElement.style.top = `${y - menuRect.height}px`;
+    }
+}
+
+function convertWindowsTime(fileTime) {
+    if (!fileTime || fileTime === '0') return 'Not available';
+    
+    try {
+        // Special cases for strings that already look like a date
+        if (typeof fileTime === 'string' && fileTime.includes('-') && fileTime.includes(':')) {
+            return fileTime; // Already in readable format
+        }
+        
+        // Convert to BigInt to handle large values safely
+        const windowsTime = typeof fileTime === 'string' ? BigInt(fileTime) : BigInt(0);
+        
+        // Windows FILETIME format starts from January 1, 1601 (UTC)
+        // Need to adjust to Unix epoch (January 1, 1970)
+        const windowsEpochInUnixTime = 11644473600000n;
+        
+        // Windows timestamps are in 100-nanosecond intervals
+        const unixTimeMs = Number((windowsTime / 10000n) - windowsEpochInUnixTime);
+        
+        // Create a Date object using the adjusted time
+        const date = new Date(unixTimeMs);
+        
+        // Check if the date is valid
+        if (isNaN(date.getTime())) {
+            return fileTime.toString();
+        }
+        
+        // Format the date to include milliseconds for forensic precision
+        const formatOptions = { 
+            year: 'numeric', 
+            month: '2-digit', 
+            day: '2-digit',
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit',
+            hour12: false
+        };
+        
+        // Format: YYYY-MM-DD HH:MM:SS.mmm
+        const formattedDate = date.toLocaleString(undefined, formatOptions)
+            .replace(',', '')
+            .replace('/', '-')
+            .replace('/', '-');
+            
+        return `${formattedDate}.${date.getMilliseconds().toString().padStart(3, '0')}`;
+    } catch (error) {
+        // If conversion fails, just return the original value
+        return fileTime.toString();
+    }
+}

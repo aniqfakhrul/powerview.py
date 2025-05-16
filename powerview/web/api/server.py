@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-from flask import Flask, jsonify, request, render_template, Response
+from flask import Flask, jsonify, request, render_template, Response, stream_with_context
 import logging
 from contextlib import redirect_stdout, redirect_stderr
 import io
 import os
 import sys
 import threading
-from datetime import date
+from datetime import date,datetime
 import shlex
+import fnmatch
 from argparse import Namespace
 from powerview.web.api.helpers import make_serializable
 from powerview.utils.parsers import powerview_arg_parse
@@ -16,6 +17,7 @@ from powerview._version import __version__ as version
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.modules.smbclient import SMBClient
 from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip
+import json
 
 class APIServer:
 	def __init__(self, powerview, host="127.0.0.1", port=5000):
@@ -44,7 +46,7 @@ class APIServer:
 		
 		components = [self.powerview.flatName.lower(), self.powerview.args.username.lower(), self.powerview.args.ldap_address.lower()]
 		folder_name = '-'.join(filter(None, components)) or "default-log"
-		file_name = "%s.log" % date.today()
+		file_name = "%s.log" % datetime.now().strftime("%Y-%m-%d")
 		self.log_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, file_name)
 		self.history_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, '.powerview_history')
 
@@ -113,13 +115,18 @@ class APIServer:
 		add_route_with_auth('/api/smb/disconnect', 'smb_disconnect', self.handle_smb_disconnect, methods=['POST'])
 		add_route_with_auth('/api/smb/shares', 'smb_shares', self.handle_smb_shares, methods=['POST'])
 		add_route_with_auth('/api/smb/ls', 'smb_ls', self.handle_smb_ls, methods=['POST'])
+		add_route_with_auth('/api/smb/mv', 'smb_mv', self.handle_smb_mv, methods=['POST'])
 		add_route_with_auth('/api/smb/get', 'smb_get', self.handle_smb_get, methods=['POST'])
 		add_route_with_auth('/api/smb/put', 'smb_put', self.handle_smb_put, methods=['POST'])
 		add_route_with_auth('/api/smb/cat', 'smb_cat', self.handle_smb_cat, methods=['POST'])
 		add_route_with_auth('/api/smb/rm', 'smb_rm', self.handle_smb_rm, methods=['POST'])
 		add_route_with_auth('/api/smb/mkdir', 'smb_mkdir', self.handle_smb_mkdir, methods=['POST'])
 		add_route_with_auth('/api/smb/rmdir', 'smb_rmdir', self.handle_smb_rmdir, methods=['POST'])
+		add_route_with_auth('/api/smb/search', 'smb_search', self.handle_smb_search, methods=['POST'])
+		add_route_with_auth('/api/smb/search-stream', 'smb_search_stream', self.handle_smb_search_stream, methods=['GET'])
+		add_route_with_auth('/api/smb/sessions', 'smb_sessions', self.handle_smb_sessions, methods=['GET'])
 		add_route_with_auth('/api/login_as', 'login_as', self.handle_login_as, methods=['POST'])
+		add_route_with_auth('/api/smb/properties', 'smb_properties', self.handle_smb_properties, methods=['POST'])
 
 	def set_status(self, status):
 		self.status = status
@@ -678,6 +685,30 @@ class APIServer:
 			logging.error(f"[SMB LS] Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500
 
+	def handle_smb_mv(self):
+		try:
+			data = request.json
+			computer = data.get('computer').lower()
+			share = data.get('share')
+			source = data.get('source')
+			destination = data.get('destination')
+
+			if not all([computer, share, source, destination]):
+				return jsonify({'error': 'Missing required parameters'}), 400
+				
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			client = self.powerview.conn.smb_sessions[computer]
+			smb_client = SMBClient(client)
+
+			smb_client.mv(share, source, destination)	
+			return jsonify({'message': 'File moved successfully'})
+	
+		except Exception as e:
+			logging.error(f"[SMB MV] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
 	def handle_smb_get(self):
 		try:
 			data = request.json
@@ -873,6 +904,283 @@ class APIServer:
 			logging.error(f"[SMB RMDIR] Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500
 
+	def handle_smb_search(self):
+		try:
+			data = request.json
+			host = data.get('computer', '').lower()
+			share = data.get('share')
+			query = data.get('query')
+			depth = int(data.get('depth', 3))
+			start_path = data.get('start_path', '')
+			use_regex = data.get('use_regex', False)
+			content_search = data.get('content_search', False)
+			case_sensitive = data.get('case_sensitive', False)
+			cred_hunt = data.get('cred_hunt', False)
+			item_type = data.get('item_type', 'all')
+			max_file_size = int(data.get('max_file_size', 5 * 1024 * 1024))  # Default 5MB
+			file_extensions = data.get('file_extensions', ['.txt', '.cfg', '.conf', '.config', '.xml', '.json', '.ini', '.ps1', '.bat', '.cmd', '.vbs', '.js', '.html', '.htm', '.log', '.sql', '.yml', '.yaml'])
+			
+			# If cred_hunt mode is enabled, set predefined patterns and options
+			if cred_hunt:
+				content_search = True
+				use_regex = True
+				if not query:
+					query = r"(?i)(password|passwd|pwd|pass|cred|credential|secret|key|token|api[-_]?key|admin|root|adm)[=:].*"
+				credential_file_patterns = [
+					"id_rsa", "id_dsa", ".npmrc", ".pypirc", "credentials.json", "credentials.xml", "creds.txt", 
+					"password", "passwd", "htpasswd", ".rdp", ".pgpass", ".git-credentials", "debug.log", 
+					"web.config", ".env", "oauth", "wallet.dat", "*.pfx", "*.p12", "*.pkcs12", "*.key"
+				]
+				special_files = [".bash_history", ".zsh_history", ".netrc", "hosts", "authorized_keys", "known_hosts"]
+			
+			# Sanitize and normalize paths to prevent traversal attacks
+			if '..' in start_path:
+				start_path = start_path.replace('..', '')
+			start_path = start_path.replace('\\\\', '\\').replace('//', '/')
+			
+			if not host or not share:
+				return jsonify({'error': 'Computer and share are required'}), 400
+				
+			if not query and not cred_hunt:
+				return jsonify({'error': 'Query is required or cred_hunt must be enabled'}), 400
+
+			if not hasattr(self.powerview.conn, 'smb_sessions') or host not in self.powerview.conn.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			client = self.powerview.conn.smb_sessions[host]
+			smb_client = SMBClient(client)
+			
+			mode = "cred_hunt" if cred_hunt else "content+regex" if content_search and use_regex else "content" if content_search else "regex" if use_regex else "pattern"
+			case_mode = "case-sensitive" if case_sensitive else "case-insensitive"
+			logging.info(f"[SMB SEARCH] Starting {mode} ({case_mode}) search on {host}\\{share} (depth {depth}){' for pattern ' + query if query else ''}")
+			
+			found_items = []
+			visited_paths = set()
+			error_paths = set()
+			
+			# Compile regex if using regex search
+			regex_pattern = None
+			if use_regex:
+				try:
+					import re
+					regex_flags = re.MULTILINE
+					if not case_sensitive:
+						regex_flags |= re.IGNORECASE
+					regex_pattern = re.compile(query, regex_flags)
+				except re.error:
+					return jsonify({'error': 'Invalid regex pattern'}), 400
+
+			def is_credential_file(file_name):
+				if not cred_hunt:
+					return False
+					
+				file_lower = file_name.lower()
+				
+				# Check exact matches for special filenames
+				if file_lower in special_files:
+					return True
+					
+				# Check credential file patterns
+				for pattern in credential_file_patterns:
+					if fnmatch.fnmatch(file_lower, pattern):
+						return True
+						
+				return False
+
+			def should_check_content(file_name, file_size):
+				if not content_search and not cred_hunt:
+					return False
+				
+				if file_size > max_file_size:
+					return False
+				
+				if is_credential_file(file_name):
+					return True
+					
+				file_ext = os.path.splitext(file_name.lower())[1]
+				return file_ext in file_extensions
+
+			def search_content(file_path, item_name, item_details):
+				try:
+					file_content = smb_client.cat(share, file_path)
+					if not file_content:
+						return False
+						
+					is_credential_match = is_credential_file(item_name)
+					if is_credential_match:
+						item_details["match_type"] = "credential_file"
+						item_details["is_credential_file"] = True
+						
+					try:
+						# Try to decode as UTF-8 first
+						text_content = file_content.decode('utf-8', errors='replace')
+					except (UnicodeDecodeError, AttributeError):
+						try:
+							# If that fails, try Latin-1
+							text_content = file_content.decode('latin-1', errors='replace')
+						except:
+							# If all fails, use raw bytes search
+							if use_regex and regex_pattern:
+								return bool(regex_pattern.search(str(file_content))) or is_credential_match
+							else:
+								return (query in str(file_content) if case_sensitive else query.lower() in str(file_content).lower()) or is_credential_match
+					
+					if use_regex and regex_pattern:
+						match = regex_pattern.search(text_content)
+						if match:
+							# Add match context to the result
+							start = max(0, match.start() - 50)
+							end = min(len(text_content), match.end() + 50)
+							match_context = text_content[start:end]
+							item_details["content_match"] = match_context.strip()
+							item_details["match_position"] = match.start()
+							return True
+					elif query:
+						if case_sensitive:
+							if query in text_content:
+								# Find the first occurrence and add context
+								pos = text_content.find(query)
+								start = max(0, pos - 50)
+								end = min(len(text_content), pos + len(query) + 50)
+								match_context = text_content[start:end]
+								item_details["content_match"] = match_context.strip()
+								item_details["match_position"] = pos
+								return True
+						else:
+							if query.lower() in text_content.lower():
+								# Find the first occurrence and add context
+								pos = text_content.lower().find(query.lower())
+								start = max(0, pos - 50)
+								end = min(len(text_content), pos + len(query) + 50)
+								match_context = text_content[start:end]
+								item_details["content_match"] = match_context.strip()
+								item_details["match_position"] = pos
+								return True
+							
+					return is_credential_match
+				except Exception as e:
+					logging.debug(f"[SMB CONTENT SEARCH] Error reading {file_path}: {str(e)}")
+					return False
+
+			def search_recursive(current_path, current_depth):
+				if current_depth > depth:
+					return
+					
+				if current_path in visited_paths:
+					return
+					
+				visited_paths.add(current_path)
+				
+				path_log = current_path if current_path else '\\' 
+				logging.debug(f"[SMB SEARCH] Searching {path_log} (depth {current_depth})")
+
+				try:
+					items = smb_client.ls(share, current_path)
+					for item in items:
+						item_name = item.get_longname()
+						if item_name in ['.', '..']:
+							continue
+
+						temp_path = os.path.join(current_path, item_name)
+						full_item_path = temp_path.replace('/', '\\') 
+						if full_item_path.startswith('\\') and not current_path:
+							full_item_path = full_item_path[1:]
+
+						# Create item details dictionary
+						item_details = {
+							"name": item_name,
+							"path": full_item_path,
+							"is_directory": item.is_directory(),
+							"size": item.get_filesize(),
+							"created": str(item.get_ctime()),
+							"modified": str(item.get_mtime()),
+							"accessed": str(item.get_atime()),
+							"share": share,
+							"match_type": "name"
+						}
+
+						# Skip based on item type filter
+						if (item_type == 'files' and item.is_directory()) or (item_type == 'directories' and not item.is_directory()):
+							if item.is_directory():
+								# Still search directories even if we're only looking for files
+								search_recursive(full_item_path, current_depth + 1)
+							continue
+
+						# Check for credential files first
+						if not item.is_directory() and cred_hunt and is_credential_file(item_name):
+							cred_file_details = item_details.copy()
+							cred_file_details["match_type"] = "credential_file"
+							cred_file_details["is_credential_file"] = True
+							logging.debug(f"[SMB SEARCH] Found credential file: {full_item_path}")
+							found_items.append(cred_file_details)
+
+						# Check filename match
+						if query:
+							name_match = False
+							if use_regex and regex_pattern:
+								name_match = bool(regex_pattern.search(item_name))
+							else:
+								if case_sensitive:
+									name_match = fnmatch.fnmatch(item_name, query)
+								else:
+									name_match = fnmatch.fnmatch(item_name.lower(), query.lower())
+							
+							# Add item if filename matches
+							if name_match:
+								logging.debug(f"[SMB SEARCH] Found name match: {full_item_path}")
+								found_items.append(item_details.copy())
+						
+						# Check content match for files only
+						if not item.is_directory() and should_check_content(item_name, item.get_filesize()):
+							content_match_details = item_details.copy()
+							content_match_details["match_type"] = "content"
+							
+							if search_content(full_item_path, item_name, content_match_details):
+								match_type = "content match" if "content_match" in content_match_details else "credential file"
+								logging.debug(f"[SMB SEARCH] Found {match_type} in: {full_item_path}")
+								found_items.append(content_match_details)
+
+						# Continue recursion if it's a directory
+						if item.is_directory():
+							search_recursive(full_item_path, current_depth + 1)
+				except Exception as e:
+					error_paths.add(current_path)
+					logging.debug(f"[SMB SEARCH] Error accessing path {current_path}: {str(e)}")
+
+			search_recursive(start_path, 0)
+			
+			total_items = len(found_items)
+			if cred_hunt:
+				logging.info(f"[SMB SEARCH] Found {total_items} potential credential files/matches")
+			else:
+				logging.info(f"[SMB SEARCH] Found {total_items} matching items for '{query}'")
+			
+			if error_paths:
+				logging.debug(f"[SMB SEARCH] Encountered access errors in {len(error_paths)} paths")
+			
+			return jsonify({
+				'items': found_items,
+				'total': total_items,
+				'search_info': {
+					'pattern': query,
+					'search_mode': mode,
+					'case_sensitive': case_sensitive,
+					'content_search': content_search,
+					'cred_hunt': cred_hunt,
+					'share': share,
+					'host': host,
+					'max_depth': depth,
+					'item_type': item_type,
+					'paths_searched': len(visited_paths),
+					'error_paths': len(error_paths),
+					'file_extensions_searched': file_extensions if content_search else None
+				}
+			})
+
+		except Exception as e:
+			logging.error(f"[SMB SEARCH] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
 	def handle_login_as(self):
 		"""Handles requests to the /api/login_as endpoint."""
 		try:
@@ -922,3 +1230,216 @@ class APIServer:
 		except Exception as e:
 			logging.error(f"Unexpected exception during login_as for {username}: {str(e)}")
 			return jsonify({'error': f"An unexpected error occurred during login: {str(e)}"}), 500
+
+	def handle_smb_sessions(self):
+		try:
+			if not hasattr(self.powerview.conn, 'smb_sessions'):
+				return jsonify({'sessions': {}}), 200
+			
+			# Convert SMB sessions to serializable format
+			sessions = {}
+			for computer, client in self.powerview.conn.smb_sessions.items():
+				sessions[computer] = {
+					'computer': computer,
+					'connected': client.is_connected() if hasattr(client, 'is_connected') else True,
+					'authenticated': client.is_authenticated() if hasattr(client, 'is_authenticated') else True
+				}
+			
+			return jsonify({'sessions': sessions})
+		except Exception as e:
+			logging.error(f"Error fetching SMB sessions: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_search_stream(self):
+		"""Server-Sent Event progressive search wrapper around handle_smb_search logic."""
+		try:
+			# Grab and normalise parameters from query-string
+			args = request.args
+			host = args.get('computer', '').lower()
+			share = args.get('share')
+			query = args.get('query', '')
+			start_path = args.get('start_path', '')
+			depth = int(args.get('depth', 3))
+			use_regex = args.get('use_regex', 'false').lower() == 'true'
+			content_search = args.get('content_search', 'false').lower() == 'true'
+			case_sensitive = args.get('case_sensitive', 'false').lower() == 'true'
+			cred_hunt = args.get('cred_hunt', 'false').lower() == 'true'
+			item_type = args.get('item_type', 'all')
+
+			if not host or not share:
+				return jsonify({'error': 'Computer and share are required'}), 400
+
+			if not hasattr(self.powerview.conn, 'smb_sessions') or host not in self.powerview.conn.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			client = self.powerview.conn.smb_sessions[host]
+			smb_client = SMBClient(client)
+
+			# Prepare helpers
+			import re, fnmatch, os
+			regex_pattern = None
+			if use_regex and query:
+				flags = re.MULTILINE | (0 if case_sensitive else re.IGNORECASE)
+				try:
+					regex_pattern = re.compile(query, flags)
+				except re.error:
+					return jsonify({'error': 'Invalid regex pattern'}), 400
+
+			def name_match(filename):
+				if not query:
+					return False
+				if use_regex and regex_pattern:
+					return bool(regex_pattern.search(filename))
+				if case_sensitive:
+					return fnmatch.fnmatch(filename, query)
+				return fnmatch.fnmatch(filename.lower(), query.lower())
+
+			def content_match(path, filename):
+				if not content_search and not cred_hunt:
+					return False, None
+				try:
+					blob = smb_client.cat(share, path)
+					if not blob:
+						return False, None
+					try:
+						text = blob.decode('utf-8', errors='replace')
+					except Exception:
+						text = str(blob)
+
+					if cred_hunt:
+						return True, None
+					if query:
+						if use_regex and regex_pattern:
+							m = regex_pattern.search(text)
+							if m:
+								return True, text[m.start():m.end()+100]
+						else:
+							needle = query if case_sensitive else query.lower()
+							hay = text if case_sensitive else text.lower()
+							idx = hay.find(needle)
+							if idx != -1:
+								return True, text[idx:idx+100]
+					return False, None
+				except Exception:
+					return False, None
+
+			def event_stream():
+				visited = set()
+				stack = [(start_path, 0)]
+				total = 0
+				while stack:
+					current_path, cur_depth = stack.pop()
+					if cur_depth > depth or current_path in visited:
+						continue
+					visited.add(current_path)
+					try:
+						items = smb_client.ls(share, current_path)
+					except Exception:
+						continue
+					for itm in items:
+						name = itm.get_longname()
+						if name in ['.', '..']:
+							continue
+						full_path = os.path.join(current_path, name).replace('/', '\\')
+						if full_path.startswith('\\') and not current_path:
+							full_path = full_path[1:]
+
+						is_directory = itm.is_directory()
+						item_details = {
+							'name': name,
+							'path': full_path,
+							'is_directory': is_directory,
+							'size': itm.get_filesize(),
+							'share': share,
+							'match_type': 'name'
+						}
+
+						# Skip based on item type filter
+						if (item_type == 'files' and is_directory) or (item_type == 'directories' and not is_directory):
+							if is_directory:
+								# Still search directories even if we're only looking for files
+								stack.append((full_path, cur_depth + 1))
+							continue
+
+						matched = False
+						if name_match(name):
+							matched = True
+						elif not is_directory:
+							cm, ctx = content_match(full_path, name)
+							if cm:
+								matched = True
+								item_details['match_type'] = 'content'
+								if ctx:
+									item_details['content_match'] = ctx
+
+						if matched:
+							yield f"data: {json.dumps({'type':'found','item': item_details})}\n\n"
+							total += 1
+
+						if is_directory:
+							stack.append((full_path, cur_depth + 1))
+
+				yield f"data: {json.dumps({'type':'done','total': total})}\n\n"
+
+			headers = {
+				'Content-Type': 'text/event-stream',
+				'Cache-Control': 'no-cache',
+				'X-Accel-Buffering': 'no'
+			}
+			return Response(stream_with_context(event_stream()), headers=headers)
+		except Exception as e:
+			logging.error(f"[SMB SEARCH STREAM] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_properties(self):
+		try:
+			data = request.json
+			computer = data.get('computer').lower()
+			share = data.get('share')
+			path = data.get('path')
+
+			if not all([computer, share, path]):
+				return jsonify({'error': 'Missing required parameters'}), 400
+
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			client = self.powerview.conn.smb_sessions[computer]
+			smb_client = SMBClient(client)
+			
+			try:
+				# Get basic file info first
+				file_info = smb_client.get_file_info(share, path)
+				file_info['owner'] = self.powerview.convertfrom_sid(file_info['sd_info']['OwnerSid'])
+				file_info['group'] = self.powerview.convertfrom_sid(file_info['sd_info']['GroupSid'])
+				file_info['dacl'] = file_info['sd_info']['Dacl']
+				for ace in file_info['dacl']:
+					ace['trustee'] = self.powerview.convertfrom_sid(ace['trustee'])
+
+				# Format timestamps for better readability
+				for ts_field in ['created', 'modified', 'accessed']:
+					if ts_field in file_info:
+						try:
+							# Keep the original timestamp string but add a formatted version
+							ts_str = file_info[ts_field]
+							# Windows FILETIME objects might be present, format them nicely
+							file_info[ts_field + '_formatted'] = ts_str
+						except Exception as e:
+							logging.debug(f"Could not format timestamp {ts_field}: {str(e)}")
+				
+				# Add additional system properties if possible 
+				try:
+					# Add full path information
+					file_info['full_path'] = f"\\\\{computer}\\{share}\\{path.replace('/', '\\')}"
+					file_info['computer'] = computer
+					file_info['share'] = share
+				except Exception as attr_err:
+					logging.warning(f"Could not get additional file attributes: {str(attr_err)}")
+				return jsonify(file_info)
+				
+			except Exception as e:
+				return jsonify({'error': f'Failed to get file properties: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB PROPERTIES] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500

@@ -56,6 +56,7 @@ from powerview.web.api.server import APIServer
 
 import chardet
 from io import BytesIO
+
 import ldap3
 from ldap3 import ALL_ATTRIBUTES
 from ldap3.protocol.microsoft import security_descriptor_control
@@ -156,8 +157,16 @@ class PowerView:
 			self.domain = dn2domain(self.root_dn)
 		self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0] if isinstance(self.ldap_server.info.other["ldapServiceName"], list) else self.ldap_server.info.other["ldapServiceName"].split("@")[-1].split(".")[0]
 		self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
-
 		self.whoami = self.conn.who_am_i()
+
+	def get_domain_sid(self):
+		"""
+		Returns the domain SID for the current domain.
+		
+		Returns:
+			String: The domain SID.
+		"""
+		return self.get_domainobject(properties=['objectSid'])[0]['attributes']['objectSid']
 
 	def get_target_domain(self):
 		"""
@@ -710,15 +719,15 @@ class PowerView:
 			no_cache = args.no_cache if hasattr(args, 'no_cache') else no_cache
 			no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') else no_vuln_check
 			raw = args.raw if hasattr(args, 'raw') else raw
-
+			
 		searchbase = searchbase or self.root_dn
 
 		guids_dict = guids_map_dict or {}
 		if not guids_map_dict:
 			try:
-				logging.debug(f"[Get-DomainObjectAcl] Searching for GUIDs in CN=Extended-Rights,CN=Configuration,{searchbase}")
+				logging.debug(f"[Get-DomainObjectAcl] Searching for GUIDs in CN=Extended-Rights,{self.configuration_dn}")
 				entries = self.ldap_session.extend.standard.paged_search(
-					f"CN=Extended-Rights,CN=Configuration,{searchbase}", 
+					f"CN=Extended-Rights,{self.configuration_dn}", 
 					"(rightsGuid=*)", 
 					attributes=['displayName', 'rightsGuid'], 
 					paged_size=1000, 
@@ -2001,7 +2010,7 @@ class PowerView:
 
 		return entries
 
-	def get_domainca(self, args=None, identity=None, check_web_enrollment=False, properties=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domainca(self, args=None, identity=None, check_all=False, properties=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			"cn",
 			"name",
@@ -2011,24 +2020,26 @@ class PowerView:
 			"certificateTemplates",
 			"objectGUID",
 			"distinguishedName",
-			"displayName",
+			"displayName"
 		]
 		properties = def_prop if not properties else properties
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
-		check_web_enrollment = args.check_web_enrollment if hasattr(args, 'check_web_enrollment') else check_web_enrollment
-		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
-		ca_fetch = CAEnum(self)
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+		check_all = args.check_all if hasattr(args, 'check_all') else check_all
+
+		ca_fetch = CAEnum(self, check_all=check_all)
 		entries = ca_fetch.fetch_enrollment_services(
 			properties, 
 			search_scope=search_scope, 
 			no_cache=no_cache, 
 			no_vuln_check=no_vuln_check,
-			raw=raw
+			raw=raw,
+			include_sd=True if check_all else False
 		)
-
-		if check_web_enrollment:
+	
+		if check_all:
 			# check for web enrollment
 			for i in range(len(entries)):
 				# check if entries[i]['attributes']['dNSHostName'] is a list
@@ -2046,15 +2057,18 @@ class PowerView:
 
 				web_enrollment = ca_fetch.check_web_enrollment(target_name)
 
-				if not web_enrollment and (target_ip.casefold() != target_name.casefold()):
+				if not any(web_enrollment) and (target_ip.casefold() != target_name.casefold()):
 					logging.debug("[Get-DomainCA] Trying to check web enrollment with IP")
 					web_enrollment = ca_fetch.check_web_enrollment(target_ip)
 
+
+				# Final modification
 				entries[i] = modify_entry(
 					entries[i],
 					new_attributes = {
 						"WebEnrollment": web_enrollment
-					}
+					},
+					remove = ["nTSecurityDescriptor"]
 				)
 
 		return entries

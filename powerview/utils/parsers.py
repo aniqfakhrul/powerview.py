@@ -521,7 +521,6 @@ def powerview_arg_parse(cmd):
 
 	# Find CAs
 	get_domainca_parser = subparsers.add_parser('Get-DomainCA', aliases=['Get-CA'], exit_on_error=False)
-	get_domainca_parser.add_argument('-CheckWebEnrollment', action='store_true', dest='check_web_enrollment')
 	get_domainca_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainca_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	get_domainca_parser.add_argument('-Server', action='store', dest='server')
@@ -535,6 +534,7 @@ def powerview_arg_parse(cmd):
 	get_domainca_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
 	get_domainca_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 	get_domainca_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
+	get_domainca_parser.add_argument('-CheckAll', action='store_true', default=False, dest='check_all')
 
 	# Find CA Templates
 	get_domaincatemplate_parser = subparsers.add_parser('Get-DomainCATemplate', aliases=['Get-CATemplate'], exit_on_error=False)
