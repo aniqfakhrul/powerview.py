@@ -343,34 +343,3 @@ class SMBClient:
         except Exception as e:
             logging.error(f"[SMBClient: get_file_info] Error: {e}")
             raise
-
-    def get_attributes(self, share, path):
-        """Get extended attributes for a file."""
-        if self.client is None:
-            logging.error("[SMBClient: get_attributes] Not logged in")
-            return None
-        
-        try:
-            file_info = self.get_file_info(share, path)
-            
-            # Add additional file information when possible
-            attributes = {}
-            
-            # Try to get NTFS streams if available
-            try:
-                path = path.replace('/', '\\')
-                streams = self.client.listStreams(share, ntpath.normpath(path))
-                if streams:
-                    attributes['alternate_streams'] = [
-                        {'name': s['StreamName'], 'size': s['StreamSize']} 
-                        for s in streams 
-                        if s['StreamName'] != ':$DATA'  # Skip default data stream
-                    ]
-            except Exception as e:
-                logging.debug(f"[SMBClient: get_attributes] Couldn't get streams: {e}")
-            
-            return attributes
-            
-        except Exception as e:
-            logging.debug(f"[SMBClient: get_attributes] Error: {e}")
-            return None

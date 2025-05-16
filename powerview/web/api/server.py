@@ -1429,12 +1429,6 @@ class APIServer:
 				
 				# Add additional system properties if possible 
 				try:
-					if not file_info.get('is_directory', False):
-						# Get file attributes
-						attrs = smb_client.get_attributes(share, path)
-						if attrs:
-							file_info['extended_attributes'] = attrs
-					
 					# Add full path information
 					file_info['full_path'] = f"\\\\{computer}\\{share}\\{path.replace('/', '\\')}"
 					file_info['computer'] = computer
