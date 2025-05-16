@@ -69,16 +69,74 @@ class ActiveDirectorySecurity:
 
                 self.aces[sid]["extended_rights"].append(uuid)
 
+#stolen from https://github.com/ly4k/Certipy
+class SecurityDescriptorParser:
+    """Base class for parsing security descriptors."""
+
+    RIGHTS_TYPE = None  # Must be defined by subclasses
+
+    def __init__(self, security_descriptor: bytes):
+        """
+        Initialize a security descriptor parser.
+
+        Args:
+            security_descriptor: Binary representation of a security descriptor
+        """
+        if self.RIGHTS_TYPE is None:
+            raise NotImplementedError("Subclasses must define RIGHTS_TYPE")
+
+        # Parse the security descriptor
+        self.sd = ldaptypes.SR_SECURITY_DESCRIPTOR()
+        self.sd.fromString(security_descriptor)
+
+        # Extract owner SID
+        self.owner = format_sid(self.sd["OwnerSid"].getData())
+
+        # Dictionary to store access control entries by SID
+        self.aces: Dict[str, Dict[str, Any]] = {}
+
+        # Parse the ACEs
+        self._parse_aces()
+
+    def _parse_aces(self) -> None:
+        """Parse the access control entries from the security descriptor."""
+        pass  # To be implemented by subclasses
+
 class CertificateSecurity(ActiveDirectorySecurity):
     RIGHTS_TYPE = CERTIFICATE_RIGHTS
 
+class CASecurity(SecurityDescriptorParser):
+    RIGHTS_TYPE = CERTIFICATION_AUTHORITY_RIGHTS
+    def _parse_aces(self) -> None:
+        """
+        Parse the access control entries from the security descriptor.
+
+        CA security descriptors have a simpler structure than AD security descriptors.
+        """
+        aces = self.sd["Dacl"]["Data"]
+
+        for ace in aces:
+            sid = format_sid(ace["Ace"]["Sid"].getData())
+
+            if sid not in self.aces:
+                self.aces[sid] = {
+                    "rights": self.RIGHTS_TYPE(0),
+                    "extended_rights": [],  # CAs don't use extended rights, but keeping for consistency
+                    "inherited": bool(ace["AceFlags"] & INHERITED_ACE),
+                }
+
+            if ace["AceType"] == ldaptypes.ACCESS_ALLOWED_ACE.ACE_TYPE:
+                mask = self.RIGHTS_TYPE(ace["Ace"]["Mask"]["Mask"])
+                self.aces[sid]["rights"] |= mask
+
 class CAEnum:
-    def __init__(self, powerview):
+    def __init__(self, powerview, check_all=False):
         self.powerview = powerview
         self.ldap_session = self.powerview.conn.ldap_session
         self.ldap_server = self.powerview.conn.ldap_server
         self.root_dn = self.powerview.root_dn
         self.configuration_dn = self.powerview.configuration_dn
+        self.check_all = check_all
 
     def fetch_root_ca(self, properties=['*']):
         enroll_filter = "(objectclass=certificationAuthority)"
@@ -111,7 +169,7 @@ class CAEnum:
 
         logging.debug(f"LDAP Base: {searchbase}")
         logging.debug(f"LDAP Filter: {enroll_filter}")
-        return self.ldap_session.extend.standard.paged_search(
+        entries = self.ldap_session.extend.standard.paged_search(
             searchbase,
             enroll_filter,
             attributes=list(properties),
@@ -120,9 +178,35 @@ class CAEnum:
             search_scope=search_scope,
             no_cache=no_cache,
             no_vuln_check=no_vuln_check,
-            raw=raw
+            raw=raw,
+            controls=security_descriptor_control(sdflags=0x05)
         )
+        if self.check_all:
+            for entry in entries:
+                # Access Rights + owner
+                if not entry["attributes"]["nTSecurityDescriptor"]:
+                    continue
+                security = CASecurity(entry["attributes"]["nTSecurityDescriptor"])
+                aces = security.aces
+                entry["attributes"]["Owner"] = self.powerview.convertfrom_sid(security.owner)
+                entry["attributes"]["ManageCa"] = []
+                entry["attributes"]["ManageCertificates"] = []
+                entry["attributes"]["Enroll"] = []
+                
+                for sid, rights in aces.items():
+                    if CERTIFICATION_AUTHORITY_RIGHTS.MANAGE_CA in rights["rights"]:
+                        entry["attributes"]["ManageCa"].append(self.powerview.convertfrom_sid(sid))
+                    if CERTIFICATION_AUTHORITY_RIGHTS.MANAGE_CERTIFICATES in rights["rights"]:
+                        entry["attributes"]["ManageCertificates"].append(self.powerview.convertfrom_sid(sid))
+                
+                # Enroll
+                user_sids = self.powerview.get_domainobjectacl(searchbase=self.configuration_dn, identity=entry["dn"])
+                for acl in user_sids:
+                    for ace in acl.get('attributes', []):
+                        if 'Enroll' in str(ace.get('ObjectAceType')):
+                            entry["attributes"]["Enroll"].append(ace.get('SecurityIdentifier'))
 
+        return entries
     def get_certificate_templates(self, properties=None, ca_search_base=None, identity=None, search_scope=SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
         if not properties:
             properties=[
@@ -176,36 +260,60 @@ class CAEnum:
     def check_web_enrollment(self, target, timeout=5):
         if target is None:
             logging.debug("No target found")
-            return False
+            return [False, False]  # [HTTP, HTTPS]
 
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            logging.debug("Default timeout is set to 5")
-            sock.settimeout(timeout)
-            logging.debug("Connecting to %s:80" % target)
-            sock.connect((target, 80))
-            sock.sendall(
-                "\r\n".join(
-                    ["HEAD /certsrv/ HTTP/1.1", "Host: %s" % target, "\r\n"]
-                ).encode()
-            )
-            resp = sock.recv(256)
-            sock.close()
-            head = resp.split(b"\r\n")[0].decode()
+        results = [False, False]  # [HTTP, HTTPS]
+        ports = [80, 443]
+        protocols = ["HTTP", "HTTPS"]
 
-            return " 404 " not in head
-        except ConnectionRefusedError:
-            return False
-        except socket.timeout:
-            logging.debug("Can't reach %s" % (target))
-            return False
-        except Exception as e:
-            logging.warning(
-                "Got error while trying to check for web enrollment: %s" % e
-            )
-            return False
+        for i, port in enumerate(ports):
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                logging.debug(f"Default timeout is set to {timeout}")
+                sock.settimeout(timeout)
+                logging.debug(f"Connecting to {target}:{port}")
+                sock.connect((target, port))
+                
+                if port == 80:
+                    sock.sendall(
+                        "\r\n".join(
+                            ["HEAD /certsrv/ HTTP/1.1", f"Host: {target}", "\r\n"]
+                        ).encode()
+                    )
+                else:  # HTTPS
+                    sock.sendall(
+                        "\r\n".join(
+                            ["HEAD /certsrv/ HTTP/1.1", f"Host: {target}", "Connection: close", "\r\n"]
+                        ).encode()
+                    )
+                
+                resp = sock.recv(256)
+                sock.close()
+                head = resp.split(b"\r\n")[0].decode()
 
-        return False
+                results[i] = " 404 " not in head
+                logging.debug(f"{protocols[i]} enrollment check result: {results[i]}")
+                
+            except ConnectionRefusedError:
+                logging.debug(f"Connection refused for {protocols[i]} on {target}:{port}")
+                continue
+            except socket.timeout:
+                logging.debug(f"Can't reach {target}:{port} ({protocols[i]})")
+                continue
+            except Exception as e:
+                logging.warning(
+                    f"Got error while trying to check for {protocols[i]} enrollment: {e}"
+                )
+                continue
+        
+        if results[0] and results[1]:
+            return [f"http://{target}/certsrv", f"https://{target}/certsrv"]
+        elif results[0]:
+            return [f"http://{target}/certsrv"]
+        elif results[1]:
+            return [f"https://{target}/certsrv"]
+        else:
+            return results
 
     def get_issuance_policies(self, properties=None, sdflags=0x5, no_cache=False, no_vuln_check=False, raw=False):
         if not properties:
@@ -249,6 +357,7 @@ class CAEnum:
         else:
             logging.error(f"[Add-DomainCATemplate] Error adding new template OID ({self.ldap_session.result['description']})")
             return False
+
 
 class PARSE_TEMPLATE:
     def __init__(self, template, current_user_sid=None, linked_group=None, ldap_session=None):
