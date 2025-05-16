@@ -719,15 +719,15 @@ class PowerView:
 			no_cache = args.no_cache if hasattr(args, 'no_cache') else no_cache
 			no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') else no_vuln_check
 			raw = args.raw if hasattr(args, 'raw') else raw
-
+			
 		searchbase = searchbase or self.root_dn
 
 		guids_dict = guids_map_dict or {}
 		if not guids_map_dict:
 			try:
-				logging.debug(f"[Get-DomainObjectAcl] Searching for GUIDs in CN=Extended-Rights,CN=Configuration,{searchbase}")
+				logging.debug(f"[Get-DomainObjectAcl] Searching for GUIDs in CN=Extended-Rights,{self.configuration_dn}")
 				entries = self.ldap_session.extend.standard.paged_search(
-					f"CN=Extended-Rights,CN=Configuration,{searchbase}", 
+					f"CN=Extended-Rights,{self.configuration_dn}", 
 					"(rightsGuid=*)", 
 					attributes=['displayName', 'rightsGuid'], 
 					paged_size=1000, 
@@ -2020,8 +2020,7 @@ class PowerView:
 			"certificateTemplates",
 			"objectGUID",
 			"distinguishedName",
-			"displayName",
-			"nTSecurityDescriptor"
+			"displayName"
 		]
 		properties = def_prop if not properties else properties
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
@@ -2036,7 +2035,8 @@ class PowerView:
 			search_scope=search_scope, 
 			no_cache=no_cache, 
 			no_vuln_check=no_vuln_check,
-			raw=raw
+			raw=raw,
+			include_sd=True if check_all else False
 		)
 	
 		if check_all:
@@ -2061,12 +2061,6 @@ class PowerView:
 					logging.debug("[Get-DomainCA] Trying to check web enrollment with IP")
 					web_enrollment = ca_fetch.check_web_enrollment(target_ip)
 
-				# Owners (Certificate Authorities)
-				# owners = self.get_domainobjectowner(
-				# 	identity=entries[i]['attributes']['distinguishedName'], 
-				# 	searchbase=self.configuration_dn
-				# )
-				# owners = [owner['attributes']['Owner'] for owner in owners]
 
 				# Final modification
 				entries[i] = modify_entry(
@@ -2076,6 +2070,7 @@ class PowerView:
 					},
 					remove = ["nTSecurityDescriptor"]
 				)
+
 		return entries
 
 	def remove_domaincatemplate(self, identity, searchbase=None, args=None):

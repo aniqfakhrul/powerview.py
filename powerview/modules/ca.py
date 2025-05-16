@@ -2,6 +2,7 @@
 import logging
 from impacket.ldap import ldaptypes
 from impacket.uuid import bin_to_string, string_to_bin
+from impacket.dcerpc.v5 import rrp
 from ldap3.protocol.formatters.formatters import format_sid
 from ldap3.protocol.microsoft import security_descriptor_control
 from ldap3 import SUBTREE, BASE, LEVEL
@@ -137,7 +138,7 @@ class CAEnum:
         self.root_dn = self.powerview.root_dn
         self.configuration_dn = self.powerview.configuration_dn
         self.check_all = check_all
-
+        
     def fetch_root_ca(self, properties=['*']):
         enroll_filter = "(objectclass=certificationAuthority)"
         ca_search_base = f"CN=Certification Authorities,CN=Public Key Services,CN=Services,CN=Configuration,{self.root_dn}"
@@ -160,12 +161,19 @@ class CAEnum:
             search_scope=SUBTREE,
             no_cache=False,
             no_vuln_check=False,
-            raw=False
+            raw=False,
+            include_sd=False
         ):
         enroll_filter = "(&(objectClass=pKIEnrollmentService))"
 
         if not searchbase:
             searchbase = f"CN=Enrollment Services,CN=Public Key Services,CN=Services,{self.configuration_dn}"
+
+        if include_sd:
+            properties.append("nTSecurityDescriptor")
+            controls = security_descriptor_control(sdflags=0x05)
+        else:
+            controls = None
 
         logging.debug(f"LDAP Base: {searchbase}")
         logging.debug(f"LDAP Filter: {enroll_filter}")
@@ -179,34 +187,201 @@ class CAEnum:
             no_cache=no_cache,
             no_vuln_check=no_vuln_check,
             raw=raw,
-            controls=security_descriptor_control(sdflags=0x05)
+            controls=controls
         )
         if self.check_all:
             for entry in entries:
                 # Access Rights + owner
                 if not entry["attributes"]["nTSecurityDescriptor"]:
                     continue
+
+                entry_rrp = self.get_rrp_config(computer_name=entry["attributes"]["dNSHostName"], ca=entry["attributes"]["name"])
+                aces = entry_rrp["aces"].aces
+
+                # Access Rights + owner
                 security = CASecurity(entry["attributes"]["nTSecurityDescriptor"])
-                aces = security.aces
                 entry["attributes"]["Owner"] = self.powerview.convertfrom_sid(security.owner)
                 entry["attributes"]["ManageCa"] = []
                 entry["attributes"]["ManageCertificates"] = []
                 entry["attributes"]["Enroll"] = []
+                entry["attributes"]["Vulnerabilities"] = []
                 
                 for sid, rights in aces.items():
                     if CERTIFICATION_AUTHORITY_RIGHTS.MANAGE_CA in rights["rights"]:
                         entry["attributes"]["ManageCa"].append(self.powerview.convertfrom_sid(sid))
                     if CERTIFICATION_AUTHORITY_RIGHTS.MANAGE_CERTIFICATES in rights["rights"]:
                         entry["attributes"]["ManageCertificates"].append(self.powerview.convertfrom_sid(sid))
+                    if CERTIFICATION_AUTHORITY_RIGHTS.ENROLL in rights["rights"]:
+                        entry["attributes"]["Enroll"].append(self.powerview.convertfrom_sid(sid))
                 
-                # Enroll
-                user_sids = self.powerview.get_domainobjectacl(searchbase=self.configuration_dn, identity=entry["dn"])
-                for acl in user_sids:
-                    for ace in acl.get('attributes', []):
-                        if 'Enroll' in str(ace.get('ObjectAceType')):
-                            entry["attributes"]["Enroll"].append(ace.get('SecurityIdentifier'))
+                # Active Policy
+                entry["attributes"]["ActivePolicy"] = entry_rrp["active_policy"]
+
+                # Disabled Extensions
+                entry["attributes"]["DisabledExtensions"] = entry_rrp["disable_extension_list"]
+
+                # Request Disposition
+                entry["attributes"]["RequestDisposition"] = (
+                    "Pending" if entry_rrp["request_disposition"] & 0x100 else "Issue"
+                )
+
+                # User Specified SAN
+                entry["attributes"]["UserSpecifiedSAN"] = (
+                    "Enabled" if (entry_rrp["edit_flags"] & 0x00040000) == 0x00040000 else "Disabled"
+                )
+
+                # Enforce Encryption Flag
+                entry["attributes"]["EnforceEncryptionFlag"] = (
+                    "Enabled" if (entry_rrp["interface_flags"] & 0x00000200) == 0x00000200 else "Disabled"
+                )
+
+                # Vulnerabilities
+                # ESC16
+                if ("1.3.6.1.4.1.311.25.2" in entry["attributes"]["DisabledExtensions"]) and (entry["attributes"]["RequestDisposition"] in ["Issue", "Unknown"]):
+                    # Check if current user is part of entry["attributes"]["Enroll"]
+                    for sid in get_user_sids(self.powerview.get_domain_sid(), self.powerview.current_user_sid, self.ldap_session):
+                        if entry["attributes"]["Enroll"][0] in self.powerview.convertfrom_sid(sid):
+                            entry["attributes"]["Vulnerabilities"].append("ESC16")  
+                
+        return entries
+
+    def get_rrp_config(self,
+		computer_name,
+        ca,
+		port=445
+	):
+
+        KNOWN_PROTOCOLS = {
+            139: {'bindstr': r'ncacn_np:%s[\pipe\winreg]', 'set_host': True},
+            445: {'bindstr': r'ncacn_np:%s[\pipe\winreg]', 'set_host': True},
+        }
+
+        entries = {}
+
+        stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
+        dce = self.powerview.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+
+        if not dce:
+            logging.error("[CAEnum] Failed to connect to %s" % (computer_name))
+            return False
+
+        for _ in range(3):
+            try:
+                dce.connect()
+                _ = dce.bind(rrp.MSRPC_UUID_RRP)
+                break
+            except Exception as e:
+                logging.error("[CAEnum] Failed to bind to %s" % (computer_name))
+                continue
+
+        try:
+            # Open Local Machine registry handle
+            hklm = rrp.hOpenLocalMachine(dce)
+            h_root_key = hklm["phKey"]
+
+            # First retrieve active policy module information
+            policy_key_path = (
+                f"SYSTEM\\CurrentControlSet\\Services\\CertSvc\\Configuration\\{ca}\\"
+                "PolicyModules"
+            )
+            policy_key = rrp.hBaseRegOpenKey(dce, h_root_key, policy_key_path)
+
+            # Get active policy module name
+            _, active_policy = rrp.hBaseRegQueryValue(
+                dce, policy_key["phkResult"], "Active"
+            )
+
+            if not isinstance(active_policy, str):
+                logging.warning(f"[CAEnum] Expected a string, got {type(active_policy)!r} for {ca}")
+                logging.warning(f"[CAEnum] Falling back to default policy")
+                active_policy = "CertificationAuthority_MicrosoftDefault.Policy"
+
+            active_policy = active_policy.strip("\x00")
+
+            # Open policy module configuration
+            policy_key_path = (
+                f"SYSTEM\\CurrentControlSet\\Services\\CertSvc\\Configuration\\{ca}\\"
+                f"PolicyModules\\{active_policy}"
+            )
+            policy_key = rrp.hBaseRegOpenKey(dce, h_root_key, policy_key_path)
+
+            # Retrieve edit flags (controls certificate request behavior)
+            _, edit_flags = rrp.hBaseRegQueryValue(
+                dce, policy_key["phkResult"], "EditFlags"
+            )
+
+            if not isinstance(edit_flags, int):
+                logging.warning(f"[CAEnum] Expected an integer, got {type(edit_flags)!r} for {ca}")
+                logging.warning(f"[CAEnum] Falling back to default edit flags")
+                edit_flags = 0x00000000
+
+            # Retrieve request disposition (auto-enrollment settings    )
+            _, request_disposition = rrp.hBaseRegQueryValue(
+                dce, policy_key["phkResult"], "RequestDisposition"
+            )
+
+            if not isinstance(request_disposition, int):
+                logging.warning(f"[CAEnum] Expected an integer, got {type(request_disposition)!r} for {ca}")
+                logging.warning(f"[CAEnum] Falling back to default request disposition")
+                request_disposition = 0x00000000
+
+            
+            # Retrieve disabled extensions
+            _, disabled_extensions = rrp.hBaseRegQueryValue(
+                dce, policy_key["phkResult"], "DisableExtensionList"
+            )
+
+            if not isinstance(disabled_extensions, str):
+                logging.warning(f"[CAEnum] Expected a string, got {type(disabled_extensions)!r} for {ca}")
+                logging.warning(f"[CAEnum] Falling back to default disabled extensions")
+                disabled_extensions = ""
+
+            # Process null-terminated string list into Python list
+            disable_extension_list = [
+                item for item in disabled_extensions.strip("\x00").split("\x00") if item
+            ]
+
+            # Now get general CA configuration settings
+            configuration_key_path = (
+                f"SYSTEM\\CurrentControlSet\\Services\\CertSvc\\Configuration\\{ca}\\"
+            )
+            configuration_key = rrp.hBaseRegOpenKey(dce, h_root_key, configuration_key_path)
+
+            # Retrieve interface flags (controls CA interface behavior)
+            _, interface_flags = rrp.hBaseRegQueryValue(
+                dce, configuration_key["phkResult"], "InterfaceFlags"
+            )
+
+            if not isinstance(interface_flags, int):
+                logging.warning(f"[CAEnum] Expected an integer, got {type(interface_flags)!r} for {ca}")
+                logging.warning(f"[CAEnum] Falling back to default interface flags")
+                interface_flags = 0x00000000
+
+            # Retrieve security descriptor (controls access permissions)
+            _, security_descriptor = rrp.hBaseRegQueryValue(
+                dce, configuration_key["phkResult"], "Security"
+            )
+
+            if not isinstance(security_descriptor, bytes):
+                logging.warning(f"[CAEnum] Expected bytes, got {type(security_descriptor)!r} for {ca}")
+            
+            security_descriptor = CASecurity(security_descriptor)
+
+            entries = {
+                "active_policy": active_policy,
+                "edit_flags": edit_flags,
+                "request_disposition": request_disposition,
+                "disable_extension_list": disable_extension_list,
+                "interface_flags": interface_flags,
+                "aces": security_descriptor
+            }
+        except Exception as e:
+            raise ValueError("[CAEnum] %s" % (str(e)))
+
+        dce.disconnect()
 
         return entries
+
     def get_certificate_templates(self, properties=None, ca_search_base=None, identity=None, search_scope=SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
         if not properties:
             properties=[
