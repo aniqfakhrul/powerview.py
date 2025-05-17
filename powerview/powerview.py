@@ -153,6 +153,7 @@ class PowerView:
 		self.forest_dn = self.ldap_server.info.other["rootDomainNamingContext"][0] if isinstance(self.ldap_server.info.other["rootDomainNamingContext"], list) else self.ldap_server.info.other["rootDomainNamingContext"]
 		self.root_dn = self.ldap_server.info.other["defaultNamingContext"][0] if isinstance(self.ldap_server.info.other["defaultNamingContext"], list) else self.ldap_server.info.other["defaultNamingContext"]
 		self.configuration_dn = self.ldap_server.info.other["configurationNamingContext"][0] if isinstance(self.ldap_server.info.other["configurationNamingContext"], list) else self.ldap_server.info.other["configurationNamingContext"]
+		self.schema_dn = self.ldap_server.info.other["schemaNamingContext"][0] if isinstance(self.ldap_server.info.other["schemaNamingContext"], list) else self.ldap_server.info.other["schemaNamingContext"]
 		if not self.domain:
 			self.domain = dn2domain(self.root_dn)
 		self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0] if isinstance(self.ldap_server.info.other["ldapServiceName"], list) else self.ldap_server.info.other["ldapServiceName"].split("@")[-1].split(".")[0]
@@ -2265,7 +2266,7 @@ displayName=New Group Policy Object
 
 		
 		ou_data = {
-				'objectCategory': 'CN=Organizational-Unit,CN=Schema,CN=Configuration,%s' % self.root_dn,
+				'objectCategory': f'CN=Organizational-Unit,{self.schema_dn}',
 				'name': identity,
 				}
 
@@ -3243,7 +3244,7 @@ displayName=New Group Policy Object
 		ucd = {
 			'displayName': groupname,
 			'sAMAccountName': groupname,
-			'objectCategory': 'CN=Group,CN=Schema,CN=Configuration,%s' % self.root_dn,
+			'objectCategory': f'CN=Group,{self.schema_dn}',
 			'objectClass': ['top', 'group'],
 		}
 
@@ -3566,7 +3567,7 @@ displayName=New Group Policy Object
 		DNS_UTIL.get_next_serial(self.dc_ip, zonename, True)
 		node_data = {
 				# Schema is in the root domain (take if from schemaNamingContext to be sure)
-				'objectCategory': 'CN=Dns-Node,CN=Schema,CN=Configuration,%s' % self.root_dn,
+				'objectCategory': f'CN=Dns-Node,{self.schema_dn}',
 				'dNSTombstoned': "FALSE", # Need to hardcoded because of Kerberos issue, will revisit.
 				'name': recordname
 				}
