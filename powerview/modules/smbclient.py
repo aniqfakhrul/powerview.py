@@ -16,40 +16,137 @@ class SMBClient:
     def __init__(self, client):
         self.client = client
 
+    def _parse_dacl(self, secDesc):
+        sd = ldaptypes.SR_SECURITY_DESCRIPTOR()
+        if isinstance(secDesc, list):
+            secDesc = b''.join(secDesc)
+        sd.fromString(secDesc)
+
+        security_info = {}
+        if sd['OwnerSid'] is not None:
+            security_info['OwnerSid'] = sd['OwnerSid'].formatCanonical()
+        if sd['GroupSid'] is not None:
+            security_info['GroupSid'] = sd['GroupSid'].formatCanonical()
+
+        try:
+            dacl_data = sd['Dacl']['Data']
+            aces = []
+            for ace_obj in dacl_data:
+                ace_type_name = ace_obj['TypeName']
+                
+                # Filter for ACE types we can parse well
+                if ace_type_name not in ["ACCESS_ALLOWED_ACE", "ACCESS_DENIED_ACE", 
+                                            "ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_OBJECT_ACE",
+                                            "SYSTEM_AUDIT_ACE", "SYSTEM_ALARM_ACE",
+                                            "SYSTEM_AUDIT_OBJECT_ACE", "SYSTEM_ALARM_OBJECT_ACE"]:
+                    logging.debug(f"[SMBClient: get_file_info] Skipping unhandled ACE type: {ace_type_name}")
+                    continue
+
+                trustee_sid_str = ace_obj['Ace']['Sid'].formatCanonical()
+                
+                ace_flags_int = ace_obj['AceFlags']
+                parsed_ace_flags_list = [FLAG.name for FLAG in ACE_FLAGS if ace_flags_int & FLAG.value]
+
+                access_mask_int = ace_obj['Ace']['Mask']['Mask']
+                parsed_permissions_list = self._parsePerms(access_mask_int)
+                
+                if not parsed_permissions_list and access_mask_int != 0: # If no known flags matched but mask is not zero
+                    parsed_permissions_list.append(f"UNKNOWN_MASK_0x{access_mask_int:08X}")
+
+                # Initialize object-specific fields
+                parsed_object_ace_specific_flags_list = None
+                obj_type_guid_str = None
+                inh_obj_type_guid_str = None
+
+                if ace_type_name in ["ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_OBJECT_ACE", "SYSTEM_AUDIT_OBJECT_ACE", "SYSTEM_ALARM_OBJECT_ACE"]:
+                    object_ace_specific_flags_int = ace_obj['Ace']['Flags']
+                    parsed_object_ace_specific_flags_list = [FLAG.name for FLAG in OBJECT_ACE_FLAGS if object_ace_specific_flags_int & FLAG.value]
+                    
+                    if ace_obj['Ace']['ObjectTypeLen'] != 0:
+                        obj_type_guid_str = bin_to_string(ace_obj['Ace']['ObjectType']).lower()
+                    
+                    if ace_obj['Ace']['InheritedObjectTypeLen'] != 0:
+                        inh_obj_type_guid_str = bin_to_string(ace_obj['Ace']['InheritedObjectType']).lower()
+
+                ace_info_entry = {
+                    'type': ace_type_name,
+                    'trustee': trustee_sid_str,
+                    'ace_flags': parsed_ace_flags_list,
+                    'access_mask_raw': access_mask_int,
+                    'permissions': parsed_permissions_list,
+                    'object_ace_specific_flags': parsed_object_ace_specific_flags_list,
+                    'object_type_guid': obj_type_guid_str,
+                    'inherited_object_type_guid': inh_obj_type_guid_str
+                }
+                aces.append(ace_info_entry)
+
+            security_info['Dacl'] = aces
+            return security_info
+        except Exception as e:
+            logging.error(f"[SMBClient: get_file_info] Error parsing security descriptor: {e}")
+            import traceback
+            logging.debug(f"[SMBClient: get_file_info] Traceback: {traceback.format_exc()}")
+            # Store partial info if available
+            if 'security_info' not in locals(): security_info = {} # ensure security_info exists
+            if 'Dacl' not in security_info : security_info['Dacl'] = [] # ensure Dacl list exists
+            return security_info # Assign even if parsing failed mid-way
+
     def shares(self):
         if self.client is None:
             logging.error("[SMBClient: shares] Not logged in")
             return
+        
         return self.client.listShares()
 
     def share_info(self, share):
-        """
-        Get detailed information about a share.
-
-        shi503_netname:                  'C$\x00' 
-        shi503_type:                     2147483648 
-        shi503_remark:                   'Default share\x00' 
-        shi503_permissions:              0 
-        shi503_max_uses:                 4294967295 
-        shi503_current_uses:             0 
-        shi503_path:                     'C:\\\x00' 
-        shi503_passwd:                   NULL 
-        shi503_servername:               '*\x00' 
-        shi503_reserved:                 0 
-        shi503_security_descriptor:      NULL None
-        """
         if self.client is None:
             logging.error("[SMBClient: share_info] Not logged in")
             return
         
-        from impacket.dcerpc.v5 import transport, srvs
         rpctransport = transport.SMBTransport(self.client.getRemoteName(), self.client.getRemoteHost(), filename=r'\srvsvc',
                                               smb_connection=self.client)
         dce = rpctransport.get_dce_rpc()
         dce.connect()
         dce.bind(srvs.MSRPC_UUID_SRVS)
-        resp = srvs.hNetrShareGetInfo(dce, share + '\x00', 503)
-        return resp['InfoStruct']['ShareInfo503']
+        
+        share_info = {
+            'name': None,
+            'type': None,
+            'remark': None,
+            'path': None,
+            'permissions': None,
+            'max_uses': None,
+            'current_uses': None,
+            'passwd': None,
+            'servername': None,
+            'reserved': None,
+            'sd_info': None
+        }
+
+        try:
+            base_info = srvs.hNetrShareGetInfo(dce, share + '\x00', 1)
+            share_info['name'] = base_info['InfoStruct']['ShareInfo1']['shi1_netname'][:-1]
+            share_info['type'] = base_info['InfoStruct']['ShareInfo1']['shi1_type']
+            share_info['remark'] = base_info['InfoStruct']['ShareInfo1']['shi1_remark'][:-1]
+        except Exception as e:
+            logging.error(f"[SMBClient: share_info] Error getting share info via NetrShareGetInfo(Level 1): {e}")
+
+        try:
+            resp = srvs.hNetrShareGetInfo(dce, share + '\x00', 503)
+            share_info['path'] = resp['InfoStruct']['ShareInfo503']['shi503_path'][:-1]
+            share_info['permissions'] = resp['InfoStruct']['ShareInfo503']['shi503_permissions']
+            share_info['max_uses'] = resp['InfoStruct']['ShareInfo503']['shi503_max_uses']
+            share_info['current_uses'] = resp['InfoStruct']['ShareInfo503']['shi503_current_uses']
+            share_info['passwd'] = resp['InfoStruct']['ShareInfo503']['shi503_passwd']
+            share_info['servername'] = resp['InfoStruct']['ShareInfo503']['shi503_servername'][:-1]
+            share_info['reserved'] = resp['InfoStruct']['ShareInfo503']['shi503_reserved']
+            secDesc = resp['InfoStruct']['ShareInfo503']['shi503_security_descriptor']
+            if secDesc and len(secDesc) > 0:
+                share_info['sd_info'] = self._parse_dacl(secDesc)
+        except Exception as e:
+            logging.error(f"[SMBClient: share_info] Error getting share info via NetrShareGetInfo(Level 503): {e}")
+        
+        return share_info
 
     def ls(self, share, path=''):
         if self.client is None:
@@ -265,79 +362,10 @@ class SMBClient:
                     path = path.replace('/', '\\')
 
                     resp = srvs.hNetrpGetFileSecurity(dce, share+'\x00', path+'\x00', security_flags)
-                    sd = ldaptypes.SR_SECURITY_DESCRIPTOR()
-                    sd.fromString(resp)
-
-                    security_info = {}
-                    if sd['OwnerSid'] is not None:
-                        security_info['OwnerSid'] = sd['OwnerSid'].formatCanonical()
-                    if sd['GroupSid'] is not None:
-                        security_info['GroupSid'] = sd['GroupSid'].formatCanonical()
-                    
-                    try:
-                        dacl_data = sd['Dacl']['Data']
-                        aces = []
-                        for ace_obj in dacl_data:
-                            ace_type_name = ace_obj['TypeName']
-                            
-                            # Filter for ACE types we can parse well
-                            if ace_type_name not in ["ACCESS_ALLOWED_ACE", "ACCESS_DENIED_ACE", 
-                                                     "ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_OBJECT_ACE",
-                                                     "SYSTEM_AUDIT_ACE", "SYSTEM_ALARM_ACE",
-                                                     "SYSTEM_AUDIT_OBJECT_ACE", "SYSTEM_ALARM_OBJECT_ACE"]:
-                                logging.debug(f"[SMBClient: get_file_info] Skipping unhandled ACE type: {ace_type_name}")
-                                continue
-
-                            trustee_sid_str = ace_obj['Ace']['Sid'].formatCanonical()
-                            
-                            ace_flags_int = ace_obj['AceFlags']
-                            parsed_ace_flags_list = [FLAG.name for FLAG in ACE_FLAGS if ace_flags_int & FLAG.value]
-
-                            access_mask_int = ace_obj['Ace']['Mask']['Mask']
-                            parsed_permissions_list = self._parsePerms(access_mask_int)
-                            
-                            if not parsed_permissions_list and access_mask_int != 0: # If no known flags matched but mask is not zero
-                                parsed_permissions_list.append(f"UNKNOWN_MASK_0x{access_mask_int:08X}")
-
-                            # Initialize object-specific fields
-                            parsed_object_ace_specific_flags_list = None
-                            obj_type_guid_str = None
-                            inh_obj_type_guid_str = None
-
-                            if ace_type_name in ["ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_OBJECT_ACE", "SYSTEM_AUDIT_OBJECT_ACE", "SYSTEM_ALARM_OBJECT_ACE"]:
-                                object_ace_specific_flags_int = ace_obj['Ace']['Flags']
-                                parsed_object_ace_specific_flags_list = [FLAG.name for FLAG in OBJECT_ACE_FLAGS if object_ace_specific_flags_int & FLAG.value]
-                                
-                                if ace_obj['Ace']['ObjectTypeLen'] != 0:
-                                    obj_type_guid_str = bin_to_string(ace_obj['Ace']['ObjectType']).lower()
-                                
-                                if ace_obj['Ace']['InheritedObjectTypeLen'] != 0:
-                                    inh_obj_type_guid_str = bin_to_string(ace_obj['Ace']['InheritedObjectType']).lower()
-
-                            ace_info_entry = {
-                                'type': ace_type_name,
-                                'trustee': trustee_sid_str,
-                                'ace_flags': parsed_ace_flags_list,
-                                'access_mask_raw': access_mask_int,
-                                'permissions': parsed_permissions_list,
-                                'object_ace_specific_flags': parsed_object_ace_specific_flags_list,
-                                'object_type_guid': obj_type_guid_str,
-                                'inherited_object_type_guid': inh_obj_type_guid_str
-                            }
-                            aces.append(ace_info_entry)
-                        
-                        security_info['Dacl'] = aces
-                        info['sd_info'] = security_info
-                    except Exception as e:
-                        logging.error(f"[SMBClient: get_file_info] Error parsing security descriptor: {e}")
-                        import traceback
-                        logging.debug(f"[SMBClient: get_file_info] Traceback: {traceback.format_exc()}")
-                        # Store partial info if available
-                        if 'security_info' not in locals(): security_info = {} # ensure security_info exists
-                        if 'Dacl' not in security_info : security_info['Dacl'] = [] # ensure Dacl list exists
-                        info['sd_info'] = security_info # Assign even if parsing failed mid-way
+                    if resp and len(resp) > 0:
+                        info['sd_info'] = self._parse_dacl(resp)
                 except Exception as rpc_error:
-                    logging.debug(f"[SMBClient: get_file_info] RPC error: {rpc_error}")
+                    raise Exception(f"[SMBClient: get_file_info] RPC error: {rpc_error}")
             return info
             
         except Exception as e:

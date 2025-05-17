@@ -22,9 +22,20 @@
                     <input type="text" id="smb-username" 
                         placeholder="domain\\username" 
                         class="rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800 focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none" style="width: 150px;">
+                    <select id="smb-auth-type" class="rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800 focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                        <option value="password">Password</option>
+                        <option value="nthash">NT Hash</option>
+                        <option value="aeskey">AES Key</option>
+                    </select>
                     <input type="password" id="smb-password" 
                         placeholder="Password" 
-                        class="rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800 focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none" style="width: 120px;">
+                        class="smb-auth-input smb-auth-password rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800 focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none" style="width: 120px;">
+                    <input type="text" id="smb-nthash" 
+                        placeholder="NT Hash" 
+                        class="smb-auth-input smb-auth-nthash rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800 focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none hidden" style="width: 140px;">
+                    <input type="text" id="smb-aeskey" 
+                        placeholder="AES Key" 
+                        class="smb-auth-input smb-auth-aeskey rounded-md border border-neutral-200 bg-neutral-50 px-2 py-1 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800 focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none hidden" style="width: 180px;">
                 </div>
                 <input type="text" id="smb-computer" 
                     placeholder="Computer name or IP" 

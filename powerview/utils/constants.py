@@ -554,6 +554,8 @@ ENFORCED = 3
 # Universal SIDs
 WELL_KNOWN_SIDS = {
 	'S-1-0': 'Null Authority',
+	'S-1-15-2-1': 'ALL_APP_PACKAGES',
+	'S-1-15-2-2': 'ALL_RESTRICTED_APP_PACKAGES',
 	'S-1-0-0': 'Nobody',
 	'S-1-1': 'World Authority',
 	'S-1-1-0': 'Everyone',
@@ -627,6 +629,7 @@ WELL_KNOWN_SIDS = {
 	'S-1-5-32-578': 'BUILTIN\\Hyper-V Administrators',
 	'S-1-5-32-579': 'BUILTIN\\Access Control Assistance Operators',
 	'S-1-5-32-580': 'BUILTIN\\Remote Management Users',
+	'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464': 'TrustedInstaller',
 }
 
 def resolve_WellKnownSID(identifier):

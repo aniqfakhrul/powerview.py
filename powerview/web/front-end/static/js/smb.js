@@ -159,16 +159,34 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const username = document.getElementById('smb-username').value;
+            const authType = document.getElementById('smb-auth-type').value;
             const password = document.getElementById('smb-password').value;
+            const nthash = document.getElementById('smb-nthash').value;
+            const aesKey = document.getElementById('smb-aeskey').value;
 
-            // Prepare connection data
             const connectionData = {
                 computer: computer
             };
 
-            if (!connectAsForm.classList.contains('hidden') && username && password) {
+            let hasCreds = false;
+            if (!connectAsForm.classList.contains('hidden') && username) {
                 connectionData.username = username;
-                connectionData.password = password;
+                hasCreds = true;
+            }
+            if (!connectAsForm.classList.contains('hidden')) {
+                if (authType === 'password' && password) {
+                    connectionData.password = password;
+                    hasCreds = true;
+                } else if (authType === 'nthash' && nthash) {
+                    connectionData.nthash = nthash;
+                    hasCreds = true;
+                } else if (authType === 'aeskey' && aesKey) {
+                    connectionData.aesKey = aesKey;
+                    hasCreds = true;
+                }
+            }
+            if (hasCreds) {
+                connectionData.lmhash = 'aad3b435b51404eeaad3b435b51404ee';
             }
 
             // Connect to SMB
@@ -503,6 +521,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 hideRenameModal();
             }
         });
+    }
+
+    const authTypeSelect = document.getElementById('smb-auth-type');
+    const passwordInput = document.getElementById('smb-password');
+    const nthashInput = document.getElementById('smb-nthash');
+    const aesKeyInput = document.getElementById('smb-aeskey');
+    function updateAuthInputs() {
+        const val = authTypeSelect.value;
+        passwordInput.classList.toggle('hidden', val !== 'password');
+        nthashInput.classList.toggle('hidden', val !== 'nthash');
+        aesKeyInput.classList.toggle('hidden', val !== 'aeskey');
+    }
+    if (authTypeSelect) {
+        authTypeSelect.addEventListener('change', updateAuthInputs);
+        updateAuthInputs();
     }
 });
 
@@ -2441,7 +2474,7 @@ function showContextMenu(event, itemData) {
     
     // Properties is now functional
     contextMenuElement.appendChild(createMenuItem('Properties', 'fas fa-info-circle', () => {
-        showProperties(itemData.computer, itemData.share, itemData.path, itemData.isDirectory);
+        showProperties(itemData.computer, itemData.share, itemData.path, itemData.isDirectory, itemData.isShare);
     }));
 
     // Position and show the menu
@@ -2476,7 +2509,7 @@ document.getElementById('pc-views')?.addEventListener('scroll', hideContextMenu)
 // Add this after the context menu code section
 
 // Properties Functions
-async function showProperties(computer, share, path, isDirectory) {
+async function showProperties(computer, share, path, isDirectory, isShare) {
     const propertiesPanel = document.getElementById('properties-panel');
     const propertiesSpinner = document.getElementById('properties-spinner');
     const propertiesContent = document.getElementById('properties-content');
@@ -2548,14 +2581,34 @@ async function showProperties(computer, share, path, isDirectory) {
         const properties = await response.json();
         
         // Basic info table
-        const basicInfoFields = [
-            { key: 'type', label: 'Type', value: isDirectory ? 'Folder' : getFileType(itemName) },
-            { key: 'size', label: 'Size', value: formatFileSize(properties.size || 0) },
-            { key: 'owner', label: 'Owner', value: properties.owner || 'Unknown', highlight: true },
-            { key: 'created', label: 'Created', value: convertWindowsTime(properties.created) },
-            { key: 'modified', label: 'Modified', value: convertWindowsTime(properties.modified) },
-            { key: 'accessed', label: 'Last Accessed', value: convertWindowsTime(properties.accessed) }
-        ];
+        const basicInfoFields = [];
+        if(!isShare) {
+            basicInfoFields.push({
+                key: 'type', label: 'Type', value: isDirectory ? 'Folder' : getFileType(itemName)
+            });
+            basicInfoFields.push({
+                key: 'size', label: 'Size', value: formatFileSize(properties.size || 0)
+            });
+            basicInfoFields.push({
+                key: 'owner', label: 'Owner', value: properties.owner || 'Unknown', highlight: true
+            });
+            basicInfoFields.push({ key: 'created', label: 'Created', value: convertWindowsTime(properties.created) });
+            basicInfoFields.push({ key: 'modified', label: 'Modified', value: convertWindowsTime(properties.modified) });
+            basicInfoFields.push({ key: 'accessed', label: 'Last Accessed', value: convertWindowsTime(properties.accessed) });
+        } else {
+            basicInfoFields.push({
+                key: 'type', label: 'Type', value: 'Share'
+            });
+            basicInfoFields.push({
+                key: 'name', label: 'Name', value: properties.name || ''
+            });
+            basicInfoFields.push({
+                key: 'Remark', label: 'Remark', value: properties.remark || ''
+            });
+            basicInfoFields.push({
+                key: 'Path', label: 'Path', value: properties.path || ''
+            });
+        }
         
         // Add Windows timestamps in raw format (useful for red teamers)
         if (properties.created_windows) {
@@ -2979,7 +3032,7 @@ function showContextMenu(event, itemData) {
     
     // Properties is now functional
     contextMenuElement.appendChild(createMenuItem('Properties', 'fas fa-info-circle', () => {
-        showProperties(itemData.computer, itemData.share, itemData.path, itemData.isDirectory);
+        showProperties(itemData.computer, itemData.share, itemData.path, itemData.isDirectory, itemData.isShare);
     }));
 
     // Position and show the menu

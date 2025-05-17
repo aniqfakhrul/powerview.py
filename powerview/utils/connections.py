@@ -1142,12 +1142,19 @@ class CONNECTION:
 
 		return True
 
-	def init_smb_session(self, host, username=None, password=None, nthash=None, lmhash=None, domain=None, timeout=10, useCache=True):
+	def init_smb_session(self, host, username=None, password=None, nthash=None, lmhash=None, aesKey=None, domain=None, timeout=10, useCache=True):
 		try:
 			username = username or self.username
 			password = password or self.password 
 			nthash = nthash or self.nthash
 			lmhash = lmhash or self.lmhash
+			aesKey = aesKey or self.auth_aes_key
+			if aesKey:
+				useKerberos = True
+				useCache = False
+			else:
+				useKerberos = self.use_kerberos
+
 			domain = domain or self.domain
 
 			if host in self.smb_sessions:
@@ -1156,12 +1163,11 @@ class CONNECTION:
 
 			logging.debug(f"[Connection: init_smb_session] Default timeout is set to {timeout}. Expect a delay")
 			conn = SMBConnection(host, host, sess_port=445, timeout=timeout)
-			if self.use_kerberos:
+			if useKerberos:
 				if self.TGT and self.TGS:
 					useCache = False
 
 				if useCache:
-					# only import if used
 					import os
 					from impacket.krb5.ccache import CCache
 					from impacket.krb5.kerberosv5 import KerberosError
@@ -1182,7 +1188,6 @@ class CONNECTION:
 
 						creds = ccache.getCredential(principal)
 						if creds is None:
-							# Let's try for the TGT and go from there
 							principal = 'krbtgt/%s@%s' % (domain.upper(), domain.upper())
 							creds = ccache.getCredential(principal)
 							if creds is not None:
@@ -1194,7 +1199,6 @@ class CONNECTION:
 							self.TGS = creds.toTGS(principal)
 							logging.debug('Using TGS from cache')
 
-						# retrieve user information from CCache file if needed
 						if username == '' and creds is not None:
 							username = creds['client'].prettyPrint().split(b'@')[0].decode('utf-8')
 							logging.debug('Username retrieved from CCache: %s' % username)
@@ -1202,20 +1206,20 @@ class CONNECTION:
 							username = ccache.principal.components[0]['data'].decode('utf-8')
 							logging.debug('Username retrieved from CCache: %s' % username)
 				
-				conn.kerberosLogin(username, password, domain, lmhash, nthash, self.auth_aes_key, self.dc_ip, self.TGT, self.TGS)
+				conn.kerberosLogin(username, password, domain, lmhash, nthash, aesKey, self.dc_ip, self.TGT, self.TGS)
 			else:
 				conn.login(username, password, domain, lmhash, nthash)
 			self.smb_sessions[host] = conn
 			return conn
 		except OSError as e:
 			logging.debug(str(e))
-			return None
+			raise
 		except SessionError as e:
 			logging.debug(str(e))
-			return None
+			raise
 		except AssertionError as e:
 			logging.debug(str(e))
-			return None
+			raise
 
 	def init_samr_session(self):
 		if not self.samr:

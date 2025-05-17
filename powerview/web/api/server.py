@@ -511,6 +511,7 @@ class APIServer:
 			password = data.get('password')
 			nthash = data.get('nthash')
 			lmhash = data.get('lmhash')
+			aesKey = data.get('aesKey')
 			domain = data.get('domain')
 
 			if username and ('/' in username or '\\' in username):
@@ -519,8 +520,8 @@ class APIServer:
 			if not computer:
 				return jsonify({'error': 'Computer name/IP is required'}), 400
 
+			host = computer
 			is_fqdn = False
-			host = ""
 
 			if not is_ipaddress(computer):
 				is_fqdn = True
@@ -529,28 +530,40 @@ class APIServer:
 				else:
 					host = computer
 				logging.debug(f"[SMB Connect] Using FQDN: {host}")
-			else:
-				host = computer
 
-			if self.powerview.use_kerberos:
-				if is_ipaddress(computer):
-					return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
-			else:
-				if is_fqdn:
-					host = host2ip(host, self.powerview.nameserver, 3, True, 
-												use_system_ns=self.powerview.use_system_nameserver, no_prompt=True)
+			if self.powerview.use_kerberos and is_ipaddress(computer):
+				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
 
-			if not host:
-				return jsonify({'error': 'Host not found'}), 404
-
-			client = self.powerview.conn.init_smb_session(
-				host,
-				username=username,
-				password=password,
-				nthash=nthash,
-				lmhash=lmhash,
-				domain=domain
-			)
+			try:
+				client = self.powerview.conn.init_smb_session(
+					host,
+					username=username,
+					password=password,
+					nthash=nthash,
+					lmhash=lmhash,
+					aesKey=aesKey,
+					domain=domain
+				)
+			except Exception as conn_error:
+				if is_fqdn and not is_ipaddress(host):
+					ip = host2ip(host, self.powerview.nameserver, 3, True, 
+								use_system_ns=self.powerview.use_system_nameserver, no_prompt=True)
+					if not ip:
+						return jsonify({'error': 'Host not found'}), 404
+					
+					logging.debug(f"[SMB Connect] Initial connection failed, trying IP: {ip}")
+					client = self.powerview.conn.init_smb_session(
+						ip,
+						username=username,
+						password=password,
+						nthash=nthash,
+						lmhash=lmhash,
+						aesKey=aesKey,
+						domain=domain
+					)
+					host = ip
+				else:
+					raise conn_error
 			
 			if not client:
 				return jsonify({'error': f'Failed to connect to {host}'}), 400
@@ -1398,7 +1411,7 @@ class APIServer:
 			share = data.get('share')
 			path = data.get('path')
 
-			if not all([computer, share, path]):
+			if not computer or not share:
 				return jsonify({'error': 'Missing required parameters'}), 400
 
 			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
@@ -1406,37 +1419,47 @@ class APIServer:
 
 			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
-			
+
+			if not path:
+				share_info = smb_client.share_info(share)
+				def convert_bytes(obj):
+					if isinstance(obj, dict):
+						return {k: convert_bytes(v) for k, v in obj.items()}
+					elif isinstance(obj, list):
+						return [convert_bytes(i) for i in obj]
+					elif isinstance(obj, bytes):
+						return obj.decode('utf-8')
+					return obj
+				share_info = convert_bytes(share_info)
+				if share_info.get('sd_info'):
+					share_info['owner'] = self.powerview.convertfrom_sid(share_info['sd_info'].get('OwnerSid'))
+					share_info['group'] = self.powerview.convertfrom_sid(share_info['sd_info'].get('GroupSid'))
+					share_info['dacl'] = share_info['sd_info'].get('Dacl')
+					for ace in share_info['dacl'] or []:
+						ace['trustee'] = self.powerview.convertfrom_sid(ace['trustee'])
+				return jsonify(share_info)
+
 			try:
-				# Get basic file info first
 				file_info = smb_client.get_file_info(share, path)
 				file_info['owner'] = self.powerview.convertfrom_sid(file_info['sd_info']['OwnerSid'])
 				file_info['group'] = self.powerview.convertfrom_sid(file_info['sd_info']['GroupSid'])
 				file_info['dacl'] = file_info['sd_info']['Dacl']
 				for ace in file_info['dacl']:
 					ace['trustee'] = self.powerview.convertfrom_sid(ace['trustee'])
-
-				# Format timestamps for better readability
 				for ts_field in ['created', 'modified', 'accessed']:
 					if ts_field in file_info:
 						try:
-							# Keep the original timestamp string but add a formatted version
 							ts_str = file_info[ts_field]
-							# Windows FILETIME objects might be present, format them nicely
 							file_info[ts_field + '_formatted'] = ts_str
 						except Exception as e:
 							logging.debug(f"Could not format timestamp {ts_field}: {str(e)}")
-				
-				# Add additional system properties if possible 
 				try:
-					# Add full path information
 					file_info['full_path'] = f"\\\\{computer}\\{share}\\{path.replace('/', '\\')}"
 					file_info['computer'] = computer
 					file_info['share'] = share
 				except Exception as attr_err:
 					logging.warning(f"Could not get additional file attributes: {str(attr_err)}")
 				return jsonify(file_info)
-				
 			except Exception as e:
 				return jsonify({'error': f'Failed to get file properties: {str(e)}'}), 500
 
