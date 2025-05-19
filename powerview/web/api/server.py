@@ -1454,7 +1454,8 @@ class APIServer:
 						except Exception as e:
 							logging.debug(f"Could not format timestamp {ts_field}: {str(e)}")
 				try:
-					file_info['full_path'] = f"\\\\{computer}\\{share}\\{path.replace('/', '\\')}"
+					path = path.replace('/', '\\')
+					file_info['full_path'] = f"\\\\{computer}\\{share}\\{path}"
 					file_info['computer'] = computer
 					file_info['share'] = share
 				except Exception as attr_err:
