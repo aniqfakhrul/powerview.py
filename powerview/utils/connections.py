@@ -289,6 +289,27 @@ class CONNECTION:
 			
 			logging.error(f"Failed to establish connection to domain {domain}: {str(e)}")
 			raise
+	
+	def maintain_connections(self):
+		"""
+		Check all cached connections and refresh/remove as needed
+		This helps ensure connections stay alive for longer operations
+		"""
+		current_time = time.time()
+		domains = list(self._domain_connections.keys())
+		
+		for domain in domains:
+			conn = self._domain_connections[domain]
+			last_check = self._last_connection_check.get(domain, 0)
+			
+			if (current_time - last_check) > 180:
+				logging.debug(f"Maintaining connection to domain {domain}")
+				if not conn.is_connection_alive():
+					logging.debug(f"Connection to {domain} is dead during maintenance. Removing.")
+					self._remove_domain_connection(domain)
+				else:
+					conn.keep_alive()
+					self._last_connection_check[domain] = current_time
 
 	def _remove_domain_connection(self, domain):
 		"""Safely remove a domain connection from the cache with proper error handling"""
@@ -427,14 +448,12 @@ class CONNECTION:
 				return None
 		
 		if is_valid_fqdn(server):
-			# Get principal DC address, respecting proxy mode if applicable
 			ldap_address = get_principal_dc_address(
 				server, 
 				self.nameserver, 
 				use_system_ns=self.use_system_ns,
 				resolve_ip=False if self.use_kerberos else True
 			)
-			# In proxy mode, ldap_address will be set to the original domain
 		elif is_ipaddress(server):
 			ldap_address = server 
 		else:

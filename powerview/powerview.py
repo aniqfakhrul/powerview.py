@@ -78,7 +78,13 @@ class PowerView:
 		else:
 			self.domain = self.conn.get_domain()
 		
-		self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
+		if hasattr(conn, 'ldap_server') and hasattr(conn, 'ldap_session') and conn.ldap_session and not conn.ldap_session.closed:
+			self.ldap_server = conn.ldap_server
+			self.ldap_session = conn.ldap_session
+			logging.debug(f"Reusing existing LDAP session for domain {self.domain}")
+		else:
+			self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
+			logging.debug(f"Initializing new LDAP session for domain {self.domain}")
 
 		self._initialize_attributes_from_connection()
 
@@ -211,14 +217,6 @@ class PowerView:
 	def get_admin_status(self):
 		return self.is_admin
 
-	def is_connection_alive(self):
-		try:
-			self.ldap_session.search(search_base='', search_filter='(objectClass=*)', search_scope='BASE', attributes=['namingContexts'])
-			return self.ldap_session.result['result'] == 0
-		except Exception as e:
-			print(f"Connection is not alive: {e}")
-			return False
-
 	def get_server_dns(self):
 		return self.dc_dnshostname
 
@@ -240,7 +238,8 @@ class PowerView:
 		if domain in self.domain_instances:
 			pv = self.domain_instances[domain]
 			try:
-				if pv.is_connection_alive():
+				# if pv.is_connection_alive():
+				if not pv.ldap_session.closed:
 					return pv
 				else:
 					logging.debug(f"Cached PowerView for domain {domain} has dead connection, recreating")
@@ -258,12 +257,17 @@ class PowerView:
 			try:
 				domain_conn = self.conn.get_domain_connection(domain)
 				
+				if not hasattr(domain_conn, 'ldap_session') or not domain_conn.ldap_session:
+					raise ConnectionError(f"Connection to domain {domain} doesn't have an initialized LDAP session")
+				
 				pv = PowerView(domain_conn, self.args, target_domain=domain)
 				
-				if not pv.is_connection_alive():
+				# if not pv.is_connection_alive():
+				if pv.ldap_session.closed:
 					raise ConnectionError(f"Created PowerView for {domain} but connection is not alive")
 				
 				self.domain_instances[domain] = pv
+				logging.debug(f"Successfully created PowerView instance for domain {domain}")
 				return pv
 				
 			except Exception as e:

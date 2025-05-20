@@ -447,7 +447,8 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
 	# If resolution fails, try direct domain resolution
 	logging.debug(f"DC resolution failed, attempting direct domain resolution")
 	answer = host2ip(domain, nameserver, 3, dns_tcp, use_system_ns)
-	
+	if not answer:
+		raise resolver.NXDOMAIN(f"Failed to resolve DC address for domain {domain}")
 	return answer
 
 def resolve_domain(domain, nameserver):
