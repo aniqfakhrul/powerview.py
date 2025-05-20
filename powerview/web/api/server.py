@@ -531,7 +531,7 @@ class APIServer:
 					host = computer
 				logging.debug(f"[SMB Connect] Using FQDN: {host}")
 
-			if self.powerview.use_kerberos and is_ipaddress(computer):
+			if self.powerview.conn.use_kerberos and is_ipaddress(computer):
 				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
 
 			try:
