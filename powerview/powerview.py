@@ -76,26 +76,28 @@ class PowerView:
 		if target_domain:
 			self.domain = target_domain
 		else:
-			self.domain = conn.get_domain()
+			self.domain = self.conn.get_domain()
 		
 		self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
 
 		self._initialize_attributes_from_connection()
 
-		self.username = conn.username or args.username
-		self.password = conn.password or args.password
+		self.username = self.conn.username or args.username
+		self.password = self.conn.password or args.password
 
-		self.lmhash = conn.lmhash or args.lmhash
-		self.nthash = conn.nthash or args.nthash
-		self.auth_aes_key = conn.auth_aes_key or args.auth_aes_key
-		self.nameserver = conn.nameserver or args.nameserver
-		self.use_system_nameserver = conn.use_system_ns or args.use_system_ns
-		self.dc_ip = conn.dc_ip or args.dc_ip
-		self.use_kerberos = conn.use_kerberos or args.use_kerberos
+		self.lmhash = self.conn.lmhash or args.lmhash
+		self.nthash = self.conn.nthash or args.nthash
+		self.auth_aes_key = self.conn.auth_aes_key or args.auth_aes_key
+		self.nameserver = self.conn.nameserver or args.nameserver
+		self.use_system_nameserver = self.conn.use_system_ns or args.use_system_ns
+		self.dc_ip = self.conn.dc_ip or args.dc_ip
+		self.use_kerberos = self.conn.use_kerberos or args.use_kerberos
 		self.target_server = target_server
 
 		if not target_domain:
 			self.is_admin = self.is_admin()
+
+		self.domain_instances = {}
 
 		# Get current user's SID from the LDAP connection
 		self.current_user_sid = None
@@ -160,6 +162,32 @@ class PowerView:
 		self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
 		self.whoami = self.conn.who_am_i()
 
+	def get_domain_connection(self, domain=None):
+		"""Get connection for specified domain"""
+		return self.conn.get_domain_connection(domain)
+
+	def get_object_across_domains(self, identity=None, properties=[], target_domain=None):
+		objects = []
+		for domain in self.get_domaintrust(
+			identity=target_domain,
+			properties=['name'],
+			no_cache=True,
+		):
+			trust_name = domain.get('attributes',{}).get('name',None)
+			if trust_name:
+				try:
+					domain_conn = self.get_domain_connection(trust_name)
+					temp_powerview = PowerView(domain_conn, self.args, target_domain=trust_name)
+					objects.extend(temp_powerview.get_domainobject(
+						identity=identity,
+						properties=['name', 'objectSid', 'distinguishedName', 'objectCategory'],
+						server=trust_name
+					))
+				except Exception as e:
+					logging.error(f"Failed to query domain {trust_name}: {str(e)}")
+					continue
+		return objects
+
 	def get_domain_sid(self):
 		"""
 		Returns the domain SID for the current domain.
@@ -193,6 +221,90 @@ class PowerView:
 
 	def get_server_dns(self):
 		return self.dc_dnshostname
+
+	def get_domain_powerview(self, domain):
+		"""Get or create a PowerView instance for a specific domain with robust
+		error handling and connection verification
+		
+		Args:
+			domain (str): Target domain name
+			
+		Returns:
+			PowerView: PowerView instance for the target domain
+		"""
+		if not domain or domain.lower() == self.domain.lower():
+			return self
+			
+		domain = domain.lower()
+		
+		if domain in self.domain_instances:
+			pv = self.domain_instances[domain]
+			try:
+				if pv.is_connection_alive():
+					return pv
+				else:
+					logging.debug(f"Cached PowerView for domain {domain} has dead connection, recreating")
+					del self.domain_instances[domain]
+			except Exception as e:
+				logging.debug(f"Error checking PowerView for domain {domain}, recreating: {str(e)}")
+				if domain in self.domain_instances:
+					del self.domain_instances[domain]
+		
+		max_retries = 3
+		backoff_factor = 1.5
+		retry_count = 0
+		
+		while retry_count < max_retries:
+			try:
+				domain_conn = self.conn.get_domain_connection(domain)
+				
+				pv = PowerView(domain_conn, self.args, target_domain=domain)
+				
+				if not pv.is_connection_alive():
+					raise ConnectionError(f"Created PowerView for {domain} but connection is not alive")
+				
+				self.domain_instances[domain] = pv
+				return pv
+				
+			except Exception as e:
+				retry_count += 1
+				if retry_count >= max_retries:
+					logging.error(f"Failed to create PowerView for domain {domain} after {max_retries} attempts: {str(e)}")
+					raise
+				
+				wait_time = (backoff_factor ** retry_count) * 0.5
+				logging.debug(f"Retrying connection to {domain} in {wait_time:.2f} seconds (attempt {retry_count+1}/{max_retries})")
+				time.sleep(wait_time)
+
+	def execute_in_domain(self, domain, func, *args, **kwargs):
+		"""Execute a function in the context of a specific domain with robust error handling
+		
+		Args:
+			domain (str): Target domain
+			func (callable): Function to execute
+			*args, **kwargs: Arguments to pass to the function
+			
+		Returns:
+			The result of the function execution
+		"""
+		if not domain or domain.lower() == self.domain.lower():
+			return func(*args, **kwargs)
+		
+		try:
+			domain_pv = self.get_domain_powerview(domain)
+			
+			if not hasattr(domain_pv, func.__name__):
+				raise AttributeError(f"Function {func.__name__} not found in PowerView for domain {domain}")
+			
+			result = getattr(domain_pv, func.__name__)(*args, **kwargs)
+			return result
+			
+		except Exception as e:
+			logging.error(f"Failed to execute {func.__name__} in domain {domain}: {str(e)}")
+			if hasattr(self.args, 'stack_trace') and self.args.stack_trace:
+				import traceback
+				logging.debug(traceback.format_exc())
+			raise
 
 	def execute(self, args):
 		module_name = args.module
@@ -1260,7 +1372,6 @@ class PowerView:
 			logging.warning("[Get-DomainGroupMember] Multiple group found. Probably try searching with distinguishedName")
 			return
 
-		# create a new entry structure
 		new_entries = []
 		for ent in entries:
 			haveForeign = False
@@ -1432,7 +1543,7 @@ class PowerView:
 			try:
 				gpcfilesyspath = f"{entry['attributes']['gPCFileSysPath']}\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf"
 
-				conn = self.conn.init_smb_session(host2ip(self.dc_ip, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver))
+				conn = self.conn.init_smb_session(host2ip(self.dc_ip, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else self.dc_ip)
 
 				share = 'sysvol'
 				filepath = ''.join(gpcfilesyspath.lower().split(share)[1:])
@@ -2011,7 +2122,7 @@ class PowerView:
 
 		return entries
 
-	def get_domainca(self, args=None, identity=None, check_all=False, properties=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domainca(self, args=None, identity=None, properties=None, check_all=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			"cn",
 			"name",
@@ -2023,10 +2134,9 @@ class PowerView:
 			"distinguishedName",
 			"displayName"
 		]
-		properties = def_prop if not properties else properties
+		properties = args.properties if hasattr(args, 'properties') and args.properties else (properties if properties else def_prop)
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
-
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 		check_all = args.check_all if hasattr(args, 'check_all') else check_all
 
@@ -2185,8 +2295,9 @@ class PowerView:
 		if not dc:
 			dc = self.domain
 		
-		logging.debug("[Add-DomainGPO] Resolving hostname to IP")
-		dc = host2ip(dc, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+		if not self.use_kerberos:
+			logging.debug("[Add-DomainGPO] Resolving hostname to IP")
+			dc = host2ip(dc, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
 		share = "SYSVOL"
 		policy_path = "/%s/Policies/%s" % (
@@ -3112,32 +3223,93 @@ displayName=New Group Policy Object
 		return succeeded
 
 	def add_domaingroupmember(self, identity, members, args=None):
-		group_entry = self.get_domaingroup(identity=identity,properties=['distinguishedName'])
-		user_entry = self.get_domainobject(identity=members,properties=['distinguishedName'])
-		if len(group_entry) == 0:
-			raise ValueError(f'[Add-DomainGroupMember] Group {identity} not found in domain')
-		if len(user_entry) == 0:
-			raise ValueError(f'[Add-DomainGroupMember] User {members} not found in domain. Try to use DN')
-		targetobject = group_entry[0]
-		userobject = user_entry[0]
-		if isinstance(targetobject["attributes"]["distinguishedName"], list):
-			targetobject_dn = targetobject["attributes"]["distinguishedName"][0]
+		if not is_dn(identity):
+			group_entry = self.get_domaingroup(identity=identity, properties=['distinguishedName'])
+			if len(group_entry) == 0:
+				logging.error(f'[Add-DomainGroupMember] Group {identity} not found in domain')
+				return False
+			elif len(group_entry) > 1:
+				logging.error(f'[Add-DomainGroupMember] More than one group found for {identity}')
+				return False
+			targetobject_dn = group_entry[0]["attributes"]["distinguishedName"]
 		else:
-			targetobject_dn = targetobject["attributes"]["distinguishedName"]
-
-		if isinstance(userobject["attributes"]["distinguishedName"], list):
-			userobject_dn = userobject["attributes"]["distinguishedName"][0]
+			targetobject_dn = identity
+		
+		target_domain = None
+		username = members
+		
+		if is_dn(members):
+			userobject_dn = members
 		else:
-			userobject_dn = userobject["attributes"]["distinguishedName"]
+			if '@' in members:
+				username, target_domain = members.split('@', 1)
+				logging.debug(f"[Add-DomainGroupMember] Detected username@domain format: {username}@{target_domain}")
+			elif '\\' in members:
+				domain_part, username = members.split('\\', 1)
+				target_domain = domain_part
+				logging.debug(f"[Add-DomainGroupMember] Detected domain\\username format: {target_domain}\\{username}")
+			
+			if target_domain and target_domain.lower() != self.domain.lower():
+				logging.debug(f"[Add-DomainGroupMember] Searching for {username} in domain {target_domain}")
+				try:
+					result = self.execute_in_domain(
+						target_domain, 
+						self.get_domainobject,
+						identity=username,
+						properties=['distinguishedName']
+					)
+					
+					if not result or len(result) == 0:
+						logging.error(f'[Add-DomainGroupMember] User {username} not found in domain {target_domain}')
+						return False
+					elif len(result) > 1:
+						logging.error(f'[Add-DomainGroupMember] More than one user found for {username} in domain {target_domain}')
+						return False
+					
+					userobject_dn = result[0]["attributes"]["distinguishedName"]
+					logging.debug(f"[Add-DomainGroupMember] Found user DN in domain {target_domain}: {userobject_dn}")
+				except Exception as e:
+					logging.error(f'[Add-DomainGroupMember] Error resolving user in domain {target_domain}: {str(e)}')
+					return False
+			else:
+				user_entry = self.get_domainobject(identity=username, properties=['distinguishedName'])
+				
+				if len(user_entry) == 0:
+					logging.error(f'[Add-DomainGroupMember] User {username} not found in domain. Try to use DN')
+					return False
+				elif len(user_entry) > 1:
+					logging.error(f'[Add-DomainGroupMember] More than one user found for {username}')
+					return False
+				
+				userobject_dn = user_entry[0]["attributes"]["distinguishedName"]
+		
+		if isinstance(targetobject_dn, list):
+			targetobject_dn = targetobject_dn[0]
+		
+		if isinstance(userobject_dn, list):
+			userobject_dn = userobject_dn[0]
 		
 		try:
-			succeeded = self.ldap_session.modify(targetobject_dn,{'member': [(ldap3.MODIFY_ADD, [userobject_dn])]})
+			succeeded = self.ldap_session.modify(targetobject_dn, {'member': [(ldap3.MODIFY_ADD, [userobject_dn])]})
 		except ldap3.core.exceptions.LDAPInvalidValueError as e:
 			logging.error(f"[Add-DomainGroupMember] {str(e)}")
 			succeeded = False
+		except ldap3.core.exceptions.LDAPNoSuchObjectResult as e:
+			if self.args.stack_trace:
+				raise e
+			logging.error(f"[Add-DomainGroupMember] LDAPNoSuchObjectResult: Object does not exist")
+			if not is_dn(identity):
+				logging.warning("[Add-DomainGroupMember] Use a DN for the identity instead")
+			if not is_dn(members):
+				logging.warning("[Add-DomainGroupMember] Use a DN for the members instead")
+			succeeded = False
+		except Exception as e:
+			logging.error(f"[Add-DomainGroupMember] Unexpected error: {str(e)}")
+			succeeded = False
 		
-		if not succeeded:
-			raise ValueError(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainGroupMember] Failed to add {members} to group {identity}")
+		if succeeded:
+			logging.info(f"[Add-DomainGroupMember] Successfully added {members} to group {identity}")
+		
 		return succeeded
 
 	def disable_domaindnsrecord(self, recordname, zonename=None):
@@ -3991,7 +4163,7 @@ displayName=New Group Policy Object
 
 			if not attrs:
 				raise ValueError(f"[Set-DomainObject] Parsing {'-Set' if args.set else '-Append'} value failed")
-			targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=[attrs['attribute'], "distinguishedName"], sd_flag=sd_flag)
+			targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=[attrs['attribute'], "distinguishedName"], sd_flag=sd_flag, no_cache=True)
 			if len(targetobject) > 1:
 				logging.error(f"[Set-DomainObject] More than one identity found. Use distinguishedName instead")
 				return False
@@ -4008,33 +4180,6 @@ displayName=New Group Policy Object
 				except Exception as e:
 					logging.error("[Set-DomainObject] %s" % str(e))
 					return
-
-			# try:
-			# 	if isinstance(attrs['value'], list):
-			# 		for val in attrs['value']:
-			# 			try:
-			# 				values = targetobject[0]["attributes"].get(attrs['attribute'])
-			# 				if isinstance(values, list):
-			# 					for ori_val in values:
-			# 						if isinstance(ori_val, str) and isinstance(val, str):
-			# 							if val.casefold() == ori_val.casefold():
-			# 								raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-			# 						else:
-			# 							if val == values:
-			# 								raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-			# 				elif isinstance(values, str):
-			# 					if val.casefold() == values.casefold():
-			# 						raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-			# 				elif isinstance(values, int):
-			# 					if val == values:
-			# 						raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-			# 				else:
-			# 					if val == values:
-			# 						raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-			# 			except KeyError as e:
-			# 				logging.warning(f"[Set-DomainObject] Attribute {attrs['attribute']} not exists in object. Modifying anyway...")
-			# except ldap3.core.exceptions.LDAPKeyError as e:
-			# 	logging.error(f"[Set-DomainObject] Key {attrs['attribute']} not found in template attribute. Adding anyway...")
 
 			if attr_append:
 				if not targetobject[0]["attributes"].get(attrs['attribute']):
@@ -4059,13 +4204,13 @@ displayName=New Group Policy Object
 					temp_list = targetobject[0]["attributes"][attrs['attribute']]
 
 				#In case the value a Distinguished Name we retransform it into a list to append it
-				if re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', str(attrs['value'])):
+				if is_dn(str(attrs['value'])):
 					attrs['value'] = list(set(list(attrs['value'].split('\n') + temp_list)))
 				else:
 					attrs['value'] = list(set(attrs['value'] + temp_list))
 			elif attr_set:
 				#In case the value is a Distinguished Name
-				if not re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', str(attrs['value'])):
+				if not is_dn(str(attrs['value'])):
 					attrs['value'] = list(set(attrs['value']))
 
 			attr_key = attrs['attribute']
@@ -4378,9 +4523,9 @@ displayName=New Group Policy Object
 		def check_admin(ent):
 			try:
 				# Use provided creds if available, otherwise use current connection context
-				current_username = username or self.conn.get_username()
-				current_password = password or self.conn.get_password()
-				current_domain = domain or self.conn.get_domain()
+				current_username = username or self.conn.username
+				current_password = password or self.conn.password
+				current_domain = domain or self.conn.domain
 				current_lmhash = lmhash or self.conn.lmhash
 				current_nthash = nthash or self.conn.nthash
 
@@ -5670,15 +5815,15 @@ displayName=New Group Policy Object
 			if auth_aes_key:
 				self.conn.auth_aes_key = auth_aes_key
 
-		logging.info(f"[Login-As] Logging in as {self.conn.get_username()}@{self.conn.get_domain()}")
+		logging.info(f"[Login-As] Logging in as {self.conn.username}@{self.conn.domain}")
 		try:
 			self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
-			logging.info(f"[Login-As] Successfully logged in as {self.conn.get_username()}@{self.conn.get_domain()}")
+			logging.info(f"[Login-As] Successfully logged in as {self.conn.username}@{self.conn.domain}")
 			self._initialize_attributes_from_connection()
 			return True
 		except Exception as e:
 			if self.args.stack_trace:
 				raise e
 			else:
-				logging.error(f"[Login-As] Failed to login as {self.conn.get_username()}@{self.conn.get_domain()}: {e}")
+				logging.error(f"[Login-As] Failed to login as {self.conn.username}@{self.conn.domain}: {e}")
 				return False

@@ -49,7 +49,6 @@ def main():
         comp = Completer()
         comp.setup_completer()
 
-        domain_connections = {}
         current_target_domain = None
 
         using_cache = False
@@ -84,18 +83,10 @@ def main():
                     pv_args = powerview_arg_parse(cmd)
 
                     if pv_args:
-                        if pv_args.server and pv_args.server.casefold() != args.domain.casefold():
-                            current_target_domain = pv_args.server
-                            
-                            if pv_args.server in domain_connections:
-                                temp_conn = domain_connections[pv_args.server]
-                            else:
-                                temp_conn = CONNECTION(args)
-                                temp_conn.update_temp_ldap_address(pv_args.server)
-                                domain_connections[pv_args.server] = temp_conn
-
+                        if pv_args.server and pv_args.server.lower() != powerview.domain.lower():
                             try:
-                                temp_powerview = PowerView(temp_conn, args, target_domain=pv_args.server)
+                                temp_powerview = powerview.get_domain_powerview(pv_args.server)
+                                current_target_domain = pv_args.server
                             except ldap3.core.exceptions.LDAPSocketOpenError as e:
                                 logging.error(f'Connection to domain {pv_args.server} failed: {str(e)}')
                                 current_target_domain = None
@@ -245,9 +236,9 @@ def main():
                             elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-ca':
                                 properties = pv_args.properties if pv_args.properties else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainca(pv_args, properties)
+                                    entries = temp_powerview.get_domainca(pv_args)
                                 else:
-                                    entries = powerview.get_domainca(pv_args, properties)
+                                    entries = powerview.get_domainca(pv_args)
                             elif pv_args.module.casefold() == 'get-domaincatemplate' or pv_args.module.casefold() == 'get-catemplate':
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None

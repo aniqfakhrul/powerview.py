@@ -39,6 +39,7 @@ from powerview.utils.certificate import (
 )
 
 import ssl
+import time
 import ldap3
 import logging
 import sys
@@ -51,6 +52,14 @@ import powerview.lib.adws as adws
 
 class CONNECTION:
 	def __init__(self, args):
+		self.args = args
+		self._domain_connections = {}
+		self._domain_connection_locks = {}
+		self._connection_attempts = {}
+		self._max_connection_attempts = 3
+		self._connection_timeout = 300
+		self._last_connection_check = {}
+		self._current_domain = None
 		self.username = args.username
 		self.password = args.password
 		self.domain = args.domain
@@ -196,6 +205,145 @@ class CONNECTION:
 			logging.warning('Channel binding not supported with LDAP. Proceed with LDAPS')
 			self.use_ldaps = True
 			self.use_ldap = False
+
+	def get_domain_connection(self, domain):
+		"""Get or create a connection to a trusted domain with proper error handling
+		and connection pooling
+		
+		Args:
+			domain (str): Target domain name
+			
+		Returns:
+			CONNECTION: Connection object for the target domain
+		"""
+		if not domain:
+			return self
+			
+		domain = domain.lower()
+		
+		if domain == self.get_domain().lower():
+			return self
+		
+		current_time = time.time()
+		if domain in self._connection_attempts:
+			attempts, last_attempt_time = self._connection_attempts[domain]
+			if attempts >= self._max_connection_attempts and (current_time - last_attempt_time) < 60:
+				raise ConnectionError(f"Too many recent failed connection attempts to domain {domain}")
+			
+			if (current_time - last_attempt_time) > 300:
+				self._connection_attempts[domain] = (0, current_time)
+		
+		if domain in self._domain_connections:
+			conn = self._domain_connections[domain]
+			last_check = self._last_connection_check.get(domain, 0)
+			
+			if (current_time - last_check) > 60:
+				if not conn.is_connection_alive():
+					logging.debug(f"Cached connection to {domain} is dead. Removing.")
+					self._remove_domain_connection(domain)
+				else:
+					self._last_connection_check[domain] = current_time
+					return conn
+			else:
+				return conn
+		
+		try:
+			new_conn = CONNECTION(self.args)
+			
+			new_conn.username = self.username
+			new_conn.password = self.password
+			new_conn.lmhash = self.lmhash
+			new_conn.nthash = self.nthash
+			new_conn.auth_aes_key = self.auth_aes_key
+			if hasattr(self, 'TGT') and self.TGT is not None:
+				new_conn.TGT = self.TGT
+			if hasattr(self, 'TGS') and self.TGS is not None:
+				new_conn.TGS = self.TGS
+			new_conn.use_kerberos = self.use_kerberos
+			
+			new_conn.update_temp_ldap_address(domain)
+			
+			for attempt in range(3):
+				try:
+					new_conn.ldap_server, new_conn.ldap_session = new_conn.init_ldap_session()
+					if new_conn.is_connection_alive():
+						break
+				except Exception as e:
+					if attempt == 2:
+						raise
+					logging.debug(f"Connection attempt {attempt+1} to {domain} failed: {str(e)}")
+					time.sleep(1)
+			
+			if new_conn.is_connection_alive():
+				self._domain_connections[domain] = new_conn
+				self._last_connection_check[domain] = current_time
+				self._connection_attempts[domain] = (0, current_time)
+				logging.debug(f"Created new connection to domain {domain}")
+				return new_conn
+			else:
+				raise ConnectionError(f"Failed to establish working connection to domain {domain}")
+			
+		except Exception as e:
+			attempts, _ = self._connection_attempts.get(domain, (0, 0))
+			self._connection_attempts[domain] = (attempts + 1, current_time)
+			
+			logging.error(f"Failed to establish connection to domain {domain}: {str(e)}")
+			raise
+
+	def _remove_domain_connection(self, domain):
+		"""Safely remove a domain connection from the cache with proper error handling"""
+		if domain in self._domain_connections:
+			try:
+				conn = self._domain_connections[domain]
+				
+				if hasattr(conn, 'ldap_session') and conn.ldap_session:
+					try:
+						if hasattr(conn.ldap_session, 'bound') and conn.ldap_session.bound:
+							conn.ldap_session.unbind()
+					except (ldap3.core.exceptions.LDAPSocketOpenError, 
+							ldap3.core.exceptions.LDAPSessionTerminatedByServerError,
+							ldap3.core.exceptions.LDAPSocketSendError,
+							ldap3.core.exceptions.LDAPSocketReceiveError) as e:
+						logging.debug(f"Expected LDAP error unbinding from {domain}: {str(e)}")
+					except Exception as e:
+						logging.debug(f"Unexpected error unbinding from {domain}: {str(e)}")
+				
+				try:
+					conn.close()
+				except Exception as e:
+					logging.debug(f"Error closing connection to {domain}: {str(e)}")
+					
+			except Exception as e:
+				logging.debug(f"Error during connection cleanup for {domain}: {str(e)}")
+			finally:
+				if domain in self._domain_connections:
+					del self._domain_connections[domain]
+				if domain in self._last_connection_check:
+					del self._last_connection_check[domain]
+				logging.debug(f"Removed domain connection for {domain}")
+
+	def cleanup_domain_connections(self):
+		"""Cleanup all domain connections"""
+		domains = list(self._domain_connections.keys())
+		for domain in domains:
+			try:
+				self._remove_domain_connection(domain)
+			except Exception as e:
+				logging.error(f"Error during domain connection cleanup for {domain}: {str(e)}")
+
+	def get_all_connected_domains(self):
+		"""Get list of all domains with active connections
+		
+		Returns:
+			list: List of domain names with active connections
+		"""
+		domains = [self.get_domain()]
+		for domain, conn in list(self._domain_connections.items()):
+			if conn.is_connection_alive():
+				domains.append(domain)
+			else:
+				self._remove_domain_connection(domain)
+		return domains
 
 	def refresh_domain(self):
 		try:
@@ -372,16 +520,13 @@ class CONNECTION:
 		
 		while retry_count < max_retries and not success:
 			try:
-				if retry_count > 0:  # Only delay if this is a retry
-					# Calculate backoff with jitter
+				if retry_count > 0:
 					backoff_time = (2 ** retry_count) + random.uniform(0, 1)
 					logging.info(f"LDAP reconnection attempt {retry_count+1}/{max_retries} after {backoff_time:.2f} seconds")
 					time.sleep(backoff_time)
 				
-				# Actual reconnection
 				self.ldap_session.rebind()
 				
-				# Verify connection is alive
 				if self.is_connection_alive():
 					logging.info("LDAP reconnection successful")
 					success = True
@@ -416,14 +561,16 @@ class CONNECTION:
 
 	def close(self):
 		"""Close all connections and resources properly"""
-		# First unbind LDAP session if it exists
+		self.cleanup_domain_connections()
+
 		if hasattr(self, 'ldap_session') and self.ldap_session:
 			try:
-				self.ldap_session.unbind()
+				if self.ldap_session.bound:
+					self.ldap_session.unbind()
+				self.ldap_session = None
 			except:
 				pass
 		
-		# Shutdown relay instance if it exists
 		if hasattr(self, 'relay_instance') and self.relay_instance:
 			try:
 				self.relay_instance.shutdown()
@@ -431,7 +578,6 @@ class CONNECTION:
 			except Exception as e:
 				logging.error(f"Error shutting down relay server: {str(e)}")
 		
-		# Make sure to clean up other resources as needed
 		if hasattr(self, 'rpc_conn') and self.rpc_conn:
 			try:
 				self.rpc_conn.disconnect()
@@ -1435,16 +1581,32 @@ class CONNECTION:
 			bool: True if connection is alive, False otherwise
 		"""
 		try:
-			# Try a simple operation to verify connection
 			if self.ldap_session and self.ldap_session.bound:
-				# Perform a simple search operation
-				result = self.ldap_session.search(
-					search_base=self.ldap_server.info.other['defaultNamingContext'][0],
-					search_filter='(objectClass=*)',
-					search_scope='BASE',
-					attributes=['1.1']
-				)
-				return result
+				try:
+					result = self.ldap_session.search(
+						search_base=self.ldap_server.info.other['defaultNamingContext'][0],
+						search_filter='(objectClass=*)',
+						search_scope='BASE',
+						attributes=['1.1']
+					)
+					return result
+				except (KeyError, AttributeError, IndexError):
+					# If defaultNamingContext is not available, try a more basic search
+					try:
+						result = self.ldap_session.search(
+							search_base='',
+							search_filter='(objectClass=*)',
+							search_scope='BASE',
+							attributes=['namingContexts']
+						)
+						return result
+					except Exception:
+						return False
+			return False
+		except (ldap3.core.exceptions.LDAPSocketOpenError, 
+				ldap3.core.exceptions.LDAPSessionTerminatedByServerError,
+				ldap3.core.exceptions.LDAPSocketSendError,
+				ldap3.core.exceptions.LDAPSocketReceiveError):
 			return False
 		except Exception:
 			return False
@@ -1457,7 +1619,6 @@ class CONNECTION:
 			bool: True if connection is still alive, False otherwise
 		"""
 		try:
-			# Perform a simple search with minimal overhead
 			result = self.is_connection_alive()
 			logging.debug("[Connection] Connection keep-alive check: Success")
 			return result

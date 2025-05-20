@@ -274,7 +274,7 @@ def ini_to_dict(obj):
 		return None
 	for k in t['dummy_section'].keys():
 		d['attribute'] = k
-		if re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', t.get('dummy_section', k)):
+		if is_dn(t.get('dummy_section', k)):
 			d['value'] = t.get('dummy_section', k)
 		else:
 			d['value'] = [i.strip() for i in t.get('dummy_section', k).split(",")]
@@ -353,6 +353,10 @@ def is_ipaddress(address):
 		return True
 	except ValueError:
 		return False
+
+def is_dn(dn):
+	dn_pattern = re.compile(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$')
+	return bool(dn_pattern.match(dn))
 
 def is_proxychains():
 	"""
