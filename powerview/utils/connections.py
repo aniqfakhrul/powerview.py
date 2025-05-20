@@ -431,7 +431,8 @@ class CONNECTION:
 			ldap_address = get_principal_dc_address(
 				server, 
 				self.nameserver, 
-				use_system_ns=self.use_system_ns
+				use_system_ns=self.use_system_ns,
+				resolve_ip=False if self.use_kerberos else True
 			)
 			# In proxy mode, ldap_address will be set to the original domain
 		elif is_ipaddress(server):

@@ -379,7 +379,7 @@ def is_proxychains():
 	
 	return False
 
-def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_ns=True):
+def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_ns=True, resolve_ip=True):
 	domain = str(domain)
 	if domain in list(STORED_ADDR.keys()):
 		return STORED_ADDR[domain]
@@ -410,7 +410,10 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
 		for r in q:
 			dc = str(r.target).removesuffix('.')
 		# Resolve IP for principal DC with same DNS settings
-		answer = host2ip(dc, nameserver, 3, dns_tcp, use_system_ns)
+		if resolve_ip:
+			answer = host2ip(dc, nameserver, 3, dns_tcp, use_system_ns)
+		else:
+			answer = dc
 		return answer
 	except resolver.NXDOMAIN as e:
 		logging.debug(str(e))
