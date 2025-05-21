@@ -105,13 +105,6 @@ class PowerView:
 
 		self.domain_instances = {}
 
-		# Get current user's SID from the LDAP connection
-		self.current_user_sid = None
-		if self.whoami and self.whoami != 'ANONYMOUS':
-			user = self.get_domainobject(identity=self.whoami.split('\\')[1], properties=['objectSid'])
-			if user and len(user) > 0:
-				self.current_user_sid = user[0]['attributes']['objectSid']
-
 		# API server
 		if self.args.web and self.ldap_session:
 			try:
@@ -167,6 +160,12 @@ class PowerView:
 		self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0] if isinstance(self.ldap_server.info.other["ldapServiceName"], list) else self.ldap_server.info.other["ldapServiceName"].split("@")[-1].split(".")[0]
 		self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
 		self.whoami = self.conn.who_am_i()
+		# Get current user's SID from the LDAP connection
+		self.current_user_sid = None
+		if self.whoami and self.whoami != 'ANONYMOUS':
+			user = self.get_domainobject(identity=self.whoami.split('\\')[1], properties=['objectSid'])
+			if user and len(user) > 0:
+				self.current_user_sid = user[0].get('attributes', {}).get('objectSid', None)
 
 	def get_domain_connection(self, domain=None):
 		"""Get connection for specified domain"""
