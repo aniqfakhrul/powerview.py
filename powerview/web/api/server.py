@@ -359,7 +359,7 @@ class APIServer:
 			'username': self.powerview.conn.get_username(),
 			'sid': self.powerview.current_user_sid,
 			'is_admin': self.powerview.is_admin,
-			'status': 'OK' if self.powerview.is_connection_alive() else 'KO',
+			'status': 'OK' if self.powerview.conn.is_connection_alive() else 'KO',
 			'protocol': self.powerview.conn.get_proto(),
 			'ldap_address': self.powerview.conn.get_ldap_address(),
 			'nameserver': self.powerview.conn.get_nameserver(),
