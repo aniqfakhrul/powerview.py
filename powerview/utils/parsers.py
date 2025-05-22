@@ -193,6 +193,7 @@ def powerview_arg_parse(cmd):
 	#domainobjectacl
 	get_domainobjectacl_parser = subparsers.add_parser('Get-DomainObjectAcl', aliases=['Get-ObjectAcl'] ,exit_on_error=False)
 	get_domainobjectacl_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domainobjectacl_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
 	get_domainobjectacl_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainobjectacl_parser.add_argument('-Server', action='store', dest='server')
 	get_domainobjectacl_parser.add_argument('-SecurityIdentifier', action='store', dest='security_identifier')
@@ -206,7 +207,8 @@ def powerview_arg_parse(cmd):
 	get_domainobjectacl_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
 	get_domainobjectacl_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 	get_domainobjectacl_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
-	#group
+	
+	# group
 	get_domaingroup_parser = subparsers.add_parser('Get-DomainGroup', aliases=['Get-NetGroup'], exit_on_error=False)
 	get_domaingroup_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaingroup_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
@@ -488,6 +490,7 @@ def powerview_arg_parse(cmd):
 	# Get-DomainGMSA
 	get_domaingmsa_parser = subparsers.add_parser('Get-DomainGMSA', aliases=['Get-GMSA'], exit_on_error=False)
 	get_domaingmsa_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domaingmsa_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	get_domaingmsa_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
 	get_domaingmsa_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaingmsa_parser.add_argument('-Server', action='store', dest='server')
@@ -501,6 +504,24 @@ def powerview_arg_parse(cmd):
 	get_domaingmsa_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
 	get_domaingmsa_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 	get_domaingmsa_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
+
+	# Get-DomainDMSA
+	get_domaindmsa_parser = subparsers.add_parser('Get-DomainDMSA', aliases=['Get-DMSA'], exit_on_error=False)
+	get_domaindmsa_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domaindmsa_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
+	get_domaindmsa_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
+	get_domaindmsa_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domaindmsa_parser.add_argument('-Server', action='store', dest='server')
+	get_domaindmsa_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
+	get_domaindmsa_parser.add_argument('-Where', action='store', dest='where')
+	get_domaindmsa_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	get_domaindmsa_parser.add_argument('-SortBy', action='store', dest='sort_by')
+	get_domaindmsa_parser.add_argument('-OutFile', action='store', dest='outfile')
+	get_domaindmsa_parser.add_argument('-Count', action='store_true', dest='count')
+	get_domaindmsa_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaindmsa_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaindmsa_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domaindmsa_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# Get-DomainRBCD
 	get_domainrbcd_parser = subparsers.add_parser('Get-DomainRBCD', aliases=['Get-RBCD'], exit_on_error=False)
@@ -963,6 +984,39 @@ def powerview_arg_parse(cmd):
 	add_domaincomputer_parser.add_argument('-BaseDN', action='store', default=None, const=None, dest='basedn', type=lambda value: escape_filter_chars_except_asterisk(value))
 	add_domaincomputer_parser.add_argument('-Server', action='store', dest='server')
 	add_domaincomputer_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+	# Add-DomainGMSA
+	add_domaingmsa_parser = subparsers.add_parser('Add-DomainGMSA', aliases=['Add-GMSA'], exit_on_error=False)
+	add_domaingmsa_parser.add_argument('-Identity', action='store', dest='identity', required=True, type=lambda value: escape_filter_chars_except_asterisk(value))
+	add_domaingmsa_parser.add_argument('-PrincipalsAllowedToRetrieveManagedPassword', action='store', dest='principals_allowed_to_retrieve_managed_password', type=lambda value: escape_filter_chars_except_asterisk(value))
+	add_domaingmsa_parser.add_argument('-BaseDN', action='store', dest='basedn', type=lambda value: escape_filter_chars_except_asterisk(value))
+	add_domaingmsa_parser.add_argument('-Server', action='store', dest='server')
+	add_domaingmsa_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	add_domaingmsa_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+	# Remove-DomainGMSA
+	remove_domaingmsa_parser = subparsers.add_parser('Remove-DomainGMSA', aliases=['Remove-GMSA'], exit_on_error=False)
+	remove_domaingmsa_parser.add_argument('-Identity', action='store', dest='identity', required=True, type=lambda value: escape_filter_chars_except_asterisk(value))
+	remove_domaingmsa_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+	remove_domaingmsa_parser.add_argument('-Server', action='store', dest='server')
+	remove_domaingmsa_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+	# add domain dmsa (delegated managed service account)
+	add_domaindmsa_parser = subparsers.add_parser('Add-DomainDMSA', aliases=['Add-DMSA'], exit_on_error=False)
+	add_domaindmsa_parser.add_argument('-Identity', action='store', required=True, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	add_domaindmsa_parser.add_argument('-SupersededAccount', action='store', dest='supersededaccount', type=lambda value: escape_filter_chars_except_asterisk(value))
+	add_domaindmsa_parser.add_argument('-PrincipalsAllowedToRetrieveManagedPassword', action='store', dest='principals_allowed_to_retrieve_managed_password', type=lambda value: escape_filter_chars_except_asterisk(value))
+	add_domaindmsa_parser.add_argument('-BaseDN', action='store', dest='basedn', type=lambda value: escape_filter_chars_except_asterisk(value))
+	add_domaindmsa_parser.add_argument('-Server', action='store', dest='server')
+	add_domaindmsa_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	add_domaindmsa_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+	# remove domain dmsa
+	remove_domaindmsa_parser = subparsers.add_parser('Remove-DomainDMSA', aliases=['Remove-DMSA'], exit_on_error=False)
+	remove_domaindmsa_parser.add_argument('-Identity', action='store', required=True, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	remove_domaindmsa_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+	remove_domaindmsa_parser.add_argument('-Server', action='store', dest='server')
+	remove_domaindmsa_parser.add_argument('-OutFile', action='store', dest='outfile')
 
 	# add dns record
 	add_domaindnsrecord_parser = subparsers.add_parser('Add-DomainDNSRecord', exit_on_error=False)

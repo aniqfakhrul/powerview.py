@@ -227,6 +227,11 @@ def main():
                                     entries = temp_powerview.get_domaingmsa(args=pv_args)
                                 else:
                                     entries = powerview.get_domaingmsa(args=pv_args)
+                            elif pv_args.module.casefold() == 'get-domaindmsa' or pv_args.module.casefold() == 'get-dmsa':
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domaindmsa(args=pv_args)
+                                else:
+                                    entries = powerview.get_domaindmsa(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainrbcd' or pv_args.module.casefold() == 'get-rbcd':
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
@@ -671,6 +676,16 @@ def main():
                                         powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass, basedn=pv_args.basedn)
                                 else:
                                     logging.error(f'-ComputerName and -ComputerPass are required')
+                            elif pv_args.module.casefold() == 'add-domaingmsa' or pv_args.module.casefold() == 'add-gmsa':
+                                if temp_powerview:
+                                    temp_powerview.add_domaingmsa(args=pv_args)
+                                else:
+                                    powerview.add_domaingmsa(args=pv_args)
+                            elif pv_args.module.casefold() == 'add-domaindmsa' or pv_args.module.casefold() == 'add-dmsa':
+                                if temp_powerview:
+                                    temp_powerview.add_domaindmsa(args=pv_args)
+                                else:
+                                    powerview.add_domaindmsa(args=pv_args)
                             elif pv_args.module.casefold() == 'add-domaindnsrecord':
                                 if pv_args.recordname is None or pv_args.recordaddress is None:
                                     logging.error("-RecordName and -RecordAddress flags are required")
@@ -701,6 +716,16 @@ def main():
                                         powerview.remove_domainobject(identity, args=pv_args)
                                 else:
                                     logging.error("-Identity flag is required")
+                            elif pv_args.module.casefold() == 'remove-domaindmsa' or pv_args.module.casefold() == 'remove-dmsa':
+                                if temp_powerview:
+                                    temp_powerview.remove_domaindmsa(args=pv_args)
+                                else:
+                                    powerview.remove_domaindmsa(args=pv_args)
+                            elif pv_args.module.casefold() == 'remove-domaingmsa' or pv_args.module.casefold() == 'remove-gmsa':
+                                if temp_powerview:
+                                    temp_powerview.remove_domaingmsa(args=pv_args)
+                                else:
+                                    powerview.remove_domaingmsa(args=pv_args)
                             elif pv_args.module.casefold() == 'remove-domainuser' or pv_args.module.casefold() == 'remove-aduser':
                                 if pv_args.identity:
                                     if temp_powerview:

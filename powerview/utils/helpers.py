@@ -29,6 +29,7 @@ from impacket.examples.utils import parse_credentials, parse_target
 from impacket.krb5 import constants
 from impacket.krb5.types import Principal
 from impacket.krb5.kerberosv5 import getKerberosTGT
+from impacket.ldap.ldaptypes import LDAP_SID
 
 from powerview.utils.constants import WINDOWS_VERSION_MAP, LCID_TO_LOCALE
 from powerview.lib.dns import (
@@ -378,6 +379,20 @@ def is_proxychains():
 		pass
 	
 	return False
+
+def sid_string_to_bytes(sid_string):
+	"""
+	Convert a string representation of a SID to a bytes object.
+	
+	Args:
+		sid_string (str): The string representation of the SID
+	
+	Returns:
+		bytes: The bytes object representing the SID
+	"""
+	sid_obj = LDAP_SID()
+	sid_obj.fromCanonical(sid_string)
+	return sid_obj.getData()
 
 def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_ns=True, resolve_ip=True):
 	domain = str(domain)

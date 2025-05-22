@@ -30,7 +30,7 @@ from powerview.utils.helpers import (
 from powerview.lib.resolver import (
 	LDAP,
 	TRUST,
-	EXCHANGE,
+	EXCHANGE
 )
 from powerview.utils.certificate import (
 	load_pfx,
@@ -790,7 +790,8 @@ class CONNECTION:
 				"msDS-AllowedToActOnBehalfOfOtherIdentity": LDAP.resolve_msDSAllowedToActOnBehalfOfOtherIdentity,
 				"msDS-TrustForestTrustInfo": LDAP.resolve_msDSTrustForestTrustInfo,
 				"pKIExpirationPeriod": LDAP.resolve_pKIExpirationPeriod,
-				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod
+				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod,
+				"msDS-DelegatedMSAState": LDAP.resolve_delegated_msa_state
 			}
 		}
 
@@ -856,7 +857,7 @@ class CONNECTION:
 				"securityIdentifier": LDAP.bin_to_sid,
 				"mS-DS-CreatorSID": LDAP.bin_to_sid,
 				"msDS-ManagedPassword": LDAP.formatGMSApass,
-				"msDS-GroupMSAMembership": LDAP.parseGMSAMembership,
+				"msDS-GroupMSAMembership": LDAP.parseMSAMembership,
 				"pwdProperties": LDAP.resolve_pwdProperties,
 				"userAccountControl": LDAP.resolve_uac,
 				"msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
@@ -867,7 +868,8 @@ class CONNECTION:
 				"msDS-AllowedToActOnBehalfOfOtherIdentity": LDAP.resolve_msDSAllowedToActOnBehalfOfOtherIdentity,
 				"msDS-TrustForestTrustInfo": LDAP.resolve_msDSTrustForestTrustInfo,
 				"pKIExpirationPeriod": LDAP.resolve_pKIExpirationPeriod,
-				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod
+				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod,
+				"msDS-DelegatedMSAState": LDAP.resolve_delegated_msa_state
 			}
 		}
 
@@ -951,7 +953,7 @@ class CONNECTION:
 				"securityIdentifier": LDAP.bin_to_sid,
 				"mS-DS-CreatorSID": LDAP.bin_to_sid,
 				"msDS-ManagedPassword": LDAP.formatGMSApass,
-				"msDS-GroupMSAMembership": LDAP.parseGMSAMembership,
+				"msDS-GroupMSAMembership": LDAP.parseMSAMembership,
 				"pwdProperties": LDAP.resolve_pwdProperties,
 				"userAccountControl": LDAP.resolve_uac,
 				"msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
@@ -962,7 +964,8 @@ class CONNECTION:
 				"msDS-AllowedToActOnBehalfOfOtherIdentity": LDAP.resolve_msDSAllowedToActOnBehalfOfOtherIdentity,
 				"msDS-TrustForestTrustInfo": LDAP.resolve_msDSTrustForestTrustInfo,
 				"pKIExpirationPeriod": LDAP.resolve_pKIExpirationPeriod,
-				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod
+				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod,
+				"msDS-DelegatedMSAState": LDAP.resolve_delegated_msa_state
 			}
 		}
 		adws_server = adws.Server(**adws_server_kwargs)
@@ -1005,7 +1008,7 @@ class CONNECTION:
 				"securityIdentifier": LDAP.bin_to_sid,
 				"mS-DS-CreatorSID": LDAP.bin_to_sid,
 				"msDS-ManagedPassword": LDAP.formatGMSApass,
-				"msDS-GroupMSAMembership": LDAP.parseGMSAMembership,
+				"msDS-GroupMSAMembership": LDAP.parseMSAMembership,
 				"pwdProperties": LDAP.resolve_pwdProperties,
 				"userAccountControl": LDAP.resolve_uac,
 				"msDS-SupportedEncryptionTypes": LDAP.resolve_enc_type,
@@ -1016,7 +1019,8 @@ class CONNECTION:
 				"msDS-AllowedToActOnBehalfOfOtherIdentity": LDAP.resolve_msDSAllowedToActOnBehalfOfOtherIdentity,
 				"msDS-TrustForestTrustInfo": LDAP.resolve_msDSTrustForestTrustInfo,
 				"pKIExpirationPeriod": LDAP.resolve_pKIExpirationPeriod,
-				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod
+				"pKIOverlapPeriod": LDAP.resolve_pKIOverlapPeriod,
+				"msDS-DelegatedMSAState": LDAP.resolve_delegated_msa_state
 			}
 		}
 
