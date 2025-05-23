@@ -18,6 +18,7 @@ from powerview.modules.products import EDR
 from powerview.modules.gpo import GPO
 from powerview.modules.exchange import ExchangeEnum
 from powerview.utils.helpers import *
+from powerview.utils.connections import CONNECTION
 from powerview.utils.storage import Storage
 from powerview.modules.ldapattack import (
 	LDAPAttack,
@@ -78,26 +79,13 @@ class PowerView:
 		else:
 			self.domain = self.conn.get_domain()
 		
-		if hasattr(conn, 'ldap_server') and hasattr(conn, 'ldap_session') and conn.ldap_session and not conn.ldap_session.closed:
+		if hasattr(conn, 'ldap_server') and hasattr(conn, 'ldap_session') and conn.ldap_server and conn.ldap_session and not conn.ldap_session.closed:
 			self.ldap_server = conn.ldap_server
 			self.ldap_session = conn.ldap_session
 			logging.debug(f"Reusing existing LDAP session for domain {self.domain}")
 		else:
 			self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
 			logging.debug(f"Initializing new LDAP session for domain {self.domain}")
-
-		if not target_domain and not target_server and hasattr(self.conn, '_connection_pool'):
-			try:
-				from powerview.utils.connections import ConnectionPoolEntry
-				primary_entry = ConnectionPoolEntry(self.conn, self.domain)
-				primary_entry.mark_used()
-				
-				with self.conn._connection_pool._pool_lock:
-					self.conn._connection_pool._pool[self.domain.lower()] = primary_entry
-				
-				logging.debug(f"Added primary domain connection ({self.domain}) to connection pool for keep-alive management")
-			except Exception as e:
-				logging.debug(f"Failed to add primary connection to pool: {str(e)}")
 
 		self._initialize_attributes_from_connection()
 
@@ -184,6 +172,31 @@ class PowerView:
 		"""Get connection for specified domain"""
 		return self.conn.get_domain_connection(domain)
 
+	def add_primary_domain_to_pool(self):
+		"""
+		Initialize and add the primary domain connection to the connection pool.
+		
+		This should be called after PowerView initialization to ensure the primary
+		domain connection is properly stored in the pool for reuse.
+		"""
+		try:
+			primary_domain = self.conn.get_domain()
+			
+			if not self.conn.is_connection_alive():
+				logging.warning(f"Primary domain connection for {primary_domain} is not alive, cannot add to pool")
+				return False
+			
+			self.conn._connection_pool.add_connection(self.conn, primary_domain)
+			logging.debug(f"Added primary domain connection for {primary_domain} to pool")
+			return True
+			
+		except Exception as e:
+			logging.error(f"Failed to initialize primary domain in pool: {str(e)}")
+			if hasattr(self.args, 'stack_trace') and self.args.stack_trace:
+				import traceback
+				logging.debug(traceback.format_exc())
+			return False
+
 	def get_object_across_domains(self, identity=None, properties=[], target_domain=None):
 		objects = []
 		for domain in self.get_domaintrust(
@@ -250,7 +263,6 @@ class PowerView:
 		if domain in self.domain_instances:
 			pv = self.domain_instances[domain]
 			try:
-				# if pv.is_connection_alive():
 				if not pv.ldap_session.closed:
 					return pv
 				else:
@@ -274,7 +286,6 @@ class PowerView:
 				
 				pv = PowerView(domain_conn, self.args, target_domain=domain)
 				
-				# if not pv.is_connection_alive():
 				if pv.ldap_session.closed:
 					raise ConnectionError(f"Created PowerView for {domain} but connection is not alive")
 				
@@ -457,7 +468,7 @@ class PowerView:
 
 		# previous ldap filter, need to changed to filter based on objectClass instead because i couldn't get the trust account
 		#ldap_filter = f'(&(samAccountType=805306368){identity_filter}{ldap_filter})'
-		ldap_filter = f'(&(objectClass=user){identity_filter}{ldap_filter})'
+		ldap_filter = f'(&(objectCategory=person)(objectClass=user){identity_filter}{ldap_filter})'
 
 		logging.debug(f'[Get-DomainUser] LDAP search filter: {ldap_filter}')
 

@@ -75,9 +75,10 @@ def arg_parse():
 	
 	pool = parser.add_argument_group('connection pool')
 	pool.add_argument('--max-connections', dest='max_connections', action='store', type=int, default=10, help='Maximum number of pooled domain connections (Default: 10)')
-	pool.add_argument('--pool-cleanup-interval', dest='pool_cleanup_interval', action='store', type=int, default=False, help='Connection pool cleanup interval in seconds (Default: disabled)')
-	pool.add_argument('--keepalive-interval', dest='keepalive_interval', action='store', type=int, default=False, help='Keep-alive interval for maintaining connections in seconds (Default: disabled)')
-
+	pool.add_argument('--connection-idle-timeout', dest='connection_idle_timeout', action='store', type=int, default=0, help='Idle timeout for pooled connections in seconds (Default: Disabled)')
+	pool.add_argument('--pool-cleanup-interval', dest='pool_cleanup_interval', action='store', type=int, default=0, help='Connection pool cleanup interval in seconds (Default: Disabled)')
+	pool.add_argument('--keepalive-interval', dest='keepalive_interval', action='store', type=int, default=0, help='Connection keep-alive interval in seconds (Default: Disabled)')
+	
 	if len(sys.argv) == 1:
 		parser.print_help()
 		sys.exit(1)

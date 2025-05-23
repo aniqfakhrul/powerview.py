@@ -39,6 +39,8 @@ from powerview.utils.certificate import (
 )
 
 import ssl
+import threading
+from collections import OrderedDict
 import time
 import ldap3
 import logging
@@ -49,9 +51,6 @@ import tempfile
 from ldap3.operation import bind
 from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
 import powerview.lib.adws as adws
-
-import threading
-from collections import OrderedDict
 
 class ConnectionPoolEntry:
 	"""Represents a single connection entry in the pool with metadata"""
@@ -102,22 +101,19 @@ class ConnectionPool:
 	- Background maintenance (disabled by default, enabled when intervals are set)
 	"""
 	
-	def __init__(self, max_connections=10, cleanup_interval=False, keepalive_interval=False):
+	def __init__(self, max_connections=10, cleanup_interval=0, keepalive_interval=0):
 		self.max_connections = max_connections
-		self.cleanup_interval = cleanup_interval  # False = disabled by default
-		self.keepalive_interval = keepalive_interval  # False = disabled by default
+		self.cleanup_interval = cleanup_interval
+		self.keepalive_interval = keepalive_interval
 		self._shutdown_in_progress = False
 		
-		# Core pool data structures
-		self._pool = OrderedDict()  # LRU ordering
+		self._pool = OrderedDict()
 		self._pool_lock = threading.RLock()
 		
-		# Connection attempt tracking
 		self._connection_attempts = {}
 		self._max_connection_attempts = 3
 		self._attempt_reset_time = 300
 		
-		# Background maintenance
 		self._cleanup_thread = None
 		self._keepalive_thread = None
 		self._shutdown_event = threading.Event()
@@ -125,8 +121,7 @@ class ConnectionPool:
 	
 	def _start_maintenance_threads(self):
 		"""Start the background maintenance threads"""
-		# Only start cleanup thread if cleanup_interval is enabled (not False)
-		if self.cleanup_interval and (self._cleanup_thread is None or not self._cleanup_thread.is_alive()):
+		if self.cleanup_interval > 0 and (self._cleanup_thread is None or not self._cleanup_thread.is_alive()):
 			self._cleanup_thread = threading.Thread(
 				target=self._cleanup_worker,
 				daemon=True,
@@ -135,8 +130,7 @@ class ConnectionPool:
 			self._cleanup_thread.start()
 			logging.debug("Started connection pool cleanup thread")
 		
-		# Only start keepalive thread if enabled
-		if self.keepalive_interval and (self._keepalive_thread is None or not self._keepalive_thread.is_alive()):
+		if self.keepalive_interval > 0 and (self._keepalive_thread is None or not self._keepalive_thread.is_alive()):
 			self._keepalive_thread = threading.Thread(
 				target=self._keepalive_worker,
 				daemon=True,
@@ -181,7 +175,7 @@ class ConnectionPool:
 					else:
 						if entry.connection.is_connection_alive():
 							entry.mark_used()
-							logging.debug(f"Connection verified alive for domain: {domain}")
+							# logging.debug(f"Connection verified alive for domain: {domain}")
 				else:
 					logging.debug(f"Connection dead during keep-alive for domain: {domain}")
 			except Exception as e:
@@ -292,14 +286,37 @@ class ConnectionPool:
 				logging.error(f"Failed to create connection for domain {domain}: {str(e)}")
 				raise
 	
+	def add_connection(self, connection, domain):
+		"""Add a connection to the pool with proper validation and management"""
+		domain = domain.lower()
+		
+		with self._pool_lock:
+			if domain in self._pool:
+				old_entry = self._pool[domain]
+				old_entry.close()
+				logging.debug(f"Replaced existing connection for domain: {domain}")
+			
+			if len(self._pool) >= self.max_connections and domain not in self._pool:
+				oldest_domain, oldest_entry = self._pool.popitem(last=False)
+				oldest_entry.close()
+				logging.debug(f"Evicted oldest connection for domain: {oldest_domain}")
+			
+			if not connection.is_connection_alive():
+				raise ConnectionError(f"Cannot add dead connection for domain {domain}")
+			
+			self._pool[domain] = ConnectionPoolEntry(connection, domain)
+			logging.debug(f"Added connection for domain: {domain}")
+
 	def remove_connection(self, domain):
-		"""Manually remove a connection from the pool"""
+		"""Remove a connection from the pool with proper cleanup"""
 		domain = domain.lower()
 		with self._pool_lock:
 			if domain in self._pool:
 				entry = self._pool.pop(domain)
 				entry.close()
-				logging.debug(f"Manually removed connection for domain: {domain}")
+				logging.debug(f"Removed connection for domain: {domain}")
+			else:
+				logging.debug(f"No connection found for domain: {domain}")
 	
 	def get_all_domains(self):
 		"""Get list of all domains with active connections"""
@@ -386,18 +403,11 @@ class ConnectionPool:
 class CONNECTION:
 	def __init__(self, args):
 		self.args = args
-		self._shutdown_in_progress = False
 		self._connection_pool = ConnectionPool(
-			max_connections=getattr(args, 'max_connections', 10),
-			cleanup_interval=getattr(args, 'pool_cleanup_interval', False),
-			keepalive_interval=getattr(args, 'keepalive_interval', False)
-		)
-		self._domain_connections = {}
-		self._domain_connection_locks = {}
-		self._connection_attempts = {}
-		self._max_connection_attempts = 3
-		self._connection_timeout = 300
-		self._last_connection_check = {}
+            max_connections=getattr(args, 'max_connections', 10),
+            cleanup_interval=getattr(args, 'pool_cleanup_interval', 0),
+            keepalive_interval=getattr(args, 'keepalive_interval', 0)
+        )
 		self._current_domain = None
 		self.username = args.username
 		self.password = args.password
@@ -546,15 +556,7 @@ class CONNECTION:
 			self.use_ldap = False
 
 	def get_domain_connection(self, domain):
-		"""Get or create a connection to a trusted domain with proper error handling
-		and connection pooling
-		
-		Args:
-			domain (str): Target domain name
-			
-		Returns:
-			CONNECTION: Connection object for the target domain
-		"""
+		"""Get or create a connection to a trusted domain using the connection pool"""
 		if not domain:
 			return self
 			
@@ -563,32 +565,9 @@ class CONNECTION:
 		if domain == self.get_domain().lower():
 			return self
 		
-		current_time = time.time()
-		if domain in self._connection_attempts:
-			attempts, last_attempt_time = self._connection_attempts[domain]
-			if attempts >= self._max_connection_attempts and (current_time - last_attempt_time) < 60:
-				raise ConnectionError(f"Too many recent failed connection attempts to domain {domain}")
-			
-			if (current_time - last_attempt_time) > 300:
-				self._connection_attempts[domain] = (0, current_time)
-		
-		if domain in self._domain_connections:
-			conn = self._domain_connections[domain]
-			last_check = self._last_connection_check.get(domain, 0)
-			
-			if (current_time - last_check) > 60:
-				if not conn.is_connection_alive():
-					logging.debug(f"Cached connection to {domain} is dead. Removing.")
-					self._remove_domain_connection(domain)
-				else:
-					self._last_connection_check[domain] = current_time
-					return conn
-			else:
-				return conn
-		
-		try:
+		def connection_factory():
+			"""Factory function to create new domain connections"""
 			new_conn = CONNECTION(self.args)
-			
 			new_conn.username = self.username
 			new_conn.password = self.password
 			new_conn.lmhash = self.lmhash
@@ -613,97 +592,50 @@ class CONNECTION:
 					logging.debug(f"Connection attempt {attempt+1} to {domain} failed: {str(e)}")
 					time.sleep(1)
 			
-			if new_conn.is_connection_alive():
-				self._domain_connections[domain] = new_conn
-				self._last_connection_check[domain] = current_time
-				self._connection_attempts[domain] = (0, current_time)
-				logging.debug(f"Created new connection to domain {domain}")
-				return new_conn
-			else:
+			if not new_conn.is_connection_alive():
 				raise ConnectionError(f"Failed to establish working connection to domain {domain}")
 			
+			return new_conn
+		
+		# Use the connection pool instead of manual management
+		try:
+			connection = self._connection_pool.get_connection(domain, connection_factory)
+			logging.debug(f"Retrieved connection for domain {domain} from pool")
+			return connection
 		except Exception as e:
-			attempts, _ = self._connection_attempts.get(domain, (0, 0))
-			self._connection_attempts[domain] = (attempts + 1, current_time)
-			
-			logging.error(f"Failed to establish connection to domain {domain}: {str(e)}")
+			logging.error(f"Failed to get connection for domain {domain}: {str(e)}")
 			raise
 	
 	def maintain_connections(self):
 		"""
-		Check all cached connections and refresh/remove as needed
-		This helps ensure connections stay alive for longer operations
+		Connection maintenance is handled by the pool's background threads
+		If keepalive_interval > 0, the pool automatically maintains connections
+		This method can manually trigger maintenance if needed
 		"""
-		current_time = time.time()
-		domains = list(self._domain_connections.keys())
-		
-		for domain in domains:
-			conn = self._domain_connections[domain]
-			last_check = self._last_connection_check.get(domain, 0)
-			
-			if (current_time - last_check) > 180:
-				logging.debug(f"Maintaining connection to domain {domain}")
-				if not conn.is_connection_alive():
-					logging.debug(f"Connection to {domain} is dead during maintenance. Removing.")
-					self._remove_domain_connection(domain)
-				else:
-					conn.keep_alive()
-					self._last_connection_check[domain] = current_time
-
-	def _remove_domain_connection(self, domain):
-		"""Safely remove a domain connection from the cache with proper error handling"""
-		if domain in self._domain_connections:
-			try:
-				conn = self._domain_connections[domain]
-				
-				if hasattr(conn, 'ldap_session') and conn.ldap_session:
-					try:
-						if hasattr(conn.ldap_session, 'bound') and conn.ldap_session.bound:
-							conn.ldap_session.unbind()
-					except (ldap3.core.exceptions.LDAPSocketOpenError, 
-							ldap3.core.exceptions.LDAPSessionTerminatedByServerError,
-							ldap3.core.exceptions.LDAPSocketSendError,
-							ldap3.core.exceptions.LDAPSocketReceiveError) as e:
-						logging.debug(f"Expected LDAP error unbinding from {domain}: {str(e)}")
-					except Exception as e:
-						logging.debug(f"Unexpected error unbinding from {domain}: {str(e)}")
-				
-				try:
-					conn.close()
-				except Exception as e:
-					logging.debug(f"Error closing connection to {domain}: {str(e)}")
-					
-			except Exception as e:
-				logging.debug(f"Error during connection cleanup for {domain}: {str(e)}")
-			finally:
-				if domain in self._domain_connections:
-					del self._domain_connections[domain]
-				if domain in self._last_connection_check:
-					del self._last_connection_check[domain]
-				logging.debug(f"Removed domain connection for {domain}")
+		if hasattr(self._connection_pool, 'health_check'):
+			dead_count = self._connection_pool.health_check()
+			if dead_count > 0:
+				logging.debug(f"Manual health check removed {dead_count} dead connections")
+		else:
+			logging.debug("Connection maintenance is handled automatically by the pool")
 
 	def cleanup_domain_connections(self):
-		"""Cleanup all domain connections"""
-		domains = list(self._domain_connections.keys())
-		for domain in domains:
-			try:
-				self._remove_domain_connection(domain)
-			except Exception as e:
-				logging.error(f"Error during domain connection cleanup for {domain}: {str(e)}")
+		"""Cleanup all domain connections using the pool"""
+		self._connection_pool.shutdown()
 
 	def get_all_connected_domains(self):
-		"""Get list of all domains with active connections
-		
-		Returns:
-			list: List of domain names with active connections
-		"""
+		"""Get list of all domains with active connections from the pool"""
 		domains = [self.get_domain()]
-		for domain, conn in list(self._domain_connections.items()):
-			if conn.is_connection_alive():
-				domains.append(domain)
-			else:
-				self._remove_domain_connection(domain)
+		domains.extend(self._connection_pool.get_all_domains())
 		return domains
+
+	def remove_domain_connection(self, domain):
+		"""Remove a domain connection from the pool"""
+		self._connection_pool.remove_connection(domain)
+
+	def get_pool_stats(self):
+		"""Get connection pool statistics"""
+		return self._connection_pool.get_pool_stats()
 
 	def refresh_domain(self):
 		try:
@@ -920,63 +852,28 @@ class CONNECTION:
 
 	def close(self):
 		"""Close all connections and resources properly"""
-		if self._shutdown_in_progress:
-			return  # Prevent recursive shutdown
-		
-		self._shutdown_in_progress = True
-		
-		try:
-			self._connection_pool.shutdown()
+		self._connection_pool.shutdown()
 
-			if hasattr(self, 'ldap_session') and self.ldap_session:
-				try:
-					if self.ldap_session.bound:
-						self.ldap_session.unbind()
-					self.ldap_session = None
-				except:
-					pass
-			
-			if hasattr(self, 'relay_instance') and self.relay_instance:
-				try:
-					self.relay_instance.shutdown()
-					del self.relay_instance
-				except Exception as e:
-					logging.error(f"Error shutting down relay server: {str(e)}")
-			
-			if hasattr(self, 'rpc_conn') and self.rpc_conn:
-				try:
-					self.rpc_conn.disconnect()
-					self.rpc_conn = None
-				except:
-					pass
-			
-			if hasattr(self, 'wmi_conn') and self.wmi_conn:
-				try:
-					self.disconnect_wmi_session()
-				except:
-					pass
-			
-			for domain_conn in list(self._domain_connections.values()):
-				try:
-					if hasattr(domain_conn, 'close'):
-						domain_conn.close()
-				except:
-					pass
-			
-			self._domain_connections.clear()
-			
-			for session in list(self.smb_sessions.values()):
-				try:
-					session.close()
-				except:
-					pass
-			
-			self.smb_sessions.clear()
-			
-		except Exception as e:
-			logging.debug(f"Error during CONNECTION close: {str(e)}")
-		finally:
-			self._shutdown_in_progress = False
+		if hasattr(self, 'ldap_session') and self.ldap_session:
+			try:
+				if self.ldap_session.bound:
+					self.ldap_session.unbind()
+				self.ldap_session = None
+			except:
+				pass
+		
+		if hasattr(self, 'relay_instance') and self.relay_instance:
+			try:
+				self.relay_instance.shutdown()
+				del self.relay_instance
+			except Exception as e:
+				logging.error(f"Error shutting down relay server: {str(e)}")
+		
+		if hasattr(self, 'rpc_conn') and self.rpc_conn:
+			try:
+				self.rpc_conn.disconnect()
+			except:
+				pass
 
 	def init_ldap_session(self, ldap_address=None, use_ldap=False, use_gc_ldap=False):
 		if self.targetDomain and self.targetDomain != self.domain and self.kdcHost:
@@ -2018,7 +1915,7 @@ class CONNECTION:
 		"""
 		try:
 			result = self.is_connection_alive()
-			logging.debug("[Connection] Connection keep-alive check: Success")
+			# logging.debug("[Connection] Connection keep-alive check: Success")
 			return result
 		except Exception as e:
 			logging.debug(f"[Connection] Connection keep-alive check failed: {str(e)}")
@@ -2026,9 +1923,6 @@ class CONNECTION:
 
 	def __del__(self):
 		"""Destructor to ensure all resources are properly cleaned up"""
-		if hasattr(self, '_shutdown_in_progress') and self._shutdown_in_progress:
-			return  # Prevent recursive shutdown
-		
 		try:
 			self.close()
 		except:
