@@ -18,7 +18,6 @@ from powerview.modules.products import EDR
 from powerview.modules.gpo import GPO
 from powerview.modules.exchange import ExchangeEnum
 from powerview.utils.helpers import *
-from powerview.utils.connections import CONNECTION
 from powerview.utils.storage import Storage
 from powerview.modules.ldapattack import (
 	LDAPAttack,
@@ -86,6 +85,19 @@ class PowerView:
 		else:
 			self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
 			logging.debug(f"Initializing new LDAP session for domain {self.domain}")
+
+		if not target_domain and not target_server and hasattr(self.conn, '_connection_pool'):
+			try:
+				from powerview.utils.connections import ConnectionPoolEntry
+				primary_entry = ConnectionPoolEntry(self.conn, self.domain)
+				primary_entry.mark_used()
+				
+				with self.conn._connection_pool._pool_lock:
+					self.conn._connection_pool._pool[self.domain.lower()] = primary_entry
+				
+				logging.debug(f"Added primary domain connection ({self.domain}) to connection pool for keep-alive management")
+			except Exception as e:
+				logging.debug(f"Failed to add primary connection to pool: {str(e)}")
 
 		self._initialize_attributes_from_connection()
 

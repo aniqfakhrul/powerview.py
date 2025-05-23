@@ -50,9 +50,348 @@ from ldap3.operation import bind
 from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
 import powerview.lib.adws as adws
 
+import threading
+from collections import OrderedDict
+
+class ConnectionPoolEntry:
+	"""Represents a single connection entry in the pool with metadata"""
+	
+	def __init__(self, connection, domain, created_time=None):
+		self.connection = connection
+		self.domain = domain.lower()
+		self.created_time = created_time or time.time()
+		self.last_used = time.time()
+		self.use_count = 0
+		self.is_healthy = True
+		self._lock = threading.RLock()
+	
+	def mark_used(self):
+		"""Mark this connection as recently used"""
+		with self._lock:
+			self.last_used = time.time()
+			self.use_count += 1
+	
+	def is_alive(self):
+		"""Check if the underlying connection is still alive"""
+		with self._lock:
+			if not self.is_healthy:
+				return False
+			try:
+				return self.connection.is_connection_alive()
+			except Exception:
+				self.is_healthy = False
+				return False
+	
+	def close(self):
+		"""Close the underlying connection"""
+		with self._lock:
+			self.is_healthy = False
+			try:
+				if hasattr(self.connection, 'close'):
+					self.connection.close()
+			except Exception as e:
+				logging.debug(f"Error closing connection for {self.domain}: {str(e)}")
+
+class ConnectionPool:
+	"""
+	Advanced connection pool for managing domain connections with:
+	- Keep-alive mechanism to maintain connections (disabled by default, enabled when keepalive_interval is set)
+	- Connection attempt rate limiting
+	- LRU eviction policy
+	- Thread-safe operations
+	- Background maintenance (disabled by default, enabled when intervals are set)
+	"""
+	
+	def __init__(self, max_connections=10, cleanup_interval=False, keepalive_interval=False):
+		self.max_connections = max_connections
+		self.cleanup_interval = cleanup_interval  # False = disabled by default
+		self.keepalive_interval = keepalive_interval  # False = disabled by default
+		self._shutdown_in_progress = False
+		
+		# Core pool data structures
+		self._pool = OrderedDict()  # LRU ordering
+		self._pool_lock = threading.RLock()
+		
+		# Connection attempt tracking
+		self._connection_attempts = {}
+		self._max_connection_attempts = 3
+		self._attempt_reset_time = 300
+		
+		# Background maintenance
+		self._cleanup_thread = None
+		self._keepalive_thread = None
+		self._shutdown_event = threading.Event()
+		self._start_maintenance_threads()
+	
+	def _start_maintenance_threads(self):
+		"""Start the background maintenance threads"""
+		# Only start cleanup thread if cleanup_interval is enabled (not False)
+		if self.cleanup_interval and (self._cleanup_thread is None or not self._cleanup_thread.is_alive()):
+			self._cleanup_thread = threading.Thread(
+				target=self._cleanup_worker,
+				daemon=True,
+				name="ConnectionPool-Cleanup"
+			)
+			self._cleanup_thread.start()
+			logging.debug("Started connection pool cleanup thread")
+		
+		# Only start keepalive thread if enabled
+		if self.keepalive_interval and (self._keepalive_thread is None or not self._keepalive_thread.is_alive()):
+			self._keepalive_thread = threading.Thread(
+				target=self._keepalive_worker,
+				daemon=True,
+				name="ConnectionPool-KeepAlive"
+			)
+			self._keepalive_thread.start()
+			logging.debug("Started connection pool keep-alive thread")
+	
+	def _cleanup_worker(self):
+		"""Background worker that periodically cleans up expired connections"""
+		while not self._shutdown_event.wait(self.cleanup_interval):
+			try:
+				self._cleanup_expired_connections()
+				self._reset_connection_attempts()
+			except Exception as e:
+				logging.debug(f"Error in connection pool cleanup: {str(e)}")
+	
+	def _keepalive_worker(self):
+		"""Background worker that periodically sends keep-alive to maintain connections"""
+		while not self._shutdown_event.wait(self.keepalive_interval):
+			try:
+				self._perform_keepalive()
+			except Exception as e:
+				logging.debug(f"Error in connection pool keep-alive: {str(e)}")
+	
+	def _perform_keepalive(self):
+		"""Send keep-alive to all active connections to maintain them"""
+		keepalive_domains = []
+		
+		with self._pool_lock:
+			for domain, entry in list(self._pool.items()):
+				keepalive_domains.append((domain, entry))
+		
+		for domain, entry in keepalive_domains:
+			try:
+				if entry.is_alive():
+					if hasattr(entry.connection, 'keep_alive'):
+						success = entry.connection.keep_alive()
+						if success:
+							logging.debug(f"Connection keep-alive check: Success for domain: {domain}")
+							entry.mark_used()
+					else:
+						if entry.connection.is_connection_alive():
+							entry.mark_used()
+							logging.debug(f"Connection verified alive for domain: {domain}")
+				else:
+					logging.debug(f"Connection dead during keep-alive for domain: {domain}")
+			except Exception as e:
+				logging.debug(f"Keep-alive error for domain {domain}: {str(e)}")
+	
+	def _cleanup_expired_connections(self):
+		"""Remove only truly dead connections from the pool (keep-alive maintains others)"""
+		dead_domains = []
+		
+		with self._pool_lock:
+			for domain, entry in list(self._pool.items()):
+				if not entry.is_alive():
+					dead_domains.append(domain)
+			
+			for domain in dead_domains:
+				if domain in self._pool:
+					entry = self._pool.pop(domain)
+					entry.close()
+					logging.debug(f"Removed dead connection for domain: {domain}")
+	
+	def _reset_connection_attempts(self):
+		"""Reset connection attempt counters for domains after timeout"""
+		current_time = time.time()
+		domains_to_reset = []
+		
+		for domain, (attempts, last_attempt_time) in list(self._connection_attempts.items()):
+			if (current_time - last_attempt_time) > self._attempt_reset_time:
+				domains_to_reset.append(domain)
+		
+		for domain in domains_to_reset:
+			if domain in self._connection_attempts:
+				del self._connection_attempts[domain]
+				logging.debug(f"Reset connection attempts for domain: {domain}")
+	
+	def _can_attempt_connection(self, domain):
+		"""Check if we can attempt a connection to the domain (rate limiting)"""
+		current_time = time.time()
+		if domain in self._connection_attempts:
+			attempts, last_attempt_time = self._connection_attempts[domain]
+			if attempts >= self._max_connection_attempts and (current_time - last_attempt_time) < 60:
+				return False
+		return True
+	
+	def _record_connection_attempt(self, domain, success=False):
+		"""Record a connection attempt (success or failure)"""
+		current_time = time.time()
+		if success:
+			if domain in self._connection_attempts:
+				del self._connection_attempts[domain]
+		else:
+			attempts, _ = self._connection_attempts.get(domain, (0, 0))
+			self._connection_attempts[domain] = (attempts + 1, current_time)
+	
+	def get_connection(self, domain, connection_factory):
+		"""
+		Get a connection for the specified domain, creating one if necessary
+		
+		Args:
+			domain (str): Target domain name
+			connection_factory (callable): Function to create new connections
+			
+		Returns:
+			Connection object for the domain
+			
+		Raises:
+			ConnectionError: If connection cannot be established or rate limited
+		"""
+		domain = domain.lower()
+		
+		# Check rate limiting
+		if not self._can_attempt_connection(domain):
+			raise ConnectionError(f"Too many recent failed connection attempts to domain {domain}")
+		
+		with self._pool_lock:
+			if domain in self._pool:
+				entry = self._pool[domain]
+				if entry.is_alive():
+					entry.mark_used()
+					self._pool.move_to_end(domain)
+					logging.debug(f"Reusing existing connection for domain: {domain}")
+					return entry.connection
+				else:
+					entry.close()
+					del self._pool[domain]
+					logging.debug(f"Removed dead connection for domain: {domain}")
+			
+			if len(self._pool) >= self.max_connections:
+				oldest_domain, oldest_entry = self._pool.popitem(last=False)
+				oldest_entry.close()
+				logging.debug(f"Evicted oldest connection for domain: {oldest_domain}")
+			
+			try:
+				new_connection = connection_factory()
+				
+				if not new_connection.is_connection_alive():
+					raise ConnectionError(f"Created connection for {domain} is not alive")
+				
+				entry = ConnectionPoolEntry(new_connection, domain)
+				entry.mark_used()
+				self._pool[domain] = entry
+				self._record_connection_attempt(domain, success=True)
+				
+				logging.debug(f"Created new connection for domain: {domain}")
+				return new_connection
+				
+			except Exception as e:
+				self._record_connection_attempt(domain, success=False)
+				logging.error(f"Failed to create connection for domain {domain}: {str(e)}")
+				raise
+	
+	def remove_connection(self, domain):
+		"""Manually remove a connection from the pool"""
+		domain = domain.lower()
+		with self._pool_lock:
+			if domain in self._pool:
+				entry = self._pool.pop(domain)
+				entry.close()
+				logging.debug(f"Manually removed connection for domain: {domain}")
+	
+	def get_all_domains(self):
+		"""Get list of all domains with active connections"""
+		with self._pool_lock:
+			return list(self._pool.keys())
+	
+	def get_pool_stats(self):
+		"""Get detailed statistics about the connection pool"""
+		with self._pool_lock:
+			stats = {
+				'total_connections': len(self._pool),
+				'max_connections': self.max_connections,
+				'failed_attempts': len(self._connection_attempts),
+				'domains': {}
+			}
+			
+			for domain, entry in self._pool.items():
+				stats['domains'][domain] = {
+					'last_used': entry.last_used,
+					'use_count': entry.use_count,
+					'age': time.time() - entry.created_time,
+					'is_alive': entry.is_alive()
+				}
+			
+			return stats
+	
+	def health_check(self):
+		"""Perform a health check on all connections and remove dead ones"""
+		dead_domains = []
+		
+		with self._pool_lock:
+			for domain, entry in list(self._pool.items()):
+				if not entry.is_alive():
+					dead_domains.append(domain)
+			
+			for domain in dead_domains:
+				if domain in self._pool:
+					entry = self._pool.pop(domain)
+					entry.close()
+					logging.debug(f"Health check removed dead connection for domain: {domain}")
+		
+		return len(dead_domains)
+	
+	def shutdown(self):
+		"""Shutdown the connection pool and cleanup all resources"""
+		if self._shutdown_in_progress:
+			return  # Prevent recursive shutdown
+		
+		self._shutdown_in_progress = True
+		logging.debug("Shutting down connection pool...")
+		
+		try:
+			self._shutdown_event.set()
+			
+			# Only join cleanup thread if it was started
+			if hasattr(self, '_cleanup_thread') and self._cleanup_thread and self._cleanup_thread.is_alive():
+				self._cleanup_thread.join(timeout=5)
+			
+			# Only join keepalive thread if it was started
+			if hasattr(self, '_keepalive_thread') and self._keepalive_thread and self._keepalive_thread.is_alive():
+				self._keepalive_thread.join(timeout=5)
+			
+			with self._pool_lock:
+				for domain, entry in list(self._pool.items()):
+					try:
+						entry.close()
+					except Exception as e:
+						logging.debug(f"Error closing connection for {domain}: {str(e)}")
+				self._pool.clear()
+			
+			logging.debug("Connection pool shutdown complete")
+		except Exception as e:
+			logging.debug(f"Error during connection pool shutdown: {str(e)}")
+	
+	def __del__(self):
+		if hasattr(self, '_shutdown_in_progress') and self._shutdown_in_progress:
+			return  # Prevent recursive shutdown
+		
+		try:
+			self.shutdown()
+		except:
+			pass
+
 class CONNECTION:
 	def __init__(self, args):
 		self.args = args
+		self._shutdown_in_progress = False
+		self._connection_pool = ConnectionPool(
+			max_connections=getattr(args, 'max_connections', 10),
+			cleanup_interval=getattr(args, 'pool_cleanup_interval', False),
+			keepalive_interval=getattr(args, 'keepalive_interval', False)
+		)
 		self._domain_connections = {}
 		self._domain_connection_locks = {}
 		self._connection_attempts = {}
@@ -581,28 +920,63 @@ class CONNECTION:
 
 	def close(self):
 		"""Close all connections and resources properly"""
-		self.cleanup_domain_connections()
+		if self._shutdown_in_progress:
+			return  # Prevent recursive shutdown
+		
+		self._shutdown_in_progress = True
+		
+		try:
+			self._connection_pool.shutdown()
 
-		if hasattr(self, 'ldap_session') and self.ldap_session:
-			try:
-				if self.ldap_session.bound:
-					self.ldap_session.unbind()
-				self.ldap_session = None
-			except:
-				pass
-		
-		if hasattr(self, 'relay_instance') and self.relay_instance:
-			try:
-				self.relay_instance.shutdown()
-				del self.relay_instance
-			except Exception as e:
-				logging.error(f"Error shutting down relay server: {str(e)}")
-		
-		if hasattr(self, 'rpc_conn') and self.rpc_conn:
-			try:
-				self.rpc_conn.disconnect()
-			except:
-				pass
+			if hasattr(self, 'ldap_session') and self.ldap_session:
+				try:
+					if self.ldap_session.bound:
+						self.ldap_session.unbind()
+					self.ldap_session = None
+				except:
+					pass
+			
+			if hasattr(self, 'relay_instance') and self.relay_instance:
+				try:
+					self.relay_instance.shutdown()
+					del self.relay_instance
+				except Exception as e:
+					logging.error(f"Error shutting down relay server: {str(e)}")
+			
+			if hasattr(self, 'rpc_conn') and self.rpc_conn:
+				try:
+					self.rpc_conn.disconnect()
+					self.rpc_conn = None
+				except:
+					pass
+			
+			if hasattr(self, 'wmi_conn') and self.wmi_conn:
+				try:
+					self.disconnect_wmi_session()
+				except:
+					pass
+			
+			for domain_conn in list(self._domain_connections.values()):
+				try:
+					if hasattr(domain_conn, 'close'):
+						domain_conn.close()
+				except:
+					pass
+			
+			self._domain_connections.clear()
+			
+			for session in list(self.smb_sessions.values()):
+				try:
+					session.close()
+				except:
+					pass
+			
+			self.smb_sessions.clear()
+			
+		except Exception as e:
+			logging.debug(f"Error during CONNECTION close: {str(e)}")
+		finally:
+			self._shutdown_in_progress = False
 
 	def init_ldap_session(self, ldap_address=None, use_ldap=False, use_gc_ldap=False):
 		if self.targetDomain and self.targetDomain != self.domain and self.kdcHost:
@@ -1652,6 +2026,9 @@ class CONNECTION:
 
 	def __del__(self):
 		"""Destructor to ensure all resources are properly cleaned up"""
+		if hasattr(self, '_shutdown_in_progress') and self._shutdown_in_progress:
+			return  # Prevent recursive shutdown
+		
 		try:
 			self.close()
 		except:

@@ -73,6 +73,11 @@ def arg_parse():
 	mcp.add_argument('--mcp-port', dest='mcp_port', action='store', type=int, default=8080, help='Specify custom port for MCP server (Default: 8080)')
 	mcp.add_argument('--mcp-name', dest='mcp_name', action='store', default='PowerView', help='Specify MCP server name (Default: PowerView MCP)')
 	
+	pool = parser.add_argument_group('connection pool')
+	pool.add_argument('--max-connections', dest='max_connections', action='store', type=int, default=10, help='Maximum number of pooled domain connections (Default: 10)')
+	pool.add_argument('--pool-cleanup-interval', dest='pool_cleanup_interval', action='store', type=int, default=False, help='Connection pool cleanup interval in seconds (Default: disabled)')
+	pool.add_argument('--keepalive-interval', dest='keepalive_interval', action='store', type=int, default=False, help='Keep-alive interval for maintaining connections in seconds (Default: disabled)')
+
 	if len(sys.argv) == 1:
 		parser.print_help()
 		sys.exit(1)
