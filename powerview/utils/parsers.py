@@ -75,7 +75,6 @@ def arg_parse():
 	
 	pool = parser.add_argument_group('connection pool')
 	pool.add_argument('--max-connections', dest='max_connections', action='store', type=int, default=10, help='Maximum number of pooled domain connections (Default: 10)')
-	pool.add_argument('--connection-idle-timeout', dest='connection_idle_timeout', action='store', type=int, default=0, help='Idle timeout for pooled connections in seconds (Default: Disabled)')
 	pool.add_argument('--pool-cleanup-interval', dest='pool_cleanup_interval', action='store', type=int, default=0, help='Connection pool cleanup interval in seconds (Default: Disabled)')
 	pool.add_argument('--keepalive-interval', dest='keepalive_interval', action='store', type=int, default=0, help='Connection keep-alive interval in seconds (Default: Disabled)')
 	
@@ -1012,6 +1011,7 @@ def powerview_arg_parse(cmd):
 	add_domaindmsa_parser.add_argument('-Identity', action='store', required=True, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	add_domaindmsa_parser.add_argument('-SupersededAccount', action='store', dest='supersededaccount', type=lambda value: escape_filter_chars_except_asterisk(value))
 	add_domaindmsa_parser.add_argument('-PrincipalsAllowedToRetrieveManagedPassword', action='store', dest='principals_allowed_to_retrieve_managed_password', type=lambda value: escape_filter_chars_except_asterisk(value))
+	add_domaindmsa_parser.add_argument('-Hidden', action='store_true', dest='hidden', default=False)
 	add_domaindmsa_parser.add_argument('-BaseDN', action='store', dest='basedn', type=lambda value: escape_filter_chars_except_asterisk(value))
 	add_domaindmsa_parser.add_argument('-Server', action='store', dest='server')
 	add_domaindmsa_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
@@ -1162,6 +1162,7 @@ def powerview_arg_parse(cmd):
 	remove_gplink_parser.add_argument('-Server', action='store', dest='server')
 	remove_gplink_parser.add_argument('-OutFile', action='store', dest='outfile')
 	
+	subparsers.add_parser('get_pool_stats', exit_on_error=False)
 	subparsers.add_parser('exit', exit_on_error=False)
 	subparsers.add_parser('clear', exit_on_error=False)
 

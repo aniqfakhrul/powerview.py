@@ -2,7 +2,7 @@
 from powerview.utils.constants import MSDS_MANAGEDPASSWORD_BLOB
 from Cryptodome.Hash import MD4
 from impacket.ldap import ldaptypes
-
+import logging
 import binascii
 
 class MSA:
@@ -53,4 +53,17 @@ class MSA:
 		nace['Ace'] = acedata
 		acl.aces.append(nace)
 		sd['Dacl'] = acl
+		return sd.getData()
+
+	@staticmethod
+	def set_hidden_secdesc(sec_desc: bytes, whitelisted_sids: list[str]):
+		"""
+		Change the ntSecurityDescriptor to only allow the principal to access the account
+		"""
+		sd = ldaptypes.SR_SECURITY_DESCRIPTOR(data=sec_desc)
+		new_dacl = []
+		for ace in sd['Dacl'].aces:
+			if ace['Ace']['Sid'].formatCanonical() in whitelisted_sids or ace['AceType'] == ldaptypes.ACCESS_DENIED_OBJECT_ACE.ACE_TYPE:
+				new_dacl.append(ace)
+		sd['Dacl'].aces = new_dacl
 		return sd.getData()

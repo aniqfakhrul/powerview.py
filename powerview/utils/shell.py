@@ -1,33 +1,53 @@
 #!/usr/bin/env python3
 from powerview.utils.colors import bcolors, Gradient
 
-def get_prompt(init_proto, server_dns, cur_user, nameserver, target_domain=None, using_cache=False, mcp_running=False, web_running=False):
+def get_prompt(powerview, current_target_domain=None, using_cache=False, args=None):
 	"""
 	Creates a visually enhanced prompt for the PowerView shell.
 	
 	Args:
-		init_proto: The protocol being used (LDAP/LDAPS)
-		server_dns: The DNS name of the server
-		cur_user: The current authenticated user
-		nameserver: The DNS nameserver being used
-		target_domain: Optional target domain for cross-domain operations
+		powerview: PowerView instance to extract connection and status information from
+		current_target_domain: Optional target domain for cross-domain operations
 		using_cache: Indicates if the last results came from cache
-		mcp_running: Indicates if MCP server is running
-		web_running: Indicates if web server is running
+		args: Command line arguments for additional context
 	Returns:
 		A formatted string for the shell prompt
 	"""
-	# Base prompt with improved formatting
-	domain_indicator = ""
-	if target_domain:
-		domain_indicator = f" {bcolors.BOLD}{bcolors.FAIL}[→ {target_domain}]{bcolors.ENDC}"
+	try:
+		init_proto = powerview.conn.get_proto()
+		server_dns = powerview.get_server_dns()
+		nameserver = powerview.conn.get_nameserver()
+		
+		is_admin = False
+		if args and not getattr(args, 'no_admin_check', False):
+			is_admin = powerview.get_admin_status()
+		
+		cur_user = powerview.conn.who_am_i()
+		if is_admin:
+			cur_user = f"{bcolors.WARNING}{cur_user}{bcolors.ENDC}"
+		
+		mcp_running = False
+		web_running = False
+		if args:
+			if getattr(args, 'mcp', False) and hasattr(powerview, 'mcp_server'):
+				mcp_running = powerview.mcp_server.get_status()
+			if getattr(args, 'web', False) and hasattr(powerview, 'api_server'):
+				web_running = powerview.api_server.get_status()
+		
+		channel_binding_active = getattr(powerview.conn, 'channel_binding', False)
+		ldap_signing_active = getattr(powerview.conn, 'ldap_signing', False)
+		
+	except Exception as e:
+		return f"{bcolors.OKGREEN}PV ❯{bcolors.ENDC} "
 	
-	# Add cache indicator if using cached results - enhanced version
+	domain_indicator = ""
+	if current_target_domain:
+		domain_indicator = f" {bcolors.BOLD}{bcolors.FAIL}[→ {current_target_domain}]{bcolors.ENDC}"
+	
 	cache_indicator = ""
 	if using_cache:
 		cache_indicator = f" {bcolors.WARNING}[CACHED]{bcolors.ENDC}"
 	
-	# Add MCP indicator if server is running
 	mcp_indicator = ""
 	if mcp_running:
 		mcp_text = "[MCP]"
@@ -38,12 +58,18 @@ def get_prompt(init_proto, server_dns, cur_user, nameserver, target_domain=None,
 			colored_text += f"\033[38;2;{r};{g};{b}m{char}\033[0m"
 		mcp_indicator = f" {bcolors.BOLD}{colored_text}{bcolors.ENDC}"
 
-	# Add Web indicator if server is running
 	web_indicator = ""
 	if web_running:
 		web_indicator = f" {bcolors.OKBLUE}[WEB]{bcolors.ENDC}"
 	
+	security_indicators = ""
+	if channel_binding_active:
+		security_indicators += "📦 "
+	if ldap_signing_active:
+		security_indicators += "🔒 "
+	
 	prompt = (f'{bcolors.OKBLUE}╭─{bcolors.ENDC}'
+			  f'{security_indicators}'
 			  f'{bcolors.WARNING}{bcolors.BOLD}{init_proto}{bcolors.ENDC}'
 			  f'{bcolors.OKBLUE}─[{bcolors.ENDC}{bcolors.OKCYAN}{server_dns}{bcolors.ENDC}{bcolors.OKBLUE}]{bcolors.ENDC}'
 			  f'{bcolors.OKBLUE}─[{bcolors.ENDC}{cur_user}{bcolors.OKBLUE}]{bcolors.ENDC}'

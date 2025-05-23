@@ -84,8 +84,8 @@ COMMANDS = {
     'Get-DomainComputer':['-Identity','-Properties','-ResolveIP','-ResolveSIDs','-LDAPFilter','-SearchBase','-Server','-Select','-Enabled','-Disabled','-Unconstrained','-TrustedToAuth', '-LAPS', '-BitLocker', '-RBCD', '-ShadowCred','-SPN','-GMSAPassword','-Pre2K','-Printers','-ExcludeDCs','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-NetComputer':['-Identity','-Properties','-ResolveIP','-ResolveSIDs','-LDAPFilter','-SearchBase','-Server','-Select','-Enabled','-Disabled','-Unconstrained','-TrustedToAuth', '-LAPS', '-BitLocker', '-RBCD', '-ShadowCred','-SPN','-GMSAPassword','-Pre2K','-Printers','-ExcludeDCs','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Add-DomainComputer':['-ComputerName','-ComputerPass','-BaseDN','-Server', '-OutFile'],
-    'Add-DomainDMSA':['-Identity','-PrincipalsAllowedToRetrieveManagedPassword','-SupersededAccount','-BaseDN','-Server', '-NoWrap', '-OutFile'],
-    'Add-DMSA':['-Identity','-PrincipalsAllowedToRetrieveManagedPassword','-SupersededAccount','-BaseDN','-Server', '-NoWrap', '-OutFile'],
+    'Add-DomainDMSA':['-Identity','-PrincipalsAllowedToRetrieveManagedPassword','-Hidden','-SupersededAccount','-BaseDN','-Server', '-NoWrap', '-OutFile'],
+    'Add-DMSA':['-Identity','-PrincipalsAllowedToRetrieveManagedPassword','-Hidden','-SupersededAccount','-BaseDN','-Server', '-NoWrap', '-OutFile'],
     'Add-DomainGMSA':['-Identity','-PrincipalsAllowedToRetrieveManagedPassword','-BaseDN','-Server', '-NoWrap', '-OutFile'],
     'Add-GMSA':['-Identity','-PrincipalsAllowedToRetrieveManagedPassword','-BaseDN','-Server', '-NoWrap', '-OutFile'],
     'Add-DomainDNSRecord':['-ZoneName','-RecordName','-RecordAddress','-Server', '-OutFile'],
@@ -139,6 +139,7 @@ COMMANDS = {
     'Stop-NetService':['-Computer','-Name'],
     'Add-GPLink':['-GUID','-TargetIdentity','-LinkEnabled','-Enforced','-SearchBase','-Server','-OutFile'],
     'Remove-GPLink':['-GUID','-TargetIdentity','-SearchBase','-Server','-OutFile'],
+    'get_pool_stats':'',
     'clear':'',
     'exit':'',
 }

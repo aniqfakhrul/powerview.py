@@ -168,6 +168,16 @@ class PowerView:
 			if user and len(user) > 0:
 				self.current_user_sid = user[0].get('attributes', {}).get('objectSid', None)
 
+	def add_domain_connection(self, domain):
+		"""Add a domain connection to the pool"""
+		try:
+			self.conn.add_domain_connection(domain)
+			logging.debug(f"Successfully added domain {domain} to connection pool")
+			return True
+		except Exception as e:
+			logging.error(f"Failed to add domain {domain} to pool: {str(e)}")
+			return False
+
 	def get_domain_connection(self, domain=None):
 		"""Get connection for specified domain"""
 		return self.conn.get_domain_connection(domain)
@@ -1038,7 +1048,7 @@ class PowerView:
 				properties.add('ms-Mcs-AdmPwdExpirationTime')
 			if hasattr(args, 'rbcd') and args.rbcd:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
-				ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
+				ldap_filter += f'(msDS-AllowedToActOnBehalfOfOtherIdentity=*)'
 				properties.add('msDS-AllowedToActOnBehalfOfOtherIdentity')
 			if hasattr(args, 'shadowcred') and args.shadowcred:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to have msDS-KeyCredentialLink attribute set")
@@ -3888,7 +3898,9 @@ displayName=New Group Policy Object
 			'sAMAccountName',
 			'msDS-ManagedAccountPrecededByLink',
 			'msDS-DelegatedMSAState',
-			'msDS-GroupMSAMembership'
+			'msDS-GroupMSAMembership',
+			'msDS-AllowedToActOnBehalfOfOtherIdentity',
+			'servicePrincipalName'
 		]
 		
 		identity = args.identity if args and hasattr(args, 'identity') else identity
@@ -3912,14 +3924,18 @@ displayName=New Group Policy Object
 		for entry in entries:
 			if entry.get("attributes",{}).get("msDS-GroupMSAMembership"):
 				entry["attributes"]["msDS-GroupMSAMembership"] = self.convertfrom_sid(entry["attributes"]["msDS-GroupMSAMembership"])
+			if entry.get("attributes",{}).get("msDS-AllowedToActOnBehalfOfOtherIdentity"):
+				entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = self.convertfrom_sid(entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"])
 		logging.debug(f"[Get-DomainDMSA] Found {len(entries)} object(s) with dmsa attribute")
 		return entries
 
-	def add_domaindmsa(self, identity=None, supersededaccount=None, principals_allowed_to_retrieve_managed_password=None, basedn=None, args=None):
+	def add_domaindmsa(self, identity=None, supersededaccount=None, principals_allowed_to_retrieve_managed_password=None, hidden=False, basedn=None, args=None):
 		identity = args.identity if args and hasattr(args, 'identity') else identity
 		supersededaccount = args.supersededaccount if args and hasattr(args, 'supersededaccount') else supersededaccount
 		principals_allowed_to_retrieve_managed_password = args.principals_allowed_to_retrieve_managed_password if args and hasattr(args, 'principals_allowed_to_retrieve_managed_password') else principals_allowed_to_retrieve_managed_password
+		hidden = args.hidden if args and hasattr(args, 'hidden') else hidden
 		basedn = args.basedn if args and hasattr(args, 'basedn') else basedn
+		whitelisted_sids = ["S-1-1-0"]
 
 		if not identity:
 			raise ValueError("[Add-DomainDMSA] -Identity is required")
@@ -3969,7 +3985,7 @@ displayName=New Group Policy Object
 				if not principal_sid:
 					logging.error(f"[Add-DomainDMSA] Principal {principals_allowed_to_retrieve_managed_password} has no objectSid")
 					return False
-
+				whitelisted_sids.append(principal_sid)
 				msa_membership = MSA.create_msamembership(principal_sid)
 				dmsa_attrs['msDS-GroupMSAMembership'] = msa_membership
 
@@ -4005,12 +4021,59 @@ displayName=New Group Policy Object
 				None,  
 				dmsa_attrs
 			)
-			
+
 			if not result:
 				logging.error(f"[Add-DomainDMSA] Failed to create DMSA: {self.ldap_session.result}")
 				return False
 			
 			logging.info(f"[Add-DomainDMSA] Successfully created DMSA account {identity}")
+			
+			if hidden:
+				current_user_sid = self.current_user_sid
+				if not current_user_sid:
+					entries = self.get_domainobject(identity=self.whoami, properties=['objectSid'])
+					if len(entries) == 0:
+						logging.error(f"[Add-DomainDMSA] Current user {self.whoami} not found")
+						return False
+					elif len(entries) > 1:
+						logging.error(f"[Add-DomainDMSA] More than one current user {self.whoami} found")
+						return False
+					current_user_sid = entries[0].get("attributes", {}).get("objectSid")
+					
+					if not current_user_sid:
+						logging.error(f"[Add-DomainDMSA] Current user {self.whoami} has no objectSid")
+						return False
+				entries = self.get_domainobject(identity=dmsa_dn, properties=['ntSecurityDescriptor'], sd_flag=0x05)
+				if len(entries) == 0:
+					logging.error(f"[Add-DomainDMSA] DMSA account {dmsa_dn} not found")
+					return False
+				elif len(entries) > 1:
+					logging.error(f"[Add-DomainDMSA] More than one DMSA account {dmsa_dn} found")
+					return False
+				sec_desc = entries[0].get("attributes", {}).get("ntSecurityDescriptor")
+				
+				if isinstance(sec_desc, list):
+					sec_desc = sec_desc[0]
+				elif isinstance(sec_desc, str):
+					sec_desc = sec_desc.encode('utf-8')
+
+				if not sec_desc:
+					logging.error(f"[Add-DomainDMSA] DMSA account {dmsa_dn} has no ntSecurityDescriptor")
+					return False
+
+				whitelisted_sids.append(current_user_sid)
+				new_sec_desc = MSA.set_hidden_secdesc(
+					sec_desc=sec_desc,
+					whitelisted_sids=whitelisted_sids
+				)
+
+				succeeded = self.ldap_session.modify(dmsa_dn, {'ntSecurityDescriptor': [(ldap3.MODIFY_REPLACE, [new_sec_desc])]})
+				if not succeeded:
+					logging.error(f"[Add-DomainDMSA] Failed to set hidden DMSA account {dmsa_dn}")
+					return False
+				else:
+					logging.info(f"[Add-DomainDMSA] Successfully set hidden DMSA account {dmsa_dn}")
+
 			return True
 		except Exception as e:
 			if self.args.stack_trace:

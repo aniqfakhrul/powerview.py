@@ -159,6 +159,7 @@ class ConnectionPool:
 	def _perform_keepalive(self):
 		"""Send keep-alive to all active connections to maintain them"""
 		keepalive_domains = []
+		dead_domains = []
 		
 		with self._pool_lock:
 			for domain, entry in list(self._pool.items()):
@@ -170,16 +171,33 @@ class ConnectionPool:
 					if hasattr(entry.connection, 'keep_alive'):
 						success = entry.connection.keep_alive()
 						if success:
-							logging.debug(f"Connection keep-alive check: Success for domain: {domain}")
+							# logging.debug(f"Connection keep-alive check: Success for domain: {domain}")
 							entry.mark_used()
+						else:
+							dead_domains.append(domain)
+							logging.debug(f"Connection keep-alive failed for domain: {domain}")
 					else:
 						if entry.connection.is_connection_alive():
 							entry.mark_used()
 							# logging.debug(f"Connection verified alive for domain: {domain}")
+						else:
+							dead_domains.append(domain)
+							logging.debug(f"Connection dead during keep-alive for domain: {domain}")
 				else:
+					dead_domains.append(domain)
 					logging.debug(f"Connection dead during keep-alive for domain: {domain}")
 			except Exception as e:
+				dead_domains.append(domain)
 				logging.debug(f"Keep-alive error for domain {domain}: {str(e)}")
+		
+		# Remove dead connections from the pool
+		if dead_domains:
+			with self._pool_lock:
+				for domain in dead_domains:
+					if domain in self._pool:
+						entry = self._pool.pop(domain)
+						entry.close()
+						logging.debug(f"Removed dead connection for domain: {domain}")
 	
 	def _cleanup_expired_connections(self):
 		"""Remove only truly dead connections from the pool (keep-alive maintains others)"""
@@ -529,7 +547,8 @@ class CONNECTION:
 		except AttributeError:
 			self.tls_channel_binding_supported = False
 			logging.debug('TLS channel binding is not supported Install with "pip install ldap3-bleeding-edge"')
-
+		self.channel_binding = False
+		self.ldap_signing = False
 		self.use_sign_and_seal = self.args.use_sign_and_seal
 		self.use_channel_binding = self.args.use_channel_binding
 		# check sign and cb is supported
@@ -555,6 +574,10 @@ class CONNECTION:
 			self.use_ldaps = True
 			self.use_ldap = False
 
+	def add_domain_connection(self, domain):
+		"""Add a domain connection to the pool"""
+		self._connection_pool.add_connection(self, domain)
+
 	def get_domain_connection(self, domain):
 		"""Get or create a connection to a trusted domain using the connection pool"""
 		if not domain:
@@ -563,7 +586,17 @@ class CONNECTION:
 		domain = domain.lower()
 		
 		if domain == self.get_domain().lower():
-			return self
+			# For primary domain, use self if alive and add to pool for consistency
+			if self.is_connection_alive():
+				try:
+					self._connection_pool.add_connection(self, domain)
+					logging.debug(f"Added primary domain {domain} to pool")
+				except Exception as e:
+					logging.debug(f"Failed to add primary domain to pool: {str(e)}")
+				return self
+			else:
+				# Primary connection is dead, create new one via pool
+				logging.debug("Primary domain connection is dead, creating new one")
 		
 		def connection_factory():
 			"""Factory function to create new domain connections"""
@@ -1177,6 +1210,7 @@ class CONNECTION:
 			logging.debug("Server returns invalidCredentials")
 			if 'AcceptSecurityContext error, data 80090346' in str(ldap_session.result):
 				logging.warning("Channel binding is enforced!")
+				self.channel_binding = True
 				if self.tls_channel_binding_supported and (self.use_ldaps or self.use_gc_ldaps):
 					logging.debug("Re-authenticate with channel binding")
 					return self.init_ldap_schannel_connection(target, tls, tls_channel_binding=True)
@@ -1186,6 +1220,7 @@ class CONNECTION:
 		except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult as e:
 			logging.debug("Server returns LDAPStrongerAuthRequiredResult")
 			logging.warning("LDAP Signing is enforced!")
+			self.ldap_signing = True
 			if self.sign_and_seal_supported:
 				logging.debug("Re-authenticate with seal and sign")
 				return self.init_ldap_schannel_connection(target, tls, seal_and_sign=True)
@@ -1368,6 +1403,7 @@ class CONNECTION:
 				logging.debug("Server returns invalidCredentials")
 				if 'AcceptSecurityContext error, data 80090346' in str(ldap_session.result):
 					logging.warning("Channel binding is enforced!")
+					self.channel_binding = True
 					if self.tls_channel_binding_supported and (self.use_ldaps or self.use_gc_ldaps):
 						logging.debug("Re-authenticate with channel binding")
 						return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, auth_aes_key, tls_channel_binding=True, auth_method=self.auth_method)
@@ -1380,6 +1416,7 @@ class CONNECTION:
 			except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult as e:
 				logging.debug("Server returns LDAPStrongerAuthRequiredResult")
 				logging.warning("LDAP Signing is enforced!")
+				self.ldap_signing = True
 				if self.sign_and_seal_supported:
 					logging.debug("Re-authenticate with seal and sign")
 					return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, auth_aes_key, seal_and_sign=True, auth_method=self.auth_method)

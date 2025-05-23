@@ -45,7 +45,7 @@ def main():
         is_admin = False
         powerview = PowerView(conn, args)
         if powerview.ldap_session and powerview.ldap_session.bound:
-            powerview.add_primary_domain_to_pool()
+            powerview.add_domain_connection(powerview.conn.domain)
 
         comp = Completer()
         comp.setup_completer()
@@ -56,20 +56,11 @@ def main():
 
         while True:
             try:
-                if not args.no_admin_check:
-                    is_admin = powerview.get_admin_status()
-                server_dns = powerview.get_server_dns()
-                mcp_running = powerview.mcp_server.get_status() if args.mcp and hasattr(powerview, 'mcp_server') else False
-                web_running = powerview.api_server.get_status() if args.web and hasattr(powerview, 'api_server') else False
-                init_proto = conn.get_proto()
-                server_ip = conn.get_ldap_address()
                 temp_powerview = None
-                cur_user = conn.who_am_i() if not is_admin else "%s%s%s" % (bcolors.WARNING, conn.who_am_i(), bcolors.ENDC)
-                nameserver = conn.get_nameserver()
                 if args.query:
                     cmd = args.query
                 else:
-                    cmd = input(get_prompt(init_proto, server_dns, cur_user, nameserver, current_target_domain, using_cache, mcp_running=mcp_running, web_running=web_running))
+                    cmd = input(get_prompt(powerview, current_target_domain, using_cache, args))
 
                 if cmd:
                     try:
@@ -775,8 +766,15 @@ def main():
                                         powerview.remove_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, args=pv_args)
                                 else:
                                     logging.error("-GUID and -TargetIdentity flags are required")
+                            elif pv_args.module.casefold() == 'get_pool_stats':
+                                if temp_powerview:
+                                    stats = temp_powerview.conn.get_pool_stats()
+                                else:
+                                    stats = powerview.conn.get_pool_stats()
+                                
+                                FORMATTER.format_pool_stats(stats)
                             elif pv_args.module.casefold() == 'exit':
-                                if mcp_running:
+                                if args.mcp and hasattr(powerview, 'mcp_server') and powerview.mcp_server.get_status():
                                     powerview.mcp_server.stop()
                                 log_handler.save_history()
                                 sys.exit(0)
@@ -834,12 +832,12 @@ def main():
                             logging.error(str(e))
                             conn.reset_connection()
             except KeyboardInterrupt:
-                if mcp_running:
+                if args.mcp and hasattr(powerview, 'mcp_server') and powerview.mcp_server.get_status():
                     powerview.mcp_server.stop()
                 log_handler.save_history()
                 print()
             except EOFError:
-                if mcp_running:
+                if args.mcp and hasattr(powerview, 'mcp_server') and powerview.mcp_server.get_status():
                     powerview.mcp_server.stop()
                 log_handler.save_history()
                 print("Exiting...")
