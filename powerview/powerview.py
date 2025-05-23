@@ -457,7 +457,7 @@ class PowerView:
 
 		# previous ldap filter, need to changed to filter based on objectClass instead because i couldn't get the trust account
 		#ldap_filter = f'(&(samAccountType=805306368){identity_filter}{ldap_filter})'
-		ldap_filter = f'(&(objectCategory=person)(objectClass=user){identity_filter}{ldap_filter})'
+		ldap_filter = f'(&(objectClass=user){identity_filter}{ldap_filter})'
 
 		logging.debug(f'[Get-DomainUser] LDAP search filter: {ldap_filter}')
 
