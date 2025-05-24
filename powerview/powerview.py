@@ -4029,6 +4029,7 @@ displayName=New Group Policy Object
 			logging.info(f"[Add-DomainDMSA] Successfully created DMSA account {identity}")
 			
 			if hidden:
+				raise NotImplementedError("[Add-DomainDMSA] Hidden DMSA accounts are not supported yet")
 				current_user_sid = self.current_user_sid
 				if not current_user_sid:
 					entries = self.get_domainobject(identity=self.whoami, properties=['objectSid'])
