@@ -167,30 +167,23 @@ class ConnectionPool:
 		
 		for domain, entry in keepalive_domains:
 			try:
-				if entry.is_alive():
-					if hasattr(entry.connection, 'keep_alive'):
-						success = entry.connection.keep_alive()
-						if success:
-							# logging.debug(f"Connection keep-alive check: Success for domain: {domain}")
-							entry.mark_used()
-						else:
-							dead_domains.append(domain)
-							logging.debug(f"Connection keep-alive failed for domain: {domain}")
+				if hasattr(entry.connection, 'keep_alive'):
+					success = entry.connection.keep_alive()
+					if success:
+						entry.mark_used()
 					else:
-						if entry.connection.is_connection_alive():
-							entry.mark_used()
-							# logging.debug(f"Connection verified alive for domain: {domain}")
-						else:
-							dead_domains.append(domain)
-							logging.debug(f"Connection dead during keep-alive for domain: {domain}")
+						dead_domains.append(domain)
+						logging.debug(f"Connection keep-alive failed for domain: {domain}")
 				else:
-					dead_domains.append(domain)
-					logging.debug(f"Connection dead during keep-alive for domain: {domain}")
+					if entry.is_alive():
+						entry.mark_used()
+					else:
+						dead_domains.append(domain)
+						logging.debug(f"Connection dead during keep-alive for domain: {domain}")
 			except Exception as e:
 				dead_domains.append(domain)
 				logging.debug(f"Keep-alive error for domain {domain}: {str(e)}")
 		
-		# Remove dead connections from the pool
 		if dead_domains:
 			with self._pool_lock:
 				for domain in dead_domains:
@@ -200,7 +193,7 @@ class ConnectionPool:
 						logging.debug(f"Removed dead connection for domain: {domain}")
 	
 	def _cleanup_expired_connections(self):
-		"""Remove only truly dead connections from the pool (keep-alive maintains others)"""
+		"""Remove only truly dead connections from the pool"""
 		dead_domains = []
 		
 		with self._pool_lock:
@@ -586,7 +579,6 @@ class CONNECTION:
 		domain = domain.lower()
 		
 		if domain == self.get_domain().lower():
-			# For primary domain, use self if alive and add to pool for consistency
 			if self.is_connection_alive():
 				try:
 					self._connection_pool.add_connection(self, domain)
@@ -595,7 +587,6 @@ class CONNECTION:
 					logging.debug(f"Failed to add primary domain to pool: {str(e)}")
 				return self
 			else:
-				# Primary connection is dead, create new one via pool
 				logging.debug("Primary domain connection is dead, creating new one")
 		
 		def connection_factory():
@@ -1913,28 +1904,31 @@ class CONNECTION:
 			bool: True if connection is alive, False otherwise
 		"""
 		try:
-			if self.ldap_session and self.ldap_session.bound:
+			if not self.ldap_session or not hasattr(self.ldap_session, 'bound') or not self.ldap_session.bound:
+				return False
+			
+			if hasattr(self.ldap_session, 'is_connection_alive'):
+				return self.ldap_session.is_connection_alive()
+			
+			try:
+				result = self.ldap_session.search(
+					search_base=self.ldap_server.info.other['defaultNamingContext'][0],
+					search_filter='(objectClass=*)',
+					search_scope='BASE',
+					attributes=['1.1']
+				)
+				return result
+			except (KeyError, AttributeError, IndexError):
 				try:
 					result = self.ldap_session.search(
-						search_base=self.ldap_server.info.other['defaultNamingContext'][0],
+						search_base='',
 						search_filter='(objectClass=*)',
 						search_scope='BASE',
-						attributes=['1.1']
+						attributes=['namingContexts']
 					)
 					return result
-				except (KeyError, AttributeError, IndexError):
-					# If defaultNamingContext is not available, try a more basic search
-					try:
-						result = self.ldap_session.search(
-							search_base='',
-							search_filter='(objectClass=*)',
-							search_scope='BASE',
-							attributes=['namingContexts']
-						)
-						return result
-					except Exception:
-						return False
-			return False
+				except Exception:
+					return False
 		except (ldap3.core.exceptions.LDAPSocketOpenError, 
 				ldap3.core.exceptions.LDAPSessionTerminatedByServerError,
 				ldap3.core.exceptions.LDAPSocketSendError,
@@ -1951,9 +1945,13 @@ class CONNECTION:
 			bool: True if connection is still alive, False otherwise
 		"""
 		try:
-			result = self.is_connection_alive()
-			# logging.debug("[Connection] Connection keep-alive check: Success")
-			return result
+			# if hasattr(self.ldap_session, 'abandon'):
+			# 	logging.debug(f"[Connection] Sending Abandon(0) operation to keep the connection alive")
+			# 	self.ldap_session.abandon(0)
+			# 	return True
+			# else:
+			# logging.debug(f"[Connection] Using is_connection_alive() to keep connection alive")
+			return self.is_connection_alive()
 		except Exception as e:
 			logging.debug(f"[Connection] Connection keep-alive check failed: {str(e)}")
 			return False
