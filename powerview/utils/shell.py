@@ -34,8 +34,8 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
 			if getattr(args, 'web', False) and hasattr(powerview, 'api_server'):
 				web_running = powerview.api_server.get_status()
 		
-		channel_binding_active = getattr(powerview.conn, 'channel_binding', False)
-		ldap_signing_active = getattr(powerview.conn, 'ldap_signing', False)
+		channel_binding_active = getattr(powerview.conn, 'use_channel_binding', False)
+		ldap_signing_active = getattr(powerview.conn, 'use_sign_and_seal', False)
 		
 	except Exception as e:
 		return f"{bcolors.OKGREEN}PV ❯{bcolors.ENDC} "

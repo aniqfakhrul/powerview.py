@@ -540,8 +540,6 @@ class CONNECTION:
 		except AttributeError:
 			self.tls_channel_binding_supported = False
 			logging.debug('TLS channel binding is not supported Install with "pip install ldap3-bleeding-edge"')
-		self.channel_binding = False
-		self.ldap_signing = False
 		self.use_sign_and_seal = self.args.use_sign_and_seal
 		self.use_channel_binding = self.args.use_channel_binding
 		# check sign and cb is supported
@@ -1201,7 +1199,6 @@ class CONNECTION:
 			logging.debug("Server returns invalidCredentials")
 			if 'AcceptSecurityContext error, data 80090346' in str(ldap_session.result):
 				logging.warning("Channel binding is enforced!")
-				self.channel_binding = True
 				if self.tls_channel_binding_supported and (self.use_ldaps or self.use_gc_ldaps):
 					logging.debug("Re-authenticate with channel binding")
 					return self.init_ldap_schannel_connection(target, tls, tls_channel_binding=True)
@@ -1211,7 +1208,6 @@ class CONNECTION:
 		except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult as e:
 			logging.debug("Server returns LDAPStrongerAuthRequiredResult")
 			logging.warning("LDAP Signing is enforced!")
-			self.ldap_signing = True
 			if self.sign_and_seal_supported:
 				logging.debug("Re-authenticate with seal and sign")
 				return self.init_ldap_schannel_connection(target, tls, seal_and_sign=True)
@@ -1394,7 +1390,6 @@ class CONNECTION:
 				logging.debug("Server returns invalidCredentials")
 				if 'AcceptSecurityContext error, data 80090346' in str(ldap_session.result):
 					logging.warning("Channel binding is enforced!")
-					self.channel_binding = True
 					if self.tls_channel_binding_supported and (self.use_ldaps or self.use_gc_ldaps):
 						logging.debug("Re-authenticate with channel binding")
 						return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, auth_aes_key, tls_channel_binding=True, auth_method=self.auth_method)
@@ -1407,7 +1402,6 @@ class CONNECTION:
 			except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult as e:
 				logging.debug("Server returns LDAPStrongerAuthRequiredResult")
 				logging.warning("LDAP Signing is enforced!")
-				self.ldap_signing = True
 				if self.sign_and_seal_supported:
 					logging.debug("Re-authenticate with seal and sign")
 					return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, auth_aes_key, seal_and_sign=True, auth_method=self.auth_method)
