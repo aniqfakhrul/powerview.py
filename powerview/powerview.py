@@ -1156,8 +1156,14 @@ class PowerView:
 		logging.debug("[Get-DomainGMSA] Found %d object(s) with gmsa attribute" % (len(entries)))
 		for entry in entries:
 			if entry.get("attributes",{}).get("msDS-GroupMSAMembership"):
-				entry["attributes"]["msDS-GroupMSAMembership"] = self.convertfrom_sid(entry["attributes"]["msDS-GroupMSAMembership"])
-		
+				msds_group = entry["attributes"]["msDS-GroupMSAMembership"]
+				if isinstance(msds_group, list):
+					resolved_sids = []
+					for sid in msds_group:
+						resolved_sids.append(self.convertfrom_sid(sid))
+					entry["attributes"]["msDS-GroupMSAMembership"] = resolved_sids
+				else:
+					entry["attributes"]["msDS-GroupMSAMembership"] = self.convertfrom_sid(msds_group)
 		return entries
 
 	def add_domaingmsa(self, identity=None, principals_allowed_to_retrieve_managed_password=None, basedn=None, args=None):
