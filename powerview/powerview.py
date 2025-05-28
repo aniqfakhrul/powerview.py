@@ -107,7 +107,7 @@ class PowerView:
 		self.domain_instances = {}
 
 		# API server
-		if self.args.web and self.ldap_session:
+		if hasattr(self.args, 'web') and self.args.web and self.ldap_session:
 			try:
 				from powerview.web.api.server import APIServer
 				self.api_server = APIServer(self, host=self.args.web_host, port=self.args.web_port)
@@ -116,7 +116,7 @@ class PowerView:
 				logging.warning("Web interface dependencies not installed. Web interface will not be available.")
 
 		# MCP server
-		if self.args.mcp and self.ldap_session:
+		if hasattr(self.args, 'mcp') and self.args.mcp and self.ldap_session:
 			try:
 				from powerview.mcp import MCPServer
 				
@@ -1918,6 +1918,45 @@ class PowerView:
 				}
 			)
 		return entries
+
+	def convertto_sid(self, username):
+		domain = None
+		username = username.lower()
+		if "\\" in username:
+			domain, username = username.split("\\")
+			domain = domain.lower()
+
+		try:
+			if domain is not None and domain not in self.domain.lower():
+				entries = self.execute_in_domain(
+					domain,
+					self.get_domainobject,
+					identity=username,
+					properties=['objectSid']
+				)
+			else:
+				entries = self.get_domainobject(
+					identity=username,
+					properties=['objectSid']
+				)
+			
+			if len(entries) == 0:
+				for sid, name in WELL_KNOWN_SIDS.items():
+					if username.lower() == name.lower():
+						return sid
+				logging.warning(f"[ConvertTo-SID] User {username} not found in the domain or well-known SIDs")
+				return
+			elif len(entries) > 1:
+				logging.warning(f"[ConvertTo-SID] Multiple objects found for {username}")
+				return
+			else:
+				return entries[0]['attributes']['objectSid'][0] if isinstance(entries[0]['attributes']['objectSid'], list) else entries[0]['attributes']['objectSid']
+		except Exception as e:
+			for sid, name in WELL_KNOWN_SIDS.items():
+				if username.lower() == name.lower():
+					return sid
+			logging.warning(f"[ConvertTo-SID] Error looking up SID for {username}: {str(e)}")
+			return
 
 	def convertfrom_sid(self, objectsid, searchbase=None, args=None, output=False, no_cache=False):
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache

@@ -1,95 +1,17 @@
 #!/usr/bin/env python3
 import logging
 import ntpath
-import os
-import chardet
 from io import BytesIO
 from impacket.smbconnection import SMBConnection
 from impacket.smb3structs import FILE_ATTRIBUTE_ARCHIVE, FILE_ATTRIBUTE_COMPRESSED, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_ENCRYPTED, FILE_ATTRIBUTE_HIDDEN, FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_NOT_CONTENT_INDEXED, FILE_ATTRIBUTE_OFFLINE, FILE_ATTRIBUTE_READONLY, FILE_ATTRIBUTE_REPARSE_POINT, FILE_ATTRIBUTE_SPARSE_FILE, FILE_ATTRIBUTE_SYSTEM, FILE_ATTRIBUTE_TEMPORARY, FILE_ATTRIBUTE_INTEGRITY_STREAM, FILE_ATTRIBUTE_NO_SCRUB_DATA
 from impacket.dcerpc.v5 import transport, srvs
 from impacket.dcerpc.v5.dtypes import OWNER_SECURITY_INFORMATION, GROUP_SECURITY_INFORMATION, DACL_SECURITY_INFORMATION, SACL_SECURITY_INFORMATION
-from impacket.ldap import ldaptypes
-from powerview.modules.ldapattack import ACE_FLAGS, OBJECT_ACE_FLAGS, SIMPLE_PERMISSIONS, ACCESS_MASK
-from impacket.uuid import bin_to_string
+
+from powerview.utils.accesscontrol import AccessControl, SIMPLE_PERMISSIONS
 
 class SMBClient:
     def __init__(self, client):
         self.client = client
-
-    def _parse_dacl(self, secDesc):
-        sd = ldaptypes.SR_SECURITY_DESCRIPTOR()
-        if isinstance(secDesc, list):
-            secDesc = b''.join(secDesc)
-        sd.fromString(secDesc)
-
-        security_info = {}
-        if sd['OwnerSid'] is not None:
-            security_info['OwnerSid'] = sd['OwnerSid'].formatCanonical()
-        if sd['GroupSid'] is not None:
-            security_info['GroupSid'] = sd['GroupSid'].formatCanonical()
-
-        try:
-            dacl_data = sd['Dacl']['Data']
-            aces = []
-            for ace_obj in dacl_data:
-                ace_type_name = ace_obj['TypeName']
-                
-                # Filter for ACE types we can parse well
-                if ace_type_name not in ["ACCESS_ALLOWED_ACE", "ACCESS_DENIED_ACE", 
-                                            "ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_OBJECT_ACE",
-                                            "SYSTEM_AUDIT_ACE", "SYSTEM_ALARM_ACE",
-                                            "SYSTEM_AUDIT_OBJECT_ACE", "SYSTEM_ALARM_OBJECT_ACE"]:
-                    logging.debug(f"[SMBClient: get_file_info] Skipping unhandled ACE type: {ace_type_name}")
-                    continue
-
-                trustee_sid_str = ace_obj['Ace']['Sid'].formatCanonical()
-                
-                ace_flags_int = ace_obj['AceFlags']
-                parsed_ace_flags_list = [FLAG.name for FLAG in ACE_FLAGS if ace_flags_int & FLAG.value]
-
-                access_mask_int = ace_obj['Ace']['Mask']['Mask']
-                parsed_permissions_list = self._parsePerms(access_mask_int)
-                
-                if not parsed_permissions_list and access_mask_int != 0: # If no known flags matched but mask is not zero
-                    parsed_permissions_list.append(f"UNKNOWN_MASK_0x{access_mask_int:08X}")
-
-                # Initialize object-specific fields
-                parsed_object_ace_specific_flags_list = None
-                obj_type_guid_str = None
-                inh_obj_type_guid_str = None
-
-                if ace_type_name in ["ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_OBJECT_ACE", "SYSTEM_AUDIT_OBJECT_ACE", "SYSTEM_ALARM_OBJECT_ACE"]:
-                    object_ace_specific_flags_int = ace_obj['Ace']['Flags']
-                    parsed_object_ace_specific_flags_list = [FLAG.name for FLAG in OBJECT_ACE_FLAGS if object_ace_specific_flags_int & FLAG.value]
-                    
-                    if ace_obj['Ace']['ObjectTypeLen'] != 0:
-                        obj_type_guid_str = bin_to_string(ace_obj['Ace']['ObjectType']).lower()
-                    
-                    if ace_obj['Ace']['InheritedObjectTypeLen'] != 0:
-                        inh_obj_type_guid_str = bin_to_string(ace_obj['Ace']['InheritedObjectType']).lower()
-
-                ace_info_entry = {
-                    'type': ace_type_name,
-                    'trustee': trustee_sid_str,
-                    'ace_flags': parsed_ace_flags_list,
-                    'access_mask_raw': access_mask_int,
-                    'permissions': parsed_permissions_list,
-                    'object_ace_specific_flags': parsed_object_ace_specific_flags_list,
-                    'object_type_guid': obj_type_guid_str,
-                    'inherited_object_type_guid': inh_obj_type_guid_str
-                }
-                aces.append(ace_info_entry)
-
-            security_info['Dacl'] = aces
-            return security_info
-        except Exception as e:
-            logging.error(f"[SMBClient: get_file_info] Error parsing security descriptor: {e}")
-            import traceback
-            logging.debug(f"[SMBClient: get_file_info] Traceback: {traceback.format_exc()}")
-            # Store partial info if available
-            if 'security_info' not in locals(): security_info = {} # ensure security_info exists
-            if 'Dacl' not in security_info : security_info['Dacl'] = [] # ensure Dacl list exists
-            return security_info # Assign even if parsing failed mid-way
 
     def shares(self):
         if self.client is None:
@@ -142,7 +64,7 @@ class SMBClient:
             share_info['reserved'] = resp['InfoStruct']['ShareInfo503']['shi503_reserved']
             secDesc = resp['InfoStruct']['ShareInfo503']['shi503_security_descriptor']
             if secDesc and len(secDesc) > 0:
-                share_info['sd_info'] = self._parse_dacl(secDesc)
+                share_info['sd_info'] = AccessControl.parse_sd(secDesc)
         except Exception as e:
             logging.error(f"[SMBClient: share_info] Error getting share info via NetrShareGetInfo(Level 503): {e}")
         
@@ -238,17 +160,6 @@ class SMBClient:
         
         path = path.replace('/', '\\')
         self.client.createDirectory(share, path)
-
-    def _parsePerms(self, fsr):
-        _perms = []
-        for PERM in SIMPLE_PERMISSIONS:
-            if (fsr & PERM.value) == PERM.value:
-                _perms.append(PERM.name)
-                fsr = fsr & (not PERM.value)
-        for PERM in ACCESS_MASK:
-            if fsr & PERM.value:
-                _perms.append(PERM.name)
-        return _perms
 
     def get_file_info(self, share, path):
         """Get detailed information about a file or directory."""
@@ -363,7 +274,7 @@ class SMBClient:
 
                     resp = srvs.hNetrpGetFileSecurity(dce, share+'\x00', path+'\x00', security_flags)
                     if resp and len(resp) > 0:
-                        info['sd_info'] = self._parse_dacl(resp)
+                        info['sd_info'] = AccessControl.parse_sd(resp)
                 except Exception as rpc_error:
                     raise Exception(f"[SMBClient: get_file_info] RPC error: {rpc_error}")
             return info
@@ -371,3 +282,160 @@ class SMBClient:
         except Exception as e:
             logging.error(f"[SMBClient: get_file_info] Error: {e}")
             raise
+
+    def set_file_security(self, share, path, sid, ace_type='allow', mask='fullcontrol'):
+        if self.client is None:
+            logging.error("[SMBClient: set_file_security] Not logged in")
+            return
+        
+        path = path.replace('/', '\\')
+        try:
+            rpctransport = transport.SMBTransport(
+                self.client.getRemoteName(),
+                self.client.getRemoteHost(),
+                filename=r'\srvsvc',
+                smb_connection=self.client
+            )
+            dce = rpctransport.get_dce_rpc()
+            dce.connect()
+            dce.bind(srvs.MSRPC_UUID_SRVS)
+
+            security_flags = OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION
+
+            if path.startswith('\\'):
+                path = path[1:]
+            path = path.replace('/', '\\')
+
+            secDesc = srvs.hNetrpGetFileSecurity(
+                dce, 
+                share+'\x00', 
+                path+'\x00', 
+                security_flags
+            )
+
+            if mask == 'fullcontrol':
+                mask = SIMPLE_PERMISSIONS.FullControl.value
+            elif mask == 'modify':
+                mask = SIMPLE_PERMISSIONS.Modify.value
+            elif mask == 'readandexecute':
+                mask = SIMPLE_PERMISSIONS.ReadAndExecute.value
+            elif mask == 'readandwrite':
+                mask = SIMPLE_PERMISSIONS.ReadAndWrite.value
+            elif mask == 'read':
+                mask = SIMPLE_PERMISSIONS.Read.value
+            elif mask == 'write':
+                mask = SIMPLE_PERMISSIONS.Write.value
+            else:
+                raise Exception(f"[SMBClient: set_file_security] Invalid mask: {mask}")
+
+            if ace_type == 'allow':
+                security_descriptor = AccessControl.add_allow_ace(
+                    secDesc,
+                    sid,
+                    mask
+                )
+            elif ace_type == 'deny':
+                security_descriptor = AccessControl.add_deny_ace(
+                    secDesc,
+                    sid,
+                    mask
+                )
+            else:
+                raise Exception(f"[SMBClient: set_file_security] Invalid ace_type: {ace_type}")
+
+            resp = srvs.hNetrpSetFileSecurity(
+                dce,
+                share+'\x00',
+                path+'\x00',
+                security_flags,
+                security_descriptor
+            )
+            if resp['ErrorCode'] != 0:
+                raise Exception(f"[SMBClient: set_file_security] Error setting file security")
+            else:
+                logging.debug(f"[SMBClient: set_file_security] Successfully set file security")
+            return True
+        except Exception as rpc_error:
+            raise Exception(f"[SMBClient: set_file_security] RPC error: {rpc_error}")
+
+    def remove_file_security(self, share, path, sid, mask=None, ace_type=None):
+        if self.client is None:
+            logging.error("[SMBClient: remove_file_security] Not logged in")
+            return
+        
+        path = path.replace('/', '\\')
+        try:
+            rpctransport = transport.SMBTransport(
+                self.client.getRemoteName(),
+                self.client.getRemoteHost(),
+                filename=r'\srvsvc',
+                smb_connection=self.client
+            )
+            dce = rpctransport.get_dce_rpc()
+            dce.connect()
+            dce.bind(srvs.MSRPC_UUID_SRVS)
+
+            security_flags = OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION
+
+            if path.startswith('\\'):
+                path = path[1:]
+            path = path.replace('/', '\\')
+
+            secDesc = srvs.hNetrpGetFileSecurity(
+                dce, 
+                share+'\x00', 
+                path+'\x00', 
+                security_flags
+            )
+
+            mask_value = None
+            if mask:
+                if mask == 'fullcontrol':
+                    mask_value = SIMPLE_PERMISSIONS.FullControl.value
+                elif mask == 'modify':
+                    mask_value = SIMPLE_PERMISSIONS.Modify.value
+                elif mask == 'readandexecute':
+                    mask_value = SIMPLE_PERMISSIONS.ReadAndExecute.value
+                elif mask == 'readandwrite':
+                    mask_value = SIMPLE_PERMISSIONS.ReadAndWrite.value
+                elif mask == 'read':
+                    mask_value = SIMPLE_PERMISSIONS.Read.value
+                elif mask == 'write':
+                    mask_value = SIMPLE_PERMISSIONS.Write.value
+                else:
+                    raise Exception(f"[SMBClient: remove_file_security] Invalid mask: {mask}")
+
+            ace_type_value = None
+            if ace_type:
+                if ace_type == 'allow':
+                    ace_type_value = ldaptypes.ACCESS_ALLOWED_ACE.ACE_TYPE
+                elif ace_type == 'deny':
+                    ace_type_value = ldaptypes.ACCESS_DENIED_ACE.ACE_TYPE
+                else:
+                    raise Exception(f"[SMBClient: remove_file_security] Invalid ace_type: {ace_type}")
+
+            security_descriptor, removed_count = AccessControl.remove_ace(
+                secDesc,
+                sid,
+                mask_value,
+                ace_type_value
+            )
+
+            if removed_count == 0:
+                logging.warning(f"[SMBClient: remove_file_security] No matching ACEs found to remove")
+                return False
+
+            resp = srvs.hNetrpSetFileSecurity(
+                dce,
+                share+'\x00',
+                path+'\x00',
+                security_flags,
+                security_descriptor
+            )
+            if resp['ErrorCode'] != 0:
+                raise Exception(f"[SMBClient: remove_file_security] Error setting file security")
+            else:
+                logging.debug(f"[SMBClient: remove_file_security] Successfully removed {removed_count} ACE(s)")
+            return True
+        except Exception as rpc_error:
+            raise Exception(f"[SMBClient: remove_file_security] RPC error: {rpc_error}")

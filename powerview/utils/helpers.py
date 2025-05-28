@@ -264,6 +264,43 @@ def is_valid_dn(dn):
 
 	return bool(dn_pattern.match(dn))
 
+def is_valid_sid(sid_string):
+	"""
+	Validates if a string is a properly formatted Windows SID.
+
+	Args:
+		sid_string (str): The SID string to validate
+		
+	Returns:
+		bool: True if the SID is valid, False otherwise
+	"""
+	if not isinstance(sid_string, str):
+		return False
+		
+	basic_pattern = r'^S-1-\d+(-\d+)+$'
+	domain_pattern = r'^S-1-5-21-\d+-\d+-\d+(-\d+)?$'
+	builtin_pattern = r'^S-1-5-32-\d+$'
+	simple_pattern = r'^S-1-[0-9](-[0-9]+)?$'
+	
+	if (re.match(basic_pattern, sid_string) or 
+		re.match(domain_pattern, sid_string) or 
+		re.match(builtin_pattern, sid_string) or
+		re.match(simple_pattern, sid_string)):
+		
+		try:
+			components = sid_string.split('-')
+			if len(components) < 3:
+				return False
+				
+			for component in components[1:]:
+				int(component)
+				
+			return True
+		except ValueError:
+			return False
+	
+	return False
+
 def ini_to_dict(obj):
 	d = {}
 	try:

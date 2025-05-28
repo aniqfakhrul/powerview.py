@@ -2531,10 +2531,18 @@ async function showProperties(computer, share, path, isDirectory, isShare) {
     propertiesExtendedSection.classList.add('hidden');
     propertiesSecuritySection.classList.add('hidden');
     
+    // Show the properties panel
     propertiesPanel.classList.remove('hidden');
     setTimeout(() => {
         propertiesPanel.classList.remove('translate-x-full');
-    }, 0);
+    }, 10);
+    
+    // Store data attributes for delete functionality
+    propertiesPanel.setAttribute('data-computer', computer);
+    propertiesPanel.setAttribute('data-share', share);
+    propertiesPanel.setAttribute('data-path', path || '');
+    propertiesPanel.setAttribute('data-is-directory', isDirectory.toString());
+    propertiesPanel.setAttribute('data-is-share', isShare.toString());
     
     // Show loading state
     propertiesSpinner.classList.remove('hidden');
@@ -2777,6 +2785,23 @@ async function showProperties(computer, share, path, isDirectory, isShare) {
             });
             
             permissionTable.appendChild(tableBody);
+            
+            // Add a subtle row for adding new permissions
+            const addPermissionRow = document.createElement('tr');
+            addPermissionRow.className = 'border-t border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer';
+            addPermissionRow.innerHTML = `
+                <td colspan="2" class="py-1 text-center">
+                    <button class="inline-flex items-center justify-center w-6 h-6 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-full transition-colors">
+                        <i class="fas fa-plus fa-sm"></i>
+                    </button>
+                </td>
+            `;
+            addPermissionRow.addEventListener('click', () => {
+                showAddPermissionModal(computer, share, path, isDirectory, isShare);
+            });
+            
+            tableBody.appendChild(addPermissionRow);
+            permissionTable.appendChild(tableBody);
             propertiesSecurityInfo.appendChild(permissionTable);
             
             // Add a note about clicking for more details
@@ -2850,9 +2875,17 @@ function showPermissionDetails(trustee, trusteeInfo) {
                 
                 <h4 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Access Control Entries</h4>
                 <div class="space-y-2">
-                    ${trusteeInfo.details.map(detail => `
+                    ${trusteeInfo.details.map((detail, index) => `
                         <div class="p-2 bg-neutral-50 dark:bg-neutral-800 rounded-md">
-                            <div class="text-xs font-medium text-neutral-900 dark:text-white">${detail.type}</div>
+                            <div class="flex items-center justify-between">
+                                <div class="text-xs font-medium text-neutral-900 dark:text-white">${detail.type}</div>
+                                <button class="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors remove-ace-btn" 
+                                        title="Remove this ACE"
+                                        data-trustee="${trustee}" 
+                                        data-ace-index="${index}">
+                                    <i class="fas fa-trash fa-xs"></i>
+                                </button>
+                            </div>
                             ${detail.flags && detail.flags.length > 0 ? `
                                 <div class="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
                                     <span class="font-medium">Flags:</span> ${detail.flags.join(', ')}
@@ -2896,6 +2929,37 @@ function showPermissionDetails(trustee, trusteeInfo) {
             e.stopPropagation(); // Stop event from reaching document
             document.body.removeChild(modal);
         }
+    });
+    
+    // Add event listeners for ACE delete buttons
+    const removeButtons = modal.querySelectorAll('.remove-ace-btn');
+    removeButtons.forEach(button => {
+        button.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const trusteeToRemove = button.getAttribute('data-trustee');
+            
+            if (confirm(`Are you sure you want to remove all ACEs for ${trusteeToRemove}?`)) {
+                try {
+                    // Get the current properties to extract computer, share, path
+                    const propertiesPanel = document.getElementById('properties-panel');
+                    const computer = propertiesPanel.getAttribute('data-computer');
+                    const share = propertiesPanel.getAttribute('data-share');
+                    const path = propertiesPanel.getAttribute('data-path');
+                    const isDirectory = propertiesPanel.getAttribute('data-is-directory') === 'true';
+                    const isShare = propertiesPanel.getAttribute('data-is-share') === 'true';
+                    
+                    await removeSMBSecurity(computer, share, path, trusteeToRemove, isDirectory, isShare);
+                    
+                    // Close the modal and refresh properties
+                    document.body.removeChild(modal);
+                    showProperties(computer, share, path, isDirectory, isShare);
+                } catch (error) {
+                    showErrorAlert(error.message);
+                }
+            }
+        });
     });
 }
 
@@ -3101,5 +3165,248 @@ function convertWindowsTime(fileTime) {
     } catch (error) {
         // If conversion fails, just return the original value
         return fileTime.toString();
+    }
+}
+
+// Add this function to display a modal for adding new permissions
+function showAddPermissionModal(computer, share, path, isDirectory, isShare) {
+    // Create modal for adding new permissions
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white dark:bg-neutral-900 rounded-lg shadow-lg p-4 max-w-md w-full max-h-[80vh] overflow-y-auto add-permission-modal">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-semibold text-neutral-900 dark:text-white">Add Permission</h3>
+                <button class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 p-1 close-modal-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- Target info -->
+                <div class="p-2 bg-neutral-50 dark:bg-neutral-800 rounded-md">
+                    <div class="text-xs font-medium text-neutral-900 dark:text-white">Target</div>
+                    <div class="text-xs text-neutral-600 dark:text-neutral-400 break-all">\\\\${computer}\\${share}\\${path}</div>
+                </div>
+                
+                <!-- User/Principal input -->
+                <div>
+                    <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Principal (Username or SID)
+                    </label>
+                    <input type="text" id="add-permission-principal" 
+                           placeholder="DOMAIN\\username or S-1-5-..." 
+                           class="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                    <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        Enter a domain username (e.g., DOMAIN\\user) or SID (e.g., S-1-5-21-...)
+                    </div>
+                </div>
+                
+                <!-- ACE Type selection -->
+                <div>
+                    <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Permission Type
+                    </label>
+                    <select id="add-permission-type" class="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                        <option value="allow">Allow</option>
+                        <option value="deny">Deny</option>
+                    </select>
+                </div>
+                
+                <!-- Permission Level (informational - backend uses full control) -->
+                <div>
+                    <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Permission Level
+                    </label>
+                    <select id="add-permission-level" class="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                        <option value="fullcontrol">Full Control</option>
+                        <option value="modify">Modify</option>
+                        <option value="readandwrite">Read & Write</option>
+                        <option value="readandexecute">Read & Execute</option>
+                        <option value="read">Read</option>
+                        <option value="write">Write</option>
+                    </select>
+                    <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        Select the permission level to grant or deny
+                    </div>
+                </div>
+                
+                <!-- Warning for deny permissions -->
+                <div id="deny-warning" class="hidden p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-exclamation-triangle text-red-500 dark:text-red-400 mt-0.5"></i>
+                        <div class="text-xs text-red-700 dark:text-red-300">
+                            <strong>Warning:</strong> Deny permissions take precedence over Allow permissions and can lock out access, including your own.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end gap-2">
+                <button class="px-3 py-1 bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-md text-sm font-medium close-modal-btn hover:bg-neutral-300 dark:hover:bg-neutral-600">
+                    Cancel
+                </button>
+                <button id="add-permission-confirm" class="px-3 py-1 bg-green-600 dark:bg-green-500 text-white dark:text-black rounded-md text-sm font-medium hover:bg-green-700 dark:hover:bg-green-600">
+                    <i class="fas fa-plus fa-sm mr-1"></i>
+                    Add Permission
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Get modal elements
+    const modalContent = modal.querySelector('.add-permission-modal');
+    const principalInput = modal.querySelector('#add-permission-principal');
+    const typeSelect = modal.querySelector('#add-permission-type');
+    const levelSelect = modal.querySelector('#add-permission-level');
+    const denyWarning = modal.querySelector('#deny-warning');
+    const confirmBtn = modal.querySelector('#add-permission-confirm');
+    
+    // Show/hide deny warning based on selection
+    typeSelect.addEventListener('change', () => {
+        if (typeSelect.value === 'deny') {
+            denyWarning.classList.remove('hidden');
+        } else {
+            denyWarning.classList.add('hidden');
+        }
+    });
+    
+    // Focus on principal input
+    setTimeout(() => principalInput.focus(), 100);
+    
+    // Handle form submission
+    confirmBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const principal = principalInput.value.trim();
+        const aceType = typeSelect.value;
+        const permissionLevel = levelSelect.value;
+        
+        if (!principal) {
+            showErrorAlert('Please enter a principal (username or SID)');
+            return;
+        }
+        
+        // Show loading state
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin fa-sm mr-1"></i> Adding...';
+        
+        try {
+            const response = await fetch('/api/smb/set-security', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    computer: computer,
+                    share: share,
+                    path: path,
+                    username: principal,
+                    ace_type: aceType,
+                    mask: permissionLevel
+                })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to add permission');
+            }
+            
+            const result = await response.json();
+            
+            // Close modal
+            document.body.removeChild(modal);
+            
+            // Show success message
+            const permissionNames = {
+                'fullcontrol': 'Full Control',
+                'modify': 'Modify',
+                'readandwrite': 'Read & Write',
+                'readandexecute': 'Read & Execute',
+                'read': 'Read',
+                'write': 'Write'
+            };
+            const permissionName = permissionNames[permissionLevel] || permissionLevel;
+            showSuccessAlert(`${permissionName} permission ${aceType === 'allow' ? 'granted' : 'denied'} for ${principal}`);
+            
+            // Refresh the properties panel to show the new permission
+            setTimeout(() => {
+                showProperties(computer, share, path, isDirectory, isShare);
+            }, 500);
+            
+        } catch (error) {
+            console.error('Add permission error:', error);
+            showErrorAlert(error.message);
+            
+            // Reset button state
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fas fa-plus fa-sm mr-1"></i> Add Permission';
+        }
+    });
+    
+    // Prevent clicks inside the modal from propagating to document
+    modalContent.addEventListener('click', e => {
+        e.stopPropagation();
+    });
+    
+    // Add event listeners to close the modal
+    const closeButtons = modal.querySelectorAll('.close-modal-btn');
+    closeButtons.forEach(button => {
+        button.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            document.body.removeChild(modal);
+        });
+    });
+    
+    // Close on click outside of modal content
+    modal.addEventListener('click', e => {
+        if (e.target === modal) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.body.removeChild(modal);
+        }
+    });
+    
+    // Close on Escape key
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            document.body.removeChild(modal);
+            document.removeEventListener('keydown', handleEscape);
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
+}
+
+// Function to remove SMB security (ACE deletion)
+async function removeSMBSecurity(computer, share, path, username, isDirectory, isShare) {
+    try {
+        const response = await fetch('/api/smb/remove-security', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                computer: computer,
+                share: share,
+                path: path,
+                username: username
+            })
+        });
+
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to remove ACE');
+        }
+        
+        showSuccessAlert(`ACE removed for ${username}`);
+        return result;
+    } catch (error) {
+        console.error('Remove security error:', error);
+        throw error;
     }
 }

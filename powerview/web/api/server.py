@@ -16,7 +16,7 @@ from powerview.utils.constants import UAC_DICT
 from powerview._version import __version__ as version
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.modules.smbclient import SMBClient
-from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip
+from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip, is_valid_sid
 import json
 
 class APIServer:
@@ -127,6 +127,8 @@ class APIServer:
 		add_route_with_auth('/api/smb/sessions', 'smb_sessions', self.handle_smb_sessions, methods=['GET'])
 		add_route_with_auth('/api/login_as', 'login_as', self.handle_login_as, methods=['POST'])
 		add_route_with_auth('/api/smb/properties', 'smb_properties', self.handle_smb_properties, methods=['POST'])
+		add_route_with_auth('/api/smb/set-security', 'smb_set_security', self.handle_smb_set_security, methods=['POST'])
+		add_route_with_auth('/api/smb/remove-security', 'smb_remove_security', self.handle_smb_remove_security, methods=['POST'])
 
 	def set_status(self, status):
 		self.status = status
@@ -1466,4 +1468,90 @@ class APIServer:
 
 		except Exception as e:
 			logging.error(f"[SMB PROPERTIES] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_set_security(self):
+		try:
+			data = request.json
+			computer = data.get('computer', '').lower()
+			share = data.get('share')
+			path = data.get('path')
+			username = data.get('username')
+			mask = data.get('mask', 'fullcontrol').lower()
+			ace_type = data.get('ace_type', 'allow').lower()
+			
+			if not all([computer, share, path, username]):
+				return jsonify({'error': 'Missing required parameters. Computer, share, path, and username are required.'}), 400
+				
+			if ace_type not in ['allow', 'deny']:
+				return jsonify({'error': 'Invalid ace_type. Must be "allow" or "deny".'}), 400
+
+			if mask not in ['fullcontrol', 'modify', 'readandexecute', 'readandwrite', 'read', 'write']:
+				return jsonify({'error': 'Invalid mask. Must be "fullcontrol", "modify", "readandexecute", "readandwrite", "read", or "write".'}), 400
+
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first.'}), 400
+
+			if is_valid_sid(username):
+				sid = username
+			else:
+				sid = self.powerview.convertto_sid(username)
+			
+			if sid is None or not is_valid_sid(sid):
+				return jsonify({'error': f'Username {username} is not found in the domain. Use a SID instead.'}), 400
+
+			client = self.powerview.conn.smb_sessions[computer]
+			smb_client = SMBClient(client)
+			
+			try:
+				result = smb_client.set_file_security(share, path, sid, ace_type, mask)
+				if result:
+					return jsonify({'status': 'success', 'message': 'File security set successfully'}), 200
+				else:
+					return jsonify({'error': 'Failed to set file security'}), 500
+			except Exception as e:
+				return jsonify({'error': f'Failed to set file security: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB SET SECURITY] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_remove_security(self):
+		try:
+			data = request.json
+			computer = data.get('computer', '').lower()
+			share = data.get('share')
+			path = data.get('path')
+			username = data.get('username')
+			mask = data.get('mask')
+			ace_type = data.get('ace_type')
+			
+			if not all([computer, share, path, username]):
+				return jsonify({'error': 'Missing required parameters. Computer, share, path, and username are required.'}), 400
+
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first.'}), 400
+
+			if is_valid_sid(username):
+				sid = username
+			else:
+				sid = self.powerview.convertto_sid(username)
+			
+			if sid is None or not is_valid_sid(sid):
+				return jsonify({'error': f'Username {username} is not found in the domain. Use a SID instead.'}), 400
+
+			client = self.powerview.conn.smb_sessions[computer]
+			smb_client = SMBClient(client)
+			
+			try:
+				result = smb_client.remove_file_security(share, path, sid, mask, ace_type)
+				if result:
+					return jsonify({'status': 'success', 'message': 'ACE removed successfully'}), 200
+				else:
+					return jsonify({'error': 'No matching ACEs found to remove'}), 404
+			except Exception as e:
+				return jsonify({'error': f'Failed to remove ACE: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB REMOVE SECURITY] Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500
