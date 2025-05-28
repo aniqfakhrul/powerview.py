@@ -129,6 +129,8 @@ class APIServer:
 		add_route_with_auth('/api/smb/properties', 'smb_properties', self.handle_smb_properties, methods=['POST'])
 		add_route_with_auth('/api/smb/set-security', 'smb_set_security', self.handle_smb_set_security, methods=['POST'])
 		add_route_with_auth('/api/smb/remove-security', 'smb_remove_security', self.handle_smb_remove_security, methods=['POST'])
+		add_route_with_auth('/api/smb/set-share-security', 'smb_set_share_security', self.handle_smb_set_share_security, methods=['POST'])
+		add_route_with_auth('/api/smb/remove-share-security', 'smb_remove_share_security', self.handle_smb_remove_share_security, methods=['POST'])
 
 	def set_status(self, status):
 		self.status = status
@@ -1554,4 +1556,93 @@ class APIServer:
 
 		except Exception as e:
 			logging.error(f"[SMB REMOVE SECURITY] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_set_share_security(self):
+		try:
+			data = request.json
+			computer = data.get('computer', '').lower()
+			share = data.get('share')
+			username = data.get('username')
+			mask = data.get('mask', 'fullcontrol').lower()
+			ace_type = data.get('ace_type', 'allow').lower()
+			
+			if not all([computer, share, username]):
+				return jsonify({'error': 'Missing required parameters. Computer, share, and username are required.'}), 400
+				
+			if ace_type not in ['allow', 'deny']:
+				return jsonify({'error': 'Invalid ace_type. Must be "allow" or "deny".'}), 400
+
+			if mask not in ['fullcontrol', 'modify', 'readandexecute', 'readandwrite', 'read', 'write']:
+				return jsonify({'error': 'Invalid mask. Must be "fullcontrol", "modify", "readandexecute", "readandwrite", "read", or "write".'}), 400
+
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first.'}), 400
+
+			if is_valid_sid(username):
+				sid = username
+			else:
+				sid = self.powerview.convertto_sid(username)
+			
+			if sid is None or not is_valid_sid(sid):
+				return jsonify({'error': f'Username {username} is not found in the domain. Use a SID instead.'}), 400
+
+			client = self.powerview.conn.smb_sessions[computer]
+			smb_client = SMBClient(client)
+			
+			try:
+				result = smb_client.set_share_security(share, sid, mask, ace_type)
+				if result:
+					permission_name = mask.title().replace('and', ' & ')
+					action = 'granted' if ace_type == 'allow' else 'denied'
+					return jsonify({
+						'status': 'success', 
+						'message': f'{permission_name} permission {action} for {username} on share {share}'
+					}), 200
+				else:
+					return jsonify({'error': 'Failed to set share security'}), 500
+			except Exception as e:
+				return jsonify({'error': f'Failed to set share security: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB SET SHARE SECURITY] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_remove_share_security(self):
+		try:
+			data = request.json
+			computer = data.get('computer', '').lower()
+			share = data.get('share')
+			username = data.get('username')
+			mask = data.get('mask')
+			ace_type = data.get('ace_type')
+			
+			if not all([computer, share, username]):
+				return jsonify({'error': 'Missing required parameters. Computer, share, and username are required.'}), 400
+
+			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+				return jsonify({'error': 'No active SMB session. Please connect first.'}), 400
+
+			if is_valid_sid(username):
+				sid = username
+			else:
+				sid = self.powerview.convertto_sid(username)
+			
+			if sid is None or not is_valid_sid(sid):
+				return jsonify({'error': f'Username {username} is not found in the domain. Use a SID instead.'}), 400
+
+			client = self.powerview.conn.smb_sessions[computer]
+			smb_client = SMBClient(client)
+			
+			try:
+				result = smb_client.remove_share_security(share, sid, mask, ace_type)
+				if result:
+					return jsonify({'status': 'success', 'message': 'Share security removed successfully'}), 200
+				else:
+					return jsonify({'error': 'No matching ACEs found to remove'}), 404
+			except Exception as e:
+				return jsonify({'error': f'Failed to remove share security: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB REMOVE SHARE SECURITY] Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500

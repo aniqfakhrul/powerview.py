@@ -54,21 +54,152 @@ class SMBClient:
             logging.error(f"[SMBClient: share_info] Error getting share info via NetrShareGetInfo(Level 1): {e}")
 
         try:
-            resp = srvs.hNetrShareGetInfo(dce, share + '\x00', 503)
-            share_info['path'] = resp['InfoStruct']['ShareInfo503']['shi503_path'][:-1]
-            share_info['permissions'] = resp['InfoStruct']['ShareInfo503']['shi503_permissions']
-            share_info['max_uses'] = resp['InfoStruct']['ShareInfo503']['shi503_max_uses']
-            share_info['current_uses'] = resp['InfoStruct']['ShareInfo503']['shi503_current_uses']
-            share_info['passwd'] = resp['InfoStruct']['ShareInfo503']['shi503_passwd']
-            share_info['servername'] = resp['InfoStruct']['ShareInfo503']['shi503_servername'][:-1]
-            share_info['reserved'] = resp['InfoStruct']['ShareInfo503']['shi503_reserved']
-            secDesc = resp['InfoStruct']['ShareInfo503']['shi503_security_descriptor']
+            resp = srvs.hNetrShareGetInfo(dce, share + '\x00', 502)
+            share_info['path'] = resp['InfoStruct']['ShareInfo502']['shi502_path'][:-1]
+            share_info['permissions'] = resp['InfoStruct']['ShareInfo502']['shi502_permissions']
+            share_info['max_uses'] = resp['InfoStruct']['ShareInfo502']['shi502_max_uses']
+            share_info['current_uses'] = resp['InfoStruct']['ShareInfo502']['shi502_current_uses']
+            share_info['passwd'] = resp['InfoStruct']['ShareInfo502']['shi502_passwd']
+            share_info['reserved'] = resp['InfoStruct']['ShareInfo502']['shi502_reserved']
+            secDesc = resp['InfoStruct']['ShareInfo502']['shi502_security_descriptor']
             if secDesc and len(secDesc) > 0:
                 share_info['sd_info'] = AccessControl.parse_sd(secDesc)
         except Exception as e:
-            logging.error(f"[SMBClient: share_info] Error getting share info via NetrShareGetInfo(Level 503): {e}")
+            logging.error(f"[SMBClient: share_info] Error getting share info via NetrShareGetInfo(Level 502): {e}")
         
         return share_info
+
+    def set_share_security(self, share, sid, mask='fullcontrol', ace_type='allow'):
+        if self.client is None:
+            logging.error("[SMBClient: set_share_security] Not logged in")
+            return
+
+        # convert mask to integer
+        mask = mask.lower()
+        if mask == 'fullcontrol':
+            mask = SIMPLE_PERMISSIONS.FullControl.value
+        elif mask == 'modify':
+            mask = SIMPLE_PERMISSIONS.Modify.value
+        elif mask == 'readandexecute':
+            mask = SIMPLE_PERMISSIONS.ReadAndExecute.value
+        elif mask == 'readandwrite':
+            mask = SIMPLE_PERMISSIONS.ReadAndWrite.value
+        elif mask == 'read':
+            mask = SIMPLE_PERMISSIONS.Read.value
+        elif mask == 'write':
+            mask = SIMPLE_PERMISSIONS.Write.value
+        else:
+            raise Exception(f"[SMBClient: set_share_security] Invalid mask: {mask}")
+        
+        try:
+            rpctransport = transport.SMBTransport(self.client.getRemoteName(), self.client.getRemoteHost(), filename=r'\srvsvc',
+                                              smb_connection=self.client)
+            dce = rpctransport.get_dce_rpc()
+            dce.connect()
+            dce.bind(srvs.MSRPC_UUID_SRVS)
+            
+            logging.debug(f"[SMBClient: set_share_security] Getting share security")
+            resp = srvs.hNetrShareGetInfo(dce, share + '\x00', 502)
+            secDesc = resp['InfoStruct']['ShareInfo502']['shi502_security_descriptor']
+
+            if ace_type == 'allow':
+                security_descriptor = AccessControl.add_allow_ace(
+                    secDesc,
+                    sid,
+                    mask
+                )
+            elif ace_type == 'deny':
+                security_descriptor = AccessControl.add_deny_ace(
+                    secDesc,
+                    sid,
+                    mask
+                )
+            else:
+                raise Exception(f"[SMBClient: set_share_security] Invalid ace_type: {ace_type}")
+
+            logging.debug(f"[SMBClient: set_share_security] Setting share security")
+            info_1501 = srvs.SHARE_INFO_1501()
+            info_1501['shi1501_security_descriptor'] = security_descriptor
+
+            resp = srvs.hNetrShareSetInfo(dce, share + '\x00', 1501, info_1501)
+            if resp['ErrorCode'] != 0:
+                raise Exception(f"[SMBClient: set_share_security] Error setting share security")
+            else:
+                logging.debug(f"[SMBClient: set_share_security] Successfully set share security")
+        except Exception as e:
+            logging.error(f"[SMBClient: set_share_security] Error setting share security: {e}")
+            return False
+        
+        return True
+
+    def remove_share_security(self, share, sid, mask=None, ace_type=None):
+        if self.client is None:
+            logging.error("[SMBClient: remove_share_security] Not logged in")
+            return
+        
+        try:
+            rpctransport = transport.SMBTransport(self.client.getRemoteName(), self.client.getRemoteHost(), filename=r'\srvsvc',
+                                              smb_connection=self.client)
+            dce = rpctransport.get_dce_rpc()
+            dce.connect()
+            dce.bind(srvs.MSRPC_UUID_SRVS)
+            
+            logging.debug(f"[SMBClient: remove_share_security] Getting share security")
+            resp = srvs.hNetrShareGetInfo(dce, share + '\x00', 502)
+            secDesc = resp['InfoStruct']['ShareInfo502']['shi502_security_descriptor']
+
+            mask_value = None
+            if mask:
+                if mask == 'fullcontrol':
+                    mask_value = SIMPLE_PERMISSIONS.FullControl.value
+                elif mask == 'modify':
+                    mask_value = SIMPLE_PERMISSIONS.Modify.value
+                elif mask == 'readandexecute':
+                    mask_value = SIMPLE_PERMISSIONS.ReadAndExecute.value
+                elif mask == 'readandwrite':
+                    mask_value = SIMPLE_PERMISSIONS.ReadAndWrite.value
+                elif mask == 'read':
+                    mask_value = SIMPLE_PERMISSIONS.Read.value
+                elif mask == 'write':
+                    mask_value = SIMPLE_PERMISSIONS.Write.value
+                else:
+                    raise Exception(f"[SMBClient: remove_share_security] Invalid mask: {mask}")
+
+            ace_type_value = None
+            if ace_type:
+                if ace_type == 'allow':
+                    from impacket.ldap import ldaptypes
+                    ace_type_value = ldaptypes.ACCESS_ALLOWED_ACE.ACE_TYPE
+                elif ace_type == 'deny':
+                    from impacket.ldap import ldaptypes
+                    ace_type_value = ldaptypes.ACCESS_DENIED_ACE.ACE_TYPE
+                else:
+                    raise Exception(f"[SMBClient: remove_share_security] Invalid ace_type: {ace_type}")
+
+            security_descriptor, removed_count = AccessControl.remove_ace(
+                secDesc,
+                sid,
+                mask_value,
+                ace_type_value
+            )
+
+            if removed_count == 0:
+                logging.warning(f"[SMBClient: remove_share_security] No matching ACEs found to remove")
+                return False
+
+            logging.debug(f"[SMBClient: remove_share_security] Setting share security")
+            info_1501 = srvs.SHARE_INFO_1501()
+            info_1501['shi1501_security_descriptor'] = security_descriptor
+
+            resp = srvs.hNetrShareSetInfo(dce, share + '\x00', 1501, info_1501)
+            if resp['ErrorCode'] != 0:
+                raise Exception(f"[SMBClient: remove_share_security] Error setting share security")
+            else:
+                logging.debug(f"[SMBClient: remove_share_security] Successfully removed {removed_count} ACE(s)")
+            return True
+        except Exception as e:
+            logging.error(f"[SMBClient: remove_share_security] Error removing share security: {e}")
+            return False
 
     def ls(self, share, path=''):
         if self.client is None:
@@ -313,6 +444,7 @@ class SMBClient:
                 security_flags
             )
 
+            mask = mask.lower()
             if mask == 'fullcontrol':
                 mask = SIMPLE_PERMISSIONS.FullControl.value
             elif mask == 'modify':

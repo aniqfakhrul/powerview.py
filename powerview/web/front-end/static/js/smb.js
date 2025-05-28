@@ -3185,8 +3185,15 @@ function showAddPermissionModal(computer, share, path, isDirectory, isShare) {
             <div class="space-y-4">
                 <!-- Target info -->
                 <div class="p-2 bg-neutral-50 dark:bg-neutral-800 rounded-md">
-                    <div class="text-xs font-medium text-neutral-900 dark:text-white">Target</div>
-                    <div class="text-xs text-neutral-600 dark:text-neutral-400 break-all">\\\\${computer}\\${share}\\${path}</div>
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="text-xs font-medium text-neutral-900 dark:text-white">Target</div>
+                        <span class="text-xs px-1.5 py-0.5 rounded-md ${isShare ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' : 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'}">
+                            ${isShare ? 'Share' : (isDirectory ? 'Folder' : 'File')}
+                        </span>
+                    </div>
+                    <div class="text-xs text-neutral-600 dark:text-neutral-400 break-all">
+                        ${isShare ? `\\\\${computer}\\${share}` : `\\\\${computer}\\${share}\\${path}`}
+                    </div>
                 </div>
                 
                 <!-- User/Principal input -->
@@ -3295,19 +3302,29 @@ function showAddPermissionModal(computer, share, path, isDirectory, isShare) {
         confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin fa-sm mr-1"></i> Adding...';
         
         try {
-            const response = await fetch('/api/smb/set-security', {
+            // Determine which endpoint to use based on whether this is a share or file/directory
+            const endpoint = isShare ? '/api/smb/set-share-security' : '/api/smb/set-security';
+            
+            // Prepare request body - shares don't need path parameter
+            const requestBody = {
+                computer: computer,
+                share: share,
+                username: principal,
+                ace_type: aceType,
+                mask: permissionLevel
+            };
+            
+            // Only add path for files/directories, not for shares
+            if (!isShare) {
+                requestBody.path = path;
+            }
+            
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    computer: computer,
-                    share: share,
-                    path: path,
-                    username: principal,
-                    ace_type: aceType,
-                    mask: permissionLevel
-                })
+                body: JSON.stringify(requestBody)
             });
             
             if (!response.ok) {
@@ -3320,17 +3337,24 @@ function showAddPermissionModal(computer, share, path, isDirectory, isShare) {
             // Close modal
             document.body.removeChild(modal);
             
-            // Show success message
-            const permissionNames = {
-                'fullcontrol': 'Full Control',
-                'modify': 'Modify',
-                'readandwrite': 'Read & Write',
-                'readandexecute': 'Read & Execute',
-                'read': 'Read',
-                'write': 'Write'
-            };
-            const permissionName = permissionNames[permissionLevel] || permissionLevel;
-            showSuccessAlert(`${permissionName} permission ${aceType === 'allow' ? 'granted' : 'denied'} for ${principal}`);
+            // Show success message - use the message from the server response if available
+            let successMessage;
+            if (result.message) {
+                successMessage = result.message;
+            } else {
+                const permissionNames = {
+                    'fullcontrol': 'Full Control',
+                    'modify': 'Modify',
+                    'readandwrite': 'Read & Write',
+                    'readandexecute': 'Read & Execute',
+                    'read': 'Read',
+                    'write': 'Write'
+                };
+                const permissionName = permissionNames[permissionLevel] || permissionLevel;
+                const targetType = isShare ? 'share' : (isDirectory ? 'folder' : 'file');
+                successMessage = `${permissionName} permission ${aceType === 'allow' ? 'granted' : 'denied'} for ${principal} on ${targetType} ${isShare ? share : path}`;
+            }
+            showSuccessAlert(successMessage);
             
             // Refresh the properties panel to show the new permission
             setTimeout(() => {
@@ -3384,17 +3408,27 @@ function showAddPermissionModal(computer, share, path, isDirectory, isShare) {
 // Function to remove SMB security (ACE deletion)
 async function removeSMBSecurity(computer, share, path, username, isDirectory, isShare) {
     try {
-        const response = await fetch('/api/smb/remove-security', {
+        // Determine which endpoint to use based on whether this is a share or file/directory
+        const endpoint = isShare ? '/api/smb/remove-share-security' : '/api/smb/remove-security';
+        
+        // Prepare request body - shares don't need path parameter
+        const requestBody = {
+            computer: computer,
+            share: share,
+            username: username
+        };
+        
+        // Only add path for files/directories, not for shares
+        if (!isShare) {
+            requestBody.path = path;
+        }
+        
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                computer: computer,
-                share: share,
-                path: path,
-                username: username
-            })
+            body: JSON.stringify(requestBody)
         });
 
         const result = await response.json();
@@ -3403,7 +3437,9 @@ async function removeSMBSecurity(computer, share, path, username, isDirectory, i
             throw new Error(result.error || 'Failed to remove ACE');
         }
         
-        showSuccessAlert(`ACE removed for ${username}`);
+        const targetType = isShare ? 'share' : (isDirectory ? 'folder' : 'file');
+        const successMessage = result.message || `ACE removed for ${username} from ${targetType} ${isShare ? share : path}`;
+        showSuccessAlert(successMessage);
         return result;
     } catch (error) {
         console.error('Remove security error:', error);

@@ -90,7 +90,6 @@ class AccessControl:
 			for ace_obj in dacl_data:
 				ace_type_name = ace_obj['TypeName']
 				
-				# Filter for ACE types we can parse well
 				if ace_type_name not in ["ACCESS_ALLOWED_ACE", "ACCESS_DENIED_ACE", 
 											"ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_OBJECT_ACE",
 											"SYSTEM_AUDIT_ACE", "SYSTEM_ALARM_ACE",
@@ -147,6 +146,47 @@ class AccessControl:
 			return security_info
 
 	@staticmethod
+	def sort_dacl_aces(sd):
+		"""
+		Sort ACEs in the DACL according to Windows canonical order:
+		1. Explicit DENY ACEs
+		2. Explicit ALLOW ACEs  
+		3. Inherited DENY ACEs
+		4. Inherited ALLOW ACEs
+		"""
+		if not sd['Dacl'] or not hasattr(sd['Dacl'], 'aces'):
+			return sd
+			
+		aces = sd['Dacl'].aces
+		if not aces:
+			return sd
+			
+		def ace_sort_key(ace):
+			ace_type = ace['AceType']
+			ace_flags = ace['AceFlags']
+			
+			is_inherited = bool(ace_flags & 0x10)
+			
+			is_deny = ace_type in [
+				ldaptypes.ACCESS_DENIED_ACE.ACE_TYPE,
+				ldaptypes.ACCESS_DENIED_OBJECT_ACE.ACE_TYPE
+			]
+			
+			if not is_inherited and is_deny:
+				return (0, ace_type)
+			elif not is_inherited and not is_deny:
+				return (1, ace_type)
+			elif is_inherited and is_deny:
+				return (2, ace_type)
+			else:
+				return (3, ace_type)
+		
+		sorted_aces = sorted(aces, key=ace_sort_key)
+		sd['Dacl'].aces = sorted_aces
+		
+		return sd
+
+	@staticmethod
 	def add_allow_ace(
 		secDesc: bytes,
 		sid: str,
@@ -168,6 +208,7 @@ class AccessControl:
 				ace_flags
 			)
 		)
+		sd = AccessControl.sort_dacl_aces(sd)
 		return sd.getData()
 
 	@staticmethod
@@ -192,6 +233,7 @@ class AccessControl:
 				ace_flags
 			)
 		)
+		sd = AccessControl.sort_dacl_aces(sd)
 		return sd.getData()
 
 	@staticmethod
@@ -220,4 +262,21 @@ class AccessControl:
 		for ace in aces_to_remove:
 			sd['Dacl'].aces.remove(ace)
 		
+		sd = AccessControl.sort_dacl_aces(sd)
+		
 		return sd.getData(), len(aces_to_remove)
+
+	@staticmethod
+	def fix_dacl_ordering(secDesc: bytes):
+		"""
+		Fix the ordering of ACEs in an existing DACL to match Windows canonical order.
+		This is useful for cleaning up DACLs that may have been created with incorrect ordering.
+		"""
+		sd = ldaptypes.SR_SECURITY_DESCRIPTOR()
+		if isinstance(secDesc, list):
+			secDesc = b''.join(secDesc)
+		sd.fromString(secDesc)
+		
+		sd = AccessControl.sort_dacl_aces(sd)
+		
+		return sd.getData()
