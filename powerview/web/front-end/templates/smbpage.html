@@ -370,37 +370,50 @@
             <div class="fixed inset-0 bg-black/50 transition-opacity" aria-hidden="true"></div>
             
             <!-- Modal panel -->
-            <div class="inline-block align-bottom bg-white dark:bg-neutral-900 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                <div class="bg-white dark:bg-neutral-900 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div class="inline-block align-bottom bg-white dark:bg-neutral-900 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full mx-4">
+                <div class="bg-white dark:bg-neutral-900 px-6 pt-6 pb-4">
                     <div class="sm:flex sm:items-start">
                         <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900 sm:mx-0 sm:h-10 sm:w-10">
                             <i class="fas fa-pencil-alt text-blue-500 dark:text-blue-300"></i>
                         </div>
-                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full min-w-0">
                             <h3 class="text-lg leading-6 font-medium text-neutral-900 dark:text-white" id="rename-modal-title">
                                 Rename Item
                             </h3>
-                            <div class="mt-2">
-                                <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-2" id="rename-modal-path">
-                                    <!-- Path will be filled by JS -->
-                                </p>
+                            <div class="mt-3">
+                                <div class="mb-3">
+                                    <label class="block text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">
+                                        Current location:
+                                    </label>
+                                    <div class="bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-md px-3 py-2">
+                                        <p class="text-sm text-neutral-700 dark:text-neutral-300 font-mono break-all" id="rename-modal-path">
+                                            <!-- Path will be filled by JS -->
+                                        </p>
+                                    </div>
+                                </div>
                                 <div>
-                                    <label for="rename-input" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                                        New name
+                                    <label for="rename-input" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
+                                        New name or path
                                     </label>
                                     <div class="mt-1">
-                                        <input type="text" id="rename-input" class="shadow-sm focus:ring-blue-500 dark:focus:ring-yellow-500 focus:border-blue-500 dark:focus:border-yellow-500 block w-full sm:text-sm border-neutral-300 dark:border-neutral-700 rounded-md dark:bg-neutral-800 dark:text-white">
+                                        <input type="text" id="rename-input" placeholder="Enter filename or full path (e.g., folder\subfolder\newname.txt)" class="shadow-sm focus:ring-blue-500 dark:focus:ring-yellow-500 focus:border-blue-500 dark:focus:border-yellow-500 block w-full text-sm border-neutral-300 dark:border-neutral-700 rounded-md dark:bg-neutral-800 dark:text-white px-3 py-2 font-mono">
                                     </div>
+                                    <p class="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+                                        <i class="fas fa-info-circle mr-1"></i>
+                                        <strong>Tip:</strong> Use just a filename to rename, or include path separators (\) to move to a different folder
+                                    </p>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="bg-neutral-50 dark:bg-neutral-800 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                    <button type="button" id="rename-confirm-btn" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-500 dark:bg-yellow-500 text-base font-medium text-white dark:text-black hover:bg-blue-600 dark:hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-yellow-500 sm:ml-3 sm:w-auto sm:text-sm">
+                <div class="bg-neutral-50 dark:bg-neutral-800 px-6 py-4 sm:flex sm:flex-row-reverse gap-3">
+                    <button type="button" id="rename-confirm-btn" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-500 dark:bg-yellow-500 text-base font-medium text-white dark:text-black hover:bg-blue-600 dark:hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-yellow-500 sm:w-auto sm:text-sm transition-colors">
+                        <i class="fas fa-check mr-2"></i>
                         Rename
                     </button>
-                    <button type="button" id="rename-cancel-btn" class="mt-3 w-full inline-flex justify-center rounded-md border border-neutral-300 dark:border-neutral-700 shadow-sm px-4 py-2 bg-white dark:bg-neutral-900 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-yellow-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                    <button type="button" id="rename-cancel-btn" class="mt-3 w-full inline-flex justify-center rounded-md border border-neutral-300 dark:border-neutral-700 shadow-sm px-4 py-2 bg-white dark:bg-neutral-900 text-base font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-yellow-500 sm:mt-0 sm:w-auto sm:text-sm transition-colors">
+                        <i class="fas fa-times mr-2"></i>
                         Cancel
                     </button>
                 </div>

@@ -411,6 +411,184 @@ class ConnectionPool:
 		except:
 			pass
 
+class SMBConnectionEntry(ConnectionPoolEntry):
+	"""Represents a single SMB connection entry in the pool with metadata"""
+	
+	def __init__(self, connection, host, created_time=None):
+		super().__init__(connection, host, created_time)
+		self.host = host
+	
+	def is_alive(self):
+		"""Check if the underlying SMB connection is still alive"""
+		with self._lock:
+			if not self.is_healthy:
+				return False
+			try:
+				self.connection.listShares()
+				return True
+			except Exception:
+				self.is_healthy = False
+				return False
+	
+	def close(self):
+		"""Close the underlying SMB connection"""
+		with self._lock:
+			self.is_healthy = False
+			try:
+				if hasattr(self.connection, 'close'):
+					self.connection.close()
+			except Exception as e:
+				logging.debug(f"Error closing SMB connection for {self.host}: {str(e)}")
+
+class SMBConnectionPool(ConnectionPool):
+	"""
+	Specialized connection pool for managing SMB connections with:
+	- SMB-specific health checking via listShares()
+	- Enhanced keep-alive mechanism for SMB sessions
+	- Port fallback support (445 -> 139)
+	- Connection rotation for stealth operations
+	"""
+	
+	def __init__(self, max_connections=20, cleanup_interval=300, keepalive_interval=600):
+		super().__init__(max_connections, cleanup_interval, keepalive_interval)
+	
+	def _perform_keepalive(self):
+		"""Send keep-alive to all active SMB connections to maintain them"""
+		keepalive_hosts = []
+		dead_hosts = []
+		
+		with self._pool_lock:
+			for host, entry in list(self._pool.items()):
+				keepalive_hosts.append((host, entry))
+		
+		for host, entry in keepalive_hosts:
+			try:
+				if entry.is_alive():
+					entry.mark_used()
+					# logging.debug(f"SMB connection alive for host: {host}")
+				else:
+					dead_hosts.append(host)
+					logging.debug(f"SMB connection dead during keep-alive for host: {host}")
+			except Exception as e:
+				dead_hosts.append(host)
+				logging.debug(f"SMB keep-alive error for host {host}: {str(e)}")
+		
+		if dead_hosts:
+			with self._pool_lock:
+				for host in dead_hosts:
+					if host in self._pool:
+						entry = self._pool.pop(host)
+						entry.close()
+						logging.debug(f"Removed dead SMB connection for host: {host}")
+	
+	def get_connection(self, host, connection_factory):
+		"""
+		Get an SMB connection for the specified host, creating one if necessary
+		
+		Args:
+			host (str): Target host name or IP
+			connection_factory (callable): Function to create new SMB connections
+			
+		Returns:
+			SMBConnection object for the host
+			
+		Raises:
+			ConnectionError: If connection cannot be established or rate limited
+		"""
+		host = host.lower()
+		
+		if not self._can_attempt_connection(host):
+			raise ConnectionError(f"Too many recent failed SMB connection attempts to host {host}")
+		
+		with self._pool_lock:
+			if host in self._pool:
+				entry = self._pool[host]
+				if entry.is_alive():
+					entry.mark_used()
+					self._pool.move_to_end(host)
+					logging.debug(f"Reusing existing SMB connection for host: {host}")
+					return entry.connection
+				else:
+					entry.close()
+					del self._pool[host]
+					logging.debug(f"Removed dead SMB connection for host: {host}")
+			
+			if len(self._pool) >= self.max_connections:
+				oldest_host, oldest_entry = self._pool.popitem(last=False)
+				oldest_entry.close()
+				logging.debug(f"Evicted oldest SMB connection for host: {oldest_host}")
+			
+			try:
+				new_connection = connection_factory()
+				
+				entry = SMBConnectionEntry(new_connection, host)
+				entry.mark_used()
+				self._pool[host] = entry
+				self._record_connection_attempt(host, success=True)
+				
+				logging.debug(f"Created new SMB connection for host: {host}")
+				return new_connection
+				
+			except Exception as e:
+				self._record_connection_attempt(host, success=False)
+				logging.error(f"Failed to create SMB connection for host {host}: {str(e)}")
+				raise
+	
+	def add_connection(self, connection, host):
+		"""Add an SMB connection to the pool with proper validation and management"""
+		host = host.lower()
+		
+		with self._pool_lock:
+			if host in self._pool:
+				old_entry = self._pool[host]
+				old_entry.close()
+				logging.debug(f"Replaced existing SMB connection for host: {host}")
+			
+			if len(self._pool) >= self.max_connections and host not in self._pool:
+				oldest_host, oldest_entry = self._pool.popitem(last=False)
+				oldest_entry.close()
+				logging.debug(f"Evicted oldest SMB connection for host: {oldest_host}")
+			
+			self._pool[host] = SMBConnectionEntry(connection, host)
+			logging.debug(f"Added SMB connection for host: {host}")
+
+	def remove_connection(self, host):
+		"""Remove an SMB connection from the pool with proper cleanup"""
+		host = host.lower()
+		with self._pool_lock:
+			if host in self._pool:
+				entry = self._pool.pop(host)
+				entry.close()
+				logging.debug(f"Removed SMB connection for host: {host}")
+			else:
+				logging.debug(f"No SMB connection found for host: {host}")
+	
+	def get_all_hosts(self):
+		"""Get list of all hosts with active SMB connections"""
+		with self._pool_lock:
+			return list(self._pool.keys())
+	
+	def get_pool_stats(self):
+		"""Get detailed statistics about the SMB connection pool"""
+		with self._pool_lock:
+			stats = {
+				'protocol': 'SMB',
+				'total_connections': len(self._pool),
+				'max_connections': self.max_connections,
+				'failed_attempts': len(self._connection_attempts),
+				'hosts': {}
+			}
+			
+			for host, entry in self._pool.items():
+				stats['hosts'][host] = {
+					'last_used': entry.last_used,
+					'use_count': entry.use_count,
+					'age': time.time() - entry.created_time,
+					'is_alive': entry.is_alive()
+				}
+			
+			return stats
+
 class CONNECTION:
 	def __init__(self, args):
 		self.args = args
@@ -419,6 +597,11 @@ class CONNECTION:
             cleanup_interval=getattr(args, 'pool_cleanup_interval', 0),
             keepalive_interval=getattr(args, 'keepalive_interval', 0)
         )
+		self._smb_pool = SMBConnectionPool(
+			max_connections=20,
+			cleanup_interval=300,
+			keepalive_interval=600
+		)
 		self._current_domain = None
 		self.username = args.username
 		self.password = args.password
@@ -426,7 +609,7 @@ class CONNECTION:
 		self.lmhash = args.lmhash
 		self.nthash = args.nthash
 		self.use_kerberos = args.use_kerberos
-		self.simple_auth = args.simple_auth
+		self.use_simple_auth = args.use_simple_auth
 		self.use_ldap = args.use_ldap
 		self.use_ldaps = args.use_ldaps
 		self.use_gc = args.use_gc
@@ -476,7 +659,7 @@ class CONNECTION:
 		
 		# auth method
 		self.auth_method = ldap3.NTLM
-		if self.simple_auth:
+		if self.use_simple_auth:
 			self.auth_method = ldap3.SIMPLE
 		elif self.do_certificate or self.use_kerberos:
 			self.auth_method = ldap3.SASL
@@ -522,7 +705,6 @@ class CONNECTION:
 		self.samr = None
 		self.TGT = None
 		self.TGS = None
-		self.smb_sessions = {}
 
 		# stolen from https://github.com/the-useless-one/pywerview/blob/master/pywerview/requester.py#L90
 		try:
@@ -656,8 +838,87 @@ class CONNECTION:
 		self._connection_pool.remove_connection(domain)
 
 	def get_pool_stats(self):
-		"""Get connection pool statistics"""
-		return self._connection_pool.get_pool_stats()
+		"""
+		Get comprehensive connection pool statistics for all protocols
+		
+		Returns:
+			dict: Combined statistics from LDAP and SMB connection pools
+		"""
+		stats = {
+			'timestamp': time.time(),
+			'pools': {}
+		}
+		
+		# Get LDAP connection pool stats
+		try:
+			ldap_stats = self._connection_pool.get_pool_stats()
+			ldap_stats['protocol'] = 'LDAP'
+			stats['pools']['ldap'] = ldap_stats
+		except Exception as e:
+			logging.debug(f"Error getting LDAP pool stats: {str(e)}")
+			stats['pools']['ldap'] = {
+				'protocol': 'LDAP',
+				'error': str(e),
+				'total_connections': 0,
+				'max_connections': 0,
+				'failed_attempts': 0,
+				'domains': {}
+			}
+		
+		# Get SMB connection pool stats
+		try:
+			if hasattr(self, '_smb_pool'):
+				smb_stats = self._smb_pool.get_pool_stats()
+				stats['pools']['smb'] = smb_stats
+			else:
+				stats['pools']['smb'] = {
+					'protocol': 'SMB',
+					'status': 'not_initialized',
+					'total_connections': 0,
+					'max_connections': 0,
+					'failed_attempts': 0,
+					'hosts': {}
+				}
+		except Exception as e:
+			logging.debug(f"Error getting SMB pool stats: {str(e)}")
+			stats['pools']['smb'] = {
+				'protocol': 'SMB',
+				'error': str(e),
+				'total_connections': 0,
+				'max_connections': 0,
+				'failed_attempts': 0,
+				'hosts': {}
+			}
+		
+		# Calculate combined totals
+		stats['summary'] = {
+			'total_connections': (
+				stats['pools']['ldap'].get('total_connections', 0) + 
+				stats['pools']['smb'].get('total_connections', 0)
+			),
+			'total_max_connections': (
+				stats['pools']['ldap'].get('max_connections', 0) + 
+				stats['pools']['smb'].get('max_connections', 0)
+			),
+			'total_failed_attempts': (
+				stats['pools']['ldap'].get('failed_attempts', 0) + 
+				stats['pools']['smb'].get('failed_attempts', 0)
+			),
+			'ldap_domains': len(stats['pools']['ldap'].get('domains', {})),
+			'smb_hosts': len(stats['pools']['smb'].get('hosts', {})),
+			'pool_utilization': {
+				'ldap': (
+					stats['pools']['ldap'].get('total_connections', 0) / 
+					max(stats['pools']['ldap'].get('max_connections', 1), 1) * 100
+				),
+				'smb': (
+					stats['pools']['smb'].get('total_connections', 0) / 
+					max(stats['pools']['smb'].get('max_connections', 1), 1) * 100
+				)
+			}
+		}
+		
+		return stats
 
 	def refresh_domain(self):
 		try:
@@ -875,6 +1136,9 @@ class CONNECTION:
 	def close(self):
 		"""Close all connections and resources properly"""
 		self._connection_pool.shutdown()
+		
+		if hasattr(self, '_smb_pool'):
+			self._smb_pool.shutdown()
 
 		if hasattr(self, 'ldap_session') and self.ldap_session:
 			try:
@@ -1605,84 +1869,159 @@ class CONNECTION:
 
 		return True
 
-	def init_smb_session(self, host, username=None, password=None, nthash=None, lmhash=None, aesKey=None, domain=None, timeout=10, useCache=True):
+	def init_smb_session(self, host, username=None, password=None, nthash=None, lmhash=None, aesKey=None, domain=None, timeout=10, useCache=True, force_new=False):
+		"""
+		Initialize or retrieve an SMB session using the connection pool
+		
+		Args:
+			host: Target host name or IP
+			username: Username for authentication
+			password: Password for authentication
+			nthash: NT hash for authentication
+			lmhash: LM hash for authentication
+			aesKey: AES key for Kerberos authentication
+			domain: Domain for authentication
+			timeout: Connection timeout
+			useCache: Whether to use Kerberos cache
+			force_new: Force creation of new connection (removes existing)
+			
+		Returns:
+			SMBConnection object
+			
+		Raises:
+			ConnectionError: If connection cannot be established
+		"""
+		if force_new:
+			self._smb_pool.remove_connection(host)
+		
+		def smb_connection_factory():
+			return self._create_smb_connection(host, username, password, nthash, lmhash, aesKey, domain, timeout, useCache)
+		
 		try:
-			username = username or self.username
-			password = password or self.password 
-			nthash = nthash or self.nthash
-			lmhash = lmhash or self.lmhash
-			aesKey = aesKey or self.auth_aes_key
-			if aesKey:
-				useKerberos = True
-				useCache = False
-			else:
-				useKerberos = self.use_kerberos
+			return self._smb_pool.get_connection(host, smb_connection_factory)
+		except Exception as e:
+			logging.error(f"Failed to get SMB connection for host {host}: {str(e)}")
+			raise
 
-			domain = domain or self.domain
+	def _create_smb_connection(self, host, username=None, password=None, nthash=None, lmhash=None, aesKey=None, domain=None, timeout=10, useCache=True):
+		"""
+		Create a new SMB connection with enhanced error handling and port fallback
+		
+		Args:
+			host: Target host name or IP
+			username: Username for authentication
+			password: Password for authentication
+			nthash: NT hash for authentication
+			lmhash: LM hash for authentication
+			aesKey: AES key for Kerberos authentication
+			domain: Domain for authentication
+			timeout: Connection timeout
+			useCache: Whether to use Kerberos cache
+			
+		Returns:
+			SMBConnection object
+			
+		Raises:
+			ConnectionError: If connection cannot be established on any port
+		"""
+		username = username or self.username
+		password = password or self.password 
+		nthash = nthash or self.nthash
+		lmhash = lmhash or self.lmhash
+		aesKey = aesKey or self.auth_aes_key
+		domain = domain or self.domain
+		
+		if aesKey:
+			useKerberos = True
+			useCache = False
+		else:
+			useKerberos = self.use_kerberos
 
-			if host in self.smb_sessions:
-				logging.debug(f"[Connection: init_smb_session] Returning stored SMB session for {host}")
-				return self.smb_sessions[host]
-
-			logging.debug(f"[Connection: init_smb_session] Default timeout is set to {timeout}. Expect a delay")
-			conn = SMBConnection(host, host, sess_port=445, timeout=timeout)
-			if useKerberos:
-				if self.TGT and self.TGS:
-					useCache = False
-
-				if useCache:
-					import os
-					from impacket.krb5.ccache import CCache
-					from impacket.krb5.kerberosv5 import KerberosError
-					from impacket.krb5 import constants
-
-					try:
-						ccache = CCache.loadFile(os.getenv('KRB5CCNAME'))
-					except Exception as e:
-						logging.info(str(e))
-						return
-					else:
-						if domain == '':
-							domain = ccache.principal.realm['data'].decode('utf-8')
-							logging.debug('Domain retrieved from CCache: %s' % domain)
-
-						logging.debug('Using Kerberos Cache: %s' % os.getenv('KRB5CCNAME'))
-						principal = 'cifs/%s@%s' % (self.targetIp.upper(), domain.upper())
-
-						creds = ccache.getCredential(principal)
-						if creds is None:
-							principal = 'krbtgt/%s@%s' % (domain.upper(), domain.upper())
-							creds = ccache.getCredential(principal)
-							if creds is not None:
-								self.TGT = creds.toTGT()
-								logging.debug('Using TGT from cache')
-							else:
-								logging.debug('No valid credentials found in cache')
-						else:
-							self.TGS = creds.toTGS(principal)
-							logging.debug('Using TGS from cache')
-
-						if username == '' and creds is not None:
-							username = creds['client'].prettyPrint().split(b'@')[0].decode('utf-8')
-							logging.debug('Username retrieved from CCache: %s' % username)
-						elif username == '' and len(ccache.principal.components) > 0:
-							username = ccache.principal.components[0]['data'].decode('utf-8')
-							logging.debug('Username retrieved from CCache: %s' % username)
+		ports = [445, 139] if not hasattr(self.args, 'smb_port') else [self.args.smb_port]
+		
+		for port in ports:
+			try:
+				logging.debug(f"[SMB] Attempting connection to {host}:{port}")
+				conn = SMBConnection(host, host, sess_port=port, timeout=timeout)
 				
-				conn.kerberosLogin(username, password, domain, lmhash, nthash, aesKey, self.dc_ip, self.TGT, self.TGS)
+				if useKerberos:
+					self._handle_kerberos_smb_auth(conn, username, password, domain, lmhash, nthash, aesKey, useCache)
+				else:
+					conn.login(username, password, domain, lmhash, nthash)
+				
+				logging.debug(f"[SMB] Successfully connected to {host}:{port}")
+				return conn
+				
+			except OSError as e:
+				if port == 445 and 139 in ports:
+					logging.debug(f"[SMB] Port 445 failed for {host}, trying 139: {str(e)}")
+					continue
+				else:
+					logging.debug(f"[SMB] Connection failed to {host}:{port}: {str(e)}")
+					raise
+			except (SessionError, AssertionError) as e:
+				logging.debug(f"[SMB] Authentication failed to {host}:{port}: {str(e)}")
+				raise
+		
+		raise ConnectionError(f"Failed to establish SMB connection to {host} on any port")
+
+	def _handle_kerberos_smb_auth(self, conn, username, password, domain, lmhash, nthash, aesKey, useCache):
+		"""
+		Handle Kerberos authentication for SMB connections
+		
+		Args:
+			conn: SMBConnection object
+			username: Username for authentication
+			password: Password for authentication
+			domain: Domain for authentication
+			lmhash: LM hash for authentication
+			nthash: NT hash for authentication
+			aesKey: AES key for authentication
+			useCache: Whether to use Kerberos cache
+		"""
+		if self.TGT and self.TGS:
+			useCache = False
+
+		if useCache:
+			import os
+			from impacket.krb5.ccache import CCache
+			from impacket.krb5.kerberosv5 import KerberosError
+			from impacket.krb5 import constants
+
+			try:
+				ccache = CCache.loadFile(os.getenv('KRB5CCNAME'))
+			except Exception as e:
+				logging.info(str(e))
+				return
 			else:
-				conn.login(username, password, domain, lmhash, nthash)
-			self.smb_sessions[host] = conn
-			return conn
-		except OSError as e:
-			logging.debug(str(e))
-			raise
-		except SessionError as e:
-			logging.debug(str(e))
-			raise
-		except AssertionError as e:
-			logging.debug(str(e))
-			raise
+				if domain == '':
+					domain = ccache.principal.realm['data'].decode('utf-8')
+					logging.debug('Domain retrieved from CCache: %s' % domain)
+
+				logging.debug('Using Kerberos Cache: %s' % os.getenv('KRB5CCNAME'))
+				principal = 'cifs/%s@%s' % (self.targetIp.upper(), domain.upper())
+
+				creds = ccache.getCredential(principal)
+				if creds is None:
+					principal = 'krbtgt/%s@%s' % (domain.upper(), domain.upper())
+					creds = ccache.getCredential(principal)
+					if creds is not None:
+						self.TGT = creds.toTGT()
+						logging.debug('Using TGT from cache')
+					else:
+						logging.debug('No valid credentials found in cache')
+				else:
+					self.TGS = creds.toTGS(principal)
+					logging.debug('Using TGS from cache')
+
+				if username == '' and creds is not None:
+					username = creds['client'].prettyPrint().split(b'@')[0].decode('utf-8')
+					logging.debug('Username retrieved from CCache: %s' % username)
+				elif username == '' and len(ccache.principal.components) > 0:
+					username = ccache.principal.components[0]['data'].decode('utf-8')
+					logging.debug('Username retrieved from CCache: %s' % username)
+		
+		conn.kerberosLogin(username, password, domain, lmhash, nthash, aesKey, self.dc_ip, self.TGT, self.TGS)
 
 	def init_samr_session(self):
 		if not self.samr:
@@ -1956,6 +2295,102 @@ class CONNECTION:
 			self.close()
 		except:
 			pass
+
+	def get_smb_connection_with_stealth(self, host, delay_range=(1, 3), max_retries=3):
+		"""
+		Get SMB connection with stealth timing for evasion
+		
+		Args:
+			host: Target host name or IP
+			delay_range: Tuple of (min, max) delay in seconds between retries
+			max_retries: Maximum number of retry attempts
+			
+		Returns:
+			SMBConnection object
+			
+		Raises:
+			ConnectionError: If connection cannot be established after retries
+		"""
+		import random
+		import time
+		
+		for attempt in range(max_retries):
+			try:
+				if attempt > 0:
+					delay = random.uniform(*delay_range)
+					logging.debug(f"[SMB Stealth] Waiting {delay:.2f}s before retry {attempt+1}")
+					time.sleep(delay)
+				
+				return self.init_smb_session(host)
+			except Exception as e:
+				if attempt == max_retries - 1:
+					raise
+				logging.debug(f"[SMB Stealth] Attempt {attempt+1} failed: {str(e)}")
+
+	def rotate_smb_connection(self, host):
+		"""
+		Rotate SMB connection for operational security
+		
+		Args:
+			host: Target host name or IP
+			
+		Returns:
+			SMBConnection object (new connection)
+		"""
+		self._smb_pool.remove_connection(host)
+		return self.init_smb_session(host, force_new=True)
+
+	def check_smb_connection_health(self, host):
+		"""
+		Check if SMB connection to host is healthy
+		
+		Args:
+			host: Target host name or IP
+			
+		Returns:
+			bool: True if connection is healthy, False otherwise
+		"""
+		try:
+			with self._smb_pool._pool_lock:
+				if host.lower() in self._smb_pool._pool:
+					entry = self._smb_pool._pool[host.lower()]
+					return entry.is_alive()
+			return False
+		except Exception:
+			return False
+
+	def get_smb_session_stats(self):
+		"""
+		Get SMB connection pool statistics
+		
+		Returns:
+			dict: Statistics about SMB connections
+		"""
+		return self._smb_pool.get_pool_stats()
+
+	def cleanup_smb_connections(self):
+		"""
+		Cleanup all SMB connections
+		"""
+		self._smb_pool.shutdown()
+
+	def get_all_smb_hosts(self):
+		"""
+		Get list of all hosts with active SMB connections
+		
+		Returns:
+			list: List of host names/IPs with active connections
+		"""
+		return self._smb_pool.get_all_hosts()
+
+	def remove_smb_connection(self, host):
+		"""
+		Remove SMB connection for specific host
+		
+		Args:
+			host: Target host name or IP
+		"""
+		self._smb_pool.remove_connection(host)
 
 class LDAPRelayServer(LDAPRelayClient):
 	def initConnection(self):

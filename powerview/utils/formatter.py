@@ -659,67 +659,131 @@ class FORMATTER:
         print(f"\n{bcolors.BOLD}{bcolors.OKBLUE}Connection Pool Statistics{bcolors.ENDC}")
         print("=" * 50)
         
-        # Overall statistics
-        print(f"{bcolors.BOLD}Pool Overview:{bcolors.ENDC}")
-        print(f"  Total Connections: {bcolors.OKGREEN}{stats['total_connections']}{bcolors.ENDC}")
-        print(f"  Maximum Allowed:   {bcolors.WARNING}{stats['max_connections']}{bcolors.ENDC}")
-        print(f"  Failed Attempts:   {bcolors.FAIL if stats['failed_attempts'] > 0 else bcolors.OKGREEN}{stats['failed_attempts']}{bcolors.ENDC}")
-        
-        utilization = (stats['total_connections'] / stats['max_connections']) * 100
-        utilization_color = bcolors.OKGREEN if utilization < 70 else bcolors.WARNING if utilization < 90 else bcolors.FAIL
-        print(f"  Pool Utilization:  {utilization_color}{utilization:.1f}%{bcolors.ENDC}")
-        
-        # Domain-specific statistics
-        if stats['domains']:
-            print(f"\n{bcolors.BOLD}Domain Connections:{bcolors.ENDC}")
+        # Check if we have the new enhanced format or old format
+        if 'summary' in stats and 'pools' in stats:
+            # New enhanced format with LDAP and SMB pools
+            summary = stats['summary']
+            pools = stats['pools']
+            
+            # Overall statistics
+            print(f"{bcolors.BOLD}Pool Overview:{bcolors.ENDC}")
+            print(f"  Total Connections: {bcolors.OKGREEN}{summary['total_connections']}{bcolors.ENDC}")
+            print(f"  Maximum Allowed:   {bcolors.WARNING}{summary['total_max_connections']}{bcolors.ENDC}")
+            print(f"  Failed Attempts:   {bcolors.FAIL if summary['total_failed_attempts'] > 0 else bcolors.OKGREEN}{summary['total_failed_attempts']}{bcolors.ENDC}")
+            
+            if summary['total_max_connections'] > 0:
+                utilization = (summary['total_connections'] / summary['total_max_connections']) * 100
+                utilization_color = bcolors.OKGREEN if utilization < 70 else bcolors.WARNING if utilization < 90 else bcolors.FAIL
+                print(f"  Pool Utilization:  {utilization_color}{utilization:.1f}%{bcolors.ENDC}")
+            
+            print(f"  LDAP Domains:      {bcolors.OKCYAN}{summary['ldap_domains']}{bcolors.ENDC}")
+            print(f"  SMB Hosts:         {bcolors.OKCYAN}{summary['smb_hosts']}{bcolors.ENDC}")
+            
+            # LDAP Pool Details
+            if 'ldap' in pools and pools['ldap'].get('total_connections', 0) > 0:
+                ldap_pool = pools['ldap']
+                print(f"\n{bcolors.BOLD}{bcolors.OKBLUE}LDAP Connection Pool:{bcolors.ENDC}")
+                print("-" * 50)
+                print(f"  Connections: {bcolors.OKGREEN}{ldap_pool['total_connections']}{bcolors.ENDC}/{bcolors.WARNING}{ldap_pool['max_connections']}{bcolors.ENDC}")
+                print(f"  Utilization: {bcolors.OKGREEN}{summary['pool_utilization']['ldap']:.1f}%{bcolors.ENDC}")
+                print(f"  Failed Attempts: {bcolors.FAIL if ldap_pool['failed_attempts'] > 0 else bcolors.OKGREEN}{ldap_pool['failed_attempts']}{bcolors.ENDC}")
+                
+                # Domain-specific statistics
+                if ldap_pool.get('domains'):
+                    print(f"\n  {bcolors.BOLD}Domain Connections:{bcolors.ENDC}")
+                    for domain, domain_stats in ldap_pool['domains'].items():
+                        FORMATTER._format_connection_details(domain, domain_stats, "Domain")
+            
+            # SMB Pool Details
+            if 'smb' in pools and pools['smb'].get('total_connections', 0) > 0:
+                smb_pool = pools['smb']
+                print(f"\n{bcolors.BOLD}{bcolors.OKBLUE}SMB Connection Pool:{bcolors.ENDC}")
+                print("-" * 50)
+                print(f"  Connections: {bcolors.OKGREEN}{smb_pool['total_connections']}{bcolors.ENDC}/{bcolors.WARNING}{smb_pool['max_connections']}{bcolors.ENDC}")
+                print(f"  Utilization: {bcolors.OKGREEN}{summary['pool_utilization']['smb']:.1f}%{bcolors.ENDC}")
+                print(f"  Failed Attempts: {bcolors.FAIL if smb_pool['failed_attempts'] > 0 else bcolors.OKGREEN}{smb_pool['failed_attempts']}{bcolors.ENDC}")
+                
+                # Host-specific statistics
+                if smb_pool.get('hosts'):
+                    print(f"\n  {bcolors.BOLD}Host Connections:{bcolors.ENDC}")
+                    for host, host_stats in smb_pool['hosts'].items():
+                        FORMATTER._format_connection_details(host, host_stats, "Host")
+            
+            # Pool Health Summary
+            print(f"\n{bcolors.BOLD}Pool Health Summary:{bcolors.ENDC}")
             print("-" * 50)
             
-            for domain, domain_stats in stats['domains'].items():
-                # Format timestamps
-                last_used_time = datetime.datetime.fromtimestamp(domain_stats['last_used'])
-                last_used_str = last_used_time.strftime('%Y-%m-%d %H:%M:%S')
+            # LDAP health
+            if 'ldap' in pools and pools['ldap'].get('domains'):
+                ldap_healthy = sum(1 for d in pools['ldap']['domains'].values() if d.get('is_alive', False))
+                ldap_total = len(pools['ldap']['domains'])
+                ldap_health = (ldap_healthy / ldap_total * 100) if ldap_total > 0 else 0
+                health_color = bcolors.OKGREEN if ldap_health == 100 else bcolors.WARNING if ldap_health >= 50 else bcolors.FAIL
+                print(f"  LDAP Health: {health_color}{ldap_health:.1f}%{bcolors.ENDC} ({ldap_healthy}/{ldap_total} domains)")
+            
+            # SMB health
+            if 'smb' in pools and pools['smb'].get('hosts'):
+                smb_healthy = sum(1 for h in pools['smb']['hosts'].values() if h.get('is_alive', False))
+                smb_total = len(pools['smb']['hosts'])
+                smb_health = (smb_healthy / smb_total * 100) if smb_total > 0 else 0
+                health_color = bcolors.OKGREEN if smb_health == 100 else bcolors.WARNING if smb_health >= 50 else bcolors.FAIL
+                print(f"  SMB Health:  {health_color}{smb_health:.1f}%{bcolors.ENDC} ({smb_healthy}/{smb_total} hosts)")
                 
-                # Calculate time since last use
-                time_since_use = time.time() - domain_stats['last_used']
-                if time_since_use < 60:
-                    time_since_str = f"{time_since_use:.1f} seconds ago"
-                elif time_since_use < 3600:
-                    time_since_str = f"{time_since_use/60:.1f} minutes ago"
-                else:
-                    time_since_str = f"{time_since_use/3600:.1f} hours ago"
-                
-                # Format connection age
-                age_seconds = domain_stats['age']
-                if age_seconds < 60:
-                    age_str = f"{age_seconds:.1f} seconds"
-                elif age_seconds < 3600:
-                    age_str = f"{age_seconds/60:.1f} minutes"
-                else:
-                    age_str = f"{age_seconds/3600:.1f} hours"
-                
-                # Connection status color
-                status_color = bcolors.OKGREEN if domain_stats['is_alive'] else bcolors.FAIL
-                status_text = "ALIVE" if domain_stats['is_alive'] else "DEAD"
-                
-                print(f"\n  {bcolors.BOLD}{bcolors.OKCYAN}Domain:{bcolors.ENDC} {domain.upper()}")
-                print(f"    Status:     {status_color}{status_text}{bcolors.ENDC}")
-                print(f"    Use Count:  {domain_stats['use_count']}")
-                print(f"    Age:        {age_str}")
-                print(f"    Last Used:  {last_used_str} ({time_since_str})")
         else:
-            print(f"\n{bcolors.WARNING}No domain connections found in pool{bcolors.ENDC}")
+            # Legacy format compatibility
+            print(f"{bcolors.BOLD}Pool Overview:{bcolors.ENDC}")
+            print(f"  Total Connections: {bcolors.OKGREEN}{stats.get('total_connections', 0)}{bcolors.ENDC}")
+            print(f"  Maximum Allowed:   {bcolors.WARNING}{stats.get('max_connections', 0)}{bcolors.ENDC}")
+            print(f"  Failed Attempts:   {bcolors.FAIL if stats.get('failed_attempts', 0) > 0 else bcolors.OKGREEN}{stats.get('failed_attempts', 0)}{bcolors.ENDC}")
+            
+            if stats.get('max_connections', 0) > 0:
+                utilization = (stats.get('total_connections', 0) / stats['max_connections']) * 100
+                utilization_color = bcolors.OKGREEN if utilization < 70 else bcolors.WARNING if utilization < 90 else bcolors.FAIL
+                print(f"  Pool Utilization:  {utilization_color}{utilization:.1f}%{bcolors.ENDC}")
+            
+            # Domain-specific statistics for legacy format
+            if stats.get('domains'):
+                print(f"\n{bcolors.BOLD}Domain Connections:{bcolors.ENDC}")
+                print("-" * 50)
+                for domain, domain_stats in stats['domains'].items():
+                    FORMATTER._format_connection_details(domain, domain_stats, "Domain")
         
         print("\n" + "=" * 50)
-        
-        # Health summary
-        healthy_connections = sum(1 for d in stats['domains'].values() if d['is_alive'])
-        total_connections = len(stats['domains'])
-        
-        if total_connections > 0:
-            health_percentage = (healthy_connections / total_connections) * 100
-            health_color = bcolors.OKGREEN if health_percentage == 100 else bcolors.WARNING if health_percentage >= 50 else bcolors.FAIL
-            print(f"{bcolors.BOLD}Pool Health:{bcolors.ENDC} {health_color}{health_percentage:.1f}%{bcolors.ENDC} ({healthy_connections}/{total_connections} connections healthy)")
-        else:
-            print(f"{bcolors.BOLD}Pool Health:{bcolors.ENDC} {bcolors.WARNING}No connections to evaluate{bcolors.ENDC}")
-        
         print()
+
+    @staticmethod
+    def _format_connection_details(name, stats, connection_type):
+        """Format individual connection details (domain or host)."""
+        import time
+        
+        # Format timestamps
+        last_used_time = datetime.datetime.fromtimestamp(stats['last_used'])
+        last_used_str = last_used_time.strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Calculate time since last use
+        time_since_use = time.time() - stats['last_used']
+        if time_since_use < 60:
+            time_since_str = f"{time_since_use:.1f} seconds ago"
+        elif time_since_use < 3600:
+            time_since_str = f"{time_since_use/60:.1f} minutes ago"
+        else:
+            time_since_str = f"{time_since_use/3600:.1f} hours ago"
+        
+        # Format connection age
+        age_seconds = stats['age']
+        if age_seconds < 60:
+            age_str = f"{age_seconds:.1f} seconds"
+        elif age_seconds < 3600:
+            age_str = f"{age_seconds/60:.1f} minutes"
+        else:
+            age_str = f"{age_seconds/3600:.1f} hours"
+        
+        # Connection status color
+        status_color = bcolors.OKGREEN if stats['is_alive'] else bcolors.FAIL
+        status_text = "ALIVE" if stats['is_alive'] else "DEAD"
+        
+        print(f"\n    {bcolors.BOLD}{bcolors.OKCYAN}{connection_type}:{bcolors.ENDC} {name.upper()}")
+        print(f"      Status:     {status_color}{status_text}{bcolors.ENDC}")
+        print(f"      Use Count:  {stats['use_count']}")
+        print(f"      Age:        {age_str}")
+        print(f"      Last Used:  {last_used_str} ({time_since_str})")

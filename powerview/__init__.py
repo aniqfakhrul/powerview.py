@@ -225,17 +225,15 @@ def main():
                                 else:
                                     entries = powerview.get_domaindmsa(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainrbcd' or pv_args.module.casefold() == 'get-rbcd':
-                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainrbcd(identity, pv_args)
+                                    entries = temp_powerview.get_domainrbcd(args=pv_args)
                                 else:
-                                    entries = powerview.get_domainrbcd(identity, pv_args)
+                                    entries = powerview.get_domainrbcd(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-ca':
-                                properties = pv_args.properties if pv_args.properties else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domainca(pv_args)
+                                    entries = temp_powerview.get_domainca(args=pv_args)
                                 else:
-                                    entries = powerview.get_domainca(pv_args)
+                                    entries = powerview.get_domainca(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domaincatemplate' or pv_args.module.casefold() == 'get-catemplate':
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
@@ -275,9 +273,9 @@ def main():
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_domaintrust(pv_args, properties, identity, searchbase=pv_args.searchbase)
+                                    entries = temp_powerview.get_domaintrust(args=pv_args)
                                 else:
-                                    entries = powerview.get_domaintrust(pv_args, properties, identity, searchbase=pv_args.searchbase)
+                                    entries = powerview.get_domaintrust(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domaintrustkey' or pv_args.module.casefold() == 'get-trustkey':
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaintrustkey(args=pv_args)
@@ -455,12 +453,10 @@ def main():
                                 else:
                                     entries = powerview.invoke_dfscoerce(args=pv_args)
                             elif pv_args.module.casefold() == 'get-exchangeserver' or pv_args.module.casefold() == 'get-exchange':
-                                properties = pv_args.properties if pv_args.properties else None
-                                identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
-                                    entries = temp_powerview.get_exchangeserver(identity=identity, properties=properties, args=pv_args)
+                                    entries = temp_powerview.get_exchangeserver(args=pv_args)
                                 else:
-                                    entries = powerview.get_exchangeserver(identity=identity, properties=properties, args=pv_args)
+                                    entries = powerview.get_exchangeserver(args=pv_args)
                             elif pv_args.module.casefold() == 'get-exchangemailbox':
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None

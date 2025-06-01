@@ -501,7 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (renameConfirmBtn && renameCancelBtn && renameInput) {
         renameConfirmBtn.addEventListener('click', () => {
             const newName = renameInput.value.trim();
-            if (newName && newName !== renameModalData.oldName) {
+            if (newName && newName !== renameModalData.originalFullPath) {
                 performRename(newName);
             }
             hideRenameModal();
@@ -513,7 +513,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renameInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 const newName = renameInput.value.trim();
-                if (newName && newName !== renameModalData.oldName) {
+                if (newName && newName !== renameModalData.originalFullPath) {
                     performRename(newName);
                 }
                 hideRenameModal();
@@ -738,6 +738,7 @@ function attachFileListeners() {
                 try {
                     isLoading = true;
                     showInlineSpinner(spinnerContainer);
+                    // Normalize path separators before sending to API
                     const cleanPath = path.replace(/^\//, '').replace(/\//g, '\\');
                     await viewSMBFile(computer, share, cleanPath);
                 } catch (error) {
@@ -784,6 +785,7 @@ function attachFileListeners() {
                 try {
                     isLoading = true;
                     showInlineSpinner(spinnerContainer);
+                    // Normalize path separators before sending to API
                     const cleanPath = currentItemPath.replace(/^\//, '').replace(/\//g, '\\');
                     const files = await listSMBPath(computer, currentShare, cleanPath);
                     subList.innerHTML = buildFileList(files, currentShare, currentItemPath, computer);
@@ -804,7 +806,9 @@ function attachFileListeners() {
                     e.stopPropagation();
                     showInlineSpinner(spinnerContainer);
                     try {
-                        await uploadSMBFile(computer, share, item.dataset.path);
+                        // Normalize path separators for upload
+                        const normalizedPath = item.dataset.path.replace(/\//g, '\\');
+                        await uploadSMBFile(computer, share, normalizedPath);
                     } finally {
                         removeInlineSpinner(spinnerContainer);
                     }
@@ -817,7 +821,9 @@ function attachFileListeners() {
                     e.stopPropagation();
                     showInlineSpinner(spinnerContainer);
                     try {
-                        await createSMBDirectory(computer, share, path);
+                        // Normalize path separators for new folder creation
+                        const normalizedPath = path.replace(/\//g, '\\');
+                        await createSMBDirectory(computer, share, normalizedPath);
                     } finally {
                         removeInlineSpinner(spinnerContainer);
                     }
@@ -830,7 +836,9 @@ function attachFileListeners() {
                     e.stopPropagation();
                     showInlineSpinner(spinnerContainer);
                     try {
-                        await viewSMBFile(computer, share, item.dataset.path);
+                        // Normalize path separators before viewing
+                        const normalizedPath = item.dataset.path.replace(/\//g, '\\');
+                        await viewSMBFile(computer, share, normalizedPath);
                     } finally {
                         removeInlineSpinner(spinnerContainer);
                     }
@@ -845,10 +853,14 @@ function attachFileListeners() {
                 showInlineSpinner(spinnerContainer);
                 try {
                     if (isDirectory) {
+                        // For directories, use forward slash split to get name, but normalize path for download
                         const dirName = path.split('/').pop();
-                        await downloadSMBDirectory(computer, share, path, dirName);
+                        const normalizedPath = path.replace(/\//g, '\\');
+                        await downloadSMBDirectory(computer, share, normalizedPath, dirName);
                     } else {
-                        await downloadSMBFile(computer, share, path);
+                        // Normalize path separators for file download
+                        const normalizedPath = path.replace(/\//g, '\\');
+                        await downloadSMBFile(computer, share, normalizedPath);
                     }
                 } finally {
                     removeInlineSpinner(spinnerContainer);
@@ -863,7 +875,9 @@ function attachFileListeners() {
                 e.stopPropagation();
                 showInlineSpinner(spinnerContainer);
                 try {
-                    await deleteSMBFileOrDirectory(computer, share, path, isDirectory);
+                    // Normalize path separators for deletion
+                    const normalizedPath = path.replace(/\//g, '\\');
+                    await deleteSMBFileOrDirectory(computer, share, normalizedPath, isDirectory);
                 } finally {
                     removeInlineSpinner(spinnerContainer);
                 }
@@ -877,7 +891,7 @@ function attachFileListeners() {
                 computer: item.dataset.computer,
                 share: item.dataset.share,
                 name: item.dataset.path.split('/').pop(), // Get name from path
-                path: item.dataset.path,
+                path: item.dataset.path.replace(/\//g, '\\'), // Normalize path for context menu
                 isDirectory: item.getAttribute('data-is-dir') === '16' || item.getAttribute('data-is-dir') === '48',
                 isShare: false
             };
@@ -899,7 +913,9 @@ async function downloadSMBFile(computer, share, path, raw = false) {
 
     try {
         showLoadingIndicator();
-        const filename = path.split('\\').pop();
+        // Normalize path separators before extracting filename
+        const normalizedPath = path.replace(/\//g, '\\');
+        const filename = normalizedPath.split('\\').pop();
         const downloadId = Date.now();
 
         // Only create download entry if not raw download
@@ -948,7 +964,7 @@ async function downloadSMBFile(computer, share, path, raw = false) {
             downloadsList.insertBefore(downloadEntry, downloadsList.firstChild);
         }
 
-        // Start download
+        // Start download - use original path for API call
         const response = await fetch('/api/smb/get', {
             method: 'POST',
             headers: {
@@ -1223,7 +1239,9 @@ async function viewSMBFile(computer, share, path) {
 
     try {
         showLoadingIndicator();
-        const filename = path.split('\\').pop();
+        // Normalize path separators before extracting filename
+        const normalizedPath = path.replace(/\//g, '\\');
+        const filename = normalizedPath.split('\\').pop();
         const isImage = isImageFile(filename);
         const isPdf = isPdfFile(filename);
         
@@ -1235,6 +1253,7 @@ async function viewSMBFile(computer, share, path) {
         document.getElementById('text-viewer').classList.add('hidden');
         document.getElementById('pdf-viewer').classList.add('hidden');
 
+        // Use original path for API call
         const response = await fetch('/api/smb/cat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1371,13 +1390,14 @@ function showRenameModal(computer, share, path, isDirectory, isShare) {
     }
     
     // Update modal title based on item type
-    titleElement.textContent = `Rename ${isDirectory ? 'Folder' : 'File'}`;
+    titleElement.textContent = `Rename/Move ${isDirectory ? 'Folder' : 'File'}`;
     
-    // Display the path using original format for consistency in UI
+    // Display the path using UNC format
     pathDisplay.textContent = `\\\\${computer}\\${share}\\${path}`;
     
-    // Set initial value in the input
-    renameInput.value = oldName;
+    // Set initial value in the input - use full path for absolute path support
+    renameInput.value = normalizedPath;
+    renameInput.placeholder = 'Enter new name or full path (e.g., "newname.txt" or "folder\\subfolder\\newname.txt")';
     
     // Store data for later use
     renameModalData = {
@@ -1387,7 +1407,8 @@ function showRenameModal(computer, share, path, isDirectory, isShare) {
         isDirectory,
         isShare,
         oldName,
-        dirPath
+        dirPath,
+        originalFullPath: normalizedPath  // Store original full path for comparison
     };
     
     console.log('Path parts:', filteredParts);
@@ -1421,7 +1442,7 @@ async function renameSMBFileOrDirectory(computer, share, path, isDirectory, isSh
 
 // Add this new function that does the actual rename operation
 async function performRename(newName) {
-    const { computer, share, path, dirPath, isDirectory, isShare, oldName } = renameModalData;
+    const { computer, share, path, dirPath, isDirectory, isShare, oldName, originalFullPath } = renameModalData;
     
     console.log('renameModalData:', renameModalData);
     try {
@@ -1430,8 +1451,17 @@ async function performRename(newName) {
         // Construct the source and destination paths
         const source = path;
         
-        // If we have a directory path, join it with the new name, otherwise just use the new name
-        const destination = dirPath ? `${dirPath}\\${newName}` : newName;
+        // Determine if newName is an absolute path or just a filename
+        let destination;
+        if (newName.includes('\\') || newName.includes('/')) {
+            // User provided an absolute path - normalize it
+            destination = newName.replace(/\//g, '\\');
+            console.log('Using absolute path destination:', destination);
+        } else {
+            // User provided just a filename - keep it in the same directory
+            destination = dirPath ? `${dirPath}\\${newName}` : newName;
+            console.log('Using relative filename destination:', destination);
+        }
         
         console.log('Source:', source);
         console.log('Destination:', destination);
@@ -1451,10 +1481,15 @@ async function performRename(newName) {
 
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.error || 'Failed to rename file');
+            throw new Error(error.error || 'Failed to rename/move file');
         }
 
-        // Refresh the directory where the renamed item was located
+        // Determine what type of operation was performed for user feedback
+        const isMove = destination.includes('\\') && 
+                      (destination.split('\\').slice(0, -1).join('\\') !== dirPath);
+        const operationType = isMove ? 'moved' : 'renamed';
+        
+        // Refresh the directory where the renamed/moved item was located
         try {
             // For shares, refresh the whole view
             if (isShare) {
@@ -1462,52 +1497,76 @@ async function performRename(newName) {
                 if (shareRootElement) {
                     shareRootElement.click();
                 }
+                showSuccessAlert(`Successfully ${operationType} item`);
                 return;
             }
             
             // Normalize paths for comparison
             const parentPathNormalized = '/' + (dirPath || '').replace(/\\/g, '/');
             
-            // Check if the renamed item is a directory and currently expanded
-            if (isDirectory) {
-                // If we're renaming a directory, check if it's currently expanded
-                const normalizedItemPath = '/' + path.replace(/\\/g, '/');
-                const renamedDirElement = document.querySelector(`.file-item[data-path="${normalizedItemPath}"][data-share="${share}"][data-computer="${computer}"]`);
-                if (renamedDirElement && renamedDirElement.querySelector('ul') && !renamedDirElement.querySelector('ul').classList.contains('hidden')) {
-                    // Directory is expanded, we need to update its path and refresh its contents
-                    // First, refresh the parent to update the folder listing with new name
-                    await refreshDirectory(computer, share, dirPath, parentPathNormalized);
+            // If it's a move operation, we might need to refresh multiple directories
+            if (isMove) {
+                // Refresh the source directory
+                await refreshDirectory(computer, share, dirPath, parentPathNormalized);
+                
+                // If the destination is in a different directory, try to refresh that too
+                const destParts = destination.split('\\');
+                if (destParts.length > 1) {
+                    const destDirPath = destParts.slice(0, -1).join('\\');
+                    const destPathNormalized = '/' + destDirPath.replace(/\\/g, '/');
                     
-                    // Then, find and click the renamed folder to expand it again
-                    setTimeout(() => {
-                        // Construct the new path with the new name
-                        const newPathNormalized = parentPathNormalized === '/' ? 
-                            `/${newName}` : 
-                            `${parentPathNormalized}/${newName}`;
-                        
-                        console.log('Looking for renamed folder at:', newPathNormalized);
-                        const newFolderElement = document.querySelector(`.file-item[data-path="${newPathNormalized}"][data-share="${share}"][data-computer="${computer}"] > div`);
-                        if (newFolderElement) {
-                            newFolderElement.click();
-                        } else {
-                            console.warn('Could not find renamed folder element:', newPathNormalized);
+                    // Only refresh destination if it's different from source
+                    if (destDirPath !== dirPath) {
+                        try {
+                            await refreshDirectory(computer, share, destDirPath, destPathNormalized);
+                        } catch (error) {
+                            console.warn('Could not refresh destination directory:', error);
                         }
-                    }, 100);
-                    return;
+                    }
                 }
+            } else {
+                // Check if the renamed item is a directory and currently expanded
+                if (isDirectory) {
+                    // If we're renaming a directory, check if it's currently expanded
+                    const normalizedItemPath = '/' + path.replace(/\\/g, '/');
+                    const renamedDirElement = document.querySelector(`.file-item[data-path="${normalizedItemPath}"][data-share="${share}"][data-computer="${computer}"]`);
+                    if (renamedDirElement && renamedDirElement.querySelector('ul') && !renamedDirElement.querySelector('ul').classList.contains('hidden')) {
+                        // Directory is expanded, we need to update its path and refresh its contents
+                        // First, refresh the parent to update the folder listing with new name
+                        await refreshDirectory(computer, share, dirPath, parentPathNormalized);
+                        
+                        // Then, find and click the renamed folder to expand it again
+                        setTimeout(() => {
+                            // Construct the new path with the new name
+                            const newPathNormalized = parentPathNormalized === '/' ? 
+                                `/${newName}` : 
+                                `${parentPathNormalized}/${newName}`;
+                            
+                            console.log('Looking for renamed folder at:', newPathNormalized);
+                            const newFolderElement = document.querySelector(`.file-item[data-path="${newPathNormalized}"][data-share="${share}"][data-computer="${computer}"] > div`);
+                            if (newFolderElement) {
+                                newFolderElement.click();
+                            } else {
+                                console.warn('Could not find renamed folder element:', newPathNormalized);
+                            }
+                        }, 100);
+                        showSuccessAlert(`Successfully ${operationType} to ${destination}`);
+                        return;
+                    }
+                }
+                
+                // Standard case: Just refresh the parent directory
+                await refreshDirectory(computer, share, dirPath, parentPathNormalized);
             }
             
-            // Standard case: Just refresh the parent directory
-            await refreshDirectory(computer, share, dirPath, parentPathNormalized);
-            
         } catch (error) {
-            console.error('Error refreshing directory after rename:', error);
+            console.error('Error refreshing directory after rename/move:', error);
         }
         
-        showSuccessAlert(`Successfully renamed to ${newName}`);
+        showSuccessAlert(`Successfully ${operationType} to ${destination}`);
     } catch (error) {
         showErrorAlert(error.message);
-        console.error('Rename error:', error);
+        console.error('Rename/move error:', error);
     } finally {
         hideLoadingIndicator();
     }   
@@ -1710,49 +1769,78 @@ async function downloadSMBDirectory(computer, share, path, directoryName) {
 
         // Download each file
         for (const file of files) {
-            // file.path is the full path from share root, e.g., "FolderA\file.txt" or "FolderA\SubFolderB\file.txt"
+            // file.path is the full path from share root, e.g., "Users\Administrator\Desktop\testfolder\file.txt"
             // file.name is the basename, e.g., "file.txt"
+            
+            // Normalize file path to use consistent backslashes for comparison
+            const normalizedFilePath = file.path.replace(/\//g, '\\');
+            const lowerFilePath = normalizedFilePath.toLowerCase();
 
             let pathInZip;
-            const lowerFilePath = file.path.toLowerCase();
 
             if (normalizedDownloadRootPath === '') { 
-                // Downloading from share root
-                pathInZip = file.path;
+                // Downloading from share root - use full path
+                pathInZip = normalizedFilePath;
             } else {
-                // Prefix for length calculation (original case)
+                // Calculate relative path from download root
                 const prefixOriginalCase = normalizedDownloadRootPath + '\\';
-                // Prefix for comparison (lowercase)
                 const prefixLowerCase = lowerNormalizedDownloadRootPath + '\\';
 
                 if (lowerFilePath.startsWith(prefixLowerCase)) {
-                    // Use original file.path and original prefix length for substring to preserve casing
-                    pathInZip = file.path.substring(prefixOriginalCase.length);
+                    // Remove the download root prefix to get relative path
+                    // This makes the downloaded folder the root of the zip
+                    pathInZip = normalizedFilePath.substring(prefixOriginalCase.length);
                 } else if (lowerFilePath === lowerNormalizedDownloadRootPath) {
-                    // This case handles if normalizedDownloadRootPath was a file itself and is being "downloaded as a directory"
+                    // File is exactly the download root (single file download)
                     pathInZip = file.name;
                 } else {
-                    console.warn(`File path ${file.path} (lc: ${lowerFilePath}) does not match download root ${normalizedDownloadRootPath} (lc: ${lowerNormalizedDownloadRootPath}, prefix lc: ${prefixLowerCase}). Using basename ${file.name}.`);
-                    pathInZip = file.name; // Fallback
+                    // File doesn't match expected prefix - this shouldn't happen with proper recursive listing
+                    // But if it does, try to preserve relative structure from the download point
+                    console.warn(`File path ${normalizedFilePath} doesn't match expected prefix ${prefixOriginalCase}. Attempting to preserve relative structure.`);
+                    
+                    // Try to find the download root in the file path and extract everything after it
+                    const downloadRootParts = normalizedDownloadRootPath.split('\\').filter(p => p);
+                    const fileParts = normalizedFilePath.split('\\').filter(p => p);
+                    
+                    // Find the last occurrence of the download root pattern in the file path
+                    let matchIndex = -1;
+                    for (let i = 0; i <= fileParts.length - downloadRootParts.length; i++) {
+                        let matches = true;
+                        for (let j = 0; j < downloadRootParts.length; j++) {
+                            if (fileParts[i + j].toLowerCase() !== downloadRootParts[j].toLowerCase()) {
+                                matches = false;
+                                break;
+                            }
+                        }
+                        if (matches) {
+                            matchIndex = i + downloadRootParts.length;
+                        }
+                    }
+                    
+                    if (matchIndex !== -1 && matchIndex < fileParts.length) {
+                        // Use everything after the matched download root
+                        pathInZip = fileParts.slice(matchIndex).join('\\');
+                    } else {
+                        // Final fallback: just use the filename
+                        console.warn(`Could not determine relative path for ${normalizedFilePath}. Using filename only.`);
+                        pathInZip = file.name;
+                    }
                 }
             }
 
-            // Ensure pathInZip is not empty or just a separator, fallback to file.name
-            // This might happen if file.path was exactly normalizedDownloadRootPath and substring resulted in empty string.
-            if (!pathInZip || pathInZip === '\\') {
-                if (pathInZip === '' && lowerFilePath === lowerNormalizedDownloadRootPath) {
-                    // Correctly handle case where the item itself is the root, pathInZip should be its name
-                    pathInZip = file.name;
-                } else {
-                    console.warn(`pathInZip became invalid ('${pathInZip}') for file ${file.path} (root: ${normalizedDownloadRootPath}). Defaulting to basename ${file.name}.`);
-                    pathInZip = file.name;
-                }
+            // Ensure pathInZip is valid and preserves structure
+            if (!pathInZip || pathInZip === '\\' || pathInZip === '') {
+                // Last resort: use filename but warn about structure loss
+                console.warn(`Invalid pathInZip for ${normalizedFilePath}. Using filename only: ${file.name}`);
+                pathInZip = file.name;
             }
 
             try {
-                const blob = await downloadSMBFile(computer, share, file.path, true); // downloadSMBFile needs full path from share root
+                const blob = await downloadSMBFile(computer, share, file.path, true);
                 if (blob) {
-                    zip.file(pathInZip, blob); // Use the calculated relative path for the zip entry
+                    // Convert backslashes to forward slashes for JSZip compatibility
+                    const zipPath = pathInZip.replace(/\\/g, '/');
+                    zip.file(zipPath, blob);
                 }
                 completedFiles++;
                 
@@ -1761,7 +1849,7 @@ async function downloadSMBDirectory(computer, share, path, directoryName) {
                 updateDownloadProgress(downloadId, completedFiles, totalFiles);
                 statusElement.textContent = `${completedFiles}/${totalFiles} files`;
             } catch (error) {
-                console.error(`Error downloading file ${file.path}:`, error);
+                console.error(`Error downloading file ${normalizedFilePath}:`, error);
                 // Continue with next file even if one fails
             }
         }

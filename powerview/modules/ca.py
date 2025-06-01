@@ -148,6 +148,7 @@ class CAEnum:
         return self.ldap_session.extend.standard.paged_search(ca_search_base, enroll_filter, attributes=list(properties), paged_size=1000, generator=True)
 
     def fetch_enrollment_services(self,
+            identity=None,
             properties=[
                 "cn",
                 "name",
@@ -164,7 +165,11 @@ class CAEnum:
             raw=False,
             include_sd=False
         ):
-        enroll_filter = "(&(objectClass=pKIEnrollmentService))"
+        if identity:
+            identity_filter = f"(|(cn={identity})(name={identity}))"
+        else:
+            identity_filter = ""
+        enroll_filter = f"(&(objectClass=pKIEnrollmentService){identity_filter})"
 
         if not searchbase:
             searchbase = f"CN=Enrollment Services,CN=Public Key Services,CN=Services,{self.configuration_dn}"

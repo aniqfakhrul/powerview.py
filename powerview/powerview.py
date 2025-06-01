@@ -1286,6 +1286,7 @@ class PowerView:
 		return True
 
 	def get_domainrbcd(self, identity=None, args=None, no_cache=False, no_vuln_check=False, raw=True):
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
 		properties = [
 			"sAMAccountName",
 			"sAMAccountType",
@@ -1303,15 +1304,12 @@ class PowerView:
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
-		# set args to have rbcd attribute
-		setattr(args, "ldapfilter", "(msDS-AllowedToActOnBehalfOfOtherIdentity=*)")
-
 		# get source identity
 		sourceObj = self.get_domainobject(
 			identity=identity,
 			properties=properties,
 			searchbase=searchbase,
-			args=args,
+			ldap_filter="(msDS-AllowedToActOnBehalfOfOtherIdentity=*)",
 			sd_flag=0x05,
 			no_cache=no_cache,
 			no_vuln_check=no_vuln_check,
@@ -2312,6 +2310,7 @@ class PowerView:
 			"distinguishedName",
 			"displayName"
 		]
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
 		properties = args.properties if hasattr(args, 'properties') and args.properties else (properties if properties else def_prop)
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
@@ -2320,7 +2319,8 @@ class PowerView:
 
 		ca_fetch = CAEnum(self, check_all=check_all)
 		entries = ca_fetch.fetch_enrollment_services(
-			properties, 
+			identity=identity,
+			properties=properties, 
 			search_scope=search_scope, 
 			no_cache=no_cache, 
 			no_vuln_check=no_vuln_check,
@@ -5979,7 +5979,7 @@ displayName=New Group Policy Object
 				raw=raw
 			)
 		except ldap3.core.exceptions.LDAPObjectClassError as e:
-			if "invalid class in objectClass attribute: msExchExchangeServer" in str(e):
+			if "invalid class in objectClass attribute" in str(e):
 				logging.error("[Get-ExchangeServer] Error: Domain doesn't have Exchange servers")
 				return
 			else:
