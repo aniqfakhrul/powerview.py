@@ -493,6 +493,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Add share button handler
+    const addShareButton = document.getElementById('smb-add-share-button');
+    addShareButton.onclick = () => {
+        if (!activeComputer) {
+            showErrorAlert('Please connect to a computer first');
+            return;
+        }
+        showAddShareModal(activeComputer);
+    };
+
     // Add rename modal event listeners
     const renameConfirmBtn = document.getElementById('rename-confirm-btn');
     const renameCancelBtn = document.getElementById('rename-cancel-btn');
@@ -2539,6 +2549,24 @@ function showContextMenu(event, itemData) {
         contextMenuElement.appendChild(createMenuItem('New Folder', 'fas fa-folder-plus', () => {
             createSMBDirectory(itemData.computer, itemData.share, itemData.path);
         }));
+        
+        // Add Share option for directories (not shares themselves)
+        if (!itemData.isShare) {
+            contextMenuElement.appendChild(createMenuItem('Add Share Here', 'fas fa-share-alt text-blue-600 dark:text-blue-400', () => {
+                showAddShareModalForDirectory(itemData.computer, itemData.share, itemData.path, itemData.name);
+            }));
+        }
+        
+        // Share management options (only for shares)
+        if (itemData.isShare) {
+            contextMenuElement.appendChild(createMenuSeparator());
+            contextMenuElement.appendChild(createMenuItem('Add Share', 'fas fa-plus-circle text-green-600 dark:text-green-400', () => {
+                showAddShareModal(itemData.computer);
+            }));
+            contextMenuElement.appendChild(createMenuItem('Delete Share', 'fas fa-minus-circle text-red-600 dark:text-red-500', () => {
+                deleteSMBShare(itemData.computer, itemData.share);
+            }));
+        }
     } else {
         // File actions
         contextMenuElement.appendChild(createMenuItem('View', 'fas fa-eye', () => {
@@ -3161,6 +3189,24 @@ function showContextMenu(event, itemData) {
         contextMenuElement.appendChild(createMenuItem('New Folder', 'fas fa-folder-plus', () => {
             createSMBDirectory(itemData.computer, itemData.share, itemData.path);
         }));
+        
+        // Add Share option for directories (not shares themselves)
+        if (!itemData.isShare) {
+            contextMenuElement.appendChild(createMenuItem('Add Share Here', 'fas fa-share-alt text-blue-600 dark:text-blue-400', () => {
+                showAddShareModalForDirectory(itemData.computer, itemData.share, itemData.path, itemData.name);
+            }));
+        }
+        
+        // Share management options (only for shares)
+        if (itemData.isShare) {
+            contextMenuElement.appendChild(createMenuSeparator());
+            contextMenuElement.appendChild(createMenuItem('Add Share', 'fas fa-plus-circle text-green-600 dark:text-green-400', () => {
+                showAddShareModal(itemData.computer);
+            }));
+            contextMenuElement.appendChild(createMenuItem('Delete Share', 'fas fa-minus-circle text-red-600 dark:text-red-500', () => {
+                deleteSMBShare(itemData.computer, itemData.share);
+            }));
+        }
     } else {
         // File actions
         contextMenuElement.appendChild(createMenuItem('View', 'fas fa-eye', () => {
@@ -3532,5 +3578,468 @@ async function removeSMBSecurity(computer, share, path, username, isDirectory, i
     } catch (error) {
         console.error('Remove security error:', error);
         throw error;
+    }
+}
+
+// Share Management Functions
+function showAddShareModal(computer) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white dark:bg-neutral-900 rounded-lg shadow-lg p-4 max-w-md w-full max-h-[80vh] overflow-y-auto add-share-modal">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-semibold text-neutral-900 dark:text-white">Add New Share</h3>
+                <button class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 p-1 close-modal-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- Target computer info -->
+                <div class="p-2 bg-neutral-50 dark:bg-neutral-800 rounded-md">
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="text-xs font-medium text-neutral-900 dark:text-white">Target Computer</div>
+                        <span class="text-xs px-1.5 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                            Remote Host
+                        </span>
+                    </div>
+                    <div class="text-xs text-neutral-600 dark:text-neutral-400 break-all">
+                        ${computer}
+                    </div>
+                </div>
+                
+                <!-- Share name input -->
+                <div>
+                    <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Share Name <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="add-share-name" 
+                           placeholder="ShareName (e.g., PowerViewShare)" 
+                           class="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                    <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        Enter a name for the new share (no spaces or special characters recommended)
+                    </div>
+                </div>
+                
+                <!-- Local path input -->
+                <div>
+                    <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Local Path <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="add-share-path" 
+                           placeholder="C:\\temp\\shared (local path on target)" 
+                           class="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                    <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        Enter the local directory path on the target computer to share
+                    </div>
+                </div>
+                
+                <!-- Warning for red team operations -->
+                <div class="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-exclamation-triangle text-yellow-500 dark:text-yellow-400 mt-0.5"></i>
+                        <div class="text-xs text-yellow-700 dark:text-yellow-300">
+                            <strong>Red Team Note:</strong> Creating shares can be detected by security monitoring. Ensure this aligns with your engagement scope and cleanup procedures.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end gap-2">
+                <button class="px-3 py-1 bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-md text-sm font-medium close-modal-btn hover:bg-neutral-300 dark:hover:bg-neutral-600">
+                    Cancel
+                </button>
+                <button id="add-share-confirm" class="px-3 py-1 bg-green-600 dark:bg-green-500 text-white dark:text-black rounded-md text-sm font-medium hover:bg-green-700 dark:hover:bg-green-600">
+                    <i class="fas fa-plus fa-sm mr-1"></i>
+                    Create Share
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Get modal elements
+    const modalContent = modal.querySelector('.add-share-modal');
+    const shareNameInput = modal.querySelector('#add-share-name');
+    const sharePathInput = modal.querySelector('#add-share-path');
+    const confirmBtn = modal.querySelector('#add-share-confirm');
+    
+    // Focus on share name input
+    setTimeout(() => shareNameInput.focus(), 100);
+    
+    // Handle form submission
+    confirmBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const shareName = shareNameInput.value.trim();
+        const sharePath = sharePathInput.value.trim();
+        
+        if (!shareName) {
+            showErrorAlert('Please enter a share name');
+            return;
+        }
+        
+        if (!sharePath) {
+            showErrorAlert('Please enter a local path');
+            return;
+        }
+        
+        // Show loading state
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin fa-sm mr-1"></i> Creating...';
+        
+        try {
+            const response = await fetch('/api/smb/add-share', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    computer: computer,
+                    share_name: shareName,
+                    share_path: sharePath
+                })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to create share');
+            }
+            
+            const result = await response.json();
+            
+            // Close modal
+            document.body.removeChild(modal);
+            
+            // Show success message
+            const successMessage = result.message || `Share "${shareName}" created successfully at ${sharePath}`;
+            showSuccessAlert(successMessage);
+            
+            // Refresh the shares list for this computer
+            setTimeout(async () => {
+                try {
+                    const shares = await listSMBShares(computer);
+                    // Find the view for this computer and update it
+                    const computerView = document.getElementById(`view-${computer}`);
+                    if (computerView) {
+                        computerView.innerHTML = buildSMBTreeView(shares, computer);
+                        attachTreeViewListeners();
+                    }
+                } catch (error) {
+                    console.error('Error refreshing shares after creation:', error);
+                }
+            }, 500);
+            
+        } catch (error) {
+            console.error('Add share error:', error);
+            showErrorAlert(error.message);
+            
+            // Reset button state
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fas fa-plus fa-sm mr-1"></i> Create Share';
+        }
+    });
+    
+    // Prevent clicks inside the modal from propagating to document
+    modalContent.addEventListener('click', e => {
+        e.stopPropagation();
+    });
+    
+    // Add event listeners to close the modal
+    const closeButtons = modal.querySelectorAll('.close-modal-btn');
+    closeButtons.forEach(button => {
+        button.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            document.body.removeChild(modal);
+        });
+    });
+    
+    // Close on click outside of modal content
+    modal.addEventListener('click', e => {
+        if (e.target === modal) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.body.removeChild(modal);
+        }
+    });
+    
+    // Close on Escape key
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            document.body.removeChild(modal);
+            document.removeEventListener('keydown', handleEscape);
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
+}
+
+function showAddShareModalForDirectory(computer, share, directoryPath, directoryName) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+    
+    const normalizedPath = directoryPath.replace(/^[\/\\]+/, '').replace(/\//g, '\\');
+    const suggestedLocalPath = share === 'C$' ? `C:\\${normalizedPath}` : 
+                              share.endsWith('$') ? `${share.charAt(0)}:\\${normalizedPath}` :
+                              `\\\\${computer}\\${share}\\${normalizedPath}`;
+    
+    const suggestedShareName = directoryName ? directoryName.replace(/[^a-zA-Z0-9]/g, '') : 'NewShare';
+    
+    modal.innerHTML = `
+        <div class="bg-white dark:bg-neutral-900 rounded-lg shadow-lg p-4 max-w-md w-full max-h-[80vh] overflow-y-auto add-share-modal">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-semibold text-neutral-900 dark:text-white">Add Share for Directory</h3>
+                <button class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 p-1 close-modal-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- Target computer and directory info -->
+                <div class="p-2 bg-neutral-50 dark:bg-neutral-800 rounded-md">
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="text-xs font-medium text-neutral-900 dark:text-white">Target Directory</div>
+                        <span class="text-xs px-1.5 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                            ${computer}
+                        </span>
+                    </div>
+                    <div class="text-xs text-neutral-600 dark:text-neutral-400 break-all">
+                        \\\\${computer}\\${share}\\${normalizedPath}
+                    </div>
+                </div>
+                
+                <!-- Share name input -->
+                <div>
+                    <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Share Name <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="add-share-name" 
+                           value="${suggestedShareName}"
+                           placeholder="ShareName (e.g., PowerViewShare)" 
+                           class="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                    <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        Enter a name for the new share (no spaces or special characters recommended)
+                    </div>
+                </div>
+                
+                <!-- Local path input -->
+                <div>
+                    <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Local Path <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="add-share-path" 
+                           value="${suggestedLocalPath}"
+                           placeholder="C:\\temp\\shared (local path on target)" 
+                           class="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                    <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        Local directory path on the target computer (auto-suggested based on current location)
+                    </div>
+                </div>
+                
+                <!-- Info about the operation -->
+                <div class="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-info-circle text-blue-500 dark:text-blue-400 mt-0.5"></i>
+                        <div class="text-xs text-blue-700 dark:text-blue-300">
+                            <strong>Directory Share:</strong> This will create a new share pointing to the selected directory, making it accessible via SMB from other systems.
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Warning for red team operations -->
+                <div class="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-exclamation-triangle text-yellow-500 dark:text-yellow-400 mt-0.5"></i>
+                        <div class="text-xs text-yellow-700 dark:text-yellow-300">
+                            <strong>Red Team Note:</strong> Creating shares can be detected by security monitoring. Ensure this aligns with your engagement scope and cleanup procedures.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end gap-2">
+                <button class="px-3 py-1 bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-md text-sm font-medium close-modal-btn hover:bg-neutral-300 dark:hover:bg-neutral-600">
+                    Cancel
+                </button>
+                <button id="add-share-confirm" class="px-3 py-1 bg-green-600 dark:bg-green-500 text-white dark:text-black rounded-md text-sm font-medium hover:bg-green-700 dark:hover:bg-green-600">
+                    <i class="fas fa-share-alt fa-sm mr-1"></i>
+                    Create Share
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Get modal elements
+    const modalContent = modal.querySelector('.add-share-modal');
+    const shareNameInput = modal.querySelector('#add-share-name');
+    const sharePathInput = modal.querySelector('#add-share-path');
+    const confirmBtn = modal.querySelector('#add-share-confirm');
+    
+    // Select the suggested share name for easy editing
+    setTimeout(() => {
+        shareNameInput.focus();
+        shareNameInput.select();
+    }, 100);
+    
+    // Handle form submission
+    confirmBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const shareName = shareNameInput.value.trim();
+        const sharePath = sharePathInput.value.trim();
+        
+        if (!shareName) {
+            showErrorAlert('Please enter a share name');
+            return;
+        }
+        
+        if (!sharePath) {
+            showErrorAlert('Please enter a local path');
+            return;
+        }
+        
+        // Show loading state
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin fa-sm mr-1"></i> Creating...';
+        
+        try {
+            const response = await fetch('/api/smb/add-share', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    computer: computer,
+                    share_name: shareName,
+                    share_path: sharePath
+                })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to create share');
+            }
+            
+            const result = await response.json();
+            
+            // Close modal
+            document.body.removeChild(modal);
+            
+            // Show success message
+            const successMessage = result.message || `Share "${shareName}" created successfully for directory "${directoryName}"`;
+            showSuccessAlert(successMessage);
+            
+            // Refresh the shares list for this computer
+            setTimeout(async () => {
+                try {
+                    const shares = await listSMBShares(computer);
+                    // Find the view for this computer and update it
+                    const computerView = document.getElementById(`view-${computer}`);
+                    if (computerView) {
+                        computerView.innerHTML = buildSMBTreeView(shares, computer);
+                        attachTreeViewListeners();
+                    }
+                } catch (error) {
+                    console.error('Error refreshing shares after creation:', error);
+                }
+            }, 500);
+            
+        } catch (error) {
+            console.error('Add share error:', error);
+            showErrorAlert(error.message);
+            
+            // Reset button state
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fas fa-share-alt fa-sm mr-1"></i> Create Share';
+        }
+    });
+    
+    // Prevent clicks inside the modal from propagating to document
+    modalContent.addEventListener('click', e => {
+        e.stopPropagation();
+    });
+    
+    // Add event listeners to close the modal
+    const closeButtons = modal.querySelectorAll('.close-modal-btn');
+    closeButtons.forEach(button => {
+        button.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            document.body.removeChild(modal);
+        });
+    });
+    
+    // Close on click outside of modal content
+    modal.addEventListener('click', e => {
+        if (e.target === modal) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.body.removeChild(modal);
+        }
+    });
+    
+    // Close on Escape key
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            document.body.removeChild(modal);
+            document.removeEventListener('keydown', handleEscape);
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
+}
+
+async function deleteSMBShare(computer, shareName) {
+    // Show confirmation dialog
+    if (!confirm(`Are you sure you want to delete the share "${shareName}" on ${computer}?\n\nThis action cannot be undone and may affect other users accessing this share.`)) {
+        return;
+    }
+    
+    try {
+        showLoadingIndicator();
+        
+        const response = await fetch('/api/smb/delete-share', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                computer: computer,
+                share: shareName
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to delete share');
+        }
+        
+        const result = await response.json();
+        
+        // Show success message
+        const successMessage = result.message || `Share "${shareName}" deleted successfully`;
+        showSuccessAlert(successMessage);
+        
+        // Remove the share from the UI
+        const shareElement = document.querySelector(`.smb-tree-item[data-share="${shareName}"][data-computer="${computer}"]`);
+        if (shareElement) {
+            shareElement.remove();
+        }
+        
+        // If this was the active share, clear the sticky headers
+        const shareHeader = document.querySelector('#sticky-header-container span:first-child');
+        if (shareHeader && shareHeader.textContent === shareName) {
+            updateStickyHeaders();
+        }
+        
+    } catch (error) {
+        console.error('Delete share error:', error);
+        showErrorAlert(error.message);
+    } finally {
+        hideLoadingIndicator();
     }
 }

@@ -20,6 +20,69 @@ class SMBClient:
         
         return self.client.listShares()
 
+    def add_share(self, share, path):
+        if self.client is None:
+            logging.error("[SMBClient: add_share] Not logged in")
+            return
+        
+        rpctransport = transport.SMBTransport(self.client.getRemoteName(), self.client.getRemoteHost(), filename=r'\srvsvc',
+                                              smb_connection=self.client)
+        dce = rpctransport.get_dce_rpc()
+        dce.connect()
+        dce.bind(srvs.MSRPC_UUID_SRVS)
+
+        # Use SHARE_INFO_2 instead of 502 for simpler structure
+        info_2 = srvs.SHARE_INFO_2()
+        info_2['shi2_netname'] = share.replace('/', '\\').replace('\\\\', '\\') + '\x00'
+        info_2['shi2_type'] = 0  # STYPE_DISKTREE
+        info_2['shi2_remark'] = 'Created by PowerView\x00'
+        info_2['shi2_permissions'] = 0x00000000
+        info_2['shi2_max_uses'] = 0xFFFFFFFF  # No limit
+        info_2['shi2_current_uses'] = 0
+        info_2['shi2_path'] = path + '\x00'
+        info_2['shi2_passwd'] = '\x00'
+        
+        try:
+            resp = srvs.hNetrShareAdd(
+                dce,
+                2,  # Use level 2
+                info_2
+            )
+            if resp['ErrorCode'] != 0:
+                error_msg = f"Error code: 0x{resp['ErrorCode']:x}"
+                logging.error(f"[SMBClient: add_share] Error adding share: {error_msg}")
+                raise Exception(f"[SMBClient: add_share] Error adding share: {error_msg}")
+            else:
+                logging.debug(f"[SMBClient: add_share] Successfully added share: {share}")
+                return True
+        except Exception as e:
+            logging.error(f"[SMBClient: add_share] Error adding share: {e}")
+            return False
+
+    def delete_share(self, share):
+        if self.client is None:
+            logging.error("[SMBClient: delete_share] Not logged in")
+            return
+        
+        rpctransport = transport.SMBTransport(self.client.getRemoteName(), self.client.getRemoteHost(), filename=r'\srvsvc',
+                                              smb_connection=self.client)
+        dce = rpctransport.get_dce_rpc()
+        dce.connect()
+        dce.bind(srvs.MSRPC_UUID_SRVS)
+        
+        try:
+            resp = srvs.hNetrShareDel(dce, share.replace('/', '\\').replace('\\\\', '\\') + '\x00')
+            if resp['ErrorCode'] != 0:
+                error_msg = f"Error code: 0x{resp['ErrorCode']:x}"
+                logging.error(f"[SMBClient: delete_share] Error deleting share: {error_msg}")
+                raise Exception(f"[SMBClient: delete_share] Error deleting share: {error_msg}")
+            else:
+                logging.debug(f"[SMBClient: delete_share] Successfully deleted share: {share}")
+                return True
+        except Exception as e:
+            logging.error(f"[SMBClient: delete_share] Error deleting share: {e}")
+            return False
+
     def share_info(self, share):
         if self.client is None:
             logging.error("[SMBClient: share_info] Not logged in")

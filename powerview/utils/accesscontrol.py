@@ -8,6 +8,10 @@ from powerview.modules.ldapattack import ACE_FLAGS, OBJECT_ACE_FLAGS, SIMPLE_PER
 
 class AccessControl:
 	@staticmethod
+	def get_default_sd():
+		return AccessControl.create_empty_sd()
+
+	@staticmethod
 	def create_empty_sd(
 		owner_sid: str='S-1-5-32-544', 
 		control: int=32772,

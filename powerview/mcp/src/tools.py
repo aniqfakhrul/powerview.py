@@ -1658,10 +1658,6 @@ def setup_tools(mcp, powerview_instance):
 			if not client:
 				return _format_mcp_response(error=f"Failed to connect to {host}")
 
-			if not hasattr(powerview_instance.conn, 'smb_sessions'):
-				powerview_instance.conn.smb_sessions = {}
-			powerview_instance.conn.smb_sessions[computer.lower()] = client
-
 			return _format_mcp_response(data={"status": "connected", "host": host})
 		except Exception as e:
 			return _format_mcp_response(error=str(e))
@@ -1687,10 +1683,11 @@ def setup_tools(mcp, powerview_instance):
 			if not host:
 				return _format_mcp_response(error="Computer name/IP is required")
 			
-			if not hasattr(powerview_instance.conn, 'smb_sessions') or host not in powerview_instance.conn.smb_sessions:
+			try:
+				client = powerview_instance.conn.init_smb_session(host)
+			except Exception as e:
 				return _format_mcp_response(error="No active SMB session. Please connect first")
 
-			client = powerview_instance.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 			shares = smb_client.shares()
 
@@ -1733,10 +1730,11 @@ def setup_tools(mcp, powerview_instance):
 			if not host or not share:
 				return _format_mcp_response(error="Computer name/IP and share name are required")
 
-			if not hasattr(powerview_instance.conn, 'smb_sessions') or host not in powerview_instance.conn.smb_sessions:
+			try:
+				client = powerview_instance.conn.init_smb_session(host)
+			except Exception as e:
 				return _format_mcp_response(error="No active SMB session. Please connect first")
 			
-			client = powerview_instance.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 			
 			files = smb_client.ls(share, path)
