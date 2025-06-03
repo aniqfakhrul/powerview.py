@@ -427,6 +427,12 @@ def main():
                                         entries = powerview.get_netsession(identity=computername, port=445, args=pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'remove-netsession':
+                                if pv_args.computer is not None:
+                                    if temp_powerview:
+                                        succeed = temp_powerview.remove_netsession(computer=pv_args.computer, target_session=pv_args.target_session, args=pv_args)
+                                    else:
+                                        succeed = powerview.remove_netsession(computer=pv_args.computer, target_session=pv_args.target_session, args=pv_args)
                             elif pv_args.module.casefold() == 'find-localadminaccess':
                                 if temp_powerview:
                                     entries = temp_powerview.find_localadminaccess(args=pv_args)

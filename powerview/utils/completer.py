@@ -74,6 +74,7 @@ COMMANDS = {
     'Unlock-ADAccount':['-Identity','-SearchBase', '-Server', '-Outfile'],
     'Get-DomainObject':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-NoCache', '-NoVulnCheck', '-TableView', '-SortBy','-OutFile', '-Raw'],
     'Get-ADObject':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-Raw'],
+    'Remove-NetSession':['-Computer','-TargetSession','-Username','-Password','-Hash','-Server', '-OutFile', '-Count'],
     'Remove-DomainObject':['-Identity','-SearchBase','-Server','-OutFile'],
     'Remove-ADObject':['-Identity','-SearchBase','-Server','-OutFile'],
     'Remove-NetService':['-Computer','-Name'],

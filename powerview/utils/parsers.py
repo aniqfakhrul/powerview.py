@@ -687,6 +687,18 @@ def powerview_arg_parse(cmd):
 	get_netsession_parser.add_argument('-Count', action='store_true', dest='count')
 	get_netsession_parser.add_argument('-OutFile', action='store', dest='outfile')
 
+	# remove-netsession
+	remove_netsession_parser = subparsers.add_parser('Remove-NetSession', exit_on_error=False)
+	remove_netsession_parser.add_argument('-Computer', action='store', required=True, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	remove_netsession_parser.add_argument('-TargetSession', action='store', required=True, dest='target_session', type=lambda value: escape_filter_chars_except_asterisk(value))
+	remove_netsession_parser.add_argument('-Username', action='store', default=None, dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
+	remove_netsession_cred_group = remove_netsession_parser.add_mutually_exclusive_group()
+	remove_netsession_cred_group.add_argument('-Password', action='store', default=None, dest='password')
+	remove_netsession_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
+	remove_netsession_parser.add_argument('-Server', action='store', dest='server')
+	remove_netsession_parser.add_argument('-OutFile', action='store', dest='outfile')
+	remove_netsession_parser.add_argument('-Count', action='store_true', dest='count')
+	
 	# get-netservice
 	get_netservice_parser = subparsers.add_parser('Get-NetService', exit_on_error=False)
 	get_netservice_parser.add_argument('-Name', action='store', dest='name', type=lambda value: escape_filter_chars_except_asterisk(value))

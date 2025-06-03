@@ -3491,13 +3491,57 @@ displayName=New Group Policy Object
 		return succeeded
 
 	def disable_domaindnsrecord(self, recordname, zonename=None):
-		succeed = self.set_domaindnsrecord(
-			recordname=recordname,
-			recordaddress="0.0.0.0",
-			zonename=zonename,
+		import struct
+		from datetime import datetime, timezone
+		
+		utc_now = datetime.now(timezone.utc)
+		ticks_1601 = datetime(1601, 1, 1, tzinfo=timezone.utc).timestamp() * 10000000
+		ticks_now = utc_now.timestamp() * 10000000
+		timestamp = int(ticks_now - ticks_1601)
+		
+		timestamp_bytes = struct.pack('<Q', timestamp)
+		
+		soa_serial_array = [0x00, 0x00, 0x00, 0x01]
+		
+		dns_record = bytes([0x08, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00]) + \
+					bytes(soa_serial_array) + \
+					bytes([0x00] * 12) + \
+					timestamp_bytes
+
+		# succeed = self.set_domaindnsrecord(
+		# 	recordname=recordname,
+		# 	recordaddress="0.0.0.0",
+		# 	zonename=zonename,
+		# )
+		entry = self.get_domaindnsrecord(identity=recordname, zonename=zonename)
+		if len(entry) == 0:
+			logging.error("[Disable-DomainDNSRecord] No record found")
+			return
+		elif len(entry) > 1:
+			logging.error("[Disable-DomainDNSRecord] More than one record found")
+			return
+
+		record_dn = entry[0]["attributes"]["distinguishedName"]
+		record_name = entry[0]["attributes"]["name"]
+		
+		changed_dns_record = self.set_domainobject(
+			identity=record_name,
+			_set = {
+				'attribute': 'dnsRecord',
+				'value': dns_record
+			},
+			searchbase=record_dn
+		)
+		changed_dns_tombstone = self.set_domainobject(
+			identity=record_name,
+			_set = {
+				'attribute': 'dnsTombstoned',
+				'value': True
+			},
+			searchbase=record_dn
 		)
 
-		if succeed:
+		if changed_dns_record and changed_dns_tombstone:
 			logging.info(f"[Disable-DomainDNSRecord] {recordname} dns record disabled")
 			return True
 		else:
@@ -5823,6 +5867,78 @@ displayName=New Group Policy Object
 				})
 
 		return sessions
+
+	def remove_netsession(self, computer=None, target_session=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if not computer and not target_session:
+			logging.error("[Remove-NetSession] Either computer or target_session is required")
+			return
+		
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Remove-NetSession] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+		
+		if username and not (password or lmhash or nthash):
+			logging.error("[Remove-NetSession] Password or hash is required when specifying a username")
+			return
+
+		KNOWN_PROTOCOLS = {
+			139: {'bindstr': r'ncacn_np:%s[\pipe\srvsvc]', 'set_host': True},
+			445: {'bindstr': r'ncacn_np:%s[\pipe\srvsvc]', 'set_host': True},
+		}
+
+		if is_ipaddress(computer) and self.use_kerberos:
+			logging.error("[Remove-NetSession] Use FQDN when using kerberos")
+			return
+
+		if is_valid_fqdn(computer) and not self.use_kerberos:
+			computer = host2ip(computer, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer
+		dce = self.conn.connectRPCTransport(
+			host=computer,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			stringBindings=stringBinding,
+			interface_uuid = srvs.MSRPC_UUID_SRVS
+		)
+
+		if dce is None:
+			logging.error("[Remove-NetSession] Failed to connect to %s" % (computer))
+			return
+		
+		try:
+			resp = srvs.hNetrSessionDel(
+				dce,
+				NULL,
+				target_session + '\x00'
+			)
+		except Exception as e:
+			if 'rpc_s_access_denied' in str(e) or '0x5' in str(e):
+				logging.error('Access denied while removing session on %s' % (computer))
+			elif '0x908' in str(e) or 'NERR_ClientNameNotFound' in str(e):
+				logging.error('Session not found on %s' % (computer))
+			elif '0x57' in str(e) or 'ERROR_INVALID_PARAMETER' in str(e):
+				logging.error('Invalid parameter while removing session on %s' % (computer))
+			elif '0x8' in str(e) or 'ERROR_NOT_ENOUGH_MEMORY' in str(e):
+				logging.error('Not enough memory while removing session on %s' % (computer))
+			else:
+				logging.error(str(e))
+			return
+
+		logging.info(f"[Remove-NetSession] Session {target_session} removed from {computer}")
+		return True
 
 	def get_domaintrustkey(self, identity=None, properties=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False, args=None):
 		"""
