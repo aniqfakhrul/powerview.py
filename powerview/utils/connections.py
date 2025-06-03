@@ -418,13 +418,15 @@ class SMBConnectionEntry(ConnectionPoolEntry):
 		super().__init__(connection, host, created_time)
 		self.host = host
 	
-	def is_alive(self):
+	def is_alive(self, force_check=False):
 		"""Check if the underlying SMB connection is still alive"""
 		with self._lock:
 			if not self.is_healthy:
 				return False
 			try:
-				self.connection.listShares()
+				if force_check:
+					logging.debug("Forcing SMB connection health check")
+					self.connection.listShares()
 				return True
 			except Exception:
 				self.is_healthy = False
@@ -463,7 +465,7 @@ class SMBConnectionPool(ConnectionPool):
 		
 		for host, entry in keepalive_hosts:
 			try:
-				if entry.is_alive():
+				if entry.is_alive(force_check=True):
 					entry.mark_used()
 					# logging.debug(f"SMB connection alive for host: {host}")
 				else:
