@@ -5919,6 +5919,7 @@ displayName=New Group Policy Object
 			return
 		
 		try:
+			logging.info(f"[Remove-NetSession] Removing session {target_session} from {computer}")
 			resp = srvs.hNetrSessionDel(
 				dce,
 				NULL,

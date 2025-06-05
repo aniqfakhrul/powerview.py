@@ -1925,7 +1925,7 @@ function updateModalSessionsContent(sessionsData) {
     if (!sessionsData || !Array.isArray(sessionsData) || sessionsData.length === 0) {
         sessionsRows.innerHTML = `
             <tr>
-                <td colspan="4" class="px-3 py-4 text-center text-neutral-500 dark:text-neutral-400">
+                <td colspan="5" class="px-3 py-4 text-center text-neutral-500 dark:text-neutral-400">
                     No active sessions found
                 </td>
             </tr>
@@ -1948,15 +1948,70 @@ function updateModalSessionsContent(sessionsData) {
         );
 
         const attrs = session.attributes;
+        const clientIP = attrs.IP ? attrs.IP.replace(/\\/g, '') : '';
+        const computer = attrs.Computer || '';
+        const username = attrs.Username || '';
+        
         row.innerHTML = `
-            <td class="px-3 py-2">${attrs.Username || ''}</td>
-            <td class="px-3 py-2">${attrs.IP ? attrs.IP.replace(/\\/g, '') : ''}</td>
-            <td class="px-3 py-2">${attrs.Time ? `${attrs.Time} minutes` : ''}</td>
-            <td class="px-3 py-2">${attrs['Idle Time'] ? `${attrs['Idle Time']} minutes` : ''}</td>
+            <td class="px-3 py-2">${username}</td>
+            <td class="px-3 py-2">${clientIP}</td>
+            <td class="px-3 py-2">${attrs['Time Active'] || ''}</td>
+            <td class="px-3 py-2">${attrs['Idle Time'] || ''}</td>
+            <td class="px-3 py-2 text-right">
+                <button onclick="removeNetSession('${computer}', '${username}')" 
+                    class="text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors"
+                    title="Remove Session for ${username}">
+                    <i class="fas fa-times"></i>
+                </button>
+            </td>
         `;
 
         sessionsRows.appendChild(row);
     });
+}
+
+async function removeNetSession(computer, targetSession) {
+    if (!computer || !targetSession) {
+        showErrorAlert('Computer and target session (username) are required');
+        return;
+    }
+
+    try {
+        showLoadingIndicator();
+        
+        const response = await fetch('/api/remove/netsession', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                computer: computer,
+                target_session: targetSession
+            })
+        });
+
+        await handleHttpError(response);
+        const result = await response.json();
+
+        if (result === true || (result && result.status === 'success')) {
+            showSuccessAlert(`Session for user ${targetSession} removed successfully from ${computer}`);
+            
+            // Refresh the sessions list
+            const modal = document.getElementById('ldap-attributes-modal');
+            const dnsHostnameInput = modal.querySelector('#dNSHostName-wrapper input');
+            const dnsHostname = dnsHostnameInput?.value;
+            if (dnsHostname) {
+                await fetchAndDisplayModalSessions(dnsHostname);
+            }
+        } else {
+            showErrorAlert('Failed to remove session');
+        }
+    } catch (error) {
+        console.error('Error removing session:', error);
+        showErrorAlert(`Failed to remove session: ${error.message}`);
+    } finally {
+        hideLoadingIndicator();
+    }
 }
 
 async function fetchAndDisplayModalLogonUsers(dnsHostname) {
