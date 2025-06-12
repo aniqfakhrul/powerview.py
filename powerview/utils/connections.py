@@ -1546,6 +1546,7 @@ class LDAPSRelayServer(LDAPRelayServer):
 		self.ldap_relay.scheme = "LDAPS"
 		self.server = ldap3.Server("ldaps://%s:%s" % (self.targetHost, self.targetPort), get_info=ldap3.ALL)
 		self.session = ldap3.Connection(self.server, user="a", password="b", authentication=ldap3.NTLM)
+		# embed()
 		try:
 			self.session.open(False)
 		except:
@@ -1771,13 +1772,15 @@ class Relay:
 			sys.exit()
 
 	def get_relay_ldap_server(self, *args, **kwargs) -> LDAPRelayClient:
-		server = super().get_relay_ldap_server(*args, **kwargs)
+		server = LDAPRelayServer(*args, **kwargs)
+		server.ldap_relay = self
 		if server:
 			self._servers.append(server)
 		return server
 
 	def get_relay_ldaps_server(self, *args, **kwargs) -> LDAPRelayClient:
-		server = super().get_relay_ldaps_server(*args, **kwargs)
+		server = LDAPSRelayServer(*args, **kwargs)
+		server.ldap_relay = self 
 		if server:
 			self._servers.append(server)
 		return server
