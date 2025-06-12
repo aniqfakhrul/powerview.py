@@ -1546,7 +1546,6 @@ class LDAPSRelayServer(LDAPRelayServer):
 		self.ldap_relay.scheme = "LDAPS"
 		self.server = ldap3.Server("ldaps://%s:%s" % (self.targetHost, self.targetPort), get_info=ldap3.ALL)
 		self.session = ldap3.Connection(self.server, user="a", password="b", authentication=ldap3.NTLM)
-		# embed()
 		try:
 			self.session.open(False)
 		except:
