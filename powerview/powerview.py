@@ -903,6 +903,7 @@ class PowerView:
 				logging.error(f"[Get-DomainObjectAcl] Error searching for GUIDs in {searchbase}. Ignoring...")
 
 		principal_SID = None
+		principal_identity_groups_sid = []
 		if security_identifier:
 			principalsid_entry = self.get_domainobject(
 				identity=security_identifier, 
