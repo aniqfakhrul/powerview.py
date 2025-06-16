@@ -1241,7 +1241,7 @@ class ACLEnum:
         return parsed_dacl
 
     def parseACE(self, ace):
-        if self.__principalidentity and self.__principalidentity != ace["Ace"]["Sid"].formatCanonical() and ace["Ace"]["Sid"].formatCanonical() not in self.__principal_identity_groups_sid:
+        if self.__principalidentity and self.__principalidentity != ace["Ace"]["Sid"].formatCanonical() or ace["Ace"]["Sid"].formatCanonical() not in self.__principal_identity_groups_sid:
             return
 
         if ace['TypeName'] in ["ACCESS_ALLOWED_ACE", "ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_ACE", "ACCESS_DENIED_OBJECT_ACE"]:
