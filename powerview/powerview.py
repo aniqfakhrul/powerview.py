@@ -906,7 +906,7 @@ class PowerView:
 		if security_identifier:
 			principalsid_entry = self.get_domainobject(
 				identity=security_identifier, 
-				properties=['objectSid'], 
+				properties=['objectSid', 'memberOf'], 
 				no_cache=no_cache, 
 				searchbase=searchbase, 
 				no_vuln_check=no_vuln_check,
@@ -928,9 +928,11 @@ class PowerView:
 				return None
 
 			security_identifier = principalsid_entry[0]['attributes']['objectSid'] if not principal_SID else principal_SID
+			principal_identity_memberof = principalsid_entry[0].get("attributes", {}).get("memberOf", [])
+			principal_identity_groups_sid = [self.convertto_sid(sid) for sid in principal_identity_memberof] if isinstance(principal_identity_memberof, list) else [self.convertto_sid(principal_identity_memberof)]
 
 		target_dn = None
-		if identity:
+		if identity and identity != ldap3.ALL_ATTRIBUTES:
 			identity_entries = self.get_domainobject(
 				identity=identity, 
 				properties=['objectSid', 'distinguishedName'], 
@@ -972,7 +974,7 @@ class PowerView:
 			logging.error('[Get-DomainObjectAcl] Identity not found in domain')
 			return None
 
-		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=security_identifier, guids_map_dict=guids_dict)
+		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=security_identifier, principal_identity_groups_sid=principal_identity_groups_sid, guids_map_dict=guids_dict)
 		return enum.read_dacl()
 
 	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolveip=False, resolvesids=False, ldapfilter=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
@@ -3608,6 +3610,7 @@ displayName=New Group Policy Object
 		if not identity:
 			logging.error('[Remove-DomainUser] Identity is required')
 			return
+
 		entries = self.get_domainuser(identity=identity)
 		if len(entries) == 0:
 			logging.error('[Remove-DomainUser] Identity not found in domain')
@@ -3669,7 +3672,7 @@ displayName=New Group Policy Object
 
 		logging.debug(f"[Add-DomainUser] Adding user in {parent_dn_entries}")
 		
-		if self.ssl:
+		if self.conn.use_ldaps:
 			logging.debug("[Add-DomainUser] Adding user through %s" % self.conn.proto)
 			au = ADUser(self.ldap_session, self.root_dn, parent = parent_dn_entries)
 			succeed = au.addUser(username, userpass)
@@ -3699,9 +3702,13 @@ displayName=New Group Policy Object
 		else:
 			logging.info('[Add-DomainUser] Success! Created new user')
 
-			if not self.ssl:
-				logging.info("[Add-DomainUser] Adding password to account")
-				self.set_domainuserpassword(udn, userpass)
+			if not self.conn.use_ldaps:
+				logging.info("[Add-DomainUser] Setting password via LDAP modify operation")
+				password_set = self.set_domainuserpassword(udn, userpass)
+				if not password_set:
+					logging.error("[Add-DomainUser] Password setting failed, removing created user to prevent security hole")
+					self.remove_domainuser(udn)
+					return False
 			
 			return True
 
@@ -4450,7 +4457,8 @@ displayName=New Group Policy Object
 			logging.error(f'[Set-DomainUserPassword] Multiple principal objects found in domain. Use specific identifier')
 			return
 		logging.info(f'[Set-DomainUserPassword] Principal {"".join(entries[0]["attributes"]["distinguishedName"])} found in domain')
-		if self.ssl:
+		
+		if self.conn.use_ldaps:
 			logging.debug("[Set-DomainUserPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
 			succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0]["attributes"]["distinguishedName"], accountpassword, old_password=oldpassword)
 			if succeed:
@@ -4464,7 +4472,7 @@ displayName=New Group Policy Object
 			try:
 				dce = self.conn.init_samr_session()
 				if not dce:
-					logging.error('Error binding with SAMR')
+					logging.error('[Set-DomainUserPassword] Error binding with SAMR')
 					return
 
 				server_handle = samr.hSamrConnect(dce, self.dc_ip + '\x00')['ServerHandle']
@@ -4500,7 +4508,7 @@ displayName=New Group Policy Object
 			logging.error("[Get-DomainComputerPassword] Multiple computers found in domain")
 			return False
 
-		if self.ssl:
+		if self.conn.use_ldaps:
 			logging.debug("[Set-DomainComputerPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
 			succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0]["attributes"]["distinguishedName"], accountpassword, old_password=oldpassword)
 			if succeed:

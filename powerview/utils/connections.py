@@ -2112,10 +2112,12 @@ class CONNECTION:
 			rpctransport.setRemoteHost(host)
 
 		dce = rpctransport.get_dce_rpc()
+		if self.use_kerberos:
+			dce.set_auth_type(RPC_C_AUTHN_GSS_NEGOTIATE)
 
 		if set_authn:
 			dce.set_auth_type(RPC_C_AUTHN_WINNT)
-			dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+			dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)		
 
 		try:
 			dce.connect()
@@ -2693,13 +2695,15 @@ class Relay:
 			sys.exit()
 
 	def get_relay_ldap_server(self, *args, **kwargs) -> LDAPRelayClient:
-		server = super().get_relay_ldap_server(*args, **kwargs)
+		server = LDAPRelayServer(*args, **kwargs)
+		server.ldap_relay = self
 		if server:
 			self._servers.append(server)
 		return server
 
 	def get_relay_ldaps_server(self, *args, **kwargs) -> LDAPRelayClient:
-		server = super().get_relay_ldaps_server(*args, **kwargs)
+		server = LDAPSRelayServer(*args, **kwargs)
+		server.ldap_relay = self
 		if server:
 			self._servers.append(server)
 		return server

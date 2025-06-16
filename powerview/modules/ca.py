@@ -264,6 +264,7 @@ class CAEnum:
         entries = {}
 
         stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
+        computer_name = host2ip(computer_name, self.powerview.conn.nameserver, 3, True, use_system_ns=self.powerview.conn.use_system_ns)
         dce = self.powerview.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
 
         if not dce:

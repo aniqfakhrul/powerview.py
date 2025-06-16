@@ -765,7 +765,7 @@ def setup_tools(mcp, powerview_instance):
 		Args:
 			identity: Filter by CA identity (name, DN). Defaults to empty (all CAs).
 			properties: Comma-separated list of properties to retrieve. Defaults to '*'.
-			check_all: Check all CA configurations.
+			check_all: Check all CA configurations (recommended to get all cert managers and web enrollment status).
 			ldapfilter: Custom LDAP filter string.
 			searchbase: Specify the search base DN (usually Configuration NC).
 			no_cache: Bypass the cache and perform a live query.
@@ -1133,10 +1133,15 @@ def setup_tools(mcp, powerview_instance):
 		try:
 			if not members.strip():
 				return _format_mcp_response(success=False, message="Members string cannot be empty.")
+			
 			# Split comma-separated members into a list
 			member_list = [m.strip() for m in members.split(',') if m.strip()]
 
-			result = powerview_instance.add_domaingroupmember(identity=identity, members=member_list, args=None)
+			for member in member_list:
+				if not member.strip():
+					return _format_mcp_response(success=False, message=f"Member '{member}' is empty.")
+
+				result = powerview_instance.add_domaingroupmember(identity=identity, members=member, args=None)
 
 			if result is True:
 					return _format_mcp_response(success=True, message=f"Attempted to add members {member_list} to group '{identity}'.")
