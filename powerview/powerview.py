@@ -903,11 +903,10 @@ class PowerView:
 				logging.error(f"[Get-DomainObjectAcl] Error searching for GUIDs in {searchbase}. Ignoring...")
 
 		principal_SID = None
-		principal_identity_groups_sid = []
 		if security_identifier:
 			principalsid_entry = self.get_domainobject(
 				identity=security_identifier, 
-				properties=['objectSid', 'memberOf'], 
+				properties=['objectSid'], 
 				no_cache=no_cache, 
 				searchbase=searchbase, 
 				no_vuln_check=no_vuln_check,
@@ -929,11 +928,9 @@ class PowerView:
 				return None
 
 			security_identifier = principalsid_entry[0]['attributes']['objectSid'] if not principal_SID else principal_SID
-			principal_identity_memberof = principalsid_entry[0].get("attributes", {}).get("memberOf", [])
-			principal_identity_groups_sid = [self.convertto_sid(sid) for sid in principal_identity_memberof] if isinstance(principal_identity_memberof, list) else [self.convertto_sid(principal_identity_memberof)]
 
 		target_dn = None
-		if identity and identity != ldap3.ALL_ATTRIBUTES:
+		if identity:
 			identity_entries = self.get_domainobject(
 				identity=identity, 
 				properties=['objectSid', 'distinguishedName'], 
@@ -975,7 +972,7 @@ class PowerView:
 			logging.error('[Get-DomainObjectAcl] Identity not found in domain')
 			return None
 
-		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=security_identifier, principal_identity_groups_sid=principal_identity_groups_sid, guids_map_dict=guids_dict)
+		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=security_identifier, guids_map_dict=guids_dict)
 		return enum.read_dacl()
 
 	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolveip=False, resolvesids=False, ldapfilter=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):

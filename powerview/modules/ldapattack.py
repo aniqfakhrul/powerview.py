@@ -1171,7 +1171,7 @@ class ALLOWED_OBJECT_ACE_MASK_FLAGS(Enum):
     Self = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_SELF
 
 class ACLEnum:
-    def __init__(self, powerview, entries, root_dn, resolveguids=None, targetidentity=None, principalidentity=None, principal_identity_groups_sid=None, guids_map_dict=None):
+    def __init__(self, powerview, entries, root_dn, resolveguids=None, targetidentity=None, principalidentity=None, guids_map_dict=None):
         self.entries = entries
         self.powerview = powerview
         self.root_dn = root_dn
@@ -1181,7 +1181,6 @@ class ACLEnum:
         self.__resolveguids = resolveguids
         self.__targetidentity = targetidentity
         self.__principalidentity = principalidentity
-        self.__principal_identity_groups_sid = principal_identity_groups_sid
         
         # Combine the GUID maps
         self.__guids_map_dict = {}
@@ -1258,10 +1257,7 @@ class ACLEnum:
                 parsed_ace['ActiveDirectoryRights'] = ",".join(self.parsePerms(ace["Ace"]["Mask"]["Mask"]))
                 parsed_ace['AccessMask'] = ",".join(self.parsePerms(ace['Ace']['Mask']['Mask']))
                 parsed_ace['InheritanceType'] = "None"
-                if self.__principal_identity_groups_sid:
-                    parsed_ace['SecurityIdentifier'] = "%s (%s)" % (self.powerview.convertfrom_sid(ace['Ace']['Sid'].formatCanonical()), self.powerview.convertfrom_sid(self.__principalidentity))
-                else:
-                    parsed_ace['SecurityIdentifier'] = self.powerview.convertfrom_sid(ace['Ace']['Sid'].formatCanonical())
+                parsed_ace['SecurityIdentifier'] = self.powerview.convertfrom_sid(ace['Ace']['Sid'].formatCanonical())
             
             elif ace['TypeName'] in ["ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_OBJECT_ACE"]:
                 # Parse Access Mask Flags
