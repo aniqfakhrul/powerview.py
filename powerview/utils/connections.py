@@ -483,7 +483,7 @@ class SMBConnectionPool(ConnectionPool):
 						entry.close()
 						logging.debug(f"Removed dead SMB connection for host: {host}")
 	
-	def get_connection(self, host, connection_factory):
+	def get_connection(self, host, connection_factory, show_exceptions=True):
 		"""
 		Get an SMB connection for the specified host, creating one if necessary
 		
@@ -533,8 +533,9 @@ class SMBConnectionPool(ConnectionPool):
 				
 			except Exception as e:
 				self._record_connection_attempt(host, success=False)
-				logging.error(f"Failed to create SMB connection for host {host}: {str(e)}")
-				raise
+				if show_exceptions:
+					logging.error(f"Failed to create SMB connection for host {host}: {str(e)}")
+					raise
 	
 	def add_connection(self, connection, host):
 		"""Add an SMB connection to the pool with proper validation and management"""
@@ -1871,7 +1872,7 @@ class CONNECTION:
 
 		return True
 
-	def init_smb_session(self, host, username=None, password=None, nthash=None, lmhash=None, aesKey=None, domain=None, timeout=10, useCache=True, force_new=False):
+	def init_smb_session(self, host, username=None, password=None, nthash=None, lmhash=None, aesKey=None, domain=None, timeout=10, useCache=True, force_new=False, show_exceptions=True):
 		"""
 		Initialize or retrieve an SMB session using the connection pool
 		
@@ -1900,10 +1901,11 @@ class CONNECTION:
 			return self._create_smb_connection(host, username, password, nthash, lmhash, aesKey, domain, timeout, useCache)
 		
 		try:
-			return self._smb_pool.get_connection(host, smb_connection_factory)
+			return self._smb_pool.get_connection(host, smb_connection_factory, show_exceptions=show_exceptions)
 		except Exception as e:
-			logging.error(f"Failed to get SMB connection for host {host}: {str(e)}")
-			raise
+			if show_exceptions:
+				logging.error(f"Failed to get SMB connection for host {host}: {str(e)}")
+				raise
 
 	def _create_smb_connection(self, host, username=None, password=None, nthash=None, lmhash=None, aesKey=None, domain=None, timeout=10, useCache=True):
 		"""

@@ -5003,7 +5003,8 @@ displayName=New Group Policy Object
 					password=current_password,
 					domain=current_domain,
 					lmhash=current_lmhash,
-					nthash=current_nthash
+					nthash=current_nthash,
+					show_exceptions=False
 				)
 
 				if not smbconn:
