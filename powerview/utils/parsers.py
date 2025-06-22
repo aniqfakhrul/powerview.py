@@ -760,6 +760,8 @@ def powerview_arg_parse(cmd):
 	find_localadminaccess_parser.add_argument('-Username', action='store', dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
 	find_localadminaccess_parser.add_argument('-Password', action='store', dest='password')
 	find_localadminaccess_parser.add_argument('-Hash', action='store', dest='hash')
+	find_localadminaccess_parser.add_argument('-NoResolve', action='store_true', default=False, dest='no_resolve')
+	find_localadminaccess_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
 	find_localadminaccess_parser.add_argument('-Server', action='store', dest='server')
 	find_localadminaccess_parser.add_argument('-Count', action='store_true', dest='count')
 	find_localadminaccess_parser.add_argument('-OutFile', action='store', dest='outfile')

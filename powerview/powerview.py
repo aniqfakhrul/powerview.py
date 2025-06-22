@@ -4930,10 +4930,11 @@ displayName=New Group Policy Object
 		entries = userspn.run(entries)
 		return entries
 
-	def find_localadminaccess(self, computer=None, username=None, password=None, domain=None, nthash=None, lmhash=None, no_cache=False, args=None):
+	def find_localadminaccess(self, computer=None, username=None, password=None, domain=None, nthash=None, lmhash=None, no_cache=False, no_resolve=False, args=None):
 		import concurrent.futures
 		host_entries = []
 		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
+		no_resolve = args.no_resolve if hasattr(args, 'no_resolve') and args.no_resolve else no_resolve
 		if args:
 			if username is None and hasattr(args, 'username') and args.username:
 				logging.warning(f"[Find-LocalAdminAccess] Using identity {args.username} from supplied username. Ignoring current user context...")
@@ -4962,8 +4963,16 @@ displayName=New Group Policy Object
 					return {'address': entry, 'hostname': entry}
 				if not is_valid_fqdn(entry):
 					entry = f"{entry}.{self.domain}"
-				ip = host2ip(entry, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
-				return {'address': ip, 'hostname': entry}
+				if no_resolve:
+					logging.debug(f"[Find-LocalAdminAccess] Skipping hostname resolution for {entry}")
+					ip = entry
+				else:
+					ip = host2ip(entry, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+				
+				return {
+					'address': ip,
+					'hostname': entry
+				}
 			except Exception:
 				return None
 		if computer:
@@ -5002,7 +5011,13 @@ displayName=New Group Policy Object
 					return None
 					
 				smbconn.connectTree("C$")
-				return {'attributes': {'Address': ent['address'], 'Hostname': ent['hostname']}}
+				return {
+					'attributes': {
+						'Address': ent['address'],
+						'Hostname': ent['hostname'],
+						'Username': current_username,
+					}
+				}
 			except Exception as e:
 				logging.debug(f"[Find-LocalAdminAccess] Failed to connect/check admin on {ent['hostname']}: {str(e)}")
 				return None
