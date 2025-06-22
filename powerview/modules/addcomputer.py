@@ -191,7 +191,6 @@ class ADDCOMPUTER:
                 'userAccountControl': 0x1000,
                 'servicePrincipalName': spns,
                 'sAMAccountName': self.__computerName,
-                'msDS-SupportedEncryptionTypes': 28,
                 'unicodePwd': ('"%s"' % self.__computerPassword).encode('utf-16-le')
             }
 
