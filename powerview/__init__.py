@@ -9,6 +9,7 @@ from powerview.utils.logging import LOG
 from powerview.utils.parsers import powerview_arg_parse, arg_parse
 from powerview.utils.shell import get_prompt
 from powerview.utils.colors import bcolors, Gradient
+from powerview.utils.history import *
 
 import ldap3
 import random
@@ -758,13 +759,21 @@ def main():
                                         powerview.remove_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, args=pv_args)
                                 else:
                                     logging.error("-GUID and -TargetIdentity flags are required")
+                            elif pv_args.module.casefold() == 'history':
+                                hist = get_shell_history(pv_args.last, pv_args.unique)
+                                for index, item in list(enumerate(hist,1))[::-1]:
+                                    if pv_args.noNumber:
+                                        bol = f""
+                                    else:
+                                        bol = f"[{index}] "
+                                    print(f"{bol}{item}")
+                            elif pv_args.module.casefold() == 'clear':
+                                clear_screen()
                             elif pv_args.module.casefold() == 'exit':
                                 if mcp_running:
                                     powerview.mcp_server.stop()
                                 log_handler.save_history()
                                 sys.exit(0)
-                            elif pv_args.module.casefold() == 'clear':
-                                clear_screen()
 
                             if entries:
                                 if pv_args.outfile:

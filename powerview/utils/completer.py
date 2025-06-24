@@ -129,6 +129,7 @@ COMMANDS = {
     'Stop-NetService':['-Computer','-Name'],
     'Add-GPLink':['-GUID','-TargetIdentity','-LinkEnabled','-Enforced','-SearchBase','-Server','-OutFile'],
     'Remove-GPLink':['-GUID','-TargetIdentity','-SearchBase','-Server','-OutFile'],
+    'history':['-Last','-Unique','-NoNumber'],
     'clear':'',
     'exit':'',
 }
