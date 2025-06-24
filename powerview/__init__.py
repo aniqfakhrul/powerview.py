@@ -9,6 +9,7 @@ from powerview.utils.logging import LOG
 from powerview.utils.parsers import powerview_arg_parse, arg_parse
 from powerview.utils.shell import get_prompt
 from powerview.utils.colors import bcolors, Gradient
+from powerview.utils.history import get_shell_history
 
 import ldap3
 import random
@@ -775,13 +776,21 @@ def main():
                                     stats = powerview.conn.get_pool_stats()
                                 
                                 FORMATTER.format_pool_stats(stats)
+                            elif pv_args.module.casefold() == 'history':
+                                hist = get_shell_history(pv_args.last, pv_args.unique)
+                                for index, item in list(enumerate(hist,1))[::-1]:
+                                    if pv_args.noNumber:
+                                        bol = f""
+                                    else:
+                                        bol = f"[{index}] "
+                                    print(f"{bol}{item}")
+                            elif pv_args.module.casefold() == 'clear':
+                                clear_screen()
                             elif pv_args.module.casefold() == 'exit':
                                 if args.mcp and hasattr(powerview, 'mcp_server') and powerview.mcp_server.get_status():
                                     powerview.mcp_server.stop()
                                 log_handler.save_history()
                                 sys.exit(0)
-                            elif pv_args.module.casefold() == 'clear':
-                                clear_screen()
 
                             if entries:
                                 if pv_args.outfile:

@@ -23,8 +23,8 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "impacket",
     "ldap3-bleeding-edge",
+    "impacket",
     "dnspython",
     "future",
     "gnureadline",

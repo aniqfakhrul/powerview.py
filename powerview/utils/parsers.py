@@ -1176,9 +1176,15 @@ def powerview_arg_parse(cmd):
 	remove_gplink_parser.add_argument('-Server', action='store', dest='server')
 	remove_gplink_parser.add_argument('-OutFile', action='store', dest='outfile')
 	
+	# shell history
+	history_parser = subparsers.add_parser('history', exit_on_error=False)
+	history_parser.add_argument('-Last',action='store',type=int, default=10, dest='last')
+	history_parser.add_argument('-Unique',action='store_true', dest='unique')
+	history_parser.add_argument('-NoNumber',action='store_true', dest='noNumber')
+
 	subparsers.add_parser('get_pool_stats', exit_on_error=False)
-	subparsers.add_parser('exit', exit_on_error=False)
 	subparsers.add_parser('clear', exit_on_error=False)
+	subparsers.add_parser('exit', exit_on_error=False)
 
 	try:
 		args, unknown = parser.parse_known_args(cmd)
