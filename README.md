@@ -53,7 +53,14 @@ sudo apt install libkrb5-dev
 
 * Init connection
 ```
-powerview range.net/lowpriv:Password123@192.168.86.192 [--dc-ip 192.168.86.192] [-k] [--use-ldap | --use-ldaps | --use-gc | --use-gc-ldaps | --use-adws]
+powerview range.net/lowpriv:Password123@192.168.86.192 [-k] [--use-ldap | --use-ldaps | --use-gc | --use-gc-ldaps | --use-adws]
+```
+
+* Init connection with keep alive
+> [!warning]
+> Keep alive functions are disabled (0 second) by default, and idle ldap connection will be disconnected if idle. Using `--keepalive-interval` flag will actually perform light ldap query in the background according to interval specified.
+```
+powerview range.net/lowpriv:Password123@192.168.86.192 --keepalive-interval 10
 ```
 
 * Start web interface
