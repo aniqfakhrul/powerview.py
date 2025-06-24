@@ -148,6 +148,7 @@ class CAEnum:
         return self.ldap_session.extend.standard.paged_search(ca_search_base, enroll_filter, attributes=list(properties), paged_size=1000, generator=True)
 
     def fetch_enrollment_services(self,
+            identity=None,
             properties=[
                 "cn",
                 "name",
@@ -164,7 +165,11 @@ class CAEnum:
             raw=False,
             include_sd=False
         ):
-        enroll_filter = "(&(objectClass=pKIEnrollmentService))"
+        if identity:
+            identity_filter = f"(|(cn={identity})(name={identity}))"
+        else:
+            identity_filter = ""
+        enroll_filter = f"(&(objectClass=pKIEnrollmentService){identity_filter})"
 
         if not searchbase:
             searchbase = f"CN=Enrollment Services,CN=Public Key Services,CN=Services,{self.configuration_dn}"
@@ -259,6 +264,7 @@ class CAEnum:
         entries = {}
 
         stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
+        computer_name = host2ip(computer_name, self.powerview.conn.nameserver, 3, True, use_system_ns=self.powerview.conn.use_system_ns)
         dce = self.powerview.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
 
         if not dce:

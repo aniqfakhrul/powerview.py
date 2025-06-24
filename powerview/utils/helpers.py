@@ -29,6 +29,7 @@ from impacket.examples.utils import parse_credentials, parse_target
 from impacket.krb5 import constants
 from impacket.krb5.types import Principal
 from impacket.krb5.kerberosv5 import getKerberosTGT
+from impacket.ldap.ldaptypes import LDAP_SID
 
 from powerview.utils.constants import WINDOWS_VERSION_MAP, LCID_TO_LOCALE
 from powerview.lib.dns import (
@@ -263,6 +264,43 @@ def is_valid_dn(dn):
 
 	return bool(dn_pattern.match(dn))
 
+def is_valid_sid(sid_string):
+	"""
+	Validates if a string is a properly formatted Windows SID.
+
+	Args:
+		sid_string (str): The SID string to validate
+		
+	Returns:
+		bool: True if the SID is valid, False otherwise
+	"""
+	if not isinstance(sid_string, str):
+		return False
+		
+	basic_pattern = r'^S-1-\d+(-\d+)+$'
+	domain_pattern = r'^S-1-5-21-\d+-\d+-\d+(-\d+)?$'
+	builtin_pattern = r'^S-1-5-32-\d+$'
+	simple_pattern = r'^S-1-[0-9](-[0-9]+)?$'
+	
+	if (re.match(basic_pattern, sid_string) or 
+		re.match(domain_pattern, sid_string) or 
+		re.match(builtin_pattern, sid_string) or
+		re.match(simple_pattern, sid_string)):
+		
+		try:
+			components = sid_string.split('-')
+			if len(components) < 3:
+				return False
+				
+			for component in components[1:]:
+				int(component)
+				
+			return True
+		except ValueError:
+			return False
+	
+	return False
+
 def ini_to_dict(obj):
 	d = {}
 	try:
@@ -274,7 +312,7 @@ def ini_to_dict(obj):
 		return None
 	for k in t['dummy_section'].keys():
 		d['attribute'] = k
-		if re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', t.get('dummy_section', k)):
+		if is_dn(t.get('dummy_section', k)):
 			d['value'] = t.get('dummy_section', k)
 		else:
 			d['value'] = [i.strip() for i in t.get('dummy_section', k).split(",")]
@@ -354,6 +392,10 @@ def is_ipaddress(address):
 	except ValueError:
 		return False
 
+def is_dn(dn):
+	dn_pattern = re.compile(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$')
+	return bool(dn_pattern.match(dn))
+
 def is_proxychains():
 	"""
 	Check if current process is running under proxychains
@@ -375,7 +417,21 @@ def is_proxychains():
 	
 	return False
 
-def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_ns=True):
+def sid_string_to_bytes(sid_string):
+	"""
+	Convert a string representation of a SID to a bytes object.
+	
+	Args:
+		sid_string (str): The string representation of the SID
+	
+	Returns:
+		bytes: The bytes object representing the SID
+	"""
+	sid_obj = LDAP_SID()
+	sid_obj.fromCanonical(sid_string)
+	return sid_obj.getData()
+
+def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_ns=True, resolve_ip=True):
 	domain = str(domain)
 	if domain in list(STORED_ADDR.keys()):
 		return STORED_ADDR[domain]
@@ -406,7 +462,10 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
 		for r in q:
 			dc = str(r.target).removesuffix('.')
 		# Resolve IP for principal DC with same DNS settings
-		answer = host2ip(dc, nameserver, 3, dns_tcp, use_system_ns)
+		if resolve_ip:
+			answer = host2ip(dc, nameserver, 3, dns_tcp, use_system_ns)
+		else:
+			answer = dc
 		return answer
 	except resolver.NXDOMAIN as e:
 		logging.debug(str(e))
@@ -440,7 +499,8 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
 	# If resolution fails, try direct domain resolution
 	logging.debug(f"DC resolution failed, attempting direct domain resolution")
 	answer = host2ip(domain, nameserver, 3, dns_tcp, use_system_ns)
-	
+	if not answer:
+		raise resolver.NXDOMAIN(f"Failed to resolve DC address for domain {domain}")
 	return answer
 
 def resolve_domain(domain, nameserver):

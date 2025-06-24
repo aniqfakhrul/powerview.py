@@ -53,7 +53,14 @@ sudo apt install libkrb5-dev
 
 * Init connection
 ```
-powerview range.net/lowpriv:Password123@192.168.86.192 [--dc-ip 192.168.86.192] [-k] [--use-ldap | --use-ldaps | --use-gc | --use-gc-ldaps | --use-adws]
+powerview range.net/lowpriv:Password123@192.168.86.192 [-k] [--use-ldap | --use-ldaps | --use-gc | --use-gc-ldaps | --use-adws]
+```
+
+* Init connection with keep alive
+> [!warning]
+> Keep alive functions are disabled (0 second) by default, and idle ldap connection will be disconnected if idle. Using `--keepalive-interval` flag will actually perform light ldap query in the background according to interval specified.
+```
+powerview range.net/lowpriv:Password123@192.168.86.192 --keepalive-interval 10
 ```
 
 * Start web interface
@@ -139,34 +146,25 @@ powerview 10.10.10.10 --relay [--relay-host] [--relay-port] [--use-ldap | --use-
 
 ```cs
 PV >
-Add-ADComputer                 Get-CATemplate                 Get-GPOSettings                Remove-DomainDNSRecord 
-Add-ADUser                     Get-Domain                     Get-LocalUser                  Remove-DomainGroupMember 
-Add-CATemplate                 Get-DomainCA                   Get-NamedPipes                 Remove-DomainOU 
-Add-CATemplateAcl              Get-DomainCATemplate           Get-NetComputer                Remove-DomainObject 
-Add-DomainCATemplate           Get-DomainComputer             Get-NetDomain                  Remove-DomainObjectAcl 
-Add-DomainCATemplateAcl        Get-DomainController           Get-NetDomainController        Remove-DomainUser 
-Add-DomainComputer             Get-DomainDNSRecord            Get-NetGPO                     Remove-GPLink 
-Add-DomainDNSRecord            Get-DomainDNSZone              Get-NetGroup                   Remove-GroupMember 
-Add-DomainGPO                  Get-DomainForeignGroupMember   Get-NetGroupmember             Remove-OU 
-Add-DomainGroup                Get-DomainForeignUser          Get-NetLoggedOn                Remove-ObjectAcl 
-Add-DomainGroupMember          Get-DomainGMSA                 Get-NetService                 Set-ADObject 
-Add-DomainOU                   Get-DomainGPO                  Get-NetSession                 Set-ADObjectDN 
-Add-DomainObjectAcl            Get-DomainGPOLocalGroup        Get-NetShare                   Set-CATemplate 
-Add-DomainUser                 Get-DomainGPOSettings          Get-NetTrust                   Set-DomainCATemplate 
-Add-GPLink                     Get-DomainGroup                Get-NetUser                    Set-DomainComputerPassword 
-Add-GPO                        Get-DomainGroupMember          Get-ObjectAcl                  Set-DomainDNSRecord 
-Add-GroupMember                Get-DomainOU                   Get-ObjectOwner                Set-DomainObject 
-Add-OU                         Get-DomainObject               Get-RBCD                       Set-DomainObjectDN 
-Add-ObjectAcl                  Get-DomainObjectAcl            Get-RegLoggedOn                Set-DomainObjectOwner 
-Clear-Cache                    Get-DomainObjectOwner          Get-SCCM                       Set-DomainRBCD 
-ConvertFrom-SID                Get-DomainRBCD                 Invoke-DFSCoerce               Set-DomainUserPassword 
-ConvertFrom-UACValue           Get-DomainSCCM                 Invoke-Kerberoast              Set-ObjectOwner 
-Disable-DomainDNSRecord        Get-DomainTrust                Invoke-PrinterBug              Set-RBCD 
-Find-ForeignGroup              Get-DomainUser                 Remove-ADComputer              Unlock-ADAccount 
-Find-ForeignUser               Get-Exchange                   Remove-ADObject                clear 
-Find-LocalAdminAccess          Get-ExchangeServer             Remove-ADUser                  exit 
-Get-ADObject                   Get-GMSA                       Remove-CATemplate              
-Get-CA                         Get-GPOLocalGroup              Remove-DomainCATemplate        
+Add-ADComputer                 Add-GPO                        Get-DomainComputer             Get-DomainTrust                Get-NetOU                      Remove-ADUser                  Set-ADObject 
+Add-ADUser                     Add-GroupMember                Get-DomainController           Get-DomainTrustKey             Get-NetService                 Remove-CATemplate              Set-ADObjectDN 
+Add-CATemplate                 Add-NetService                 Get-DomainDMSA                 Get-DomainUser                 Get-NetSession                 Remove-DMSA                    Set-CATemplate 
+Add-CATemplateAcl              Add-OU                         Get-DomainDNSRecord            Get-ExchangeDatabase           Get-NetShare                   Remove-DomainCATemplate        Set-DomainCATemplate 
+Add-DMSA                       Add-ObjectAcl                  Get-DomainDNSZone              Get-ExchangeMailbox            Get-NetTrust                   Remove-DomainComputer          Set-DomainComputerPassword 
+Add-DomainCATemplate           Clear-Cache                    Get-DomainForeignGroupMember   Get-ExchangeServer             Get-NetUser                    Remove-DomainDMSA              Set-DomainDNSRecord 
+Add-DomainCATemplateAcl        ConvertFrom-SID                Get-DomainForeignUser          Get-GMSA                       Get-ObjectAcl                  Remove-DomainDNSRecord         Set-DomainObject 
+Add-DomainComputer             ConvertFrom-UACValue           Get-DomainGMSA                 Get-GPOLocalGroup              Get-ObjectOwner                Remove-DomainGMSA              Set-DomainObjectDN 
+Add-DomainDMSA                 Disable-DomainDNSRecord        Get-DomainGPO                  Get-GPOSettings                Get-RBCD                       Remove-DomainGroupMember       Set-DomainObjectOwner 
+Add-DomainDNSRecord            Find-ForeignGroup              Get-DomainGPOLocalGroup        Get-LocalUser                  Get-RegLoggedOn                Remove-DomainOU                Set-DomainRBCD 
+Add-DomainGMSA                 Find-ForeignUser               Get-DomainGPOSettings          Get-NamedPipes                 Get-SCCM                       Remove-DomainObject            Set-DomainUserPassword 
+Add-DomainGPO                  Find-LocalAdminAccess          Get-DomainGroup                Get-NetComputer                Get-TrustKey                   Remove-DomainObjectAcl         Set-NetService 
+Add-DomainGroup                Get-ADObject                   Get-DomainGroupMember          Get-NetComputerInfo            Invoke-ASREPRoast              Remove-DomainUser              Set-ObjectOwner 
+Add-DomainGroupMember          Get-CA                         Get-DomainOU                   Get-NetDomain                  Invoke-DFSCoerce               Remove-GMSA                    Set-RBCD 
+Add-DomainOU                   Get-CATemplate                 Get-DomainObject               Get-NetDomainController        Invoke-Kerberoast              Remove-GPLink                  Start-NetService 
+Add-DomainObjectAcl            Get-DMSA                       Get-DomainObjectAcl            Get-NetGPO                     Invoke-PrinterBug              Remove-GroupMember             Stop-NetService 
+Add-DomainUser                 Get-Domain                     Get-DomainObjectOwner          Get-NetGroup                   Login-As                       Remove-NetService              Unlock-ADAccount 
+Add-GMSA                       Get-DomainCA                   Get-DomainRBCD                 Get-NetGroupmember             Remove-ADComputer              Remove-OU                      clear 
+Add-GPLink                     Get-DomainCATemplate           Get-DomainSCCM                 Get-NetLoggedOn                Remove-ADObject                Remove-ObjectAcl               exit 
 ```
 
 ### Domain/LDAP Functions
@@ -187,7 +185,10 @@ Get-CA                         Get-GPOLocalGroup              Remove-DomainCATem
 |Get-DomainSCCM|Get-SCCM|Query for SCCM|
 |Get-DomainRBCD|Get-RBCD|Finds accounts that are configured for resource-based constrained delegation|
 |Get-DomainObjectOwner|Get-ObjectOwner|Query owner of the AD object|
-|Get-DomainGMSA|Get-GMSA|Query objects with GMSA attributes and decode the password blob|
+|Get-DomainGMSA|Get-GMSA|Query for Group Managed Service Accounts (gMSA) and retrieve their password blobs|
+|Get-DomainDMSA|Get-GDSA|Query for Delegated Managed Service Accounts (dMSA)|
+|Remove-DomainGMSA|Remove-GMSA|Delete an existing Group Managed Service Account (GMSA) from the domain|
+|Remove-DomainDMSA|Remove-DMSA|Delete an existing Delegated Managed Service Account (dMSA) from the domain|
 |Remove-DomainDNSRecord||Remove Domain DNS Record|
 |Remove-DomainComputer|Remove-ADComputer|Remove Domain Computer|
 |Remove-DomainGroupMember|Remove-GroupMember|Remove member of a specific Domain Group|
@@ -203,6 +204,8 @@ Get-CA                         Get-GPOLocalGroup              Remove-DomainCATem
 |Set-DomainObjectOwner|Set-ObjectOwner|Set owner of the AD object|
 |Add-DomainDNSRecord||Add Domain DNS Record|
 |Disable-DomainDNSRecord||Disabling DNS Record by pointing to invalid address|
+|Add-DomainGMSA|Add-GMSA|Create a new Group Managed Service Account (gMSA) in the domain|
+|Add-DomainDMSA|Add-GMSA|Create a new Delegated Managed Service Account (dMSA) in the domain|
 |Add-DomainUser|Add-ADUser|Add new Domain User in AD|
 |Add-DomainComputer|Add-ADComputer|Add new Domain Computer in AD|
 |Add-DomainGroupMember|Add-GroupMember|Add new member in specified Domain Group in AD|

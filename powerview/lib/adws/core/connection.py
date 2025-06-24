@@ -10,7 +10,12 @@ from ..templates import NAMESPACES
 from ..error import ADWSError
 
 from ldap3.utils.dn import safe_dn
-from ldap3 import ALL_ATTRIBUTES, NO_ATTRIBUTES, ALL_OPERATIONAL_ATTRIBUTES, NTLM, BASE, LEVEL, SUBTREE, STRING_TYPES, get_config_parameter, SEQUENCE_TYPES, MODIFY_ADD, MODIFY_DELETE, MODIFY_REPLACE, MODIFY_INCREMENT, SYNC
+from ldap3 import (
+    ALL_ATTRIBUTES, NO_ATTRIBUTES, ALL_OPERATIONAL_ATTRIBUTES, NTLM, BASE, LEVEL, SUBTREE, 
+    STRING_TYPES, get_config_parameter, SEQUENCE_TYPES, MODIFY_ADD, MODIFY_DELETE, 
+    MODIFY_REPLACE, MODIFY_INCREMENT, SYNC, SAFE_SYNC, SAFE_RESTARTABLE, ASYNC, LDIF, 
+    RESTARTABLE, REUSABLE, MOCK_SYNC, MOCK_ASYNC, ASYNC_STREAM
+)
 from ldap3.core.connection import CLIENT_STRATEGIES
 from ldap3.protocol.rfc2696 import paged_search_control
 from ldap3.core.exceptions import LDAPChangeError, LDAPAttributeError, LDAPUnknownStrategyError, LDAPObjectClassError
@@ -48,6 +53,14 @@ class Connection(object):
         self.check_names = check_names
         self.auto_encode = auto_encode
         self.result = {}
+        
+        # Add ldap3-compatible attributes
+        self.bound = False
+        self.closed = True
+        self.last_error = None
+        
+        # Add compatibility attributes for connection pooling
+        self.nmf = None
 
         conf_default_pool_name = get_config_parameter('DEFAULT_THREADED_POOL_NAME')
         if client_strategy not in CLIENT_STRATEGIES:
@@ -84,8 +97,78 @@ class Connection(object):
                 raise LDAPUnknownStrategyError('unknown strategy')
             else:
                 logging.error('unknown strategy')
+                
+    def unbind(self):
+        """
+        Close the connection and mark as unbound.
+        Compatible with ldap3.Connection.unbind()
+        """
+        try:
+            if hasattr(self, 'nmf') and self.nmf is not None:
+                try:
+                    self.nmf._sock.close()
+                except Exception:
+                    pass
+                self.nmf = None
+        except Exception:
+            pass
+        finally:
+            self.bound = False
+            self.closed = True
+    
+    def close(self):
+        """
+        Close the connection. Alias for unbind() for compatibility.
+        """
+        self.unbind()
+    
+    def is_connection_alive(self):
+        """
+        Check if the ADWS connection is alive.
+        Compatible with the connection pool interface.
+        """
+        try:
+            # For ADWS, if we're marked as bound and not closed, consider it alive
+            # The socket-level checks might be too strict for ADWS connections
+            if self.closed or not self.bound:
+                return False
+            
+            # Basic check that we have an nmf connection
+            if not hasattr(self, 'nmf') or self.nmf is None:
+                return False
+            
+            # For now, return True if basic state is valid
+            # ADWS connections are more complex and may not follow standard socket patterns
+            return True
+        except Exception:
+            return False
+    
+    def abandon(self, message_id):
+        """
+        ADWS abandon operation (lightweight keep-alive).
+        Compatible with ldap3 abandon for keep-alive purposes.
+        """
+        # For ADWS, we don't have a direct abandon operation
+        # This is used primarily for keep-alive testing
+        return self.is_connection_alive()
+    
+    def keep_alive(self):
+        """
+        Perform a lightweight ADWS operation to keep the connection alive.
+        Compatible with the connection pool interface.
         
-        
+        Returns:
+            bool: True if connection is still alive, False otherwise
+        """
+        try:
+            # Use the abandon method for lightweight keep-alive
+            result = self.abandon(0)
+            if result:
+                logging.debug(f"[ADWS Connection] Keep-alive check: Success")
+            return result
+        except Exception as e:
+            logging.debug(f"[ADWS Connection] Keep-alive check failed: {str(e)}")
+            return False
 
     def _create_NNS_from_auth(self, sock: socket.socket) -> NNS:
         if self.authentication == NTLM:
@@ -429,21 +512,32 @@ class Connection(object):
             resource (str): endpoint to connect to <'Resource', 'ResourceFactory',
                 'Enumeration', AccountManagement',  'TopologyManagement'>
         """
-        server_address: tuple[str, int] = (self.host, self.port)
-        resource = resource if resource is not None else self.resource
-        logging.debug(f"Connecting to {self.host} for {resource}")
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(server_address)
-        self.nmf = NMFConnection(
-            self._create_NNS_from_auth(sock),
-            fqdn=self.host,
-            port=self.port
-        )
-        self.nmf.connect(f"Windows/{resource}")
-        self.resource = resource
-        if get_info:
-            self.refresh_server_info()
-        return self.server, self
+        try:
+            server_address: tuple[str, int] = (self.host, self.port)
+            resource = resource if resource is not None else self.resource
+            logging.debug(f"Connecting to {self.host} for {resource}")
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect(server_address)
+            self.nmf = NMFConnection(
+                self._create_NNS_from_auth(sock),
+                fqdn=self.host,
+                port=self.port
+            )
+            self.nmf.connect(f"Windows/{resource}")
+            self.resource = resource
+            
+            # Set connection state
+            self.bound = True
+            self.closed = False
+            
+            if get_info:
+                self.refresh_server_info()
+            return self.server, self
+        except Exception as e:
+            # Connection failed
+            self.bound = False
+            self.closed = True
+            raise ADWSError(f"Failed to connect: {str(e)}")
 
     def reconnect(self, resource=None):
         """
@@ -458,4 +552,6 @@ class Connection(object):
                     pass
             return self.connect(resource)
         except Exception as e:
+            self.bound = False
+            self.closed = True
             raise ADWSError(f"Failed to reconnect: {str(e)}")

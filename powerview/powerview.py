@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-from impacket.examples.ntlmrelayx.utils.config import NTLMRelayxConfig
 from impacket.dcerpc.v5 import srvs, wkst, scmr, rrp, rprn
 from powerview.lib.dfsnm import NetrDfsRemoveStdRoot, MSRPC_UUID_DFSNM
 from impacket.dcerpc.v5.ndr import NULL
 from impacket.crypto import encryptSecret
 from typing import List
 
-from powerview.modules.gmsa import GMSA
+from powerview.modules.msa import MSA
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
 from powerview.modules.sccm import SCCM
 from powerview.modules.addcomputer import ADDCOMPUTER
@@ -38,7 +37,8 @@ from powerview.utils.constants import (
 	SERVICE_START_TYPE,
 	SERVICE_ERROR_CONTROL,
 	SERVICE_STATUS,
-	SERVICE_WIN32_EXIT_CODE
+	SERVICE_WIN32_EXIT_CODE,
+	DMSA_DELEGATED_MSA_STATE
 )
 from powerview.lib.dns import (
 	DNS_RECORD,
@@ -76,36 +76,37 @@ class PowerView:
 		if target_domain:
 			self.domain = target_domain
 		else:
-			self.domain = conn.get_domain()
+			self.domain = self.conn.get_domain()
 		
-		self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
+		if hasattr(conn, 'ldap_server') and hasattr(conn, 'ldap_session') and conn.ldap_server and conn.ldap_session and not conn.ldap_session.closed:
+			self.ldap_server = conn.ldap_server
+			self.ldap_session = conn.ldap_session
+			logging.debug(f"Reusing existing LDAP session for domain {self.domain}")
+		else:
+			self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
+			logging.debug(f"Initializing new LDAP session for domain {self.domain}")
 
 		self._initialize_attributes_from_connection()
 
-		self.username = conn.username or args.username
-		self.password = conn.password or args.password
+		self.username = self.conn.username or args.username
+		self.password = self.conn.password or args.password
 
-		self.lmhash = conn.lmhash or args.lmhash
-		self.nthash = conn.nthash or args.nthash
-		self.auth_aes_key = conn.auth_aes_key or args.auth_aes_key
-		self.nameserver = conn.nameserver or args.nameserver
-		self.use_system_nameserver = conn.use_system_ns or args.use_system_ns
-		self.dc_ip = conn.dc_ip or args.dc_ip
-		self.use_kerberos = conn.use_kerberos or args.use_kerberos
+		self.lmhash = self.conn.lmhash or args.lmhash
+		self.nthash = self.conn.nthash or args.nthash
+		self.auth_aes_key = self.conn.auth_aes_key or args.auth_aes_key
+		self.nameserver = self.conn.nameserver or args.nameserver
+		self.use_system_nameserver = self.conn.use_system_ns or args.use_system_ns
+		self.dc_ip = self.conn.dc_ip or args.dc_ip
+		self.use_kerberos = self.conn.use_kerberos or args.use_kerberos
 		self.target_server = target_server
 
 		if not target_domain:
 			self.is_admin = self.is_admin()
 
-		# Get current user's SID from the LDAP connection
-		self.current_user_sid = None
-		if self.whoami and self.whoami != 'ANONYMOUS':
-			user = self.get_domainobject(identity=self.whoami.split('\\')[1], properties=['objectSid'])
-			if user and len(user) > 0:
-				self.current_user_sid = user[0]['attributes']['objectSid']
+		self.domain_instances = {}
 
 		# API server
-		if self.args.web and self.ldap_session:
+		if hasattr(self.args, 'web') and self.args.web and self.ldap_session:
 			try:
 				from powerview.web.api.server import APIServer
 				self.api_server = APIServer(self, host=self.args.web_host, port=self.args.web_port)
@@ -114,7 +115,7 @@ class PowerView:
 				logging.warning("Web interface dependencies not installed. Web interface will not be available.")
 
 		# MCP server
-		if self.args.mcp and self.ldap_session:
+		if hasattr(self.args, 'mcp') and self.args.mcp and self.ldap_session:
 			try:
 				from powerview.mcp import MCPServer
 				
@@ -159,6 +160,73 @@ class PowerView:
 		self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0] if isinstance(self.ldap_server.info.other["ldapServiceName"], list) else self.ldap_server.info.other["ldapServiceName"].split("@")[-1].split(".")[0]
 		self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
 		self.whoami = self.conn.who_am_i()
+		# Get current user's SID from the LDAP connection
+		self.current_user_sid = None
+		if self.whoami and self.whoami != 'ANONYMOUS':
+			user = self.get_domainobject(identity=self.whoami.split('\\')[1], properties=['objectSid'])
+			if user and len(user) > 0:
+				self.current_user_sid = user[0].get('attributes', {}).get('objectSid', None)
+
+	def add_domain_connection(self, domain):
+		"""Add a domain connection to the pool"""
+		try:
+			self.conn.add_domain_connection(domain)
+			logging.debug(f"Successfully added domain {domain} to connection pool")
+			return True
+		except Exception as e:
+			logging.error(f"Failed to add domain {domain} to pool: {str(e)}")
+			return False
+
+	def get_domain_connection(self, domain=None):
+		"""Get connection for specified domain"""
+		return self.conn.get_domain_connection(domain)
+
+	def add_primary_domain_to_pool(self):
+		"""
+		Initialize and add the primary domain connection to the connection pool.
+		
+		This should be called after PowerView initialization to ensure the primary
+		domain connection is properly stored in the pool for reuse.
+		"""
+		try:
+			primary_domain = self.conn.get_domain()
+			
+			if not self.conn.is_connection_alive():
+				logging.warning(f"Primary domain connection for {primary_domain} is not alive, cannot add to pool")
+				return False
+			
+			self.conn._connection_pool.add_connection(self.conn, primary_domain)
+			logging.debug(f"Added primary domain connection for {primary_domain} to pool")
+			return True
+			
+		except Exception as e:
+			logging.error(f"Failed to initialize primary domain in pool: {str(e)}")
+			if hasattr(self.args, 'stack_trace') and self.args.stack_trace:
+				import traceback
+				logging.debug(traceback.format_exc())
+			return False
+
+	def get_object_across_domains(self, identity=None, properties=[], target_domain=None):
+		objects = []
+		for domain in self.get_domaintrust(
+			identity=target_domain,
+			properties=['name'],
+			no_cache=True,
+		):
+			trust_name = domain.get('attributes',{}).get('name',None)
+			if trust_name:
+				try:
+					domain_conn = self.get_domain_connection(trust_name)
+					temp_powerview = PowerView(domain_conn, self.args, target_domain=trust_name)
+					objects.extend(temp_powerview.get_domainobject(
+						identity=identity,
+						properties=['name', 'objectSid', 'distinguishedName', 'objectCategory'],
+						server=trust_name
+					))
+				except Exception as e:
+					logging.error(f"Failed to query domain {trust_name}: {str(e)}")
+					continue
+		return objects
 
 	def get_domain_sid(self):
 		"""
@@ -183,16 +251,96 @@ class PowerView:
 	def get_admin_status(self):
 		return self.is_admin
 
-	def is_connection_alive(self):
-		try:
-			self.ldap_session.search(search_base='', search_filter='(objectClass=*)', search_scope='BASE', attributes=['namingContexts'])
-			return self.ldap_session.result['result'] == 0
-		except Exception as e:
-			print(f"Connection is not alive: {e}")
-			return False
-
 	def get_server_dns(self):
 		return self.dc_dnshostname
+
+	def get_domain_powerview(self, domain):
+		"""Get or create a PowerView instance for a specific domain with robust
+		error handling and connection verification
+		
+		Args:
+			domain (str): Target domain name
+			
+		Returns:
+			PowerView: PowerView instance for the target domain
+		"""
+		if not domain or domain.lower() == self.domain.lower():
+			return self
+			
+		domain = domain.lower()
+		
+		if domain in self.domain_instances:
+			pv = self.domain_instances[domain]
+			try:
+				if not pv.ldap_session.closed:
+					return pv
+				else:
+					logging.debug(f"Cached PowerView for domain {domain} has dead connection, recreating")
+					del self.domain_instances[domain]
+			except Exception as e:
+				logging.debug(f"Error checking PowerView for domain {domain}, recreating: {str(e)}")
+				if domain in self.domain_instances:
+					del self.domain_instances[domain]
+		
+		max_retries = 3
+		backoff_factor = 1.5
+		retry_count = 0
+		
+		while retry_count < max_retries:
+			try:
+				domain_conn = self.conn.get_domain_connection(domain)
+				
+				if not hasattr(domain_conn, 'ldap_session') or not domain_conn.ldap_session:
+					raise ConnectionError(f"Connection to domain {domain} doesn't have an initialized LDAP session")
+				
+				pv = PowerView(domain_conn, self.args, target_domain=domain)
+				
+				if pv.ldap_session.closed:
+					raise ConnectionError(f"Created PowerView for {domain} but connection is not alive")
+				
+				self.domain_instances[domain] = pv
+				logging.debug(f"Successfully created PowerView instance for domain {domain}")
+				return pv
+				
+			except Exception as e:
+				retry_count += 1
+				if retry_count >= max_retries:
+					logging.error(f"Failed to create PowerView for domain {domain} after {max_retries} attempts: {str(e)}")
+					raise
+				
+				wait_time = (backoff_factor ** retry_count) * 0.5
+				logging.debug(f"Retrying connection to {domain} in {wait_time:.2f} seconds (attempt {retry_count+1}/{max_retries})")
+				time.sleep(wait_time)
+
+	def execute_in_domain(self, domain, func, *args, **kwargs):
+		"""Execute a function in the context of a specific domain with robust error handling
+		
+		Args:
+			domain (str): Target domain
+			func (callable): Function to execute
+			*args, **kwargs: Arguments to pass to the function
+			
+		Returns:
+			The result of the function execution
+		"""
+		if not domain or domain.lower() == self.domain.lower():
+			return func(*args, **kwargs)
+		
+		try:
+			domain_pv = self.get_domain_powerview(domain)
+			
+			if not hasattr(domain_pv, func.__name__):
+				raise AttributeError(f"Function {func.__name__} not found in PowerView for domain {domain}")
+			
+			result = getattr(domain_pv, func.__name__)(*args, **kwargs)
+			return result
+			
+		except Exception as e:
+			logging.error(f"Failed to execute {func.__name__} in domain {domain}: {str(e)}")
+			if hasattr(self.args, 'stack_trace') and self.args.stack_trace:
+				import traceback
+				logging.debug(traceback.format_exc())
+			raise
 
 	def execute(self, args):
 		module_name = args.module
@@ -712,11 +860,12 @@ class PowerView:
 						entry["attributes"]["gPLink"] = gplink_list
 		return entries
 
-	def get_domainobjectacl(self, identity=None, security_identifier=None, resolveguids=False, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domainobjectacl(self, identity=None, security_identifier=None, ldapfilter=None, resolveguids=False, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		if args:
 			identity = args.identity if hasattr(args, 'identity') else identity
 			security_identifier = args.security_identifier if hasattr(args, 'security_identifier') else security_identifier
 			searchbase = args.searchbase if hasattr(args, 'searchbase') else searchbase
+			ldapfilter = args.ldapfilter if hasattr(args, 'ldapfilter') else ldapfilter
 			no_cache = args.no_cache if hasattr(args, 'no_cache') else no_cache
 			no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') else no_vuln_check
 			raw = args.raw if hasattr(args, 'raw') else raw
@@ -811,7 +960,8 @@ class PowerView:
 			identity=identity, 
 			properties=['nTSecurityDescriptor', 'sAMAccountName', 'distinguishedName', 'objectSid'], 
 			searchbase=searchbase, 
-			sd_flag=0x04,
+			ldap_filter=ldapfilter,
+			sd_flag=0x05,
 			no_cache=no_cache, 
 			no_vuln_check=no_vuln_check,
 			raw=raw
@@ -897,7 +1047,7 @@ class PowerView:
 				properties.add('ms-Mcs-AdmPwdExpirationTime')
 			if hasattr(args, 'rbcd') and args.rbcd:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
-				ldap_filter += f'(msds-allowedtoactonbehalfofotheridentity=*)'
+				ldap_filter += f'(msDS-AllowedToActOnBehalfOfOtherIdentity=*)'
 				properties.add('msDS-AllowedToActOnBehalfOfOtherIdentity')
 			if hasattr(args, 'shadowcred') and args.shadowcred:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to have msDS-KeyCredentialLink attribute set")
@@ -972,8 +1122,8 @@ class PowerView:
 
 		return entries
 
-	def get_domaingmsa(self, identity=None, args=None, no_cache=False, no_vuln_check=False, raw=False):
-		properties = [
+	def get_domaingmsa(self, identity=None, properties=None, searchbase=None, args=None, no_cache=False, no_vuln_check=False, raw=False):
+		def_prop = [
 			"sAMAccountName",
 			"objectSid",
 			"dnsHostName",
@@ -982,18 +1132,18 @@ class PowerView:
 		]
 
 		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
-		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
-
+		properties = args.properties if hasattr(args, 'properties') and args.properties else properties
+		if properties is None:
+			properties = def_prop
+		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
-		setattr(args, "ldapfilter", "(&(objectClass=msDS-GroupManagedServiceAccount))")
-
-		# get source identity
-		sourceObj = self.get_domainobject(
+		entries = self.get_domainobject(
 			identity=identity,
 			properties=properties,
+			ldap_filter="(&(objectClass=msDS-GroupManagedServiceAccount))",
 			searchbase=searchbase,
 			args=args,
 			sd_flag=0x05,
@@ -1002,39 +1152,140 @@ class PowerView:
 			raw=raw
 		)
 
-		logging.debug("[Get-DomainGMSA] Found %d object(s) with gmsa attribute" % (len(sourceObj)))
-
-		if not sourceObj:
-			return
-
-		entries = []
-		for source in sourceObj:
-			source = source.get("attributes")
-
-			# resolve sid
-			if isinstance(source.get("msDS-GroupMSAMembership"), list):
-				for i in range(len(source.get("msDS-GroupMSAMembership"))):
-					source["msDS-GroupMSAMembership"][i] = self.convertfrom_sid(source["msDS-GroupMSAMembership"][i])
-			else:
-				source["msDS-GroupMSAMembership"] = self.convertfrom_sid(source["msDS-GroupMSAMembership"])
-
-			entry = {
-				"ObjectDnsHostname": source.get("dnsHostname"),
-				"ObjectSAN": source.get("sAMAccountName"),
-				"ObjectSID": source.get("objectSid"),
-				"PrincipallAllowedToRead": source.get("msDS-GroupMSAMembership"),
-				"GMSAPassword": source.get("msDS-ManagedPassword")
-			}
-
-			entries.append(
-				{
-					"attributes": dict(entry)
-				}
-			)
-
+		logging.debug("[Get-DomainGMSA] Found %d object(s) with gmsa attribute" % (len(entries)))
+		for entry in entries:
+			if entry.get("attributes",{}).get("msDS-GroupMSAMembership"):
+				msds_group = entry["attributes"]["msDS-GroupMSAMembership"]
+				if isinstance(msds_group, list):
+					resolved_sids = []
+					for sid in msds_group:
+						resolved_sids.append(self.convertfrom_sid(sid))
+					entry["attributes"]["msDS-GroupMSAMembership"] = resolved_sids
+				else:
+					entry["attributes"]["msDS-GroupMSAMembership"] = self.convertfrom_sid(msds_group)
 		return entries
 
+	def add_domaingmsa(self, identity=None, principals_allowed_to_retrieve_managed_password=None, basedn=None, args=None):
+		identity = args.identity if args and hasattr(args, 'identity') and args.identity else identity
+		principals_allowed_to_retrieve_managed_password = args.principals_allowed_to_retrieve_managed_password if args and hasattr(args, 'principals_allowed_to_retrieve_managed_password') and args.principals_allowed_to_retrieve_managed_password else principals_allowed_to_retrieve_managed_password
+		basedn = args.basedn if args and hasattr(args, 'basedn') and args.basedn else basedn
+
+		if not identity:
+			raise ValueError("[Add-DomainGMSA] -Identity is required")
+
+		parent_dn_entries = f"CN=Managed Service Accounts,{self.root_dn}"
+		if basedn:
+			if is_dn(basedn):
+				parent_dn_entries = basedn
+			else:
+				logging.warning(f"[Add-DomainGMSA] -Basedn is not a valid DN. Using default: {parent_dn_entries}")
+				return False
+
+		try:
+			dmsa_attrs = {
+				'objectClass': [
+					'top',
+					'person',
+					'organizationalPerson',
+					'user',
+					'computer',
+					'msDS-GroupManagedServiceAccount'
+				],
+				'objectCategory': f'CN=ms-DS-Group-Managed-Service-Account,{self.schema_dn}',
+				'sAMAccountName': f"{identity}$" if not identity.endswith('$') else identity,
+				'cn': identity,
+				'userAccountControl': 0x1000,  # WORKSTATION_TRUST_ACCOUNT
+				'dNSHostName': f"{identity}.{self.domain}",
+				'msDS-ManagedPasswordInterval': 30,
+				'msDS-SupportedEncryptionTypes': 28, # RC4-HMAC,AES128,AES256
+			}
+
+			if principals_allowed_to_retrieve_managed_password:
+				principal_entries = self.get_domainobject(
+					identity=principals_allowed_to_retrieve_managed_password,
+					properties=['objectSid']
+				)
+				if len(principal_entries) == 0:
+					logging.error(f"[Add-DomainGMSA] Principal {principals_allowed_to_retrieve_managed_password} not found")
+					return False
+				elif len(principal_entries) > 1:
+					logging.error(f"[Add-DomainGMSA] More than one principal {principals_allowed_to_retrieve_managed_password} found")
+					return False
+
+				principal_sid = principal_entries[0].get("attributes", {}).get("objectSid")
+				if not principal_sid:
+					logging.error(f"[Add-DomainGMSA] Principal {principals_allowed_to_retrieve_managed_password} has no objectSid")
+					return False
+
+				msa_membership = MSA.create_msamembership(principal_sid)
+				dmsa_attrs['msDS-GroupMSAMembership'] = msa_membership
+			
+			dmsa_dn = f"CN={identity},{parent_dn_entries}"
+			logging.debug(f"[Add-DomainGMSA] Creating GMSA account at {dmsa_dn}")
+			for attr in dmsa_attrs:
+				logging.debug(f"{attr}:{dmsa_attrs[attr]}")
+				
+			result = self.ldap_session.add(
+				dmsa_dn, 
+				None,  
+				dmsa_attrs
+			)
+			
+			if not result:
+				logging.error(f"[Add-DomainGMSA] Failed to create GMSA: {self.ldap_session.result}")
+				return False
+			
+			logging.info(f"[Add-DomainGMSA] Successfully created GMSA account {identity}")
+			return True
+					
+		except Exception as e:
+			if self.args.stack_trace:
+				raise e
+			logging.error(f"[Add-DomainGMSA] Error creating GMSA: {str(e)}")
+			return False 
+
+	def remove_domaingmsa(self, identity=None, searchbase=None, args=None):
+		identity = args.identity if args and hasattr(args, 'identity') and args.identity else identity
+		searchbase = args.searchbase if args and hasattr(args, 'searchbase') and args.searchbase else searchbase
+		if not identity:
+			raise ValueError("[Remove-DomainGMSA] -Identity is required")
+
+		if not is_dn(identity):
+			logging.debug(f"[Remove-DomainGMSA] GMSA account {identity} is not a DN, searching for it")
+			entries = self.get_domainobject(
+				identity=identity,
+				properties=[
+					'objectSid',
+					'distinguishedName'
+				],
+				searchbase=searchbase,
+				args=args
+			)
+			if len(entries) == 0:
+				logging.error(f"[Remove-DomainGMSA] GMSA account {identity} not found")
+				return False
+			elif len(entries) > 1:
+				logging.error(f"[Remove-DomainGMSA] More than one GMSA account {identity} found")
+				return False
+			entry_dn = entries[0].get("attributes", {}).get("distinguishedName")
+		else:
+			entry_dn = identity
+
+		if not entry_dn:
+			logging.error(f"[Remove-DomainGMSA] GMSA account {identity} has no distinguished name")
+			return False
+
+		logging.warning(f"[Remove-DomainGMSA] Removing GMSA account {identity}")
+		succeeded = self.ldap_session.delete(entry_dn)
+		if not succeeded:
+			logging.error(f"[Remove-DomainGMSA] Failed to remove GMSA account {identity}: {self.ldap_session.result}")
+			return False
+
+		logging.info(f"[Remove-DomainGMSA] Successfully removed GMSA account {identity}")
+		return True
+
 	def get_domainrbcd(self, identity=None, args=None, no_cache=False, no_vuln_check=False, raw=True):
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
 		properties = [
 			"sAMAccountName",
 			"sAMAccountType",
@@ -1052,15 +1303,12 @@ class PowerView:
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
-		# set args to have rbcd attribute
-		setattr(args, "ldapfilter", "(msDS-AllowedToActOnBehalfOfOtherIdentity=*)")
-
 		# get source identity
 		sourceObj = self.get_domainobject(
 			identity=identity,
 			properties=properties,
 			searchbase=searchbase,
-			args=args,
+			ldap_filter="(msDS-AllowedToActOnBehalfOfOtherIdentity=*)",
 			sd_flag=0x05,
 			no_cache=no_cache,
 			no_vuln_check=no_vuln_check,
@@ -1260,7 +1508,6 @@ class PowerView:
 			logging.warning("[Get-DomainGroupMember] Multiple group found. Probably try searching with distinguishedName")
 			return
 
-		# create a new entry structure
 		new_entries = []
 		for ent in entries:
 			haveForeign = False
@@ -1432,7 +1679,7 @@ class PowerView:
 			try:
 				gpcfilesyspath = f"{entry['attributes']['gPCFileSysPath']}\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf"
 
-				conn = self.conn.init_smb_session(host2ip(self.dc_ip, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver))
+				conn = self.conn.init_smb_session(host2ip(self.dc_ip, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else self.dc_ip)
 
 				share = 'sysvol'
 				filepath = ''.join(gpcfilesyspath.lower().split(share)[1:])
@@ -1668,6 +1915,45 @@ class PowerView:
 				}
 			)
 		return entries
+
+	def convertto_sid(self, username):
+		domain = None
+		username = username.lower()
+		if "\\" in username:
+			domain, username = username.split("\\")
+			domain = domain.lower()
+
+		try:
+			if domain is not None and domain not in self.domain.lower():
+				entries = self.execute_in_domain(
+					domain,
+					self.get_domainobject,
+					identity=username,
+					properties=['objectSid']
+				)
+			else:
+				entries = self.get_domainobject(
+					identity=username,
+					properties=['objectSid']
+				)
+			
+			if len(entries) == 0:
+				for sid, name in WELL_KNOWN_SIDS.items():
+					if username.lower() == name.lower():
+						return sid
+				logging.warning(f"[ConvertTo-SID] User {username} not found in the domain or well-known SIDs")
+				return
+			elif len(entries) > 1:
+				logging.warning(f"[ConvertTo-SID] Multiple objects found for {username}")
+				return
+			else:
+				return entries[0]['attributes']['objectSid'][0] if isinstance(entries[0]['attributes']['objectSid'], list) else entries[0]['attributes']['objectSid']
+		except Exception as e:
+			for sid, name in WELL_KNOWN_SIDS.items():
+				if username.lower() == name.lower():
+					return sid
+			logging.warning(f"[ConvertTo-SID] Error looking up SID for {username}: {str(e)}")
+			return
 
 	def convertfrom_sid(self, objectsid, searchbase=None, args=None, output=False, no_cache=False):
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
@@ -2011,7 +2297,7 @@ class PowerView:
 
 		return entries
 
-	def get_domainca(self, args=None, identity=None, check_all=False, properties=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domainca(self, args=None, identity=None, properties=None, check_all=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			"cn",
 			"name",
@@ -2023,16 +2309,17 @@ class PowerView:
 			"distinguishedName",
 			"displayName"
 		]
-		properties = def_prop if not properties else properties
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		properties = args.properties if hasattr(args, 'properties') and args.properties else (properties if properties else def_prop)
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
-
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 		check_all = args.check_all if hasattr(args, 'check_all') else check_all
 
 		ca_fetch = CAEnum(self, check_all=check_all)
 		entries = ca_fetch.fetch_enrollment_services(
-			properties, 
+			identity=identity,
+			properties=properties, 
 			search_scope=search_scope, 
 			no_cache=no_cache, 
 			no_vuln_check=no_vuln_check,
@@ -2185,8 +2472,9 @@ class PowerView:
 		if not dc:
 			dc = self.domain
 		
-		logging.debug("[Add-DomainGPO] Resolving hostname to IP")
-		dc = host2ip(dc, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+		if not self.use_kerberos:
+			logging.debug("[Add-DomainGPO] Resolving hostname to IP")
+			dc = host2ip(dc, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
 		share = "SYSVOL"
 		policy_path = "/%s/Policies/%s" % (
@@ -3112,42 +3400,147 @@ displayName=New Group Policy Object
 		return succeeded
 
 	def add_domaingroupmember(self, identity, members, args=None):
-		group_entry = self.get_domaingroup(identity=identity,properties=['distinguishedName'])
-		user_entry = self.get_domainobject(identity=members,properties=['distinguishedName'])
-		if len(group_entry) == 0:
-			raise ValueError(f'[Add-DomainGroupMember] Group {identity} not found in domain')
-		if len(user_entry) == 0:
-			raise ValueError(f'[Add-DomainGroupMember] User {members} not found in domain. Try to use DN')
-		targetobject = group_entry[0]
-		userobject = user_entry[0]
-		if isinstance(targetobject["attributes"]["distinguishedName"], list):
-			targetobject_dn = targetobject["attributes"]["distinguishedName"][0]
+		if not is_dn(identity):
+			group_entry = self.get_domaingroup(identity=identity, properties=['distinguishedName'])
+			if len(group_entry) == 0:
+				logging.error(f'[Add-DomainGroupMember] Group {identity} not found in domain')
+				return False
+			elif len(group_entry) > 1:
+				logging.error(f'[Add-DomainGroupMember] More than one group found for {identity}')
+				return False
+			targetobject_dn = group_entry[0]["attributes"]["distinguishedName"]
 		else:
-			targetobject_dn = targetobject["attributes"]["distinguishedName"]
-
-		if isinstance(userobject["attributes"]["distinguishedName"], list):
-			userobject_dn = userobject["attributes"]["distinguishedName"][0]
+			targetobject_dn = identity
+		
+		target_domain = None
+		username = members
+		
+		if is_dn(members):
+			userobject_dn = members
 		else:
-			userobject_dn = userobject["attributes"]["distinguishedName"]
+			if '@' in members:
+				username, target_domain = members.split('@', 1)
+				logging.debug(f"[Add-DomainGroupMember] Detected username@domain format: {username}@{target_domain}")
+			elif '\\' in members:
+				domain_part, username = members.split('\\', 1)
+				target_domain = domain_part
+				logging.debug(f"[Add-DomainGroupMember] Detected domain\\username format: {target_domain}\\{username}")
+			
+			if target_domain and target_domain.lower() != self.domain.lower():
+				logging.debug(f"[Add-DomainGroupMember] Searching for {username} in domain {target_domain}")
+				try:
+					result = self.execute_in_domain(
+						target_domain, 
+						self.get_domainobject,
+						identity=username,
+						properties=['distinguishedName']
+					)
+					
+					if not result or len(result) == 0:
+						logging.error(f'[Add-DomainGroupMember] User {username} not found in domain {target_domain}')
+						return False
+					elif len(result) > 1:
+						logging.error(f'[Add-DomainGroupMember] More than one user found for {username} in domain {target_domain}')
+						return False
+					
+					userobject_dn = result[0]["attributes"]["distinguishedName"]
+					logging.debug(f"[Add-DomainGroupMember] Found user DN in domain {target_domain}: {userobject_dn}")
+				except Exception as e:
+					logging.error(f'[Add-DomainGroupMember] Error resolving user in domain {target_domain}: {str(e)}')
+					return False
+			else:
+				user_entry = self.get_domainobject(identity=username, properties=['distinguishedName'])
+				
+				if len(user_entry) == 0:
+					logging.error(f'[Add-DomainGroupMember] User {username} not found in domain. Try to use DN')
+					return False
+				elif len(user_entry) > 1:
+					logging.error(f'[Add-DomainGroupMember] More than one user found for {username}')
+					return False
+				
+				userobject_dn = user_entry[0]["attributes"]["distinguishedName"]
+		
+		if isinstance(targetobject_dn, list):
+			targetobject_dn = targetobject_dn[0]
+		
+		if isinstance(userobject_dn, list):
+			userobject_dn = userobject_dn[0]
 		
 		try:
-			succeeded = self.ldap_session.modify(targetobject_dn,{'member': [(ldap3.MODIFY_ADD, [userobject_dn])]})
+			succeeded = self.ldap_session.modify(targetobject_dn, {'member': [(ldap3.MODIFY_ADD, [userobject_dn])]})
 		except ldap3.core.exceptions.LDAPInvalidValueError as e:
 			logging.error(f"[Add-DomainGroupMember] {str(e)}")
 			succeeded = False
+		except ldap3.core.exceptions.LDAPNoSuchObjectResult as e:
+			if self.args.stack_trace:
+				raise e
+			logging.error(f"[Add-DomainGroupMember] LDAPNoSuchObjectResult: Object does not exist")
+			if not is_dn(identity):
+				logging.warning("[Add-DomainGroupMember] Use a DN for the identity instead")
+			if not is_dn(members):
+				logging.warning("[Add-DomainGroupMember] Use a DN for the members instead")
+			succeeded = False
+		except Exception as e:
+			logging.error(f"[Add-DomainGroupMember] Unexpected error: {str(e)}")
+			succeeded = False
 		
-		if not succeeded:
-			raise ValueError(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainGroupMember] Failed to add {members} to group {identity}")
+		if succeeded:
+			logging.info(f"[Add-DomainGroupMember] Successfully added {members} to group {identity}")
+		
 		return succeeded
 
 	def disable_domaindnsrecord(self, recordname, zonename=None):
-		succeed = self.set_domaindnsrecord(
-			recordname=recordname,
-			recordaddress="0.0.0.0",
-			zonename=zonename,
+		import struct
+		from datetime import datetime, timezone
+		
+		utc_now = datetime.now(timezone.utc)
+		ticks_1601 = datetime(1601, 1, 1, tzinfo=timezone.utc).timestamp() * 10000000
+		ticks_now = utc_now.timestamp() * 10000000
+		timestamp = int(ticks_now - ticks_1601)
+		
+		timestamp_bytes = struct.pack('<Q', timestamp)
+		
+		soa_serial_array = [0x00, 0x00, 0x00, 0x01]
+		
+		dns_record = bytes([0x08, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00]) + \
+					bytes(soa_serial_array) + \
+					bytes([0x00] * 12) + \
+					timestamp_bytes
+
+		# succeed = self.set_domaindnsrecord(
+		# 	recordname=recordname,
+		# 	recordaddress="0.0.0.0",
+		# 	zonename=zonename,
+		# )
+		entry = self.get_domaindnsrecord(identity=recordname, zonename=zonename)
+		if len(entry) == 0:
+			logging.error("[Disable-DomainDNSRecord] No record found")
+			return
+		elif len(entry) > 1:
+			logging.error("[Disable-DomainDNSRecord] More than one record found")
+			return
+
+		record_dn = entry[0]["attributes"]["distinguishedName"]
+		record_name = entry[0]["attributes"]["name"]
+		
+		changed_dns_record = self.set_domainobject(
+			identity=record_name,
+			_set = {
+				'attribute': 'dnsRecord',
+				'value': dns_record
+			},
+			searchbase=record_dn
+		)
+		changed_dns_tombstone = self.set_domainobject(
+			identity=record_name,
+			_set = {
+				'attribute': 'dnsTombstoned',
+				'value': True
+			},
+			searchbase=record_dn
 		)
 
-		if succeed:
+		if changed_dns_record and changed_dns_tombstone:
 			logging.info(f"[Disable-DomainDNSRecord] {recordname} dns record disabled")
 			return True
 		else:
@@ -3214,6 +3607,7 @@ displayName=New Group Policy Object
 		if not identity:
 			logging.error('[Remove-DomainUser] Identity is required')
 			return
+
 		entries = self.get_domainuser(identity=identity)
 		if len(entries) == 0:
 			logging.error('[Remove-DomainUser] Identity not found in domain')
@@ -3275,7 +3669,7 @@ displayName=New Group Policy Object
 
 		logging.debug(f"[Add-DomainUser] Adding user in {parent_dn_entries}")
 		
-		if self.ssl:
+		if self.conn.use_ldaps:
 			logging.debug("[Add-DomainUser] Adding user through %s" % self.conn.proto)
 			au = ADUser(self.ldap_session, self.root_dn, parent = parent_dn_entries)
 			succeed = au.addUser(username, userpass)
@@ -3305,9 +3699,13 @@ displayName=New Group Policy Object
 		else:
 			logging.info('[Add-DomainUser] Success! Created new user')
 
-			if not self.ssl:
-				logging.info("[Add-DomainUser] Adding password to account")
-				self.set_domainuserpassword(udn, userpass)
+			if not self.conn.use_ldaps:
+				logging.info("[Add-DomainUser] Setting password via LDAP modify operation")
+				password_set = self.set_domainuserpassword(udn, userpass)
+				if not password_set:
+					logging.error("[Add-DomainUser] Password setting failed, removing created user to prevent security hole")
+					self.remove_domainuser(udn)
+					return False
 			
 			return True
 
@@ -3585,6 +3983,234 @@ displayName=New Group Policy Object
 			logging.info('[Add-DomainDNSRecord] Success! Created new record with dn %s' % record_dn)
 			return True
 
+	def get_domaindmsa(self, identity=None, properties=None, searchbase=None, no_cache=False, no_vuln_check=False, raw=False, args=None):
+		def_props = [
+			'objectSid',
+			'distinguishedName',
+			'sAMAccountName',
+			'msDS-ManagedAccountPrecededByLink',
+			'msDS-DelegatedMSAState',
+			'msDS-GroupMSAMembership',
+			'msDS-AllowedToActOnBehalfOfOtherIdentity',
+			'servicePrincipalName'
+		]
+		
+		identity = args.identity if args and hasattr(args, 'identity') else identity
+		properties = args.properties if args and hasattr(args, 'properties') else properties
+		if properties is None:
+			properties = def_props
+		searchbase = args.searchbase if args and hasattr(args, 'searchbase') else searchbase
+		no_cache = args.no_cache if args and hasattr(args, 'no_cache') else no_cache
+		no_vuln_check = args.no_vuln_check if args and hasattr(args, 'no_vuln_check') else no_vuln_check
+		raw = args.raw if args and hasattr(args, 'raw') else raw
+
+		entries = self.get_domainobject(
+			identity=identity, 
+			properties=properties,
+			ldap_filter="(objectClass=msDS-DelegatedManagedServiceAccount)",
+			searchbase=searchbase, 
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
+		for entry in entries:
+			if entry.get("attributes",{}).get("msDS-GroupMSAMembership"):
+				entry["attributes"]["msDS-GroupMSAMembership"] = self.convertfrom_sid(entry["attributes"]["msDS-GroupMSAMembership"])
+			if entry.get("attributes",{}).get("msDS-AllowedToActOnBehalfOfOtherIdentity"):
+				entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = self.convertfrom_sid(entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"])
+		logging.debug(f"[Get-DomainDMSA] Found {len(entries)} object(s) with dmsa attribute")
+		return entries
+
+	def add_domaindmsa(self, identity=None, supersededaccount=None, principals_allowed_to_retrieve_managed_password=None, hidden=False, basedn=None, args=None):
+		identity = args.identity if args and hasattr(args, 'identity') else identity
+		supersededaccount = args.supersededaccount if args and hasattr(args, 'supersededaccount') else supersededaccount
+		principals_allowed_to_retrieve_managed_password = args.principals_allowed_to_retrieve_managed_password if args and hasattr(args, 'principals_allowed_to_retrieve_managed_password') else principals_allowed_to_retrieve_managed_password
+		hidden = args.hidden if args and hasattr(args, 'hidden') else hidden
+		basedn = args.basedn if args and hasattr(args, 'basedn') else basedn
+		whitelisted_sids = ["S-1-1-0"]
+
+		if not identity:
+			raise ValueError("[Add-DomainDMSA] -Identity is required")
+		
+		parent_dn_entries = f"CN=Managed Service Accounts,{self.root_dn}"
+		if basedn:
+			if is_dn(basedn):
+				parent_dn_entries = basedn
+			else:
+				logging.warning(f"[Add-DomainDMSA] Invalid basedn format: {basedn}")
+				return False
+		
+		try:
+			dmsa_attrs = {
+				'objectClass': [
+					'top',
+					'person',
+					'organizationalPerson',
+					'user',
+					'computer',
+					'msDS-DelegatedManagedServiceAccount'
+				],
+				'objectCategory': f'CN=ms-DS-Delegated-Managed-Service-Account,{self.schema_dn}',
+				'sAMAccountName': f"{identity}$" if not identity.endswith('$') else identity,
+				'cn': identity,
+				'userAccountControl': 0x1000,  # WORKSTATION_TRUST_ACCOUNT
+				'dNSHostName': f"{identity}.{self.domain}",
+				'msDS-SupportedEncryptionTypes': 28, # RC4-HMAC,AES128,AES256
+				'msDS-ManagedPasswordInterval': 30,
+				'msDS-DelegatedMSAState': DMSA_DELEGATED_MSA_STATE.DISABLED.value
+			}
+			
+			if principals_allowed_to_retrieve_managed_password:
+				principal_entries = self.get_domainobject(
+					identity=principals_allowed_to_retrieve_managed_password,
+					properties=['objectSid']
+				)
+			
+				if len(principal_entries) == 0:
+					logging.error(f"[Add-DomainDMSA] Principal {principals_allowed_to_retrieve_managed_password} not found")
+					return False
+				elif len(principal_entries) > 1:
+					logging.error(f"[Add-DomainDMSA] More than one principal {principals_allowed_to_retrieve_managed_password} found")
+					return False
+					
+				principal_sid = principal_entries[0].get("attributes", {}).get("objectSid")
+				if not principal_sid:
+					logging.error(f"[Add-DomainDMSA] Principal {principals_allowed_to_retrieve_managed_password} has no objectSid")
+					return False
+				whitelisted_sids.append(principal_sid)
+				msa_membership = MSA.create_msamembership(principal_sid)
+				dmsa_attrs['msDS-GroupMSAMembership'] = msa_membership
+
+			if supersededaccount:
+				if not is_dn(supersededaccount):
+					logging.debug(f"[Add-DomainDMSA] Superseded account {supersededaccount} is not a DN, searching for it")
+					target = self.get_domainobject(identity=supersededaccount, properties=['distinguishedName'])
+					if len(target) == 0:
+						logging.error(f"[Add-DomainDMSA] Superseded account {supersededaccount} not found")
+						return False
+					elif len(target) > 1:
+						logging.error(f"[Add-DomainDMSA] More than one superseded account {supersededaccount} found")
+						return False
+					else:
+						superseded_dn = target[0].get("attributes", {}).get("distinguishedName")
+						if not superseded_dn:
+							logging.error(f"[Add-DomainDMSA] Superseded account {supersededaccount} has no distinguished name")
+							return False
+						else:
+							logging.debug(f"[Add-DomainDMSA] Found superseded account {superseded_dn}")
+				else:
+					superseded_dn = supersededaccount
+				dmsa_attrs['msDS-ManagedAccountPrecededByLink'] = superseded_dn
+				dmsa_attrs['msDS-DelegatedMSAState'] = DMSA_DELEGATED_MSA_STATE.MIGRATED.value
+
+			dmsa_dn = f"CN={identity},{parent_dn_entries}"
+			logging.debug(f"[Add-DomainDMSA] Creating DMSA account at {dmsa_dn}")
+			for attr in dmsa_attrs:
+				logging.debug(f"{attr}:{dmsa_attrs[attr]}")
+				
+			result = self.ldap_session.add(
+				dmsa_dn, 
+				None,  
+				dmsa_attrs
+			)
+
+			if not result:
+				logging.error(f"[Add-DomainDMSA] Failed to create DMSA: {self.ldap_session.result}")
+				return False
+			
+			logging.info(f"[Add-DomainDMSA] Successfully created DMSA account {identity}")
+			
+			if hidden:
+				raise NotImplementedError("[Add-DomainDMSA] Hidden DMSA accounts are not supported yet")
+				current_user_sid = self.current_user_sid
+				if not current_user_sid:
+					entries = self.get_domainobject(identity=self.whoami, properties=['objectSid'])
+					if len(entries) == 0:
+						logging.error(f"[Add-DomainDMSA] Current user {self.whoami} not found")
+						return False
+					elif len(entries) > 1:
+						logging.error(f"[Add-DomainDMSA] More than one current user {self.whoami} found")
+						return False
+					current_user_sid = entries[0].get("attributes", {}).get("objectSid")
+					
+					if not current_user_sid:
+						logging.error(f"[Add-DomainDMSA] Current user {self.whoami} has no objectSid")
+						return False
+				entries = self.get_domainobject(identity=dmsa_dn, properties=['ntSecurityDescriptor'], sd_flag=0x05)
+				if len(entries) == 0:
+					logging.error(f"[Add-DomainDMSA] DMSA account {dmsa_dn} not found")
+					return False
+				elif len(entries) > 1:
+					logging.error(f"[Add-DomainDMSA] More than one DMSA account {dmsa_dn} found")
+					return False
+				sec_desc = entries[0].get("attributes", {}).get("ntSecurityDescriptor")
+				
+				if isinstance(sec_desc, list):
+					sec_desc = sec_desc[0]
+				elif isinstance(sec_desc, str):
+					sec_desc = sec_desc.encode('utf-8')
+
+				if not sec_desc:
+					logging.error(f"[Add-DomainDMSA] DMSA account {dmsa_dn} has no ntSecurityDescriptor")
+					return False
+
+				whitelisted_sids.append(current_user_sid)
+				new_sec_desc = MSA.set_hidden_secdesc(
+					sec_desc=sec_desc,
+					whitelisted_sids=whitelisted_sids
+				)
+
+				succeeded = self.ldap_session.modify(dmsa_dn, {'ntSecurityDescriptor': [(ldap3.MODIFY_REPLACE, [new_sec_desc])]})
+				if not succeeded:
+					logging.error(f"[Add-DomainDMSA] Failed to set hidden DMSA account {dmsa_dn}")
+					return False
+				else:
+					logging.info(f"[Add-DomainDMSA] Successfully set hidden DMSA account {dmsa_dn}")
+
+			return True
+		except Exception as e:
+			if self.args.stack_trace:
+				raise e
+			logging.error(f"[Add-DomainDMSA] Error creating DMSA: {str(e)}")
+			return False
+
+	def remove_domaindmsa(self, identity=None, searchbase=None, args=None):
+		identity = args.identity if args and hasattr(args, 'identity') else identity
+		searchbase = args.searchbase if args and hasattr(args, 'searchbase') else searchbase
+		if not identity:
+			raise ValueError("[Remove-DomainDMSA] -Identity is required")
+
+		if not is_dn(identity):
+			logging.debug(f"[Remove-DomainDMSA] DMSA account {identity} is not a DN, searching for it")
+			entries = self.get_domaindmsa(
+				identity=identity, 
+				properties = ['objectSid','distinguishedName'],
+				searchbase=searchbase,
+				no_cache=True
+			)
+			if len(entries) == 0:
+				logging.error(f"[Remove-DomainDMSA] DMSA account {identity} not found")
+				return False
+			elif len(entries) > 1:
+				logging.error(f"[Remove-DomainDMSA] More than one DMSA account {identity} found")
+				return False
+			entry_dn = entries[0].get("attributes", {}).get("distinguishedName")
+		else:
+			entry_dn = identity
+
+		if not entry_dn:
+			logging.error(f"[Remove-DomainDMSA] DMSA account {identity} has no distinguished name")
+			return False
+
+		logging.warning(f"[Remove-DomainDMSA] Removing DMSA account {identity}")
+		succeeded = self.ldap_session.delete(entry_dn)
+		if not succeeded:
+			logging.error(f"[Remove-DomainDMSA] Failed to remove DMSA account {identity}")
+			return False
+		
+		logging.info(f"[Remove-DomainDMSA] Successfully removed DMSA account {identity}")
+		return True
+
 	def add_domaincomputer(self, computer_name, computer_pass, basedn=None, args=None):
 		parent_dn_entries = f"CN=Computers,{self.root_dn}"
 		if basedn:
@@ -3828,7 +4454,8 @@ displayName=New Group Policy Object
 			logging.error(f'[Set-DomainUserPassword] Multiple principal objects found in domain. Use specific identifier')
 			return
 		logging.info(f'[Set-DomainUserPassword] Principal {"".join(entries[0]["attributes"]["distinguishedName"])} found in domain')
-		if self.ssl:
+		
+		if self.conn.use_ldaps:
 			logging.debug("[Set-DomainUserPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
 			succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0]["attributes"]["distinguishedName"], accountpassword, old_password=oldpassword)
 			if succeed:
@@ -3842,7 +4469,7 @@ displayName=New Group Policy Object
 			try:
 				dce = self.conn.init_samr_session()
 				if not dce:
-					logging.error('Error binding with SAMR')
+					logging.error('[Set-DomainUserPassword] Error binding with SAMR')
 					return
 
 				server_handle = samr.hSamrConnect(dce, self.dc_ip + '\x00')['ServerHandle']
@@ -3878,7 +4505,7 @@ displayName=New Group Policy Object
 			logging.error("[Get-DomainComputerPassword] Multiple computers found in domain")
 			return False
 
-		if self.ssl:
+		if self.conn.use_ldaps:
 			logging.debug("[Set-DomainComputerPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
 			succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0]["attributes"]["distinguishedName"], accountpassword, old_password=oldpassword)
 			if succeed:
@@ -3991,7 +4618,7 @@ displayName=New Group Policy Object
 
 			if not attrs:
 				raise ValueError(f"[Set-DomainObject] Parsing {'-Set' if args.set else '-Append'} value failed")
-			targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=[attrs['attribute'], "distinguishedName"], sd_flag=sd_flag)
+			targetobject = self.get_domainobject(identity=identity, searchbase=searchbase, properties=[attrs['attribute'], "distinguishedName"], sd_flag=sd_flag, no_cache=True)
 			if len(targetobject) > 1:
 				logging.error(f"[Set-DomainObject] More than one identity found. Use distinguishedName instead")
 				return False
@@ -4000,7 +4627,7 @@ displayName=New Group Policy Object
 				return False
 
 			# check if value is a file
-			if len(attrs['value']) == 1 and isinstance(attrs['value'][0], str) and not isinstance(attrs['value'][0], bytes) and attrs['value'][0].startswith("@"):
+			if isinstance(attrs['value'], list) and len(attrs['value']) == 1 and isinstance(attrs['value'][0], str) and not isinstance(attrs['value'][0], bytes) and attrs['value'][0].startswith("@"):
 				path = attrs['value'][0].lstrip("@")
 				try:
 					logging.debug("[Set-DomainObject] Reading from file")
@@ -4008,33 +4635,6 @@ displayName=New Group Policy Object
 				except Exception as e:
 					logging.error("[Set-DomainObject] %s" % str(e))
 					return
-
-			# try:
-			# 	if isinstance(attrs['value'], list):
-			# 		for val in attrs['value']:
-			# 			try:
-			# 				values = targetobject[0]["attributes"].get(attrs['attribute'])
-			# 				if isinstance(values, list):
-			# 					for ori_val in values:
-			# 						if isinstance(ori_val, str) and isinstance(val, str):
-			# 							if val.casefold() == ori_val.casefold():
-			# 								raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-			# 						else:
-			# 							if val == values:
-			# 								raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-			# 				elif isinstance(values, str):
-			# 					if val.casefold() == values.casefold():
-			# 						raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-			# 				elif isinstance(values, int):
-			# 					if val == values:
-			# 						raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-			# 				else:
-			# 					if val == values:
-			# 						raise ValueError(f"[Set-DomainObject] Value {val} already set in the attribute "+attrs['attribute'])
-			# 			except KeyError as e:
-			# 				logging.warning(f"[Set-DomainObject] Attribute {attrs['attribute']} not exists in object. Modifying anyway...")
-			# except ldap3.core.exceptions.LDAPKeyError as e:
-			# 	logging.error(f"[Set-DomainObject] Key {attrs['attribute']} not found in template attribute. Adding anyway...")
 
 			if attr_append:
 				if not targetobject[0]["attributes"].get(attrs['attribute']):
@@ -4059,14 +4659,17 @@ displayName=New Group Policy Object
 					temp_list = targetobject[0]["attributes"][attrs['attribute']]
 
 				#In case the value a Distinguished Name we retransform it into a list to append it
-				if re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', str(attrs['value'])):
+				if is_dn(str(attrs['value'])):
 					attrs['value'] = list(set(list(attrs['value'].split('\n') + temp_list)))
 				else:
 					attrs['value'] = list(set(attrs['value'] + temp_list))
 			elif attr_set:
 				#In case the value is a Distinguished Name
-				if not re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', str(attrs['value'])):
-					attrs['value'] = list(set(attrs['value']))
+				if not is_dn(str(attrs['value'])):
+					if isinstance(attrs['value'], int):
+						attrs['value'] = [attrs['value']]
+					else:
+						attrs['value'] = list(set(attrs['value']))
 
 			attr_key = attrs['attribute']
 			attr_val = attrs['value']
@@ -4074,10 +4677,10 @@ displayName=New Group Policy Object
 		# if the attribute is a UAC flag and check if not a digit, we need to convert the value to a numeric value
 		if attr_key and attr_key.lower() == 'useraccountcontrol' and attr_val:
 			if isinstance(attr_val, list):
-				if not attr_val[0].isdigit():
+				if len(attr_val) > 0 and not isinstance(attr_val[0], int) and not (isinstance(attr_val[0], str) and attr_val[0].isdigit()):
 					attr_val = UAC.parse_uac_namestrings_to_value(attr_val)
 			else:
-				if not attr_val.isdigit():
+				if not isinstance(attr_val, int) and not (isinstance(attr_val, str) and attr_val.isdigit()):
 					attr_val = UAC.parse_uac_namestrings_to_value(attr_val)
 
 		succeeded = self.ldap_session.modify(targetobject[0]["attributes"]["distinguishedName"], {
@@ -4326,10 +4929,11 @@ displayName=New Group Policy Object
 		entries = userspn.run(entries)
 		return entries
 
-	def find_localadminaccess(self, computer=None, username=None, password=None, domain=None, nthash=None, lmhash=None, no_cache=False, args=None):
+	def find_localadminaccess(self, computer=None, username=None, password=None, domain=None, nthash=None, lmhash=None, no_cache=False, no_resolve=False, args=None):
 		import concurrent.futures
 		host_entries = []
 		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
+		no_resolve = args.no_resolve if hasattr(args, 'no_resolve') and args.no_resolve else no_resolve
 		if args:
 			if username is None and hasattr(args, 'username') and args.username:
 				logging.warning(f"[Find-LocalAdminAccess] Using identity {args.username} from supplied username. Ignoring current user context...")
@@ -4358,8 +4962,16 @@ displayName=New Group Policy Object
 					return {'address': entry, 'hostname': entry}
 				if not is_valid_fqdn(entry):
 					entry = f"{entry}.{self.domain}"
-				ip = host2ip(entry, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
-				return {'address': ip, 'hostname': entry}
+				if no_resolve:
+					logging.debug(f"[Find-LocalAdminAccess] Skipping hostname resolution for {entry}")
+					ip = entry
+				else:
+					ip = host2ip(entry, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+				
+				return {
+					'address': ip,
+					'hostname': entry
+				}
 			except Exception:
 				return None
 		if computer:
@@ -4378,9 +4990,9 @@ displayName=New Group Policy Object
 		def check_admin(ent):
 			try:
 				# Use provided creds if available, otherwise use current connection context
-				current_username = username or self.conn.get_username()
-				current_password = password or self.conn.get_password()
-				current_domain = domain or self.conn.get_domain()
+				current_username = username or self.conn.username
+				current_password = password or self.conn.password
+				current_domain = domain or self.conn.domain
 				current_lmhash = lmhash or self.conn.lmhash
 				current_nthash = nthash or self.conn.nthash
 
@@ -4390,7 +5002,8 @@ displayName=New Group Policy Object
 					password=current_password,
 					domain=current_domain,
 					lmhash=current_lmhash,
-					nthash=current_nthash
+					nthash=current_nthash,
+					show_exceptions=False
 				)
 
 				if not smbconn:
@@ -4398,7 +5011,13 @@ displayName=New Group Policy Object
 					return None
 					
 				smbconn.connectTree("C$")
-				return {'attributes': {'Address': ent['address'], 'Hostname': ent['hostname']}}
+				return {
+					'attributes': {
+						'Address': ent['address'],
+						'Hostname': ent['hostname'],
+						'Username': current_username,
+					}
+				}
 			except Exception as e:
 				logging.debug(f"[Find-LocalAdminAccess] Failed to connect/check admin on {ent['hostname']}: {str(e)}")
 				return None
@@ -5270,6 +5889,79 @@ displayName=New Group Policy Object
 
 		return sessions
 
+	def remove_netsession(self, computer=None, target_session=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if not computer and not target_session:
+			logging.error("[Remove-NetSession] Either computer or target_session is required")
+			return
+		
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Remove-NetSession] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+		
+		if username and not (password or lmhash or nthash):
+			logging.error("[Remove-NetSession] Password or hash is required when specifying a username")
+			return
+
+		KNOWN_PROTOCOLS = {
+			139: {'bindstr': r'ncacn_np:%s[\pipe\srvsvc]', 'set_host': True},
+			445: {'bindstr': r'ncacn_np:%s[\pipe\srvsvc]', 'set_host': True},
+		}
+
+		if is_ipaddress(computer) and self.use_kerberos:
+			logging.error("[Remove-NetSession] Use FQDN when using kerberos")
+			return
+
+		if is_valid_fqdn(computer) and not self.use_kerberos:
+			computer = host2ip(computer, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer
+		dce = self.conn.connectRPCTransport(
+			host=computer,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			stringBindings=stringBinding,
+			interface_uuid = srvs.MSRPC_UUID_SRVS
+		)
+
+		if dce is None:
+			logging.error("[Remove-NetSession] Failed to connect to %s" % (computer))
+			return
+		
+		try:
+			logging.info(f"[Remove-NetSession] Removing session {target_session} from {computer}")
+			resp = srvs.hNetrSessionDel(
+				dce,
+				NULL,
+				target_session + '\x00'
+			)
+		except Exception as e:
+			if 'rpc_s_access_denied' in str(e) or '0x5' in str(e):
+				logging.error('Access denied while removing session on %s' % (computer))
+			elif '0x908' in str(e) or 'NERR_ClientNameNotFound' in str(e):
+				logging.error('Session not found on %s' % (computer))
+			elif '0x57' in str(e) or 'ERROR_INVALID_PARAMETER' in str(e):
+				logging.error('Invalid parameter while removing session on %s' % (computer))
+			elif '0x8' in str(e) or 'ERROR_NOT_ENOUGH_MEMORY' in str(e):
+				logging.error('Not enough memory while removing session on %s' % (computer))
+			else:
+				logging.error(str(e))
+			return
+
+		logging.info(f"[Remove-NetSession] Session {target_session} removed from {computer}")
+		return True
+
 	def get_domaintrustkey(self, identity=None, properties=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False, args=None):
 		"""
 		Extract trust keys from domain trust objects.
@@ -5425,7 +6117,7 @@ displayName=New Group Policy Object
 				raw=raw
 			)
 		except ldap3.core.exceptions.LDAPObjectClassError as e:
-			if "invalid class in objectClass attribute: msExchExchangeServer" in str(e):
+			if "invalid class in objectClass attribute" in str(e):
 				logging.error("[Get-ExchangeServer] Error: Domain doesn't have Exchange servers")
 				return
 			else:
@@ -5670,15 +6362,15 @@ displayName=New Group Policy Object
 			if auth_aes_key:
 				self.conn.auth_aes_key = auth_aes_key
 
-		logging.info(f"[Login-As] Logging in as {self.conn.get_username()}@{self.conn.get_domain()}")
+		logging.info(f"[Login-As] Logging in as {self.conn.username}@{self.conn.domain}")
 		try:
 			self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
-			logging.info(f"[Login-As] Successfully logged in as {self.conn.get_username()}@{self.conn.get_domain()}")
+			logging.info(f"[Login-As] Successfully logged in as {self.conn.username}@{self.conn.domain}")
 			self._initialize_attributes_from_connection()
 			return True
 		except Exception as e:
 			if self.args.stack_trace:
 				raise e
 			else:
-				logging.error(f"[Login-As] Failed to login as {self.conn.get_username()}@{self.conn.get_domain()}: {e}")
+				logging.error(f"[Login-As] Failed to login as {self.conn.username}@{self.conn.domain}: {e}")
 				return False

@@ -493,6 +493,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Add share button handler
+    const addShareButton = document.getElementById('smb-add-share-button');
+    addShareButton.onclick = () => {
+        if (!activeComputer) {
+            showErrorAlert('Please connect to a computer first');
+            return;
+        }
+        showAddShareModal(activeComputer);
+    };
+
     // Add rename modal event listeners
     const renameConfirmBtn = document.getElementById('rename-confirm-btn');
     const renameCancelBtn = document.getElementById('rename-cancel-btn');
@@ -501,7 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (renameConfirmBtn && renameCancelBtn && renameInput) {
         renameConfirmBtn.addEventListener('click', () => {
             const newName = renameInput.value.trim();
-            if (newName && newName !== renameModalData.oldName) {
+            if (newName && newName !== renameModalData.originalFullPath) {
                 performRename(newName);
             }
             hideRenameModal();
@@ -513,7 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renameInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 const newName = renameInput.value.trim();
-                if (newName && newName !== renameModalData.oldName) {
+                if (newName && newName !== renameModalData.originalFullPath) {
                     performRename(newName);
                 }
                 hideRenameModal();
@@ -738,6 +748,7 @@ function attachFileListeners() {
                 try {
                     isLoading = true;
                     showInlineSpinner(spinnerContainer);
+                    // Normalize path separators before sending to API
                     const cleanPath = path.replace(/^\//, '').replace(/\//g, '\\');
                     await viewSMBFile(computer, share, cleanPath);
                 } catch (error) {
@@ -784,6 +795,7 @@ function attachFileListeners() {
                 try {
                     isLoading = true;
                     showInlineSpinner(spinnerContainer);
+                    // Normalize path separators before sending to API
                     const cleanPath = currentItemPath.replace(/^\//, '').replace(/\//g, '\\');
                     const files = await listSMBPath(computer, currentShare, cleanPath);
                     subList.innerHTML = buildFileList(files, currentShare, currentItemPath, computer);
@@ -804,7 +816,9 @@ function attachFileListeners() {
                     e.stopPropagation();
                     showInlineSpinner(spinnerContainer);
                     try {
-                        await uploadSMBFile(computer, share, item.dataset.path);
+                        // Normalize path separators for upload
+                        const normalizedPath = item.dataset.path.replace(/\//g, '\\');
+                        await uploadSMBFile(computer, share, normalizedPath);
                     } finally {
                         removeInlineSpinner(spinnerContainer);
                     }
@@ -817,7 +831,9 @@ function attachFileListeners() {
                     e.stopPropagation();
                     showInlineSpinner(spinnerContainer);
                     try {
-                        await createSMBDirectory(computer, share, path);
+                        // Normalize path separators for new folder creation
+                        const normalizedPath = path.replace(/\//g, '\\');
+                        await createSMBDirectory(computer, share, normalizedPath);
                     } finally {
                         removeInlineSpinner(spinnerContainer);
                     }
@@ -830,7 +846,9 @@ function attachFileListeners() {
                     e.stopPropagation();
                     showInlineSpinner(spinnerContainer);
                     try {
-                        await viewSMBFile(computer, share, item.dataset.path);
+                        // Normalize path separators before viewing
+                        const normalizedPath = item.dataset.path.replace(/\//g, '\\');
+                        await viewSMBFile(computer, share, normalizedPath);
                     } finally {
                         removeInlineSpinner(spinnerContainer);
                     }
@@ -845,10 +863,14 @@ function attachFileListeners() {
                 showInlineSpinner(spinnerContainer);
                 try {
                     if (isDirectory) {
+                        // For directories, use forward slash split to get name, but normalize path for download
                         const dirName = path.split('/').pop();
-                        await downloadSMBDirectory(computer, share, path, dirName);
+                        const normalizedPath = path.replace(/\//g, '\\');
+                        await downloadSMBDirectory(computer, share, normalizedPath, dirName);
                     } else {
-                        await downloadSMBFile(computer, share, path);
+                        // Normalize path separators for file download
+                        const normalizedPath = path.replace(/\//g, '\\');
+                        await downloadSMBFile(computer, share, normalizedPath);
                     }
                 } finally {
                     removeInlineSpinner(spinnerContainer);
@@ -863,7 +885,9 @@ function attachFileListeners() {
                 e.stopPropagation();
                 showInlineSpinner(spinnerContainer);
                 try {
-                    await deleteSMBFileOrDirectory(computer, share, path, isDirectory);
+                    // Normalize path separators for deletion
+                    const normalizedPath = path.replace(/\//g, '\\');
+                    await deleteSMBFileOrDirectory(computer, share, normalizedPath, isDirectory);
                 } finally {
                     removeInlineSpinner(spinnerContainer);
                 }
@@ -877,7 +901,7 @@ function attachFileListeners() {
                 computer: item.dataset.computer,
                 share: item.dataset.share,
                 name: item.dataset.path.split('/').pop(), // Get name from path
-                path: item.dataset.path,
+                path: item.dataset.path.replace(/\//g, '\\'), // Normalize path for context menu
                 isDirectory: item.getAttribute('data-is-dir') === '16' || item.getAttribute('data-is-dir') === '48',
                 isShare: false
             };
@@ -899,7 +923,9 @@ async function downloadSMBFile(computer, share, path, raw = false) {
 
     try {
         showLoadingIndicator();
-        const filename = path.split('\\').pop();
+        // Normalize path separators before extracting filename
+        const normalizedPath = path.replace(/\//g, '\\');
+        const filename = normalizedPath.split('\\').pop();
         const downloadId = Date.now();
 
         // Only create download entry if not raw download
@@ -948,7 +974,7 @@ async function downloadSMBFile(computer, share, path, raw = false) {
             downloadsList.insertBefore(downloadEntry, downloadsList.firstChild);
         }
 
-        // Start download
+        // Start download - use original path for API call
         const response = await fetch('/api/smb/get', {
             method: 'POST',
             headers: {
@@ -1223,7 +1249,9 @@ async function viewSMBFile(computer, share, path) {
 
     try {
         showLoadingIndicator();
-        const filename = path.split('\\').pop();
+        // Normalize path separators before extracting filename
+        const normalizedPath = path.replace(/\//g, '\\');
+        const filename = normalizedPath.split('\\').pop();
         const isImage = isImageFile(filename);
         const isPdf = isPdfFile(filename);
         
@@ -1235,6 +1263,7 @@ async function viewSMBFile(computer, share, path) {
         document.getElementById('text-viewer').classList.add('hidden');
         document.getElementById('pdf-viewer').classList.add('hidden');
 
+        // Use original path for API call
         const response = await fetch('/api/smb/cat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1371,13 +1400,14 @@ function showRenameModal(computer, share, path, isDirectory, isShare) {
     }
     
     // Update modal title based on item type
-    titleElement.textContent = `Rename ${isDirectory ? 'Folder' : 'File'}`;
+    titleElement.textContent = `Rename/Move ${isDirectory ? 'Folder' : 'File'}`;
     
-    // Display the path using original format for consistency in UI
+    // Display the path using UNC format
     pathDisplay.textContent = `\\\\${computer}\\${share}\\${path}`;
     
-    // Set initial value in the input
-    renameInput.value = oldName;
+    // Set initial value in the input - use full path for absolute path support
+    renameInput.value = normalizedPath;
+    renameInput.placeholder = 'Enter new name or full path (e.g., "newname.txt" or "folder\\subfolder\\newname.txt")';
     
     // Store data for later use
     renameModalData = {
@@ -1387,7 +1417,8 @@ function showRenameModal(computer, share, path, isDirectory, isShare) {
         isDirectory,
         isShare,
         oldName,
-        dirPath
+        dirPath,
+        originalFullPath: normalizedPath  // Store original full path for comparison
     };
     
     console.log('Path parts:', filteredParts);
@@ -1421,7 +1452,7 @@ async function renameSMBFileOrDirectory(computer, share, path, isDirectory, isSh
 
 // Add this new function that does the actual rename operation
 async function performRename(newName) {
-    const { computer, share, path, dirPath, isDirectory, isShare, oldName } = renameModalData;
+    const { computer, share, path, dirPath, isDirectory, isShare, oldName, originalFullPath } = renameModalData;
     
     console.log('renameModalData:', renameModalData);
     try {
@@ -1430,8 +1461,17 @@ async function performRename(newName) {
         // Construct the source and destination paths
         const source = path;
         
-        // If we have a directory path, join it with the new name, otherwise just use the new name
-        const destination = dirPath ? `${dirPath}\\${newName}` : newName;
+        // Determine if newName is an absolute path or just a filename
+        let destination;
+        if (newName.includes('\\') || newName.includes('/')) {
+            // User provided an absolute path - normalize it
+            destination = newName.replace(/\//g, '\\');
+            console.log('Using absolute path destination:', destination);
+        } else {
+            // User provided just a filename - keep it in the same directory
+            destination = dirPath ? `${dirPath}\\${newName}` : newName;
+            console.log('Using relative filename destination:', destination);
+        }
         
         console.log('Source:', source);
         console.log('Destination:', destination);
@@ -1451,10 +1491,15 @@ async function performRename(newName) {
 
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.error || 'Failed to rename file');
+            throw new Error(error.error || 'Failed to rename/move file');
         }
 
-        // Refresh the directory where the renamed item was located
+        // Determine what type of operation was performed for user feedback
+        const isMove = destination.includes('\\') && 
+                      (destination.split('\\').slice(0, -1).join('\\') !== dirPath);
+        const operationType = isMove ? 'moved' : 'renamed';
+        
+        // Refresh the directory where the renamed/moved item was located
         try {
             // For shares, refresh the whole view
             if (isShare) {
@@ -1462,52 +1507,76 @@ async function performRename(newName) {
                 if (shareRootElement) {
                     shareRootElement.click();
                 }
+                showSuccessAlert(`Successfully ${operationType} item`);
                 return;
             }
             
             // Normalize paths for comparison
             const parentPathNormalized = '/' + (dirPath || '').replace(/\\/g, '/');
             
-            // Check if the renamed item is a directory and currently expanded
-            if (isDirectory) {
-                // If we're renaming a directory, check if it's currently expanded
-                const normalizedItemPath = '/' + path.replace(/\\/g, '/');
-                const renamedDirElement = document.querySelector(`.file-item[data-path="${normalizedItemPath}"][data-share="${share}"][data-computer="${computer}"]`);
-                if (renamedDirElement && renamedDirElement.querySelector('ul') && !renamedDirElement.querySelector('ul').classList.contains('hidden')) {
-                    // Directory is expanded, we need to update its path and refresh its contents
-                    // First, refresh the parent to update the folder listing with new name
-                    await refreshDirectory(computer, share, dirPath, parentPathNormalized);
+            // If it's a move operation, we might need to refresh multiple directories
+            if (isMove) {
+                // Refresh the source directory
+                await refreshDirectory(computer, share, dirPath, parentPathNormalized);
+                
+                // If the destination is in a different directory, try to refresh that too
+                const destParts = destination.split('\\');
+                if (destParts.length > 1) {
+                    const destDirPath = destParts.slice(0, -1).join('\\');
+                    const destPathNormalized = '/' + destDirPath.replace(/\\/g, '/');
                     
-                    // Then, find and click the renamed folder to expand it again
-                    setTimeout(() => {
-                        // Construct the new path with the new name
-                        const newPathNormalized = parentPathNormalized === '/' ? 
-                            `/${newName}` : 
-                            `${parentPathNormalized}/${newName}`;
-                        
-                        console.log('Looking for renamed folder at:', newPathNormalized);
-                        const newFolderElement = document.querySelector(`.file-item[data-path="${newPathNormalized}"][data-share="${share}"][data-computer="${computer}"] > div`);
-                        if (newFolderElement) {
-                            newFolderElement.click();
-                        } else {
-                            console.warn('Could not find renamed folder element:', newPathNormalized);
+                    // Only refresh destination if it's different from source
+                    if (destDirPath !== dirPath) {
+                        try {
+                            await refreshDirectory(computer, share, destDirPath, destPathNormalized);
+                        } catch (error) {
+                            console.warn('Could not refresh destination directory:', error);
                         }
-                    }, 100);
-                    return;
+                    }
                 }
+            } else {
+                // Check if the renamed item is a directory and currently expanded
+                if (isDirectory) {
+                    // If we're renaming a directory, check if it's currently expanded
+                    const normalizedItemPath = '/' + path.replace(/\\/g, '/');
+                    const renamedDirElement = document.querySelector(`.file-item[data-path="${normalizedItemPath}"][data-share="${share}"][data-computer="${computer}"]`);
+                    if (renamedDirElement && renamedDirElement.querySelector('ul') && !renamedDirElement.querySelector('ul').classList.contains('hidden')) {
+                        // Directory is expanded, we need to update its path and refresh its contents
+                        // First, refresh the parent to update the folder listing with new name
+                        await refreshDirectory(computer, share, dirPath, parentPathNormalized);
+                        
+                        // Then, find and click the renamed folder to expand it again
+                        setTimeout(() => {
+                            // Construct the new path with the new name
+                            const newPathNormalized = parentPathNormalized === '/' ? 
+                                `/${newName}` : 
+                                `${parentPathNormalized}/${newName}`;
+                            
+                            console.log('Looking for renamed folder at:', newPathNormalized);
+                            const newFolderElement = document.querySelector(`.file-item[data-path="${newPathNormalized}"][data-share="${share}"][data-computer="${computer}"] > div`);
+                            if (newFolderElement) {
+                                newFolderElement.click();
+                            } else {
+                                console.warn('Could not find renamed folder element:', newPathNormalized);
+                            }
+                        }, 100);
+                        showSuccessAlert(`Successfully ${operationType} to ${destination}`);
+                        return;
+                    }
+                }
+                
+                // Standard case: Just refresh the parent directory
+                await refreshDirectory(computer, share, dirPath, parentPathNormalized);
             }
             
-            // Standard case: Just refresh the parent directory
-            await refreshDirectory(computer, share, dirPath, parentPathNormalized);
-            
         } catch (error) {
-            console.error('Error refreshing directory after rename:', error);
+            console.error('Error refreshing directory after rename/move:', error);
         }
         
-        showSuccessAlert(`Successfully renamed to ${newName}`);
+        showSuccessAlert(`Successfully ${operationType} to ${destination}`);
     } catch (error) {
         showErrorAlert(error.message);
-        console.error('Rename error:', error);
+        console.error('Rename/move error:', error);
     } finally {
         hideLoadingIndicator();
     }   
@@ -1710,49 +1779,78 @@ async function downloadSMBDirectory(computer, share, path, directoryName) {
 
         // Download each file
         for (const file of files) {
-            // file.path is the full path from share root, e.g., "FolderA\file.txt" or "FolderA\SubFolderB\file.txt"
+            // file.path is the full path from share root, e.g., "Users\Administrator\Desktop\testfolder\file.txt"
             // file.name is the basename, e.g., "file.txt"
+            
+            // Normalize file path to use consistent backslashes for comparison
+            const normalizedFilePath = file.path.replace(/\//g, '\\');
+            const lowerFilePath = normalizedFilePath.toLowerCase();
 
             let pathInZip;
-            const lowerFilePath = file.path.toLowerCase();
 
             if (normalizedDownloadRootPath === '') { 
-                // Downloading from share root
-                pathInZip = file.path;
+                // Downloading from share root - use full path
+                pathInZip = normalizedFilePath;
             } else {
-                // Prefix for length calculation (original case)
+                // Calculate relative path from download root
                 const prefixOriginalCase = normalizedDownloadRootPath + '\\';
-                // Prefix for comparison (lowercase)
                 const prefixLowerCase = lowerNormalizedDownloadRootPath + '\\';
 
                 if (lowerFilePath.startsWith(prefixLowerCase)) {
-                    // Use original file.path and original prefix length for substring to preserve casing
-                    pathInZip = file.path.substring(prefixOriginalCase.length);
+                    // Remove the download root prefix to get relative path
+                    // This makes the downloaded folder the root of the zip
+                    pathInZip = normalizedFilePath.substring(prefixOriginalCase.length);
                 } else if (lowerFilePath === lowerNormalizedDownloadRootPath) {
-                    // This case handles if normalizedDownloadRootPath was a file itself and is being "downloaded as a directory"
+                    // File is exactly the download root (single file download)
                     pathInZip = file.name;
                 } else {
-                    console.warn(`File path ${file.path} (lc: ${lowerFilePath}) does not match download root ${normalizedDownloadRootPath} (lc: ${lowerNormalizedDownloadRootPath}, prefix lc: ${prefixLowerCase}). Using basename ${file.name}.`);
-                    pathInZip = file.name; // Fallback
+                    // File doesn't match expected prefix - this shouldn't happen with proper recursive listing
+                    // But if it does, try to preserve relative structure from the download point
+                    console.warn(`File path ${normalizedFilePath} doesn't match expected prefix ${prefixOriginalCase}. Attempting to preserve relative structure.`);
+                    
+                    // Try to find the download root in the file path and extract everything after it
+                    const downloadRootParts = normalizedDownloadRootPath.split('\\').filter(p => p);
+                    const fileParts = normalizedFilePath.split('\\').filter(p => p);
+                    
+                    // Find the last occurrence of the download root pattern in the file path
+                    let matchIndex = -1;
+                    for (let i = 0; i <= fileParts.length - downloadRootParts.length; i++) {
+                        let matches = true;
+                        for (let j = 0; j < downloadRootParts.length; j++) {
+                            if (fileParts[i + j].toLowerCase() !== downloadRootParts[j].toLowerCase()) {
+                                matches = false;
+                                break;
+                            }
+                        }
+                        if (matches) {
+                            matchIndex = i + downloadRootParts.length;
+                        }
+                    }
+                    
+                    if (matchIndex !== -1 && matchIndex < fileParts.length) {
+                        // Use everything after the matched download root
+                        pathInZip = fileParts.slice(matchIndex).join('\\');
+                    } else {
+                        // Final fallback: just use the filename
+                        console.warn(`Could not determine relative path for ${normalizedFilePath}. Using filename only.`);
+                        pathInZip = file.name;
+                    }
                 }
             }
 
-            // Ensure pathInZip is not empty or just a separator, fallback to file.name
-            // This might happen if file.path was exactly normalizedDownloadRootPath and substring resulted in empty string.
-            if (!pathInZip || pathInZip === '\\') {
-                if (pathInZip === '' && lowerFilePath === lowerNormalizedDownloadRootPath) {
-                    // Correctly handle case where the item itself is the root, pathInZip should be its name
-                    pathInZip = file.name;
-                } else {
-                    console.warn(`pathInZip became invalid ('${pathInZip}') for file ${file.path} (root: ${normalizedDownloadRootPath}). Defaulting to basename ${file.name}.`);
-                    pathInZip = file.name;
-                }
+            // Ensure pathInZip is valid and preserves structure
+            if (!pathInZip || pathInZip === '\\' || pathInZip === '') {
+                // Last resort: use filename but warn about structure loss
+                console.warn(`Invalid pathInZip for ${normalizedFilePath}. Using filename only: ${file.name}`);
+                pathInZip = file.name;
             }
 
             try {
-                const blob = await downloadSMBFile(computer, share, file.path, true); // downloadSMBFile needs full path from share root
+                const blob = await downloadSMBFile(computer, share, file.path, true);
                 if (blob) {
-                    zip.file(pathInZip, blob); // Use the calculated relative path for the zip entry
+                    // Convert backslashes to forward slashes for JSZip compatibility
+                    const zipPath = pathInZip.replace(/\\/g, '/');
+                    zip.file(zipPath, blob);
                 }
                 completedFiles++;
                 
@@ -1761,7 +1859,7 @@ async function downloadSMBDirectory(computer, share, path, directoryName) {
                 updateDownloadProgress(downloadId, completedFiles, totalFiles);
                 statusElement.textContent = `${completedFiles}/${totalFiles} files`;
             } catch (error) {
-                console.error(`Error downloading file ${file.path}:`, error);
+                console.error(`Error downloading file ${normalizedFilePath}:`, error);
                 // Continue with next file even if one fails
             }
         }
@@ -2451,6 +2549,24 @@ function showContextMenu(event, itemData) {
         contextMenuElement.appendChild(createMenuItem('New Folder', 'fas fa-folder-plus', () => {
             createSMBDirectory(itemData.computer, itemData.share, itemData.path);
         }));
+        
+        // Add Share option for directories (not shares themselves)
+        if (!itemData.isShare) {
+            contextMenuElement.appendChild(createMenuItem('Add Share Here', 'fas fa-share-alt text-blue-600 dark:text-blue-400', () => {
+                showAddShareModalForDirectory(itemData.computer, itemData.share, itemData.path, itemData.name);
+            }));
+        }
+        
+        // Share management options (only for shares)
+        if (itemData.isShare) {
+            contextMenuElement.appendChild(createMenuSeparator());
+            contextMenuElement.appendChild(createMenuItem('Add Share', 'fas fa-plus-circle text-green-600 dark:text-green-400', () => {
+                showAddShareModal(itemData.computer);
+            }));
+            contextMenuElement.appendChild(createMenuItem('Delete Share', 'fas fa-minus-circle text-red-600 dark:text-red-500', () => {
+                deleteSMBShare(itemData.computer, itemData.share);
+            }));
+        }
     } else {
         // File actions
         contextMenuElement.appendChild(createMenuItem('View', 'fas fa-eye', () => {
@@ -2531,10 +2647,18 @@ async function showProperties(computer, share, path, isDirectory, isShare) {
     propertiesExtendedSection.classList.add('hidden');
     propertiesSecuritySection.classList.add('hidden');
     
+    // Show the properties panel
     propertiesPanel.classList.remove('hidden');
     setTimeout(() => {
         propertiesPanel.classList.remove('translate-x-full');
-    }, 0);
+    }, 10);
+    
+    // Store data attributes for delete functionality
+    propertiesPanel.setAttribute('data-computer', computer);
+    propertiesPanel.setAttribute('data-share', share);
+    propertiesPanel.setAttribute('data-path', path || '');
+    propertiesPanel.setAttribute('data-is-directory', isDirectory.toString());
+    propertiesPanel.setAttribute('data-is-share', isShare.toString());
     
     // Show loading state
     propertiesSpinner.classList.remove('hidden');
@@ -2777,6 +2901,23 @@ async function showProperties(computer, share, path, isDirectory, isShare) {
             });
             
             permissionTable.appendChild(tableBody);
+            
+            // Add a subtle row for adding new permissions
+            const addPermissionRow = document.createElement('tr');
+            addPermissionRow.className = 'border-t border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer';
+            addPermissionRow.innerHTML = `
+                <td colspan="2" class="py-1 text-center">
+                    <button class="inline-flex items-center justify-center w-6 h-6 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-full transition-colors">
+                        <i class="fas fa-plus fa-sm"></i>
+                    </button>
+                </td>
+            `;
+            addPermissionRow.addEventListener('click', () => {
+                showAddPermissionModal(computer, share, path, isDirectory, isShare);
+            });
+            
+            tableBody.appendChild(addPermissionRow);
+            permissionTable.appendChild(tableBody);
             propertiesSecurityInfo.appendChild(permissionTable);
             
             // Add a note about clicking for more details
@@ -2850,9 +2991,17 @@ function showPermissionDetails(trustee, trusteeInfo) {
                 
                 <h4 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Access Control Entries</h4>
                 <div class="space-y-2">
-                    ${trusteeInfo.details.map(detail => `
+                    ${trusteeInfo.details.map((detail, index) => `
                         <div class="p-2 bg-neutral-50 dark:bg-neutral-800 rounded-md">
-                            <div class="text-xs font-medium text-neutral-900 dark:text-white">${detail.type}</div>
+                            <div class="flex items-center justify-between">
+                                <div class="text-xs font-medium text-neutral-900 dark:text-white">${detail.type}</div>
+                                <button class="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors remove-ace-btn" 
+                                        title="Remove this ACE"
+                                        data-trustee="${trustee}" 
+                                        data-ace-index="${index}">
+                                    <i class="fas fa-trash fa-xs"></i>
+                                </button>
+                            </div>
                             ${detail.flags && detail.flags.length > 0 ? `
                                 <div class="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
                                     <span class="font-medium">Flags:</span> ${detail.flags.join(', ')}
@@ -2896,6 +3045,37 @@ function showPermissionDetails(trustee, trusteeInfo) {
             e.stopPropagation(); // Stop event from reaching document
             document.body.removeChild(modal);
         }
+    });
+    
+    // Add event listeners for ACE delete buttons
+    const removeButtons = modal.querySelectorAll('.remove-ace-btn');
+    removeButtons.forEach(button => {
+        button.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const trusteeToRemove = button.getAttribute('data-trustee');
+            
+            if (confirm(`Are you sure you want to remove all ACEs for ${trusteeToRemove}?`)) {
+                try {
+                    // Get the current properties to extract computer, share, path
+                    const propertiesPanel = document.getElementById('properties-panel');
+                    const computer = propertiesPanel.getAttribute('data-computer');
+                    const share = propertiesPanel.getAttribute('data-share');
+                    const path = propertiesPanel.getAttribute('data-path');
+                    const isDirectory = propertiesPanel.getAttribute('data-is-directory') === 'true';
+                    const isShare = propertiesPanel.getAttribute('data-is-share') === 'true';
+                    
+                    await removeSMBSecurity(computer, share, path, trusteeToRemove, isDirectory, isShare);
+                    
+                    // Close the modal and refresh properties
+                    document.body.removeChild(modal);
+                    showProperties(computer, share, path, isDirectory, isShare);
+                } catch (error) {
+                    showErrorAlert(error.message);
+                }
+            }
+        });
     });
 }
 
@@ -3009,6 +3189,24 @@ function showContextMenu(event, itemData) {
         contextMenuElement.appendChild(createMenuItem('New Folder', 'fas fa-folder-plus', () => {
             createSMBDirectory(itemData.computer, itemData.share, itemData.path);
         }));
+        
+        // Add Share option for directories (not shares themselves)
+        if (!itemData.isShare) {
+            contextMenuElement.appendChild(createMenuItem('Add Share Here', 'fas fa-share-alt text-blue-600 dark:text-blue-400', () => {
+                showAddShareModalForDirectory(itemData.computer, itemData.share, itemData.path, itemData.name);
+            }));
+        }
+        
+        // Share management options (only for shares)
+        if (itemData.isShare) {
+            contextMenuElement.appendChild(createMenuSeparator());
+            contextMenuElement.appendChild(createMenuItem('Add Share', 'fas fa-plus-circle text-green-600 dark:text-green-400', () => {
+                showAddShareModal(itemData.computer);
+            }));
+            contextMenuElement.appendChild(createMenuItem('Delete Share', 'fas fa-minus-circle text-red-600 dark:text-red-500', () => {
+                deleteSMBShare(itemData.computer, itemData.share);
+            }));
+        }
     } else {
         // File actions
         contextMenuElement.appendChild(createMenuItem('View', 'fas fa-eye', () => {
@@ -3101,5 +3299,747 @@ function convertWindowsTime(fileTime) {
     } catch (error) {
         // If conversion fails, just return the original value
         return fileTime.toString();
+    }
+}
+
+// Add this function to display a modal for adding new permissions
+function showAddPermissionModal(computer, share, path, isDirectory, isShare) {
+    // Create modal for adding new permissions
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white dark:bg-neutral-900 rounded-lg shadow-lg p-4 max-w-md w-full max-h-[80vh] overflow-y-auto add-permission-modal">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-semibold text-neutral-900 dark:text-white">Add Permission</h3>
+                <button class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 p-1 close-modal-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- Target info -->
+                <div class="p-2 bg-neutral-50 dark:bg-neutral-800 rounded-md">
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="text-xs font-medium text-neutral-900 dark:text-white">Target</div>
+                        <span class="text-xs px-1.5 py-0.5 rounded-md ${isShare ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' : 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'}">
+                            ${isShare ? 'Share' : (isDirectory ? 'Folder' : 'File')}
+                        </span>
+                    </div>
+                    <div class="text-xs text-neutral-600 dark:text-neutral-400 break-all">
+                        ${isShare ? `\\\\${computer}\\${share}` : `\\\\${computer}\\${share}\\${path}`}
+                    </div>
+                </div>
+                
+                <!-- User/Principal input -->
+                <div>
+                    <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Principal (Username or SID)
+                    </label>
+                    <input type="text" id="add-permission-principal" 
+                           placeholder="DOMAIN\\username or S-1-5-..." 
+                           class="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                    <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        Enter a domain username (e.g., DOMAIN\\user) or SID (e.g., S-1-5-21-...)
+                    </div>
+                </div>
+                
+                <!-- ACE Type selection -->
+                <div>
+                    <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Permission Type
+                    </label>
+                    <select id="add-permission-type" class="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                        <option value="allow">Allow</option>
+                        <option value="deny">Deny</option>
+                    </select>
+                </div>
+                
+                <!-- Permission Level (informational - backend uses full control) -->
+                <div>
+                    <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Permission Level
+                    </label>
+                    <select id="add-permission-level" class="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                        <option value="fullcontrol">Full Control</option>
+                        <option value="modify">Modify</option>
+                        <option value="readandwrite">Read & Write</option>
+                        <option value="readandexecute">Read & Execute</option>
+                        <option value="read">Read</option>
+                        <option value="write">Write</option>
+                    </select>
+                    <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        Select the permission level to grant or deny
+                    </div>
+                </div>
+                
+                <!-- Warning for deny permissions -->
+                <div id="deny-warning" class="hidden p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-exclamation-triangle text-red-500 dark:text-red-400 mt-0.5"></i>
+                        <div class="text-xs text-red-700 dark:text-red-300">
+                            <strong>Warning:</strong> Deny permissions take precedence over Allow permissions and can lock out access, including your own.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end gap-2">
+                <button class="px-3 py-1 bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-md text-sm font-medium close-modal-btn hover:bg-neutral-300 dark:hover:bg-neutral-600">
+                    Cancel
+                </button>
+                <button id="add-permission-confirm" class="px-3 py-1 bg-green-600 dark:bg-green-500 text-white dark:text-black rounded-md text-sm font-medium hover:bg-green-700 dark:hover:bg-green-600">
+                    <i class="fas fa-plus fa-sm mr-1"></i>
+                    Add Permission
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Get modal elements
+    const modalContent = modal.querySelector('.add-permission-modal');
+    const principalInput = modal.querySelector('#add-permission-principal');
+    const typeSelect = modal.querySelector('#add-permission-type');
+    const levelSelect = modal.querySelector('#add-permission-level');
+    const denyWarning = modal.querySelector('#deny-warning');
+    const confirmBtn = modal.querySelector('#add-permission-confirm');
+    
+    // Show/hide deny warning based on selection
+    typeSelect.addEventListener('change', () => {
+        if (typeSelect.value === 'deny') {
+            denyWarning.classList.remove('hidden');
+        } else {
+            denyWarning.classList.add('hidden');
+        }
+    });
+    
+    // Focus on principal input
+    setTimeout(() => principalInput.focus(), 100);
+    
+    // Handle form submission
+    confirmBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const principal = principalInput.value.trim();
+        const aceType = typeSelect.value;
+        const permissionLevel = levelSelect.value;
+        
+        if (!principal) {
+            showErrorAlert('Please enter a principal (username or SID)');
+            return;
+        }
+        
+        // Show loading state
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin fa-sm mr-1"></i> Adding...';
+        
+        try {
+            // Determine which endpoint to use based on whether this is a share or file/directory
+            const endpoint = isShare ? '/api/smb/set-share-security' : '/api/smb/set-security';
+            
+            // Prepare request body - shares don't need path parameter
+            const requestBody = {
+                computer: computer,
+                share: share,
+                username: principal,
+                ace_type: aceType,
+                mask: permissionLevel
+            };
+            
+            // Only add path for files/directories, not for shares
+            if (!isShare) {
+                requestBody.path = path;
+            }
+            
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody)
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to add permission');
+            }
+            
+            const result = await response.json();
+            
+            // Close modal
+            document.body.removeChild(modal);
+            
+            // Show success message - use the message from the server response if available
+            let successMessage;
+            if (result.message) {
+                successMessage = result.message;
+            } else {
+                const permissionNames = {
+                    'fullcontrol': 'Full Control',
+                    'modify': 'Modify',
+                    'readandwrite': 'Read & Write',
+                    'readandexecute': 'Read & Execute',
+                    'read': 'Read',
+                    'write': 'Write'
+                };
+                const permissionName = permissionNames[permissionLevel] || permissionLevel;
+                const targetType = isShare ? 'share' : (isDirectory ? 'folder' : 'file');
+                successMessage = `${permissionName} permission ${aceType === 'allow' ? 'granted' : 'denied'} for ${principal} on ${targetType} ${isShare ? share : path}`;
+            }
+            showSuccessAlert(successMessage);
+            
+            // Refresh the properties panel to show the new permission
+            setTimeout(() => {
+                showProperties(computer, share, path, isDirectory, isShare);
+            }, 500);
+            
+        } catch (error) {
+            console.error('Add permission error:', error);
+            showErrorAlert(error.message);
+            
+            // Reset button state
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fas fa-plus fa-sm mr-1"></i> Add Permission';
+        }
+    });
+    
+    // Prevent clicks inside the modal from propagating to document
+    modalContent.addEventListener('click', e => {
+        e.stopPropagation();
+    });
+    
+    // Add event listeners to close the modal
+    const closeButtons = modal.querySelectorAll('.close-modal-btn');
+    closeButtons.forEach(button => {
+        button.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            document.body.removeChild(modal);
+        });
+    });
+    
+    // Close on click outside of modal content
+    modal.addEventListener('click', e => {
+        if (e.target === modal) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.body.removeChild(modal);
+        }
+    });
+    
+    // Close on Escape key
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            document.body.removeChild(modal);
+            document.removeEventListener('keydown', handleEscape);
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
+}
+
+// Function to remove SMB security (ACE deletion)
+async function removeSMBSecurity(computer, share, path, username, isDirectory, isShare) {
+    try {
+        // Determine which endpoint to use based on whether this is a share or file/directory
+        const endpoint = isShare ? '/api/smb/remove-share-security' : '/api/smb/remove-security';
+        
+        // Prepare request body - shares don't need path parameter
+        const requestBody = {
+            computer: computer,
+            share: share,
+            username: username
+        };
+        
+        // Only add path for files/directories, not for shares
+        if (!isShare) {
+            requestBody.path = path;
+        }
+        
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        const result = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to remove ACE');
+        }
+        
+        const targetType = isShare ? 'share' : (isDirectory ? 'folder' : 'file');
+        const successMessage = result.message || `ACE removed for ${username} from ${targetType} ${isShare ? share : path}`;
+        showSuccessAlert(successMessage);
+        return result;
+    } catch (error) {
+        console.error('Remove security error:', error);
+        throw error;
+    }
+}
+
+// Share Management Functions
+function showAddShareModal(computer) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white dark:bg-neutral-900 rounded-lg shadow-lg p-4 max-w-md w-full max-h-[80vh] overflow-y-auto add-share-modal">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-semibold text-neutral-900 dark:text-white">Add New Share</h3>
+                <button class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 p-1 close-modal-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- Target computer info -->
+                <div class="p-2 bg-neutral-50 dark:bg-neutral-800 rounded-md">
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="text-xs font-medium text-neutral-900 dark:text-white">Target Computer</div>
+                        <span class="text-xs px-1.5 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                            Remote Host
+                        </span>
+                    </div>
+                    <div class="text-xs text-neutral-600 dark:text-neutral-400 break-all">
+                        ${computer}
+                    </div>
+                </div>
+                
+                <!-- Share name input -->
+                <div>
+                    <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Share Name <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="add-share-name" 
+                           placeholder="ShareName (e.g., PowerViewShare)" 
+                           class="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                    <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        Enter a name for the new share (no spaces or special characters recommended)
+                    </div>
+                </div>
+                
+                <!-- Local path input -->
+                <div>
+                    <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Local Path <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="add-share-path" 
+                           placeholder="C:\\temp\\shared (local path on target)" 
+                           class="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                    <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        Enter the local directory path on the target computer to share
+                    </div>
+                </div>
+                
+                <!-- Warning for red team operations -->
+                <div class="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-exclamation-triangle text-yellow-500 dark:text-yellow-400 mt-0.5"></i>
+                        <div class="text-xs text-yellow-700 dark:text-yellow-300">
+                            <strong>Red Team Note:</strong> Creating shares can be detected by security monitoring. Ensure this aligns with your engagement scope and cleanup procedures.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end gap-2">
+                <button class="px-3 py-1 bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-md text-sm font-medium close-modal-btn hover:bg-neutral-300 dark:hover:bg-neutral-600">
+                    Cancel
+                </button>
+                <button id="add-share-confirm" class="px-3 py-1 bg-green-600 dark:bg-green-500 text-white dark:text-black rounded-md text-sm font-medium hover:bg-green-700 dark:hover:bg-green-600">
+                    <i class="fas fa-plus fa-sm mr-1"></i>
+                    Create Share
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Get modal elements
+    const modalContent = modal.querySelector('.add-share-modal');
+    const shareNameInput = modal.querySelector('#add-share-name');
+    const sharePathInput = modal.querySelector('#add-share-path');
+    const confirmBtn = modal.querySelector('#add-share-confirm');
+    
+    // Focus on share name input
+    setTimeout(() => shareNameInput.focus(), 100);
+    
+    // Handle form submission
+    confirmBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const shareName = shareNameInput.value.trim();
+        const sharePath = sharePathInput.value.trim();
+        
+        if (!shareName) {
+            showErrorAlert('Please enter a share name');
+            return;
+        }
+        
+        if (!sharePath) {
+            showErrorAlert('Please enter a local path');
+            return;
+        }
+        
+        // Show loading state
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin fa-sm mr-1"></i> Creating...';
+        
+        try {
+            const response = await fetch('/api/smb/add-share', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    computer: computer,
+                    share_name: shareName,
+                    share_path: sharePath
+                })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to create share');
+            }
+            
+            const result = await response.json();
+            
+            // Close modal
+            document.body.removeChild(modal);
+            
+            // Show success message
+            const successMessage = result.message || `Share "${shareName}" created successfully at ${sharePath}`;
+            showSuccessAlert(successMessage);
+            
+            // Refresh the shares list for this computer
+            setTimeout(async () => {
+                try {
+                    const shares = await listSMBShares(computer);
+                    // Find the view for this computer and update it
+                    const computerView = document.getElementById(`view-${computer}`);
+                    if (computerView) {
+                        computerView.innerHTML = buildSMBTreeView(shares, computer);
+                        attachTreeViewListeners();
+                    }
+                } catch (error) {
+                    console.error('Error refreshing shares after creation:', error);
+                }
+            }, 500);
+            
+        } catch (error) {
+            console.error('Add share error:', error);
+            showErrorAlert(error.message);
+            
+            // Reset button state
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fas fa-plus fa-sm mr-1"></i> Create Share';
+        }
+    });
+    
+    // Prevent clicks inside the modal from propagating to document
+    modalContent.addEventListener('click', e => {
+        e.stopPropagation();
+    });
+    
+    // Add event listeners to close the modal
+    const closeButtons = modal.querySelectorAll('.close-modal-btn');
+    closeButtons.forEach(button => {
+        button.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            document.body.removeChild(modal);
+        });
+    });
+    
+    // Close on click outside of modal content
+    modal.addEventListener('click', e => {
+        if (e.target === modal) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.body.removeChild(modal);
+        }
+    });
+    
+    // Close on Escape key
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            document.body.removeChild(modal);
+            document.removeEventListener('keydown', handleEscape);
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
+}
+
+function showAddShareModalForDirectory(computer, share, directoryPath, directoryName) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+    
+    const normalizedPath = directoryPath.replace(/^[\/\\]+/, '').replace(/\//g, '\\');
+    const suggestedLocalPath = share === 'C$' ? `C:\\${normalizedPath}` : 
+                              share.endsWith('$') ? `${share.charAt(0)}:\\${normalizedPath}` :
+                              `\\\\${computer}\\${share}\\${normalizedPath}`;
+    
+    const suggestedShareName = directoryName ? directoryName.replace(/[^a-zA-Z0-9]/g, '') : 'NewShare';
+    
+    modal.innerHTML = `
+        <div class="bg-white dark:bg-neutral-900 rounded-lg shadow-lg p-4 max-w-md w-full max-h-[80vh] overflow-y-auto add-share-modal">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-semibold text-neutral-900 dark:text-white">Add Share for Directory</h3>
+                <button class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 p-1 close-modal-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- Target computer and directory info -->
+                <div class="p-2 bg-neutral-50 dark:bg-neutral-800 rounded-md">
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="text-xs font-medium text-neutral-900 dark:text-white">Target Directory</div>
+                        <span class="text-xs px-1.5 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                            ${computer}
+                        </span>
+                    </div>
+                    <div class="text-xs text-neutral-600 dark:text-neutral-400 break-all">
+                        \\\\${computer}\\${share}\\${normalizedPath}
+                    </div>
+                </div>
+                
+                <!-- Share name input -->
+                <div>
+                    <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Share Name <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="add-share-name" 
+                           value="${suggestedShareName}"
+                           placeholder="ShareName (e.g., PowerViewShare)" 
+                           class="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                    <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        Enter a name for the new share (no spaces or special characters recommended)
+                    </div>
+                </div>
+                
+                <!-- Local path input -->
+                <div>
+                    <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                        Local Path <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="add-share-path" 
+                           value="${suggestedLocalPath}"
+                           placeholder="C:\\temp\\shared (local path on target)" 
+                           class="w-full px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white focus:ring-1 focus:ring-blue-500 dark:focus:ring-yellow-500 outline-none">
+                    <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                        Local directory path on the target computer (auto-suggested based on current location)
+                    </div>
+                </div>
+                
+                <!-- Info about the operation -->
+                <div class="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-info-circle text-blue-500 dark:text-blue-400 mt-0.5"></i>
+                        <div class="text-xs text-blue-700 dark:text-blue-300">
+                            <strong>Directory Share:</strong> This will create a new share pointing to the selected directory, making it accessible via SMB from other systems.
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Warning for red team operations -->
+                <div class="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-exclamation-triangle text-yellow-500 dark:text-yellow-400 mt-0.5"></i>
+                        <div class="text-xs text-yellow-700 dark:text-yellow-300">
+                            <strong>Red Team Note:</strong> Creating shares can be detected by security monitoring. Ensure this aligns with your engagement scope and cleanup procedures.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-6 flex justify-end gap-2">
+                <button class="px-3 py-1 bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 rounded-md text-sm font-medium close-modal-btn hover:bg-neutral-300 dark:hover:bg-neutral-600">
+                    Cancel
+                </button>
+                <button id="add-share-confirm" class="px-3 py-1 bg-green-600 dark:bg-green-500 text-white dark:text-black rounded-md text-sm font-medium hover:bg-green-700 dark:hover:bg-green-600">
+                    <i class="fas fa-share-alt fa-sm mr-1"></i>
+                    Create Share
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Get modal elements
+    const modalContent = modal.querySelector('.add-share-modal');
+    const shareNameInput = modal.querySelector('#add-share-name');
+    const sharePathInput = modal.querySelector('#add-share-path');
+    const confirmBtn = modal.querySelector('#add-share-confirm');
+    
+    // Select the suggested share name for easy editing
+    setTimeout(() => {
+        shareNameInput.focus();
+        shareNameInput.select();
+    }, 100);
+    
+    // Handle form submission
+    confirmBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const shareName = shareNameInput.value.trim();
+        const sharePath = sharePathInput.value.trim();
+        
+        if (!shareName) {
+            showErrorAlert('Please enter a share name');
+            return;
+        }
+        
+        if (!sharePath) {
+            showErrorAlert('Please enter a local path');
+            return;
+        }
+        
+        // Show loading state
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin fa-sm mr-1"></i> Creating...';
+        
+        try {
+            const response = await fetch('/api/smb/add-share', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    computer: computer,
+                    share_name: shareName,
+                    share_path: sharePath
+                })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to create share');
+            }
+            
+            const result = await response.json();
+            
+            // Close modal
+            document.body.removeChild(modal);
+            
+            // Show success message
+            const successMessage = result.message || `Share "${shareName}" created successfully for directory "${directoryName}"`;
+            showSuccessAlert(successMessage);
+            
+            // Refresh the shares list for this computer
+            setTimeout(async () => {
+                try {
+                    const shares = await listSMBShares(computer);
+                    // Find the view for this computer and update it
+                    const computerView = document.getElementById(`view-${computer}`);
+                    if (computerView) {
+                        computerView.innerHTML = buildSMBTreeView(shares, computer);
+                        attachTreeViewListeners();
+                    }
+                } catch (error) {
+                    console.error('Error refreshing shares after creation:', error);
+                }
+            }, 500);
+            
+        } catch (error) {
+            console.error('Add share error:', error);
+            showErrorAlert(error.message);
+            
+            // Reset button state
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = '<i class="fas fa-share-alt fa-sm mr-1"></i> Create Share';
+        }
+    });
+    
+    // Prevent clicks inside the modal from propagating to document
+    modalContent.addEventListener('click', e => {
+        e.stopPropagation();
+    });
+    
+    // Add event listeners to close the modal
+    const closeButtons = modal.querySelectorAll('.close-modal-btn');
+    closeButtons.forEach(button => {
+        button.addEventListener('click', e => {
+            e.preventDefault();
+            e.stopPropagation();
+            document.body.removeChild(modal);
+        });
+    });
+    
+    // Close on click outside of modal content
+    modal.addEventListener('click', e => {
+        if (e.target === modal) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.body.removeChild(modal);
+        }
+    });
+    
+    // Close on Escape key
+    const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+            document.body.removeChild(modal);
+            document.removeEventListener('keydown', handleEscape);
+        }
+    };
+    document.addEventListener('keydown', handleEscape);
+}
+
+async function deleteSMBShare(computer, shareName) {
+    // Show confirmation dialog
+    if (!confirm(`Are you sure you want to delete the share "${shareName}" on ${computer}?\n\nThis action cannot be undone and may affect other users accessing this share.`)) {
+        return;
+    }
+    
+    try {
+        showLoadingIndicator();
+        
+        const response = await fetch('/api/smb/delete-share', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                computer: computer,
+                share: shareName
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to delete share');
+        }
+        
+        const result = await response.json();
+        
+        // Show success message
+        const successMessage = result.message || `Share "${shareName}" deleted successfully`;
+        showSuccessAlert(successMessage);
+        
+        // Remove the share from the UI
+        const shareElement = document.querySelector(`.smb-tree-item[data-share="${shareName}"][data-computer="${computer}"]`);
+        if (shareElement) {
+            shareElement.remove();
+        }
+        
+        // If this was the active share, clear the sticky headers
+        const shareHeader = document.querySelector('#sticky-header-container span:first-child');
+        if (shareHeader && shareHeader.textContent === shareName) {
+            updateStickyHeaders();
+        }
+        
+    } catch (error) {
+        console.error('Delete share error:', error);
+        showErrorAlert(error.message);
+    } finally {
+        hideLoadingIndicator();
     }
 }

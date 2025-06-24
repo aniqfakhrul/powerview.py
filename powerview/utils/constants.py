@@ -643,6 +643,14 @@ def resolve_WellKnownSID(identifier):
 				)
 	return None
 
+# dMSA msDS-DelegatedMSAState
+# This are not yet officially documented by microsoft, values are based on this blog post https://www.akamai.com/blog/security-research/abusing-dmsa-for-privilege-escalation-in-active-directory#badsuccessor
+class DMSA_DELEGATED_MSA_STATE(IntFlag):
+	DISABLED = 0
+	MIGRATION_IN_PROGRESS = 1
+	MIGRATED = 2
+	STANDALONE = 3
+
 # store discovered sids
 KNOWN_SIDS = {}
 
@@ -2254,6 +2262,12 @@ switcher_trustAttributes = {
 	512 : "CROSS_ORGANIZATION_NO_TGT_DELEGATION",
 	2048 : "CROSS_ORGANIZATION_ENABLE_TGT_DELEGATION",
 	1024 : "PIM_TRUST",
+}
+switcher_dsa_delegated_msa_state = {
+    0: "DISABLED",
+    1: "MIGRATION_IN_PROGRESS", 
+    2: "MIGRATED",
+    3: "STANDALONE"
 }
 
 PWD_FLAGS = {

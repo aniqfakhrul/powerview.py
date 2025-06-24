@@ -765,7 +765,7 @@ def setup_tools(mcp, powerview_instance):
 		Args:
 			identity: Filter by CA identity (name, DN). Defaults to empty (all CAs).
 			properties: Comma-separated list of properties to retrieve. Defaults to '*'.
-			check_all: Check all CA configurations.
+			check_all: Check all CA configurations (recommended to get all cert managers and web enrollment status).
 			ldapfilter: Custom LDAP filter string.
 			searchbase: Specify the search base DN (usually Configuration NC).
 			no_cache: Bypass the cache and perform a live query.
@@ -1133,10 +1133,15 @@ def setup_tools(mcp, powerview_instance):
 		try:
 			if not members.strip():
 				return _format_mcp_response(success=False, message="Members string cannot be empty.")
+			
 			# Split comma-separated members into a list
 			member_list = [m.strip() for m in members.split(',') if m.strip()]
 
-			result = powerview_instance.add_domaingroupmember(identity=identity, members=member_list, args=None)
+			for member in member_list:
+				if not member.strip():
+					return _format_mcp_response(success=False, message=f"Member '{member}' is empty.")
+
+				result = powerview_instance.add_domaingroupmember(identity=identity, members=member, args=None)
 
 			if result is True:
 					return _format_mcp_response(success=True, message=f"Attempted to add members {member_list} to group '{identity}'.")
@@ -1658,10 +1663,6 @@ def setup_tools(mcp, powerview_instance):
 			if not client:
 				return _format_mcp_response(error=f"Failed to connect to {host}")
 
-			if not hasattr(powerview_instance.conn, 'smb_sessions'):
-				powerview_instance.conn.smb_sessions = {}
-			powerview_instance.conn.smb_sessions[computer.lower()] = client
-
 			return _format_mcp_response(data={"status": "connected", "host": host})
 		except Exception as e:
 			return _format_mcp_response(error=str(e))
@@ -1687,10 +1688,11 @@ def setup_tools(mcp, powerview_instance):
 			if not host:
 				return _format_mcp_response(error="Computer name/IP is required")
 			
-			if not hasattr(powerview_instance.conn, 'smb_sessions') or host not in powerview_instance.conn.smb_sessions:
+			try:
+				client = powerview_instance.conn.init_smb_session(host)
+			except Exception as e:
 				return _format_mcp_response(error="No active SMB session. Please connect first")
 
-			client = powerview_instance.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 			shares = smb_client.shares()
 
@@ -1733,10 +1735,11 @@ def setup_tools(mcp, powerview_instance):
 			if not host or not share:
 				return _format_mcp_response(error="Computer name/IP and share name are required")
 
-			if not hasattr(powerview_instance.conn, 'smb_sessions') or host not in powerview_instance.conn.smb_sessions:
+			try:
+				client = powerview_instance.conn.init_smb_session(host)
+			except Exception as e:
 				return _format_mcp_response(error="No active SMB session. Please connect first")
 			
-			client = powerview_instance.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 			
 			files = smb_client.ls(share, path)
