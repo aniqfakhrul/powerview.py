@@ -1,33 +1,59 @@
 document.addEventListener('DOMContentLoaded', () => {
     async function initialize() {
         try {
-            const domainInfoResponse = await fetch('/api/get/domaininfo', {
+                    const [domainInfoResponse, serverInfoResponse] = await Promise.all([
+            fetch('/api/get/domaininfo', {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                 }
-            });
+            }),
+            fetch('/api/server/info', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+        ]);
 
-            await handleHttpError(domainInfoResponse);
+        await handleHttpError(domainInfoResponse);
+        await handleHttpError(serverInfoResponse);
 
-            const domainInfo = await domainInfoResponse.json();
-            const rootDn = domainInfo.root_dn;
-            const domainName = domainInfo.domain;
-            const flatName = domainInfo.flatName;
+        const domainInfo = await domainInfoResponse.json();
+        const serverInfo = await serverInfoResponse.json();
+        const rootDn = domainInfo.root_dn;
+        const domainName = domainInfo.domain;
+        const flatName = domainInfo.flatName;
 
-            const domainSpan = document.querySelector('span#domain-name');
-            if (domainSpan) {
-                domainSpan.textContent = flatName;
+        const domainSpan = document.querySelector('span#domain-name');
+        if (domainSpan) {
+            domainSpan.textContent = flatName;
+        }
+
+        function getIconForNamingContext(dn) {
+            if (dn === rootDn) {
+                return icons.adIcon;
+            } else if (dn.includes('CN=Configuration')) {
+                return icons.adIcon;
+            } else if (dn.includes('CN=Schema')) {
+                return icons.defaultIcon;
+            } else if (dn.includes('DomainDnsZones') || dn.includes('ForestDnsZones')) {
+                return icons.adIcon;
+            } else {
+                return icons.defaultIcon;
             }
+        }
 
-            const rootNodes = [
-                { dn: rootDn, icon: icons.adIcon },
-                { dn: `CN=Configuration,${rootDn}`, icon: icons.adIcon },
-                { dn: `CN=Schema,CN=Configuration,${rootDn}`, icon: icons.defaultIcon },
-                { dn: `CN=System,${rootDn}`, icon: icons.defaultIcon },
-                { dn: `DC=DomainDnsZones,${rootDn}`, icon: icons.adIcon },
-                { dn: `DC=ForestDnsZones,${rootDn}`, icon: icons.adIcon }
-            ];
+        const rootNodes = serverInfo.naming_contexts.map(dn => ({
+            dn: dn,
+            icon: getIconForNamingContext(dn)
+        }));
+
+        const systemDn = `CN=System,${rootDn}`;
+        const systemNodeExists = rootNodes.find(node => node.dn === systemDn);
+        if (!systemNodeExists) {
+            rootNodes.push({ dn: systemDn, icon: icons.defaultIcon });
+        }
 
             for (const node of rootNodes) {
                 const exists = await checkDistinguishedNameExists(node.dn);

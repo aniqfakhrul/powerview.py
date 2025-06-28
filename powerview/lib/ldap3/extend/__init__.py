@@ -171,21 +171,36 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				return filtered_results
 			else:
 				if self.use_adws:
-					results = list(adws_paged_search_accumulator(self._connection, search_base, search_filter, search_scope, attributes, size_limit, time_limit, types_only, get_operational_attributes, controls, paged_size, paged_criticality))
+					results = list(adws_paged_search_accumulator(
+						self._connection,
+						search_base,
+						search_filter,
+						search_scope,
+						attributes,
+						size_limit,
+						time_limit,
+						types_only,
+						get_operational_attributes,
+						controls,
+						paged_size,
+						paged_criticality
+					))
 				else:
-					results = list(paged_search_accumulator(self._connection,
-												search_base,
-												search_filter,
-												search_scope,
-												dereference_aliases,
-												attributes,
-												size_limit,
-												time_limit,
-												types_only,
-												get_operational_attributes,
-												controls,
-												paged_size,
-												paged_criticality))
+					results = list(paged_search_accumulator(
+						self._connection,
+						search_base,
+						search_filter,
+						search_scope,
+						dereference_aliases,
+						attributes,
+						size_limit,
+						time_limit,
+						types_only,
+						get_operational_attributes,
+						controls,
+						paged_size,
+						paged_criticality
+					))
 				
 				# Filter out non-search results and strip entries if requested
 				filtered_results = []

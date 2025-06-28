@@ -745,6 +745,11 @@ def main():
                                     temp_powerview.disable_domaindnsrecord(recordname=pv_args.recordname, zonename=pv_args.zonename)
                                 else:
                                     powerview.disable_domaindnsrecord(recordname=pv_args.recordname, zonename=pv_args.zonename)
+                            elif pv_args.module.casefold() == 'restore-domainobject' or pv_args.module.casefold() == 'restore-adobject':
+                                if temp_powerview:
+                                    temp_powerview.restore_domainobject(args=pv_args)
+                                else:
+                                    powerview.restore_domainobject(args=pv_args)
                             elif pv_args.module.casefold() == 'remove-domaincomputer' or pv_args.module.casefold() == 'remove-adcomputer':
                                 if pv_args.computername is not None:
                                     if temp_powerview:
