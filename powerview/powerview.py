@@ -424,9 +424,9 @@ class PowerView:
 		identity_filter = ""
 
 		if identity:
-			identity_filter += f"(|(sAMAccountName={identity})(distinguishedName={identity}))"
+			identity_filter += f"(|(sAMAccountName={identity})(distinguishedName={identity})(name={identity})(cn={identity}))"
 		elif args and hasattr(args, 'identity') and args.identity:
-			identity_filter += f"(|(sAMAccountName={args.identity})(distinguishedName={args.identity}))"
+			identity_filter += f"(|(sAMAccountName={args.identity})(distinguishedName={args.identity})(name={args.identity})(cn={args.identity}))"
 
 		if args:
 			if hasattr(args, 'preauthnotrequired') and args.preauthnotrequired:
@@ -732,6 +732,7 @@ class PowerView:
 		entry_attributes = entry.get('attributes', {})
 		entry_dn = entry_attributes.get('distinguishedName')
 		entry_san = entry_attributes.get('sAMAccountName')
+		entry_name = entry_attributes.get('name')
 		entry_rdn = entry_attributes.get('msDS-LastKnownRDN')
 		entry_last_parent = entry_attributes.get('lastKnownParent')
 
@@ -743,27 +744,37 @@ class PowerView:
 		if targetpath:
 			basedn = targetpath
 
-		if new_name:
-			new_dn = f"CN={new_name},{basedn}"
-		elif entry_rdn:
+		if entry_rdn:
 			new_dn = f"CN={entry_rdn},{basedn}"
+		elif entry_san:
+			new_dn = f"CN={entry_san},{basedn}"
+		elif entry_name:
+			new_dn = f"CN={entry_name},{basedn}"
 		else:
 			cn_from_dn = entry_dn.split(',')[0].replace('CN=', '') if 'CN=' in entry_dn else 'UnknownObject'
 			new_dn = f"CN={cn_from_dn},{basedn}"
 
 		logging.debug(f"[Restore-DomainObject] Found {entry_dn} in deleted objects container")
 		logging.warning(f"[Restore-DomainObject] Recovering object from deleted objects container into {new_dn}")
+		
+		obj = {
+			'isDeleted': [
+				(ldap3.MODIFY_DELETE, [])
+			],
+			'distinguishedName': [
+				(ldap3.MODIFY_REPLACE, [new_dn])
+			]
+		}
+
+		if new_name:
+			if entry_san and entry_san.lower() != new_name.lower():
+				obj['sAMAccountName'] = [
+					(ldap3.MODIFY_REPLACE, [new_name])
+				]
 
 		succeeded = self.ldap_session.modify(
 			entry_dn, 
-			{
-				'isDeleted': [
-					(ldap3.MODIFY_DELETE, [])
-				],
-				'distinguishedName': [
-					(ldap3.MODIFY_REPLACE, [new_dn])
-				]
-			},
+			obj,
 			controls=[
 				show_deleted_control(criticality=True),
 				extended_dn_control(criticality=True)
