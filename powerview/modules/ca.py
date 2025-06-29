@@ -3,6 +3,7 @@ import logging
 from impacket.ldap import ldaptypes
 from impacket.uuid import bin_to_string, string_to_bin
 from impacket.dcerpc.v5 import rrp
+from impacket.smb3 import SessionError
 from ldap3.protocol.formatters.formatters import format_sid
 from ldap3.protocol.microsoft import security_descriptor_control
 from ldap3 import SUBTREE, BASE, LEVEL
@@ -265,7 +266,11 @@ class CAEnum:
 
         stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
         computer_name = host2ip(computer_name, self.powerview.conn.nameserver, 3, True, use_system_ns=self.powerview.conn.use_system_ns)
-        dce = self.powerview.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+        try:
+            dce = self.powerview.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+        except SessionError as e:
+            logging.warning(f"[CAEnum] Failed to connect to {computer_name}, retrying...")
+            self.get_rrp_config(computer_name, ca)
 
         if not dce:
             logging.error("[CAEnum] Failed to connect to %s" % (computer_name))

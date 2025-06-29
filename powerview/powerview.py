@@ -812,8 +812,9 @@ class PowerView:
 		
 		return succeeded
 
-	def get_domainobjectowner(self, identity=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domainobjectowner(self, identity=None, ldapfilter=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		ldapfilter = args.ldapfilter if hasattr(args, 'ldapfilter') and args.ldapfilter else None
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
 		if not searchbase:
 			searchbase = self.root_dn
@@ -832,6 +833,7 @@ class PowerView:
 				'distinguishedName',
 			],
 			searchbase=searchbase,
+			ldap_filter=ldapfilter,
 			sd_flag=0x01,
 			search_scope=search_scope,
 			no_cache=no_cache,
@@ -840,6 +842,9 @@ class PowerView:
 		)
 
 		for i in range(len(objects)):
+			sd = objects[i].get('attributes', {}).get('nTSecurityDescriptor', None)
+			if not sd:
+				continue
 			ownersid = None
 			parser = ObjectOwner(objects[i])
 			ownersid = parser.read()

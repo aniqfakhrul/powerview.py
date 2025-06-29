@@ -183,6 +183,7 @@ def powerview_arg_parse(cmd):
 	#domainobjectowner
 	get_domainobjectowner_parser = subparsers.add_parser('Get-DomainObjectOwner', aliases=['Get-ObjectOwner'] ,exit_on_error=False)
 	get_domainobjectowner_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domainobjectowner_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
 	get_domainobjectowner_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainobjectowner_parser.add_argument('-Server', action='store', dest='server')
 	get_domainobjectowner_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)

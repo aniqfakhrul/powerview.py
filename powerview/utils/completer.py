@@ -78,7 +78,7 @@ COMMANDS = {
     'Remove-DomainObject':['-Identity','-SearchBase','-Server','-OutFile'],
     'Remove-ADObject':['-Identity','-SearchBase','-Server','-OutFile'],
     'Remove-NetService':['-Computer','-Name'],
-    'Get-DomainObjectOwner':['-Identity','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-DomainObjectOwner':['-Identity','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-ObjectOwner':['-Identity','-ResolveSID','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainObjectAcl':['-Identity','-LDAPFilter','-SearchBase','-Server','-SecurityIdentifier','-ResolveGUIDs','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-ObjectAcl':['-Identity','-LDAPFilter','-SearchBase','-Server','-ResolveGUIDs','-SecurityIdentifier','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
