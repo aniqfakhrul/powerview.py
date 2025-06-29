@@ -59,7 +59,7 @@ from io import BytesIO
 
 import ldap3
 from ldap3 import ALL_ATTRIBUTES
-from ldap3.protocol.microsoft import security_descriptor_control
+from ldap3.protocol.microsoft import security_descriptor_control, show_deleted_control, extended_dn_control
 from ldap3.extend.microsoft import addMembersToGroups, modifyPassword, removeMembersFromGroups
 from ldap3.utils.conv import escape_filter_chars
 import re
@@ -151,6 +151,7 @@ class PowerView:
 			self.ldap_session.extend = type('ExtendedOperations', (), {'standard': type('StandardOperations', (), {})()})()
 		self.ldap_session.extend.standard.paged_search = self.custom_paged_search.standard.paged_search
 		self.ssl = self.ldap_session.server.ssl
+		self.naming_contexts = self.ldap_server.info.naming_contexts
 		self.forest_dn = self.ldap_server.info.other["rootDomainNamingContext"][0] if isinstance(self.ldap_server.info.other["rootDomainNamingContext"], list) else self.ldap_server.info.other["rootDomainNamingContext"]
 		self.root_dn = self.ldap_server.info.other["defaultNamingContext"][0] if isinstance(self.ldap_server.info.other["defaultNamingContext"], list) else self.ldap_server.info.other["defaultNamingContext"]
 		self.configuration_dn = self.ldap_server.info.other["configurationNamingContext"][0] if isinstance(self.ldap_server.info.other["configurationNamingContext"], list) else self.ldap_server.info.other["configurationNamingContext"]
@@ -412,6 +413,7 @@ class PowerView:
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+		controls = []
 
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn 
@@ -475,9 +477,7 @@ class PowerView:
 				logging.debug(f'[Get-DomainUser] Using additional LDAP filter: {args.ldapfilter}')
 				ldap_filter += f'{args.ldapfilter}'
 
-		# previous ldap filter, need to changed to filter based on objectClass instead because i couldn't get the trust account
-		#ldap_filter = f'(&(samAccountType=805306368){identity_filter}{ldap_filter})'
-		ldap_filter = f'(&(objectCategory=person)(objectClass=user){identity_filter}{ldap_filter})'
+		ldap_filter = f'(&(samAccountType=805306368){identity_filter}{ldap_filter})'
 
 		logging.debug(f'[Get-DomainUser] LDAP search filter: {ldap_filter}')
 
@@ -491,7 +491,8 @@ class PowerView:
 			search_scope=search_scope,
 			no_cache=no_cache,
 			no_vuln_check=no_vuln_check,
-			raw=raw
+			raw=raw,
+			controls=controls
 		)
 
 	def get_localuser(self, computer_name, identity=None, properties=[], port=445, args=None):
@@ -659,26 +660,29 @@ class PowerView:
 
 		return entries
 
-	def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, ldap_filter=None, searchbase=None, sd_flag=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, ldap_filter=None, searchbase=None, sd_flag=None, include_deleted=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
-			'*'
+			ldap3.ALL_ATTRIBUTES
 		]
 		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
 		properties = args.properties if hasattr(args, 'properties') and args.properties else properties
+		include_deleted = args.include_deleted if hasattr(args, 'include_deleted') and args.include_deleted else include_deleted
 		properties = set(properties or def_prop)
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
 
+		controls = []
 		if sd_flag:
-			controls = security_descriptor_control(sdflags=sd_flag)
-		else:
-			controls = None
+			controls.extend(security_descriptor_control(sdflags=sd_flag))
+
+		if include_deleted:
+			controls.append(show_deleted_control(criticality=True))
 
 		identity_filter = "" if not identity_filter else identity_filter
 		ldap_filter = "" if not ldap_filter else ldap_filter
 		if identity and not identity_filter:
-			identity_filter = f"(|(samAccountName={identity})(name={identity})(displayname={identity})(objectSid={identity})(distinguishedName={identity})(dnshostname={identity}))"
+			identity_filter = f"(|(samAccountName={identity})(name={identity})(displayName={identity})(objectSid={identity})(distinguishedName={identity})(dnsHostName={identity}))"
 		
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -704,6 +708,73 @@ class PowerView:
 		)
 
 		return entries
+
+	def restore_domainobject(self, identity=None, new_name=None, targetpath=None, args=None):
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		new_name = args.new_name if hasattr(args, 'new_name') and args.new_name else None
+		targetpath = args.targetpath if hasattr(args, 'targetpath') and args.targetpath else None
+		searchbase = f"CN=Deleted Objects,{self.root_dn}"
+
+		logging.debug(f"[Restore-DomainObject] Searching for {identity} in deleted objects container")
+		entries = self.get_domainobject(
+			identity=identity,
+			searchbase=searchbase,
+			include_deleted=True
+		)
+		if len(entries) == 0:
+			logging.error(f"[Restore-DomainObject] {identity} not found in domain")
+			return False
+		elif len(entries) > 1:
+			logging.error(f"[Restore-DomainObject] More than one object found. Use objectSid instead.")
+			return False
+
+		entry = entries[0]
+		entry_attributes = entry.get('attributes', {})
+		entry_dn = entry_attributes.get('distinguishedName')
+		entry_san = entry_attributes.get('sAMAccountName')
+		entry_rdn = entry_attributes.get('msDS-LastKnownRDN')
+		entry_last_parent = entry_attributes.get('lastKnownParent')
+
+		if not entry_dn:
+			logging.error(f"[Restore-DomainObject] Object has no distinguishedName")
+			return False
+
+		basedn = entry_last_parent if entry_last_parent else self.root_dn
+		if targetpath:
+			basedn = targetpath
+
+		if new_name:
+			new_dn = f"CN={new_name},{basedn}"
+		elif entry_rdn:
+			new_dn = f"CN={entry_rdn},{basedn}"
+		else:
+			cn_from_dn = entry_dn.split(',')[0].replace('CN=', '') if 'CN=' in entry_dn else 'UnknownObject'
+			new_dn = f"CN={cn_from_dn},{basedn}"
+
+		logging.debug(f"[Restore-DomainObject] Found {entry_dn} in deleted objects container")
+		logging.warning(f"[Restore-DomainObject] Recovering object from deleted objects container into {new_dn}")
+
+		succeeded = self.ldap_session.modify(
+			entry_dn, 
+			{
+				'isDeleted': [
+					(ldap3.MODIFY_DELETE, [])
+				],
+				'distinguishedName': [
+					(ldap3.MODIFY_REPLACE, [new_dn])
+				]
+			},
+			controls=[
+				show_deleted_control(criticality=True),
+				extended_dn_control(criticality=True)
+			]
+		)
+		if not succeeded:
+			logging.error(f"[Restore-DomainObject] Failed to restore {entry_san}")
+			return False
+		else:
+			logging.info(f'[Restore-DomainObject] Success! {entry_san} restored')
+			return True
 
 	def remove_domainobject(self, identity, searchbase=None, args=None, search_scope=ldap3.SUBTREE):
 		if not searchbase:
@@ -741,8 +812,9 @@ class PowerView:
 		
 		return succeeded
 
-	def get_domainobjectowner(self, identity=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domainobjectowner(self, identity=None, ldapfilter=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		ldapfilter = args.ldapfilter if hasattr(args, 'ldapfilter') and args.ldapfilter else None
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
 		if not searchbase:
 			searchbase = self.root_dn
@@ -761,6 +833,7 @@ class PowerView:
 				'distinguishedName',
 			],
 			searchbase=searchbase,
+			ldap_filter=ldapfilter,
 			sd_flag=0x01,
 			search_scope=search_scope,
 			no_cache=no_cache,
@@ -769,6 +842,9 @@ class PowerView:
 		)
 
 		for i in range(len(objects)):
+			sd = objects[i].get('attributes', {}).get('nTSecurityDescriptor', None)
+			if not sd:
+				continue
 			ownersid = None
 			parser = ObjectOwner(objects[i])
 			ownersid = parser.read()

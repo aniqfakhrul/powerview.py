@@ -1228,9 +1228,14 @@ class CONNECTION:
 					local_private_key_file=key_file.name,
 					local_certificate_file=cert_file.name,
 					validate=ssl.CERT_NONE,
+					ciphers="ALL:@SECLEVEL=0",
+                	ssl_options=[ssl.OP_ALL],
 				)
 			self.ldap_server, self.ldap_session = self.init_ldap_schannel_connection(target, tls)
-			#self.ldap_server, self.ldap_session = self.init_ldap_connection(target, tls, auth_method=ldap3.SASL)
+			if not self.username:
+				self.username = self.who_am_i().split("\\")[1]
+			if not self.domain:
+				self.domain = dn2domain(self.ldap_server.info.other["defaultNamingContext"][0])
 			return self.ldap_server, self.ldap_session
 
 		_anonymous = False

@@ -165,6 +165,7 @@ def powerview_arg_parse(cmd):
 	get_domainobject_parser = subparsers.add_parser('Get-DomainObject', aliases=['Get-ADObject'] ,exit_on_error=False)
 	get_domainobject_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainobject_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
+	get_domainobject_parser.add_argument('-IncludeDeleted', action='store_true', default=False, dest='include_deleted')
 	get_domainobject_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
 	get_domainobject_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainobject_parser.add_argument('-Server', action='store', dest='server')
@@ -182,6 +183,7 @@ def powerview_arg_parse(cmd):
 	#domainobjectowner
 	get_domainobjectowner_parser = subparsers.add_parser('Get-DomainObjectOwner', aliases=['Get-ObjectOwner'] ,exit_on_error=False)
 	get_domainobjectowner_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domainobjectowner_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
 	get_domainobjectowner_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainobjectowner_parser.add_argument('-Server', action='store', dest='server')
 	get_domainobjectowner_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
@@ -1115,6 +1117,14 @@ def powerview_arg_parse(cmd):
 	disable_domaindnsrecord_parser.add_argument('-RecordName', action='store', dest='recordname', type=lambda value: escape_filter_chars_except_asterisk(value))
 	disable_domaindnsrecord_parser.add_argument('-Server', action='store', dest='server')
 	disable_domaindnsrecord_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+	# restore domain object
+	restore_domainobject_parser = subparsers.add_parser('Restore-DomainObject', aliases=['Restore-ADObject'], exit_on_error=False)
+	restore_domainobject_parser.add_argument('-Identity', action='store', required=True, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	restore_domainobject_parser.add_argument('-NewName', action='store', dest='new_name')
+	restore_domainobject_parser.add_argument('-TargetPath', action='store', dest='targetpath')
+	restore_domainobject_parser.add_argument('-Server', action='store', dest='server')
+	restore_domainobject_parser.add_argument('-OutFile', action='store', dest='outfile')
 
 	# set domain ca template properties
 	set_domaincatemplate_parser = subparsers.add_parser('Set-DomainCATemplate', aliases=['Set-CATemplate'], exit_on_error=False)
