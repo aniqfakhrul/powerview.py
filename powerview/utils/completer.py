@@ -2,9 +2,9 @@ import os
 import re
 import shlex
 from sys import platform
-if platform == "linux" or platform == "linux2" or platform == "darwin":
+try:
     import gnureadline as readline
-else:
+except ImportError:
     import readline
 
 COMMANDS = {
@@ -155,11 +155,14 @@ class Completer(object):
     def _listdir(self, root):
         "List directory 'root' appending the path separator to subdirs."
         res = []
-        for name in os.listdir(root):
-            path = os.path.join(root, name)
-            if os.path.isdir(path):
-                name += os.sep
-            res.append(name)
+        try:
+            for name in os.listdir(root):
+                path = os.path.join(root, name)
+                if os.path.isdir(path):
+                    name += os.sep
+                res.append(name)
+        except (OSError, PermissionError):
+            pass
         return res
 
     def _complete_path(self, path=None):
@@ -191,7 +194,11 @@ class Completer(object):
         
         # Handle empty buffer case
         if not buffer.strip():
-            return [c + ' ' for c in list(COMMANDS.keys())][state]
+            completions = [c + ' ' for c in list(COMMANDS.keys())]
+            try:
+                return completions[state]
+            except IndexError:
+                return None
         
         try:
             line = shlex.split(buffer)
@@ -207,8 +214,11 @@ class Completer(object):
         
         # Complete command names
         if len(line) == 1:
-            results = [c + ' ' for c in list(COMMANDS.keys()) if c.casefold().startswith(cmd)] + [None]
-            return results[state]
+            completions = [c + ' ' for c in list(COMMANDS.keys()) if c.casefold().startswith(cmd)]
+            try:
+                return completions[state]
+            except IndexError:
+                return None
         
         # Complete command arguments
         if cmd in (c.casefold() for c in COMMANDS.keys()):
@@ -220,19 +230,37 @@ class Completer(object):
             available_flags = [arg for arg in COMMANDS[full_cmd] if arg not in used_flags]
             
             if args.startswith('-') or not args:
-                results = [arg + ' ' for arg in available_flags if arg.casefold().startswith(args.casefold())] + [None]
-                return results[state]
+                completions = [arg + ' ' for arg in available_flags if arg.casefold().startswith(args.casefold())]
+                try:
+                    return completions[state]
+                except IndexError:
+                    return None
             
             # Handle file paths for specific arguments that need file completion
             file_related_flags = ['-OutFile']
             prev_arg = line[-2] if len(line) > 1 else None
             
             if prev_arg in file_related_flags:
-                return self._complete_path(args)[state]
+                completions = self._complete_path(args)
+                try:
+                    return completions[state]
+                except IndexError:
+                    return None
         
         return None
 
     def setup_completer(self):
         readline.set_completer_delims(' \t\n;')
         readline.parse_and_bind("tab: complete")
+        
+        # Configure readline for better completion behavior on all platforms
+        try:
+            readline.parse_and_bind("set show-all-if-ambiguous on")
+            readline.parse_and_bind("set completion-ignore-case on")
+            # macOS-specific binding for tab completion
+            if platform == "darwin":
+                readline.parse_and_bind("bind ^I rl_complete")
+        except:
+            pass
+        
         readline.set_completer(self.complete)
