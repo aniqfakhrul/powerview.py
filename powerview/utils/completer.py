@@ -2,7 +2,7 @@ import os
 import re
 import shlex
 from sys import platform
-if platform == "linux" or platform == "linux2":
+if platform == "linux" or platform == "linux2" or platform == "darwin":
     import gnureadline as readline
 else:
     import readline
