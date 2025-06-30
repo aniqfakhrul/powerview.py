@@ -1,10 +1,9 @@
 import os
 import re
 import shlex
-from sys import platform
-if platform == "linux" or platform == "linux2":
+try:
     import gnureadline as readline
-else:
+except ImportError:
     import readline
 
 COMMANDS = {

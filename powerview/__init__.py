@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+import sys
+try:
+    sys.modules.pop('readline', None)
+    import gnureadline as readline
+    sys.modules['readline'] = readline
+except ImportError:
+    import readline
+    sys.modules['readline'] = readline
 from powerview.powerview import PowerView
 from powerview.utils.helpers import *
 from powerview.utils.native import *
