@@ -37,7 +37,7 @@ from powerview.utils.certificate import (
 	key_to_pem,
 	cert_to_pem
 )
-
+import random
 import ssl
 import threading
 from collections import OrderedDict
@@ -46,7 +46,6 @@ import ldap3
 import logging
 import sys
 from struct import unpack
-from time import sleep
 import tempfile
 from ldap3.operation import bind
 from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
@@ -1089,9 +1088,6 @@ class CONNECTION:
 		Returns:
 			bool: True if reconnection successful, False otherwise
 		"""
-		import random
-		import time
-		
 		retry_count = 0
 		success = False
 		
@@ -2291,13 +2287,15 @@ class CONNECTION:
 			bool: True if connection is still alive, False otherwise
 		"""
 		try:
-			# if hasattr(self.ldap_session, 'abandon'):
-			# 	logging.debug(f"[Connection] Sending Abandon(0) operation to keep the connection alive")
-			# 	self.ldap_session.abandon(0)
-			# 	return True
-			# else:
-			# logging.debug(f"[Connection] Using is_connection_alive() to keep connection alive")
-			return self.is_connection_alive()
+			if hasattr(self.ldap_session, 'abandon'):
+				if self.args.stack_trace:
+					logging.debug(f"[Connection] Sending Abandon(1) operation to keep the connection alive")
+				abandon = ldap3.operation.abandon.abandon_operation(1)
+				return self.ldap_session.send('abandonRequest', abandon, None)
+			else:
+				if self.args.stack_trace:
+					logging.debug(f"[Connection] Using is_connection_alive() to keep connection alive")
+				return self.is_connection_alive()
 		except Exception as e:
 			logging.debug(f"[Connection] Connection keep-alive check failed: {str(e)}")
 			return False
@@ -2324,9 +2322,6 @@ class CONNECTION:
 		Raises:
 			ConnectionError: If connection cannot be established after retries
 		"""
-		import random
-		import time
-		
 		for attempt in range(max_retries):
 			try:
 				if attempt > 0:
@@ -2695,7 +2690,7 @@ class Relay:
 					logging.debug("Success! Relayed to the LDAP server. Closing HTTP Server")
 					self.server.server.server_close()
 					break
-				sleep(0.1)
+				time.sleep(0.1)
 		except KeyboardInterrupt:
 			print("")
 			self.shutdown()

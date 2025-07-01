@@ -17,6 +17,7 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
 		init_proto = powerview.conn.get_proto()
 		server_dns = powerview.get_server_dns()
 		nameserver = powerview.conn.get_nameserver()
+		obfuscate = getattr(args, 'obfuscate', False)
 		
 		is_admin = False
 		if args and not getattr(args, 'no_admin_check', False):
@@ -67,6 +68,8 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
 		security_indicators += "📦 "
 	if ldap_signing_active:
 		security_indicators += "🔒 "
+	if obfuscate:
+		security_indicators += "😈 "
 	
 	prompt = (f'{bcolors.OKBLUE}╭─{bcolors.ENDC}'
 			  f'{security_indicators}'
