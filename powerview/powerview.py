@@ -362,16 +362,19 @@ class PowerView:
 		groups = []
 
 		try:
-			curUserDetails = self.get_domainobject(identity=self.username, properties=["adminCount","memberOf"])[0]
+			curUserDetails = self.get_domainobject(identity=self.username, properties=["adminCount","memberOf"])
+			if len(curUserDetails) == 0:
+				return False
+			curUserDetails = curUserDetails[0]
 		   
 			if not curUserDetails:
 				return False
 			
 			userGroup = curUserDetails.get("attributes").get("memberOf")
 
-			if isinstance(userGroup, str):
+			if userGroup and isinstance(userGroup, str):
 				groups.append(userGroup)
-			elif isinstance(userGroup, list):
+			elif userGroup and isinstance(userGroup, list):
 				groups = userGroup 
 
 			for group in groups:
@@ -382,7 +385,7 @@ class PowerView:
 			if self.is_domainadmin:
 				logging.info(f"User {self.username} is a Domain Admin")
 			else:
-				self.is_admincount = bool(curUserDetails["attributes"]["adminCount"])
+				self.is_admincount = bool(curUserDetails.get("attributes",{}).get("adminCount",0))
 				if self.is_admincount:
 					logging.info(f"User {self.username} has adminCount attribute set to 1. Might be admin somewhere somehow :)")
 		except:
