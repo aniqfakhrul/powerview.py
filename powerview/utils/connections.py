@@ -105,6 +105,7 @@ class ConnectionPool:
 		self.cleanup_interval = cleanup_interval
 		self.keepalive_interval = keepalive_interval
 		self._shutdown_in_progress = False
+		self._pool_type = 'LDAP'
 		
 		self._pool = OrderedDict()
 		self._pool_lock = threading.RLock()
@@ -127,7 +128,7 @@ class ConnectionPool:
 				name="ConnectionPool-Cleanup"
 			)
 			self._cleanup_thread.start()
-			logging.debug("Started connection pool cleanup thread")
+			logging.debug(f"[ConnectionPool] Started {self._pool_type} connection pool cleanup thread")
 		
 		if self.keepalive_interval > 0 and (self._keepalive_thread is None or not self._keepalive_thread.is_alive()):
 			self._keepalive_thread = threading.Thread(
@@ -136,7 +137,7 @@ class ConnectionPool:
 				name="ConnectionPool-KeepAlive"
 			)
 			self._keepalive_thread.start()
-			logging.debug("Started connection pool keep-alive thread")
+			logging.debug(f"[ConnectionPool] Started {self._pool_type} connection pool keep-alive thread")
 	
 	def _cleanup_worker(self):
 		"""Background worker that periodically cleans up expired connections"""
@@ -145,7 +146,7 @@ class ConnectionPool:
 				self._cleanup_expired_connections()
 				self._reset_connection_attempts()
 			except Exception as e:
-				logging.debug(f"Error in connection pool cleanup: {str(e)}")
+				logging.debug(f"[ConnectionPool] Error in {self._pool_type} connection pool cleanup: {str(e)}")
 	
 	def _keepalive_worker(self):
 		"""Background worker that periodically sends keep-alive to maintain connections"""
@@ -153,7 +154,7 @@ class ConnectionPool:
 			try:
 				self._perform_keepalive()
 			except Exception as e:
-				logging.debug(f"Error in connection pool keep-alive: {str(e)}")
+				logging.debug(f"[ConnectionPool] Error in {self._pool_type} connection pool keep-alive: {str(e)}")
 	
 	def _perform_keepalive(self):
 		"""Send keep-alive to all active connections to maintain them"""
@@ -172,16 +173,16 @@ class ConnectionPool:
 						entry.mark_used()
 					else:
 						dead_domains.append(domain)
-						logging.debug(f"Connection keep-alive failed for domain: {domain}")
+						logging.debug(f"[ConnectionPool] {self._pool_type} connection keep-alive failed for domain: {domain}")
 				else:
 					if entry.is_alive():
 						entry.mark_used()
 					else:
 						dead_domains.append(domain)
-						logging.debug(f"Connection dead during keep-alive for domain: {domain}")
+						logging.debug(f"[ConnectionPool] {self._pool_type} connection dead during keep-alive for domain: {domain}")
 			except Exception as e:
 				dead_domains.append(domain)
-				logging.debug(f"Keep-alive error for domain {domain}: {str(e)}")
+				logging.debug(f"[ConnectionPool] {self._pool_type} keep-alive error for domain {domain}: {str(e)}")
 		
 		if dead_domains:
 			with self._pool_lock:
@@ -189,7 +190,7 @@ class ConnectionPool:
 					if domain in self._pool:
 						entry = self._pool.pop(domain)
 						entry.close()
-						logging.debug(f"Removed dead connection for domain: {domain}")
+						logging.debug(f"[ConnectionPool] {self._pool_type} removed dead connection for domain: {domain}")
 	
 	def _cleanup_expired_connections(self):
 		"""Remove only truly dead connections from the pool"""
@@ -204,7 +205,7 @@ class ConnectionPool:
 				if domain in self._pool:
 					entry = self._pool.pop(domain)
 					entry.close()
-					logging.debug(f"Removed dead connection for domain: {domain}")
+					logging.debug(f"[ConnectionPool] {self._pool_type} removed dead connection for domain: {domain}")
 	
 	def _reset_connection_attempts(self):
 		"""Reset connection attempt counters for domains after timeout"""
@@ -218,7 +219,7 @@ class ConnectionPool:
 		for domain in domains_to_reset:
 			if domain in self._connection_attempts:
 				del self._connection_attempts[domain]
-				logging.debug(f"Reset connection attempts for domain: {domain}")
+				logging.debug(f"[ConnectionPool] {self._pool_type} reset connection attempts for domain: {domain}")
 	
 	def _can_attempt_connection(self, domain):
 		"""Check if we can attempt a connection to the domain (rate limiting)"""
@@ -265,17 +266,17 @@ class ConnectionPool:
 				if entry.is_alive():
 					entry.mark_used()
 					self._pool.move_to_end(domain)
-					logging.debug(f"Reusing existing connection for domain: {domain}")
+					logging.debug(f"[ConnectionPool] {self._pool_type} reusing existing connection for domain: {domain}")
 					return entry.connection
 				else:
 					entry.close()
 					del self._pool[domain]
-					logging.debug(f"Removed dead connection for domain: {domain}")
+					logging.debug(f"[ConnectionPool] {self._pool_type} removed dead connection for domain: {domain}")
 			
 			if len(self._pool) >= self.max_connections:
 				oldest_domain, oldest_entry = self._pool.popitem(last=False)
 				oldest_entry.close()
-				logging.debug(f"Evicted oldest connection for domain: {oldest_domain}")
+				logging.debug(f"[ConnectionPool] {self._pool_type} evicted oldest connection for domain: {oldest_domain}")
 			
 			try:
 				new_connection = connection_factory()
@@ -288,7 +289,7 @@ class ConnectionPool:
 				self._pool[domain] = entry
 				self._record_connection_attempt(domain, success=True)
 				
-				logging.debug(f"Created new connection for domain: {domain}")
+				logging.debug(f"[ConnectionPool] {self._pool_type} created new connection for domain: {domain}")
 				return new_connection
 				
 			except Exception as e:
@@ -304,18 +305,18 @@ class ConnectionPool:
 			if domain in self._pool:
 				old_entry = self._pool[domain]
 				old_entry.close()
-				logging.debug(f"Replaced existing connection for domain: {domain}")
+				logging.debug(f"[ConnectionPool] {self._pool_type} replaced existing connection for domain: {domain}")
 			
 			if len(self._pool) >= self.max_connections and domain not in self._pool:
 				oldest_domain, oldest_entry = self._pool.popitem(last=False)
 				oldest_entry.close()
-				logging.debug(f"Evicted oldest connection for domain: {oldest_domain}")
+				logging.debug(f"[ConnectionPool] {self._pool_type} evicted oldest connection for domain: {oldest_domain}")
 			
 			if not connection.is_connection_alive():
 				raise ConnectionError(f"Cannot add dead connection for domain {domain}")
 			
 			self._pool[domain] = ConnectionPoolEntry(connection, domain)
-			logging.debug(f"Added connection for domain: {domain}")
+			logging.debug(f"[ConnectionPool] {self._pool_type} added connection for domain: {domain}")
 
 	def remove_connection(self, domain):
 		"""Remove a connection from the pool with proper cleanup"""
@@ -324,9 +325,9 @@ class ConnectionPool:
 			if domain in self._pool:
 				entry = self._pool.pop(domain)
 				entry.close()
-				logging.debug(f"Removed connection for domain: {domain}")
+				logging.debug(f"[ConnectionPool] {self._pool_type} removed connection for domain: {domain}")
 			else:
-				logging.debug(f"No connection found for domain: {domain}")
+				logging.debug(f"[ConnectionPool] {self._pool_type} no connection found for domain: {domain}")
 	
 	def get_all_domains(self):
 		"""Get list of all domains with active connections"""
@@ -366,7 +367,7 @@ class ConnectionPool:
 				if domain in self._pool:
 					entry = self._pool.pop(domain)
 					entry.close()
-					logging.debug(f"Health check removed dead connection for domain: {domain}")
+					logging.debug(f"[ConnectionPool] {self._pool_type} health check removed dead connection for domain: {domain}")
 		
 		return len(dead_domains)
 	
@@ -376,7 +377,7 @@ class ConnectionPool:
 			return  # Prevent recursive shutdown
 		
 		self._shutdown_in_progress = True
-		logging.debug("Shutting down connection pool...")
+		logging.debug(f"[ConnectionPool] {self._pool_type} shutting down connection pool...")
 		
 		try:
 			self._shutdown_event.set()
@@ -394,12 +395,12 @@ class ConnectionPool:
 					try:
 						entry.close()
 					except Exception as e:
-						logging.debug(f"Error closing connection for {domain}: {str(e)}")
+						logging.debug(f"[ConnectionPool] {self._pool_type} error closing connection for {domain}: {str(e)}")
 				self._pool.clear()
 			
-			logging.debug("Connection pool shutdown complete")
+			logging.debug(f"[ConnectionPool] {self._pool_type} connection pool shutdown complete")
 		except Exception as e:
-			logging.debug(f"Error during connection pool shutdown: {str(e)}")
+			logging.debug(f"[ConnectionPool] {self._pool_type} error during connection pool shutdown: {str(e)}")
 	
 	def __del__(self):
 		if hasattr(self, '_shutdown_in_progress') and self._shutdown_in_progress:
@@ -424,7 +425,7 @@ class SMBConnectionEntry(ConnectionPoolEntry):
 				return False
 			try:
 				if force_check:
-					logging.debug("Forcing SMB connection health check")
+					logging.debug(f"[SMBConnectionPool] {self._pool_type} forcing SMB connection health check")
 					self.connection.listShares()
 				return True
 			except Exception:
@@ -439,7 +440,7 @@ class SMBConnectionEntry(ConnectionPoolEntry):
 				if hasattr(self.connection, 'close'):
 					self.connection.close()
 			except Exception as e:
-				logging.debug(f"Error closing SMB connection for {self.host}: {str(e)}")
+				logging.debug(f"[SMBConnectionPool] {self._pool_type} error closing SMB connection for {self.host}: {str(e)}")
 
 class SMBConnectionPool(ConnectionPool):
 	"""
@@ -452,6 +453,7 @@ class SMBConnectionPool(ConnectionPool):
 	
 	def __init__(self, max_connections=20, cleanup_interval=300, keepalive_interval=600):
 		super().__init__(max_connections, cleanup_interval, keepalive_interval)
+		self._pool_type = 'SMB'
 	
 	def _perform_keepalive(self):
 		"""Send keep-alive to all active SMB connections to maintain them"""
@@ -469,10 +471,10 @@ class SMBConnectionPool(ConnectionPool):
 					# logging.debug(f"SMB connection alive for host: {host}")
 				else:
 					dead_hosts.append(host)
-					logging.debug(f"SMB connection dead during keep-alive for host: {host}")
+					logging.debug(f"[SMBConnectionPool] {self._pool_type} SMB connection dead during keep-alive for host: {host}")
 			except Exception as e:
 				dead_hosts.append(host)
-				logging.debug(f"SMB keep-alive error for host {host}: {str(e)}")
+				logging.debug(f"[SMBConnectionPool] {self._pool_type} SMB keep-alive error for host {host}: {str(e)}")
 		
 		if dead_hosts:
 			with self._pool_lock:
@@ -480,7 +482,7 @@ class SMBConnectionPool(ConnectionPool):
 					if host in self._pool:
 						entry = self._pool.pop(host)
 						entry.close()
-						logging.debug(f"Removed dead SMB connection for host: {host}")
+						logging.debug(f"[SMBConnectionPool] {self._pool_type} removed dead SMB connection for host: {host}")
 	
 	def get_connection(self, host, connection_factory, show_exceptions=True):
 		"""
@@ -507,17 +509,17 @@ class SMBConnectionPool(ConnectionPool):
 				if entry.is_alive():
 					entry.mark_used()
 					self._pool.move_to_end(host)
-					logging.debug(f"Reusing existing SMB connection for host: {host}")
+					logging.debug(f"[SMBConnectionPool] {self._pool_type} reusing existing SMB connection for host: {host}")
 					return entry.connection
 				else:
 					entry.close()
 					del self._pool[host]
-					logging.debug(f"Removed dead SMB connection for host: {host}")
+					logging.debug(f"[SMBConnectionPool] {self._pool_type} removed dead SMB connection for host: {host}")
 			
 			if len(self._pool) >= self.max_connections:
 				oldest_host, oldest_entry = self._pool.popitem(last=False)
 				oldest_entry.close()
-				logging.debug(f"Evicted oldest SMB connection for host: {oldest_host}")
+				logging.debug(f"[SMBConnectionPool] {self._pool_type} evicted oldest SMB connection for host: {oldest_host}")
 			
 			try:
 				new_connection = connection_factory()
@@ -527,7 +529,7 @@ class SMBConnectionPool(ConnectionPool):
 				self._pool[host] = entry
 				self._record_connection_attempt(host, success=True)
 				
-				logging.debug(f"Created new SMB connection for host: {host}")
+				logging.debug(f"[SMBConnectionPool] {self._pool_type} created new SMB connection for host: {host}")
 				return new_connection
 				
 			except Exception as e:
@@ -544,15 +546,15 @@ class SMBConnectionPool(ConnectionPool):
 			if host in self._pool:
 				old_entry = self._pool[host]
 				old_entry.close()
-				logging.debug(f"Replaced existing SMB connection for host: {host}")
+				logging.debug(f"[SMBConnectionPool] {self._pool_type} replaced existing SMB connection for host: {host}")
 			
 			if len(self._pool) >= self.max_connections and host not in self._pool:
 				oldest_host, oldest_entry = self._pool.popitem(last=False)
 				oldest_entry.close()
-				logging.debug(f"Evicted oldest SMB connection for host: {oldest_host}")
+				logging.debug(f"[SMBConnectionPool] {self._pool_type} evicted oldest SMB connection for host: {oldest_host}")
 			
 			self._pool[host] = SMBConnectionEntry(connection, host)
-			logging.debug(f"Added SMB connection for host: {host}")
+			logging.debug(f"[SMBConnectionPool] {self._pool_type} added SMB connection for host: {host}")
 
 	def remove_connection(self, host):
 		"""Remove an SMB connection from the pool with proper cleanup"""
@@ -561,9 +563,9 @@ class SMBConnectionPool(ConnectionPool):
 			if host in self._pool:
 				entry = self._pool.pop(host)
 				entry.close()
-				logging.debug(f"Removed SMB connection for host: {host}")
+				logging.debug(f"[SMBConnectionPool] {self._pool_type} removed SMB connection for host: {host}")
 			else:
-				logging.debug(f"No SMB connection found for host: {host}")
+				logging.debug(f"[SMBConnectionPool] {self._pool_type} no SMB connection found for host: {host}")
 	
 	def get_all_hosts(self):
 		"""Get list of all hosts with active SMB connections"""

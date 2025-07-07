@@ -51,7 +51,6 @@ def main():
     try:
         conn = CONNECTION(args)
         init_ldap_address = args.ldap_address
-        is_admin = False
         powerview = PowerView(conn, args)
         if powerview.ldap_session and powerview.ldap_session.bound:
             powerview.add_domain_connection(powerview.conn.domain)

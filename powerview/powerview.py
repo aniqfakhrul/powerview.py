@@ -84,7 +84,6 @@ class PowerView:
 			logging.debug(f"Reusing existing LDAP session for domain {self.domain}")
 		else:
 			self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
-			logging.debug(f"Initializing new LDAP session for domain {self.domain}")
 
 		self._initialize_attributes_from_connection()
 
@@ -100,7 +99,7 @@ class PowerView:
 		self.use_kerberos = self.conn.use_kerberos or args.use_kerberos
 		self.target_server = target_server
 
-		if not target_domain:
+		if not target_domain and not args.no_admin_check:
 			self.is_admin = self.is_admin()
 
 		self.domain_instances = {}
@@ -161,18 +160,11 @@ class PowerView:
 		self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0] if isinstance(self.ldap_server.info.other["ldapServiceName"], list) else self.ldap_server.info.other["ldapServiceName"].split("@")[-1].split(".")[0]
 		self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
 		self.whoami = self.conn.who_am_i()
-		# Get current user's SID from the LDAP connection
-		self.current_user_sid = None
-		if self.whoami and self.whoami != 'ANONYMOUS':
-			user = self.get_domainobject(identity=self.whoami.split('\\')[1], properties=['objectSid'])
-			if user and len(user) > 0:
-				self.current_user_sid = user[0].get('attributes', {}).get('objectSid', None)
 
 	def add_domain_connection(self, domain):
 		"""Add a domain connection to the pool"""
 		try:
 			self.conn.add_domain_connection(domain)
-			logging.debug(f"Successfully added domain {domain} to connection pool")
 			return True
 		except Exception as e:
 			logging.error(f"Failed to add domain {domain} to pool: {str(e)}")
@@ -2899,7 +2891,20 @@ displayName=New Group Policy Object
 
 		logging.debug(f"[Add-DomainCATemplateAcle] Template {name} exists")
 
-		template_parser = PARSE_TEMPLATE(template[0],current_user_sid=self.current_user_sid,ldap_session = self.ldap_session)
+		username = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
+		entries = self.get_domainobject(identity=username, properties=['objectSid'])
+		if len(entries) == 0:
+			logging.error(f"[Add-DomainCATemplateAcl] Current user {username} not found")
+			return False
+		elif len(entries) > 1:
+			logging.error(f"[Add-DomainCATemplateAcl] More than one current user {username} found")
+			return False
+		current_user_sid = entries[0].get("attributes", {}).get("objectSid")
+		
+		if not current_user_sid:
+			logging.error(f"[Add-DomainCATemplateAcl] Current user {username} has no objectSid")
+			return False
+		template_parser = PARSE_TEMPLATE(template[0],current_user_sid=current_user_sid,ldap_session = self.ldap_session)
 		secDesc = template_parser.modify_dacl(principal_identity[0].get('attributes').get('objectSid'), rights)
 		succeed = self.set_domainobject(  
 								name,
@@ -3023,7 +3028,7 @@ displayName=New Group Policy Object
 
 		# set acl for the template
 		if not args.duplicate:
-			cur_user = self.whoami.split('\\')[1]
+			cur_user = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
 			logging.debug("[Add-DomainCATemplate] Modifying template ACL for current user")
 			if not self.add_domaincatemplateacl(name,cur_user,ca_fetch=ca_fetch):
 				logging.debug("[Add-DomainCATemplate] Failed to modify template ACL. Skipping...")
@@ -3122,6 +3127,20 @@ displayName=New Group Policy Object
 		ca_templates = []
 		list_entries = []
 
+		username = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
+		entries = self.get_domainobject(identity=username, properties=['objectSid'])
+		if len(entries) == 0:
+			logging.error(f"[Get-DomainCATemplate] Current user {username} not found")
+			return
+		elif len(entries) > 1:
+			logging.error(f"[Get-DomainCATemplate] More than one current user {username} found")
+			return
+		current_user_sid = entries[0].get("attributes", {}).get("objectSid")
+		
+		if not current_user_sid:
+			logging.error(f"[Get-DomainCATemplate] Current user {username} has no objectSid")
+			return
+
 		# Get issuance policies for each template
 		oids = ca_fetch.get_issuance_policies(no_cache=no_cache, no_vuln_check=no_vuln_check, raw=raw)
 		for ca in cas:
@@ -3159,7 +3178,7 @@ displayName=New Group Policy Object
 
 
 				# get enrollment rights
-				template_ops = PARSE_TEMPLATE(template.get("attributes"), current_user_sid=self.current_user_sid, linked_group=linked_group, ldap_session=self.ldap_session)
+				template_ops = PARSE_TEMPLATE(template.get("attributes"), current_user_sid=current_user_sid, linked_group=linked_group, ldap_session=self.ldap_session)
 				parsed_dacl = template_ops.parse_dacl()
 				template_ops.resolve_flags()
 				template_owner = template_ops.get_owner_sid()
@@ -4212,20 +4231,20 @@ displayName=New Group Policy Object
 			
 			if hidden:
 				raise NotImplementedError("[Add-DomainDMSA] Hidden DMSA accounts are not supported yet")
-				current_user_sid = self.current_user_sid
+				username = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
+				entries = self.get_domainobject(identity=username, properties=['objectSid'])
+				if len(entries) == 0:
+					logging.error(f"[Add-DomainDMSA] Current user {username} not found")
+					return False
+				elif len(entries) > 1:
+					logging.error(f"[Add-DomainDMSA] More than one current user {username} found")
+					return False
+				current_user_sid = entries[0].get("attributes", {}).get("objectSid")
+				
 				if not current_user_sid:
-					entries = self.get_domainobject(identity=self.whoami, properties=['objectSid'])
-					if len(entries) == 0:
-						logging.error(f"[Add-DomainDMSA] Current user {self.whoami} not found")
-						return False
-					elif len(entries) > 1:
-						logging.error(f"[Add-DomainDMSA] More than one current user {self.whoami} found")
-						return False
-					current_user_sid = entries[0].get("attributes", {}).get("objectSid")
-					
-					if not current_user_sid:
-						logging.error(f"[Add-DomainDMSA] Current user {self.whoami} has no objectSid")
-						return False
+					logging.error(f"[Add-DomainDMSA] Current user {username} has no objectSid")
+					return False
+
 				entries = self.get_domainobject(identity=dmsa_dn, properties=['ntSecurityDescriptor'], sd_flag=0x05)
 				if len(entries) == 0:
 					logging.error(f"[Add-DomainDMSA] DMSA account {dmsa_dn} not found")
