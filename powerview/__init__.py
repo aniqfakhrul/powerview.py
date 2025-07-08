@@ -237,6 +237,11 @@ def main():
                                     entries = temp_powerview.get_domainrbcd(args=pv_args)
                                 else:
                                     entries = powerview.get_domainrbcd(args=pv_args)
+                            elif pv_args.module.casefold() == 'get-domainwds' or pv_args.module.casefold() == 'get-wds':
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domainwds(args=pv_args)
+                                else:
+                                    entries = powerview.get_domainwds(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-ca':
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainca(args=pv_args)

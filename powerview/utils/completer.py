@@ -27,6 +27,8 @@ COMMANDS = {
     'Get-DMSA':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainRBCD':['-Identity','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-RBCD':['-Identity','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-DomainWDS':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-WDS':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainCATemplate':['-Identity','-Vulnerable','-Enabled','-ResolveSIDs','-Properties', '-NoCache', '-NoVulnCheck','-SearchBase','-Server','-Select','-Where', '-TableView', '-SortBy', '-Count', '-NoWrap', '-OutFile', '-Raw'],
     'Get-CATemplate':['-Identity','-Vulnerable','-Enabled','-ResolveSIDs','-Properties', '-NoCache', '-NoVulnCheck','-SearchBase','-Server','-Select', '-Where', '-TableView', '-SortBy', '-Count', '-NoWrap', '-OutFile', '-Raw'],
     'Add-DomainCATemplate':['-DisplayName','-Name','-Duplicate','-Server','-NoWrap'],

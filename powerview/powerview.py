@@ -1456,6 +1456,44 @@ class PowerView:
 						)
 		return entries
 
+	def get_domainwds(self, identity=None, properties=[], searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False, args=None):
+		"""
+		List WDS servers which can host Distribution Points or MDT shares.
+		"""
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		properties = args.properties if hasattr(args, 'properties') and args.properties else properties
+		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+
+		logging.debug(f"[Get-DomainWDS] Using search base: {searchbase}")
+
+		ldap_filter = ""
+		identity_filter = ""
+
+		if identity:
+			identity_filter += f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
+
+		if args:
+			if args.ldapfilter:
+				ldap_filter += f"{args.ldapfilter}"
+				logging.debug(f'[Get-DomainWDS] Using additional LDAP filter: {args.ldapfilter}')
+
+		ldap_filter = f'(&(cn=*-Remote-Installation-Services){identity_filter}{ldap_filter})'
+		logging.debug(f'[Get-DomainWDS] LDAP search filter: {ldap_filter}')
+		return self.ldap_session.extend.standard.paged_search(
+			searchbase,
+			ldap_filter,
+			attributes=list(properties), 
+			paged_size=1000, 
+			generator=True, 
+			search_scope=search_scope, 
+			no_cache=no_cache, 
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
+
 	def get_domaingroup(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'adminCount',
