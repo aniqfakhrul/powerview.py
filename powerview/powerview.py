@@ -1106,7 +1106,7 @@ class PowerView:
 		identity_filter = ""
 
 		if identity:
-			identity_filter += f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
+			identity_filter += f"(|(distinguishedName={identity})(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
 
 		if args:
 			if hasattr(args, 'unconstrained') and args.unconstrained:
