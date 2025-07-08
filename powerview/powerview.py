@@ -1127,18 +1127,6 @@ class PowerView:
 				ldap_filter += f'(ms-Mcs-AdmPwd=*)'
 				properties.add('ms-MCS-AdmPwd')
 				properties.add('ms-Mcs-AdmPwdExpirationTime')
-			if hasattr(args, 'wds') and args.wds:
-				logging.debug("[Get-DomainComputer] Searching for computers that are WDS servers")
-				ldap_filter += f'(cn=*-Remote-Installation-Services)'
-				properties.add('netbootAllowNewClients')
-				properties.add('netbootAnswerOnlyValidClients')
-				properties.add('netbootAnswerRequests')
-				properties.add('netbootCurrentClientCount')
-				properties.add('netbootLimitClients')
-				properties.add('netbootMaxClients')
-				properties.add('netbootNewMachineNamingPolicy')
-				properties.add('netbootNewMachineOU')
-				properties.add('netbootServer')
 			if hasattr(args, 'rbcd') and args.rbcd:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
 				ldap_filter += f'(msDS-AllowedToActOnBehalfOfOtherIdentity=*)'
@@ -1472,25 +1460,6 @@ class PowerView:
 		"""
 		List WDS servers which can host Distribution Points or MDT shares.
 		"""
-		def_prop = [
-			'cn',
-			'distinguishedName',
-			'name',
-			'netbootAllowNewClients',
-			'netbootAnswerOnlyValidClients',
-			'netbootAnswerRequests',
-			'netbootCurrentClientCount',
-			'netbootLimitClients',
-			'netbootMaxClients',
-			'netbootNewMachineNamingPolicy',
-			'netbootNewMachineOU',
-			'netbootServer',
-			'objectCategory',
-			'objectClass'
-		]
-
-		properties = set(properties or def_prop)
-
 		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
 		properties = args.properties if hasattr(args, 'properties') and args.properties else properties
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -1511,12 +1480,12 @@ class PowerView:
 				ldap_filter += f"{args.ldapfilter}"
 				logging.debug(f'[Get-DomainWDS] Using additional LDAP filter: {args.ldapfilter}')
 
-		ldap_filter = f'(&(cn=*-Remote-Installation-Services){identity_filter}{ldap_filter})'
+		ldap_filter = f'(&(|(objectclass=intellimirrorSCP)(cn=*-Remote-Installation-Services)){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainWDS] LDAP search filter: {ldap_filter}')
-		return self.ldap_session.extend.standard.paged_search(
+		wds_servers = self.ldap_session.extend.standard.paged_search(
 			searchbase,
 			ldap_filter,
-			attributes=list(properties), 
+			attributes=['netbootServer'], 
 			paged_size=1000, 
 			generator=True, 
 			search_scope=search_scope, 
@@ -1524,6 +1493,29 @@ class PowerView:
 			no_vuln_check=no_vuln_check,
 			raw=raw
 		)
+
+		if len(wds_servers) == 0:
+			logging.info("[Get-DomainWDS] No WDS servers found")
+			return
+
+		logging.debug(f"[Get-DomainWDS] Found {len(wds_servers)} object(s) with WDS attribute")
+
+		entries = []
+		for server in wds_servers:
+			wds_dn = server.get("attributes", {}).get("netbootServer")
+
+			if not wds_dn:
+				continue
+
+			entries.extend(self.get_domaincomputer(
+				identity=wds_dn,
+				properties=properties,
+				searchbase=searchbase,
+				no_cache=no_cache,
+				no_vuln_check=no_vuln_check,
+				raw=raw
+			))
+		return entries
 
 	def get_domaingroup(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
