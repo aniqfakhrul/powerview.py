@@ -1495,7 +1495,7 @@ class PowerView:
 		)
 
 		if len(wds_servers) == 0:
-			logging.info("[Get-DomainWDS] No WDS servers found")
+			logging.debug("[Get-DomainWDS] No WDS servers found")
 			return
 
 		logging.debug(f"[Get-DomainWDS] Found {len(wds_servers)} object(s) with WDS attribute")
