@@ -1127,6 +1127,18 @@ class PowerView:
 				ldap_filter += f'(ms-Mcs-AdmPwd=*)'
 				properties.add('ms-MCS-AdmPwd')
 				properties.add('ms-Mcs-AdmPwdExpirationTime')
+			if hasattr(args, 'wds') and args.wds:
+				logging.debug("[Get-DomainComputer] Searching for computers that are WDS servers")
+				ldap_filter += f'(cn=*-Remote-Installation-Services)'
+				properties.add('netbootAllowNewClients')
+				properties.add('netbootAnswerOnlyValidClients')
+				properties.add('netbootAnswerRequests')
+				properties.add('netbootCurrentClientCount')
+				properties.add('netbootLimitClients')
+				properties.add('netbootMaxClients')
+				properties.add('netbootNewMachineNamingPolicy')
+				properties.add('netbootNewMachineOU')
+				properties.add('netbootServer')
 			if hasattr(args, 'rbcd') and args.rbcd:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
 				ldap_filter += f'(msDS-AllowedToActOnBehalfOfOtherIdentity=*)'
@@ -1460,6 +1472,25 @@ class PowerView:
 		"""
 		List WDS servers which can host Distribution Points or MDT shares.
 		"""
+		def_prop = [
+			'cn',
+			'distinguishedName',
+			'name',
+			'netbootAllowNewClients',
+			'netbootAnswerOnlyValidClients',
+			'netbootAnswerRequests',
+			'netbootCurrentClientCount',
+			'netbootLimitClients',
+			'netbootMaxClients',
+			'netbootNewMachineNamingPolicy',
+			'netbootNewMachineOU',
+			'netbootServer',
+			'objectCategory',
+			'objectClass'
+		]
+
+		properties = set(properties or def_prop)
+
 		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
 		properties = args.properties if hasattr(args, 'properties') and args.properties else properties
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn

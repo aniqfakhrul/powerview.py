@@ -340,6 +340,7 @@ def powerview_arg_parse(cmd):
 	get_domaincomputer_parser.add_argument('-Enabled', action='store_true', default=False, dest='enabled')
 	get_domaincomputer_parser.add_argument('-Disabled', action='store_true', default=False, dest='disabled')
 	get_domaincomputer_parser.add_argument('-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
+	get_domaincomputer_parser.add_argument('-WDS', action='store_true', default=False, dest='wds')
 	get_domaincomputer_parser.add_argument('-LAPS', action='store_true', default=False, dest='laps')
 	get_domaincomputer_parser.add_argument('-BitLocker', action='store_true', default=False, dest='bitlocker')
 	get_domaincomputer_parser.add_argument('-GMSAPassword', action='store_true', default=False, dest='gmsapassword')
