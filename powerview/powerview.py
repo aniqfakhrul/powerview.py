@@ -1485,7 +1485,15 @@ class PowerView:
 		wds_servers = self.ldap_session.extend.standard.paged_search(
 			searchbase,
 			ldap_filter,
-			attributes=['netbootServer'], 
+			attributes=[
+				'netbootServer', 
+				'netbootAllowNewClients', 
+				'netbootAnswerOnlyValidClients', 
+				'netbootAnswerRequests', 
+				'netbootCurrentClientCount', 
+				'netbootLimitClients', 
+				'netbootMaxClients'
+			], 
 			paged_size=1000, 
 			generator=True, 
 			search_scope=search_scope, 
