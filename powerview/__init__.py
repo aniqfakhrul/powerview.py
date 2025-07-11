@@ -431,6 +431,65 @@ def main():
                                     succeed = temp_powerview.stop_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name)
                                 else:
                                     succeed = powerview.stop_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name)
+                            elif pv_args.module.casefold() == 'get-netterminalsession':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        entries = temp_powerview.get_netterminalsession(identity=computername, port=445, args=pv_args)
+                                    else:
+                                        entries = powerview.get_netterminalsession(identity=computername, port=445, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'remove-netterminalsession':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        succeed = temp_powerview.remove_netterminalsession(identity=computername, port=445, args=pv_args)
+                                    else:
+                                        succeed = powerview.remove_netterminalsession(identity=computername, port=445, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'stop-computer' or pv_args.module.casefold() == 'shutdown-computer':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        succeed = temp_powerview.stop_computer(identity=computername, port=445, args=pv_args)
+                                    else:
+                                        succeed = powerview.stop_computer(identity=computername, port=445, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'restart-computer' or pv_args.module.casefold() == 'reboot-computer':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        succeed = temp_powerview.restart_computer(identity=computername, port=445, args=pv_args)
+                                    else:
+                                        succeed = powerview.restart_computer(identity=computername, port=445, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'get-netprocess' or pv_args.module.casefold() == 'tasklist':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        entries = temp_powerview.get_netprocess(identity=computername, port=445, args=pv_args)
+                                    else:
+                                        entries = powerview.get_netprocess(identity=computername, port=445, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'stop-netprocess' or pv_args.module.casefold() == 'taskkill':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        succeed = temp_powerview.stop_netprocess(identity=computername, port=445, args=pv_args)
+                                    else:
+                                        succeed = powerview.stop_netprocess(identity=computername, port=445, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+
+                                if succeed:
+                                    logging.info(f'Successfully stopped process {pv_args.pid or pv_args.name} on {computername}')
+                                else:
+                                    logging.error(f'Failed to stop process {pv_args.pid or pv_args.name} on {computername}')
                             elif pv_args.module.casefold() == 'get-netsession':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     computername = pv_args.computer if pv_args.computer else pv_args.computername
@@ -438,6 +497,15 @@ def main():
                                         entries = temp_powerview.get_netsession(identity=computername, port=445, args=pv_args)
                                     else:
                                         entries = powerview.get_netsession(identity=computername, port=445, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'logoff-session':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        succeed = temp_powerview.logoff_session(identity=computername, port=445, args=pv_args)
+                                    else:
+                                        succeed = powerview.logoff_session(identity=computername, port=445, args=pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'remove-netsession':

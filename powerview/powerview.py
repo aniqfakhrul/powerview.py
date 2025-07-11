@@ -53,6 +53,7 @@ from powerview.lib.resolver import (
 )
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.web.api.server import APIServer
+from powerview.lib.tsts import TSHandler
 
 import chardet
 from io import BytesIO
@@ -5976,6 +5977,334 @@ displayName=New Group Policy Object
 
 		dce.disconnect()
 		return entries
+
+	def get_netterminalsession(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Get-NetTerminalSession] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+		
+		if username and not (password or lmhash or nthash):
+			logging.error("[Get-NetTerminalSession] Password or hash is required when specifying a username")
+			return
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Get-NetTerminalSession] Failed SMB connection to {identity}")
+			return None
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		results = ts.do_qwinsta()
+		return results
+
+	def remove_netterminalsession(self, identity=None, session_id=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Remove-NetTerminalSession] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+			if session_id is None and hasattr(args, 'session_id'):
+				session_id = args.session_id
+		
+		if username and not (password or lmhash or nthash):
+			logging.error("[Remove-NetTerminalSession] Password or hash is required when specifying a username")
+			return
+
+		if session_id is None:
+			sessions = self.get_netterminalsession(identity=identity, username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash, port=port, args=args)
+			if not sessions:
+				logging.error("[Remove-NetTerminalSession] No sessions found")
+				return False
+			
+			print("\nAvailable sessions:")
+			for i, session in enumerate(sessions):
+				print(f"{i}: SessionID {session['attributes']['ID']} - {session['attributes']['SessionName']} ({session['attributes']['State']}) - {session['attributes']['Username']}")
+			
+			try:
+				choice = int(input("\nSelect session to logoff (number): "))
+				if 0 <= choice < len(sessions):
+					session_id = int(sessions[choice]['attributes']['ID'])
+				else:
+					logging.error("[Remove-NetTerminalSession] Invalid session selection")
+					return False
+			except (ValueError, KeyboardInterrupt):
+				logging.error("[Remove-NetTerminalSession] Invalid input or operation cancelled")
+				return False
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Remove-NetTerminalSession] Failed SMB connection to {identity}")
+			return None
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		success = ts.do_tsdiscon(session_id=session_id)
+		if success:
+			logging.info(f"[Remove-NetTerminalSession] Successfully removed session {session_id} on {identity}")
+		else:
+			logging.error(f"[Remove-NetTerminalSession] Failed to remove session {session_id} on {identity}")
+		return success
+
+	def logoff_session(self, identity=None, session_id=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Logoff-Session] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+			if session_id is None and hasattr(args, 'session_id'):
+				session_id = args.session_id
+				
+		if username and not (password or lmhash or nthash):
+			logging.error("[Logoff-Session] Password or hash is required when specifying a username")
+			return
+
+		if session_id is None:
+			sessions = self.get_netterminalsession(identity=identity, username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash, port=port, args=args)
+			if not sessions:
+				logging.error("[Logoff-Session] No sessions found")
+				return False
+			
+			print("\nAvailable sessions:")
+			for i, session in enumerate(sessions):
+				print(f"{i}: SessionID {session['attributes']['ID']} - {session['attributes']['SessionName']} ({session['attributes']['State']}) - {session['attributes']['Username']}")
+			
+			try:
+				choice = int(input("\nSelect session to logoff (number): "))
+				if 0 <= choice < len(sessions):
+					session_id = int(sessions[choice]['attributes']['ID'])
+				else:
+					logging.error("[Logoff-Session] Invalid session selection")
+					return False
+			except (ValueError, KeyboardInterrupt):
+				logging.error("[Logoff-Session] Invalid input or operation cancelled")
+				return False
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Logoff-Session] Failed SMB connection to {identity}")
+			return None
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		success = ts.do_logoff(session_id=session_id)
+		if success:
+			logging.info(f"[Logoff-Session] Successfully logged off session {session_id} on {identity}")
+		else:
+			logging.error(f"[Logoff-Session] Failed to log off session {session_id} on {identity}")
+		return success
+
+	def stop_computer(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Stop-Computer] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+		
+		if username and not (password or lmhash or nthash):
+			logging.error("[Stop-Computer] Password or hash is required when specifying a username")
+			return
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Stop-Computer] Failed SMB connection to {identity}")
+			return None
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		success = ts.do_shutdown(logoff=True, shutdown=True, reboot=False, poweroff=False)
+		if success:
+			logging.info(f"[Stop-Computer] Successfully stopped computer {identity}")
+		else:
+			logging.error(f"[Stop-Computer] Failed to stop computer {identity}")
+		return success
+
+	def restart_computer(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Restart-Computer] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+		
+		if username and not (password or lmhash or nthash):
+			logging.error("[Restart-Computer] Password or hash is required when specifying a username")
+			return
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Restart-Computer] Failed SMB connection to {identity}")
+			return None
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		success = ts.do_shutdown(logoff=True, shutdown=False, reboot=True, poweroff=False)
+		if success:
+			logging.info(f"[Restart-Computer] Successfully restarted computer {identity}")
+		else:
+			logging.error(f"[Restart-Computer] Failed to restart computer {identity}")
+		return success
+
+	def get_netprocess(self, identity=None, pid=None, name=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Get-NetProcess] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+			if pid is None and hasattr(args, 'pid'):
+				pid = args.pid
+			if name is None and hasattr(args, 'name'):
+				name = args.name
+		
+		if username and not (password or lmhash or nthash):
+			logging.error("[Get-NetProcess] Password or hash is required when specifying a username")
+			return
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Get-NetProcess] Failed SMB connection to {identity}")
+			return None
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		results = ts.do_tasklist(pid=pid, name=name)
+		return results
+
+	def stop_netprocess(self, identity=None, pid=None, name=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Stop-NetProcess] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+			if pid is None and hasattr(args, 'pid'):
+				pid = args.pid
+			if name is None and hasattr(args, 'name'):
+				name = args.name
+		
+		if username and not (password or lmhash or nthash):
+			logging.error("[Stop-NetProcess] Password or hash is required when specifying a username")
+			return
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Stop-NetProcess] Failed SMB connection to {identity}")
+			return None
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		return ts.do_taskkill(pid=pid, name=name)
 
 	def get_netsession(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
 		if args:
