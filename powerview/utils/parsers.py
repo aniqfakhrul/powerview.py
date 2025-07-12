@@ -144,7 +144,7 @@ def powerview_arg_parse(cmd):
 	login_as_parser_cred.add_argument('-Hash', action='store', dest='hash')
 
 	#domain
-	get_domain_parser = subparsers.add_parser('Get-Domain', aliases=['Get-NetDomain'], exit_on_error=False)
+	get_domain_parser = subparsers.add_parser('Get-Domain', exit_on_error=False)
 	get_domain_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domain_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	get_domain_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
@@ -166,6 +166,7 @@ def powerview_arg_parse(cmd):
 	get_domainobject_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainobject_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	get_domainobject_parser.add_argument('-IncludeDeleted', action='store_true', default=False, dest='include_deleted')
+	get_domainobject_parser.add_argument('-Deleted', action='store_true', default=False, dest='deleted')
 	get_domainobject_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
 	get_domainobject_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainobject_parser.add_argument('-Server', action='store', dest='server')
@@ -216,7 +217,7 @@ def powerview_arg_parse(cmd):
 	get_domainobjectacl_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 	
 	# group
-	get_domaingroup_parser = subparsers.add_parser('Get-DomainGroup', aliases=['Get-NetGroup'], exit_on_error=False)
+	get_domaingroup_parser = subparsers.add_parser('Get-DomainGroup', exit_on_error=False)
 	get_domaingroup_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaingroup_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	get_domaingroup_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
@@ -260,7 +261,7 @@ def powerview_arg_parse(cmd):
 	get_domainforeigngroupmember_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
 
 	#groupmember
-	get_domaingroupmember_parser = subparsers.add_parser('Get-DomainGroupMember', aliases=['Get-NetGroupMember'], exit_on_error=False)
+	get_domaingroupmember_parser = subparsers.add_parser('Get-DomainGroupMember', exit_on_error=False)
 	get_domaingroupmember_parser.add_argument('-Identity', action='store',default='*', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaingroupmember_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
 	get_domaingroupmember_parser.add_argument('-Server', action='store', dest='server')
@@ -276,7 +277,7 @@ def powerview_arg_parse(cmd):
 	get_domaingroupmember_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	#user
-	get_domainuser_parser = subparsers.add_parser('Get-DomainUser', aliases=['Get-NetUser'], exit_on_error=False)
+	get_domainuser_parser = subparsers.add_parser('Get-DomainUser', exit_on_error=False)
 	get_domainuser_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainuser_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	get_domainuser_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
@@ -322,7 +323,7 @@ def powerview_arg_parse(cmd):
 	get_localuser_parser.add_argument('-OutFile', action='store', dest='outfile')
 
 	#computers
-	get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer', aliases=['Get-NetComputer'], exit_on_error=False)
+	get_domaincomputer_parser = subparsers.add_parser('Get-DomainComputer', exit_on_error=False)
 	get_domaincomputer_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaincomputer_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	get_domaincomputer_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
@@ -356,7 +357,7 @@ def powerview_arg_parse(cmd):
 	get_domaincomputer_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	#domain controller
-	get_domaincontroller_parser = subparsers.add_parser('Get-DomainController', aliases=['Get-NetDomainController'], exit_on_error=False)
+	get_domaincontroller_parser = subparsers.add_parser('Get-DomainController', exit_on_error=False)
 	get_domaincontroller_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaincontroller_parser.add_argument('-ResolveSIDs', action='store_true', default=False, dest='resolvesids')
 	get_domaincontroller_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
@@ -375,7 +376,7 @@ def powerview_arg_parse(cmd):
 	get_domaincontroller_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	#gpo
-	get_domaingpo_parser = subparsers.add_parser('Get-DomainGPO', aliases=['Get-NetGPO'], exit_on_error=False)
+	get_domaingpo_parser = subparsers.add_parser('Get-DomainGPO', exit_on_error=False)
 	get_domaingpo_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaingpo_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	get_domaingpo_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
@@ -422,7 +423,7 @@ def powerview_arg_parse(cmd):
 	get_domaingposettings_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
 	# OU
-	get_domainou_parser = subparsers.add_parser('Get-DomainOU', aliases=['Get-NetOU'], exit_on_error=False)
+	get_domainou_parser = subparsers.add_parser('Get-DomainOU', exit_on_error=False)
 	get_domainou_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainou_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	get_domainou_parser.add_argument('-GPLink', action='store', dest='gplink')
@@ -666,8 +667,9 @@ def powerview_arg_parse(cmd):
 
 	# get-netcomputerinfo
 	get_netcomputerinfo_parser = subparsers.add_parser('Get-NetComputerInfo', exit_on_error=False)
-	get_netcomputerinfo_parser.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
-	get_netcomputerinfo_parser.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_netcomputerinfo_group = get_netcomputerinfo_parser.add_mutually_exclusive_group(required=True)
+	get_netcomputerinfo_group.add_argument('-Computer', action='store', default=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_netcomputerinfo_group.add_argument('-ComputerName', action='store', default=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netcomputerinfo_parser.add_argument('-Username', action='store', default=None, dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netcomputerinfo_cred_group = get_netcomputerinfo_parser.add_mutually_exclusive_group()
 	get_netcomputerinfo_cred_group.add_argument('-Password', action='store', default=None, dest='password')
@@ -680,7 +682,7 @@ def powerview_arg_parse(cmd):
 
 	# get-netloggedon
 	get_netloggedon_parser = subparsers.add_parser('Get-NetLoggedOn', exit_on_error=False)
-	get_netloggedon_group = get_netloggedon_parser.add_mutually_exclusive_group()
+	get_netloggedon_group = get_netloggedon_parser.add_mutually_exclusive_group(required=True)
 	get_netloggedon_group.add_argument('-Computer', action='store', default=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netloggedon_group.add_argument('-ComputerName', action='store', default=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netloggedon_parser.add_argument('-Username', action='store', default=None, dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
@@ -694,7 +696,7 @@ def powerview_arg_parse(cmd):
 	get_netloggedon_parser.add_argument('-OutFile', action='store', dest='outfile')
 
 	# get-netterminalsession
-	get_netterminalsession_parser = subparsers.add_parser('Get-NetTerminalSession', exit_on_error=False)
+	get_netterminalsession_parser = subparsers.add_parser('Get-NetTerminalSession', aliases=['qwinsta'], exit_on_error=False)
 	get_netterminalsession_group = get_netterminalsession_parser.add_mutually_exclusive_group()
 	get_netterminalsession_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netterminalsession_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
@@ -728,8 +730,9 @@ def powerview_arg_parse(cmd):
 
 	# remove-netterminalsession
 	remove_netterminalsession_parser = subparsers.add_parser('Remove-NetTerminalSession', exit_on_error=False)
-	remove_netterminalsession_parser.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
-	remove_netterminalsession_parser.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+	remove_netterminalsession_group = remove_netterminalsession_parser.add_mutually_exclusive_group(required=True)
+	remove_netterminalsession_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	remove_netterminalsession_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
 	remove_netterminalsession_parser.add_argument('-Username', action='store', default=None, dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
 	remove_netterminalsession_cred_group = remove_netterminalsession_parser.add_mutually_exclusive_group()
 	remove_netterminalsession_cred_group.add_argument('-Password', action='store', default=None, dest='password')
@@ -740,10 +743,28 @@ def powerview_arg_parse(cmd):
 	remove_netterminalsession_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
 	remove_netterminalsession_parser.add_argument('-Count', action='store_true', dest='count')
 
+	# invoke-messagebox
+	invoke_messagebox_parser = subparsers.add_parser('Invoke-MessageBox', exit_on_error=False)
+	invoke_messagebox_group = invoke_messagebox_parser.add_mutually_exclusive_group(required=True)
+	invoke_messagebox_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_messagebox_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_messagebox_parser.add_argument('-Username', action='store', default=None, dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_messagebox_cred_group = invoke_messagebox_parser.add_mutually_exclusive_group()
+	invoke_messagebox_cred_group.add_argument('-Password', action='store', default=None, dest='password')
+	invoke_messagebox_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
+	invoke_messagebox_parser.add_argument('-SessionId', action='store', default=None, dest='session_id', type=int)
+	invoke_messagebox_parser.add_argument('-Title', required=True, action='store', default=None, dest='title', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_messagebox_parser.add_argument('-Message', required=True, action='store', default=None, dest='message', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_messagebox_parser.add_argument('-Server', action='store', dest='server')
+	invoke_messagebox_parser.add_argument('-OutFile', action='store', dest='outfile')
+	invoke_messagebox_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	invoke_messagebox_parser.add_argument('-Count', action='store_true', dest='count')
+
 	# logoff-session
 	logoff_session_parser = subparsers.add_parser('Logoff-Session', exit_on_error=False)
-	logoff_session_parser.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
-	logoff_session_parser.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+	logoff_session_group = logoff_session_parser.add_mutually_exclusive_group(required=True)
+	logoff_session_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	logoff_session_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
 	logoff_session_parser.add_argument('-Username', action='store', default=None, dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
 	logoff_session_cred_group = logoff_session_parser.add_mutually_exclusive_group()
 	logoff_session_cred_group.add_argument('-Password', action='store', default=None, dest='password')
@@ -756,7 +777,7 @@ def powerview_arg_parse(cmd):
 
 	# stop-netprocess
 	stop_netprocess_parser = subparsers.add_parser('Stop-NetProcess', aliases=['taskkill'], exit_on_error=False)
-	stop_netprocess_group = stop_netprocess_parser.add_mutually_exclusive_group(required=True)
+	stop_netprocess_group = stop_netprocess_parser.add_mutually_exclusive_group()
 	stop_netprocess_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
 	stop_netprocess_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
 	stop_netprocess_target_group = stop_netprocess_parser.add_mutually_exclusive_group(required=True)
@@ -1007,7 +1028,7 @@ def powerview_arg_parse(cmd):
 	unlock_adaccount_parser.add_argument('-OutFile', action='store', dest='outfile')
 
 	#trust
-	get_domaintrust_parser = subparsers.add_parser('Get-DomainTrust', aliases=['Get-NetTrust'], exit_on_error=False)
+	get_domaintrust_parser = subparsers.add_parser('Get-DomainTrust', exit_on_error=False)
 	get_domaintrust_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaintrust_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
 	get_domaintrust_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
@@ -1316,6 +1337,7 @@ def powerview_arg_parse(cmd):
 	history_parser.add_argument('-NoNumber',action='store_true', dest='noNumber')
 
 	subparsers.add_parser('get_pool_stats', exit_on_error=False)
+	subparsers.add_parser('whoami', exit_on_error=False)
 	subparsers.add_parser('clear', exit_on_error=False)
 	subparsers.add_parser('exit', exit_on_error=False)
 
@@ -1338,6 +1360,8 @@ def powerview_arg_parse(cmd):
 						args.objectsid = unk
 					elif hasattr(args, 'value'):
 						args.value = unk
+					elif hasattr(args, 'computer') or hasattr(args, 'computername'):
+						args.computer = unk
 					else:
 						print(f"Unrecognized argument: {unk}")
 						return None

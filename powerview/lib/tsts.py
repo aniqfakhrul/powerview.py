@@ -216,7 +216,7 @@ class TSHandler:
 				if not len(r):
 					logging.error('Could not get process list')
 					return
-				pidList = [i['UniqueProcessId'] for i in r if i['ImageName'].lower() == name.lower()]
+				pidList = [i['UniqueProcessId'] for i in r if name.lower() in i['ImageName'].lower()]
 				if not len(pidList):
 					logging.error('Could not find %r in process list' % name)
 					return

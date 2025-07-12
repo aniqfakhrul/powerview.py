@@ -31,7 +31,7 @@ from impacket.krb5.types import Principal
 from impacket.krb5.kerberosv5 import getKerberosTGT
 from impacket.ldap.ldaptypes import LDAP_SID
 
-from powerview.utils.constants import WINDOWS_VERSION_MAP, LCID_TO_LOCALE
+from powerview.utils.constants import WINDOWS_VERSION_MAP, LCID_TO_LOCALE, KNOWN_HOSTNAME
 from powerview.lib.dns import (
 	STORED_ADDR
 )
@@ -574,24 +574,16 @@ def get_system_nameserver():
 	return resolver.get_default_resolver().nameservers[0]
 
 def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_ns=True, type=str, no_prompt=False):
-	"""
-	Resolve hostname to IP address with flexible resolution options.
-	
-	Parameters:
-		hostname: The hostname to resolve
-		nameserver: Optional specific DNS server to use
-		dns_timeout: Timeout for DNS queries in seconds
-		dns_tcp: Whether to use TCP for DNS queries
-		use_system_ns: Whether to use system nameservers if no nameserver provided
-		type: Return type (str for single IP, list for multiple IPs)
-		no_prompt: If True, automatically select first IP without prompting
-	"""
 	if is_ipaddress(hostname):
 		return hostname
 
-	hostname = str(hostname)
+	hostname = str(hostname).lower()
 	if hostname in list(STORED_ADDR.keys()):
 		return STORED_ADDR[hostname]
+
+	if hostname in list(KNOWN_HOSTNAME.keys()):
+		logging.debug(f"Using cached IP for {hostname}: {KNOWN_HOSTNAME[hostname]}")
+		return KNOWN_HOSTNAME[hostname]
 
 	dnsresolver = None
 	if use_system_ns:
@@ -616,11 +608,12 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 
 		if len(addr) == 1:
 			STORED_ADDR[hostname] = addr[0]
+			KNOWN_HOSTNAME[hostname] = addr[0]
 			ip = addr[0] 
 		elif len(addr) > 1 and type == str:
 			if no_prompt:
 				logging.debug(f"Multiple IPs found. Selecting first IP for {hostname}: {addr[0]}")
-				ip = addr[0] # Automatically select first IP without prompting
+				ip = addr[0]
 			else:
 				c_key = 0
 				logging.info('We have more than one ip. Please choose one that is reachable')
@@ -636,8 +629,10 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 					except Exception:
 						pass
 				ip = addr[c_key]
+			KNOWN_HOSTNAME[hostname] = ip
 		elif len(addr) > 1 and type == list:
 			logging.debug(f"Multiple IPs found for {hostname}: {', '.join(addr)}")
+			KNOWN_HOSTNAME[hostname] = addr[0]
 			return addr
 		else:
 			logging.error(f"No address records found for {hostname}")

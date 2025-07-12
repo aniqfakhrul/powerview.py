@@ -684,9 +684,14 @@ class PowerView:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
 		logging.debug(f"[Get-DomainObject] Using search base: {searchbase}")
-		if args and hasattr(args, 'ldapfilter') and args.ldapfilter:
-			logging.debug(f'[Get-DomainObject] Using additional LDAP filter from args: {args.ldapfilter}')
-			ldap_filter = f"{args.ldapfilter}"
+		if args:
+			if hasattr(args, 'ldapfilter') and args.ldapfilter:
+				logging.debug(f'[Get-DomainObject] Using additional LDAP filter from args: {args.ldapfilter}')
+				ldap_filter = f"{args.ldapfilter}"
+			
+			if hasattr(args, 'deleted') and args.deleted:
+				logging.debug(f'[Get-DomainObject] Using deleted flag from args: {args.deleted}')
+				ldap_filter += f"(isDeleted=*)"
 
 		ldap_filter = f'(&(objectClass=*){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
@@ -5576,8 +5581,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
-		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
 		if not dce:
 			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
@@ -5623,8 +5629,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
-		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
 		if not dce:
 			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
@@ -5670,8 +5677,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
-		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
 		if not dce:
 			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
@@ -5742,8 +5750,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
-		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
 		if not dce:
 			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
@@ -5800,8 +5809,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
-		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
 		if not dce:
 			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
@@ -5880,8 +5890,9 @@ displayName=New Group Policy Object
 		}
 
 
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
-		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 		
 		if not dce:
 			logging.error("[Get-NetService] Failed to connect to %s" % (computer_name))
@@ -5977,6 +5988,78 @@ displayName=New Group Policy Object
 
 		dce.disconnect()
 		return entries
+
+	def invoke_messagebox(self, identity=None, session_id=None, title=None, message=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Invoke-MessageBox] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+			if session_id is None and hasattr(args, 'session_id'):
+				session_id = args.session_id
+			if title is None and hasattr(args, 'title'):
+				title = args.title
+			if message is None and hasattr(args, 'message'):
+				message = args.message
+			
+		if username and not (password or lmhash or nthash):
+			logging.error("[Invoke-MessageBox] Password or hash is required when specifying a username")
+			return
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Invoke-MessageBox] Failed SMB connection to {identity}")
+			return False
+
+		if not title or not message:
+			logging.error("[Invoke-MessageBox] Title and message are required")
+			return False
+
+		if session_id is None:
+			sessions = self.get_netterminalsession(identity=identity, username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash, port=port, args=args)
+			if not sessions:
+				logging.error("[Invoke-MessageBox] No sessions found")
+				return False
+			
+			print("\nAvailable sessions:")
+			for i, session in enumerate(sessions):
+				print(f"{i}: SessionID {session['attributes']['ID']} - {session['attributes']['SessionName']} ({session['attributes']['State']}) - {session['attributes']['Username']}")
+			
+			try:
+				choice = int(input("\nSelect session to send message (number): "))
+				if 0 <= choice < len(sessions):
+					session_id = int(sessions[choice]['attributes']['ID'])
+				else:
+					logging.error("[Invoke-MessageBox] Invalid session selection")
+					return False
+			except (ValueError, KeyboardInterrupt):
+				logging.error("[Invoke-MessageBox] Invalid input or operation cancelled")
+				return False
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		success = ts.do_msg(session_id=session_id, title=title, message=message)
+		if success:
+			logging.info(f"[Invoke-MessageBox] Successfully sent message to session {session_id} on {identity}")
+		else:
+			logging.error(f"[Invoke-MessageBox] Failed to send message to session {session_id} on {identity}")
+		return success
 
 	def get_netterminalsession(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
 		if args:
@@ -6559,12 +6642,12 @@ displayName=New Group Policy Object
 			logging.error("[Get-DomainTrustKey] No trust keys found")
 			return
 		else:
-			logging.info("[Get-DomainTrustKey] Found %d trust%s" % (len(_entries), "s" if len(_entries) > 1 else ""))
+			logging.debug("[Get-DomainTrustKey] Found %d trust%s" % (len(_entries), "s" if len(_entries) > 1 else ""))
 		
 		entries = []
 		for entry in _entries:
 			if not entry.get('attributes', {}).get('trustAuthIncoming') or not entry.get('attributes', {}).get('trustAuthOutgoing'):
-				logging.info("[Get-DomainTrustKey] Trust keys not found for %s. Skipping..." % entry.get('attributes', {}).get('name'))
+				logging.warning("[Get-DomainTrustKey] Trust keys not found for %s. Skipping..." % entry.get('attributes', {}).get('name'))
 				continue
 
 			trust = Trust(entry)

@@ -159,50 +159,48 @@ powerview 10.10.10.10 --relay [--relay-host] [--relay-port] [--use-ldap | --use-
 
 ```cs
 PV >
-Add-ADComputer                 Get-ADObject                   Get-ExchangeMailbox            Invoke-DFSCoerce               Restore-DomainObject 
-Add-ADUser                     Get-CA                         Get-ExchangeServer             Invoke-Kerberoast              Set-ADObject 
-Add-CATemplate                 Get-CATemplate                 Get-GMSA                       Invoke-PrinterBug              Set-ADObjectDN 
-Add-CATemplateAcl              Get-DMSA                       Get-GPOLocalGroup              Login-As                       Set-CATemplate 
-Add-DMSA                       Get-Domain                     Get-GPOSettings                Logoff-Session                 Set-DomainCATemplate 
-Add-DomainCATemplate           Get-DomainCA                   Get-LocalUser                  Reboot-Computer                Set-DomainComputerPassword 
-Add-DomainCATemplateAcl        Get-DomainCATemplate           Get-NamedPipes                 Remove-ADComputer              Set-DomainDNSRecord 
-Add-DomainComputer             Get-DomainComputer             Get-NetComputer                Remove-ADObject                Set-DomainObject 
-Add-DomainDMSA                 Get-DomainController           Get-NetComputerInfo            Remove-ADUser                  Set-DomainObjectDN 
-Add-DomainDNSRecord            Get-DomainDMSA                 Get-NetDomain                  Remove-CATemplate              Set-DomainObjectOwner 
-Add-DomainGMSA                 Get-DomainDNSRecord            Get-NetDomainController        Remove-DMSA                    Set-DomainRBCD 
-Add-DomainGPO                  Get-DomainDNSZone              Get-NetGPO                     Remove-DomainCATemplate        Set-DomainUserPassword 
-Add-DomainGroup                Get-DomainForeignGroupMember   Get-NetGroup                   Remove-DomainComputer          Set-NetService 
-Add-DomainGroupMember          Get-DomainForeignUser          Get-NetGroupmember             Remove-DomainDMSA              Set-ObjectOwner 
-Add-DomainOU                   Get-DomainGMSA                 Get-NetLoggedOn                Remove-DomainDNSRecord         Set-RBCD 
-Add-DomainObjectAcl            Get-DomainGPO                  Get-NetOU                      Remove-DomainGMSA              Shutdown-Computer 
-Add-DomainUser                 Get-DomainGPOLocalGroup        Get-NetProcess                 Remove-DomainGroupMember       Start-NetService 
-Add-GMSA                       Get-DomainGPOSettings          Get-NetService                 Remove-DomainOU                Stop-Computer 
-Add-GPLink                     Get-DomainGroup                Get-NetSession                 Remove-DomainObject            Stop-NetProcess 
-Add-GPO                        Get-DomainGroupMember          Get-NetShare                   Remove-DomainObjectAcl         Stop-NetService 
-Add-GroupMember                Get-DomainOU                   Get-NetTerminalSession         Remove-DomainUser              Unlock-ADAccount 
-Add-NetService                 Get-DomainObject               Get-NetTrust                   Remove-GMSA                    clear 
-Add-OU                         Get-DomainObjectAcl            Get-NetUser                    Remove-GPLink                  exit 
-Add-ObjectAcl                  Get-DomainObjectOwner          Get-ObjectAcl                  Remove-GroupMember             get_pool_stats 
-Clear-Cache                    Get-DomainRBCD                 Get-ObjectOwner                Remove-NetService              history 
-ConvertFrom-SID                Get-DomainSCCM                 Get-RBCD                       Remove-NetSession              taskkill 
-ConvertFrom-UACValue           Get-DomainTrust                Get-RegLoggedOn                Remove-NetTerminalSession      tasklist 
-Disable-DomainDNSRecord        Get-DomainTrustKey             Get-SCCM                       Remove-OU                      
-Find-ForeignGroup              Get-DomainUser                 Get-TrustKey                   Remove-ObjectAcl               
-Find-ForeignUser               Get-DomainWDS                  Get-WDS                        Restart-Computer               
-Find-LocalAdminAccess          Get-ExchangeDatabase           Invoke-ASREPRoast              Restore-ADObject               
+Add-ADComputer                 Find-ForeignUser               Get-DomainTrustKey             Invoke-MessageBox              Restore-ADObject 
+Add-ADUser                     Find-LocalAdminAccess          Get-DomainUser                 Invoke-PrinterBug              Restore-DomainObject 
+Add-CATemplate                 Get-ADObject                   Get-DomainWDS                  Login-As                       Set-ADObject 
+Add-CATemplateAcl              Get-CA                         Get-ExchangeDatabase           Logoff-Session                 Set-ADObjectDN 
+Add-DMSA                       Get-CATemplate                 Get-ExchangeMailbox            Reboot-Computer                Set-CATemplate 
+Add-DomainCATemplate           Get-DMSA                       Get-ExchangeServer             Remove-ADComputer              Set-DomainCATemplate 
+Add-DomainCATemplateAcl        Get-Domain                     Get-GMSA                       Remove-ADObject                Set-DomainComputerPassword 
+Add-DomainComputer             Get-DomainCA                   Get-GPOLocalGroup              Remove-ADUser                  Set-DomainDNSRecord 
+Add-DomainDMSA                 Get-DomainCATemplate           Get-GPOSettings                Remove-CATemplate              Set-DomainObject 
+Add-DomainDNSRecord            Get-DomainComputer             Get-LocalUser                  Remove-DMSA                    Set-DomainObjectDN 
+Add-DomainGMSA                 Get-DomainController           Get-NamedPipes                 Remove-DomainCATemplate        Set-DomainObjectOwner 
+Add-DomainGPO                  Get-DomainDMSA                 Get-NetComputer                Remove-DomainComputer          Set-DomainRBCD 
+Add-DomainGroup                Get-DomainDNSRecord            Get-NetComputerInfo            Remove-DomainDMSA              Set-DomainUserPassword 
+Add-DomainGroupMember          Get-DomainDNSZone              Get-NetLoggedOn                Remove-DomainDNSRecord         Set-NetService 
+Add-DomainOU                   Get-DomainForeignGroupMember   Get-NetProcess                 Remove-DomainGMSA              Set-ObjectOwner 
+Add-DomainObjectAcl            Get-DomainForeignUser          Get-NetService                 Remove-DomainGroupMember       Set-RBCD 
+Add-DomainUser                 Get-DomainGMSA                 Get-NetSession                 Remove-DomainOU                Shutdown-Computer 
+Add-GMSA                       Get-DomainGPO                  Get-NetShare                   Remove-DomainObject            Start-NetService 
+Add-GPLink                     Get-DomainGPOLocalGroup        Get-NetTerminalSession         Remove-DomainObjectAcl         Stop-Computer 
+Add-GPO                        Get-DomainGPOSettings          Get-ObjectAcl                  Remove-DomainUser              Stop-NetProcess 
+Add-GroupMember                Get-DomainGroup                Get-ObjectOwner                Remove-GMSA                    Stop-NetService 
+Add-NetService                 Get-DomainGroupMember          Get-RBCD                       Remove-GPLink                  Unlock-ADAccount 
+Add-OU                         Get-DomainOU                   Get-RegLoggedOn                Remove-GroupMember             clear 
+Add-ObjectAcl                  Get-DomainObject               Get-SCCM                       Remove-NetService              exit 
+Clear-Cache                    Get-DomainObjectAcl            Get-TrustKey                   Remove-NetSession              get_pool_stats 
+ConvertFrom-SID                Get-DomainObjectOwner          Get-WDS                        Remove-NetTerminalSession      history 
+ConvertFrom-UACValue           Get-DomainRBCD                 Invoke-ASREPRoast              Remove-OU                      taskkill 
+Disable-DomainDNSRecord        Get-DomainSCCM                 Invoke-DFSCoerce               Remove-ObjectAcl               tasklist 
+Find-ForeignGroup              Get-DomainTrust                Invoke-Kerberoast              Restart-Computer               
 ```
 
 ### Domain/LDAP Functions
 
 | Module | Alias | Description |
 | ------ | ----- | ---- |
-|Get-DomainUser|Get-NetUser|Query for all users or specific user objects in AD|
-|Get-DomainComputer|Get-NetComputer|Query for all computers or specific computer objects in AD|
-|Get-DomainGroup|Get-NetGroup|Query for all groups or specific group objects in AD|
-|Get-DomainGroupMember|Get-NetGroupMember|Query the members for specific domain group |
-|Get-DomainOU|Get-NetOU|Query for all OUs or specific OU objects in AD|
-|Get-Domain|Get-NetDomain|Query for domain information|
-|Get-DomainController|Get-NetDomainController|Query for available domain controllers|
+|Get-DomainUser||Query for all users or specific user objects in AD|
+|Get-DomainComputer||Query for all computers or specific computer objects in AD|
+|Get-DomainGroup||Query for all groups or specific group objects in AD|
+|Get-DomainGroupMember||Query the members for specific domain group |
+|Get-DomainOU||Query for all OUs or specific OU objects in AD|
+|Get-Domain||Query for domain information|
+|Get-DomainController||Query for available domain controllers|
 |Get-DomainDNSRecord||Query for available records. It will recurse all DNS zones if doesn't specify -ZoneName|
 |Get-DomainDNSZone||Query for available DNS zones in the domain|
 |Get-DomainObject|Get-ADObject|Query for all or specified domain objects in AD|
@@ -243,7 +241,7 @@ Find-LocalAdminAccess          Get-ExchangeDatabase           Invoke-ASREPRoast 
 
 | Module | Alias | Description |
 | ------ | ----- | ---- |
-|Get-DomainGPO|Get-NetGPO| Query for domain group policy objects |
+|Get-DomainGPO|| Query for domain group policy objects |
 |Get-DomainGPOLocalGroup|Get-GPOLocalGroup|Query all GPOs in a domain that modify local group memberships through `Restricted Groups` or `Group Policy preferences`|
 |Add-GPLink||Create new GPO link to an OU|
 |Remove-GPLink||Remove GPO link from an OU|
@@ -285,7 +283,7 @@ Find-LocalAdminAccess          Get-ExchangeDatabase           Invoke-ASREPRoast 
 
 | Module | Alias | Description |
 | ------ | ----- | ---- |
-|Get-DomainTrust|Get-NetTrust|Query all Domain Trusts|
+|Get-DomainTrust||Query all Domain Trusts|
 |Get-DomainForeignUser|Find-ForeignUser|Query users who are in group outside of the user's domain|
 |Get-DomainForeignGroupMember|Find-ForeignGroup|Query groups with users outside of group's domain and look for foreign member|
 
