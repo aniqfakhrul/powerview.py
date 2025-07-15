@@ -51,7 +51,6 @@ def main():
     try:
         conn = CONNECTION(args)
         init_ldap_address = args.ldap_address
-        is_admin = False
         powerview = PowerView(conn, args)
         if powerview.ldap_session and powerview.ldap_session.bound:
             powerview.add_domain_connection(powerview.conn.domain)
@@ -110,7 +109,7 @@ def main():
                             
                         try:
                             entries = None
-                            if pv_args.module.casefold() == 'get-domain' or pv_args.module.casefold() == 'get-netdomain':
+                            if pv_args.module.casefold() == 'get-domain':
                                 if temp_powerview:
                                     entries = temp_powerview.get_domain(args=pv_args)
                                 else:
@@ -134,7 +133,7 @@ def main():
                                     entries = powerview.get_domainobjectacl(
                                         args=pv_args
                                     )
-                            elif pv_args.module.casefold() == 'get-domainuser' or pv_args.module.casefold() == 'get-netuser':
+                            elif pv_args.module.casefold() == 'get-domainuser':
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainuser(args=pv_args)
                                 else:
@@ -146,19 +145,19 @@ def main():
                                     entries = temp_powerview.get_localuser(computer_name=computername, identity=pv_args.identity, properties=properties, args=pv_args)
                                 else:
                                     entries = powerview.get_localuser(computer_name=computername, identity=pv_args.identity, properties=properties, args=pv_args)
-                            elif pv_args.module.casefold() == 'get-domaincomputer' or pv_args.module.casefold() == 'get-netcomputer':
+                            elif pv_args.module.casefold() == 'get-domaincomputer':
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaincomputer(args=pv_args)
                                 else:
                                     entries = powerview.get_domaincomputer(args=pv_args)
-                            elif pv_args.module.casefold() == 'get-domaingroup' or pv_args.module.casefold() == 'get-netgroup':
+                            elif pv_args.module.casefold() == 'get-domaingroup':
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaingroup(pv_args, properties, identity, no_cache=pv_args.no_cache)
                                 else:
                                     entries = powerview.get_domaingroup(pv_args, properties, identity, no_cache=pv_args.no_cache)
-                            elif pv_args.module.casefold() == 'get-domaingroupmember' or pv_args.module.casefold() == 'get-netgroupmember':
+                            elif pv_args.module.casefold() == 'get-domaingroupmember':
                                 identity = pv_args.identity.strip()
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaingroupmember(identity=identity, args=pv_args)
@@ -174,12 +173,12 @@ def main():
                                     entries = temp_powerview.get_domainforeignuser(pv_args)
                                 else:
                                     entries = powerview.get_domainforeignuser(pv_args)
-                            elif pv_args.module.casefold() == 'get-domaincontroller' or pv_args.module.casefold() == 'get-netdomaincontroller':
+                            elif pv_args.module.casefold() == 'get-domaincontroller':
                                 if temp_powerview:
                                     entries = temp_powerview.get_domaincontroller(args=pv_args)
                                 else:
                                     entries = powerview.get_domaincontroller(args=pv_args)
-                            elif pv_args.module.casefold() == 'get-domaingpo' or pv_args.module.casefold() == 'get-netgpo':
+                            elif pv_args.module.casefold() == 'get-domaingpo':
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
@@ -196,7 +195,7 @@ def main():
                                     entries = temp_powerview.get_domaingposettings(args=pv_args)
                                 else:
                                     entries = powerview.get_domaingposettings(args=pv_args)
-                            elif pv_args.module.casefold() == 'get-domainou' or pv_args.module.casefold() == 'get-netou':
+                            elif pv_args.module.casefold() == 'get-domainou':
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainou(args=pv_args)
                                 else:
@@ -238,6 +237,11 @@ def main():
                                     entries = temp_powerview.get_domainrbcd(args=pv_args)
                                 else:
                                     entries = powerview.get_domainrbcd(args=pv_args)
+                            elif pv_args.module.casefold() == 'get-domainwds' or pv_args.module.casefold() == 'get-wds':
+                                if temp_powerview:
+                                    entries = temp_powerview.get_domainwds(args=pv_args)
+                                else:
+                                    entries = powerview.get_domainwds(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainca' or pv_args.module.casefold() == 'get-ca':
                                 if temp_powerview:
                                     entries = temp_powerview.get_domainca(args=pv_args)
@@ -278,7 +282,7 @@ def main():
                                         powerview.add_domaincatemplateacl(pv_args.template, pv_args.principalidentity, args=pv_args)
                                 else:
                                     logging.error('-TargetIdentity , -PrincipalIdentity and -Rights flags are required')
-                            elif pv_args.module.casefold() == 'get-domaintrust' or pv_args.module.casefold() == 'get-nettrust':
+                            elif pv_args.module.casefold() == 'get-domaintrust':
                                 properties = pv_args.properties if pv_args.properties else None
                                 identity = pv_args.identity.strip() if pv_args.identity else None
                                 if temp_powerview:
@@ -427,6 +431,65 @@ def main():
                                     succeed = temp_powerview.stop_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name)
                                 else:
                                     succeed = powerview.stop_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name)
+                            elif pv_args.module.casefold() == 'get-netterminalsession' or pv_args.module.casefold() == 'qwinsta':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        entries = temp_powerview.get_netterminalsession(identity=computername, port=445, args=pv_args)
+                                    else:
+                                        entries = powerview.get_netterminalsession(identity=computername, port=445, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'remove-netterminalsession':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        succeed = temp_powerview.remove_netterminalsession(identity=computername, port=445, args=pv_args)
+                                    else:
+                                        succeed = powerview.remove_netterminalsession(identity=computername, port=445, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'stop-computer' or pv_args.module.casefold() == 'shutdown-computer':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        succeed = temp_powerview.stop_computer(identity=computername, port=445, args=pv_args)
+                                    else:
+                                        succeed = powerview.stop_computer(identity=computername, port=445, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'restart-computer' or pv_args.module.casefold() == 'reboot-computer':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        succeed = temp_powerview.restart_computer(identity=computername, port=445, args=pv_args)
+                                    else:
+                                        succeed = powerview.restart_computer(identity=computername, port=445, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'get-netprocess' or pv_args.module.casefold() == 'tasklist':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        entries = temp_powerview.get_netprocess(identity=computername, port=445, args=pv_args)
+                                    else:
+                                        entries = powerview.get_netprocess(identity=computername, port=445, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'stop-netprocess' or pv_args.module.casefold() == 'taskkill':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        succeed = temp_powerview.stop_netprocess(identity=computername, port=445, args=pv_args)
+                                    else:
+                                        succeed = powerview.stop_netprocess(identity=computername, port=445, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+
+                                if succeed:
+                                    logging.info(f'Successfully stopped process {pv_args.pid or pv_args.name} on {computername}')
+                                else:
+                                    logging.error(f'Failed to stop process {pv_args.pid or pv_args.name} on {computername}')
                             elif pv_args.module.casefold() == 'get-netsession':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     computername = pv_args.computer if pv_args.computer else pv_args.computername
@@ -434,6 +497,15 @@ def main():
                                         entries = temp_powerview.get_netsession(identity=computername, port=445, args=pv_args)
                                     else:
                                         entries = powerview.get_netsession(identity=computername, port=445, args=pv_args)
+                                else:
+                                    logging.error('-Computer or -ComputerName is required')
+                            elif pv_args.module.casefold() == 'logoff-session':
+                                if pv_args.computer is not None or pv_args.computername is not None:
+                                    computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                    if temp_powerview:
+                                        succeed = temp_powerview.logoff_session(identity=computername, port=445, args=pv_args)
+                                    else:
+                                        succeed = powerview.logoff_session(identity=computername, port=445, args=pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
                             elif pv_args.module.casefold() == 'remove-netsession':
@@ -467,6 +539,12 @@ def main():
                                     entries = temp_powerview.invoke_dfscoerce(args=pv_args)
                                 else:
                                     entries = powerview.invoke_dfscoerce(args=pv_args)
+                            elif pv_args.module.casefold() == 'invoke-messagebox':
+                                computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                if temp_powerview:
+                                    succeed = temp_powerview.invoke_messagebox(identity=computername, args=pv_args)
+                                else:
+                                    succeed = powerview.invoke_messagebox(identity=computername, args=pv_args)
                             elif pv_args.module.casefold() == 'get-exchangeserver' or pv_args.module.casefold() == 'get-exchange':
                                 if temp_powerview:
                                     entries = temp_powerview.get_exchangeserver(args=pv_args)
@@ -799,6 +877,8 @@ def main():
                                     print(f"{bol}{item}")
                             elif pv_args.module.casefold() == 'clear':
                                 clear_screen()
+                            elif pv_args.module.casefold() == 'whoami':
+                                print(powerview.conn.who_am_i())
                             elif pv_args.module.casefold() == 'exit':
                                 if args.mcp and hasattr(powerview, 'mcp_server') and powerview.mcp_server.get_status():
                                     powerview.mcp_server.stop()

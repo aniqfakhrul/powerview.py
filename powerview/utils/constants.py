@@ -654,6 +654,9 @@ class DMSA_DELEGATED_MSA_STATE(IntFlag):
 # store discovered sids
 KNOWN_SIDS = {}
 
+# store known hostname
+KNOWN_HOSTNAME = {}
+
 ATTRIBUTE_OID = {
 	"uid": "0.9.2342.19200300.100.1.1",
 	"mail": "0.9.2342.19200300.100.1.3",

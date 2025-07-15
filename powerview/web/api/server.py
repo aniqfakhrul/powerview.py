@@ -378,7 +378,6 @@ class APIServer:
 		return jsonify({
 			'domain': self.powerview.domain,
 			'username': self.powerview.conn.get_username(),
-			'sid': self.powerview.current_user_sid,
 			'is_admin': self.powerview.is_admin,
 			'status': 'OK' if self.powerview.conn.is_connection_alive() else 'KO',
 			'protocol': self.powerview.conn.get_proto(),
@@ -1298,7 +1297,6 @@ class APIServer:
 					connection_info = {
 						'domain': self.powerview.domain,
 						'username': self.powerview.conn.get_username(),
-						'sid': self.powerview.current_user_sid,
 						'is_admin': self.powerview.is_admin,
 						'status': 'OK' if self.powerview.is_connection_alive() else 'KO',
 						'protocol': self.powerview.conn.get_proto(),

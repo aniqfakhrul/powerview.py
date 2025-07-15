@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "powerview"
-version = "2025.1.2"
+version = "2025.1.4"
 description = "Python based PowerView script"
 authors = [
     { name = "Aniq Fakhrul", email = "aniqfakhrull@gmail.com" }

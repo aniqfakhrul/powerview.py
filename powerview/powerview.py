@@ -53,6 +53,7 @@ from powerview.lib.resolver import (
 )
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.web.api.server import APIServer
+from powerview.lib.tsts import TSHandler
 
 import chardet
 from io import BytesIO
@@ -84,7 +85,6 @@ class PowerView:
 			logging.debug(f"Reusing existing LDAP session for domain {self.domain}")
 		else:
 			self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
-			logging.debug(f"Initializing new LDAP session for domain {self.domain}")
 
 		self._initialize_attributes_from_connection()
 
@@ -100,7 +100,7 @@ class PowerView:
 		self.use_kerberos = self.conn.use_kerberos or args.use_kerberos
 		self.target_server = target_server
 
-		if not target_domain:
+		if not target_domain and not args.no_admin_check:
 			self.is_admin = self.is_admin()
 
 		self.domain_instances = {}
@@ -161,18 +161,11 @@ class PowerView:
 		self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0] if isinstance(self.ldap_server.info.other["ldapServiceName"], list) else self.ldap_server.info.other["ldapServiceName"].split("@")[-1].split(".")[0]
 		self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
 		self.whoami = self.conn.who_am_i()
-		# Get current user's SID from the LDAP connection
-		self.current_user_sid = None
-		if self.whoami and self.whoami != 'ANONYMOUS':
-			user = self.get_domainobject(identity=self.whoami.split('\\')[1], properties=['objectSid'])
-			if user and len(user) > 0:
-				self.current_user_sid = user[0].get('attributes', {}).get('objectSid', None)
 
 	def add_domain_connection(self, domain):
 		"""Add a domain connection to the pool"""
 		try:
 			self.conn.add_domain_connection(domain)
-			logging.debug(f"Successfully added domain {domain} to connection pool")
 			return True
 		except Exception as e:
 			logging.error(f"Failed to add domain {domain} to pool: {str(e)}")
@@ -362,16 +355,19 @@ class PowerView:
 		groups = []
 
 		try:
-			curUserDetails = self.get_domainobject(identity=self.username, properties=["adminCount","memberOf"])[0]
+			curUserDetails = self.get_domainobject(identity=self.username, properties=["adminCount","memberOf"])
+			if len(curUserDetails) == 0:
+				return False
+			curUserDetails = curUserDetails[0]
 		   
 			if not curUserDetails:
 				return False
 			
 			userGroup = curUserDetails.get("attributes").get("memberOf")
 
-			if isinstance(userGroup, str):
+			if userGroup and isinstance(userGroup, str):
 				groups.append(userGroup)
-			elif isinstance(userGroup, list):
+			elif userGroup and isinstance(userGroup, list):
 				groups = userGroup 
 
 			for group in groups:
@@ -382,7 +378,7 @@ class PowerView:
 			if self.is_domainadmin:
 				logging.info(f"User {self.username} is a Domain Admin")
 			else:
-				self.is_admincount = bool(curUserDetails["attributes"]["adminCount"])
+				self.is_admincount = bool(curUserDetails.get("attributes",{}).get("adminCount",0))
 				if self.is_admincount:
 					logging.info(f"User {self.username} has adminCount attribute set to 1. Might be admin somewhere somehow :)")
 		except:
@@ -688,9 +684,14 @@ class PowerView:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
 		logging.debug(f"[Get-DomainObject] Using search base: {searchbase}")
-		if args and hasattr(args, 'ldapfilter') and args.ldapfilter:
-			logging.debug(f'[Get-DomainObject] Using additional LDAP filter from args: {args.ldapfilter}')
-			ldap_filter = f"{args.ldapfilter}"
+		if args:
+			if hasattr(args, 'ldapfilter') and args.ldapfilter:
+				logging.debug(f'[Get-DomainObject] Using additional LDAP filter from args: {args.ldapfilter}')
+				ldap_filter = f"{args.ldapfilter}"
+			
+			if hasattr(args, 'deleted') and args.deleted:
+				logging.debug(f'[Get-DomainObject] Using deleted flag from args: {args.deleted}')
+				ldap_filter += f"(isDeleted=*)"
 
 		ldap_filter = f'(&(objectClass=*){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
@@ -1111,7 +1112,7 @@ class PowerView:
 		identity_filter = ""
 
 		if identity:
-			identity_filter += f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
+			identity_filter += f"(|(distinguishedName={identity})(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
 
 		if args:
 			if hasattr(args, 'unconstrained') and args.unconstrained:
@@ -1459,6 +1460,75 @@ class PowerView:
 								"attributes": dict(entry)
 							}
 						)
+		return entries
+
+	def get_domainwds(self, identity=None, properties=[], searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False, args=None):
+		"""
+		List WDS servers which can host Distribution Points or MDT shares.
+		"""
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		properties = args.properties if hasattr(args, 'properties') and args.properties else properties
+		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+
+		logging.debug(f"[Get-DomainWDS] Using search base: {searchbase}")
+
+		ldap_filter = ""
+		identity_filter = ""
+
+		if identity:
+			identity_filter += f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
+
+		if args:
+			if args.ldapfilter:
+				ldap_filter += f"{args.ldapfilter}"
+				logging.debug(f'[Get-DomainWDS] Using additional LDAP filter: {args.ldapfilter}')
+
+		ldap_filter = f'(&(|(objectclass=intellimirrorSCP)(cn=*-Remote-Installation-Services)){identity_filter}{ldap_filter})'
+		logging.debug(f'[Get-DomainWDS] LDAP search filter: {ldap_filter}')
+		wds_servers = self.ldap_session.extend.standard.paged_search(
+			searchbase,
+			ldap_filter,
+			attributes=[
+				'netbootServer', 
+				'netbootAllowNewClients', 
+				'netbootAnswerOnlyValidClients', 
+				'netbootAnswerRequests', 
+				'netbootCurrentClientCount', 
+				'netbootLimitClients', 
+				'netbootMaxClients'
+			], 
+			paged_size=1000, 
+			generator=True, 
+			search_scope=search_scope, 
+			no_cache=no_cache, 
+			no_vuln_check=no_vuln_check,
+			raw=raw
+		)
+
+		if len(wds_servers) == 0:
+			logging.debug("[Get-DomainWDS] No WDS servers found")
+			return
+
+		logging.debug(f"[Get-DomainWDS] Found {len(wds_servers)} object(s) with WDS attribute")
+
+		entries = []
+		for server in wds_servers:
+			wds_dn = server.get("attributes", {}).get("netbootServer")
+
+			if not wds_dn:
+				continue
+
+			entries.extend(self.get_domaincomputer(
+				identity=wds_dn,
+				properties=properties,
+				searchbase=searchbase,
+				no_cache=no_cache,
+				no_vuln_check=no_vuln_check,
+				raw=raw
+			))
 		return entries
 
 	def get_domaingroup(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
@@ -2896,7 +2966,20 @@ displayName=New Group Policy Object
 
 		logging.debug(f"[Add-DomainCATemplateAcle] Template {name} exists")
 
-		template_parser = PARSE_TEMPLATE(template[0],current_user_sid=self.current_user_sid,ldap_session = self.ldap_session)
+		username = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
+		entries = self.get_domainobject(identity=username, properties=['objectSid'])
+		if len(entries) == 0:
+			logging.error(f"[Add-DomainCATemplateAcl] Current user {username} not found")
+			return False
+		elif len(entries) > 1:
+			logging.error(f"[Add-DomainCATemplateAcl] More than one current user {username} found")
+			return False
+		current_user_sid = entries[0].get("attributes", {}).get("objectSid")
+		
+		if not current_user_sid:
+			logging.error(f"[Add-DomainCATemplateAcl] Current user {username} has no objectSid")
+			return False
+		template_parser = PARSE_TEMPLATE(template[0],current_user_sid=current_user_sid,ldap_session = self.ldap_session)
 		secDesc = template_parser.modify_dacl(principal_identity[0].get('attributes').get('objectSid'), rights)
 		succeed = self.set_domainobject(  
 								name,
@@ -3020,7 +3103,7 @@ displayName=New Group Policy Object
 
 		# set acl for the template
 		if not args.duplicate:
-			cur_user = self.whoami.split('\\')[1]
+			cur_user = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
 			logging.debug("[Add-DomainCATemplate] Modifying template ACL for current user")
 			if not self.add_domaincatemplateacl(name,cur_user,ca_fetch=ca_fetch):
 				logging.debug("[Add-DomainCATemplate] Failed to modify template ACL. Skipping...")
@@ -3119,6 +3202,20 @@ displayName=New Group Policy Object
 		ca_templates = []
 		list_entries = []
 
+		username = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
+		entries = self.get_domainobject(identity=username, properties=['objectSid'])
+		if len(entries) == 0:
+			logging.error(f"[Get-DomainCATemplate] Current user {username} not found")
+			return
+		elif len(entries) > 1:
+			logging.error(f"[Get-DomainCATemplate] More than one current user {username} found")
+			return
+		current_user_sid = entries[0].get("attributes", {}).get("objectSid")
+		
+		if not current_user_sid:
+			logging.error(f"[Get-DomainCATemplate] Current user {username} has no objectSid")
+			return
+
 		# Get issuance policies for each template
 		oids = ca_fetch.get_issuance_policies(no_cache=no_cache, no_vuln_check=no_vuln_check, raw=raw)
 		for ca in cas:
@@ -3156,7 +3253,7 @@ displayName=New Group Policy Object
 
 
 				# get enrollment rights
-				template_ops = PARSE_TEMPLATE(template.get("attributes"), current_user_sid=self.current_user_sid, linked_group=linked_group, ldap_session=self.ldap_session)
+				template_ops = PARSE_TEMPLATE(template.get("attributes"), current_user_sid=current_user_sid, linked_group=linked_group, ldap_session=self.ldap_session)
 				parsed_dacl = template_ops.parse_dacl()
 				template_ops.resolve_flags()
 				template_owner = template_ops.get_owner_sid()
@@ -4209,20 +4306,20 @@ displayName=New Group Policy Object
 			
 			if hidden:
 				raise NotImplementedError("[Add-DomainDMSA] Hidden DMSA accounts are not supported yet")
-				current_user_sid = self.current_user_sid
+				username = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
+				entries = self.get_domainobject(identity=username, properties=['objectSid'])
+				if len(entries) == 0:
+					logging.error(f"[Add-DomainDMSA] Current user {username} not found")
+					return False
+				elif len(entries) > 1:
+					logging.error(f"[Add-DomainDMSA] More than one current user {username} found")
+					return False
+				current_user_sid = entries[0].get("attributes", {}).get("objectSid")
+				
 				if not current_user_sid:
-					entries = self.get_domainobject(identity=self.whoami, properties=['objectSid'])
-					if len(entries) == 0:
-						logging.error(f"[Add-DomainDMSA] Current user {self.whoami} not found")
-						return False
-					elif len(entries) > 1:
-						logging.error(f"[Add-DomainDMSA] More than one current user {self.whoami} found")
-						return False
-					current_user_sid = entries[0].get("attributes", {}).get("objectSid")
-					
-					if not current_user_sid:
-						logging.error(f"[Add-DomainDMSA] Current user {self.whoami} has no objectSid")
-						return False
+					logging.error(f"[Add-DomainDMSA] Current user {username} has no objectSid")
+					return False
+
 				entries = self.get_domainobject(identity=dmsa_dn, properties=['ntSecurityDescriptor'], sd_flag=0x05)
 				if len(entries) == 0:
 					logging.error(f"[Add-DomainDMSA] DMSA account {dmsa_dn} not found")
@@ -4989,6 +5086,7 @@ displayName=New Group Policy Object
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		setattr(args, 'spn', True)
+		setattr(args, 'enabled', True)
 
 		entries = self.get_domainuser(
 			identity=identity,
@@ -5484,8 +5582,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
-		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
 		if not dce:
 			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
@@ -5531,8 +5630,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
-		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
 		if not dce:
 			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
@@ -5578,8 +5678,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
-		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
 		if not dce:
 			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
@@ -5650,8 +5751,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
-		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
 		if not dce:
 			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
@@ -5708,8 +5810,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
-		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
 		if not dce:
 			logging.error("[Set-NetService] Failed to connect to %s" % (computer_name))
@@ -5788,8 +5891,9 @@ displayName=New Group Policy Object
 		}
 
 
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
-		dce = self.conn.connectRPCTransport(host=computer_name, stringBindings=stringBinding)
+		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 		
 		if not dce:
 			logging.error("[Get-NetService] Failed to connect to %s" % (computer_name))
@@ -5885,6 +5989,406 @@ displayName=New Group Policy Object
 
 		dce.disconnect()
 		return entries
+
+	def invoke_messagebox(self, identity=None, session_id=None, title=None, message=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Invoke-MessageBox] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+			if session_id is None and hasattr(args, 'session_id'):
+				session_id = args.session_id
+			if title is None and hasattr(args, 'title'):
+				title = args.title
+			if message is None and hasattr(args, 'message'):
+				message = args.message
+			
+		if username and not (password or lmhash or nthash):
+			logging.error("[Invoke-MessageBox] Password or hash is required when specifying a username")
+			return
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Invoke-MessageBox] Failed SMB connection to {identity}")
+			return False
+
+		if not title or not message:
+			logging.error("[Invoke-MessageBox] Title and message are required")
+			return False
+
+		if session_id is None:
+			sessions = self.get_netterminalsession(identity=identity, username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash, port=port, args=args)
+			if not sessions:
+				logging.error("[Invoke-MessageBox] No sessions found")
+				return False
+			
+			print("\nAvailable sessions:")
+			for i, session in enumerate(sessions):
+				print(f"{i}: SessionID {session['attributes']['ID']} - {session['attributes']['SessionName']} ({session['attributes']['State']}) - {session['attributes']['Username']}")
+			
+			try:
+				choice = int(input("\nSelect session to send message (number): "))
+				if 0 <= choice < len(sessions):
+					session_id = int(sessions[choice]['attributes']['ID'])
+				else:
+					logging.error("[Invoke-MessageBox] Invalid session selection")
+					return False
+			except (ValueError, KeyboardInterrupt):
+				logging.error("[Invoke-MessageBox] Invalid input or operation cancelled")
+				return False
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		success = ts.do_msg(session_id=session_id, title=title, message=message)
+		if success:
+			logging.info(f"[Invoke-MessageBox] Successfully sent message to session {session_id} on {identity}")
+		else:
+			logging.error(f"[Invoke-MessageBox] Failed to send message to session {session_id} on {identity}")
+		return success
+
+	def get_netterminalsession(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Get-NetTerminalSession] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+		
+		if username and not (password or lmhash or nthash):
+			logging.error("[Get-NetTerminalSession] Password or hash is required when specifying a username")
+			return
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Get-NetTerminalSession] Failed SMB connection to {identity}")
+			return None
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		results = ts.do_qwinsta()
+		return results
+
+	def remove_netterminalsession(self, identity=None, session_id=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Remove-NetTerminalSession] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+			if session_id is None and hasattr(args, 'session_id'):
+				session_id = args.session_id
+		
+		if username and not (password or lmhash or nthash):
+			logging.error("[Remove-NetTerminalSession] Password or hash is required when specifying a username")
+			return
+
+		if session_id is None:
+			sessions = self.get_netterminalsession(identity=identity, username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash, port=port, args=args)
+			if not sessions:
+				logging.error("[Remove-NetTerminalSession] No sessions found")
+				return False
+			
+			print("\nAvailable sessions:")
+			for i, session in enumerate(sessions):
+				print(f"{i}: SessionID {session['attributes']['ID']} - {session['attributes']['SessionName']} ({session['attributes']['State']}) - {session['attributes']['Username']}")
+			
+			try:
+				choice = int(input("\nSelect session to logoff (number): "))
+				if 0 <= choice < len(sessions):
+					session_id = int(sessions[choice]['attributes']['ID'])
+				else:
+					logging.error("[Remove-NetTerminalSession] Invalid session selection")
+					return False
+			except (ValueError, KeyboardInterrupt):
+				logging.error("[Remove-NetTerminalSession] Invalid input or operation cancelled")
+				return False
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Remove-NetTerminalSession] Failed SMB connection to {identity}")
+			return None
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		success = ts.do_tsdiscon(session_id=session_id)
+		if success:
+			logging.info(f"[Remove-NetTerminalSession] Successfully removed session {session_id} on {identity}")
+		else:
+			logging.error(f"[Remove-NetTerminalSession] Failed to remove session {session_id} on {identity}")
+		return success
+
+	def logoff_session(self, identity=None, session_id=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Logoff-Session] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+			if session_id is None and hasattr(args, 'session_id'):
+				session_id = args.session_id
+				
+		if username and not (password or lmhash or nthash):
+			logging.error("[Logoff-Session] Password or hash is required when specifying a username")
+			return
+
+		if session_id is None:
+			sessions = self.get_netterminalsession(identity=identity, username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash, port=port, args=args)
+			if not sessions:
+				logging.error("[Logoff-Session] No sessions found")
+				return False
+			
+			print("\nAvailable sessions:")
+			for i, session in enumerate(sessions):
+				print(f"{i}: SessionID {session['attributes']['ID']} - {session['attributes']['SessionName']} ({session['attributes']['State']}) - {session['attributes']['Username']}")
+			
+			try:
+				choice = int(input("\nSelect session to logoff (number): "))
+				if 0 <= choice < len(sessions):
+					session_id = int(sessions[choice]['attributes']['ID'])
+				else:
+					logging.error("[Logoff-Session] Invalid session selection")
+					return False
+			except (ValueError, KeyboardInterrupt):
+				logging.error("[Logoff-Session] Invalid input or operation cancelled")
+				return False
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Logoff-Session] Failed SMB connection to {identity}")
+			return None
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		success = ts.do_logoff(session_id=session_id)
+		if success:
+			logging.info(f"[Logoff-Session] Successfully logged off session {session_id} on {identity}")
+		else:
+			logging.error(f"[Logoff-Session] Failed to log off session {session_id} on {identity}")
+		return success
+
+	def stop_computer(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Stop-Computer] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+		
+		if username and not (password or lmhash or nthash):
+			logging.error("[Stop-Computer] Password or hash is required when specifying a username")
+			return
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Stop-Computer] Failed SMB connection to {identity}")
+			return None
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		success = ts.do_shutdown(logoff=True, shutdown=True, reboot=False, poweroff=False)
+		if success:
+			logging.info(f"[Stop-Computer] Successfully stopped computer {identity}")
+		else:
+			logging.error(f"[Stop-Computer] Failed to stop computer {identity}")
+		return success
+
+	def restart_computer(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Restart-Computer] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+		
+		if username and not (password or lmhash or nthash):
+			logging.error("[Restart-Computer] Password or hash is required when specifying a username")
+			return
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Restart-Computer] Failed SMB connection to {identity}")
+			return None
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		success = ts.do_shutdown(logoff=True, shutdown=False, reboot=True, poweroff=False)
+		if success:
+			logging.info(f"[Restart-Computer] Successfully restarted computer {identity}")
+		else:
+			logging.error(f"[Restart-Computer] Failed to restart computer {identity}")
+		return success
+
+	def get_netprocess(self, identity=None, pid=None, name=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Get-NetProcess] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+			if pid is None and hasattr(args, 'pid'):
+				pid = args.pid
+			if name is None and hasattr(args, 'name'):
+				name = args.name
+		
+		if username and not (password or lmhash or nthash):
+			logging.error("[Get-NetProcess] Password or hash is required when specifying a username")
+			return
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Get-NetProcess] Failed SMB connection to {identity}")
+			return None
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		results = ts.do_tasklist(pid=pid, name=name)
+		return results
+
+	def stop_netprocess(self, identity=None, pid=None, name=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Stop-NetProcess] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash'):
+				 nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash'):
+				 lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+			if pid is None and hasattr(args, 'pid'):
+				pid = args.pid
+			if name is None and hasattr(args, 'name'):
+				name = args.name
+		
+		if username and not (password or lmhash or nthash):
+			logging.error("[Stop-NetProcess] Password or hash is required when specifying a username")
+			return
+
+		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		smbConn = self.conn.init_smb_session(
+			identity,
+			username=username,
+			password=password,
+			domain=domain,
+			lmhash=lmhash,
+			nthash=nthash,
+			show_exceptions=False
+		)
+
+		if not smbConn:
+			logging.debug(f"[Stop-NetProcess] Failed SMB connection to {identity}")
+			return None
+
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		return ts.do_taskkill(pid=pid, name=name)
 
 	def get_netsession(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
 		if args:
@@ -6139,12 +6643,12 @@ displayName=New Group Policy Object
 			logging.error("[Get-DomainTrustKey] No trust keys found")
 			return
 		else:
-			logging.info("[Get-DomainTrustKey] Found %d trust%s" % (len(_entries), "s" if len(_entries) > 1 else ""))
+			logging.debug("[Get-DomainTrustKey] Found %d trust%s" % (len(_entries), "s" if len(_entries) > 1 else ""))
 		
 		entries = []
 		for entry in _entries:
 			if not entry.get('attributes', {}).get('trustAuthIncoming') or not entry.get('attributes', {}).get('trustAuthOutgoing'):
-				logging.info("[Get-DomainTrustKey] Trust keys not found for %s. Skipping..." % entry.get('attributes', {}).get('name'))
+				logging.warning("[Get-DomainTrustKey] Trust keys not found for %s. Skipping..." % entry.get('attributes', {}).get('name'))
 				continue
 
 			trust = Trust(entry)
