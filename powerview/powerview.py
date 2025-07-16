@@ -124,18 +124,17 @@ class PowerView:
 					powerview=self,
 					name=self.args.mcp_name,
 					host=self.args.mcp_host,
-					port=self.args.mcp_port
+					port=self.args.mcp_port,
+					path=self.args.mcp_path
 				)
 				self.mcp_server.start()
-				logging.info(f"MCP server started. AI assistants can now connect to PowerView via MCP")
-				logging.info(f"MCP server will run in the background. Exiting the tool will stop the server")
 			except ImportError as e:
 				logging.error(f"MCP error: {str(e)}")
 				sys.exit(1)
 			except AttributeError as e:
 				logging.error(f"Error initializing MCP server: The MCP SDK API appears to be incompatible")
 				logging.error(f"Please ensure you have the correct version of the MCP SDK installed")
-				logging.error(f"Try installing from the GitHub repository: pip install git+https://github.com/modelcontextprotocol/python-sdk")
+				logging.error(f"Try installing from the GitHub repository: pip install powerview[mcp]")
 				if args.stack_trace:
 					raise
 				sys.exit(1)

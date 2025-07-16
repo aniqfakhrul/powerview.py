@@ -429,11 +429,11 @@ This will log detailed information about rule matching to help troubleshoot cust
 > [!note]
 > This is not bundled in the base project installation. You may run `pip3 install .[mcp] or pip3 install powerview[mcp]` to include MCP functionalities.
 
-This enables the Model Context Protocol server, allowing AI assistants to interact with PowerView functionality through a standardized interface via HTTP SSE transport. See the [MCP documentation](powerview/mcp/README.md) for more details.
+This enables the Model Context Protocol server, allowing AI agents to interact with PowerView functionality through a standardized interface via Streamable HTTP transport. See the [MCP documentation](powerview/mcp/README.md) for more details.
 
 * Start MCP server
 ```bash
-powerview domain.local/lowpriv:Password1234@10.10.10.10 --mcp [--mcp-host 0.0.0.0] [--mcp-port 8888]
+powerview domain.local/lowpriv:Password1234@10.10.10.10 --mcp [--mcp-host 0.0.0.0] [--mcp-port 8888] [--mcp-path powerview]
 ```
 
 The MCP server exposes most of PowerView's functionality through a standardized tool interface. This includes the ability to:
@@ -443,7 +443,7 @@ The MCP server exposes most of PowerView's functionality through a standardized 
 - ...
 
 #### Claude Desktop
-Claude Desktop does not support yet support SSE transport [Github](https://github.com/orgs/modelcontextprotocol/discussions/16). You may want to use [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy).
+Claude Desktop does not support yet support HTTP based transport [Github](https://github.com/orgs/modelcontextprotocol/discussions/16). You may want to use [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy).
 
 * Install `mcp-proxy`
 ```bash
@@ -460,7 +460,7 @@ pipx install mcp-proxy
   "mcpServers": {
     "Powerview": {
         "command": "mcp-proxy",
-        "args": ["http://10.10.10.10/sse"]
+        "args": ["http://10.10.10.10:5000/powerview"]
     }
   }
 }
@@ -476,7 +476,7 @@ You can modify this in cursor settings under MCP options button.
 {
   "mcpServers": {
     "Powerview": {
-      "url": "http://127.0.0.1:8080/sse"
+      "url": "http://127.0.0.1:5000/powerview"
     }
   }
 }

@@ -12,8 +12,7 @@ from typing import Dict, List, Optional, Any, Tuple, Union, Callable
 from .src import tools, prompts
 
 try:
-    from mcp.server.fastmcp import FastMCP, Context
-    import mcp.types as types
+    from fastmcp import FastMCP
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
@@ -26,7 +25,7 @@ class MCPServer:
     to AI assistants using the Model Context Protocol.
     """
     
-    def __init__(self, powerview, name="PowerView MCP", host="127.0.0.1", port=8080):
+    def __init__(self, powerview, name="PowerView MCP", host="127.0.0.1", port=8080, path="/powerview"):
         """
         Initialize the MCP server.
         
@@ -35,18 +34,20 @@ class MCPServer:
             name: Name of the MCP server
             host: Host to bind the server to
             port: Port to bind the server to
+            path: Path to bind the server to
         """
         if not MCP_AVAILABLE:
-            raise ImportError("MCP dependencies not installed. Install with: pip install .[mcp]")
+            raise ImportError("MCP dependencies not installed. Install with: pip install powerview[mcp]")
             
         self.powerview = powerview
+        self.stack_trace = getattr(powerview.args, "stack_trace", False)
         self.name = name
         self.host = host
         self.port = port
+        self.path = path if path.startswith('/') else '/' + path
         self.mcp = FastMCP(self.name)
         self.status = False
         self.server_thread = None
-        # self._setup_resources() # Remove or comment out this line
         tools.setup_tools(self.mcp, self.powerview)
         prompts.setup_prompts(self.mcp)
 
@@ -68,30 +69,22 @@ class MCPServer:
             return
         
         def run_server():
-            import uvicorn
-            
             logging.info(f"Starting MCP server on {self.host}:{self.port}")
             try:
-                # Create an ASGI application from the MCP server
-                app = self.mcp.sse_app()
-                
-                # Set status before starting server
-                self.set_status(True)
-                
-                # Start the server with uvicorn
-                uvicorn.run(
-                    app=app,
+                self.mcp.run(
+                    transport="http",
+                    show_banner=False,
                     host=self.host,
                     port=self.port,
-                    log_level="error",
-                    access_log=False
+                    path=self.path,
+                    log_level="error" if not self.stack_trace else "debug"
                 )
+                self.set_status(True)
             except Exception as e:
                 self.set_status(False)
                 logging.error(f"Error starting MCP server: {str(e)}")
                 sys.exit(1)
 
-        # Create and start the server thread
         self.server_thread = threading.Thread(target=run_server, daemon=True)
         self.server_thread.start()
         
@@ -104,5 +97,3 @@ class MCPServer:
         """Stop the MCP server."""
         self.set_status(False)
         logging.info("Stopping MCP server...")
-        
-        # The MCP server will stop when the main thread exits since we use a daemon thread 

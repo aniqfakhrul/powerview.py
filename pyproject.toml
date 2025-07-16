@@ -38,12 +38,12 @@ dependencies = [
     "flask",
     "flask-basicauth",
     "pycryptodome",
-    "mcp[cli]"
+    "fastmcp"
 ]
 
 [project.optional-dependencies]
 mcp = [
-    "mcp[cli]",
+    "fastmcp",
 ]
 
 [project.urls]
