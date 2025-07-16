@@ -667,7 +667,7 @@ def powerview_arg_parse(cmd):
 
 	# get-netcomputerinfo
 	get_netcomputerinfo_parser = subparsers.add_parser('Get-NetComputerInfo', exit_on_error=False)
-	get_netcomputerinfo_group = get_netcomputerinfo_parser.add_mutually_exclusive_group(required=True)
+	get_netcomputerinfo_group = get_netcomputerinfo_parser.add_mutually_exclusive_group()
 	get_netcomputerinfo_group.add_argument('-Computer', action='store', default=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netcomputerinfo_group.add_argument('-ComputerName', action='store', default=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netcomputerinfo_parser.add_argument('-Username', action='store', default=None, dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))

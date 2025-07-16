@@ -578,6 +578,7 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 		return hostname
 
 	hostname = str(hostname).lower()
+
 	if hostname in list(STORED_ADDR.keys()):
 		return STORED_ADDR[hostname]
 

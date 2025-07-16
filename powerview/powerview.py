@@ -5086,6 +5086,7 @@ displayName=New Group Policy Object
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		setattr(args, 'spn', True)
+		setattr(args, 'enabled', True)
 
 		entries = self.get_domainuser(
 			identity=identity,
