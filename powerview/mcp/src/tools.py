@@ -5,7 +5,8 @@ import json
 from typing import Any, Optional
 import datetime
 import os
-from powerview.modules.smbclient import SMBClient
+
+from powerview.modules.smbclient import SMBClient, SMBShell
 from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip
 
 def _format_mcp_response(
@@ -1587,15 +1588,16 @@ def setup_tools(mcp, powerview_instance):
 				'no_cache': no_cache,
 				'module': 'Find-LocalAdminAccess'
 			})
-			result = powerview_instance.find_localadminaccess(args=args)
+			result = powerview_instance.find_localadminaccess(args=args, no_resolve=True)
 			return _format_mcp_response(data=result, message="No local admin access found on any host.")
 		except Exception as e:
 			logging.error(f"Error in find_localadminaccess: {str(e)}")
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def smb_connect(
+	async def smbclient(
 		computer: str,
+		command: str,
 		username: str = "",
 		password: str = "",
 		nthash: str = "",
@@ -1603,23 +1605,41 @@ def setup_tools(mcp, powerview_instance):
 		domain: str = ""
 	) -> str:
 		"""
-		Establish an SMB connection to target system.
-		
-		This function establishes a connection to a remote system using SMB protocol, 
-		which can be leveraged for file operations, privilege escalation, lateral movement,
-		or intelligence gathering. Supports multiple authentication methods including
-		NTLM hash pass-the-hash attacks.
-		
+		Perform an SMB operations using smbclient. Normally used for lateral movement to find:
+		1. Plain-text passwords
+		2. Configuration files
+		3. Credentials
+		4. Unintended data exposure
+		5. Other interesting findings that can be laveraged for laterval movement or privilege escalation.
+
 		Parameters:
 			computer: Target hostname or IP address
-			username: Optional: Account username (optional if using current context)
-			password: Optional: Account password in cleartext
-			nthash: Optional: NT hash for pass-the-hash attacks
-			lmhash: Optional: LM hash (default: None)
-			domain: Optional: Domain name (will use current domain if not specified)
+			command: The smb operation to perform. Refer to the example commands below.
+				Example command:
+					List shares:
+						shares
+					List files:
+						ls C$\\Users\\Public\\Desktop
+					Read file:
+						cat C$\\Users\\Public\\Desktop\\file.txt
+					Delete file:
+						rm C$\\Users\\Public\\Desktop\\file.txt
+					Delete directory:
+						rmdir C$\\Users\\Public\\Desktop\\new_dir
+					Create directory:
+						mkdir C$\\Users\\Public\\Desktop\\new_dir
+					Move file:
+						mv C$\\Users\\Public\\Desktop\\file.txt C$\\Users\\Public\\Desktop\\file2.txt
+					View help for available commands:
+						help
+			username: The username to use for authentication. Ignore to use current user context.
+			password: The password to use for authentication. Ignore to use current user context.
+			nthash: The NTHash to use for authentication. Ignore to use current user context.
+			lmhash: The LMHash to use for authentication. Ignore to use current user context.
+			domain: The domain to use for authentication. Ignore to use current user context.
 		
 		Returns:
-			Connection status information
+			The output of the command
 		"""
 		try:
 			if username and ('/' in username or '\\' in username):
@@ -1659,109 +1679,11 @@ def setup_tools(mcp, powerview_instance):
 				lmhash=lmhash,
 				domain=domain
 			)
-			
 			if not client:
 				return _format_mcp_response(error=f"Failed to connect to {host}")
 
-			return _format_mcp_response(data={"status": "connected", "host": host})
+			smb_client = SMBShell(client)
+			output = smb_client.onecmd(command)
+			return _format_mcp_response(data=output)
 		except Exception as e:
-			return _format_mcp_response(error=str(e))
-
-	@mcp.tool()
-	async def smb_shares(
-		computer: str
-	) -> str:
-		"""List available SMB shares on a target system.
-		
-		Enumerates available SMB shares on a target system, useful for reconnaissance
-		and identifying valuable data.
-		
-		Parameters:
-			computer: Target hostname or IP address
-		
-		Returns:
-			List of available SMB shares of the target computer
-		"""
-		try:
-			host = computer.lower()
-			
-			if not host:
-				return _format_mcp_response(error="Computer name/IP is required")
-			
-			try:
-				client = powerview_instance.conn.init_smb_session(host)
-			except Exception as e:
-				return _format_mcp_response(error="No active SMB session. Please connect first")
-
-			smb_client = SMBClient(client)
-			shares = smb_client.shares()
-
-			formatted_shares = []
-			for share in shares:
-				entry = {
-					"Name": share['shi1_netname'][:-1],
-					"Remark": share['shi1_remark'][:-1],
-					"Address": host
-				}
-				formatted_shares.append({"attributes": entry})
-
-			return _format_mcp_response(data=formatted_shares)
-		except Exception as e:
-			return _format_mcp_response(error=str(e))
-
-	@mcp.tool()
-	async def smb_ls(
-		computer: str,
-		share: str,
-		path: str = ""
-	) -> str:
-		"""List contents of a directory on a remote SMB share.
-		
-		Enumerates files and directories within a specified share path, useful for
-		reconnaissance, identifying valuable data, and planning exfiltration.
-		Directory traversal is supported to explore the target filesystem.
-		
-		Parameters:
-			computer: Target hostname or IP address
-			share: Share name to access (e.g., "C$", "ADMIN$", "NETLOGON")
-			path: Directory path within the share to list (default: root of share) (i.e.: "\\Users\\Public\\Desktop")
-		
-		Returns:
-			File listing with metadata (size, timestamps, attributes)
-		"""
-		try:
-			host = computer.lower()
-			
-			if not host or not share:
-				return _format_mcp_response(error="Computer name/IP and share name are required")
-
-			try:
-				client = powerview_instance.conn.init_smb_session(host)
-			except Exception as e:
-				return _format_mcp_response(error="No active SMB session. Please connect first")
-			
-			smb_client = SMBClient(client)
-			
-			files = smb_client.ls(share, path)
-			logging.debug(f"[SMB LS] Listing {path} on {host} with share {share}")
-			
-			file_list = []
-			for f in files:
-				name = f.get_longname()
-				if name in ['.', '..']:
-					continue
-				
-				file_info = {
-					"name": name,
-					"size": f.get_filesize(),
-					"is_directory": f.is_directory(),
-					"created": str(f.get_ctime()),
-					"modified": str(f.get_mtime()),
-					"accessed": str(f.get_atime())
-				}
-				file_list.append(file_info)
-
-			return _format_mcp_response(data=file_list)
-		except Exception as e:
-			logging.error(f"[SMB LS] Error: {str(e)}")
 			return _format_mcp_response(error=str(e))

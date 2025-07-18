@@ -896,7 +896,7 @@ class APIServer:
 
 			smb_client = SMBClient(client)
 			content = smb_client.cat(share, path)
-			if content is None:
+			if content is None or len(content) == 0:
 				return jsonify({'error': 'Failed to read file content'}), 500
 
 			return content, 200

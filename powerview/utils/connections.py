@@ -2100,12 +2100,12 @@ class CONNECTION:
 		if not lmhash:
 			lmhash = self.lmhash
 
-		logging.debug("[ConnectRPCTransport] Using credentials: %s, %s, %s, %s, %s" % (username, password, domain, lmhash, nthash))
+		logging.debug("[RPCTransport] Using credentials: %s, %s, %s, %s, %s" % (username, password, domain, lmhash, nthash))
 
 		if not stringBindings:
 			stringBindings = epm.hept_map(host, samr.MSRPC_UUID_SAMR, protocol ='ncacn_ip_tcp')
 
-		logging.debug("[ConnectRPCTransport] Connecting to %s" % stringBindings)
+		logging.debug("[RPCTransport] Connecting to %s" % stringBindings)
 		rpctransport = transport.DCERPCTransportFactory(stringBindings)
 		rpctransport.set_dport(port)
 
@@ -2132,13 +2132,13 @@ class CONNECTION:
 				dce.bind(interface_uuid)
 			return dce
 		except SessionError as e:
-			logging.debug("[connectRPCTransport:SessionError] %s" % str(e))
+			logging.debug("[RPCTransport:SessionError] %s" % str(e))
 			if raise_exceptions:
 				raise e
 			else:
 				return
 		except Exception as e:
-			logging.debug("[connectRPCTransport:Exception] %s" % str(e))
+			logging.debug("[RPCTransport:Exception] %s" % str(e))
 			if raise_exceptions:
 				raise e
 			else:
