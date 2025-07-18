@@ -425,10 +425,10 @@ class SMBConnectionEntry(ConnectionPoolEntry):
 				return False
 			try:
 				if force_check:
-					logging.debug(f"[SMBConnectionPool] {self._pool_type} forcing SMB connection health check")
-					self.connection.listShares()
+					logging.debug(f"[SMBConnectionEntry] Forcing SMB connection health check")
+					self.connection._SMBConnection.echo()
 				return True
-			except Exception:
+			except Exception as e:
 				self.is_healthy = False
 				return False
 	
@@ -451,7 +451,7 @@ class SMBConnectionPool(ConnectionPool):
 	- Connection rotation for stealth operations
 	"""
 	
-	def __init__(self, max_connections=20, cleanup_interval=300, keepalive_interval=600):
+	def __init__(self, max_connections=20, cleanup_interval=400, keepalive_interval=300):
 		super().__init__(max_connections, cleanup_interval, keepalive_interval)
 		self._pool_type = 'SMB'
 	
@@ -603,8 +603,8 @@ class CONNECTION:
         )
 		self._smb_pool = SMBConnectionPool(
 			max_connections=20,
-			cleanup_interval=300,
-			keepalive_interval=600
+			cleanup_interval=400,
+			keepalive_interval=300
 		)
 		self._current_domain = None
 		self.username = args.username
