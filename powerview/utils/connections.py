@@ -417,20 +417,27 @@ class SMBConnectionEntry(ConnectionPoolEntry):
 	def __init__(self, connection, host, created_time=None):
 		super().__init__(connection, host, created_time)
 		self.host = host
+		self.last_check_time = time.time()
 	
 	def is_alive(self, force_check=False):
 		"""Check if the underlying SMB connection is still alive"""
 		with self._lock:
 			if not self.is_healthy:
 				return False
-			try:
-				if force_check:
-					logging.debug(f"[SMBConnectionEntry] Forcing SMB connection health check")
+			current_time = time.time()
+			if force_check or (current_time - self.last_check_time > 60):
+				try:
 					self.connection._SMBConnection.echo()
-				return True
-			except Exception as e:
-				self.is_healthy = False
-				return False
+					self.last_check_time = current_time
+					return True
+				except Exception as e:
+					self.is_healthy = False
+					return False
+			return True
+	
+	def mark_used(self):
+		super().mark_used()
+		self.last_check_time = time.time()
 	
 	def close(self):
 		"""Close the underlying SMB connection"""
@@ -588,7 +595,8 @@ class SMBConnectionPool(ConnectionPool):
 					'last_used': entry.last_used,
 					'use_count': entry.use_count,
 					'age': time.time() - entry.created_time,
-					'is_alive': entry.is_alive()
+					'is_alive': entry.is_alive(),
+					'last_check_time': entry.last_check_time
 				}
 			
 			return stats

@@ -3,6 +3,58 @@ let stickyHeaderContainerElement = null;
 let smbTableHeadersElement = null;
 let contextMenuElement = null;
 
+// Tab Status Functions - Global scope
+function updateTabStatus(computer, status = null) {
+    const indicator = document.querySelector(`.status-indicator[data-computer="${computer}"]`);
+    if (!indicator) return;
+    
+    if (status === null) {
+        // Fetch current status
+        fetchSMBSessions().then(sessions => {
+            const session = sessions[computer];
+            if (session) {
+                updateTabStatusIndicator(indicator, session.connected);
+            } else {
+                updateTabStatusIndicator(indicator, false);
+            }
+        }).catch(() => {
+            updateTabStatusIndicator(indicator, false);
+        });
+    } else {
+        updateTabStatusIndicator(indicator, status);
+    }
+}
+
+function updateTabStatusIndicator(indicator, isConnected) {
+    indicator.className = `status-indicator w-2 h-2 rounded-full ${
+        isConnected 
+            ? 'bg-green-500 shadow-lg shadow-green-500/30' 
+            : 'bg-red-500 shadow-lg shadow-red-500/30'
+    }`;
+    indicator.title = isConnected ? 'Connected' : 'Disconnected';
+}
+
+function updateAllTabStatuses() {
+    fetchSMBSessions().then(sessions => {
+        Object.keys(sessions).forEach(computer => {
+            updateTabStatus(computer, sessions[computer].connected);
+        });
+        
+        // Also update any tabs that might not have active sessions
+        document.querySelectorAll('.status-indicator').forEach(indicator => {
+            const computer = indicator.dataset.computer;
+            if (!sessions[computer]) {
+                updateTabStatusIndicator(indicator, false);
+            }
+        });
+    }).catch(() => {
+        // Mark all as disconnected on error
+        document.querySelectorAll('.status-indicator').forEach(indicator => {
+            updateTabStatusIndicator(indicator, false);
+        });
+    });
+}
+
 // Add this near the top of the file or after the DOM content loaded event
 let renameModalData = {
     computer: null,
@@ -224,29 +276,52 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     function addPCTab(computer) {
+        const tabsContainer = document.getElementById('pc-tabs');
+        
+        // Remove existing tab if present
+        const existingTab = document.querySelector(`[data-computer="${computer}"]`);
+        if (existingTab) {
+            existingTab.remove();
+        }
+        
         const tab = document.createElement('div');
+        tab.className = 'flex items-center gap-2 px-3 py-2 border-r border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 whitespace-nowrap';
         tab.dataset.computer = computer;
-        tab.id = `tab-${computer}`;
-        tab.className = 'flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer border-b-2 border-transparent';
         tab.innerHTML = `
-            <i class="fas fa-computer fa-sm"></i>
-            <span>${computer}</span>
-            <button class="close-tab ml-1.5 text-neutral-400 hover:text-red-500">
-                <i class="fas fa-times fa-sm"></i>
-            </button>
+            <div class="flex items-center gap-2">
+                <div class="status-indicator w-2 h-2 rounded-full bg-gray-400" data-computer="${computer}" title="Connection status"></div>
+                <i class="fas fa-desktop text-neutral-600 dark:text-neutral-400"></i>
+                <span class="font-medium text-neutral-900 dark:text-white">${computer}</span>
+                <button class="disconnect-btn ml-2 text-neutral-400 hover:text-red-500 dark:hover:text-red-400" 
+                        data-computer="${computer}" title="Disconnect">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
         `;
         
-        tab.onclick = () => switchToPC(computer);
+        // Add click handler for tab switching
+        tab.addEventListener('click', (e) => {
+            if (!e.target.closest('.disconnect-btn')) {
+                switchToPC(computer);
+            }
+        });
         
-        // Handle close button
-        const closeBtn = tab.querySelector('.close-tab');
-        closeBtn.onclick = (e) => {
+        // Add disconnect handler
+        tab.querySelector('.disconnect-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             disconnectPC(computer);
-        };
+        });
         
-        pcTabs.appendChild(tab);
+        tabsContainer.appendChild(tab);
+        
+        // Set as active
+        switchToPC(computer);
+        
+        // Update status immediately after a short delay to allow connection to establish
+        setTimeout(() => updateTabStatus(computer), 1000);
     }
+
+    // Tab status functions are now defined globally above
 
     function addPCView(computer, shares) {
         const view = document.createElement('div');
@@ -282,6 +357,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function disconnectPC(computer) {
+        // Update tab status to disconnected immediately
+        updateTabStatus(computer, false);
+        
         // Remove tab
         const tab = document.getElementById(`tab-${computer}`);
         if (tab) tab.remove();
@@ -564,7 +642,14 @@ async function connectToSMB(data) {
         throw new Error(error.error || 'Failed to connect to SMB share');
     }
 
-    return response.json();
+    const result = await response.json();
+    
+    // Update tab status immediately on successful connection
+    if (result.host) {
+        setTimeout(() => updateTabStatus(result.host, true), 500);
+    }
+    
+    return result;
 }
 
 // ... (copy the rest of the SMB-related functions from main.js)
@@ -2070,6 +2155,11 @@ async function fetchSMBSessions() {
         return {};
     }
 }
+
+// Start periodic status updates
+setInterval(() => {
+    updateAllTabStatuses();
+}, 30000); // Update every 30 seconds
 
 // Search Functions
 async function openSearchPanel(computer, share, path = '') {

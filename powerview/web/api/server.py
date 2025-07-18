@@ -1318,20 +1318,18 @@ class APIServer:
 
 	def handle_smb_sessions(self):
 		try:
-			# Get SMB session statistics from the connection pool
 			stats = self.powerview.conn.get_smb_session_stats()
 			
-			# Convert to the expected format for the frontend
 			sessions = {}
 			if 'hosts' in stats:
 				for host, host_stats in stats['hosts'].items():
 					sessions[host] = {
 						'computer': host,
 						'connected': host_stats.get('is_alive', False),
-						'authenticated': True,  # If it's in the pool, it's authenticated
-						'last_used': host_stats.get('last_used', 0),
+						'last_used': datetime.fromtimestamp(host_stats.get('last_used', 0)).strftime('%Y-%m-%d %H:%M:%S') if 'last_used' in host_stats else 'N/A',
 						'use_count': host_stats.get('use_count', 0),
-						'age': host_stats.get('age', 0)
+						'age': host_stats.get('age', 0),
+						'last_check': datetime.fromtimestamp(host_stats.get('last_check_time', 0)).strftime('%Y-%m-%d %H:%M:%S') if 'last_check_time' in host_stats else 'N/A'
 					}
 			
 			return jsonify({'sessions': sessions})
