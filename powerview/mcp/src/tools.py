@@ -476,6 +476,46 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
+	async def get_domain_object(
+		identity: str = "*",
+		properties: str = "*",
+		include_deleted: bool = False,
+		ldap_filter: str = "",
+		searchbase: str = "",
+		no_cache: bool = False,
+		no_vuln_check: bool = False,
+		raw: bool = False
+	) -> str:
+		"""Get information about domain objects.
+
+		Args:
+			identity: Filter by object identity (DN, sAMAccountName, SID, GUID). Defaults to "*".
+			properties: List of properties to retrieve. Defaults to "*".
+			include_deleted: Include deleted objects in the results.
+			ldap_filter: Custom LDAP filter string.
+			searchbase: Specify the search base DN.
+			no_cache: Bypass the cache and perform a live query.
+			no_vuln_check: Disable vulnerability checks.
+			raw: Return raw LDAP entries without formatting.
+		"""
+		try:
+			props = properties.split(",") if properties else []
+			result = powerview_instance.get_domainobject(
+				identity=identity,
+				properties=props,
+				include_deleted=include_deleted,
+				ldap_filter=ldap_filter,
+				searchbase=searchbase,
+				no_cache=no_cache,
+				no_vuln_check=no_vuln_check,
+				raw=raw
+			)
+			return _format_mcp_response(data=result, message="No domain objects found")
+		except Exception as e:
+			logging.error(f"Error in get_domain_object: {str(e)}")
+			return _format_mcp_response(error=str(e))
+
+	@mcp.tool()
 	async def get_domain_object_acl(
 		identity: str = "*",
 		security_identifier: str = "",

@@ -4,14 +4,15 @@ let smbTableHeadersElement = null;
 let contextMenuElement = null;
 
 // Tab Status Functions - Global scope
-function updateTabStatus(computer, status = null) {
+async function updateTabStatus(computer, status = null) {
     const indicator = document.querySelector(`.status-indicator[data-computer="${computer}"]`);
     if (!indicator) return;
     
     if (status === null) {
         // Fetch current status
         fetchSMBSessions().then(sessions => {
-            const session = sessions[computer];
+            const normalizedComputer = computer.toLowerCase();
+            const session = sessions[normalizedComputer];
             if (session) {
                 updateTabStatusIndicator(indicator, session.connected);
             } else {
@@ -34,16 +35,22 @@ function updateTabStatusIndicator(indicator, isConnected) {
     indicator.title = isConnected ? 'Connected' : 'Disconnected';
 }
 
-function updateAllTabStatuses() {
+async function updateAllTabStatuses() {
     fetchSMBSessions().then(sessions => {
-        Object.keys(sessions).forEach(computer => {
-            updateTabStatus(computer, sessions[computer].connected);
+        Object.keys(sessions).forEach(key => {
+            // Find the original computer name from tabs
+            const indicators = document.querySelectorAll('.status-indicator');
+            indicators.forEach(ind => {
+                if (ind.dataset.computer.toLowerCase() === key) {
+                    updateTabStatusIndicator(ind, sessions[key].connected);
+                }
+            });
         });
         
         // Also update any tabs that might not have active sessions
         document.querySelectorAll('.status-indicator').forEach(indicator => {
-            const computer = indicator.dataset.computer;
-            if (!sessions[computer]) {
+            const normalizedComputer = indicator.dataset.computer.toLowerCase();
+            if (!sessions[normalizedComputer]) {
                 updateTabStatusIndicator(indicator, false);
             }
         });
@@ -66,7 +73,7 @@ let renameModalData = {
     dirPath: null
 };
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     stickyHeaderContainerElement = document.getElementById('sticky-header-container');
     smbTableHeadersElement = document.getElementById('smb-table-headers');
     contextMenuElement = document.getElementById('smb-context-menu');
@@ -285,7 +292,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         const tab = document.createElement('div');
-        tab.className = 'flex items-center gap-2 px-3 py-2 border-r border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 whitespace-nowrap';
+        tab.id = `tab-${computer}`;
+        tab.className = 'flex items-center gap-2 px-3 py-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 whitespace-nowrap';
         tab.dataset.computer = computer;
         tab.innerHTML = `
             <div class="flex items-center gap-2">
@@ -341,9 +349,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update tabs
         document.querySelectorAll('#pc-tabs > div').forEach(tab => {
-            tab.classList.remove('text-neutral-900', 'dark:text-white', 'border-blue-500', 'dark:border-yellow-500');
+            tab.classList.remove('bg-neutral-100', 'dark:bg-neutral-800', 'border-b-2', 'border-blue-500', 'dark:border-yellow-500');
             if (tab.id === `tab-${computer}`) {
-                tab.classList.add('text-neutral-900', 'dark:text-white', 'border-blue-500', 'dark:border-yellow-500');
+                tab.classList.add('bg-neutral-100', 'dark:bg-neutral-800', 'border-b-2', 'border-blue-500', 'dark:border-yellow-500');
             }
         });
 
@@ -625,6 +633,45 @@ document.addEventListener('DOMContentLoaded', () => {
         authTypeSelect.addEventListener('change', updateAuthInputs);
         updateAuthInputs();
     }
+
+    // Auto-load active sessions
+    try {
+        const sessions = await fetchSMBSessions();
+        const connectedComputers = Object.keys(sessions).filter(key => sessions[key].connected);
+        
+        if (connectedComputers.length > 0) {
+            let firstComputer = null;
+            
+            for (const key of connectedComputers) {
+                // Use the original case from session data or find matching tab
+                const computer = Object.keys(data.sessions).find(original => original.toLowerCase() === key) || key;
+                if (!connectedPCs.has(computer)) {
+                    connectedPCs.add(computer);
+                    addPCTab(computer);
+                    const shares = await listSMBShares(computer);
+                    addPCView(computer, shares);
+                    if (!firstComputer) {
+                        firstComputer = computer;
+                    }
+                }
+            }
+            
+            if (firstComputer) {
+                switchToPC(firstComputer);
+            }
+            updateAllTabStatuses();
+        }
+    } catch (error) {
+        console.error('Error auto-loading sessions:', error);
+    }
+
+    // Add Enter key handler for computer input
+    computerInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            connectButton.click();
+        }
+    });
 });
 
 // Reuse the existing SMB functions from main.js
@@ -2149,7 +2196,12 @@ async function fetchSMBSessions() {
         }
         
         const data = await response.json();
-        return data.sessions || {};
+        // Normalize session keys to lowercase for case-insensitive matching
+        const normalizedSessions = {};
+        Object.entries(data.sessions || {}).forEach(([key, value]) => {
+            normalizedSessions[key.toLowerCase()] = value;
+        });
+        return normalizedSessions;
     } catch (error) {
         console.error('Error fetching SMB sessions:', error);
         return {};
