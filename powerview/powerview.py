@@ -4114,7 +4114,7 @@ displayName=New Group Policy Object
 			logging.error("[Set-DomainDNSRecord] No A record exists yet. Nothing to modify")
 			return
 
-		targetrecord["Serial"] = DNS_UTIL.get_next_serial(self.dc_ip, zonename, True)
+		targetrecord["Serial"] = DNS_UTIL.get_next_serial(self.nameserver, self.dc_ip, zonename, True)
 		targetrecord['Data'] = DNS_RPC_RECORD_A()
 		targetrecord['Data'].fromCanonical(recordaddress)
 		records.append(targetrecord.getData())
@@ -4145,7 +4145,7 @@ displayName=New Group Policy Object
 
 		# addtype is A record = 1
 		addtype = 1
-		DNS_UTIL.get_next_serial(self.dc_ip, zonename, True)
+		DNS_UTIL.get_next_serial(self.nameserver, self.dc_ip, zonename, True)
 		node_data = {
 				# Schema is in the root domain (take if from schemaNamingContext to be sure)
 				'objectCategory': f'CN=Dns-Node,{self.schema_dn}',
@@ -4153,7 +4153,7 @@ displayName=New Group Policy Object
 				'name': recordname
 				}
 		logging.debug("[Add-DomainDNSRecord] Creating DNS record structure")
-		record = DNS_UTIL.new_record(addtype, DNS_UTIL.get_next_serial(self.dc_ip, zonename, True), recordaddress)
+		record = DNS_UTIL.new_record(addtype, DNS_UTIL.get_next_serial(self.nameserver, self.dc_ip, zonename, True), recordaddress)
 		search_base = f"DC={zonename},CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
 		record_dn = 'DC=%s,%s' % (recordname, search_base)
 		node_data['dnsRecord'] = [record.getData()]
