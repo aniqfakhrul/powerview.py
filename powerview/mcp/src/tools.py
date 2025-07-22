@@ -1401,7 +1401,8 @@ def setup_tools(mcp, powerview_instance):
 		try:
 			identity = powerview_instance.conn.who_am_i()
 			username = identity.split("\\")[-1] if "\\" in identity else identity
-			return _format_mcp_response(data={"identity": username})
+			result = powerview_instance.get_domainobject(identity=username, properties="*")
+			return _format_mcp_response(data=result, message=f"Current authenticated user context: {username}")
 		except AttributeError:
 			logging.error("Error in get_current_auth_context: powerview_instance or connection object not available.")
 			return _format_mcp_response(error="Internal server error: Could not access connection details.")

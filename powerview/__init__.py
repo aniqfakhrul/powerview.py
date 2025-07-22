@@ -936,9 +936,6 @@ def main():
                             logging.error(str(e))
                             conn.reset_connection()
             except KeyboardInterrupt:
-                if args.mcp and hasattr(powerview, 'mcp_server') and powerview.mcp_server.get_status():
-                    powerview.mcp_server.stop()
-                log_handler.save_history()
                 print()
             except EOFError:
                 if args.mcp and hasattr(powerview, 'mcp_server') and powerview.mcp_server.get_status():
@@ -951,13 +948,14 @@ def main():
                     ldap3.core.exceptions.LDAPSocketReceiveError) as e:
                 logging.info(f"LDAP Socket Error: {str(e)}")
                 conn.reset_connection()
+                log_handler.save_history()
             except ldap3.core.exceptions.LDAPSessionTerminatedByServerError:
                 logging.warning("Server connection terminated. Trying to reconnect")
                 conn.reset_connection()
-                continue
+                log_handler.save_history()
             except ldap3.core.exceptions.LDAPInvalidDnError as e:
                 logging.error(f"LDAPInvalidDnError: {str(e)}")
-                continue
+                log_handler.save_history()
             except Exception as e:
                 if args.stack_trace:
                     log_handler.save_history()

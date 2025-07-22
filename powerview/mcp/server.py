@@ -9,7 +9,7 @@ import threading
 import sys
 from typing import Dict, List, Optional, Any, Tuple, Union, Callable
 
-from .src import tools, prompts
+from .src import tools, prompts, resources
 
 try:
     from fastmcp import FastMCP
@@ -49,6 +49,7 @@ class MCPServer:
         self.status = False
         self.server_thread = None
         tools.setup_tools(self.mcp, self.powerview)
+        resources.setup_resources(self.mcp, self.powerview)
         prompts.setup_prompts(self.mcp)
 
     def set_status(self, status):
