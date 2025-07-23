@@ -116,7 +116,7 @@ class Helper:
 	def parse_tableview(value):
 		"""Parse the tableview argument into a list or return the digit if value is a digit."""
 		VALID_TABLE_VIEWS = ["md", "csv", "default"]
-		if value.lower() not in VALID_TABLE_VIEWS:
+		if value and value.lower() not in VALID_TABLE_VIEWS:
 			raise ValueError(f"Invalid tableview: {value}. Valid options are: {', '.join(VALID_TABLE_VIEWS)}")
 		return value
 
