@@ -563,6 +563,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const result = await response.json();
             if (result.status === 'reconnected') {
                 showSuccessAlert(`Successfully reconnected to ${computer}`);
+                updateTabStatus(computer, true);
             } else {
                 throw new Error(result.error || 'Reconnect failed with unknown error');
             }
@@ -570,6 +571,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error) {
             console.error('Reconnect error:', error);
             showErrorAlert(error.message);
+            updateTabStatus(activeComputer, false);
         } finally {
             // Remove spinning class and re-enable button
             const refreshIcon = refreshButton.querySelector('.fa-sync-alt');

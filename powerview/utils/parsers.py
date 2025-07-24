@@ -109,7 +109,7 @@ class Helper:
 
 	def parse_select(value):
 		"""Parse the select argument into a list or return the digit if value is a digit."""
-		if value.isdigit():
+		if value and value.isdigit():
 			return int(value)
 		return value.strip().split(',') if value else []
 
