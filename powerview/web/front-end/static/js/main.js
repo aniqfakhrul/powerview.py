@@ -3014,10 +3014,10 @@ async function updateServiceConfig(computer, serviceName, displayName, binaryPat
     }
 }
 
-function getFileIcon(fileName, isDirectory) {
+function getFileIcon(fileName, isDirectory, isExpanded=false) {
     if (isDirectory) {
         return {
-            icon: icons.folderIcon,
+            icon: isExpanded ? icons.folderOpenedIcon : icons.folderIcon,
             iconClass: '', // Folders typically don't need specific coloring here
             isCustomSvg: true
         };

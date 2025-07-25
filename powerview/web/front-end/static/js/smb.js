@@ -104,6 +104,41 @@ document.addEventListener('DOMContentLoaded', async () => {
     const searchResults = document.getElementById('search-results');
     const searchStatus = document.getElementById('search-status');
     
+    // Export CSV button
+    const exportCsvButton = document.getElementById('export-search-csv');
+    if (exportCsvButton) {
+        exportCsvButton.addEventListener('click', () => {
+            if (window.lastSearchResults) {
+                exportSearchResultsToCSV(
+                    window.lastSearchResults.items, 
+                    window.lastSearchResults.search_info
+                );
+            } else {
+                showErrorAlert('No search results to export');
+            }
+        });
+    }
+    
+    // Add properties panel close button handler
+    const closePropertiesButton = document.getElementById('close-properties-panel');
+    if (closePropertiesButton) {
+        closePropertiesButton.addEventListener('click', () => {
+            const propertiesPanel = document.getElementById('properties-panel');
+            propertiesPanel.classList.add('translate-x-full');
+            setTimeout(() => {
+                propertiesPanel.classList.add('hidden');
+            }, 300);
+        });
+    }
+    
+    // Prevent properties panel closing when clicking inside
+    const propertiesPanel = document.getElementById('properties-panel');
+    if (propertiesPanel) {
+        propertiesPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+
     // Add toggle search panel button handler
     const toggleSearchButton = document.getElementById('toggle-search');
     if (toggleSearchButton) {
@@ -646,7 +681,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             for (const key of connectedComputers) {
                 // Use the original case from session data or find matching tab
-                const computer = Object.keys(data.sessions).find(original => original.toLowerCase() === key) || key;
+                const computer = Object.keys(sessions).find(original => original.toLowerCase() === key) || key;
                 if (!connectedPCs.has(computer)) {
                     connectedPCs.add(computer);
                     addPCTab(computer);
@@ -871,10 +906,8 @@ function attachFileListeners() {
         const spinnerContainer = item.querySelector('.spinner-container');
         const fileDiv = item.querySelector('div');
         
-        // Add loading state tracking
         let isLoading = false;
 
-        // Handle double click for files
         if (!isDirectory) {
             fileDiv.addEventListener('dblclick', async () => {
                 if (isLoading) return;
@@ -882,7 +915,6 @@ function attachFileListeners() {
                 try {
                     isLoading = true;
                     showInlineSpinner(spinnerContainer);
-                    // Normalize path separators before sending to API
                     const cleanPath = path.replace(/^\//, '').replace(/\//g, '\\');
                     await viewSMBFile(computer, share, cleanPath);
                 } catch (error) {
@@ -929,7 +961,6 @@ function attachFileListeners() {
                 try {
                     isLoading = true;
                     showInlineSpinner(spinnerContainer);
-                    // Normalize path separators before sending to API
                     const cleanPath = currentItemPath.replace(/^\//, '').replace(/\//g, '\\');
                     const files = await listSMBPath(computer, currentShare, cleanPath);
                     subList.innerHTML = buildFileList(files, currentShare, currentItemPath, computer);
@@ -2493,26 +2524,6 @@ function buildSearchResultItemHTML(item, computer, share) {
     `;
 }
 
-// Add event listener for the export button
-document.addEventListener('DOMContentLoaded', () => {
-    // ... existing code ...
-    
-    // Export CSV button
-    const exportCsvButton = document.getElementById('export-search-csv');
-    if (exportCsvButton) {
-        exportCsvButton.addEventListener('click', () => {
-            if (window.lastSearchResults) {
-                exportSearchResultsToCSV(
-                    window.lastSearchResults.items, 
-                    window.lastSearchResults.search_info
-                );
-            } else {
-                showErrorAlert('No search results to export');
-            }
-        });
-    }
-});
-
 function attachSearchResultListeners() {
     const searchPanel = document.getElementById('search-panel');
     
@@ -3267,41 +3278,6 @@ function getFileType(filename) {
     
     return typeMap[ext] || `${ext.toUpperCase()} File`;
 }
-
-// Add close button handler for properties panel
-document.addEventListener('DOMContentLoaded', () => {
-    // ... existing code ...
-    
-    // Add properties panel close button handler
-    const closePropertiesButton = document.getElementById('close-properties-panel');
-    if (closePropertiesButton) {
-        closePropertiesButton.addEventListener('click', () => {
-            const propertiesPanel = document.getElementById('properties-panel');
-            propertiesPanel.classList.add('translate-x-full');
-            setTimeout(() => {
-                propertiesPanel.classList.add('hidden');
-            }, 300);
-        });
-    }
-    
-    // Prevent properties panel closing when clicking inside
-    const propertiesPanel = document.getElementById('properties-panel');
-    if (propertiesPanel) {
-        propertiesPanel.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
-    }
-    
-    // Update panels array to include properties panel
-    const panels = document.querySelectorAll('#file-viewer-panel, #downloads-panel, #search-panel, #properties-panel');
-    panels.forEach(panel => {
-        panel.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
-    });
-    
-    // ... existing code ...
-});
 
 // Update the context menu function to make Properties functional
 function showContextMenu(event, itemData) {
