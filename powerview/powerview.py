@@ -2514,7 +2514,6 @@ class PowerView:
 					},
 					remove = ["nTSecurityDescriptor"]
 				)
-
 		return entries
 
 	def remove_domaincatemplate(self, identity, searchbase=None, args=None):
@@ -3197,25 +3196,26 @@ displayName=New Group Policy Object
 
 		logging.debug(f"[Get-DomainCATemplate] Found {len(cas)} CA(s)")
 
-		# Entries only
 		ca_templates = []
 		list_entries = []
 
 		username = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
-		entries = self.get_domainobject(identity=username, properties=['objectSid'])
-		if len(entries) == 0:
+		current_user = self.get_domainobject(
+			ldap_filter=f"(sAMAccountName={username})",
+			properties=['objectSid']
+		)
+		if len(current_user) == 0:
 			logging.error(f"[Get-DomainCATemplate] Current user {username} not found")
 			return
-		elif len(entries) > 1:
+		elif len(current_user) > 1:
 			logging.error(f"[Get-DomainCATemplate] More than one current user {username} found")
 			return
-		current_user_sid = entries[0].get("attributes", {}).get("objectSid")
+		current_user_sid = current_user[0].get("attributes", {}).get("objectSid")
 		
 		if not current_user_sid:
 			logging.error(f"[Get-DomainCATemplate] Current user {username} has no objectSid")
 			return
 
-		# Get issuance policies for each template
 		oids = ca_fetch.get_issuance_policies(no_cache=no_cache, no_vuln_check=no_vuln_check, raw=raw)
 		for ca in cas:
 			object_id = ca.get("attributes").get("objectGUID").lstrip("{").rstrip("}")
@@ -3251,7 +3251,6 @@ displayName=New Group Policy Object
 						linked_group = oid.get("attributes").get("msDS-OIDToGroupLink")
 
 
-				# get enrollment rights
 				template_ops = PARSE_TEMPLATE(template.get("attributes"), current_user_sid=current_user_sid, linked_group=linked_group, ldap_session=self.ldap_session)
 				parsed_dacl = template_ops.parse_dacl()
 				template_ops.resolve_flags()
@@ -3298,7 +3297,6 @@ displayName=New Group Policy Object
 						except:
 							pass
 
-					# Resolve Vulnerable (With resolvesids)
 					for y in vulns.keys():
 						try:
 							list_vuln.append(y+" - "+list_sids(vulns[y]))
@@ -3334,9 +3332,6 @@ displayName=New Group Policy Object
 									'Write Property': parsed_dacl['Write Property'],
 									'Enabled': False,
 									'Vulnerable': list_vuln
-									
-									# 'Vulnerable': ",\n".join([i+" - "+vulns[i] for i in vulns.keys()]),
-									#'Description': vulns['ESC1']
 								},
 								 remove = [
 									 'nTSecurityDescriptor',
@@ -3350,9 +3345,7 @@ displayName=New Group Policy Object
 				new_dict = e["attributes"]
 				list_entries.append(new_dict)
 
-		# Enabled + Vulnerable only
 		for ent in list_entries:
-			# Enabled
 			enabled = False
 			if ent.get("cn") in ca_templates:
 				enabled = True
@@ -3361,7 +3354,6 @@ displayName=New Group Policy Object
 			if args_enabled and not enabled:
 				continue
 
-			# Vulnerable
 			vulnerable = False
 			if ent.get("Vulnerable"):
 				vulnerable = True
