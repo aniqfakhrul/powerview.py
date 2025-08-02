@@ -545,6 +545,11 @@ def main():
                                     succeed = temp_powerview.invoke_messagebox(identity=computername, args=pv_args)
                                 else:
                                     succeed = powerview.invoke_messagebox(identity=computername, args=pv_args)
+                            elif pv_args.module.casefold() == 'invoke-badsuccessor':
+                                if temp_powerview:
+                                    entries = temp_powerview.invoke_badsuccessor(args=pv_args)
+                                else:
+                                    entries = powerview.invoke_badsuccessor(args=pv_args)
                             elif pv_args.module.casefold() == 'get-exchangeserver' or pv_args.module.casefold() == 'get-exchange':
                                 if temp_powerview:
                                     entries = temp_powerview.get_exchangeserver(args=pv_args)

@@ -96,7 +96,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				parser = FilterParser(search_filter)
 				tokenized_filter = parser.parse()
 				
-				parser.oid_attribute_obfuscation(max_spaces=3, max_zeros=5, include_prefix=True)
+				parser.oid_attribute_obfuscation(max_spaces=3, max_zeros=0, include_prefix=False) # have to set zeros to 0 and without prefix since ldap3 does not support it
 				parser.random_casing(probability=0.7)
 				
 				parser.prepend_zeros_obfuscation(max_zeros=5)

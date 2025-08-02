@@ -20,6 +20,7 @@ import configparser
 import validators
 import random
 import locale
+import string
 
 from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
@@ -51,6 +52,42 @@ def get_random_hex(length):
 
 def get_random_num(minimum,maximum):
 	return random.randint(minimum,maximum)
+
+def get_random_name(service_account=False):
+	if service_account:
+		service_prefixes = ['svc', 'service', 'app', 'web', 'db', 'sql', 'iis', 'exchange', 'backup', 'monitor', 'admin', 'system', 'proxy', 'mail', 'file', 'print', 'scan', 'report', 'sync', 'api']
+		service_suffixes = ['svc', 'service', 'account', 'user', 'app', 'proc', 'daemon', 'worker', 'agent', 'mgr', 'admin', 'sa', 'usr', 'acct']
+		service_names = ['exchange', 'sharepoint', 'sqlserver', 'iisapppool', 'backup', 'monitoring', 'antivirus', 'scanner', 'printer', 'fileserver', 'webserver', 'database', 'application', 'service', 'system', 'network', 'security', 'admin', 'manager', 'operator']
+		
+		name_type = random.choice(['prefix_suffix', 'name_suffix', 'simple_name'])
+		
+		if name_type == 'prefix_suffix':
+			prefix = random.choice(service_prefixes)
+			suffix = random.choice(service_suffixes)
+			return f"{prefix}_{suffix}"
+		elif name_type == 'name_suffix':
+			name = random.choice(service_names)
+			suffix = random.choice(service_suffixes)
+			return f"{name}_{suffix}"
+		else:
+			return random.choice(service_names)
+	else:
+		first_names = ['john', 'jane', 'michael', 'sarah', 'david', 'lisa', 'robert', 'jennifer', 'william', 'jessica', 'james', 'ashley', 'christopher', 'amanda', 'daniel', 'melissa', 'matthew', 'michelle', 'anthony', 'kimberly', 'mark', 'amy', 'donald', 'angela', 'steven', 'helen', 'paul', 'deborah', 'andrew', 'rachel', 'joshua', 'carolyn', 'kenneth', 'janet', 'kevin', 'catherine', 'brian', 'frances', 'george', 'christine', 'edward', 'samantha', 'ronald', 'debra', 'timothy', 'jason', 'jeffrey']
+		last_names = ['smith', 'johnson', 'williams', 'brown', 'jones', 'garcia', 'miller', 'davis', 'rodriguez', 'martinez', 'hernandez', 'lopez', 'gonzalez', 'wilson', 'anderson', 'thomas', 'taylor', 'moore', 'jackson', 'martin', 'lee', 'perez', 'thompson', 'white', 'harris', 'sanchez', 'clark', 'ramirez', 'lewis', 'robinson', 'walker', 'young', 'allen', 'king', 'wright', 'scott', 'torres', 'nguyen', 'hill', 'flores', 'green', 'adams', 'nelson', 'baker', 'hall', 'rivera', 'campbell', 'mitchell', 'carter', 'roberts']
+		
+		name_type = random.choice(['first_only', 'first_last', 'first_last_num'])
+		
+		if name_type == 'first_only':
+			return random.choice(first_names)
+		elif name_type == 'first_last':
+			first = random.choice(first_names)
+			last = random.choice(last_names)
+			return f"{first}.{last}"
+		else:
+			first = random.choice(first_names)
+			last = random.choice(last_names)
+			num = random.randint(1, 999)
+			return f"{first}.{last}{num}"
 
 def dn2rootdn(value):
 	return ','.join(re.findall(r"(DC=[\w-]+)", value))

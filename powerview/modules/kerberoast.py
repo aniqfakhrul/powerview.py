@@ -52,7 +52,7 @@ from impacket.ldap import ldap, ldapasn1
 from impacket.smbconnection import SMBConnection
 from impacket.ntlm import compute_lmhash, compute_nthash
 
-from powerview.lib.kerberosv5 import getKerberosTGT, getKerberosTGS
+from powerview.lib.krb5.kerberosv5 import getKerberosTGT, getKerberosTGS
 
 class GetUserSPNs:
     @staticmethod

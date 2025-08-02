@@ -76,7 +76,7 @@ class AccessControl:
 		return sids
 		
 	@staticmethod
-	def parse_sd(secDesc):
+	def parse_sd(secDesc, raw=False):
 		sd = ldaptypes.SR_SECURITY_DESCRIPTOR()
 		if isinstance(secDesc, list):
 			secDesc = b''.join(secDesc)
@@ -107,7 +107,10 @@ class AccessControl:
 				parsed_ace_flags_list = [FLAG.name for FLAG in ACE_FLAGS if ace_flags_int & FLAG.value]
 
 				access_mask_int = ace_obj['Ace']['Mask']['Mask']
-				parsed_permissions_list = AccessControl.parse_perms(access_mask_int)
+				if raw:
+					parsed_permissions_list = access_mask_int
+				else:
+					parsed_permissions_list = AccessControl.parse_perms(access_mask_int)
 				
 				if not parsed_permissions_list and access_mask_int != 0: # If no known flags matched but mask is not zero
 					parsed_permissions_list.append(f"UNKNOWN_MASK_0x{access_mask_int:08X}")

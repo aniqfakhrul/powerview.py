@@ -1456,8 +1456,7 @@ class CONNECTION:
 		ldap_connection_kwargs = {
 			"user": None,
 			"authentication": ldap3.SASL,
-			"sasl_mechanism": ldap3.EXTERNAL,
-			"check_names": not self.args.obfuscate
+			"sasl_mechanism": ldap3.EXTERNAL
 		}
 
 		ldap_server = ldap3.Server(**ldap_server_kwargs)
@@ -1630,8 +1629,7 @@ class CONNECTION:
 		ldap_connection_kwargs = {
 			"user":user,
 			"raise_exceptions": True,
-			"authentication": auth_method,
-			"check_names": not self.args.obfuscate
+			"authentication": auth_method
 		}
 		logging.debug("Authentication: {}, User: {}".format(auth_method, user))
 
