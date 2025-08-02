@@ -773,7 +773,7 @@ def powerview_arg_parse(cmd):
 	invoke_badsuccessor_parser = subparsers.add_parser('Invoke-BadSuccessor', exit_on_error=False)
 	invoke_badsuccessor_parser.add_argument('-DMSAName', action='store', dest='dmsaname', type=lambda value: escape_filter_chars_except_asterisk(value))
 	invoke_badsuccessor_parser.add_argument('-PrincipalAllowed', action='store', dest='principalallowed', type=lambda value: escape_filter_chars_except_asterisk(value))
-	invoke_badsuccessor_parser.add_argument('-TargetIdentity', action='store', required=True, dest='targetidentity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_badsuccessor_parser.add_argument('-TargetIdentity', action='store', dest='targetidentity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	invoke_badsuccessor_parser.add_argument('-BaseDN', action='store', dest='basedn', type=lambda value: escape_filter_chars_except_asterisk(value))
 	invoke_badsuccessor_parser.add_argument('-Server', action='store', dest='server')
 	invoke_badsuccessor_parser.add_argument('-OutFile', action='store', dest='outfile')
