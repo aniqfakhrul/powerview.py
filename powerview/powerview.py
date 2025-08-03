@@ -1354,8 +1354,9 @@ class PowerView:
 					entry["attributes"]["msDS-GroupMSAMembership"] = self.convertfrom_sid(msds_group)
 		return entries
 
-	def add_domaingmsa(self, identity=None, principals_allowed_to_retrieve_managed_password=None, basedn=None, args=None):
+	def add_domaingmsa(self, identity=None, principals_allowed_to_retrieve_managed_password=None, dnshostname=None, basedn=None, args=None):
 		identity = args.identity if args and hasattr(args, 'identity') and args.identity else identity
+		dnshostname = args.dnshostname if args and hasattr(args, 'dnshostname') and args.dnshostname else dnshostname
 		principals_allowed_to_retrieve_managed_password = args.principals_allowed_to_retrieve_managed_password if args and hasattr(args, 'principals_allowed_to_retrieve_managed_password') and args.principals_allowed_to_retrieve_managed_password else principals_allowed_to_retrieve_managed_password
 		basedn = args.basedn if args and hasattr(args, 'basedn') and args.basedn else basedn
 
@@ -1384,7 +1385,7 @@ class PowerView:
 				'sAMAccountName': f"{identity}$" if not identity.endswith('$') else identity,
 				'cn': identity,
 				'userAccountControl': 0x1000,  # WORKSTATION_TRUST_ACCOUNT
-				'dNSHostName': f"{identity}.{self.conn.domain}",
+				'dNSHostName': f"{identity}.{self.conn.domain}" if not dnshostname else dnshostname,
 				'msDS-ManagedPasswordInterval': 30,
 				'msDS-SupportedEncryptionTypes': 28, # RC4-HMAC,AES128,AES256
 			}
@@ -4265,6 +4266,7 @@ displayName=New Group Policy Object
 			'objectSid',
 			'distinguishedName',
 			'sAMAccountName',
+			'dNSHostName',
 			'msDS-ManagedAccountPrecededByLink',
 			'msDS-DelegatedMSAState',
 			'msDS-GroupMSAMembership',
@@ -4298,10 +4300,11 @@ displayName=New Group Policy Object
 		logging.debug(f"[Get-DomainDMSA] Found {len(entries)} object(s) with dmsa attribute")
 		return entries
 
-	def add_domaindmsa(self, identity=None, supersededaccount=None, principals_allowed_to_retrieve_managed_password=None, hidden=False, basedn=None, args=None):
+	def add_domaindmsa(self, identity=None, supersededaccount=None, principals_allowed_to_retrieve_managed_password=None, dnshostname=None, hidden=False, basedn=None, args=None):
 		identity = args.identity if args and hasattr(args, 'identity') else identity
 		supersededaccount = args.supersededaccount if args and hasattr(args, 'supersededaccount') else supersededaccount
 		principals_allowed_to_retrieve_managed_password = args.principals_allowed_to_retrieve_managed_password if args and hasattr(args, 'principals_allowed_to_retrieve_managed_password') else principals_allowed_to_retrieve_managed_password
+		dnshostname = args.dnshostname if args and hasattr(args, 'dnshostname') and args.dnshostname else dnshostname
 		hidden = args.hidden if args and hasattr(args, 'hidden') else hidden
 		basedn = args.basedn if args and hasattr(args, 'basedn') else basedn
 		whitelisted_sids = ["S-1-1-0"]
@@ -4326,7 +4329,7 @@ displayName=New Group Policy Object
 				'sAMAccountName': f"{identity}$" if not identity.endswith('$') else identity,
 				'cn': identity,
 				'userAccountControl': 4096,  # WORKSTATION_TRUST_ACCOUNT
-				'dNSHostName': f"{identity}.{self.conn.domain}",
+				'dNSHostName': f"{identity}.{self.conn.domain}" if not dnshostname else dnshostname,
 				'msDS-SupportedEncryptionTypes': 28, # RC4-HMAC,AES128,AES256
 				'msDS-ManagedPasswordInterval': 30,
 				'msDS-DelegatedMSAState': DMSA_DELEGATED_MSA_STATE.DISABLED.value
