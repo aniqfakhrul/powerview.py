@@ -4175,7 +4175,7 @@ displayName=New Group Policy Object
 		else:
 			return False
 
-	def set_domaindnsrecord(self, recordname, recordaddress, zonename=None):
+	def set_domaindnsrecord(self, recordname, recordaddress, zonename=None, timeout=15):
 		if zonename:
 			zonename = zonename.lower()
 		else:
@@ -4209,7 +4209,7 @@ displayName=New Group Policy Object
 			logging.error("[Set-DomainDNSRecord] No A record exists yet. Nothing to modify")
 			return
 
-		targetrecord["Serial"] = DNS_UTIL.get_next_serial(self.nameserver, self.dc_ip, zonename, True)
+		targetrecord["Serial"] = DNS_UTIL.get_next_serial(self.nameserver, self.dc_ip, zonename, True, timeout)
 		targetrecord['Data'] = DNS_RPC_RECORD_A()
 		targetrecord['Data'].fromCanonical(recordaddress)
 		records.append(targetrecord.getData())
@@ -4223,7 +4223,7 @@ displayName=New Group Policy Object
 			logging.info('[Set-DomainDNSRecord] Success! modified attribute for target record %s' % entry[0]['attributes']['distinguishedName'])
 			return True
 
-	def add_domaindnsrecord(self, recordname, recordaddress, zonename=None):
+	def add_domaindnsrecord(self, recordname, recordaddress, zonename=None, timeout=15):
 		if zonename:
 			zonename = zonename.lower()
 		else:
@@ -4240,7 +4240,7 @@ displayName=New Group Policy Object
 
 		# addtype is A record = 1
 		addtype = 1
-		DNS_UTIL.get_next_serial(self.nameserver, self.dc_ip, zonename, True)
+		DNS_UTIL.get_next_serial(self.nameserver, self.dc_ip, zonename, True, timeout)
 		node_data = {
 				# Schema is in the root domain (take if from schemaNamingContext to be sure)
 				'objectCategory': f'CN=Dns-Node,{self.schema_dn}',
