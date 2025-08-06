@@ -1801,9 +1801,7 @@ class PowerView:
 							attributes=['userPrincipalName', 'sAMAccountName', 'distinguishedName', 'objectSid'],
 							paged_size = 1000,
 							generator=True,
-							no_cache=no_cache,
-							no_vuln_check=no_vuln_check,
-							raw=raw
+							no_cache=no_cache
 						)
 
 					for ent in entries:
