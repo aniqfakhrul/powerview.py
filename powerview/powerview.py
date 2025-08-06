@@ -1795,8 +1795,16 @@ class PowerView:
 							return
 						entries = ldap_session.entries
 					else:
-						self.ldap_session.search(self.root_dn, ldap_filter, attributes='*')
-						entries = self.ldap_session.entries
+						entries = self.ldap_session.extend.standard.paged_search(
+							self.root_dn,
+							ldap_filter,
+							attributes=['userPrincipalName', 'sAMAccountName', 'distinguishedName', 'objectSid'],
+							paged_size = 1000,
+							generator=True,
+							no_cache=no_cache,
+							no_vuln_check=no_vuln_check,
+							raw=raw
+						)
 
 					for ent in entries:
 						attr = {}
