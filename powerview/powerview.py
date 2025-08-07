@@ -469,6 +469,16 @@ class PowerView:
 			if hasattr(args, 'password_expired') and args.password_expired:
 				logging.debug("[Get-DomainUser] Searching for user with expired password")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=8388608)'
+			if hasattr(args, 'memberof') and args.memberof:
+				logging.debug("[Get-DomainUser] Searching for user accounts that are members of a group")
+				memberdn = args.memberof
+				if not is_dn(memberdn):
+					group = self.get_domaingroup(identity=memberdn, properties=["distinguishedName"])
+					if len(group) == 0:
+						logging.error(f"[Get-DomainUser] Group {memberdn} not found")
+						return
+					memberdn = group[0].get("attributes").get("distinguishedName")
+				ldap_filter += f'(memberOf={memberdn})'
 			if hasattr(args, 'ldapfilter') and args.ldapfilter:
 				logging.debug(f'[Get-DomainUser] Using additional LDAP filter: {args.ldapfilter}')
 				ldap_filter += f'{args.ldapfilter}'
@@ -1225,6 +1235,13 @@ class PowerView:
 			if hasattr(args, 'disabled') and args.disabled:
 				logging.debug("[Get-DomainComputer] Searching for disabled computer")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=2)'
+			if hasattr(args, 'obsolete') and args.obsolete:
+				logging.debug("[Get-DomainComputer] Searching for obsolete computer")
+				obsolete_os_patterns = ['Windows 2000', 'Windows XP', 'Windows Server 2003', 'Windows Server 2008', 'Windows 7', 'Windows 8', 'Windows Server 2012', 'Windows Server 2016', 'Windows Server 2019', 'Windows Server 2022']
+				os_filter = '(|' + ''.join(f'(operatingSystem=*{pat}*)' for pat in obsolete_os_patterns) + ')'
+				ldap_filter += os_filter
+				properties.add('operatingSystem')
+				properties.add('operatingSystemVersion')
 			if hasattr(args, 'trustedtoauth') and args.trustedtoauth:
 				logging.debug("[Get-DomainComputer] Searching for computers that are trusted to authenticate for other principals")
 				ldap_filter += f'(msds-allowedtodelegateto=*)'
@@ -1762,7 +1779,6 @@ class PowerView:
 		if len(entries) == 0:
 			logging.warning("[Get-DomainGroupMember] No group found")
 			return
-
 		if len(entries) > 1 and not multiple:
 			logging.warning("[Get-DomainGroupMember] Multiple group found. Probably try searching with distinguishedName")
 			return
