@@ -73,6 +73,21 @@ let renameModalData = {
     dirPath: null
 };
 
+// Ensure inline SVG IDs are unique per instance to avoid gradient/defs collisions across tabs
+let __pvSvgUid = 0;
+function uniquifySvgIds(svgString) {
+    try {
+        const uid = `pv${++__pvSvgUid}`;
+        return svgString
+            .replace(/id="([^"]+)"/g, (m, id) => `id="${id}-${uid}"`)
+            .replace(/url\(#([^)]+)\)/g, (m, id) => `url(#${id}-${uid})`)
+            .replace(/href="#([^"]+)"/g, (m, id) => `href="#${id}-${uid}"`)
+            .replace(/xlink:href="#([^"]+)"/g, (m, id) => `xlink:href="#${id}-${uid}"`);
+    } catch {
+        return svgString;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     stickyHeaderContainerElement = document.getElementById('sticky-header-container');
     smbTableHeadersElement = document.getElementById('smb-table-headers');
@@ -800,7 +815,7 @@ function buildSMBTreeView(shares, computer) {
                 <div class="grid grid-cols-12 gap-2 items-center hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer py-0 px-1.5">
                     <div class="col-span-6">
                         <div class="flex items-center gap-1.5 min-w-0">
-                            <span class="text-yellow-500 flex-shrink-0">${icons.smbshareIcon}</span>
+                            <span class="text-yellow-500 flex-shrink-0">${uniquifySvgIds(icons.smbshareIcon)}</span>
                             <span class="text-neutral-900 dark:text-white truncate">${shareName}</span>
                             <span class="text-xs text-neutral-500 dark:text-neutral-400 truncate">${share.attributes.Remark || ''}</span>
                             <span class="spinner-container flex-shrink-0"></span>
@@ -844,6 +859,7 @@ function attachTreeViewListeners() {
                     subList.classList.remove('hidden');
                     attachFileListeners();
                     updateStickyHeaders(share);
+                    // Shares don't toggle folder icons, but we keep symmetry
                 } catch (error) {
                     console.error('Error loading files:', error);
                 } finally {
@@ -943,6 +959,7 @@ function attachFileListeners() {
                     // Update UNC path when toggling folder visibility
                     if (!subList.classList.contains('hidden')) {
                         updateStickyHeaders(currentShare, currentItemPath);
+                        try { updateDirectoryIcon(item, true); } catch {}
                     } else {
                         // If collapsing, path reverts to parent (share in this case for top-level folder)
                         // Or more accurately, path of the item being clicked itself if we are just collapsing it.
@@ -954,6 +971,7 @@ function attachFileListeners() {
                         } else {
                             updateStickyHeaders(currentShare);
                         }
+                        try { updateDirectoryIcon(item, false); } catch {}
                     }
                     return;
                 }
@@ -967,6 +985,7 @@ function attachFileListeners() {
                     subList.classList.remove('hidden');
                     attachFileListeners();
                     updateStickyHeaders(currentShare, currentItemPath);
+                    try { updateDirectoryIcon(item, true); } catch {}
                 } catch (error) {
                     console.error('Error loading files:', error);
                 } finally {
@@ -1073,6 +1092,19 @@ function attachFileListeners() {
             showContextMenu(event, itemData);
         });
     });
+}
+
+function updateDirectoryIcon(fileItemElement, expanded) {
+    try {
+        const isDirectory = fileItemElement.getAttribute('data-is-dir') === '16' || fileItemElement.getAttribute('data-is-dir') === '48';
+        if (!isDirectory) return;
+        const iconSpan = fileItemElement.querySelector('.dir-icon');
+        if (!iconSpan) return;
+        const nameNode = fileItemElement.querySelector('.text-neutral-900');
+        const fileName = nameNode ? nameNode.textContent : '';
+        const iconDef = getFileIcon(fileName, true, expanded === true);
+        iconSpan.innerHTML = uniquifySvgIds(iconDef.icon);
+    } catch {}
 }
 
 // Keep track of downloads
@@ -1216,13 +1248,22 @@ function createDownloadEntry(id, filename) {
     return entry;
 }
 
-function updateDownloadProgress(id, receivedSize, totalSize) {
-    const progressBar = document.getElementById(`download-${id}`).querySelector('.bg-neutral-200');
-    const progressPercentage = document.getElementById(`download-${id}`).querySelector('.text-xs');
+function updateDownloadProgress(id, receivedOrPercent, totalSize) {
+    const progressBar = document.getElementById(`download-progress-${id}`);
+    const progressText = document.getElementById(`download-status-${id}`);
+    if (!progressBar || !progressText) return;
 
-    const percentage = Math.round((receivedSize / totalSize) * 100);
-    progressBar.style.width = `${percentage}%`;
-    progressPercentage.textContent = `${percentage}%`;
+    let percent;
+    if (typeof totalSize === 'number' && totalSize > 0 && typeof receivedOrPercent === 'number') {
+        percent = Math.round((receivedOrPercent / totalSize) * 100);
+    } else if (typeof receivedOrPercent === 'number') {
+        percent = Math.round(receivedOrPercent);
+    } else {
+        return;
+    }
+    percent = Math.max(0, Math.min(100, percent));
+    progressBar.style.width = `${percent}%`;
+    progressText.textContent = `${percent}%`;
 }
 
 function completeDownload(id, filename) {
@@ -1268,7 +1309,7 @@ function buildFileList(files, share, currentPath, computer) {
                     <div class="col-span-6">
                         <div class="flex items-center gap-1.5 min-w-0" style="margin-left: ${marginLeft}rem;">
                             ${fileIcon.isCustomSvg 
-                                ? `<span class="w-4 h-4 flex-shrink-0 ${fileIcon.iconClass}">${fileIcon.icon}</span>`
+                                ? `<span class="w-4 h-4 flex-shrink-0 ${fileIcon.iconClass} dir-icon">${uniquifySvgIds(fileIcon.icon)}</span>`
                                 : `<i class="fas ${fileIcon.icon} ${fileIcon.iconClass} flex-shrink-0"></i>`
                             }
                             <span class="text-neutral-900 dark:text-white truncate">${file.name}</span>
@@ -2036,7 +2077,7 @@ async function downloadSMBDirectory(computer, share, path, directoryName) {
             compressionOptions: { level: 6 }
         }, (metadata) => {
             // Update compression progress
-            if (metadata.percent) {
+            if (typeof metadata.percent === 'number') {
                 updateDownloadProgress(downloadId, metadata.percent);
                 statusElement.textContent = `Compressing: ${Math.round(metadata.percent)}%`;
             }
@@ -3279,97 +3320,7 @@ function getFileType(filename) {
     return typeMap[ext] || `${ext.toUpperCase()} File`;
 }
 
-// Update the context menu function to make Properties functional
-function showContextMenu(event, itemData) {
-    if (!contextMenuElement) return;
-
-    hideContextMenu(); // Hide any existing menu first
-
-    // Populate menu based on item type
-    if (itemData.isDirectory) {
-        // Folder/Share actions
-        if (!itemData.isShare) { // Don't allow opening a share inside itself
-            contextMenuElement.appendChild(createMenuItem('Open', 'fas fa-folder-open', () => {
-                // Find the element and simulate a click
-                const targetElement = document.querySelector(`.file-item[data-path="${itemData.path}"] > div`);
-                targetElement?.click();
-            }));
-        }
-        contextMenuElement.appendChild(createMenuItem('Download', 'fas fa-download', () => {
-            downloadSMBDirectory(itemData.computer, itemData.share, itemData.path, itemData.name);
-        }));
-        // Add Search option for directories and shares
-        contextMenuElement.appendChild(createMenuItem('Search', 'fas fa-search', () => {
-            openSearchPanel(itemData.computer, itemData.share, itemData.path);
-        }));
-        contextMenuElement.appendChild(createMenuSeparator());
-        contextMenuElement.appendChild(createMenuItem('Upload Here', 'fas fa-upload', () => {
-            uploadSMBFile(itemData.computer, itemData.share, itemData.path);
-        }));
-        contextMenuElement.appendChild(createMenuItem('New Folder', 'fas fa-folder-plus', () => {
-            createSMBDirectory(itemData.computer, itemData.share, itemData.path);
-        }));
-        
-        // Add Share option for directories (not shares themselves)
-        if (!itemData.isShare) {
-            contextMenuElement.appendChild(createMenuItem('Add Share Here', 'fas fa-share-alt text-blue-600 dark:text-blue-400', () => {
-                showAddShareModalForDirectory(itemData.computer, itemData.share, itemData.path, itemData.name);
-            }));
-        }
-        
-        // Share management options (only for shares)
-        if (itemData.isShare) {
-            contextMenuElement.appendChild(createMenuSeparator());
-            contextMenuElement.appendChild(createMenuItem('Add Share', 'fas fa-plus-circle text-green-600 dark:text-green-400', () => {
-                showAddShareModal(itemData.computer);
-            }));
-            contextMenuElement.appendChild(createMenuItem('Delete Share', 'fas fa-minus-circle text-red-600 dark:text-red-500', () => {
-                deleteSMBShare(itemData.computer, itemData.share);
-            }));
-        }
-    } else {
-        // File actions
-        contextMenuElement.appendChild(createMenuItem('View', 'fas fa-eye', () => {
-            viewSMBFile(itemData.computer, itemData.share, itemData.path);
-        }));
-        contextMenuElement.appendChild(createMenuItem('Download', 'fas fa-download', () => {
-            downloadSMBFile(itemData.computer, itemData.share, itemData.path);
-        }));
-    }
-
-    // Common actions (Delete, Rename, Properties)
-    contextMenuElement.appendChild(createMenuSeparator());
-    contextMenuElement.appendChild(createMenuItem('Delete', 'fas fa-trash text-red-600 dark:text-red-500', () => {
-        deleteSMBFileOrDirectory(itemData.computer, itemData.share, itemData.path, itemData.isDirectory);
-    }));
-    
-    // Rename is now functional - don't add the disabled styling classes
-    contextMenuElement.appendChild(createMenuItem('Rename', 'fas fa-pencil-alt', () => {
-        renameSMBFileOrDirectory(itemData.computer, itemData.share, itemData.path, itemData.isDirectory, itemData.isShare);
-    }));
-    
-    // Properties is now functional
-    contextMenuElement.appendChild(createMenuItem('Properties', 'fas fa-info-circle', () => {
-        showProperties(itemData.computer, itemData.share, itemData.path, itemData.isDirectory, itemData.isShare);
-    }));
-
-    // Position and show the menu
-    const x = event.pageX;
-    const y = event.pageY;
-
-    contextMenuElement.style.left = `${x}px`;
-    contextMenuElement.style.top = `${y}px`;
-    contextMenuElement.classList.remove('hidden');
-
-    // Adjust position if menu goes off-screen (basic implementation)
-    const menuRect = contextMenuElement.getBoundingClientRect();
-    if (menuRect.right > window.innerWidth) {
-        contextMenuElement.style.left = `${x - menuRect.width}px`;
-    }
-    if (menuRect.bottom > window.innerHeight) {
-        contextMenuElement.style.top = `${y - menuRect.height}px`;
-    }
-}
+// (duplicate showContextMenu removed)
 
 function convertWindowsTime(fileTime) {
     if (!fileTime || fileTime === '0') return 'Not available';

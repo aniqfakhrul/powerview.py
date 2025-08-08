@@ -352,41 +352,51 @@ class PowerView:
 	def is_admin(self):
 		self.is_domainadmin = False
 		self.is_admincount = False
-		groups = []
-
 		try:
-			curUserDetails = self.get_domainobject(identity=self.username, properties=["adminCount","memberOf"])
-			if len(curUserDetails) == 0:
+			user_entry = self.get_domainobject(identity=self.username, properties=["distinguishedName", "adminCount"])
+			if len(user_entry) == 0:
 				return False
-			curUserDetails = curUserDetails[0]
-		   
-			if not curUserDetails:
+			attrs = user_entry[0].get("attributes", {})
+			user_dn = attrs.get("distinguishedName")
+			if not user_dn:
 				return False
-			
-			userGroup = curUserDetails.get("attributes").get("memberOf")
-
-			if userGroup and isinstance(userGroup, str):
-				groups.append(userGroup)
-			elif userGroup and isinstance(userGroup, list):
-				groups = userGroup 
-
-			for group in groups:
-				if "CN=Domain Admins".casefold() in group.casefold():
+			sids = []
+			for attr in ("tokenGroups", "tokenGroupsGlobalAndUniversal", "tokenGroupsNoGCAcceptable"):
+				try:
+					self.ldap_session.search(user_dn, "(objectClass=*)", attributes=[attr], search_scope=ldap3.BASE)
+					if not self.ldap_session.response:
+						continue
+					values = self.ldap_session.response[0].get("attributes", {}).get(attr)
+					if not values:
+						continue
+					if isinstance(values, list):
+						for v in values:
+							if isinstance(v, str):
+								sids.append(v)
+							else:
+								sids.append(LDAP.bin_to_sid(bytes(v)))
+					else:
+						if isinstance(values, str):
+							sids.append(values)
+						else:
+							sids.append(LDAP.bin_to_sid(bytes(values)))
+				except Exception:
+					continue
+			for sid in sids:
+				if sid.endswith("-512") or sid.endswith("-518") or sid.endswith("-519") or sid == "S-1-5-32-544":
 					self.is_domainadmin = True
 					break
-
 			if self.is_domainadmin:
 				logging.info(f"User {self.username} is a Domain Admin")
 			else:
-				self.is_admincount = bool(curUserDetails.get("attributes",{}).get("adminCount",0))
+				self.is_admincount = bool(attrs.get("adminCount", 0))
 				if self.is_admincount:
 					logging.info(f"User {self.username} has adminCount attribute set to 1. Might be admin somewhere somehow :)")
-		except:
+		except Exception:
 			if self.args.stack_trace:
 				raise
 			else:
 				logging.debug("Failed to check user admin status")
-
 		return self.is_domainadmin or self.is_admincount
 
 	def clear_cache(self) -> bool:
@@ -1223,7 +1233,7 @@ class PowerView:
 		identity_filter = ""
 
 		if identity:
-			identity_filter += f"(|(distinguishedName={identity})(name={identity})(sAMAccountName={identity})(dnsHostName={identity}))"
+			identity_filter += f"(|(distinguishedName={identity})(name={identity})(sAMAccountName={identity})(dnsHostName={identity})(cn={identity}))"
 
 		if args:
 			if hasattr(args, 'unconstrained') and args.unconstrained:
@@ -1249,7 +1259,7 @@ class PowerView:
 			if hasattr(args, 'laps') and args.laps:
 				logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
 				ldap_filter += f'(ms-Mcs-AdmPwd=*)'
-				properties.add('ms-MCS-AdmPwd')
+				properties.add('ms-Mcs-AdmPwd')
 				properties.add('ms-Mcs-AdmPwdExpirationTime')
 			if hasattr(args, 'rbcd') and args.rbcd:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
