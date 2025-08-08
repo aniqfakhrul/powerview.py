@@ -383,7 +383,7 @@ class PowerView:
 			sids = []
 			for attr in ("tokenGroups", "tokenGroupsGlobalAndUniversal", "tokenGroupsNoGCAcceptable"):
 				try:
-					self.ldap_session.search(user_dn, "(objectClass=*)", attributes=[attr], search_scope=ldap3.BASE)
+					self.ldap_session.search(user_dn, "(1.2.840.113556.1.4.2=*)", attributes=[attr], search_scope=ldap3.BASE)
 					if not self.ldap_session.response:
 						continue
 					values = self.ldap_session.response[0].get("attributes", {}).get(attr)
@@ -733,7 +733,7 @@ class PowerView:
 				logging.debug(f'[Get-DomainObject] Using deleted flag from args: {args.deleted}')
 				ldap_filter += f"(isDeleted=*)"
 
-		ldap_filter = f'(&(objectClass=*){identity_filter}{ldap_filter})'
+		ldap_filter = f'(&(1.2.840.113556.1.4.2=*){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
 		entries = self.ldap_session.extend.standard.paged_search(
 			searchbase,

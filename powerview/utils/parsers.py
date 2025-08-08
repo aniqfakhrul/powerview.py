@@ -54,21 +54,19 @@ def arg_parse():
 	auth.add_argument('--aes-key', dest="auth_aes_key", action="store", metavar = "hex key", help='AES key to use for Kerberos Authentication \'(128 or 256 bits)\'')
 	auth.add_argument("--dc-ip", action='store', metavar='IP address', help='IP Address of the domain controller or KDC (Key Distribution Center) for Kerberos. If omitted it will use the domain part (FQDN) specified in the identity parameter')
 
-	mode_group = parser.add_mutually_exclusive_group()
-	mode_group.add_argument('--relay', dest='relay', action='store_true', help='Enable relay mode')
-	mode_group.add_argument('--web', dest='web', action='store_true', help='Enable web interface for LDAP queries')
-	mode_group.add_argument('--mcp', dest='mcp', action='store_true', help='Enable Model Context Protocol mode for AI assistants')
-
 	relay = parser.add_argument_group('relay')
+	relay.add_argument('--relay', dest='relay', action='store_true', help='Enable relay mode')
 	relay.add_argument('--relay-host', dest='relay_host', action='store', default="0.0.0.0", help='Bind interface to expose HTTP server (Default: 0.0.0.0)')
 	relay.add_argument('--relay-port', dest='relay_port', action='store', type=int, default=80, help='Relay mode custom HTTP port (Default: 80)')
 
 	web = parser.add_argument_group('web')
+	web.add_argument('--web', dest='web', action='store_true', help='Enable web interface for LDAP queries')
 	web.add_argument('--web-host', dest='web_host', action='store', default='127.0.0.1', help='Specify custom bind interface (Default: 127.0.0.1)')
 	web.add_argument('--web-port', dest='web_port', action='store', type=int, default=5000, help='Specify custom port for web interface (Default: 5000)')
 	web.add_argument('--web-auth', dest='web_auth', action='store', default=None, help='Enable authentication for web interface (format: username:password)', type=Helper.parse_web_auth)
 	
 	mcp = parser.add_argument_group('mcp')
+	mcp.add_argument('--mcp', dest='mcp', action='store_true', help='Enable Model Context Protocol mode for AI assistants')
 	mcp.add_argument('--mcp-host', dest='mcp_host', action='store', default='127.0.0.1', help='Specify custom bind interface for MCP (Default: 127.0.0.1)')
 	mcp.add_argument('--mcp-port', dest='mcp_port', action='store', type=int, default=8080, help='Specify custom port for MCP server (Default: 8080)')
 	mcp.add_argument('--mcp-name', dest='mcp_name', action='store', default='PowerView', help='Specify MCP server name (Default: PowerView MCP)')
