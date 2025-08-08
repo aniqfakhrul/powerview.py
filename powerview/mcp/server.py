@@ -7,6 +7,8 @@ import logging
 import json
 import threading
 import sys
+import socket
+import time
 from typing import Dict, List, Optional, Any, Tuple, Union, Callable
 
 from .src import tools, prompts, resources
@@ -72,15 +74,25 @@ class MCPServer:
         def run_server():
             logging.info(f"Starting MCP server on {self.host}:{self.port}")
             try:
-                self.mcp.run(
-                    transport="http",
-                    show_banner=False,
-                    host=self.host,
-                    port=self.port,
-                    path=self.path,
-                    log_level="error" if not self.stack_trace else "debug"
-                )
-                self.set_status(True)
+                try:
+                    self.mcp.run(
+                        transport="http",
+                        show_banner=False,
+                        host=self.host,
+                        port=self.port,
+                        path=self.path,
+                        log_level="error" if not self.stack_trace else "debug",
+                        on_start=self._server_started
+                    )
+                except TypeError:
+                    self.mcp.run(
+                        transport="http",
+                        show_banner=False,
+                        host=self.host,
+                        port=self.port,
+                        path=self.path,
+                        log_level="error" if not self.stack_trace else "debug"
+                    )
             except Exception as e:
                 self.set_status(False)
                 logging.error(f"Error starting MCP server: {str(e)}")
@@ -88,13 +100,27 @@ class MCPServer:
 
         self.server_thread = threading.Thread(target=run_server, daemon=True)
         self.server_thread.start()
-        
-        import time
-        time.sleep(0.2)
-        
+
+        # Probe the port to confirm readiness if on_start hook not supported
+        start_time = time.time()
+        timeout = 3.0
+        while time.time() - start_time < timeout and not self.get_status():
+            try:
+                with socket.create_connection((self.host, int(self.port)), timeout=0.25):
+                    self.set_status(True)
+                    break
+            except Exception:
+                time.sleep(0.1)
+
         logging.debug(f"MCP server thread started, status: {self.get_status()}")
 
     def stop(self):
         """Stop the MCP server."""
-        self.set_status(False)
         logging.info("Stopping MCP server...")
+        try:
+            # Best-effort stop if FastMCP exposes a stop/shutdown API
+            if hasattr(self.mcp, 'stop') and callable(getattr(self.mcp, 'stop')):
+                self.mcp.stop()
+        except Exception as e:
+            logging.debug(f"MCP stop hint failed: {e}")
+        self.set_status(False)
