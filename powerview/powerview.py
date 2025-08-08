@@ -3,7 +3,7 @@ from impacket.dcerpc.v5 import srvs, wkst, scmr, rrp, rprn
 from powerview.lib.dfsnm import NetrDfsRemoveStdRoot, MSRPC_UUID_DFSNM
 from impacket.dcerpc.v5.ndr import NULL
 from impacket.crypto import encryptSecret
-from typing import List
+from typing import List, Optional
 
 from powerview.modules.msa import MSA
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
@@ -247,6 +247,26 @@ class PowerView:
 
 	def get_server_dns(self):
 		return self.dc_dnshostname
+
+	def _resolve_host(self, host_inp: Optional[str], server: Optional[str] = None) -> Optional[str]:
+		if not host_inp:
+			return None
+		host = host_inp
+		if not is_ipaddress(host):
+			if server and server.casefold() != self.domain.casefold():
+				if not host.endswith(server):
+					host = f"{host}.{server}"
+			else:
+				if not is_valid_fqdn(host):
+					host = f"{host}.{self.domain}"
+		if self.use_kerberos:
+			if is_ipaddress(host):
+				logging.error('FQDN must be used for kerberos')
+				return None
+			return host
+		if is_valid_fqdn(host):
+			return host2ip(host, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+		return host
 
 	def get_domain_powerview(self, domain):
 		"""Get or create a PowerView instance for a specific domain with robust
@@ -4589,33 +4609,8 @@ displayName=New Group Policy Object
 		import time
 		
 		host = ""
-		is_fqdn = False
-		host_inp = args.computer if args.computer else args.computername
-
-		if host_inp:
-			if not is_ipaddress(host_inp):
-				is_fqdn = True
-				if args.server and args.server.casefold() != self.domain.casefold():
-					if not host_inp.endswith(args.server):
-						host = f"{host_inp}.{args.server}"
-					else:
-						host = host_inp
-				else:
-					if not is_valid_fqdn(host_inp):
-						host = f"{host_inp}.{self.domain}"
-					else:
-						host = host_inp
-				logging.debug(f"[Get-NamedPipes] Using FQDN: {host}")
-			else:
-				host = host_inp
-
-		if self.use_kerberos:
-			if is_ipaddress(args.computer) or is_ipaddress(args.computername):
-				logging.error('[Get-NamedPipes] FQDN must be used for kerberos authentication')
-				return
-		else:
-			if is_fqdn:
-				host = host2ip(host, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+		host_inp = args.computer if args and hasattr(args, 'computer') and args.computer else (args.computername if args and hasattr(args, 'computername') else None)
+		host = self._resolve_host(host_inp, getattr(args, 'server', None) if args else None)
 
 		if not host:
 			logging.error('[Get-NamedPipes] Host not found')
@@ -5042,11 +5037,12 @@ displayName=New Group Policy Object
 
 	def invoke_dfscoerce(self, target=None, listener=None, port=445, args=None):
 		entry = {}
-		target = target if target else args.target
-		if is_valid_fqdn(target):
-			target = host2ip(target, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
-		listener = listener if listener else args.listener
-		if args.port:
+		target = target if target else (args.target if args else None)
+		target = self._resolve_host(target)
+		if not target:
+			return
+		listener = listener if listener else (args.listener if args else None)
+		if args and args.port:
 			port = args.port
 
 		if not listener:
@@ -5068,7 +5064,7 @@ displayName=New Group Policy Object
 		}
 			
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
-		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding, interface_uuid=dfsnm.MSRPC_UUID_DFSNM)
+		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding, interface_uuid=MSRPC_UUID_DFSNM)
 
 		if dce is None:
 			logging.error("[Invoke-DFSCoerce] Failed to connect to %s" % (target))
@@ -5077,7 +5073,7 @@ displayName=New Group Policy Object
 		logging.debug("[Invoke-DFSCoerce] Connected to %s" % (target))
 
 		try:
-			request = dfsnm.NetrDfsRemoveStdRoot()
+			request = NetrDfsRemoveStdRoot()
 			request['ServerName'] = '%s\x00' % listener
 			request['RootShare'] = 'test\x00'
 			request['ApiFlags'] = 1
@@ -5100,11 +5096,12 @@ displayName=New Group Policy Object
 	def invoke_printerbug(self, target=None, listener=None, port=445, args=None):
 		# https://github.com/dirkjanm/krbrelayx/blob/master/printerbug.py
 		entry = {}
-		target = target if target else args.target
-		if is_valid_fqdn(target):
-			target = host2ip(target, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
-		listener = listener if listener else args.listener
-		if args.port:
+		target = target if target else (args.target if args else None)
+		target = self._resolve_host(target)
+		if not target:
+			return
+		listener = listener if listener else (args.listener if args else None)
+		if args and args.port:
 			port = args.port
 
 		KNOWN_PROTOCOLS = {
@@ -5397,12 +5394,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
 		}
 
-		if is_ipaddress(computer_name) and self.use_kerberos:
-			logging.error("[Get-NetLoggedOn] Use FQDN when using kerberos")
+		computer_name = self._resolve_host(computer_name)
+		if not computer_name:
 			return
-
-		if is_valid_fqdn(computer_name) and not self.use_kerberos:
-			computer_name = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
 		
@@ -5494,12 +5488,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\wkssvc]', 'set_host': True},
 		}
 
-		if is_ipaddress(computer_name) and self.use_kerberos:
-			logging.error("[Get-ComputerInfo] Use FQDN when using kerberos")
+		computer_name = self._resolve_host(computer_name)
+		if not computer_name:
 			return
-
-		if is_valid_fqdn(computer_name) and not self.use_kerberos:
-			computer_name = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer_name
 		
@@ -5627,34 +5618,8 @@ displayName=New Group Policy Object
 		return entries
 
 	def get_netshare(self, args):
-		is_fqdn = False
-		host = ""
-		host_inp = args.computer if args.computer else args.computername
-
-		if host_inp:
-			if not is_ipaddress(host_inp):
-				is_fqdn = True
-				if args.server and args.server.casefold() != self.domain.casefold():
-					if not host_inp.endswith(args.server):
-						host = f"{host_inp}.{args.server}"
-					else:
-						host = host_inp
-				else:
-					if not is_valid_fqdn(host_inp):
-						host = f"{host_inp}.{self.domain}"
-					else:
-						host = host_inp
-				logging.debug(f"[Get-NetShare] Using FQDN: {host}")
-			else:
-				host = host_inp
-
-		if self.use_kerberos:
-			if is_ipaddress(args.computer) or is_ipaddress(args.computername):
-				logging.error('[Get-NetShare] FQDN must be used for kerberos authentication')
-				return
-		else:
-			if is_fqdn:
-				host = host2ip(host, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+		host_inp = args.computer if hasattr(args, 'computer') and args.computer else getattr(args, 'computername', None)
+		host = self._resolve_host(host_inp, getattr(args, 'server', None))
 
 		if not host:
 			logging.error(f"[Get-NetShare] Host not found")
@@ -5705,7 +5670,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		target = self._resolve_host(computer_name)
+		if not target:
+			return False
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
 		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
@@ -5753,7 +5720,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		target = self._resolve_host(computer_name)
+		if not target:
+			return False
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
 		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
@@ -5801,7 +5770,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		target = self._resolve_host(computer_name)
+		if not target:
+			return False
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
 		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
@@ -5874,7 +5845,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		target = self._resolve_host(computer_name)
+		if not target:
+			return False
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
 		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
@@ -5933,7 +5906,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
 		}
 
-		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		target = self._resolve_host(computer_name)
+		if not target:
+			return False
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
 		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 
@@ -6014,7 +5989,9 @@ displayName=New Group Policy Object
 		}
 
 
-		target = host2ip(computer_name, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else computer_name
+		target = self._resolve_host(computer_name)
+		if not target:
+			return False
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
 		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding)
 		
@@ -6137,7 +6114,9 @@ displayName=New Group Policy Object
 			logging.error("[Invoke-MessageBox] Password or hash is required when specifying a username")
 			return
 
-		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		identity = self._resolve_host(identity)
+		if not identity:
+			return False
 		smbConn = self.conn.init_smb_session(
 			identity,
 			username=username,
@@ -6321,7 +6300,9 @@ displayName=New Group Policy Object
 			logging.error("[Get-NetTerminalSession] Password or hash is required when specifying a username")
 			return
 
-		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		identity = self._resolve_host(identity)
+		if not identity:
+			return None
 		smbConn = self.conn.init_smb_session(
 			identity,
 			username=username,
@@ -6381,7 +6362,9 @@ displayName=New Group Policy Object
 				logging.error("[Remove-NetTerminalSession] Invalid input or operation cancelled")
 				return False
 
-		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		identity = self._resolve_host(identity)
+		if not identity:
+			return None
 		smbConn = self.conn.init_smb_session(
 			identity,
 			username=username,
@@ -6445,7 +6428,9 @@ displayName=New Group Policy Object
 				logging.error("[Logoff-Session] Invalid input or operation cancelled")
 				return False
 
-		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		identity = self._resolve_host(identity)
+		if not identity:
+			return None
 		smbConn = self.conn.init_smb_session(
 			identity,
 			username=username,
@@ -6486,7 +6471,9 @@ displayName=New Group Policy Object
 			logging.error("[Stop-Computer] Password or hash is required when specifying a username")
 			return
 
-		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		identity = self._resolve_host(identity)
+		if not identity:
+			return None
 		smbConn = self.conn.init_smb_session(
 			identity,
 			username=username,
@@ -6527,7 +6514,9 @@ displayName=New Group Policy Object
 			logging.error("[Restart-Computer] Password or hash is required when specifying a username")
 			return
 
-		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		identity = self._resolve_host(identity)
+		if not identity:
+			return None
 		smbConn = self.conn.init_smb_session(
 			identity,
 			username=username,
@@ -6572,7 +6561,9 @@ displayName=New Group Policy Object
 			logging.error("[Get-NetProcess] Password or hash is required when specifying a username")
 			return
 
-		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		identity = self._resolve_host(identity)
+		if not identity:
+			return None
 		smbConn = self.conn.init_smb_session(
 			identity,
 			username=username,
@@ -6613,7 +6604,9 @@ displayName=New Group Policy Object
 			logging.error("[Stop-NetProcess] Password or hash is required when specifying a username")
 			return
 
-		identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else identity
+		identity = self._resolve_host(identity)
+		if not identity:
+			return None
 		smbConn = self.conn.init_smb_session(
 			identity,
 			username=username,
@@ -6654,12 +6647,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\srvsvc]', 'set_host': True},
 		}
 
-		if is_ipaddress(identity) and self.use_kerberos:
-			logging.error("[Get-NetSession] Use FQDN when using kerberos")
+		identity = self._resolve_host(identity)
+		if not identity:
 			return
-
-		if is_valid_fqdn(identity) and not self.use_kerberos:
-			identity = host2ip(identity, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % identity
 		dce = self.conn.connectRPCTransport(
@@ -6748,12 +6738,9 @@ displayName=New Group Policy Object
 			445: {'bindstr': r'ncacn_np:%s[\pipe\srvsvc]', 'set_host': True},
 		}
 
-		if is_ipaddress(computer) and self.use_kerberos:
-			logging.error("[Remove-NetSession] Use FQDN when using kerberos")
+		computer = self._resolve_host(computer)
+		if not computer:
 			return
-
-		if is_valid_fqdn(computer) and not self.use_kerberos:
-			computer = host2ip(computer, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 
 		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % computer
 		dce = self.conn.connectRPCTransport(
