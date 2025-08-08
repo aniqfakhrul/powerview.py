@@ -1267,7 +1267,7 @@ class PowerView:
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=2)'
 			if hasattr(args, 'obsolete') and args.obsolete:
 				logging.debug("[Get-DomainComputer] Searching for obsolete computer")
-				obsolete_os_patterns = ['Windows 2000', 'Windows XP', 'Windows Server 2003', 'Windows Server 2008', 'Windows 7', 'Windows 8', 'Windows Server 2012', 'Windows Server 2016', 'Windows Server 2019', 'Windows Server 2022']
+				obsolete_os_patterns = ['2000', 'Windows XP', 'Windows Server 2003', 'Windows Server 2008', 'Windows 7', 'Windows 8', 'Windows Server 2012']
 				os_filter = '(|' + ''.join(f'(operatingSystem=*{pat}*)' for pat in obsolete_os_patterns) + ')'
 				ldap_filter += os_filter
 				properties.add('operatingSystem')
