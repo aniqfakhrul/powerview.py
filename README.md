@@ -4,7 +4,7 @@
 <hr />
 
 <p align="center">
-<img src="https://img.shields.io/badge/version-2025.1.4-blue" alt="version 2025.1.4"/>
+<img src="https://img.shields.io/badge/version-2025.1.5-blue" alt="version 2025.1.5"/>
 <a href="https://x.com/aniqfakhrul">
     <img src="https://img.shields.io/twitter/follow/aniqfakhrul?style=social"
       alt="@aniqfakhrul on X"/></a>
@@ -14,7 +14,7 @@
 </p>
 <hr />
 
-[Installation](#installation) | [Basic Usage](#basic-usage) | [Modules](#module-available-so-far) | [Logging](#logging) | [User Defined Rules](#user-defined-rules) | [MCP](#mcp)
+[Installation](#installation) | [Basic Usage](#basic-usage) | [Obfuscation](#obfuscation) | [Modules](#module-available-so-far) | [Logging](#logging) | [User Defined Rules](#user-defined-rules) | [MCP](#mcp) | [Acknowledgements](#acknowledgements)
 
 ## Overview
 
@@ -94,12 +94,6 @@ powerview 10.10.10.10 --pfx administrator.pfx
 ```
 ![intro](https://github.com/user-attachments/assets/286de18a-d0a4-4211-87c2-3736bb1e3005)
 
-
-* Enable LDAP Filter Obfuscation.
-```
-powerview range.net/lowpriv:Password123@192.168.86.192 [--obfuscate]
-```
-
 * Query for specific user
 ```
 Get-DomainUser Administrator
@@ -154,6 +148,46 @@ powerview 10.10.10.10 --relay [--relay-host] [--relay-port] [--use-ldap | --use-
 
 > [!NOTE]  
 > This demonstration shows coerced authentication was made using `printerbug.py`. You may use other methods that coerce HTTP authentication.
+
+### Obfuscation
+
+PowerView can obfuscate LDAP queries and related parameters to vary observable patterns while preserving query intent.
+
+* Enable via CLI
+```
+powerview range.net/lowpriv:Password123@192.168.86.192 --obfuscate
+```
+
+* Enable via Web
+> [!TIP]
+> Toggle `Obfuscate` in Settings. This applies to subsequent queries for the active session.
+
+**What gets obfuscated**
+- Filter: transforms attribute names, operators and values before sending
+- DN: mutates the search base distinguishedName
+- Attributes: mutates the requested attribute list
+
+**Techniques used**
+- OID attribute encoding with spacing/zero-variation (prefix omitted for compatibility)
+- Random casing of attributes/values
+- Numeric/SID zero-prepend on values
+- Hex-encoding of eligible values
+- Context-aware spacing in filters and DNs
+- Equality to approximation operator substitution
+- Wildcard expansion
+- ANR attribute randomization
+- DN hex escaping + random casing
+- Attribute list OID aliasing + random casing
+
+> [!NOTE]
+> Results are functionally equivalent in most cases, but approximation/wildcard expansions can broaden matches. Performance may vary.
+
+> [!warning]
+> Excessive obfuscation may be rejected by strict servers or intermediary tooling. Use only when needed.
+
+* ldapx: Flexible LDAP proxy used for inspiration and reference on filter/DN/attribute transformations — https://github.com/Macmod/ldapx
+* Research: MaLDAPtive: Obfuscation and De-Obfuscation (DEF CON 32 talk) — https://www.youtube.com/watch?v=mKRS5Iyy7Qo
+* Authors: Sabajete Elezaj — https://x.com/sabi_elezi, Daniel Bohannon — https://x.com/danielhbohannon
 
 ## Module available (so far?)
 
