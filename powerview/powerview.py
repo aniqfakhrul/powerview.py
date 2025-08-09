@@ -6164,7 +6164,7 @@ displayName=New Group Policy Object
 			logging.error(f"[Invoke-MessageBox] Failed to send message to session {session_id} on {identity}")
 		return success
 
-	def invoke_badsuccessor(self, identity=None, dmsaname=None, principalallowed=None, targetidentity=None, basedn=None, nocache=False, args=None):
+	def invoke_badsuccessor(self, identity=None, dmsaname=None, principalallowed=None, targetidentity=None, basedn=None, force=False, nocache=False, args=None):
 		if args:
 			if dmsaname is None and hasattr(args, 'dmsaname') and args.dmsaname:
 				dmsaname = args.dmsaname
@@ -6174,6 +6174,8 @@ displayName=New Group Policy Object
 				targetidentity = args.targetidentity
 			if basedn is None and hasattr(args, 'basedn') and args.basedn:
 				basedn = args.basedn
+			if force is None and hasattr(args, 'force'):
+				force = args.force
 			if hasattr(args, 'nocache'):
 				nocache = args.nocache
 		
@@ -6212,10 +6214,11 @@ displayName=New Group Policy Object
 				basedn = writable_ous[c_key]['attributes']['distinguishedName']
 			else:
 				try:
-					confirm = input(f"[Invoke-BadSuccessor] Found writable OU: {writable_ous[0]['attributes']['distinguishedName']}. Use this OU? [Y/n]: ").strip().lower()
-					if confirm in ['n', 'no']:
-						logging.warning("[Invoke-BadSuccessor] Operation cancelled by user")
-						return
+					if not force:
+						confirm = input(f"[Invoke-BadSuccessor] Found writable OU: {writable_ous[0]['attributes']['distinguishedName']}. Use this OU? [Y/n]: ").strip().lower()
+						if confirm in ['n', 'no']:
+							logging.warning("[Invoke-BadSuccessor] Operation cancelled by user")
+							return
 				except KeyboardInterrupt:
 					logging.warning("[Invoke-BadSuccessor] Operation cancelled by user")
 					return
