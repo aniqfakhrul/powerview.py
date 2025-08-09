@@ -449,15 +449,6 @@ You can specify multiple values for a condition using:
 }
 ```
 
-**Debug Mode:**
-
-Enable vulnerability detection debug mode by setting the environment variable:
-```bash
-export POWERVIEW_DEBUG_VULN=1
-```
-
-This will log detailed information about rule matching to help troubleshoot custom rules.
-
 ### MCP
 
 > [!note]
