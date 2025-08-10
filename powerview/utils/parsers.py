@@ -706,7 +706,7 @@ def powerview_arg_parse(cmd):
 
 	# get-netterminalsession
 	get_netterminalsession_parser = subparsers.add_parser('Get-NetTerminalSession', aliases=['qwinsta'], exit_on_error=False)
-	get_netterminalsession_group = get_netterminalsession_parser.add_mutually_exclusive_group()
+	get_netterminalsession_group = get_netterminalsession_parser.add_mutually_exclusive_group(required=True)
 	get_netterminalsession_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netterminalsession_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netterminalsession_parser.add_argument('-Username', action='store', default=None, dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
@@ -721,7 +721,7 @@ def powerview_arg_parse(cmd):
 
 	# get-netprocess
 	get_netprocess_parser = subparsers.add_parser('Get-NetProcess', aliases=['tasklist'], exit_on_error=False)
-	get_netprocess_group = get_netprocess_parser.add_mutually_exclusive_group()
+	get_netprocess_group = get_netprocess_parser.add_mutually_exclusive_group(required=True)
 	get_netprocess_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netprocess_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netprocess_target_group = get_netprocess_parser.add_mutually_exclusive_group()
@@ -799,7 +799,7 @@ def powerview_arg_parse(cmd):
 
 	# stop-netprocess
 	stop_netprocess_parser = subparsers.add_parser('Stop-NetProcess', aliases=['taskkill'], exit_on_error=False)
-	stop_netprocess_group = stop_netprocess_parser.add_mutually_exclusive_group()
+	stop_netprocess_group = stop_netprocess_parser.add_mutually_exclusive_group(required=True)
 	stop_netprocess_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
 	stop_netprocess_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
 	stop_netprocess_target_group = stop_netprocess_parser.add_mutually_exclusive_group(required=True)
@@ -842,7 +842,7 @@ def powerview_arg_parse(cmd):
 
 	# get-netsession
 	get_netsession_parser = subparsers.add_parser('Get-NetSession', exit_on_error=False)
-	get_netsession_group = get_netsession_parser.add_mutually_exclusive_group()
+	get_netsession_group = get_netsession_parser.add_mutually_exclusive_group(required=True)
 	get_netsession_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netsession_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netsession_parser.add_argument('-Username', action='store', default=None, dest='username', type=lambda value: escape_filter_chars_except_asterisk(value))
@@ -1048,6 +1048,23 @@ def powerview_arg_parse(cmd):
 	unlock_adaccount_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	unlock_adaccount_parser.add_argument('-Server', action='store', dest='server')
 	unlock_adaccount_parser.add_argument('-OutFile', action='store', dest='outfile')
+	unlock_adaccount_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	
+	# enable adaccount
+	enable_adaccount_parser = subparsers.add_parser('Enable-ADAccount', aliases=['Enable-ADAccount'], exit_on_error=False)
+	enable_adaccount_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	enable_adaccount_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+	enable_adaccount_parser.add_argument('-Server', action='store', dest='server')
+	enable_adaccount_parser.add_argument('-OutFile', action='store', dest='outfile')
+	enable_adaccount_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+
+	# disable adaccount
+	disable_adaccount_parser = subparsers.add_parser('Disable-ADAccount', aliases=['Disable-ADAccount'], exit_on_error=False)
+	disable_adaccount_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	disable_adaccount_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
+	disable_adaccount_parser.add_argument('-Server', action='store', dest='server')
+	disable_adaccount_parser.add_argument('-OutFile', action='store', dest='outfile')
+	disable_adaccount_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
 
 	#trust
 	get_domaintrust_parser = subparsers.add_parser('Get-DomainTrust', exit_on_error=False)

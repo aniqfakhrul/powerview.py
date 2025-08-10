@@ -450,9 +450,15 @@ class PowerView:
 		identity_filter = ""
 
 		if identity:
-			identity_filter += f"(|(sAMAccountName={identity})(distinguishedName={identity})(name={identity})(cn={identity}))"
+			if is_dn(identity):
+				identity_filter += f"(distinguishedName={identity})"
+			else:
+				identity_filter += f"(|(sAMAccountName={identity})(name={identity})(cn={identity}))"
 		elif args and hasattr(args, 'identity') and args.identity:
-			identity_filter += f"(|(sAMAccountName={args.identity})(distinguishedName={args.identity})(name={args.identity})(cn={args.identity}))"
+			if is_dn(args.identity):
+				identity_filter += f"(distinguishedName={args.identity})"
+			else:
+				identity_filter += f"(|(sAMAccountName={args.identity})(name={args.identity})(cn={args.identity}))"
 
 		if args:
 			if hasattr(args, 'preauthnotrequired') and args.preauthnotrequired:
@@ -718,7 +724,10 @@ class PowerView:
 		identity_filter = "" if not identity_filter else identity_filter
 		ldap_filter = "" if not ldap_filter else ldap_filter
 		if identity and not identity_filter:
-			identity_filter = f"(|(samAccountName={identity})(name={identity})(displayName={identity})(objectSid={identity})(distinguishedName={identity})(dnsHostName={identity})(objectGUID=*{identity}*))"
+			if is_dn(identity):
+				identity_filter = f"(distinguishedName={identity})"
+			else:
+				identity_filter = f"(|(samAccountName={identity})(name={identity})(displayName={identity})(objectSid={identity})(distinguishedName={identity})(dnsHostName={identity})(objectGUID=*{identity}*))"
 		
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
@@ -1253,7 +1262,10 @@ class PowerView:
 		identity_filter = ""
 
 		if identity:
-			identity_filter += f"(|(distinguishedName={identity})(name={identity})(sAMAccountName={identity})(dnsHostName={identity})(cn={identity}))"
+			if is_dn(identity):
+				identity_filter += f"(distinguishedName={identity})"
+			else:
+				identity_filter += f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity})(cn={identity}))"
 
 		if args:
 			if hasattr(args, 'unconstrained') and args.unconstrained:
@@ -1711,7 +1723,10 @@ class PowerView:
 		identity_filter = ""
 
 		if identity:
-			identity_filter += f"(|(|(samAccountName={identity})(name={identity})(distinguishedName={identity})))"
+			if is_dn(identity):
+				identity_filter += f"(distinguishedName={identity})"
+			else:
+				identity_filter += f"(|(|(samAccountName={identity})(name={identity})(cn={identity})))"
 
 		if args:
 			if args.admincount:
@@ -2334,7 +2349,10 @@ class PowerView:
 		ldap_filter = ""
 		identity_filter = ""
 		if identity:
-			identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
+			if is_dn(identity):
+				identity_filter = f"(distinguishedName={identity})"
+			else:
+				identity_filter = f"(|(name={identity})(distinguishedName={identity}))"
 
 		if args:
 			if args.ldapfilter:
@@ -2717,12 +2735,14 @@ class PowerView:
 			logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainCATemplate] Failed to delete template {identity} from certificate store")
 			return False
 
-	def unlock_adaccount(self, identity, searchbase=None, args=None):
+	def unlock_adaccount(self, identity=None, searchbase=None, no_cache=False, args=None):
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 		
 		# check if identity exists
-		identity_object = self.get_domainobject(identity=identity, searchbase=searchbase, properties=["distinguishedName","sAMAccountName","lockoutTime"])
+		identity_object = self.get_domainobject(identity=identity, searchbase=searchbase, properties=["distinguishedName","sAMAccountName","lockoutTime"], no_cache=no_cache, raw=True)
 		if len(identity_object) > 1:
 			logging.error(f"[Unlock-ADAccount] More then one identity found. Use distinguishedName instead.")
 			return False
@@ -2731,11 +2751,15 @@ class PowerView:
 			return False
 
 		# check if its really locked
-		identity_dn = identity_object[0].get("dn")
-		identity_san = identity_object[0].get("attributes").get("sAMAccountName")
-		identity_lockouttime = identity_object[0].get("raw_attributes").get("lockoutTime")
+		identity_dn = identity_object[0].get("attributes",{}).get("distinguishedName")
+		identity_san = identity_object[0].get("attributes",{}).get("sAMAccountName")
+		identity_lockouttime = identity_object[0].get("raw_attributes",{}).get("lockoutTime")
 
 		logging.debug(f"[Unlock-ADAccount] Identity {identity_san} found in domain")
+
+		if not identity_lockouttime:
+			logging.warning(f"[Unlock-ADAccount] lockoutTime attribute not found. Probably not locked.")
+			return False
 		
 		if isinstance(identity_lockouttime, list):
 			identity_lockouttime = identity_lockouttime[0]
@@ -2759,6 +2783,94 @@ class PowerView:
 			return True
 		else:
 			logging.info(f"[Unlock-ADAccount] Failed to unlock {identity_san}")
+			return False
+
+	def enable_adaccount(self, identity=None, searchbase=None, no_cache=False, args=None):
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+		if not searchbase:
+			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+		
+		identity_object = self.get_domainobject(identity=identity, searchbase=searchbase, properties=["distinguishedName","sAMAccountName","userAccountControl"], no_cache=no_cache, raw=True)
+		if len(identity_object) > 1:
+			logging.error(f"[Enable-ADAccount] More then one identity found. Use distinguishedName instead.")
+			return False
+		elif len(identity_object) == 0:
+			logging.error(f"[Enable-ADAccount] Identity {identity} not found in domain")
+			return False
+
+		identity_dn = identity_object[0].get("attributes",{}).get("distinguishedName")
+		identity_san = identity_object[0].get("attributes",{}).get("sAMAccountName")
+		identity_uac = identity_object[0].get("raw_attributes",{}).get("userAccountControl")
+
+		logging.debug(f"[Enable-ADAccount] Identity {identity_san} found in domain")
+
+		if isinstance(identity_uac, list):
+			identity_uac = identity_uac[0]
+		uac_val = int(identity_uac)
+
+		if not (uac_val & 0x00000002):
+			logging.warning(f"[Enable-ADAccount] Account {identity_san} is not in disabled state.")
+			return False
+
+		new_uac = uac_val & ~0x00000002
+		succeed = self.set_domainobject(
+			identity_dn,
+			_set={
+				'attribute': 'userAccountControl',
+				'value': new_uac
+			},
+		)
+
+		if succeed:
+			logging.info(f"[Enable-ADAccount] Account {identity_san} enabled")
+			return True
+		else:
+			logging.info(f"[Enable-ADAccount] Failed to enable {identity_san}")
+			return False
+
+	def disable_adaccount(self, identity=None, searchbase=None, no_cache=False, args=None):
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+		if not searchbase:
+			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+		
+		identity_object = self.get_domainobject(identity=identity, searchbase=searchbase, properties=["distinguishedName","sAMAccountName","userAccountControl"], no_cache=no_cache, raw=True)
+		if len(identity_object) > 1:
+			logging.error(f"[Disable-ADAccount] More then one identity found. Use distinguishedName instead.")
+			return False
+		elif len(identity_object) == 0:
+			logging.error(f"[Disable-ADAccount] Identity {identity} not found in domain")
+			return False
+		
+		identity_dn = identity_object[0].get("attributes",{}).get("distinguishedName")
+		identity_san = identity_object[0].get("attributes",{}).get("sAMAccountName")
+		identity_uac = identity_object[0].get("raw_attributes",{}).get("userAccountControl")
+
+		logging.debug(f"[Disable-ADAccount] Identity {identity_san} found in domain")
+
+		if isinstance(identity_uac, list):
+			identity_uac = identity_uac[0]
+		uac_val = int(identity_uac)
+
+		if uac_val & 0x00000002:
+			logging.warning(f"[Disable-ADAccount] Account {identity_san} is already disabled.")
+			return False
+
+		new_uac = uac_val | 0x00000002
+		succeed = self.set_domainobject(
+			identity_dn,
+			_set={
+				'attribute': 'userAccountControl',
+				'value': new_uac
+			},
+		)
+
+		if succeed:
+			logging.info(f"[Disable-ADAccount] Account {identity_san} disabled")
+			return True
+		else:
+			logging.info(f"[Disable-ADAccount] Failed to disable {identity_san}")
 			return False
 
 	def add_domaingpo(self, identity, description=None, basedn=None, args=None):
@@ -6674,7 +6786,7 @@ displayName=New Group Policy Object
 			resp = srvs.hNetrSessionEnum(dce, '\x00', NULL, 10)
 		except Exception as e:
 			if 'rpc_s_access_denied' in str(e):
-				logging.error('Access denied while enumerating Sessions on %s' % (identity))
+				logging.error('[Get-NetSession] Access denied while enumerating Sessions on %s' % (identity))
 			else:
 				logging.error(str(e))
 			return

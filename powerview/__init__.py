@@ -572,9 +572,25 @@ def main():
                             elif pv_args.module.casefold() == 'unlock-adaccount':
                                 if pv_args.identity is not None:
                                     if temp_powerview:
-                                        succeed = temp_powerview.unlock_adaccount(identity=pv_args.identity, args=pv_args)
+                                        succeed = temp_powerview.unlock_adaccount(args=pv_args)
                                     else:
-                                        succeed = powerview.unlock_adaccount(identity=pv_args.identity, args=pv_args)
+                                        succeed = powerview.unlock_adaccount(args=pv_args)
+                                else:
+                                    logging.error('-Identity flag is required')
+                            elif pv_args.module.casefold() == 'enable-adaccount':
+                                if pv_args.identity is not None:
+                                    if temp_powerview:
+                                        succeed = temp_powerview.enable_adaccount(args=pv_args)
+                                    else:
+                                        succeed = powerview.enable_adaccount(args=pv_args)
+                                else:
+                                    logging.error('-Identity flag is required')
+                            elif pv_args.module.casefold() == 'disable-adaccount':
+                                if pv_args.identity is not None:
+                                    if temp_powerview:
+                                        succeed = temp_powerview.disable_adaccount(args=pv_args)
+                                    else:
+                                        succeed = powerview.disable_adaccount(args=pv_args)
                                 else:
                                     logging.error('-Identity flag is required')
                             elif pv_args.module.casefold() == 'add-domaingpo' or pv_args.module.casefold() == 'add-gpo':
