@@ -151,6 +151,8 @@ COMMANDS = {
     'Add-GPLink':['-GUID','-TargetIdentity','-LinkEnabled','-Enforced','-SearchBase','-Server','-OutFile'],
     'Remove-GPLink':['-GUID','-TargetIdentity','-SearchBase','-Server','-OutFile'],
     'history':['-Last','-Unique','-NoNumber'],
+    'Dump-Schema':['-Text', '-OutFile'],
+    'Dump-ServerInfo':['-Text', '-OutFile'],
     'get_pool_stats':'',
     'whoami':'',
     'clear':'',

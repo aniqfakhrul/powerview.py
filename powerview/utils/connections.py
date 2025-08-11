@@ -44,6 +44,7 @@ from collections import OrderedDict
 import time
 import ldap3
 import logging
+import json
 import sys
 from struct import unpack
 import tempfile
@@ -932,6 +933,22 @@ class CONNECTION:
 		
 		return stats
 
+	def get_server_info(self, raw=False):
+		info = getattr(self.ldap_server, 'info', None)
+		if info is None:
+			return None
+		if raw:
+			return info
+		return json.loads(info.to_json())
+
+	def get_schema_info(self, raw=False):
+		schema = getattr(self.ldap_server, 'schema', None)
+		if schema is None:
+			return None
+		if raw:
+			return schema
+		return json.loads(schema.to_json())
+
 	def refresh_domain(self):
 		try:
 			self.domain = dn2domain(self.ldap_server.info.other.get('defaultNamingContext')[0])
@@ -1293,7 +1310,7 @@ class CONNECTION:
 				# check if domain is empty
 				if not self.domain or not is_valid_fqdn(self.domain):
 					self.refresh_domain()
-
+				
 				return self.ldap_server, self.ldap_session
 			except (ldap3.core.exceptions.LDAPSocketOpenError, ConnectionResetError):
 				try:

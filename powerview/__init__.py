@@ -23,6 +23,7 @@ import ldap3
 import random
 import string
 import shlex
+import os
 
 def main():
     """
@@ -485,11 +486,6 @@ def main():
                                         succeed = powerview.stop_netprocess(identity=computername, port=445, args=pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
-
-                                if succeed:
-                                    logging.info(f'Successfully stopped process {pv_args.pid or pv_args.name} on {computername}')
-                                else:
-                                    logging.error(f'Failed to stop process {pv_args.pid or pv_args.name} on {computername}')
                             elif pv_args.module.casefold() == 'get-netsession':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     computername = pv_args.computer if pv_args.computer else pv_args.computername
@@ -881,6 +877,26 @@ def main():
                                         powerview.remove_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, args=pv_args)
                                 else:
                                     logging.error("-GUID and -TargetIdentity flags are required")
+                            elif pv_args.module.casefold() == 'dump-schema':
+                                if temp_powerview:
+                                    schema = temp_powerview.conn.get_schema_info(raw=True)
+                                else:
+                                    schema = powerview.conn.get_schema_info(raw=True)
+                                if pv_args.text:
+                                    print(schema)
+                                else:
+                                    schema.to_file(os.path.expanduser(pv_args.outfile))
+                                    logging.info(f"Schema dumped to {pv_args.outfile}")
+                            elif pv_args.module.casefold() == 'dump-server-info':
+                                if temp_powerview:
+                                    server_info = temp_powerview.conn.get_server_info(raw=True)
+                                else:
+                                    server_info = powerview.conn.get_server_info(raw=True)
+                                if pv_args.text:
+                                    print(server_info)
+                                else:
+                                    server_info.to_file(os.path.expanduser(pv_args.outfile))
+                                    logging.info(f"Server info dumped to {pv_args.outfile}")
                             elif pv_args.module.casefold() == 'get_pool_stats':
                                 if temp_powerview:
                                     stats = temp_powerview.conn.get_pool_stats()

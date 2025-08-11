@@ -1377,6 +1377,16 @@ def powerview_arg_parse(cmd):
 	history_parser.add_argument('-Unique',action='store_true', dest='unique')
 	history_parser.add_argument('-NoNumber',action='store_true', dest='noNumber')
 
+	# get schema
+	get_schema_parser = subparsers.add_parser('Dump-Schema', exit_on_error=False)
+	get_schema_parser.add_argument('-Text',action='store_true', default=False, dest='text')
+	get_schema_parser.add_argument('-OutFile',action='store', default="schema.json", dest='outfile')
+
+	# get server info
+	get_server_info_parser = subparsers.add_parser('Dump-ServerInfo', exit_on_error=False)
+	get_server_info_parser.add_argument('-Text',action='store_true', default=False, dest='text')
+	get_server_info_parser.add_argument('-OutFile',action='store', default="server_info.json", dest='outfile')
+
 	subparsers.add_parser('get_pool_stats', exit_on_error=False)
 	subparsers.add_parser('whoami', exit_on_error=False)
 	subparsers.add_parser('clear', exit_on_error=False)
