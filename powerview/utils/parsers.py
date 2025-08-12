@@ -296,6 +296,7 @@ def powerview_arg_parse(cmd):
 	get_domainuser_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainuser_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainuser_parser.add_argument('-MemberOf', action='store', dest='memberof')
+	get_domainuser_parser.add_argument('-Department', action='store', dest='department')
 	get_domainuser_parser.add_argument('-SPN', action='store_true', default=False, dest='spn')
 	get_domainuser_parser.add_argument('-AdminCount', action='store_true', default=False, dest='admincount')
 	get_domainuser_parser.add_argument('-Lockout', action='store_true', default=False, dest='lockout')
@@ -1380,12 +1381,12 @@ def powerview_arg_parse(cmd):
 	# get schema
 	get_schema_parser = subparsers.add_parser('Dump-Schema', exit_on_error=False)
 	get_schema_parser.add_argument('-Text',action='store_true', default=False, dest='text')
-	get_schema_parser.add_argument('-OutFile',action='store', default="schema.json", dest='outfile')
+	get_schema_parser.add_argument('-OutFile', action='store', dest='outfile')
 
 	# get server info
 	get_server_info_parser = subparsers.add_parser('Dump-ServerInfo', exit_on_error=False)
 	get_server_info_parser.add_argument('-Text',action='store_true', default=False, dest='text')
-	get_server_info_parser.add_argument('-OutFile',action='store', default="server_info.json", dest='outfile')
+	get_server_info_parser.add_argument('-OutFile',action='store', dest='outfile')
 
 	subparsers.add_parser('get_pool_stats', exit_on_error=False)
 	subparsers.add_parser('whoami', exit_on_error=False)

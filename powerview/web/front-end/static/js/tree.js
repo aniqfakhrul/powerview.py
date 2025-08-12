@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const rootNodes = serverInfo.naming_contexts.map(dn => ({
+        const rootNodes = serverInfo.raw.namingContexts.map(dn => ({
             dn: dn,
             icon: getIconForNamingContext(dn)
         }));

@@ -428,7 +428,7 @@ class PowerView:
 			'objectClass', 'servicePrincipalName', 'objectCategory', 'objectGUID', 'primaryGroupID', 'userAccountControl',
 			'sAMAccountType', 'adminCount', 'cn', 'name', 'sAMAccountName', 'distinguishedName', 'mail',
 			'description', 'lastLogoff', 'lastLogon', 'memberOf', 'objectSid', 'userPrincipalName', 
-			'pwdLastSet', 'badPwdCount', 'badPasswordTime', 'msDS-SupportedEncryptionTypes', 'lastLogonTimestamp'
+			'pwdLastSet', 'badPwdCount', 'badPasswordTime', 'msDS-SupportedEncryptionTypes', 'lastLogonTimestamp', 'department', 'title'
 		]
 		
 		if args and hasattr(args, 'properties') and args.properties:
@@ -515,6 +515,9 @@ class PowerView:
 						return
 					memberdn = group[0].get("attributes").get("distinguishedName")
 				ldap_filter += f'(memberOf={memberdn})'
+			if hasattr(args, 'department') and args.department:
+				logging.debug("[Get-DomainUser] Searching for user accounts that are members of a department")
+				ldap_filter += f'(department={args.department})'
 			if hasattr(args, 'ldapfilter') and args.ldapfilter:
 				logging.debug(f'[Get-DomainUser] Using additional LDAP filter: {args.ldapfilter}')
 				ldap_filter += f'{args.ldapfilter}'

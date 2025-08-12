@@ -90,6 +90,7 @@ class APIServer:
 		add_route_with_auth('/smb', 'smb', self.render_smb, methods=['GET'])
 		add_route_with_auth('/utils', 'utils', self.render_utils, methods=['GET'])
 		add_route_with_auth('/api/server/info', 'server_info', self.handle_server_info, methods=['GET'])
+		add_route_with_auth('/api/server/schema', 'schema_info', self.handle_schema_info, methods=['GET'])
 		add_route_with_auth('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
 		add_route_with_auth('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		add_route_with_auth('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
@@ -340,19 +341,13 @@ class APIServer:
 		return jsonify(vars(self.powerview.args))
 	
 	def handle_server_info(self):
-		server_info = self.powerview.conn.ldap_server.info
-		
-		return jsonify({
-			'supported_ldap_versions': server_info.supported_ldap_versions,
-			'naming_contexts': server_info.naming_contexts,
-			'supported_controls': server_info.supported_controls,
-			'supported_extensions': server_info.supported_extensions,
-			'supported_features': server_info.supported_features,
-			'supported_sasl_mechanisms': server_info.supported_sasl_mechanisms,
-			'schema_entry': server_info.schema_entry,
-			'other': dict(server_info.other) if server_info.other else {}
-		})
+		server_info = self.powerview.conn.get_server_info()
+		return jsonify(server_info)
 
+	def handle_schema_info(self):
+		schema_info = self.powerview.conn.get_schema_info()
+		return jsonify(schema_info)
+		
 	def handle_set_settings(self):
 		try:
 			obfuscate = request.json.get('obfuscate', False)

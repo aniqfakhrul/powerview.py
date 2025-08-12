@@ -885,9 +885,11 @@ def main():
                                 if pv_args.text:
                                     print(schema)
                                 else:
+                                    if not pv_args.outfile:
+                                        pv_args.outfile = f"{powerview.conn.domain.lower()}-schema.json"
                                     schema.to_file(os.path.expanduser(pv_args.outfile))
                                     logging.info(f"Schema dumped to {pv_args.outfile}")
-                            elif pv_args.module.casefold() == 'dump-server-info':
+                            elif pv_args.module.casefold() == 'dump-serverinfo':
                                 if temp_powerview:
                                     server_info = temp_powerview.conn.get_server_info(raw=True)
                                 else:
@@ -895,6 +897,8 @@ def main():
                                 if pv_args.text:
                                     print(server_info)
                                 else:
+                                    if not pv_args.outfile:
+                                        pv_args.outfile = f"{powerview.conn.domain.lower()}-server_info.json"
                                     server_info.to_file(os.path.expanduser(pv_args.outfile))
                                     logging.info(f"Server info dumped to {pv_args.outfile}")
                             elif pv_args.module.casefold() == 'get_pool_stats':
