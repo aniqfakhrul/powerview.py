@@ -39,7 +39,8 @@ from powerview.utils.constants import (
 	SERVICE_ERROR_CONTROL,
 	SERVICE_STATUS,
 	SERVICE_WIN32_EXIT_CODE,
-	DMSA_DELEGATED_MSA_STATE
+	DMSA_DELEGATED_MSA_STATE,
+	MSGBOX_TYPE
 )
 from powerview.lib.dns import (
 	DNS_RECORD,
@@ -6205,7 +6206,7 @@ displayName=New Group Policy Object
 		dce.disconnect()
 		return entries
 
-	def invoke_messagebox(self, identity=None, session_id=None, title=None, message=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+	def invoke_messagebox(self, identity=None, session_id=None, title=None, message=None, style=MSGBOX_TYPE.MB_OK, timeout=0, dontwait=True, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
 		if args:
 			if username is None and hasattr(args, 'username') and args.username:
 				logging.warning(f"[Invoke-MessageBox] Using identity {args.username} from supplied username. Ignoring current user context...")
@@ -6272,7 +6273,8 @@ displayName=New Group Policy Object
 				return False
 
 		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
-		success = ts.do_msg(session_id=session_id, title=title, message=message)
+		pulResponse, success = ts.do_msg(session_id=session_id, title=title, message=message, style=style, timeout=timeout, dontwait=dontwait)
+		print(pulResponse)
 		if success:
 			logging.info(f"[Invoke-MessageBox] Successfully sent message to session {session_id} on {identity}")
 		else:
