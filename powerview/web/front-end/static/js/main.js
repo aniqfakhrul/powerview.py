@@ -994,7 +994,7 @@ function closeModal(modalId) {
         }
 
         // Reset computer input
-        const computerInput = document.getElementById('smb-computer');
+        const computerInput = document.getElementById('modal-smb-computer');
         if (computerInput) {
             computerInput.value = '';
         }
@@ -1006,8 +1006,8 @@ function closeModal(modalId) {
         }
 
         // Reset credentials if any
-        const usernameInput = document.getElementById('smb-username');
-        const passwordInput = document.getElementById('smb-password');
+        const usernameInput = document.getElementById('modal-smb-username');
+        const passwordInput = document.getElementById('modal-smb-password');
         if (usernameInput) usernameInput.value = '';
         if (passwordInput) passwordInput.value = '';
     }
@@ -1698,7 +1698,147 @@ function renderOverviewTab() {
                 </div>
             </div>
         </div>
+
+        <div id="organization-overview" class="mt-8 space-y-4">
+            <div class="text-lg font-semibold text-white">Organization</div>
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div class="lg:col-span-1">
+                    <div class="text-xs text-neutral-500 mb-2">Manager</div>
+                    <div id="org-manager-card" class="border border-neutral-200 dark:border-neutral-700 rounded-md p-4 bg-white dark:bg-neutral-900">
+                        <div class="text-sm text-neutral-500">No manager</div>
+                    </div>
+                </div>
+                <div class="lg:col-span-3">
+                    <div class="text-xs text-neutral-500 mb-2"><span id="org-subject-name"></span> works with</div>
+                    <div id="org-peers-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+                </div>
+            </div>
+        </div>
     `;
+
+    loadOrganizationSection(attributes);
+}
+
+async function loadOrganizationSection(currentAttributes) {
+    try {
+        const subjectNameEl = document.getElementById('org-subject-name');
+        const profileNameEl = document.getElementById('profile-name');
+        if (subjectNameEl) subjectNameEl.textContent = (profileNameEl?.textContent || '').trim();
+
+        const managerDn = Array.isArray(currentAttributes['manager']) ? currentAttributes['manager'][0] : currentAttributes['manager'];
+        const identity = document.querySelector('#ldap-attributes-modal h3')?.textContent;
+        const managerTarget = document.getElementById('org-manager-card');
+        const peersGrid = document.getElementById('org-peers-grid');
+        const managerInline = document.getElementById('overview-manager');
+
+        if (!managerDn) {
+            if (managerTarget) managerTarget.innerHTML = '<div class="text-sm text-neutral-500">No manager</div>';
+            if (managerInline) managerInline.textContent = '-';
+            return;
+        }
+
+        const mgrResp = await fetch('/api/get/domainobject', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ searchbase: managerDn, properties: ['displayName','name','title','thumbnailPhoto','directReports','distinguishedName'], search_scope: 'BASE' })
+        });
+        await handleHttpError(mgrResp);
+        if (!mgrResp.ok) return;
+		const mgrData = await mgrResp.json();
+		const mgrEntry = Array.isArray(mgrData) ? mgrData[0] : mgrData;
+		const mgrAttrs = (mgrEntry && mgrEntry.attributes) ? mgrEntry.attributes : {};
+        
+		const mgrDisplayName = Array.isArray(mgrAttrs.displayName) ? mgrAttrs.displayName[0] : mgrAttrs.displayName;
+		const mgrSimpleName = Array.isArray(mgrAttrs.name) ? mgrAttrs.name[0] : mgrAttrs.name;
+		const mgrName = (mgrDisplayName || mgrSimpleName || '') || 'Manager';
+        const mgrTitle = Array.isArray(mgrAttrs.title) ? mgrAttrs.title[0] : (mgrAttrs.title || '');
+        if (managerInline) managerInline.textContent = mgrName || '-';
+
+        if (managerTarget) {
+            const initial = (mgrName || '?').toString().charAt(0).toUpperCase();
+            const mgrNameAttr = (mgrName || '').toString().replace(/"/g, '&quot;');
+            const mgrTitleAttr = (mgrTitle || '').toString().replace(/"/g, '&quot;');
+            managerTarget.innerHTML = `
+                <div class="flex items-center gap-3 org-card fade-in-up transition transform hover:-translate-y-0.5" style="animation-delay: 0ms">
+                    <div class="w-12 h-12 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-lg font-semibold text-neutral-700 dark:text-neutral-200">${initial}</div>
+                    <div class="min-w-0">
+                        <div class="text-sm font-medium text-neutral-900 dark:text-white truncate" title="${mgrNameAttr}">${mgrName}</div>
+                        <div class="text-xs text-neutral-600 dark:text-neutral-300 truncate" title="${mgrTitleAttr}">${mgrTitle || ''}</div>
+                        <a href="#" class="text-xs text-blue-600 dark:text-yellow-500 hover:underline block mt-1" onclick="handleLdapLinkClick(event, '${managerDn.replace(/'/g,"\\'")}')">View profile</a>
+                    </div>
+                </div>
+            `;
+        }
+
+		const reportsDns = Array.isArray(mgrAttrs.directReports) ? (mgrAttrs.directReports || []).filter(Boolean) : (mgrAttrs.directReports ? [mgrAttrs.directReports] : []);
+        if (!peersGrid) return;
+        peersGrid.innerHTML = '';
+
+        let peers = reportsDns.filter(dn => dn !== identity).slice(0, 9);
+        if (peers.length === 0) {
+            try {
+                const deptRaw = Array.isArray(currentAttributes['department']) ? currentAttributes['department'][0] : currentAttributes['department'];
+                if (deptRaw) {
+                    const deptResp = await fetch('/api/get/domainuser', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ args: { department: deptRaw }, properties: ['displayName','name','title','distinguishedName'] })
+                    });
+                    await handleHttpError(deptResp);
+                    if (deptResp.ok) {
+                        const deptData = await deptResp.json();
+                        const deptDns = (deptData || []).map(e => e?.attributes?.distinguishedName).filter(Boolean);
+                        peers = deptDns.filter(dn => dn !== identity && dn !== managerDn).slice(0, 9);
+                    }
+                }
+            } catch (e) {
+                console.error('Department peers lookup failed:', e);
+            }
+        }
+        if (peers.length === 0) {
+            peersGrid.innerHTML = '<div class="text-sm text-neutral-500">No peers found</div>';
+            return;
+        }
+
+        const cards = await Promise.all(peers.map(async (dn, i) => {
+            try {
+                const r = await fetch('/api/get/domainobject', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ searchbase: dn, properties: ['displayName','name','title','distinguishedName'], search_scope: 'BASE' })
+                });
+                await handleHttpError(r);
+                if (!r.ok) return null;
+				const j = await r.json();
+				const entry = Array.isArray(j) ? j[0] : j;
+				const a = (entry && entry.attributes) ? entry.attributes : {};
+				const displayNameVal = Array.isArray(a.displayName) ? a.displayName[0] : a.displayName;
+				const nameVal = Array.isArray(a.name) ? a.name[0] : a.name;
+				const n = displayNameVal || nameVal || '';
+                const t = Array.isArray(a.title) ? a.title[0] : (a.title || '');
+                const initial = (n || '?').toString().charAt(0).toUpperCase();
+                const escDn = dn.replace(/'/g, "\\'");
+                const delay = Math.min(i * 60, 480);
+                const nameAttr = (n || '').toString().replace(/"/g, '&quot;');
+                const titleAttr = (t || '').toString().replace(/"/g, '&quot;');
+                return `
+                    <div class="border border-neutral-200 dark:border-neutral-700 rounded-md p-4 bg-white dark:bg-neutral-900 org-card fade-in-up transition transform hover:-translate-y-0.5" style="animation-delay: ${delay}ms">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-sm font-semibold text-neutral-700 dark:text-neutral-200">${initial}</div>
+                            <div class="min-w-0">
+                                <div class="text-sm font-medium text-neutral-900 dark:text-white truncate" title="${nameAttr}">${n || 'User'}</div>
+                                <div class="text-xs text-neutral-600 dark:text-neutral-300 truncate" title="${titleAttr}">${t || ''}</div>
+                                <a href="#" class="text-xs text-blue-600 dark:text-yellow-500 hover:underline block mt-1" onclick="handleLdapLinkClick(event, '${escDn}')">View profile</a>
+                            </div>
+                        </div>
+                    </div>`;
+            } catch { return null; }
+        }));
+
+        peersGrid.innerHTML = cards.filter(Boolean).join('') || '<div class="text-sm text-neutral-500">No peers found</div>';
+    } catch (e) {
+        console.error('Error loading organization section:', e);
+    }
 }
 
 // Contact and Organization tabs removed

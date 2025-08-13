@@ -507,38 +507,21 @@ class APIServer:
 	def start(self):
 		debug_enabled = bool(getattr(self.powerview.args, 'debug', False))
 		request_handler = None
-		if not debug_enabled:
-			try:
-				from werkzeug.serving import WSGIRequestHandler
-				class _QuietRequestHandler(WSGIRequestHandler):
-					def log_request(self, *args, **kwargs):
-						return
-				request_handler = _QuietRequestHandler
-			except Exception:
-				request_handler = None
-			log = logging.getLogger('werkzeug')
-			log.setLevel(logging.ERROR)
-			log.propagate = False
-			try:
-				self.app.logger.disabled = True
-			except Exception:
-				pass
-		else:
-			try:
-				from werkzeug.serving import WSGIRequestHandler
-				class _DebugRequestHandler(WSGIRequestHandler):
-					def log_request(self, code='-', size='-'):
-						try:
-							msg = f"[Web] {self.address_string()} {size} {code} \"{self.requestline}\""
-							logging.getLogger('werkzeug').debug(msg)
-						except Exception:
-							pass
-				request_handler = _DebugRequestHandler
-			except Exception:
-				request_handler = None
-			log = logging.getLogger('werkzeug')
-			log.setLevel(logging.DEBUG)
-			log.propagate = True
+		try:
+			from werkzeug.serving import WSGIRequestHandler
+			class _SilentRequestHandler(WSGIRequestHandler):
+				def log_request(self, *args, **kwargs):
+					return
+			request_handler = _SilentRequestHandler
+		except Exception:
+			request_handler = None
+		log = logging.getLogger('werkzeug')
+		log.setLevel(logging.CRITICAL)
+		log.propagate = False
+		try:
+			self.app.logger.disabled = True
+		except Exception:
+			pass
 
 		run_kwargs = {'host': self.host, 'port': self.port, 'debug': False}
 		if request_handler is not None:

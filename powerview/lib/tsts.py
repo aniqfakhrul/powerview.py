@@ -2,8 +2,10 @@ from impacket.dcerpc.v5 import tsts as TSTS
 from impacket.dcerpc.v5 import transport, lsat, lsad
 from impacket.dcerpc.v5.dtypes import MAXIMUM_ALLOWED
 from impacket.dcerpc.v5.rpcrt import RPC_C_AUTHN_GSS_NEGOTIATE, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, DCERPCException
+from impacket.smbconnection import SessionError
 import logging
 import traceback
+from powerview.utils.constants import DESKTOP_STATES
 
 class TSHandler:
 	def __init__(self, smb_connection, target_ip, doKerberos=False):
@@ -69,12 +71,20 @@ class TSHandler:
 					self.sessions[SessionId]['LogonTime'] = sessdata['LSMSessionInfoExPtr']['LSM_SessionInfo_Level1']['LogonTime']
 					self.sessions[SessionId]['LastInputTime'] = sessdata['LSMSessionInfoExPtr']['LSM_SessionInfo_Level1']['LastInputTime']
 
+		try:
+			with TSTS.RCMPublic(self.__smbConnection, self.__target_ip, self.__doKerberos) as rcm:
+				for SessionId in self.sessions:
+					try:
+						client = rcm.hRpcGetRemoteAddress(SessionId)
+						if not client:
+							continue
+						self.sessions[SessionId]["RemoteIp"] = client["pRemoteAddress"]["ipv4"]["in_addr"]
+					except Exception as e:
+						logging.debug(f"Error getting client address for session {SessionId}: {e}")
+		except SessionError:
+			logging.warning("RDP is probably not enabled, cannot list remote IPv4 addresses.")
+
 	def do_qwinsta(self):
-		desktop_states = {
-			'WTS_SESSIONSTATE_UNKNOWN': '',
-			'WTS_SESSIONSTATE_LOCK'   : 'Locked',
-			'WTS_SESSIONSTATE_UNLOCK' : 'Unlocked',
-		}
 		self.get_session_list()
 		if not len(self.sessions):
 			return []
@@ -97,7 +107,7 @@ class TSHandler:
 					"Username": userName,
 					"ID": str(i),
 					"State": self.sessions[i]['state'],
-					"Desktop": desktop_states[self.sessions[i]['flags']],
+					"Desktop": DESKTOP_STATES[self.sessions[i]['flags']],
 					"ConnectTime": connectTime,
 					"DisconnectTime": disconnectTime,
 					"ClientName": self.sessions[i]['ClientName'],

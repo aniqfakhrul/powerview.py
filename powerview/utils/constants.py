@@ -4260,3 +4260,9 @@ TABLE_FMT_MAP = {
     "latex": "latex",
     "html": "html"
 }
+
+DESKTOP_STATES = {
+	'WTS_SESSIONSTATE_UNKNOWN': '',
+	'WTS_SESSIONSTATE_LOCK'   : 'Locked',
+	'WTS_SESSIONSTATE_UNLOCK' : 'Unlocked',
+}
