@@ -4,7 +4,9 @@
 <hr />
 
 <p align="center">
-<img src="https://img.shields.io/badge/version-2025.1.4-blue" alt="version 2025.1.4"/>
+
+<img src="https://img.shields.io/badge/version-2025.1.5-blue" alt="version 2025.1.5"/>
+
 <a href="https://x.com/aniqfakhrul">
     <img src="https://img.shields.io/twitter/follow/aniqfakhrul?style=social"
       alt="@aniqfakhrul on X"/></a>
@@ -14,7 +16,7 @@
 </p>
 <hr />
 
-[Installation](#installation) | [Basic Usage](#basic-usage) | [Modules](#module-available-so-far) | [Logging](#logging) | [User Defined Rules](#user-defined-rules) | [MCP](#mcp)
+[Installation](#installation) | [Basic Usage](#basic-usage) | [Obfuscation](#obfuscation) | [Modules](#module-available-so-far) | [Logging](#logging) | [User Defined Rules](#user-defined-rules) | [MCP](#mcp) | [Acknowledgements](#acknowledgements)
 
 ## Overview
 
@@ -94,12 +96,6 @@ powerview 10.10.10.10 --pfx administrator.pfx
 ```
 ![intro](https://github.com/user-attachments/assets/286de18a-d0a4-4211-87c2-3736bb1e3005)
 
-
-* Enable LDAP Filter Obfuscation.
-```
-powerview range.net/lowpriv:Password123@192.168.86.192 [--obfuscate]
-```
-
 * Query for specific user
 ```
 Get-DomainUser Administrator
@@ -155,39 +151,79 @@ powerview 10.10.10.10 --relay [--relay-host] [--relay-port] [--use-ldap | --use-
 > [!NOTE]  
 > This demonstration shows coerced authentication was made using `printerbug.py`. You may use other methods that coerce HTTP authentication.
 
+### Obfuscation
+
+PowerView can obfuscate LDAP queries and related parameters to vary observable patterns while preserving query intent.
+
+* Enable via CLI
+```
+powerview range.net/lowpriv:Password123@192.168.86.192 --obfuscate
+```
+
+* Enable via Web
+> [!TIP]
+> Toggle `Obfuscate` in Settings. This applies to subsequent queries for the active session.
+
+**What gets obfuscated**
+- Filter: transforms attribute names, operators and values before sending
+- DN: mutates the search base distinguishedName
+- Attributes: mutates the requested attribute list
+
+**Techniques used**
+- OID attribute encoding with spacing/zero-variation (prefix omitted for compatibility)
+- Random casing of attributes/values
+- Numeric/SID zero-prepend on values
+- Hex-encoding of eligible values
+- Context-aware spacing in filters and DNs
+- Equality to approximation operator substitution
+- Wildcard expansion
+- ANR attribute randomization
+- DN hex escaping + random casing
+- Attribute list OID aliasing + random casing
+
+> [!NOTE]
+> Results are functionally equivalent in most cases, but approximation/wildcard expansions can broaden matches. Performance may vary.
+
+> [!warning]
+> Excessive obfuscation may be rejected by strict servers or intermediary tooling. Use only when needed.
+
+* ldapx: Flexible LDAP proxy used for inspiration and reference on filter/DN/attribute transformations — https://github.com/Macmod/ldapx
+* Research: MaLDAPtive: Obfuscation and De-Obfuscation (DEF CON 32 talk) — https://www.youtube.com/watch?v=mKRS5Iyy7Qo
+* Authors: Sabajete Elezaj — https://x.com/sabi_elezi, Daniel Bohannon — https://x.com/danielhbohannon
+
 ## Module available (so far?)
 
 ```cs
 PV >
-Add-ADComputer                 Find-ForeignUser               Get-DomainTrustKey             Invoke-MessageBox              Restore-ADObject 
-Add-ADUser                     Find-LocalAdminAccess          Get-DomainUser                 Invoke-PrinterBug              Restore-DomainObject 
-Add-CATemplate                 Get-ADObject                   Get-DomainWDS                  Login-As                       Set-ADObject 
-Add-CATemplateAcl              Get-CA                         Get-ExchangeDatabase           Logoff-Session                 Set-ADObjectDN 
-Add-DMSA                       Get-CATemplate                 Get-ExchangeMailbox            Reboot-Computer                Set-CATemplate 
-Add-DomainCATemplate           Get-DMSA                       Get-ExchangeServer             Remove-ADComputer              Set-DomainCATemplate 
-Add-DomainCATemplateAcl        Get-Domain                     Get-GMSA                       Remove-ADObject                Set-DomainComputerPassword 
-Add-DomainComputer             Get-DomainCA                   Get-GPOLocalGroup              Remove-ADUser                  Set-DomainDNSRecord 
-Add-DomainDMSA                 Get-DomainCATemplate           Get-GPOSettings                Remove-CATemplate              Set-DomainObject 
-Add-DomainDNSRecord            Get-DomainComputer             Get-LocalUser                  Remove-DMSA                    Set-DomainObjectDN 
-Add-DomainGMSA                 Get-DomainController           Get-NamedPipes                 Remove-DomainCATemplate        Set-DomainObjectOwner 
-Add-DomainGPO                  Get-DomainDMSA                 Get-NetComputer                Remove-DomainComputer          Set-DomainRBCD 
-Add-DomainGroup                Get-DomainDNSRecord            Get-NetComputerInfo            Remove-DomainDMSA              Set-DomainUserPassword 
-Add-DomainGroupMember          Get-DomainDNSZone              Get-NetLoggedOn                Remove-DomainDNSRecord         Set-NetService 
-Add-DomainOU                   Get-DomainForeignGroupMember   Get-NetProcess                 Remove-DomainGMSA              Set-ObjectOwner 
-Add-DomainObjectAcl            Get-DomainForeignUser          Get-NetService                 Remove-DomainGroupMember       Set-RBCD 
-Add-DomainUser                 Get-DomainGMSA                 Get-NetSession                 Remove-DomainOU                Shutdown-Computer 
-Add-GMSA                       Get-DomainGPO                  Get-NetShare                   Remove-DomainObject            Start-NetService 
-Add-GPLink                     Get-DomainGPOLocalGroup        Get-NetTerminalSession         Remove-DomainObjectAcl         Stop-Computer 
-Add-GPO                        Get-DomainGPOSettings          Get-ObjectAcl                  Remove-DomainUser              Stop-NetProcess 
-Add-GroupMember                Get-DomainGroup                Get-ObjectOwner                Remove-GMSA                    Stop-NetService 
-Add-NetService                 Get-DomainGroupMember          Get-RBCD                       Remove-GPLink                  Unlock-ADAccount 
-Add-OU                         Get-DomainOU                   Get-RegLoggedOn                Remove-GroupMember             clear 
-Add-ObjectAcl                  Get-DomainObject               Get-SCCM                       Remove-NetService              exit 
-Clear-Cache                    Get-DomainObjectAcl            Get-TrustKey                   Remove-NetSession              get_pool_stats 
-ConvertFrom-SID                Get-DomainObjectOwner          Get-WDS                        Remove-NetTerminalSession      history 
-ConvertFrom-UACValue           Get-DomainRBCD                 Invoke-ASREPRoast              Remove-OU                      taskkill 
-Disable-DomainDNSRecord        Get-DomainSCCM                 Invoke-DFSCoerce               Remove-ObjectAcl               tasklist 
-Find-ForeignGroup              Get-DomainTrust                Invoke-Kerberoast              Restart-Computer               
+Add-ADComputer                 Find-ForeignUser               Get-DomainTrustKey             Invoke-PrinterBug              Restore-DomainObject 
+Add-ADUser                     Find-LocalAdminAccess          Get-DomainUser                 Login-As                       Set-ADObject 
+Add-CATemplate                 Get-ADObject                   Get-DomainWDS                  Logoff-Session                 Set-ADObjectDN 
+Add-CATemplateAcl              Get-CA                         Get-ExchangeDatabase           Reboot-Computer                Set-CATemplate 
+Add-DMSA                       Get-CATemplate                 Get-ExchangeMailbox            Remove-ADComputer              Set-DomainCATemplate 
+Add-DomainCATemplate           Get-DMSA                       Get-ExchangeServer             Remove-ADObject                Set-DomainComputerPassword 
+Add-DomainCATemplateAcl        Get-Domain                     Get-GMSA                       Remove-ADUser                  Set-DomainDNSRecord 
+Add-DomainComputer             Get-DomainCA                   Get-GPOLocalGroup              Remove-CATemplate              Set-DomainObject 
+Add-DomainDMSA                 Get-DomainCATemplate           Get-GPOSettings                Remove-DMSA                    Set-DomainObjectDN 
+Add-DomainDNSRecord            Get-DomainComputer             Get-LocalUser                  Remove-DomainCATemplate        Set-DomainObjectOwner 
+Add-DomainGMSA                 Get-DomainController           Get-NamedPipes                 Remove-DomainComputer          Set-DomainRBCD 
+Add-DomainGPO                  Get-DomainDMSA                 Get-NetComputerInfo            Remove-DomainDMSA              Set-DomainUserPassword 
+Add-DomainGroup                Get-DomainDNSRecord            Get-NetLoggedOn                Remove-DomainDNSRecord         Set-NetService 
+Add-DomainGroupMember          Get-DomainDNSZone              Get-NetProcess                 Remove-DomainGMSA              Set-ObjectOwner 
+Add-DomainOU                   Get-DomainForeignGroupMember   Get-NetService                 Remove-DomainGroupMember       Set-RBCD 
+Add-DomainObjectAcl            Get-DomainForeignUser          Get-NetSession                 Remove-DomainOU                Shutdown-Computer 
+Add-DomainUser                 Get-DomainGMSA                 Get-NetShare                   Remove-DomainObject            Start-NetService 
+Add-GMSA                       Get-DomainGPO                  Get-NetTerminalSession         Remove-DomainObjectAcl         Stop-Computer 
+Add-GPLink                     Get-DomainGPOLocalGroup        Get-ObjectAcl                  Remove-DomainUser              Stop-NetProcess 
+Add-GPO                        Get-DomainGPOSettings          Get-ObjectOwner                Remove-GMSA                    Stop-NetService 
+Add-GroupMember                Get-DomainGroup                Get-RBCD                       Remove-GPLink                  Unlock-ADAccount 
+Add-NetService                 Get-DomainGroupMember          Get-RegLoggedOn                Remove-GroupMember             clear 
+Add-OU                         Get-DomainOU                   Get-SCCM                       Remove-NetService              exit 
+Add-ObjectAcl                  Get-DomainObject               Get-TrustKey                   Remove-NetSession              get_pool_stats 
+Clear-Cache                    Get-DomainObjectAcl            Get-WDS                        Remove-NetTerminalSession      history 
+ConvertFrom-SID                Get-DomainObjectOwner          Invoke-ASREPRoast              Remove-OU                      taskkill 
+ConvertFrom-UACValue           Get-DomainRBCD                 Invoke-DFSCoerce               Remove-ObjectAcl               tasklist 
+Disable-DomainDNSRecord        Get-DomainSCCM                 Invoke-Kerberoast              Restart-Computer               
+Find-ForeignGroup              Get-DomainTrust                Invoke-MessageBox              Restore-ADObject               
 ```
 
 ### Domain/LDAP Functions
@@ -415,25 +451,16 @@ You can specify multiple values for a condition using:
 }
 ```
 
-**Debug Mode:**
-
-Enable vulnerability detection debug mode by setting the environment variable:
-```bash
-export POWERVIEW_DEBUG_VULN=1
-```
-
-This will log detailed information about rule matching to help troubleshoot custom rules.
-
 ### MCP
 
 > [!note]
 > This is not bundled in the base project installation. You may run `pip3 install .[mcp] or pip3 install powerview[mcp]` to include MCP functionalities.
 
-This enables the Model Context Protocol server, allowing AI assistants to interact with PowerView functionality through a standardized interface via HTTP SSE transport. See the [MCP documentation](powerview/mcp/README.md) for more details.
+This enables the Model Context Protocol server, allowing AI agents to interact with PowerView functionality through a standardized interface via Streamable HTTP transport. See the [MCP documentation](powerview/mcp/README.md) for more details.
 
 * Start MCP server
 ```bash
-powerview domain.local/lowpriv:Password1234@10.10.10.10 --mcp [--mcp-host 0.0.0.0] [--mcp-port 8888]
+powerview domain.local/lowpriv:Password1234@10.10.10.10 --mcp [--mcp-host 0.0.0.0] [--mcp-port 8888] [--mcp-path powerview]
 ```
 
 The MCP server exposes most of PowerView's functionality through a standardized tool interface. This includes the ability to:
@@ -443,7 +470,7 @@ The MCP server exposes most of PowerView's functionality through a standardized 
 - ...
 
 #### Claude Desktop
-Claude Desktop does not support yet support SSE transport [Github](https://github.com/orgs/modelcontextprotocol/discussions/16). You may want to use [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy).
+Claude Desktop does not support yet support HTTP based transport [Github](https://github.com/orgs/modelcontextprotocol/discussions/16). You may want to use [mcp-proxy](https://github.com/sparfenyuk/mcp-proxy).
 
 * Install `mcp-proxy`
 ```bash
@@ -460,7 +487,7 @@ pipx install mcp-proxy
   "mcpServers": {
     "Powerview": {
         "command": "mcp-proxy",
-        "args": ["http://10.10.10.10/sse"]
+        "args": ["http://10.10.10.10:5000/powerview"]
     }
   }
 }
@@ -476,7 +503,7 @@ You can modify this in cursor settings under MCP options button.
 {
   "mcpServers": {
     "Powerview": {
-      "url": "http://127.0.0.1:8080/sse"
+      "url": "http://127.0.0.1:5000/powerview"
     }
   }
 }

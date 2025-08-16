@@ -90,6 +90,7 @@ class APIServer:
 		add_route_with_auth('/smb', 'smb', self.render_smb, methods=['GET'])
 		add_route_with_auth('/utils', 'utils', self.render_utils, methods=['GET'])
 		add_route_with_auth('/api/server/info', 'server_info', self.handle_server_info, methods=['GET'])
+		add_route_with_auth('/api/server/schema', 'schema_info', self.handle_schema_info, methods=['GET'])
 		add_route_with_auth('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
 		add_route_with_auth('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		add_route_with_auth('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
@@ -340,19 +341,13 @@ class APIServer:
 		return jsonify(vars(self.powerview.args))
 	
 	def handle_server_info(self):
-		server_info = self.powerview.conn.ldap_server.info
-		
-		return jsonify({
-			'supported_ldap_versions': server_info.supported_ldap_versions,
-			'naming_contexts': server_info.naming_contexts,
-			'supported_controls': server_info.supported_controls,
-			'supported_extensions': server_info.supported_extensions,
-			'supported_features': server_info.supported_features,
-			'supported_sasl_mechanisms': server_info.supported_sasl_mechanisms,
-			'schema_entry': server_info.schema_entry,
-			'other': dict(server_info.other) if server_info.other else {}
-		})
+		server_info = self.powerview.conn.get_server_info()
+		return jsonify(server_info)
 
+	def handle_schema_info(self):
+		schema_info = self.powerview.conn.get_schema_info()
+		return jsonify(schema_info)
+		
 	def handle_set_settings(self):
 		try:
 			obfuscate = request.json.get('obfuscate', False)
@@ -510,18 +505,45 @@ class APIServer:
 			return jsonify({'error': str(e)}), 400
 
 	def start(self):
+		debug_enabled = bool(getattr(self.powerview.args, 'debug', False))
+		request_handler = None
+		try:
+			from werkzeug.serving import WSGIRequestHandler
+			class _SilentRequestHandler(WSGIRequestHandler):
+				def log_request(self, *args, **kwargs):
+					return
+			request_handler = _SilentRequestHandler
+		except Exception:
+			request_handler = None
 		log = logging.getLogger('werkzeug')
-		log.disabled = True
+		log.setLevel(logging.CRITICAL)
+		log.propagate = False
+		try:
+			self.app.logger.disabled = True
+		except Exception:
+			pass
 
-		with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+		run_kwargs = {'host': self.host, 'port': self.port, 'debug': False}
+		if request_handler is not None:
+			run_kwargs['request_handler'] = request_handler
+
+		if debug_enabled:
 			self.api_server_thread = threading.Thread(
 				target=self.app.run,
-				kwargs={'host': self.host, 'port': self.port, 'debug': False},
+				kwargs=run_kwargs,
 				daemon=True
 			)
-			self.set_status(True)
-			logging.info(f"Powerview web listening on {self.host}:{self.port}")
-			self.api_server_thread.start()
+		else:
+			with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+				self.api_server_thread = threading.Thread(
+					target=self.app.run,
+					kwargs=run_kwargs,
+					daemon=True
+				)
+
+		self.set_status(True)
+		logging.info(f"Powerview web listening on {self.host}:{self.port}")
+		self.api_server_thread.start()
 
 	def handle_smb_connect(self):
 		try:
@@ -896,7 +918,7 @@ class APIServer:
 
 			smb_client = SMBClient(client)
 			content = smb_client.cat(share, path)
-			if content is None:
+			if content is None or len(content) == 0:
 				return jsonify({'error': 'Failed to read file content'}), 500
 
 			return content, 200
@@ -1318,20 +1340,18 @@ class APIServer:
 
 	def handle_smb_sessions(self):
 		try:
-			# Get SMB session statistics from the connection pool
 			stats = self.powerview.conn.get_smb_session_stats()
 			
-			# Convert to the expected format for the frontend
 			sessions = {}
 			if 'hosts' in stats:
 				for host, host_stats in stats['hosts'].items():
 					sessions[host] = {
 						'computer': host,
 						'connected': host_stats.get('is_alive', False),
-						'authenticated': True,  # If it's in the pool, it's authenticated
-						'last_used': host_stats.get('last_used', 0),
+						'last_used': datetime.fromtimestamp(host_stats.get('last_used', 0)).strftime('%Y-%m-%d %H:%M:%S') if 'last_used' in host_stats else 'N/A',
 						'use_count': host_stats.get('use_count', 0),
-						'age': host_stats.get('age', 0)
+						'age': host_stats.get('age', 0),
+						'last_check': datetime.fromtimestamp(host_stats.get('last_check_time', 0)).strftime('%Y-%m-%d %H:%M:%S') if 'last_check_time' in host_stats else 'N/A'
 					}
 			
 			return jsonify({'sessions': sessions})

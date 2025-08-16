@@ -326,6 +326,7 @@ async function handleHttpError(response) {
     if (!response.ok) {
         if (response.status === 400) {
             const errorResponse = await response.json();
+            console.log(errorResponse);
             if (errorResponse.error) {
                 console.log('Error response:', errorResponse.error);
                 showErrorAlert(errorResponse.error);

@@ -23,6 +23,7 @@ import ldap3
 import random
 import string
 import shlex
+import os
 
 def main():
     """
@@ -403,6 +404,7 @@ def main():
                                             binary_path=pv_args.binary_path,
                                             service_type=pv_args.service_type,
                                             start_type=pv_args.start_type,
+                                            delayed_start=pv_args.delayed_start,
                                             error_control=pv_args.error_control,
                                             service_start_name=pv_args.service_start_name,
                                             password=pv_args.password
@@ -415,6 +417,7 @@ def main():
                                             binary_path=pv_args.binary_path,
                                             service_type=pv_args.service_type,
                                             start_type=pv_args.start_type,
+                                            delayed_start=pv_args.delayed_start,
                                             error_control=pv_args.error_control,
                                             service_start_name=pv_args.service_start_name,
                                             password=pv_args.password
@@ -485,11 +488,6 @@ def main():
                                         succeed = powerview.stop_netprocess(identity=computername, port=445, args=pv_args)
                                 else:
                                     logging.error('-Computer or -ComputerName is required')
-
-                                if succeed:
-                                    logging.info(f'Successfully stopped process {pv_args.pid or pv_args.name} on {computername}')
-                                else:
-                                    logging.error(f'Failed to stop process {pv_args.pid or pv_args.name} on {computername}')
                             elif pv_args.module.casefold() == 'get-netsession':
                                 if pv_args.computer is not None or pv_args.computername is not None:
                                     computername = pv_args.computer if pv_args.computer else pv_args.computername
@@ -545,6 +543,11 @@ def main():
                                     succeed = temp_powerview.invoke_messagebox(identity=computername, args=pv_args)
                                 else:
                                     succeed = powerview.invoke_messagebox(identity=computername, args=pv_args)
+                            elif pv_args.module.casefold() == 'invoke-badsuccessor':
+                                if temp_powerview:
+                                    entries = temp_powerview.invoke_badsuccessor(args=pv_args)
+                                else:
+                                    entries = powerview.invoke_badsuccessor(args=pv_args)
                             elif pv_args.module.casefold() == 'get-exchangeserver' or pv_args.module.casefold() == 'get-exchange':
                                 if temp_powerview:
                                     entries = temp_powerview.get_exchangeserver(args=pv_args)
@@ -567,9 +570,25 @@ def main():
                             elif pv_args.module.casefold() == 'unlock-adaccount':
                                 if pv_args.identity is not None:
                                     if temp_powerview:
-                                        succeed = temp_powerview.unlock_adaccount(identity=pv_args.identity, args=pv_args)
+                                        succeed = temp_powerview.unlock_adaccount(args=pv_args)
                                     else:
-                                        succeed = powerview.unlock_adaccount(identity=pv_args.identity, args=pv_args)
+                                        succeed = powerview.unlock_adaccount(args=pv_args)
+                                else:
+                                    logging.error('-Identity flag is required')
+                            elif pv_args.module.casefold() == 'enable-adaccount':
+                                if pv_args.identity is not None:
+                                    if temp_powerview:
+                                        succeed = temp_powerview.enable_adaccount(args=pv_args)
+                                    else:
+                                        succeed = powerview.enable_adaccount(args=pv_args)
+                                else:
+                                    logging.error('-Identity flag is required')
+                            elif pv_args.module.casefold() == 'disable-adaccount':
+                                if pv_args.identity is not None:
+                                    if temp_powerview:
+                                        succeed = temp_powerview.disable_adaccount(args=pv_args)
+                                    else:
+                                        succeed = powerview.disable_adaccount(args=pv_args)
                                 else:
                                     logging.error('-Identity flag is required')
                             elif pv_args.module.casefold() == 'add-domaingpo' or pv_args.module.casefold() == 'add-gpo':
@@ -590,9 +609,31 @@ def main():
                                     logging.error('-Identity flag is required')
                             elif pv_args.module.casefold() == 'add-netservice':
                                 if temp_powerview:
-                                    succeed = temp_powerview.add_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name, display_name=pv_args.display_name, binary_path=pv_args.binary_path, service_type=pv_args.service_type, start_type=pv_args.start_type, error_control=pv_args.error_control, service_start_name=pv_args.service_start_name, password=pv_args.password)
+                                    succeed = temp_powerview.add_netservice(
+                                        computer_name=pv_args.computer,
+                                        service_name=pv_args.service_name,
+                                        display_name=pv_args.display_name,
+                                        binary_path=pv_args.binary_path,
+                                        service_type=pv_args.service_type,
+                                        start_type=pv_args.start_type,
+                                        delayed_start=pv_args.delayed_start,
+                                        error_control=pv_args.error_control,
+                                        service_start_name=pv_args.service_start_name,
+                                        password=pv_args.password
+                                    )
                                 else:
-                                    succeed = powerview.add_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name, display_name=pv_args.display_name, binary_path=pv_args.binary_path, service_type=pv_args.service_type, start_type=pv_args.start_type, error_control=pv_args.error_control, service_start_name=pv_args.service_start_name, password=pv_args.password)
+                                    succeed = powerview.add_netservice(
+                                        computer_name=pv_args.computer,
+                                        service_name=pv_args.service_name,
+                                        display_name=pv_args.display_name,
+                                        binary_path=pv_args.binary_path,
+                                        service_type=pv_args.service_type,
+                                        start_type=pv_args.start_type,
+                                        delayed_start=pv_args.delayed_start,
+                                        error_control=pv_args.error_control,
+                                        service_start_name=pv_args.service_start_name,
+                                        password=pv_args.password
+                                    )
                             elif pv_args.module.casefold() == 'remove-domainou' or pv_args.module.casefold() == 'remove-ou':
                                 if pv_args.identity is not None:
                                     if temp_powerview:
@@ -603,9 +644,15 @@ def main():
                                     logging.error('-Identity flag is required')
                             elif pv_args.module.casefold() == 'remove-netservice':
                                 if temp_powerview:
-                                    succeed = temp_powerview.remove_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name)
+                                    succeed = temp_powerview.remove_netservice(
+                                        computer_name=pv_args.computer,
+                                        service_name=pv_args.service_name
+                                    )
                                 else:
-                                    succeed = powerview.remove_netservice(computer_name=pv_args.computer, service_name=pv_args.service_name)
+                                    succeed = powerview.remove_netservice(
+                                        computer_name=pv_args.computer,
+                                        service_name=pv_args.service_name
+                                    )
                             elif pv_args.module.casefold() == 'add-domainobjectacl' or pv_args.module.casefold() == 'add-objectacl':
                                 if pv_args.targetidentity is not None and pv_args.principalidentity is not None and pv_args.rights is not None:
                                     if temp_powerview:
@@ -860,6 +907,30 @@ def main():
                                         powerview.remove_gplink(guid=pv_args.guid, targetidentity=pv_args.targetidentity, args=pv_args)
                                 else:
                                     logging.error("-GUID and -TargetIdentity flags are required")
+                            elif pv_args.module.casefold() == 'dump-schema':
+                                if temp_powerview:
+                                    schema = temp_powerview.conn.get_schema_info(raw=True)
+                                else:
+                                    schema = powerview.conn.get_schema_info(raw=True)
+                                if pv_args.text:
+                                    print(schema)
+                                else:
+                                    if not pv_args.outfile:
+                                        pv_args.outfile = f"{powerview.conn.domain.lower()}-schema.json"
+                                    schema.to_file(os.path.expanduser(pv_args.outfile))
+                                    logging.info(f"Schema dumped to {pv_args.outfile}")
+                            elif pv_args.module.casefold() == 'dump-serverinfo':
+                                if temp_powerview:
+                                    server_info = temp_powerview.conn.get_server_info(raw=True)
+                                else:
+                                    server_info = powerview.conn.get_server_info(raw=True)
+                                if pv_args.text:
+                                    print(server_info)
+                                else:
+                                    if not pv_args.outfile:
+                                        pv_args.outfile = f"{powerview.conn.domain.lower()}-server_info.json"
+                                    server_info.to_file(os.path.expanduser(pv_args.outfile))
+                                    logging.info(f"Server info dumped to {pv_args.outfile}")
                             elif pv_args.module.casefold() == 'get_pool_stats':
                                 if temp_powerview:
                                     stats = temp_powerview.conn.get_pool_stats()
@@ -936,9 +1007,6 @@ def main():
                             logging.error(str(e))
                             conn.reset_connection()
             except KeyboardInterrupt:
-                if args.mcp and hasattr(powerview, 'mcp_server') and powerview.mcp_server.get_status():
-                    powerview.mcp_server.stop()
-                log_handler.save_history()
                 print()
             except EOFError:
                 if args.mcp and hasattr(powerview, 'mcp_server') and powerview.mcp_server.get_status():
@@ -951,13 +1019,14 @@ def main():
                     ldap3.core.exceptions.LDAPSocketReceiveError) as e:
                 logging.info(f"LDAP Socket Error: {str(e)}")
                 conn.reset_connection()
+                log_handler.save_history()
             except ldap3.core.exceptions.LDAPSessionTerminatedByServerError:
                 logging.warning("Server connection terminated. Trying to reconnect")
                 conn.reset_connection()
-                continue
+                log_handler.save_history()
             except ldap3.core.exceptions.LDAPInvalidDnError as e:
                 logging.error(f"LDAPInvalidDnError: {str(e)}")
-                continue
+                log_handler.save_history()
             except Exception as e:
                 if args.stack_trace:
                     log_handler.save_history()

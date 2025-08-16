@@ -311,6 +311,20 @@ class SERVICE_ERROR_CONTROL(IntFlag):
 	def to_str(self):
 		return f"{self._name_} ({self._value_})"
 
+# MessageBox uType flags (MSDN-MSGBOX)
+class MSGBOX_TYPE(IntFlag):
+    MB_OK = 0x00000000
+    MB_OKCANCEL = 0x00000001
+    MB_ABORTRETRYIGNORE = 0x00000002
+    MB_YESNOCANCEL = 0x00000003
+    MB_YESNO = 0x00000004
+    MB_RETRYCANCEL = 0x00000005
+    MB_CANCELTRYCONTINUE = 0x00000006
+    MB_HELP = 0x00004000
+
+    def to_str(self):
+        return f"{self._name_} ({self._value_})"
+
 # constants for dwServiceStatus
 class SERVICE_STATUS(IntFlag):
 	STOPPED = 0x00000001
@@ -4259,4 +4273,10 @@ TABLE_FMT_MAP = {
     "tsv": "tsv",
     "latex": "latex",
     "html": "html"
+}
+
+DESKTOP_STATES = {
+	'WTS_SESSIONSTATE_UNKNOWN': '',
+	'WTS_SESSIONSTATE_LOCK'   : 'Locked',
+	'WTS_SESSIONSTATE_UNLOCK' : 'Unlocked',
 }

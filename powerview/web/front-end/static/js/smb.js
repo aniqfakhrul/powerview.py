@@ -3,6 +3,65 @@ let stickyHeaderContainerElement = null;
 let smbTableHeadersElement = null;
 let contextMenuElement = null;
 
+// Tab Status Functions - Global scope
+async function updateTabStatus(computer, status = null) {
+    const indicator = document.querySelector(`.status-indicator[data-computer="${computer}"]`);
+    if (!indicator) return;
+    
+    if (status === null) {
+        // Fetch current status
+        fetchSMBSessions().then(sessions => {
+            const normalizedComputer = computer.toLowerCase();
+            const session = sessions[normalizedComputer];
+            if (session) {
+                updateTabStatusIndicator(indicator, session.connected);
+            } else {
+                updateTabStatusIndicator(indicator, false);
+            }
+        }).catch(() => {
+            updateTabStatusIndicator(indicator, false);
+        });
+    } else {
+        updateTabStatusIndicator(indicator, status);
+    }
+}
+
+function updateTabStatusIndicator(indicator, isConnected) {
+    indicator.className = `status-indicator w-2 h-2 rounded-full ${
+        isConnected 
+            ? 'bg-green-500 shadow-lg shadow-green-500/30' 
+            : 'bg-red-500 shadow-lg shadow-red-500/30'
+    }`;
+    indicator.title = isConnected ? 'Connected' : 'Disconnected';
+}
+
+async function updateAllTabStatuses() {
+    fetchSMBSessions().then(sessions => {
+        Object.keys(sessions).forEach(key => {
+            // Find the original computer name from tabs
+            const indicators = document.querySelectorAll('.status-indicator');
+            indicators.forEach(ind => {
+                if (ind.dataset.computer.toLowerCase() === key) {
+                    updateTabStatusIndicator(ind, sessions[key].connected);
+                }
+            });
+        });
+        
+        // Also update any tabs that might not have active sessions
+        document.querySelectorAll('.status-indicator').forEach(indicator => {
+            const normalizedComputer = indicator.dataset.computer.toLowerCase();
+            if (!sessions[normalizedComputer]) {
+                updateTabStatusIndicator(indicator, false);
+            }
+        });
+    }).catch(() => {
+        // Mark all as disconnected on error
+        document.querySelectorAll('.status-indicator').forEach(indicator => {
+            updateTabStatusIndicator(indicator, false);
+        });
+    });
+}
+
 // Add this near the top of the file or after the DOM content loaded event
 let renameModalData = {
     computer: null,
@@ -14,7 +73,22 @@ let renameModalData = {
     dirPath: null
 };
 
-document.addEventListener('DOMContentLoaded', () => {
+// Ensure inline SVG IDs are unique per instance to avoid gradient/defs collisions across tabs
+let __pvSvgUid = 0;
+function uniquifySvgIds(svgString) {
+    try {
+        const uid = `pv${++__pvSvgUid}`;
+        return svgString
+            .replace(/id="([^"]+)"/g, (m, id) => `id="${id}-${uid}"`)
+            .replace(/url\(#([^)]+)\)/g, (m, id) => `url(#${id}-${uid})`)
+            .replace(/href="#([^"]+)"/g, (m, id) => `href="#${id}-${uid}"`)
+            .replace(/xlink:href="#([^"]+)"/g, (m, id) => `xlink:href="#${id}-${uid}"`);
+    } catch {
+        return svgString;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
     stickyHeaderContainerElement = document.getElementById('sticky-header-container');
     smbTableHeadersElement = document.getElementById('smb-table-headers');
     contextMenuElement = document.getElementById('smb-context-menu');
@@ -45,6 +119,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchResults = document.getElementById('search-results');
     const searchStatus = document.getElementById('search-status');
     
+    // Export CSV button
+    const exportCsvButton = document.getElementById('export-search-csv');
+    if (exportCsvButton) {
+        exportCsvButton.addEventListener('click', () => {
+            if (window.lastSearchResults) {
+                exportSearchResultsToCSV(
+                    window.lastSearchResults.items, 
+                    window.lastSearchResults.search_info
+                );
+            } else {
+                showErrorAlert('No search results to export');
+            }
+        });
+    }
+    
+    // Add properties panel close button handler
+    const closePropertiesButton = document.getElementById('close-properties-panel');
+    if (closePropertiesButton) {
+        closePropertiesButton.addEventListener('click', () => {
+            const propertiesPanel = document.getElementById('properties-panel');
+            propertiesPanel.classList.add('translate-x-full');
+            setTimeout(() => {
+                propertiesPanel.classList.add('hidden');
+            }, 300);
+        });
+    }
+    
+    // Prevent properties panel closing when clicking inside
+    const propertiesPanel = document.getElementById('properties-panel');
+    if (propertiesPanel) {
+        propertiesPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+    }
+
     // Add toggle search panel button handler
     const toggleSearchButton = document.getElementById('toggle-search');
     if (toggleSearchButton) {
@@ -224,29 +333,53 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     function addPCTab(computer) {
+        const tabsContainer = document.getElementById('pc-tabs');
+        
+        // Remove existing tab if present
+        const existingTab = document.querySelector(`[data-computer="${computer}"]`);
+        if (existingTab) {
+            existingTab.remove();
+        }
+        
         const tab = document.createElement('div');
-        tab.dataset.computer = computer;
         tab.id = `tab-${computer}`;
-        tab.className = 'flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer border-b-2 border-transparent';
+        tab.className = 'flex items-center gap-2 px-3 py-2 border-neutral-200 dark:border-neutral-700 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800 whitespace-nowrap';
+        tab.dataset.computer = computer;
         tab.innerHTML = `
-            <i class="fas fa-computer fa-sm"></i>
-            <span>${computer}</span>
-            <button class="close-tab ml-1.5 text-neutral-400 hover:text-red-500">
-                <i class="fas fa-times fa-sm"></i>
-            </button>
+            <div class="flex items-center gap-2">
+                <div class="status-indicator w-2 h-2 rounded-full bg-gray-400" data-computer="${computer}" title="Connection status"></div>
+                <i class="fas fa-desktop text-neutral-600 dark:text-neutral-400"></i>
+                <span class="font-medium text-neutral-900 dark:text-white">${computer}</span>
+                <button class="disconnect-btn ml-2 text-neutral-400 hover:text-red-500 dark:hover:text-red-400" 
+                        data-computer="${computer}" title="Disconnect">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
         `;
         
-        tab.onclick = () => switchToPC(computer);
+        // Add click handler for tab switching
+        tab.addEventListener('click', (e) => {
+            if (!e.target.closest('.disconnect-btn')) {
+                switchToPC(computer);
+            }
+        });
         
-        // Handle close button
-        const closeBtn = tab.querySelector('.close-tab');
-        closeBtn.onclick = (e) => {
+        // Add disconnect handler
+        tab.querySelector('.disconnect-btn').addEventListener('click', (e) => {
             e.stopPropagation();
             disconnectPC(computer);
-        };
+        });
         
-        pcTabs.appendChild(tab);
+        tabsContainer.appendChild(tab);
+        
+        // Set as active
+        switchToPC(computer);
+        
+        // Update status immediately after a short delay to allow connection to establish
+        setTimeout(() => updateTabStatus(computer), 1000);
     }
+
+    // Tab status functions are now defined globally above
 
     function addPCView(computer, shares) {
         const view = document.createElement('div');
@@ -266,9 +399,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update tabs
         document.querySelectorAll('#pc-tabs > div').forEach(tab => {
-            tab.classList.remove('text-neutral-900', 'dark:text-white', 'border-blue-500', 'dark:border-yellow-500');
+            tab.classList.remove('bg-neutral-100', 'dark:bg-neutral-800', 'border-b-2', 'border-blue-500', 'dark:border-yellow-500');
             if (tab.id === `tab-${computer}`) {
-                tab.classList.add('text-neutral-900', 'dark:text-white', 'border-blue-500', 'dark:border-yellow-500');
+                tab.classList.add('bg-neutral-100', 'dark:bg-neutral-800', 'border-b-2', 'border-blue-500', 'dark:border-yellow-500');
             }
         });
 
@@ -282,6 +415,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function disconnectPC(computer) {
+        // Update tab status to disconnected immediately
+        updateTabStatus(computer, false);
+        
         // Remove tab
         const tab = document.getElementById(`tab-${computer}`);
         if (tab) tab.remove();
@@ -477,6 +613,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await response.json();
             if (result.status === 'reconnected') {
                 showSuccessAlert(`Successfully reconnected to ${computer}`);
+                updateTabStatus(computer, true);
             } else {
                 throw new Error(result.error || 'Reconnect failed with unknown error');
             }
@@ -484,6 +621,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('Reconnect error:', error);
             showErrorAlert(error.message);
+            updateTabStatus(activeComputer, false);
         } finally {
             // Remove spinning class and re-enable button
             const refreshIcon = refreshButton.querySelector('.fa-sync-alt');
@@ -547,6 +685,45 @@ document.addEventListener('DOMContentLoaded', () => {
         authTypeSelect.addEventListener('change', updateAuthInputs);
         updateAuthInputs();
     }
+
+    // Auto-load active sessions
+    try {
+        const sessions = await fetchSMBSessions();
+        const connectedComputers = Object.keys(sessions).filter(key => sessions[key].connected);
+        
+        if (connectedComputers.length > 0) {
+            let firstComputer = null;
+            
+            for (const key of connectedComputers) {
+                // Use the original case from session data or find matching tab
+                const computer = Object.keys(sessions).find(original => original.toLowerCase() === key) || key;
+                if (!connectedPCs.has(computer)) {
+                    connectedPCs.add(computer);
+                    addPCTab(computer);
+                    const shares = await listSMBShares(computer);
+                    addPCView(computer, shares);
+                    if (!firstComputer) {
+                        firstComputer = computer;
+                    }
+                }
+            }
+            
+            if (firstComputer) {
+                switchToPC(firstComputer);
+            }
+            updateAllTabStatuses();
+        }
+    } catch (error) {
+        console.error('Error auto-loading sessions:', error);
+    }
+
+    // Add Enter key handler for computer input
+    computerInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            connectButton.click();
+        }
+    });
 });
 
 // Reuse the existing SMB functions from main.js
@@ -564,7 +741,14 @@ async function connectToSMB(data) {
         throw new Error(error.error || 'Failed to connect to SMB share');
     }
 
-    return response.json();
+    const result = await response.json();
+    
+    // Update tab status immediately on successful connection
+    if (result.host) {
+        setTimeout(() => updateTabStatus(result.host, true), 500);
+    }
+    
+    return result;
 }
 
 // ... (copy the rest of the SMB-related functions from main.js)
@@ -631,7 +815,7 @@ function buildSMBTreeView(shares, computer) {
                 <div class="grid grid-cols-12 gap-2 items-center hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded cursor-pointer py-0 px-1.5">
                     <div class="col-span-6">
                         <div class="flex items-center gap-1.5 min-w-0">
-                            <span class="text-yellow-500 flex-shrink-0">${icons.smbshareIcon}</span>
+                            <span class="text-yellow-500 flex-shrink-0">${uniquifySvgIds(icons.smbshareIcon)}</span>
                             <span class="text-neutral-900 dark:text-white truncate">${shareName}</span>
                             <span class="text-xs text-neutral-500 dark:text-neutral-400 truncate">${share.attributes.Remark || ''}</span>
                             <span class="spinner-container flex-shrink-0"></span>
@@ -675,6 +859,7 @@ function attachTreeViewListeners() {
                     subList.classList.remove('hidden');
                     attachFileListeners();
                     updateStickyHeaders(share);
+                    // Shares don't toggle folder icons, but we keep symmetry
                 } catch (error) {
                     console.error('Error loading files:', error);
                 } finally {
@@ -737,10 +922,8 @@ function attachFileListeners() {
         const spinnerContainer = item.querySelector('.spinner-container');
         const fileDiv = item.querySelector('div');
         
-        // Add loading state tracking
         let isLoading = false;
 
-        // Handle double click for files
         if (!isDirectory) {
             fileDiv.addEventListener('dblclick', async () => {
                 if (isLoading) return;
@@ -748,7 +931,6 @@ function attachFileListeners() {
                 try {
                     isLoading = true;
                     showInlineSpinner(spinnerContainer);
-                    // Normalize path separators before sending to API
                     const cleanPath = path.replace(/^\//, '').replace(/\//g, '\\');
                     await viewSMBFile(computer, share, cleanPath);
                 } catch (error) {
@@ -777,6 +959,7 @@ function attachFileListeners() {
                     // Update UNC path when toggling folder visibility
                     if (!subList.classList.contains('hidden')) {
                         updateStickyHeaders(currentShare, currentItemPath);
+                        try { updateDirectoryIcon(item, true); } catch {}
                     } else {
                         // If collapsing, path reverts to parent (share in this case for top-level folder)
                         // Or more accurately, path of the item being clicked itself if we are just collapsing it.
@@ -788,6 +971,7 @@ function attachFileListeners() {
                         } else {
                             updateStickyHeaders(currentShare);
                         }
+                        try { updateDirectoryIcon(item, false); } catch {}
                     }
                     return;
                 }
@@ -795,13 +979,13 @@ function attachFileListeners() {
                 try {
                     isLoading = true;
                     showInlineSpinner(spinnerContainer);
-                    // Normalize path separators before sending to API
                     const cleanPath = currentItemPath.replace(/^\//, '').replace(/\//g, '\\');
                     const files = await listSMBPath(computer, currentShare, cleanPath);
                     subList.innerHTML = buildFileList(files, currentShare, currentItemPath, computer);
                     subList.classList.remove('hidden');
                     attachFileListeners();
                     updateStickyHeaders(currentShare, currentItemPath);
+                    try { updateDirectoryIcon(item, true); } catch {}
                 } catch (error) {
                     console.error('Error loading files:', error);
                 } finally {
@@ -908,6 +1092,19 @@ function attachFileListeners() {
             showContextMenu(event, itemData);
         });
     });
+}
+
+function updateDirectoryIcon(fileItemElement, expanded) {
+    try {
+        const isDirectory = fileItemElement.getAttribute('data-is-dir') === '16' || fileItemElement.getAttribute('data-is-dir') === '48';
+        if (!isDirectory) return;
+        const iconSpan = fileItemElement.querySelector('.dir-icon');
+        if (!iconSpan) return;
+        const nameNode = fileItemElement.querySelector('.text-neutral-900');
+        const fileName = nameNode ? nameNode.textContent : '';
+        const iconDef = getFileIcon(fileName, true, expanded === true);
+        iconSpan.innerHTML = uniquifySvgIds(iconDef.icon);
+    } catch {}
 }
 
 // Keep track of downloads
@@ -1051,13 +1248,22 @@ function createDownloadEntry(id, filename) {
     return entry;
 }
 
-function updateDownloadProgress(id, receivedSize, totalSize) {
-    const progressBar = document.getElementById(`download-${id}`).querySelector('.bg-neutral-200');
-    const progressPercentage = document.getElementById(`download-${id}`).querySelector('.text-xs');
+function updateDownloadProgress(id, receivedOrPercent, totalSize) {
+    const progressBar = document.getElementById(`download-progress-${id}`);
+    const progressText = document.getElementById(`download-status-${id}`);
+    if (!progressBar || !progressText) return;
 
-    const percentage = Math.round((receivedSize / totalSize) * 100);
-    progressBar.style.width = `${percentage}%`;
-    progressPercentage.textContent = `${percentage}%`;
+    let percent;
+    if (typeof totalSize === 'number' && totalSize > 0 && typeof receivedOrPercent === 'number') {
+        percent = Math.round((receivedOrPercent / totalSize) * 100);
+    } else if (typeof receivedOrPercent === 'number') {
+        percent = Math.round(receivedOrPercent);
+    } else {
+        return;
+    }
+    percent = Math.max(0, Math.min(100, percent));
+    progressBar.style.width = `${percent}%`;
+    progressText.textContent = `${percent}%`;
 }
 
 function completeDownload(id, filename) {
@@ -1103,7 +1309,7 @@ function buildFileList(files, share, currentPath, computer) {
                     <div class="col-span-6">
                         <div class="flex items-center gap-1.5 min-w-0" style="margin-left: ${marginLeft}rem;">
                             ${fileIcon.isCustomSvg 
-                                ? `<span class="w-4 h-4 flex-shrink-0 ${fileIcon.iconClass}">${fileIcon.icon}</span>`
+                                ? `<span class="w-4 h-4 flex-shrink-0 ${fileIcon.iconClass} dir-icon">${uniquifySvgIds(fileIcon.icon)}</span>`
                                 : `<i class="fas ${fileIcon.icon} ${fileIcon.iconClass} flex-shrink-0"></i>`
                             }
                             <span class="text-neutral-900 dark:text-white truncate">${file.name}</span>
@@ -1871,7 +2077,7 @@ async function downloadSMBDirectory(computer, share, path, directoryName) {
             compressionOptions: { level: 6 }
         }, (metadata) => {
             // Update compression progress
-            if (metadata.percent) {
+            if (typeof metadata.percent === 'number') {
                 updateDownloadProgress(downloadId, metadata.percent);
                 statusElement.textContent = `Compressing: ${Math.round(metadata.percent)}%`;
             }
@@ -2064,12 +2270,22 @@ async function fetchSMBSessions() {
         }
         
         const data = await response.json();
-        return data.sessions || {};
+        // Normalize session keys to lowercase for case-insensitive matching
+        const normalizedSessions = {};
+        Object.entries(data.sessions || {}).forEach(([key, value]) => {
+            normalizedSessions[key.toLowerCase()] = value;
+        });
+        return normalizedSessions;
     } catch (error) {
         console.error('Error fetching SMB sessions:', error);
         return {};
     }
 }
+
+// Start periodic status updates
+setInterval(() => {
+    updateAllTabStatuses();
+}, 30000); // Update every 30 seconds
 
 // Search Functions
 async function openSearchPanel(computer, share, path = '') {
@@ -2348,26 +2564,6 @@ function buildSearchResultItemHTML(item, computer, share) {
         </div>
     `;
 }
-
-// Add event listener for the export button
-document.addEventListener('DOMContentLoaded', () => {
-    // ... existing code ...
-    
-    // Export CSV button
-    const exportCsvButton = document.getElementById('export-search-csv');
-    if (exportCsvButton) {
-        exportCsvButton.addEventListener('click', () => {
-            if (window.lastSearchResults) {
-                exportSearchResultsToCSV(
-                    window.lastSearchResults.items, 
-                    window.lastSearchResults.search_info
-                );
-            } else {
-                showErrorAlert('No search results to export');
-            }
-        });
-    }
-});
 
 function attachSearchResultListeners() {
     const searchPanel = document.getElementById('search-panel');
@@ -3124,132 +3320,7 @@ function getFileType(filename) {
     return typeMap[ext] || `${ext.toUpperCase()} File`;
 }
 
-// Add close button handler for properties panel
-document.addEventListener('DOMContentLoaded', () => {
-    // ... existing code ...
-    
-    // Add properties panel close button handler
-    const closePropertiesButton = document.getElementById('close-properties-panel');
-    if (closePropertiesButton) {
-        closePropertiesButton.addEventListener('click', () => {
-            const propertiesPanel = document.getElementById('properties-panel');
-            propertiesPanel.classList.add('translate-x-full');
-            setTimeout(() => {
-                propertiesPanel.classList.add('hidden');
-            }, 300);
-        });
-    }
-    
-    // Prevent properties panel closing when clicking inside
-    const propertiesPanel = document.getElementById('properties-panel');
-    if (propertiesPanel) {
-        propertiesPanel.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
-    }
-    
-    // Update panels array to include properties panel
-    const panels = document.querySelectorAll('#file-viewer-panel, #downloads-panel, #search-panel, #properties-panel');
-    panels.forEach(panel => {
-        panel.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
-    });
-    
-    // ... existing code ...
-});
-
-// Update the context menu function to make Properties functional
-function showContextMenu(event, itemData) {
-    if (!contextMenuElement) return;
-
-    hideContextMenu(); // Hide any existing menu first
-
-    // Populate menu based on item type
-    if (itemData.isDirectory) {
-        // Folder/Share actions
-        if (!itemData.isShare) { // Don't allow opening a share inside itself
-            contextMenuElement.appendChild(createMenuItem('Open', 'fas fa-folder-open', () => {
-                // Find the element and simulate a click
-                const targetElement = document.querySelector(`.file-item[data-path="${itemData.path}"] > div`);
-                targetElement?.click();
-            }));
-        }
-        contextMenuElement.appendChild(createMenuItem('Download', 'fas fa-download', () => {
-            downloadSMBDirectory(itemData.computer, itemData.share, itemData.path, itemData.name);
-        }));
-        // Add Search option for directories and shares
-        contextMenuElement.appendChild(createMenuItem('Search', 'fas fa-search', () => {
-            openSearchPanel(itemData.computer, itemData.share, itemData.path);
-        }));
-        contextMenuElement.appendChild(createMenuSeparator());
-        contextMenuElement.appendChild(createMenuItem('Upload Here', 'fas fa-upload', () => {
-            uploadSMBFile(itemData.computer, itemData.share, itemData.path);
-        }));
-        contextMenuElement.appendChild(createMenuItem('New Folder', 'fas fa-folder-plus', () => {
-            createSMBDirectory(itemData.computer, itemData.share, itemData.path);
-        }));
-        
-        // Add Share option for directories (not shares themselves)
-        if (!itemData.isShare) {
-            contextMenuElement.appendChild(createMenuItem('Add Share Here', 'fas fa-share-alt text-blue-600 dark:text-blue-400', () => {
-                showAddShareModalForDirectory(itemData.computer, itemData.share, itemData.path, itemData.name);
-            }));
-        }
-        
-        // Share management options (only for shares)
-        if (itemData.isShare) {
-            contextMenuElement.appendChild(createMenuSeparator());
-            contextMenuElement.appendChild(createMenuItem('Add Share', 'fas fa-plus-circle text-green-600 dark:text-green-400', () => {
-                showAddShareModal(itemData.computer);
-            }));
-            contextMenuElement.appendChild(createMenuItem('Delete Share', 'fas fa-minus-circle text-red-600 dark:text-red-500', () => {
-                deleteSMBShare(itemData.computer, itemData.share);
-            }));
-        }
-    } else {
-        // File actions
-        contextMenuElement.appendChild(createMenuItem('View', 'fas fa-eye', () => {
-            viewSMBFile(itemData.computer, itemData.share, itemData.path);
-        }));
-        contextMenuElement.appendChild(createMenuItem('Download', 'fas fa-download', () => {
-            downloadSMBFile(itemData.computer, itemData.share, itemData.path);
-        }));
-    }
-
-    // Common actions (Delete, Rename, Properties)
-    contextMenuElement.appendChild(createMenuSeparator());
-    contextMenuElement.appendChild(createMenuItem('Delete', 'fas fa-trash text-red-600 dark:text-red-500', () => {
-        deleteSMBFileOrDirectory(itemData.computer, itemData.share, itemData.path, itemData.isDirectory);
-    }));
-    
-    // Rename is now functional - don't add the disabled styling classes
-    contextMenuElement.appendChild(createMenuItem('Rename', 'fas fa-pencil-alt', () => {
-        renameSMBFileOrDirectory(itemData.computer, itemData.share, itemData.path, itemData.isDirectory, itemData.isShare);
-    }));
-    
-    // Properties is now functional
-    contextMenuElement.appendChild(createMenuItem('Properties', 'fas fa-info-circle', () => {
-        showProperties(itemData.computer, itemData.share, itemData.path, itemData.isDirectory, itemData.isShare);
-    }));
-
-    // Position and show the menu
-    const x = event.pageX;
-    const y = event.pageY;
-
-    contextMenuElement.style.left = `${x}px`;
-    contextMenuElement.style.top = `${y}px`;
-    contextMenuElement.classList.remove('hidden');
-
-    // Adjust position if menu goes off-screen (basic implementation)
-    const menuRect = contextMenuElement.getBoundingClientRect();
-    if (menuRect.right > window.innerWidth) {
-        contextMenuElement.style.left = `${x - menuRect.width}px`;
-    }
-    if (menuRect.bottom > window.innerHeight) {
-        contextMenuElement.style.top = `${y - menuRect.height}px`;
-    }
-}
+// (duplicate showContextMenu removed)
 
 function convertWindowsTime(fileTime) {
     if (!fileTime || fileTime === '0') return 'Not available';

@@ -510,17 +510,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (response.ok) {
                 const data = await response.json();
-                usernameElement.textContent = `${data.username}@${data.domain}`;
-                addressElement.textContent = `${data.protocol}://${data.ldap_address}`;
-                nameserverElement.textContent = `NS: ${data.nameserver}`;
+                const userOnly = (data.username || '').split('\\').pop();
+                const domOnly = (data.domain || '').toString();
+
+                // Username and domain on separate lines with subtle styles
+                usernameElement.textContent = userOnly || '';
+                domainElement.textContent = domOnly || '';
+
+                // Address and nameserver with compact badges
+                const proto = data.protocol ? data.protocol.toUpperCase() : '';
+                addressElement.innerHTML = proto && data.ldap_address
+                    ? `${proto}: // ${data.ldap_address}`
+                    : '';
+                nameserverElement.innerHTML = data.nameserver ? `NS: ${data.nameserver}` : '';
                 if (data.status === 'OK') {
-                    statusElement.textContent = 'Connected';
-                    statusElement.classList.remove('text-red-400');
-                    statusElement.classList.add('text-green-400');
+                    statusElement.innerHTML = '<span class="inline-flex items-center gap-1 text-green-500"><span class="inline-block w-2 h-2 rounded-full bg-green-500"></span>Connected</span>';
                 } else {
-                    statusElement.textContent = 'Disconnected';
-                    statusElement.classList.remove('text-green-400');
-                    statusElement.classList.add('text-red-400');
+                    statusElement.innerHTML = '<span class="inline-flex items-center gap-1 text-red-500"><span class="inline-block w-2 h-2 rounded-full bg-red-500"></span>Disconnected</span>';
                 }
             } else {
                 throw new Error('Failed to fetch status');
@@ -530,9 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (profileMenu) {
                 const statusElement = profileMenu.querySelector('#connection-status-display');
                 if (statusElement) {
-                    statusElement.textContent = 'Disconnected';
-                    statusElement.classList.remove('text-green-400');
-                    statusElement.classList.add('text-red-400');
+                    statusElement.innerHTML = '<span class="inline-flex items-center gap-1 text-red-500"><span class="inline-block w-2 h-2 rounded-full bg-red-500"></span>Disconnected</span>';
                 }
             }
             console.error('Error checking connection status:', error);
@@ -573,7 +577,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         display_name: form.display_name.value,
                         binary_path: form.binary_path.value,
                         service_type: parseInt(form.service_type.value),
-                        start_type: parseInt(form.start_type.value),
+                        start_type: parseInt((form.start_type.value || '').toString().replace('-delayed','')),
+                        delayed_start: (form.start_type.value || '').toString().includes('-delayed'),
                         service_start_name: form.service_start_name.value || null
                     })
                 });
@@ -671,39 +676,49 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function createAttributeEntry(name, value, identity) {
     const wrapper = document.createElement('div');
-    wrapper.className = 'flex flex-col space-y-2';
+    wrapper.className = 'flex flex-col gap-1';
     wrapper.id = `${name}-wrapper`;
 
     const labelDiv = document.createElement('div');
     labelDiv.className = 'flex justify-between items-center';
 
     const label = document.createElement('label');
-    label.className = 'block text-sm font-medium text-gray-900 dark:text-white';
+    label.className = 'block text-xs font-medium text-neutral-500 dark:text-neutral-400';
     label.textContent = name;
 
     labelDiv.appendChild(label);
 
     const inputsContainer = document.createElement('div');
-    inputsContainer.className = 'flex flex-col gap-2';
+    inputsContainer.className = 'flex items-start justify-between gap-2';
 
-    const mainInputWrapper = document.createElement('div');
-    mainInputWrapper.className = 'relative flex gap-2';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black disabled:cursor-not-allowed disabled:opacity-75 dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-full whitespace-pre pr-24';
-    
-    // Convert array to newline-separated string if needed
-    if (Array.isArray(value)) {
-        input.value = value.join('\n');
+    const isArray = Array.isArray(value);
+    const valueContainer = document.createElement('div');
+    valueContainer.className = 'attr-value text-sm break-words whitespace-pre-wrap text-neutral-900 dark:text-neutral-100';
+    const valueText = isArray ? value.join('\n') : value;
+    if (isArray) {
+        const chips = document.createElement('div');
+        chips.className = 'flex flex-wrap gap-2';
+        value.forEach(v => {
+            const chip = document.createElement('span');
+            chip.className = 'px-2 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-xs text-neutral-700 dark:text-neutral-300';
+            chip.textContent = v;
+            chips.appendChild(chip);
+        });
+        valueContainer.appendChild(chips);
     } else {
-        input.value = value;
+        valueContainer.textContent = valueText;
     }
-    input.disabled = true;
 
-    // Create buttons container inside input
-    const buttonsDiv = document.createElement('div');
-    buttonsDiv.className = 'absolute right-2 top-1/2 -translate-y-1/2 flex gap-3 items-center';
+    let input;
+    if (isArray) {
+        input = document.createElement('textarea');
+        input.rows = Math.min(10, (value?.length || 1) + 1);
+    } else {
+        input = document.createElement('input');
+        input.type = 'text';
+    }
+    input.className = 'hidden rounded-md border border-neutral-300 bg-neutral-50 px-2 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-full whitespace-pre-wrap';
+    input.value = valueText;
 
     const editButton = document.createElement('button');
     editButton.type = 'button';
@@ -720,27 +735,31 @@ function createAttributeEntry(name, value, identity) {
     deleteButton.className = 'text-red-600 hover:text-red-700';
     deleteButton.innerHTML = icons.deleteIcon;
 
+    const buttonsDiv = document.createElement('div');
+    buttonsDiv.className = 'flex gap-3 items-center shrink-0 pl-2';
     buttonsDiv.appendChild(editButton);
     buttonsDiv.appendChild(addButton);
     buttonsDiv.appendChild(deleteButton);
 
-    mainInputWrapper.appendChild(input);
-    mainInputWrapper.appendChild(buttonsDiv);
-    inputsContainer.appendChild(mainInputWrapper);
+    const valueStack = document.createElement('div');
+    valueStack.className = 'flex-1';
+    valueStack.appendChild(valueContainer);
+    valueStack.appendChild(input);
+
+    inputsContainer.appendChild(valueStack);
+    inputsContainer.appendChild(buttonsDiv);
     
     wrapper.appendChild(labelDiv);
     wrapper.appendChild(inputsContainer);
 
     // Edit button click handler with visibility toggle
     editButton.addEventListener('click', async () => {
-        const isEditing = input.disabled;
+        const isEditing = input.classList.contains('hidden');
         
         if (isEditing) {
-            // Switching to edit mode
-            input.disabled = false;
-            editButton.innerHTML = '<i class="fas fa-save fa-xs"></i>'; // Change to save icon
-            
-            // Hide add and delete buttons
+            input.classList.remove('hidden');
+            valueContainer.classList.add('hidden');
+            editButton.innerHTML = '<i class="fas fa-save fa-xs"></i>';
             addButton.style.display = 'none';
             deleteButton.style.display = 'none';
             
@@ -754,7 +773,9 @@ function createAttributeEntry(name, value, identity) {
             
             cancelButton.addEventListener('click', () => {
                 input.value = originalValue;
-                input.disabled = true;
+                input.classList.add('hidden');
+                valueContainer.textContent = originalValue;
+                valueContainer.classList.remove('hidden');
                 editButton.innerHTML = '<i class="fas fa-edit fa-xs"></i>';
                 // Show add and delete buttons again
                 addButton.style.display = '';
@@ -777,7 +798,24 @@ function createAttributeEntry(name, value, identity) {
                 }
 
                 if (success) {
-                    input.disabled = true;
+                    input.classList.add('hidden');
+                    valueContainer.classList.remove('hidden');
+                    // Re-render display: create chips if multiple lines
+                    valueContainer.innerHTML = '';
+                    const parts = (newValue || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+                    if (parts.length > 1) {
+                        const chips = document.createElement('div');
+                        chips.className = 'flex flex-wrap gap-2';
+                        parts.forEach(v => {
+                            const chip = document.createElement('span');
+                            chip.className = 'px-2 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-xs text-neutral-700 dark:text-neutral-300';
+                            chip.textContent = v;
+                            chips.appendChild(chip);
+                        });
+                        valueContainer.appendChild(chips);
+                    } else {
+                        valueContainer.textContent = newValue;
+                    }
                     editButton.innerHTML = '<i class="fas fa-edit fa-xs"></i>';
                     // Show add and delete buttons again
                     addButton.style.display = '';
@@ -791,7 +829,8 @@ function createAttributeEntry(name, value, identity) {
                 }
             } else {
                 // No changes made, just switch back to view mode
-                input.disabled = true;
+                input.classList.add('hidden');
+                valueContainer.classList.remove('hidden');
                 editButton.innerHTML = '<i class="fas fa-edit fa-xs"></i>';
                 // Show add and delete buttons again
                 addButton.style.display = '';
@@ -808,7 +847,7 @@ function createAttributeEntry(name, value, identity) {
     // Add button click handler
     addButton.addEventListener('click', () => {
         const appendWrapper = document.createElement('div');
-        appendWrapper.className = 'flex gap-2';
+        appendWrapper.className = 'flex gap-2 mt-2';
 
         const appendInput = document.createElement('input');
         appendInput.type = 'text';
@@ -869,7 +908,7 @@ function createAttributeEntry(name, value, identity) {
         appendWrapper.appendChild(appendInput);
         appendWrapper.appendChild(saveButton);
         appendWrapper.appendChild(cancelButton);
-        inputsContainer.appendChild(appendWrapper);
+        valueStack.appendChild(appendWrapper);
         appendInput.focus();
     });
 
@@ -922,7 +961,7 @@ async function deleteLdapAttribute(identity, attributeName) {
 
 function populateLdapAttributesModal(attributes, identity) {
     const container = document.getElementById('existing-attributes');
-    container.className = 'grid grid-cols-1 md:grid-cols-2 gap-4 auto-rows-auto';
+    container.className = 'grid grid-cols-1 md:grid-cols-2 gap-6';
 
     // Sort attributes alphabetically
     const sortedAttributes = Object.entries(attributes).sort((a, b) => 
@@ -931,11 +970,8 @@ function populateLdapAttributesModal(attributes, identity) {
 
     sortedAttributes.forEach(([name, value]) => {
         const attributeEntry = createAttributeEntry(name, value, identity);
-        // Add classes to make long content span full width
-        if (value && value.length > 100) {  // Adjust threshold as needed
-            attributeEntry.className = 'col-span-full flex flex-col space-y-2';
-        } else {
-            attributeEntry.className = 'flex flex-col space-y-2';
+        if (typeof value === 'string' && value.length > 120) {
+            attributeEntry.classList.add('md:col-span-2');
         }
         container.appendChild(attributeEntry);
     });
@@ -959,7 +995,7 @@ function closeModal(modalId) {
         }
 
         // Reset computer input
-        const computerInput = document.getElementById('smb-computer');
+        const computerInput = document.getElementById('modal-smb-computer');
         if (computerInput) {
             computerInput.value = '';
         }
@@ -971,8 +1007,8 @@ function closeModal(modalId) {
         }
 
         // Reset credentials if any
-        const usernameInput = document.getElementById('smb-username');
-        const passwordInput = document.getElementById('smb-password');
+        const usernameInput = document.getElementById('modal-smb-username');
+        const passwordInput = document.getElementById('modal-smb-password');
         if (usernameInput) usernameInput.value = '';
         if (passwordInput) passwordInput.value = '';
     }
@@ -998,7 +1034,7 @@ function handleModalSearch() {
         if (!activeTabId) return;
 
         switch (activeTabId) {
-            case 'tabpanelInfo':
+            case 'tabpanelAttributes':
                 // Filter attributes
                 const attributes = document.querySelectorAll('#existing-attributes > div');
                 attributes.forEach(attr => {
@@ -1106,11 +1142,50 @@ async function showLdapAttributesModal(attributes = {}, identity) {
     if (modal && overlay) {
         container.innerHTML = '';
 
-        // Update modal title to show identity
+        // Update modal title and profile header
         const modalTitle = modal.querySelector('h3');
-        if (modalTitle) {
-            modalTitle.textContent = identity;
+        if (modalTitle) modalTitle.textContent = identity;
+        const copyBtn = document.getElementById('modal-copy-dn');
+        if (copyBtn) {
+            copyBtn.onclick = async () => {
+                try {
+                    if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(identity);
+                        showSuccessAlert('DN copied');
+                    } else {
+                        const ta = document.createElement('textarea');
+                        ta.value = identity;
+                        ta.style.position = 'fixed';
+                        ta.style.left = '-1000px';
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(ta);
+                        showSuccessAlert('DN copied');
+                    }
+                } catch (e) {
+                    showErrorAlert('Failed to copy DN');
+                }
+            };
         }
+
+        const name = attributes.displayName || attributes.cn || attributes.name || identity;
+        const title = attributes.title || '';
+        const department = attributes.department || '';
+        const avatar = (attributes.thumbnailPhoto && attributes.thumbnailPhoto.length) ? null : (name ? name.toString().charAt(0).toUpperCase() : '?');
+
+        const avatarEl = document.getElementById('profile-avatar');
+        const nameEl = document.getElementById('profile-name');
+        const titleEl = document.getElementById('profile-title');
+        const deptEl = document.getElementById('profile-dept');
+        const sepEl = document.getElementById('profile-sep');
+        
+        if (avatarEl) avatarEl.textContent = avatar || '';
+        if (nameEl) nameEl.textContent = Array.isArray(name) ? name[0] : name;
+        if (titleEl) titleEl.textContent = Array.isArray(title) ? title[0] : title;
+        if (deptEl) deptEl.textContent = Array.isArray(department) ? department[0] : department;
+        if (sepEl) sepEl.classList.toggle('hidden', !(title && department));
+        
 
         const isGroup = attributes.objectClass && 
             Array.isArray(attributes.objectClass) && 
@@ -1145,14 +1220,12 @@ async function showLdapAttributesModal(attributes = {}, identity) {
         // Show/hide computer-specific tabs
         const sessionsTab = modal.querySelector('[aria-controls="tabpanelSessions"]');
         const loggedonTab = modal.querySelector('[aria-controls="tabpanelLoggedon"]');
-        const sharesTab = modal.querySelector('[aria-controls="tabpanelShares"]');
         const servicesTab = modal.querySelector('[aria-controls="tabpanelServices"]');
         
-        if (sessionsTab && loggedonTab && sharesTab && servicesTab) {
+        if (sessionsTab && loggedonTab && servicesTab) {
             sessionsTab.style.display = isComputer ? '' : 'none';
             loggedonTab.style.display = isComputer ? '' : 'none';
-            sharesTab.style.display = isComputer ? '' : 'none';
-            servicesTab.style.display = isComputer ? '' : 'none';  // Added this line
+            servicesTab.style.display = isComputer ? '' : 'none';
         }
 
         // Show the modal and overlay
@@ -1175,14 +1248,14 @@ async function showLdapAttributesModal(attributes = {}, identity) {
         document.addEventListener('keydown', handleEscape);
         
         try {
-            // Populate the modal with existing attributes
+            // Populate attributes tab content
             await populateLdapAttributesModal(attributes, identity);
 
             // Initialize the add new attribute functionality
             handleAddNewAttribute(identity);
 
-            // Initialize tabs
-            selectModalTab('info');
+            // Initialize tabs to Overview
+            selectModalTab('overview');
 
             // Initialize search functionality
             handleModalSearch();
@@ -1306,6 +1379,12 @@ async function selectModalTab(tabName) {
     try {
         // Load specific tab content
         switch (tabName) {
+            case 'overview':
+                renderOverviewTab();
+                break;
+            case 'attributes':
+                // nothing special; attributes rendered at modal open
+                break;
             case 'descendants':
                 await loadDescendants();
                 break;
@@ -1352,14 +1431,6 @@ async function selectModalTab(tabName) {
                 const identity = document.querySelector('#ldap-attributes-modal h3')?.textContent;
                 if (identity) {
                     await getObjectOwner(identity);
-                }
-                break;
-
-            case 'shares':
-                const dnsHostnameInput = document.querySelector('#dNSHostName-wrapper input');
-                const dnsHostname = dnsHostnameInput?.value;
-                if (dnsHostname) {
-                    initializeSMBTab(dnsHostname);
                 }
                 break;
 
@@ -1416,34 +1487,47 @@ function updateModalDaclContent(daclData) {
         entry.attributes.forEach(attribute => {
             const row = document.createElement('tr');
             row.classList.add(
-                'h-8',
                 'result-item',
-                'hover:bg-neutral-50',
-                'dark:hover:bg-neutral-800',
                 'border-b',
                 'border-neutral-200',
                 'dark:border-neutral-700',
-                'dark:text-neutral-200',
-                'text-neutral-600'
+                'hover:bg-neutral-50',
+                'dark:hover:bg-neutral-800'
             );
 
-            const aceType = attribute.ACEType?.includes('ALLOWED') ? icons.onIcon : icons.offIcon;
-            const formattedAccessMask = attribute.AccessMask ? 
-                attribute.AccessMask.split(',')
-                    .map(mask => mask.trim())
-                    .join('<br>') 
-                : '';
-            const securityIdentifier = attribute.SecurityIdentifier ? 
-                attribute.SecurityIdentifier.replace('Pre-Windows 2000', 'Pre2k') 
-                : '';
+            const aceAllowed = attribute.ACEType?.toUpperCase().includes('ALLOWED');
+            const aceBadgeClasses = aceAllowed ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+            const aceBadgeLabel = aceAllowed ? 'ALLOW' : 'DENY';
+            const aceTypeBadge = '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ' + aceBadgeClasses + '">' + aceBadgeLabel + '</span>';
 
-            row.innerHTML = `
-                <td class="px-3 py-2">${aceType}</td>
-                <td class="px-3 py-2">${securityIdentifier}</td>
-                <td class="px-3 py-2">${formattedAccessMask}</td>
-                <td class="px-3 py-2">${attribute.InheritanceType || ''}</td>
-                <td class="px-3 py-2">${attribute.ObjectAceType || ''}</td>
-            `;
+            const accessList = (attribute.AccessMask || '')
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean)
+                .map(mask => '<span class="inline-flex px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-xs mr-1 mb-1">' + mask + '</span>') 
+                .join('');
+
+            const sid = (attribute.SecurityIdentifier || '').replace('Pre-Windows 2000', 'Pre2k');
+
+            const inherited = attribute.InheritanceType || '';
+            const appliesTo = attribute.ObjectAceType || '';
+
+            const accessListHtml = accessList || '<span class="text-neutral-500 dark:text-neutral-400 text-xs">-</span>';
+
+            row.innerHTML =
+                '<td class="px-3 py-2 align-top w-20">' + aceTypeBadge + '</td>' +
+                '<td class="px-3 py-2 align-top">' +
+                '    <div class="text-sm text-neutral-900 dark:text-neutral-100">' + sid + '</div>' +
+                '</td>' +
+                '<td class="px-3 py-2">' +
+                '    <div class="flex flex-wrap">' + accessListHtml + '</div>' +
+                '</td>' +
+                '<td class="px-3 py-2 align-top">' +
+                '    <span class="text-xs text-neutral-600 dark:text-neutral-300">' + inherited + '</span>' +
+                '</td>' +
+                '<td class="px-3 py-2 align-top">' +
+                '    <span class="text-xs text-neutral-600 dark:text-neutral-300">' + appliesTo + '</span>' +
+                '</td>';
 
             daclRows.appendChild(row);
         });
@@ -1478,6 +1562,281 @@ function getObjectClassIcon(objectClasses) {
     
     return icon;
 }
+
+function renderOverviewTab() {
+    const modal = document.getElementById('ldap-attributes-modal');
+    if (!modal) return;
+    const overview = document.getElementById('overview-content');
+    if (!overview) return;
+    const attrsSection = document.getElementById('existing-attributes');
+    const attributes = {};
+    if (attrsSection) {
+        const inputs = attrsSection.querySelectorAll('div[id$="-wrapper"] input');
+        inputs.forEach(inp => {
+            const wrapper = inp.closest('div[id$="-wrapper"]');
+            const key = wrapper ? wrapper.id.replace(/-wrapper$/, '') : '';
+            if (key && !attributes[key]) attributes[key] = inp.value;
+        });
+    }
+    const objectClass = (attributes['objectClass'] || '').toString().toLowerCase();
+    const isComputer = (
+        objectClass.includes('computer') ||
+        /computer/i.test(attributes['objectCategory'] || '') ||
+        /machine/i.test(attributes['sAMAccountType'] || '') ||
+        !!attributes['dNSHostName'] ||
+        ((attributes['sAMAccountName'] || '').toString().endsWith('$'))
+    );
+
+    if (isComputer) {
+        const host = attributes['dNSHostName'] || attributes['dnsHostName'] || attributes['cn'] || '-';
+        const os = attributes['operatingSystem'] || '-';
+        const osVer = attributes['operatingSystemVersion'] || '-';
+        const lastLogon = attributes['lastLogonTimestamp'] || attributes['lastLogon'] || '-';
+        const desc = attributes['description'] || '-';
+        const uac = attributes['userAccountControl'] || '-';
+        const encTypes = attributes['msDS-SupportedEncryptionTypes'] || '-';
+        const spnRaw = attributes['servicePrincipalName'] || '';
+        const spns = spnRaw ? spnRaw.split(/\r?\n/).map(s => s.trim()).filter(Boolean) : [];
+
+        overview.innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-3">
+                    <div class="text-sm text-neutral-500">System</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <div class="text-xs text-neutral-500">DNS Hostname</div>
+                            <div class="text-sm break-all">${host}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-neutral-500">Operating System</div>
+                            <div class="text-sm">${os}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-neutral-500">OS Version</div>
+                            <div class="text-sm">${osVer}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-neutral-500">Last Logon</div>
+                            <div class="text-sm">${lastLogon}</div>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <div class="text-xs text-neutral-500">Description</div>
+                            <div class="text-sm break-words">${desc}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div class="text-sm text-neutral-500">Security</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <div class="text-xs text-neutral-500">User Account Control</div>
+                            <div class="text-sm break-words">${uac}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-neutral-500">Encryption Types</div>
+                            <div class="text-sm">${encTypes}</div>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <div class="text-xs text-neutral-500">Service Principal Names</div>
+                            <div class="flex flex-wrap gap-2">
+                                ${spns.length ? spns.map(s => `<span class=\"px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-xs\">${s}</span>`).join('') : '<span class=\"text-neutral-500 dark:text-neutral-400 text-xs\">-</span>'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    const email = attributes['mail'] || '';
+    const upn = attributes['userPrincipalName'] || '';
+    const phone = attributes['telephoneNumber'] || attributes['homePhone'] || attributes['mobile'] || '';
+    const office = attributes['physicalDeliveryOfficeName'] || attributes['streetAddress'] || '';
+    const jobTitle = attributes['title'] || '';
+    const dept = attributes['department'] || '';
+    overview.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-3">
+                <div class="text-sm text-neutral-500">Contact information</div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <div class="text-xs text-neutral-500">Email</div>
+                        <div class="text-sm break-all">${email || upn || '-'}</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-neutral-500">Work phone</div>
+                        <div class="text-sm">${phone || '-'}</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-neutral-500">Office location</div>
+                        <div class="text-sm">${office || '-'}</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-neutral-500">Job title</div>
+                        <div class="text-sm">${jobTitle || '-'}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <div class="text-sm text-neutral-500">Organization</div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <div class="text-xs text-neutral-500">Department</div>
+                        <div class="text-sm">${dept || '-'}</div>
+                    </div>
+                    <div>
+                        <div class="text-xs text-neutral-500">Manager</div>
+                        <div class="text-sm" id="overview-manager">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="organization-overview" class="mt-8 space-y-4">
+            <div class="text-lg font-semibold text-white">Organization</div>
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div class="lg:col-span-1">
+                    <div class="text-xs text-neutral-500 mb-2">Manager</div>
+                    <div id="org-manager-card" class="border border-neutral-200 dark:border-neutral-700 rounded-md p-4 bg-white dark:bg-neutral-900">
+                        <div class="text-sm text-neutral-500">No manager</div>
+                    </div>
+                </div>
+                <div class="lg:col-span-3">
+                    <div class="text-xs text-neutral-500 mb-2"><span id="org-subject-name"></span> works with</div>
+                    <div id="org-peers-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    loadOrganizationSection(attributes);
+}
+
+async function loadOrganizationSection(currentAttributes) {
+    try {
+        const subjectNameEl = document.getElementById('org-subject-name');
+        const profileNameEl = document.getElementById('profile-name');
+        if (subjectNameEl) subjectNameEl.textContent = (profileNameEl?.textContent || '').trim();
+
+        const managerDn = Array.isArray(currentAttributes['manager']) ? currentAttributes['manager'][0] : currentAttributes['manager'];
+        const identity = document.querySelector('#ldap-attributes-modal h3')?.textContent;
+        const managerTarget = document.getElementById('org-manager-card');
+        const peersGrid = document.getElementById('org-peers-grid');
+        const managerInline = document.getElementById('overview-manager');
+
+        if (!managerDn) {
+            if (managerTarget) managerTarget.innerHTML = '<div class="text-sm text-neutral-500">No manager</div>';
+            if (managerInline) managerInline.textContent = '-';
+        }
+
+        let peers = [];
+        if (managerDn) {
+            const mgrResp = await fetch('/api/get/domainobject', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ searchbase: managerDn, properties: ['displayName','name','title','thumbnailPhoto','directReports','distinguishedName'], search_scope: 'BASE' })
+            });
+            await handleHttpError(mgrResp);
+            if (!mgrResp.ok) return;
+            const mgrData = await mgrResp.json();
+            const mgrEntry = Array.isArray(mgrData) ? mgrData[0] : mgrData;
+            const mgrAttrs = (mgrEntry && mgrEntry.attributes) ? mgrEntry.attributes : {};
+            const mgrDisplayName = Array.isArray(mgrAttrs.displayName) ? mgrAttrs.displayName[0] : mgrAttrs.displayName;
+            const mgrSimpleName = Array.isArray(mgrAttrs.name) ? mgrAttrs.name[0] : mgrAttrs.name;
+            const mgrName = (mgrDisplayName || mgrSimpleName || '') || 'Manager';
+            const mgrTitle = Array.isArray(mgrAttrs.title) ? mgrAttrs.title[0] : (mgrAttrs.title || '');
+            if (managerInline) managerInline.textContent = mgrName || '-';
+            if (managerTarget) {
+                const initial = (mgrName || '?').toString().charAt(0).toUpperCase();
+                const mgrNameAttr = (mgrName || '').toString().replace(/"/g, '&quot;');
+                const mgrTitleAttr = (mgrTitle || '').toString().replace(/"/g, '&quot;');
+                managerTarget.innerHTML = `
+                    <div class="flex items-center gap-3 org-card fade-in-up transition transform hover:-translate-y-0.5" style="animation-delay: 0ms">
+                        <div class="w-12 h-12 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-lg font-semibold text-neutral-700 dark:text-neutral-200">${initial}</div>
+                        <div class="min-w-0">
+                            <div class="text-sm font-medium text-neutral-900 dark:text-white truncate" title="${mgrNameAttr}">${mgrName}</div>
+                            <div class="text-xs text-neutral-600 dark:text-neutral-300 truncate" title="${mgrTitleAttr}">${mgrTitle || ''}</div>
+                            <a href="#" class="text-xs text-blue-600 dark:text-yellow-500 hover:underline block mt-1" onclick="handleLdapLinkClick(event, '${managerDn.replace(/'/g,"\\'")}')">View profile</a>
+                        </div>
+                    </div>
+                `;
+            }
+            const reportsDns = Array.isArray(mgrAttrs.directReports) ? (mgrAttrs.directReports || []).filter(Boolean) : (mgrAttrs.directReports ? [mgrAttrs.directReports] : []);
+            peers = reportsDns.filter(dn => dn !== identity).slice(0, 9);
+        }
+
+        if (!peersGrid) return;
+        peersGrid.innerHTML = '';
+
+        if (peers.length === 0) {
+            try {
+                const deptRaw = Array.isArray(currentAttributes['department']) ? currentAttributes['department'][0] : currentAttributes['department'];
+                if (deptRaw) {
+                    const deptResp = await fetch('/api/get/domainuser', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ args: { department: deptRaw }, properties: ['displayName','name','title','distinguishedName'] })
+                    });
+                    await handleHttpError(deptResp);
+                    if (deptResp.ok) {
+                        const deptData = await deptResp.json();
+                        const deptDns = (deptData || []).map(e => e?.attributes?.distinguishedName).filter(Boolean);
+                        peers = deptDns.filter(dn => dn !== identity && dn !== managerDn).slice(0, 9);
+                    }
+                }
+            } catch (e) {
+                console.error('Department peers lookup failed:', e);
+            }
+        }
+
+        if (peers.length === 0) {
+            peersGrid.innerHTML = '<div class="text-sm text-neutral-500">No peers found</div>';
+            return;
+        }
+
+        const cards = await Promise.all(peers.map(async (dn, i) => {
+            try {
+                const r = await fetch('/api/get/domainobject', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ searchbase: dn, properties: ['displayName','name','title','distinguishedName'], search_scope: 'BASE' })
+                });
+                await handleHttpError(r);
+                if (!r.ok) return null;
+                const j = await r.json();
+                const entry = Array.isArray(j) ? j[0] : j;
+                const a = (entry && entry.attributes) ? entry.attributes : {};
+                const displayNameVal = Array.isArray(a.displayName) ? a.displayName[0] : a.displayName;
+                const nameVal = Array.isArray(a.name) ? a.name[0] : a.name;
+                const n = displayNameVal || nameVal || '';
+                const t = Array.isArray(a.title) ? a.title[0] : (a.title || '');
+                const initial = (n || '?').toString().charAt(0).toUpperCase();
+                const escDn = dn.replace(/'/g, "\\'");
+                const delay = Math.min(i * 60, 480);
+                const nameAttr = (n || '').toString().replace(/"/g, '&quot;');
+                const titleAttr = (t || '').toString().replace(/"/g, '&quot;');
+                return `
+                    <div class="border border-neutral-200 dark:border-neutral-700 rounded-md p-4 bg-white dark:bg-neutral-900 org-card fade-in-up transition transform hover:-translate-y-0.5" style="animation-delay: ${delay}ms">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-sm font-semibold text-neutral-700 dark:text-neutral-200">${initial}</div>
+                            <div class="min-w-0">
+                                <div class="text-sm font-medium text-neutral-900 dark:text-white truncate" title="${nameAttr}">${n || 'User'}</div>
+                                <div class="text-xs text-neutral-600 dark:text-neutral-300 truncate" title="${titleAttr}">${t || ''}</div>
+                                <a href="#" class="text-xs text-blue-600 dark:text-yellow-500 hover:underline block mt-1" onclick="handleLdapLinkClick(event, '${escDn}')">View profile</a>
+                            </div>
+                        </div>
+                    </div>`;
+            } catch { return null; }
+        }));
+
+        peersGrid.innerHTML = cards.filter(Boolean).join('') || '<div class="text-sm text-neutral-500">No peers found</div>';
+    } catch (e) {
+        console.error('Error loading organization section:', e);
+    }
+}
+
+// Contact and Organization tabs removed
 
 async function fetchItemsData(identity, search_scope = 'SUBTREE', properties = ['name', 'objectClass', 'distinguishedName']) {
     try {
@@ -2154,7 +2513,6 @@ function initializeClearCacheButton() {
     }
 }
 
-// Add this function to display the Member Of content
 function displayModalMemberOf(memberOf) {
     const tbody = document.getElementById('memberof-rows');
     if (!tbody) return;
@@ -2188,7 +2546,6 @@ function displayModalMemberOf(memberOf) {
     });
 }
 
-// Add this function to fetch and display owner information
 async function getObjectOwner(identity) {
     try {
         showModalContentSpinner();
@@ -2206,7 +2563,6 @@ async function getObjectOwner(identity) {
 
         await handleHttpError(response);
         const data = await response.json();
-        console.log(data);
         
         if (data && data.length > 0) {
             const ownerInfo = data[0].attributes.Owner;
@@ -2222,7 +2578,6 @@ async function getObjectOwner(identity) {
     }
 }
 
-// Add this function to display owner information
 function displayOwnerInfo(ownerInfo) {
     const container = document.getElementById('owner-info');
     if (!container) return;
@@ -2236,7 +2591,6 @@ function displayOwnerInfo(ownerInfo) {
         </div>
     `;
 
-    // Add click handler for change owner button
     const changeOwnerButton = document.getElementById('change-owner-button');
     if (changeOwnerButton) {
         changeOwnerButton.addEventListener('click', (event) => {
@@ -2249,18 +2603,15 @@ function displayOwnerInfo(ownerInfo) {
     }
 }
 
-// Add this function to handle the change owner button click
 function openChangeOwnerModal(identity) {
     const modal = document.getElementById('change-owner-modal');
     const overlay = document.getElementById('modal-overlay');
     modal.classList.remove('hidden');
     overlay.classList.remove('hidden');
 
-    // Prefill the identity field
     const identityInput = document.getElementById('owner-identity-input');
     identityInput.value = identity;
 
-    // Handle form submission
     const form = document.getElementById('change-owner-form');
     form.onsubmit = async (e) => {
         e.preventDefault();
@@ -2269,13 +2620,11 @@ function openChangeOwnerModal(identity) {
         const success = await changeOwner(identity, newOwner);
         if (success) {
             hideModal('change-owner-modal');
-            // Refresh owner info after successful change
             await getObjectOwner(identity);
         }
     };
 }
 
-// Add this function to change owner
 async function changeOwner(targetIdentity, principalIdentity) {
     try {
         showLoadingIndicator();
@@ -2309,7 +2658,6 @@ async function changeOwner(targetIdentity, principalIdentity) {
     }
 }
 
-// Add these functions to handle SMB operations
 async function connectToSMB(data) {
     const response = await fetch('/api/smb/connect', {
         method: 'POST',
@@ -2371,73 +2719,6 @@ async function listSMBPath(computer, share, path = '') {
     }
 }
 
-// Add function to initialize SMB tab
-async function initializeSMBTab(dnsHostname) {
-    const connectButton = document.getElementById('smb-connect-button');
-    const connectAsButton = document.getElementById('smb-connect-as-button');
-    const connectAsForm = document.getElementById('connect-as-form');
-    const statusDiv = document.getElementById('smb-connection-status');
-    const treeDiv = document.getElementById('smb-tree');
-    const computerInput = document.getElementById('smb-computer');
-
-    // Pre-fill computer input with dnsHostname
-    if (computerInput && dnsHostname) {
-        computerInput.value = dnsHostname;
-    }
-
-    // Toggle connect-as form
-    connectAsButton.onclick = () => {
-        connectAsForm.classList.toggle('hidden');
-    };
-
-    connectButton.onclick = async () => {
-        try {
-            showModalContentSpinner();
-            const computer = computerInput.value;
-            const username = document.getElementById('smb-username').value;
-            const password = document.getElementById('smb-password').value;
-
-            // Prepare connection data
-            const connectionData = {
-                computer: computer
-            };
-
-            // Add credentials if provided
-            if (!connectAsForm.classList.contains('hidden') && username && password) {
-                connectionData.username = username;
-                connectionData.password = password;
-            }
-
-            // Connect to SMB
-            await connectToSMB(connectionData);
-            const shares = await listSMBShares(computer);
-            
-            // Update status
-            statusDiv.innerHTML = `
-                <div class="flex items-center gap-2 text-green-600 dark:text-green-500">
-                    <i class="fas fa-check-circle"></i>
-                    <span>Connected to ${computer}</span>
-                </div>
-            `;
-
-            // Build tree view
-            treeDiv.innerHTML = buildSMBTreeView(shares);
-            attachTreeViewListeners(computer);
-
-        } catch (error) {
-            statusDiv.innerHTML = `
-                <div class="flex items-center gap-2 text-red-600 dark:text-red-500">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <span>${error.message}</span>
-                </div>
-            `;
-        } finally {
-            hideModalContentSpinner();
-        }
-    };
-}
-
-// Update buildSMBTreeView to use the folderIcon
 function buildSMBTreeView(shares) {
     let html = '<ul class="space-y-1">';
     shares.forEach(share => {
@@ -2494,13 +2775,11 @@ function attachFileListeners(computer, share) {
 
         if (isDirectory) {
             fileDiv.onclick = async () => {
-                // If the folder is already loaded and just hidden, simply toggle it
                 if (!subList.classList.contains('hidden') || subList.children.length > 0) {
                     subList.classList.toggle('hidden');
                     return;
                 }
 
-                // Only make API call if folder hasn't been loaded yet
                 try {
                     showLoadingIndicator();
                     const currentPath = item.dataset.path;
@@ -2508,7 +2787,7 @@ function attachFileListeners(computer, share) {
                     const files = await listSMBPath(computer, share, cleanPath);
                     subList.innerHTML = buildFileList(files, share, currentPath);
                     subList.classList.remove('hidden');
-                    // Recursively attach listeners to new files
+
                     attachFileListeners(computer, share);
                 } catch (error) {
                     console.error('Error loading files:', error);
@@ -2699,7 +2978,6 @@ async function fetchAndDisplayModalServices(computer) {
                 computer_name: computer
             })
         });
-
         await handleHttpError(response);
         const data = await response.json();
 
@@ -2721,33 +2999,47 @@ async function fetchAndDisplayModalServices(computer) {
             row.className = 'hover:bg-neutral-50 dark:hover:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700';
 
             // Handle the status styling
-            let statusClass = '';
             let status = service.attributes.Status.replace(/\u001b\[\d+m/g, ''); // Remove ANSI codes
-            
+            let badgeClass = 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300';
+            let dotClass = 'bg-neutral-500';
             if (status === 'RUNNING') {
-                statusClass = 'text-green-500 dark:text-green-400';
+                badgeClass = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
+                dotClass = 'bg-green-600';
             } else if (status === 'STOPPED') {
-                statusClass = 'text-red-500 dark:text-red-400';
+                badgeClass = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+                dotClass = 'bg-red-600';
             } else if (status.includes('PENDING')) {
-                statusClass = 'text-yellow-500 dark:text-yellow-400';
+                badgeClass = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300';
+                dotClass = 'bg-yellow-500';
             }
+            const statusBadgeHtml = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${badgeClass}"><span class="inline-block w-1.5 h-1.5 rounded-full ${dotClass}"></span>${status}</span>`;
 
             row.innerHTML = `
-                <td class="px-3 py-2 text-neutral-700 dark:text-neutral-200">${service.attributes.Name}</td>
-                <td class="px-3 py-2 text-neutral-600 dark:text-neutral-300">${service.attributes.DisplayName}</td>
-                <td class="px-3 py-2 font-medium ${statusClass}">${status}</td>
+                <td class="px-3 py-2">
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-md bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500">
+                            <i class="fas fa-cog"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">${service.attributes.Name}</div>
+                            <div class="text-xs text-neutral-500 dark:text-neutral-400 sm:hidden truncate">${service.attributes.DisplayName || ''}</div>
+                        </div>
+                    </div>
+                </td>
+                <td class="px-3 py-2 text-neutral-600 dark:text-neutral-300 hidden sm:table-cell">${service.attributes.DisplayName}</td>
+                <td class="px-3 py-2">${statusBadgeHtml}</td>
                 <td class="px-3 py-2 text-right">
-                    <div class="flex justify-end gap-2">
-                        <button class="start-service-button ${status === 'RUNNING' ? 'hidden' : ''} text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300">
+                    <div class="flex justify-end gap-1.5">
+                        <button class="start-service-button ${status === 'RUNNING' ? 'hidden' : ''} text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 p-1.5 rounded-md hover:bg-green-50 dark:hover:bg-green-900/20" title="Start Service">
                             <i class="fas fa-play"></i>
                         </button>
-                        <button class="stop-service-button ${status !== 'RUNNING' ? 'hidden' : ''} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300" title="Stop Service">
+                        <button class="stop-service-button ${status !== 'RUNNING' ? 'hidden' : ''} text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20" title="Stop Service">
                             <i class="fas fa-stop"></i>
                         </button>
-                        <button class="info-button text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                        <button class="info-button text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 p-1.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20" title="Details">
                             <i class="fas fa-info-circle"></i>
                         </button>
-                        <button class="delete-service-button text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                        <button class="delete-service-button text-neutral-600 hover:text-red-700 dark:text-neutral-400 dark:hover:text-red-400 p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20" title="Delete Service">
                             <i class="fas fa-trash-alt"></i>
                         </button>
                     </div>
@@ -2761,10 +3053,9 @@ async function fetchAndDisplayModalServices(computer) {
             detailsRow.innerHTML = `
                 <td colspan="4" class="px-3 py-2">
                     <div class="animate-fade-in">
-                        <div class="flex justify-center">
-                            <div class="w-6 h-6 animate-spin">
-                                <i class="fas fa-circle-notch"></i>
-                            </div>
+                        <div class="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
+                            <div class="w-4 h-4 animate-spin"><i class="fas fa-circle-notch"></i></div>
+                            <span class="text-xs">Loading service details...</span>
                         </div>
                     </div>
                 </td>
@@ -2884,10 +3175,10 @@ async function fetchAndDisplayModalServices(computer) {
                         if (serviceDetails && serviceDetails[0]) {
                             const details = serviceDetails[0].attributes;
                             detailsRow.innerHTML = `
-                                <td colspan="4" class="px-3 py-2">
+                                <td colspan="4" class="px-3 py-3">
                                     <form class="service-edit-form">
                                         <div class="animate-fade-in space-y-4">
-                                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                                 <div>
                                                     <p class="font-medium text-neutral-700 dark:text-neutral-200">Service Name</p>
                                                     <input type="text" class="service-name-input mt-1 w-full px-2 py-1 text-sm bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded text-neutral-900 dark:text-white" value="${details.ServiceName}" readonly>
@@ -2918,6 +3209,7 @@ async function fetchAndDisplayModalServices(computer) {
                                                         <option value="0" ${details.StartType === 0 ? 'selected' : ''}>Boot Start</option>
                                                         <option value="1" ${details.StartType === 1 ? 'selected' : ''}>System Start</option>
                                                         <option value="2" ${details.StartType === 2 ? 'selected' : ''}>Automatic</option>
+                                                        <option value="2-delayed">Automatic (Delayed Start)</option>
                                                         <option value="3" ${details.StartType === 3 ? 'selected' : ''}>Manual</option>
                                                         <option value="4" ${details.StartType === 4 ? 'selected' : ''}>Disabled</option>
                                                     </select>
@@ -2941,7 +3233,7 @@ async function fetchAndDisplayModalServices(computer) {
                                                 </div>
                                             </div>
                                             <div class="flex justify-end gap-2 pt-2">
-                                                <button type="submit" class="px-3 py-1.5 text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:text-black rounded">
+                                                <button type="submit" class="px-3 py-1.5 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:text-black rounded">
                                                     Save Changes
                                                 </button>
                                             </div>
@@ -2963,6 +3255,7 @@ async function fetchAndDisplayModalServices(computer) {
                                     detailsRow.querySelector('.error-control-input').value,
                                     detailsRow.querySelector('.service-start-name-input').value
                                 );
+                                await fetchAndDisplayModalServices(computer);
                             };
                         }
                     } catch (error) {
@@ -2977,8 +3270,6 @@ async function fetchAndDisplayModalServices(computer) {
             });
         });
     } catch (error) {
-        console.error('Error fetching services:', error);
-        showErrorAlert(error.message || 'Failed to fetch services');
     } finally {
         hideModalContentSpinner();
     }
@@ -2998,7 +3289,8 @@ async function updateServiceConfig(computer, serviceName, displayName, binaryPat
                 display_name: displayName,
                 binary_path: binaryPath,
                 service_type: parseInt(serviceType),
-                start_type: parseInt(startType),
+                start_type: parseInt((startType || '').toString().replace('-delayed','')),
+                delayed_start: (startType || '').toString().includes('-delayed'),
                 error_control: parseInt(errorControl),
                 service_start_name: serviceStartName
             })
@@ -3014,10 +3306,10 @@ async function updateServiceConfig(computer, serviceName, displayName, binaryPat
     }
 }
 
-function getFileIcon(fileName, isDirectory) {
+function getFileIcon(fileName, isDirectory, isExpanded=false) {
     if (isDirectory) {
         return {
-            icon: icons.folderIcon,
+            icon: isExpanded ? icons.folderOpenedIcon : icons.folderIcon,
             iconClass: '', // Folders typically don't need specific coloring here
             isCustomSvg: true
         };

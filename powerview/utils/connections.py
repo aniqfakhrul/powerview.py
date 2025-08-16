@@ -44,6 +44,7 @@ from collections import OrderedDict
 import time
 import ldap3
 import logging
+import json
 import sys
 from struct import unpack
 import tempfile
@@ -417,20 +418,27 @@ class SMBConnectionEntry(ConnectionPoolEntry):
 	def __init__(self, connection, host, created_time=None):
 		super().__init__(connection, host, created_time)
 		self.host = host
+		self.last_check_time = time.time()
 	
 	def is_alive(self, force_check=False):
 		"""Check if the underlying SMB connection is still alive"""
 		with self._lock:
 			if not self.is_healthy:
 				return False
-			try:
-				if force_check:
-					logging.debug(f"[SMBConnectionPool] {self._pool_type} forcing SMB connection health check")
-					self.connection.listShares()
-				return True
-			except Exception:
-				self.is_healthy = False
-				return False
+			current_time = time.time()
+			if force_check or (current_time - self.last_check_time > 60):
+				try:
+					self.connection._SMBConnection.echo()
+					self.last_check_time = current_time
+					return True
+				except Exception as e:
+					self.is_healthy = False
+					return False
+			return True
+	
+	def mark_used(self):
+		super().mark_used()
+		self.last_check_time = time.time()
 	
 	def close(self):
 		"""Close the underlying SMB connection"""
@@ -451,7 +459,7 @@ class SMBConnectionPool(ConnectionPool):
 	- Connection rotation for stealth operations
 	"""
 	
-	def __init__(self, max_connections=20, cleanup_interval=300, keepalive_interval=600):
+	def __init__(self, max_connections=20, cleanup_interval=400, keepalive_interval=300):
 		super().__init__(max_connections, cleanup_interval, keepalive_interval)
 		self._pool_type = 'SMB'
 	
@@ -588,7 +596,8 @@ class SMBConnectionPool(ConnectionPool):
 					'last_used': entry.last_used,
 					'use_count': entry.use_count,
 					'age': time.time() - entry.created_time,
-					'is_alive': entry.is_alive()
+					'is_alive': entry.is_alive(),
+					'last_check_time': entry.last_check_time
 				}
 			
 			return stats
@@ -603,8 +612,8 @@ class CONNECTION:
         )
 		self._smb_pool = SMBConnectionPool(
 			max_connections=20,
-			cleanup_interval=300,
-			keepalive_interval=600
+			cleanup_interval=400,
+			keepalive_interval=300
 		)
 		self._current_domain = None
 		self.username = args.username
@@ -923,6 +932,22 @@ class CONNECTION:
 		}
 		
 		return stats
+
+	def get_server_info(self, raw=False):
+		info = getattr(self.ldap_server, 'info', None)
+		if info is None:
+			return None
+		if raw:
+			return info
+		return json.loads(info.to_json())
+
+	def get_schema_info(self, raw=False):
+		schema = getattr(self.ldap_server, 'schema', None)
+		if schema is None:
+			return None
+		if raw:
+			return schema
+		return json.loads(schema.to_json())
 
 	def refresh_domain(self):
 		try:
@@ -1285,7 +1310,7 @@ class CONNECTION:
 				# check if domain is empty
 				if not self.domain or not is_valid_fqdn(self.domain):
 					self.refresh_domain()
-
+				
 				return self.ldap_server, self.ldap_session
 			except (ldap3.core.exceptions.LDAPSocketOpenError, ConnectionResetError):
 				try:
@@ -1448,8 +1473,7 @@ class CONNECTION:
 		ldap_connection_kwargs = {
 			"user": None,
 			"authentication": ldap3.SASL,
-			"sasl_mechanism": ldap3.EXTERNAL,
-			"check_names": not self.args.obfuscate
+			"sasl_mechanism": ldap3.EXTERNAL
 		}
 
 		ldap_server = ldap3.Server(**ldap_server_kwargs)
@@ -1622,8 +1646,7 @@ class CONNECTION:
 		ldap_connection_kwargs = {
 			"user":user,
 			"raise_exceptions": True,
-			"authentication": auth_method,
-			"check_names": not self.args.obfuscate
+			"authentication": auth_method
 		}
 		logging.debug("Authentication: {}, User: {}".format(auth_method, user))
 
@@ -2100,12 +2123,12 @@ class CONNECTION:
 		if not lmhash:
 			lmhash = self.lmhash
 
-		logging.debug("[ConnectRPCTransport] Using credentials: %s, %s, %s, %s, %s" % (username, password, domain, lmhash, nthash))
+		logging.debug("[RPCTransport] Using credentials: %s, %s, %s, %s, %s" % (username, password, domain, lmhash, nthash))
 
 		if not stringBindings:
 			stringBindings = epm.hept_map(host, samr.MSRPC_UUID_SAMR, protocol ='ncacn_ip_tcp')
 
-		logging.debug("[ConnectRPCTransport] Connecting to %s" % stringBindings)
+		logging.debug("[RPCTransport] Connecting to %s" % stringBindings)
 		rpctransport = transport.DCERPCTransportFactory(stringBindings)
 		rpctransport.set_dport(port)
 
@@ -2132,13 +2155,13 @@ class CONNECTION:
 				dce.bind(interface_uuid)
 			return dce
 		except SessionError as e:
-			logging.debug("[connectRPCTransport:SessionError] %s" % str(e))
+			logging.debug("[RPCTransport:SessionError] %s" % str(e))
 			if raise_exceptions:
 				raise e
 			else:
 				return
 		except Exception as e:
-			logging.debug("[connectRPCTransport:Exception] %s" % str(e))
+			logging.debug("[RPCTransport:Exception] %s" % str(e))
 			if raise_exceptions:
 				raise e
 			else:
