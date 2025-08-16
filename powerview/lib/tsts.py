@@ -444,6 +444,7 @@ class TSHandler:
 					resp = TSSession.hRpcShowMessageBox(session_handle, title, message, mask, timeout, bool(dontwait))
 					if resp['ErrorCode'] == 0:
 						resp_code = None
+						resp_text = None
 						try:
 							resp_code = resp['pulResponse']
 							resp_enum = None
@@ -452,22 +453,36 @@ class TSHandler:
 							except Exception:
 								resp_enum = None
 							if resp_enum is not None:
+								resp_text = resp_enum.name
 								logging.debug(f"[TS] MessageBox response: {resp_enum.name} ({resp_code})")
 							else:
-								logging.debug(f"[TS] MessageBox response: {resp_code}")
+								resp_text = str(resp_code) if resp_code is not None else None
+								logging.debug(f"[TS] MessageBox response: {resp_text}")
 						except Exception:
 							resp_code = None
-						return resp_code, True
+							resp_text = None
+						return resp_text, True
 					else:
 						resp_code = None
+						resp_text = None
 						try:
 							resp_code = resp.get('pulResponse', None)
+							if resp_code is not None:
+								try:
+									resp_enum = TSTS.MSGBOX_ENUM.enumItems(resp_code)
+								except Exception:
+									resp_enum = None
+								resp_text = resp_enum.name if resp_enum is not None else str(resp_code)
+							else:
+								resp_text = None
 						except Exception:
 							resp_code = None
-						return resp_code, False
+							resp_text = None
+						return resp_text, False
 				except Exception as e:
-					return None, False
-					if e.error_code == 0x80070002:
+					if str(e).find('ERROR_SUCCESS') >= 0:
+						return None, True
+					elif e.error_code == 0x80070002:
 						logging.error(f'Could not find SessionID: {session_id}')
 					else:
 						logging.error(str(e))

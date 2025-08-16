@@ -906,6 +906,7 @@ def powerview_arg_parse(cmd):
 	add_netservice_parser.add_argument('-Password', action='store', const=None, dest='password')
 	add_netservice_parser.add_argument('-ServiceType', action='store', const=None, dest='service_type')
 	add_netservice_parser.add_argument('-StartType', action='store', const=None, dest='start_type')
+	add_netservice_parser.add_argument('-DelayedStart', action='store_true', default=False, dest='delayed_start')
 	add_netservice_parser.add_argument('-ErrorControl', action='store', const=None, dest='error_control')
 	add_netservice_parser.add_argument('-ServiceStartName', action='store', const=None, dest='service_start_name')
 

@@ -31,7 +31,7 @@ COMMANDS = {
     'Get-CATemplate':['-Identity','-Vulnerable','-Enabled','-ResolveSIDs','-Properties', '-NoCache', '-NoVulnCheck','-SearchBase','-Server','-Select', '-Where', '-TableView', '-SortBy', '-Count', '-NoWrap', '-OutFile', '-Raw'],
     'Add-DomainCATemplate':['-DisplayName','-Name','-Duplicate','-Server','-NoWrap'],
     'Add-CATemplate':['-DisplayName','-Name','-Duplicate','-Server','-NoWrap'],
-    'Add-NetService':['-Computer','-Name','-DisplayName','-Path','-Password','-ServiceType','-StartType','-ErrorControl','-ServiceStartName'],
+    'Add-NetService':['-Computer','-Name','-DisplayName','-Path','-Password','-ServiceType','-StartType','-DelayedStart','-ErrorControl','-ServiceStartName'],
     'Get-DomainGPO':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainGPOLocalGroup':['-Identity','-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-GPOLocalGroup':['-Identity','-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],

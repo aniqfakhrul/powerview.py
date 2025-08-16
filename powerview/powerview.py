@@ -5924,6 +5924,7 @@ displayName=New Group Policy Object
 		binary_path,
 		service_type=None,
 		start_type=None,
+		delayed_start=False,
 		error_control=None,
 		service_start_name=None,
 		password=None,
@@ -5977,7 +5978,7 @@ displayName=New Group Policy Object
 			res = scmr.hROpenSCManagerW(dce)
 			scManagerHandle = res['lpScHandle']
 
-			scmr.hRCreateServiceW(
+			resp = scmr.hRCreateServiceW(
 				dce,
 				scManagerHandle,
 				service_name,
@@ -5989,7 +5990,28 @@ displayName=New Group Policy Object
 				lpServiceStartName=service_start_name,
 				lpPassword=password
 			)
+			if resp['ErrorCode'] != 0:
+				logging.error(f"[Add-NetService] Failed to add service {service_name} to {computer_name}: {resp['ErrorMessage']}")
+				return False
+
 			logging.info(f"[Add-NetService] Service {service_name} added to {computer_name}")
+
+			if delayed_start:
+				try:
+					serviceHandle = resp['lpServiceHandle']
+					request = scmr.RChangeServiceConfig2W()
+					request['hService'] = serviceHandle
+					request['Info']['dwInfoLevel'] = 3
+					request['Info']['Union']['tag'] = 3
+					request['Info']['Union']['psda']['fDelayedAutostart'] = 1
+					resp = dce.request(request)
+					
+					if resp['ErrorCode'] != 0:
+						logging.error(f"[Add-NetService] Failed to enable delayed auto-start for {service_name} on {computer_name}: {resp['ErrorMessage']}")
+
+					logging.info(f"[Add-NetService] Enabled delayed auto-start for {service_name} on {computer_name}")
+				except Exception as e:
+					logging.error(f"[Add-NetService] {str(e)}")
 
 			logging.debug(f"[Add-NetService] Closing service handle {service_name} on {computer_name}")
 			scmr.hRCloseServiceHandle(dce, scManagerHandle)
@@ -6206,7 +6228,7 @@ displayName=New Group Policy Object
 		dce.disconnect()
 		return entries
 
-	def invoke_messagebox(self, identity=None, session_id=None, title=None, message=None, style=MSGBOX_TYPE.MB_OK, timeout=0, dontwait=True, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+	def invoke_messagebox(self, identity=None, session_id=None, title=None, message=None, style=MSGBOX_TYPE.MB_OKCANCEL, timeout=0, dontwait=True, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
 		if args:
 			if username is None and hasattr(args, 'username') and args.username:
 				logging.warning(f"[Invoke-MessageBox] Using identity {args.username} from supplied username. Ignoring current user context...")
@@ -6274,7 +6296,6 @@ displayName=New Group Policy Object
 
 		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
 		pulResponse, success = ts.do_msg(session_id=session_id, title=title, message=message, style=style, timeout=timeout, dontwait=dontwait)
-		print(pulResponse)
 		if success:
 			logging.info(f"[Invoke-MessageBox] Successfully sent message to session {session_id} on {identity}")
 		else:
