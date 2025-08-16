@@ -5996,7 +5996,7 @@ displayName=New Group Policy Object
 
 			logging.info(f"[Add-NetService] Service {service_name} added to {computer_name}")
 
-			if delayed_start:
+			if delayed_start and start_type == scmr.SERVICE_AUTO_START:
 				try:
 					serviceHandle = resp['lpServiceHandle']
 					request = scmr.RChangeServiceConfig2W()
