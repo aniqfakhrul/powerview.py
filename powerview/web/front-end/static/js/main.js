@@ -2513,7 +2513,6 @@ function initializeClearCacheButton() {
     }
 }
 
-// Add this function to display the Member Of content
 function displayModalMemberOf(memberOf) {
     const tbody = document.getElementById('memberof-rows');
     if (!tbody) return;
@@ -2547,7 +2546,6 @@ function displayModalMemberOf(memberOf) {
     });
 }
 
-// Add this function to fetch and display owner information
 async function getObjectOwner(identity) {
     try {
         showModalContentSpinner();
@@ -2580,7 +2578,6 @@ async function getObjectOwner(identity) {
     }
 }
 
-// Add this function to display owner information
 function displayOwnerInfo(ownerInfo) {
     const container = document.getElementById('owner-info');
     if (!container) return;
@@ -2594,7 +2591,6 @@ function displayOwnerInfo(ownerInfo) {
         </div>
     `;
 
-    // Add click handler for change owner button
     const changeOwnerButton = document.getElementById('change-owner-button');
     if (changeOwnerButton) {
         changeOwnerButton.addEventListener('click', (event) => {
@@ -2607,18 +2603,15 @@ function displayOwnerInfo(ownerInfo) {
     }
 }
 
-// Add this function to handle the change owner button click
 function openChangeOwnerModal(identity) {
     const modal = document.getElementById('change-owner-modal');
     const overlay = document.getElementById('modal-overlay');
     modal.classList.remove('hidden');
     overlay.classList.remove('hidden');
 
-    // Prefill the identity field
     const identityInput = document.getElementById('owner-identity-input');
     identityInput.value = identity;
 
-    // Handle form submission
     const form = document.getElementById('change-owner-form');
     form.onsubmit = async (e) => {
         e.preventDefault();
@@ -2627,13 +2620,11 @@ function openChangeOwnerModal(identity) {
         const success = await changeOwner(identity, newOwner);
         if (success) {
             hideModal('change-owner-modal');
-            // Refresh owner info after successful change
             await getObjectOwner(identity);
         }
     };
 }
 
-// Add this function to change owner
 async function changeOwner(targetIdentity, principalIdentity) {
     try {
         showLoadingIndicator();
@@ -2667,7 +2658,6 @@ async function changeOwner(targetIdentity, principalIdentity) {
     }
 }
 
-// Add these functions to handle SMB operations
 async function connectToSMB(data) {
     const response = await fetch('/api/smb/connect', {
         method: 'POST',
@@ -2729,7 +2719,6 @@ async function listSMBPath(computer, share, path = '') {
     }
 }
 
-// Update buildSMBTreeView to use the folderIcon
 function buildSMBTreeView(shares) {
     let html = '<ul class="space-y-1">';
     shares.forEach(share => {
@@ -2786,13 +2775,11 @@ function attachFileListeners(computer, share) {
 
         if (isDirectory) {
             fileDiv.onclick = async () => {
-                // If the folder is already loaded and just hidden, simply toggle it
                 if (!subList.classList.contains('hidden') || subList.children.length > 0) {
                     subList.classList.toggle('hidden');
                     return;
                 }
 
-                // Only make API call if folder hasn't been loaded yet
                 try {
                     showLoadingIndicator();
                     const currentPath = item.dataset.path;
@@ -2800,7 +2787,7 @@ function attachFileListeners(computer, share) {
                     const files = await listSMBPath(computer, share, cleanPath);
                     subList.innerHTML = buildFileList(files, share, currentPath);
                     subList.classList.remove('hidden');
-                    // Recursively attach listeners to new files
+
                     attachFileListeners(computer, share);
                 } catch (error) {
                     console.error('Error loading files:', error);
