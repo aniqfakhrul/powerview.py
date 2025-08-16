@@ -1220,14 +1220,12 @@ async function showLdapAttributesModal(attributes = {}, identity) {
         // Show/hide computer-specific tabs
         const sessionsTab = modal.querySelector('[aria-controls="tabpanelSessions"]');
         const loggedonTab = modal.querySelector('[aria-controls="tabpanelLoggedon"]');
-        const sharesTab = modal.querySelector('[aria-controls="tabpanelShares"]');
         const servicesTab = modal.querySelector('[aria-controls="tabpanelServices"]');
         
-        if (sessionsTab && loggedonTab && sharesTab && servicesTab) {
+        if (sessionsTab && loggedonTab && servicesTab) {
             sessionsTab.style.display = isComputer ? '' : 'none';
             loggedonTab.style.display = isComputer ? '' : 'none';
-            sharesTab.style.display = isComputer ? '' : 'none';
-            servicesTab.style.display = isComputer ? '' : 'none';  // Added this line
+            servicesTab.style.display = isComputer ? '' : 'none';
         }
 
         // Show the modal and overlay
@@ -1436,8 +1434,6 @@ async function selectModalTab(tabName) {
                 }
                 break;
 
-            
-
             case 'services':
                 const dnsHostnameServicesInput = ldapAttributeModal.querySelector('#dNSHostName-wrapper input');
                 const dnsHostnameServices = dnsHostnameServicesInput?.value;
@@ -1500,13 +1496,15 @@ function updateModalDaclContent(daclData) {
             );
 
             const aceAllowed = attribute.ACEType?.toUpperCase().includes('ALLOWED');
-            const aceTypeBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${aceAllowed ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'}">${aceAllowed ? 'ALLOW' : 'DENY'}</span>`;
+            const aceBadgeClasses = aceAllowed ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+            const aceBadgeLabel = aceAllowed ? 'ALLOW' : 'DENY';
+            const aceTypeBadge = '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ' + aceBadgeClasses + '">' + aceBadgeLabel + '</span>';
 
             const accessList = (attribute.AccessMask || '')
                 .split(',')
                 .map(s => s.trim())
                 .filter(Boolean)
-                .map(mask => `<span class="inline-flex px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-xs mr-1 mb-1">${mask}</span>`) 
+                .map(mask => '<span class="inline-flex px-2 py-0.5 rounded bg-neutral-100 dark:bg-neutral-800 text-xs mr-1 mb-1">' + mask + '</span>') 
                 .join('');
 
             const sid = (attribute.SecurityIdentifier || '').replace('Pre-Windows 2000', 'Pre2k');
@@ -1514,21 +1512,22 @@ function updateModalDaclContent(daclData) {
             const inherited = attribute.InheritanceType || '';
             const appliesTo = attribute.ObjectAceType || '';
 
-            row.innerHTML = `
-                <td class="px-3 py-2 align-top w-20">${aceTypeBadge}</td>
-                <td class="px-3 py-2 align-top">
-                    <div class="text-sm text-neutral-900 dark:text-neutral-100">${sid}</div>
-                </td>
-                <td class="px-3 py-2">
-                    <div class="flex flex-wrap">${accessList || '<span class=\"text-neutral-500 dark:text-neutral-400 text-xs\">-</span>'}</div>
-                </td>
-                <td class="px-3 py-2 align-top">
-                    <span class="text-xs text-neutral-600 dark:text-neutral-300">${inherited}</span>
-                </td>
-                <td class="px-3 py-2 align-top">
-                    <span class="text-xs text-neutral-600 dark:text-neutral-300">${appliesTo}</span>
-                </td>
-            `;
+            const accessListHtml = accessList || '<span class="text-neutral-500 dark:text-neutral-400 text-xs">-</span>';
+
+            row.innerHTML =
+                '<td class="px-3 py-2 align-top w-20">' + aceTypeBadge + '</td>' +
+                '<td class="px-3 py-2 align-top">' +
+                '    <div class="text-sm text-neutral-900 dark:text-neutral-100">' + sid + '</div>' +
+                '</td>' +
+                '<td class="px-3 py-2">' +
+                '    <div class="flex flex-wrap">' + accessListHtml + '</div>' +
+                '</td>' +
+                '<td class="px-3 py-2 align-top">' +
+                '    <span class="text-xs text-neutral-600 dark:text-neutral-300">' + inherited + '</span>' +
+                '</td>' +
+                '<td class="px-3 py-2 align-top">' +
+                '    <span class="text-xs text-neutral-600 dark:text-neutral-300">' + appliesTo + '</span>' +
+                '</td>';
 
             daclRows.appendChild(row);
         });
@@ -1729,47 +1728,47 @@ async function loadOrganizationSection(currentAttributes) {
         if (!managerDn) {
             if (managerTarget) managerTarget.innerHTML = '<div class="text-sm text-neutral-500">No manager</div>';
             if (managerInline) managerInline.textContent = '-';
-            return;
         }
 
-        const mgrResp = await fetch('/api/get/domainobject', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ searchbase: managerDn, properties: ['displayName','name','title','thumbnailPhoto','directReports','distinguishedName'], search_scope: 'BASE' })
-        });
-        await handleHttpError(mgrResp);
-        if (!mgrResp.ok) return;
-		const mgrData = await mgrResp.json();
-		const mgrEntry = Array.isArray(mgrData) ? mgrData[0] : mgrData;
-		const mgrAttrs = (mgrEntry && mgrEntry.attributes) ? mgrEntry.attributes : {};
-        
-		const mgrDisplayName = Array.isArray(mgrAttrs.displayName) ? mgrAttrs.displayName[0] : mgrAttrs.displayName;
-		const mgrSimpleName = Array.isArray(mgrAttrs.name) ? mgrAttrs.name[0] : mgrAttrs.name;
-		const mgrName = (mgrDisplayName || mgrSimpleName || '') || 'Manager';
-        const mgrTitle = Array.isArray(mgrAttrs.title) ? mgrAttrs.title[0] : (mgrAttrs.title || '');
-        if (managerInline) managerInline.textContent = mgrName || '-';
-
-        if (managerTarget) {
-            const initial = (mgrName || '?').toString().charAt(0).toUpperCase();
-            const mgrNameAttr = (mgrName || '').toString().replace(/"/g, '&quot;');
-            const mgrTitleAttr = (mgrTitle || '').toString().replace(/"/g, '&quot;');
-            managerTarget.innerHTML = `
-                <div class="flex items-center gap-3 org-card fade-in-up transition transform hover:-translate-y-0.5" style="animation-delay: 0ms">
-                    <div class="w-12 h-12 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-lg font-semibold text-neutral-700 dark:text-neutral-200">${initial}</div>
-                    <div class="min-w-0">
-                        <div class="text-sm font-medium text-neutral-900 dark:text-white truncate" title="${mgrNameAttr}">${mgrName}</div>
-                        <div class="text-xs text-neutral-600 dark:text-neutral-300 truncate" title="${mgrTitleAttr}">${mgrTitle || ''}</div>
-                        <a href="#" class="text-xs text-blue-600 dark:text-yellow-500 hover:underline block mt-1" onclick="handleLdapLinkClick(event, '${managerDn.replace(/'/g,"\\'")}')">View profile</a>
+        let peers = [];
+        if (managerDn) {
+            const mgrResp = await fetch('/api/get/domainobject', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ searchbase: managerDn, properties: ['displayName','name','title','thumbnailPhoto','directReports','distinguishedName'], search_scope: 'BASE' })
+            });
+            await handleHttpError(mgrResp);
+            if (!mgrResp.ok) return;
+            const mgrData = await mgrResp.json();
+            const mgrEntry = Array.isArray(mgrData) ? mgrData[0] : mgrData;
+            const mgrAttrs = (mgrEntry && mgrEntry.attributes) ? mgrEntry.attributes : {};
+            const mgrDisplayName = Array.isArray(mgrAttrs.displayName) ? mgrAttrs.displayName[0] : mgrAttrs.displayName;
+            const mgrSimpleName = Array.isArray(mgrAttrs.name) ? mgrAttrs.name[0] : mgrAttrs.name;
+            const mgrName = (mgrDisplayName || mgrSimpleName || '') || 'Manager';
+            const mgrTitle = Array.isArray(mgrAttrs.title) ? mgrAttrs.title[0] : (mgrAttrs.title || '');
+            if (managerInline) managerInline.textContent = mgrName || '-';
+            if (managerTarget) {
+                const initial = (mgrName || '?').toString().charAt(0).toUpperCase();
+                const mgrNameAttr = (mgrName || '').toString().replace(/"/g, '&quot;');
+                const mgrTitleAttr = (mgrTitle || '').toString().replace(/"/g, '&quot;');
+                managerTarget.innerHTML = `
+                    <div class="flex items-center gap-3 org-card fade-in-up transition transform hover:-translate-y-0.5" style="animation-delay: 0ms">
+                        <div class="w-12 h-12 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-lg font-semibold text-neutral-700 dark:text-neutral-200">${initial}</div>
+                        <div class="min-w-0">
+                            <div class="text-sm font-medium text-neutral-900 dark:text-white truncate" title="${mgrNameAttr}">${mgrName}</div>
+                            <div class="text-xs text-neutral-600 dark:text-neutral-300 truncate" title="${mgrTitleAttr}">${mgrTitle || ''}</div>
+                            <a href="#" class="text-xs text-blue-600 dark:text-yellow-500 hover:underline block mt-1" onclick="handleLdapLinkClick(event, '${managerDn.replace(/'/g,"\\'")}')">View profile</a>
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
+            }
+            const reportsDns = Array.isArray(mgrAttrs.directReports) ? (mgrAttrs.directReports || []).filter(Boolean) : (mgrAttrs.directReports ? [mgrAttrs.directReports] : []);
+            peers = reportsDns.filter(dn => dn !== identity).slice(0, 9);
         }
 
-		const reportsDns = Array.isArray(mgrAttrs.directReports) ? (mgrAttrs.directReports || []).filter(Boolean) : (mgrAttrs.directReports ? [mgrAttrs.directReports] : []);
         if (!peersGrid) return;
         peersGrid.innerHTML = '';
 
-        let peers = reportsDns.filter(dn => dn !== identity).slice(0, 9);
         if (peers.length === 0) {
             try {
                 const deptRaw = Array.isArray(currentAttributes['department']) ? currentAttributes['department'][0] : currentAttributes['department'];
@@ -1790,6 +1789,7 @@ async function loadOrganizationSection(currentAttributes) {
                 console.error('Department peers lookup failed:', e);
             }
         }
+
         if (peers.length === 0) {
             peersGrid.innerHTML = '<div class="text-sm text-neutral-500">No peers found</div>';
             return;
@@ -1804,12 +1804,12 @@ async function loadOrganizationSection(currentAttributes) {
                 });
                 await handleHttpError(r);
                 if (!r.ok) return null;
-				const j = await r.json();
-				const entry = Array.isArray(j) ? j[0] : j;
-				const a = (entry && entry.attributes) ? entry.attributes : {};
-				const displayNameVal = Array.isArray(a.displayName) ? a.displayName[0] : a.displayName;
-				const nameVal = Array.isArray(a.name) ? a.name[0] : a.name;
-				const n = displayNameVal || nameVal || '';
+                const j = await r.json();
+                const entry = Array.isArray(j) ? j[0] : j;
+                const a = (entry && entry.attributes) ? entry.attributes : {};
+                const displayNameVal = Array.isArray(a.displayName) ? a.displayName[0] : a.displayName;
+                const nameVal = Array.isArray(a.name) ? a.name[0] : a.name;
+                const n = displayNameVal || nameVal || '';
                 const t = Array.isArray(a.title) ? a.title[0] : (a.title || '');
                 const initial = (n || '?').toString().charAt(0).toUpperCase();
                 const escDn = dn.replace(/'/g, "\\'");
@@ -2565,7 +2565,6 @@ async function getObjectOwner(identity) {
 
         await handleHttpError(response);
         const data = await response.json();
-        console.log(data);
         
         if (data && data.length > 0) {
             const ownerInfo = data[0].attributes.Owner;
@@ -2728,72 +2727,6 @@ async function listSMBPath(computer, share, path = '') {
         showErrorAlert(error.message);
         throw error;
     }
-}
-
-// Add function to initialize SMB tab
-async function initializeSMBTab(dnsHostname) {
-    const connectButton = document.getElementById('smb-connect-button');
-    const connectAsButton = document.getElementById('smb-connect-as-button');
-    const connectAsForm = document.getElementById('connect-as-form');
-    const statusDiv = document.getElementById('smb-connection-status');
-    const treeDiv = document.getElementById('smb-tree');
-    const computerInput = document.getElementById('smb-computer');
-
-    // Pre-fill computer input with dnsHostname
-    if (computerInput && dnsHostname) {
-        computerInput.value = dnsHostname;
-    }
-
-    // Toggle connect-as form
-    connectAsButton.onclick = () => {
-        connectAsForm.classList.toggle('hidden');
-    };
-
-    connectButton.onclick = async () => {
-        try {
-            showModalContentSpinner();
-            const computer = computerInput.value;
-            const username = document.getElementById('smb-username').value;
-            const password = document.getElementById('smb-password').value;
-
-            // Prepare connection data
-            const connectionData = {
-                computer: computer
-            };
-
-            // Add credentials if provided
-            if (!connectAsForm.classList.contains('hidden') && username && password) {
-                connectionData.username = username;
-                connectionData.password = password;
-            }
-
-            // Connect to SMB
-            await connectToSMB(connectionData);
-            const shares = await listSMBShares(computer);
-            
-            // Update status
-            statusDiv.innerHTML = `
-                <div class="flex items-center gap-2 text-green-600 dark:text-green-500">
-                    <i class="fas fa-check-circle"></i>
-                    <span>Connected to ${computer}</span>
-                </div>
-            `;
-
-            // Build tree view
-            treeDiv.innerHTML = buildSMBTreeView(shares);
-            attachTreeViewListeners(computer);
-
-        } catch (error) {
-            statusDiv.innerHTML = `
-                <div class="flex items-center gap-2 text-red-600 dark:text-red-500">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <span>${error.message}</span>
-                </div>
-            `;
-        } finally {
-            hideModalContentSpinner();
-        }
-    };
 }
 
 // Update buildSMBTreeView to use the folderIcon
@@ -3058,7 +2991,6 @@ async function fetchAndDisplayModalServices(computer) {
                 computer_name: computer
             })
         });
-
         await handleHttpError(response);
         const data = await response.json();
 
@@ -3080,33 +3012,47 @@ async function fetchAndDisplayModalServices(computer) {
             row.className = 'hover:bg-neutral-50 dark:hover:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700';
 
             // Handle the status styling
-            let statusClass = '';
             let status = service.attributes.Status.replace(/\u001b\[\d+m/g, ''); // Remove ANSI codes
-            
+            let badgeClass = 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300';
+            let dotClass = 'bg-neutral-500';
             if (status === 'RUNNING') {
-                statusClass = 'text-green-500 dark:text-green-400';
+                badgeClass = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
+                dotClass = 'bg-green-600';
             } else if (status === 'STOPPED') {
-                statusClass = 'text-red-500 dark:text-red-400';
+                badgeClass = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+                dotClass = 'bg-red-600';
             } else if (status.includes('PENDING')) {
-                statusClass = 'text-yellow-500 dark:text-yellow-400';
+                badgeClass = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300';
+                dotClass = 'bg-yellow-500';
             }
+            const statusBadgeHtml = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${badgeClass}"><span class="inline-block w-1.5 h-1.5 rounded-full ${dotClass}"></span>${status}</span>`;
 
             row.innerHTML = `
-                <td class="px-3 py-2 text-neutral-700 dark:text-neutral-200">${service.attributes.Name}</td>
-                <td class="px-3 py-2 text-neutral-600 dark:text-neutral-300">${service.attributes.DisplayName}</td>
-                <td class="px-3 py-2 font-medium ${statusClass}">${status}</td>
+                <td class="px-3 py-2">
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-md bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500">
+                            <i class="fas fa-cog"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">${service.attributes.Name}</div>
+                            <div class="text-xs text-neutral-500 dark:text-neutral-400 sm:hidden truncate">${service.attributes.DisplayName || ''}</div>
+                        </div>
+                    </div>
+                </td>
+                <td class="px-3 py-2 text-neutral-600 dark:text-neutral-300 hidden sm:table-cell">${service.attributes.DisplayName}</td>
+                <td class="px-3 py-2">${statusBadgeHtml}</td>
                 <td class="px-3 py-2 text-right">
-                    <div class="flex justify-end gap-2">
-                        <button class="start-service-button ${status === 'RUNNING' ? 'hidden' : ''} text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300">
+                    <div class="flex justify-end gap-1.5">
+                        <button class="start-service-button ${status === 'RUNNING' ? 'hidden' : ''} text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 p-1.5 rounded-md hover:bg-green-50 dark:hover:bg-green-900/20" title="Start Service">
                             <i class="fas fa-play"></i>
                         </button>
-                        <button class="stop-service-button ${status !== 'RUNNING' ? 'hidden' : ''} text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300" title="Stop Service">
+                        <button class="stop-service-button ${status !== 'RUNNING' ? 'hidden' : ''} text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20" title="Stop Service">
                             <i class="fas fa-stop"></i>
                         </button>
-                        <button class="info-button text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                        <button class="info-button text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 p-1.5 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20" title="Details">
                             <i class="fas fa-info-circle"></i>
                         </button>
-                        <button class="delete-service-button text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                        <button class="delete-service-button text-neutral-600 hover:text-red-700 dark:text-neutral-400 dark:hover:text-red-400 p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20" title="Delete Service">
                             <i class="fas fa-trash-alt"></i>
                         </button>
                     </div>
@@ -3120,10 +3066,9 @@ async function fetchAndDisplayModalServices(computer) {
             detailsRow.innerHTML = `
                 <td colspan="4" class="px-3 py-2">
                     <div class="animate-fade-in">
-                        <div class="flex justify-center">
-                            <div class="w-6 h-6 animate-spin">
-                                <i class="fas fa-circle-notch"></i>
-                            </div>
+                        <div class="flex items-center gap-2 text-neutral-500 dark:text-neutral-400">
+                            <div class="w-4 h-4 animate-spin"><i class="fas fa-circle-notch"></i></div>
+                            <span class="text-xs">Loading service details...</span>
                         </div>
                     </div>
                 </td>
@@ -3243,10 +3188,10 @@ async function fetchAndDisplayModalServices(computer) {
                         if (serviceDetails && serviceDetails[0]) {
                             const details = serviceDetails[0].attributes;
                             detailsRow.innerHTML = `
-                                <td colspan="4" class="px-3 py-2">
+                                <td colspan="4" class="px-3 py-3">
                                     <form class="service-edit-form">
                                         <div class="animate-fade-in space-y-4">
-                                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                                 <div>
                                                     <p class="font-medium text-neutral-700 dark:text-neutral-200">Service Name</p>
                                                     <input type="text" class="service-name-input mt-1 w-full px-2 py-1 text-sm bg-white dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded text-neutral-900 dark:text-white" value="${details.ServiceName}" readonly>
@@ -3301,7 +3246,7 @@ async function fetchAndDisplayModalServices(computer) {
                                                 </div>
                                             </div>
                                             <div class="flex justify-end gap-2 pt-2">
-                                                <button type="submit" class="px-3 py-1.5 text-sm font-medium text-white bg-yellow-600 hover:bg-yellow-700 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:text-black rounded">
+                                                <button type="submit" class="px-3 py-1.5 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:text-black rounded">
                                                     Save Changes
                                                 </button>
                                             </div>
@@ -3338,8 +3283,6 @@ async function fetchAndDisplayModalServices(computer) {
             });
         });
     } catch (error) {
-        console.error('Error fetching services:', error);
-        showErrorAlert(error.message || 'Failed to fetch services');
     } finally {
         hideModalContentSpinner();
     }

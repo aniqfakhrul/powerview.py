@@ -248,7 +248,6 @@
                         class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
                         type="button" role="tab" aria-controls="tabpanelMemberof"
                         style="display: none;">Member Of</button>
-                    
                     <button onclick="selectModalTab('owner')" aria-selected="false" tabindex="-1" 
                         class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
                         type="button" role="tab" aria-controls="tabpanelOwner">Owner</button>
@@ -433,7 +432,57 @@
                         </table>
                     </div>
                 </div>
-                
+                <!-- Shares Tab -->
+                <div id="tabpanelShares" role="tabpanel" aria-label="shares" class="p-4 relative" style="display: none;">
+                    <div id="shares-tab-spinner" class="hidden absolute inset-0 bg-black bg-opacity-50 flex justify-center items-center z-10">
+                        <!-- Same spinner SVG as above -->
+                    </div>
+                    <div class="flex flex-col h-full">
+                        <!-- Connection Controls -->
+                        <div class="flex items-center justify-between mb-4">
+                            <div id="smb-connection-status">
+                                <!-- Status will be dynamically updated -->
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <!-- Connect As Form (initially hidden) -->
+                                <div id="connect-as-form" class="hidden flex items-center gap-2">
+                                    <input type="text" id="modal-smb-username" 
+                                        placeholder="Username" 
+                                        class="px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white">
+                                    <input type="password" id="modal-smb-password" 
+                                        placeholder="Password" 
+                                        class="px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white">
+                                </div>
+                                
+                                <!-- Computer Input -->
+                                <input type="text" id="modal-smb-computer" 
+                                    placeholder="Computer" 
+                                    class="w-64 px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white">
+                                
+                                <!-- Connect As Button -->
+                                <button id="modal-smb-connect-as-button" type="button" 
+                                    class="inline-flex items-center gap-1.5 rounded-md bg-neutral-100 px-3 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700">
+                                    <i class="fas fa-user-shield fa-sm"></i>
+                                    Connect As
+                                </button>
+
+                                <!-- Connect Button -->
+                                <button id="modal-smb-connect-button" type="button" 
+                                    class="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-neutral-800 dark:bg-yellow-500 dark:text-black dark:hover:bg-yellow-600">
+                                    <i class="fas fa-plug fa-sm"></i>
+                                    Connect
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Tree View Container -->
+                        <div class="flex-1 border border-neutral-200 dark:border-neutral-700 rounded-md overflow-hidden">
+                            <div id="smb-tree" class="p-4 overflow-auto max-h-[500px] scrollbar">
+                                <!-- Tree view will be dynamically populated -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div id="tabpanelOwner" role="tabpanel" aria-label="owner" class="p-4" style="display: none;">
                     <div class="flex items-center justify-between mb-4">
                         <div id="owner-info" class="flex-1">

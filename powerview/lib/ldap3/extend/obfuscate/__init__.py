@@ -68,7 +68,6 @@ class LdapParser(FilterParser):
 			parsed_structure = self.parsed_structure
 		wildcard_expansion_obfuscation(parsed_structure, self._apply_to_filter_leaves)
 
-	# Legacy method names for backwards compatibility
 	def prepend_zeros(self, parsed_structure=None):
 		"""Legacy wrapper for prepend_zeros_obfuscation"""
 		self.prepend_zeros_obfuscation(parsed_structure)
