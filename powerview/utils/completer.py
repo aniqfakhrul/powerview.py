@@ -145,7 +145,7 @@ COMMANDS = {
     'Set-RBCD':['-Identity','-DelegateFrom','-SearchBase','-Server','-OutFile'],
     'Set-DomainObjectOwner':['-TargetIdentity','-PrincipalIdentity','-SearchBase','-Server','-OutFile'],
     'Set-ObjectOwner':['-TargetIdentity','-PrincipalIdentity','-SearchBase','-Server','-OutFile'],
-    'Set-NetService':['-Computer','-Name','-DisplayName','-Path','-Password'],
+    'Set-NetService':['-Computer','-Name','-DisplayName','-Path','-Password','-ServiceType','-StartType','-DelayedStart'],
     'Start-NetService':['-Computer','-Name'],
     'Stop-NetService':['-Computer','-Name'],
     'Add-GPLink':['-GUID','-TargetIdentity','-LinkEnabled','-Enforced','-SearchBase','-Server','-OutFile'],

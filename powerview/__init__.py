@@ -404,6 +404,7 @@ def main():
                                             binary_path=pv_args.binary_path,
                                             service_type=pv_args.service_type,
                                             start_type=pv_args.start_type,
+                                            delayed_start=pv_args.delayed_start,
                                             error_control=pv_args.error_control,
                                             service_start_name=pv_args.service_start_name,
                                             password=pv_args.password
@@ -416,6 +417,7 @@ def main():
                                             binary_path=pv_args.binary_path,
                                             service_type=pv_args.service_type,
                                             start_type=pv_args.start_type,
+                                            delayed_start=pv_args.delayed_start,
                                             error_control=pv_args.error_control,
                                             service_start_name=pv_args.service_start_name,
                                             password=pv_args.password

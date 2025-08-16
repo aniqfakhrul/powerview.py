@@ -5941,9 +5941,9 @@ displayName=New Group Policy Object
 		service_name = service_name + '\x00' if service_name else NULL
 		display_name = display_name + '\x00' if display_name else NULL
 		binary_path = binary_path + '\x00' if binary_path else NULL
-		service_type = int(service_type) if service_type else scmr.SERVICE_WIN32_OWN_PROCESS
-		start_type = int(start_type) if start_type else scmr.SERVICE_AUTO_START
-		error_control = int(error_control) if error_control else scmr.SERVICE_ERROR_IGNORE
+		service_type = scmr.SERVICE_WIN32_OWN_PROCESS if service_type is None else int(service_type)
+		start_type = scmr.SERVICE_AUTO_START if start_type is None else int(start_type)
+		error_control = scmr.SERVICE_ERROR_IGNORE if error_control is None else int(error_control)
 		service_start_name = service_start_name + '\x00' if service_start_name else NULL
 		if password:
 			client = self.conn.init_smb_session(computer_name)
@@ -5956,6 +5956,10 @@ displayName=New Group Policy Object
 			password = encryptSecret(key, password)
 		else:
 			password = NULL
+
+		if delayed_start and start_type != scmr.SERVICE_AUTO_START:
+			logging.warning(f"[Add-NetService] Delayed start is only supported for auto-start services.")
+			return False
 
 		KNOWN_PROTOCOLS = {
 			139: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
@@ -5996,7 +6000,7 @@ displayName=New Group Policy Object
 
 			logging.info(f"[Add-NetService] Service {service_name} added to {computer_name}")
 
-			if delayed_start and start_type == scmr.SERVICE_AUTO_START:
+			if delayed_start:
 				try:
 					serviceHandle = resp['lpServiceHandle']
 					request = scmr.RChangeServiceConfig2W()
@@ -6027,6 +6031,7 @@ displayName=New Group Policy Object
 		binary_path=None,
 		service_type=None,
 		start_type=None,
+		delayed_start=False,
 		error_control=None,
 		service_start_name=None,
 		password=None,
@@ -6038,6 +6043,10 @@ displayName=New Group Policy Object
 			else:
 				logging.error("[Set-NetService] Computer name, service name, and path are required")
 				return False
+
+		if delayed_start and start_type != scmr.SERVICE_AUTO_START:
+			logging.warning(f"[Set-NetService] Delayed start is only supported for auto-start services.")
+			return False
 
 		KNOWN_PROTOCOLS = {
 			139: {'bindstr': r'ncacn_np:%s[\pipe\svcctl]', 'set_host': True},
@@ -6067,9 +6076,10 @@ displayName=New Group Policy Object
 
 			display = display_name + '\x00' if display_name else NULL
 			binary_path = binary_path + '\x00' if binary_path else NULL
-			service_type = service_type if service_type else scmr.SERVICE_NO_CHANGE
-			start_type = start_type if start_type else scmr.SERVICE_NO_CHANGE
-			error_control = error_control if error_control else scmr.SERVICE_ERROR_IGNORE
+			service_type = scmr.SERVICE_NO_CHANGE if service_type is None else int(service_type)
+			start_type = scmr.SERVICE_NO_CHANGE if start_type is None else int(start_type)
+			delayed_start = delayed_start if delayed_start else False
+			error_control = scmr.SERVICE_ERROR_IGNORE if error_control is None else int(error_control)
 			service_start_name = service_start_name + '\x00' if service_start_name else NULL
 			if password:
 				client = self.conn.init_smb_session(computer_name)
@@ -6101,6 +6111,23 @@ displayName=New Group Policy Object
 				0,
 				display
 			)
+
+			if delayed_start:
+				try:
+					request = scmr.RChangeServiceConfig2W()
+					request['hService'] = serviceHandle
+					request['Info']['dwInfoLevel'] = 3
+					request['Info']['Union']['tag'] = 3
+					request['Info']['Union']['psda']['fDelayedAutostart'] = 1
+					resp = dce.request(request)
+					
+					if resp['ErrorCode'] != 0:
+						logging.error(f"[Set-NetService] Failed to enable delayed auto-start for {service_name} on {computer_name}: {resp['ErrorMessage']}")
+
+					logging.info(f"[Set-NetService] Enabled delayed auto-start for {service_name} on {computer_name}")
+				except Exception as e:
+					logging.error(f"[Set-NetService] {str(e)}")
+
 			logging.info(f"[Set-NetService] Service config changed {service_name} on {computer_name}")
 
 			logging.debug(f"[Set-NetService] Closing service handle {service_name} on {computer_name}")

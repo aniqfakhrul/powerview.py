@@ -577,7 +577,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         display_name: form.display_name.value,
                         binary_path: form.binary_path.value,
                         service_type: parseInt(form.service_type.value),
-                        start_type: parseInt(form.start_type.value),
+                        start_type: parseInt((form.start_type.value || '').toString().replace('-delayed','')),
+                        delayed_start: (form.start_type.value || '').toString().includes('-delayed'),
                         service_start_name: form.service_start_name.value || null
                     })
                 });
@@ -1435,13 +1436,7 @@ async function selectModalTab(tabName) {
                 }
                 break;
 
-            case 'shares':
-                const dnsHostnameInput = document.querySelector('#dNSHostName-wrapper input');
-                const dnsHostname = dnsHostnameInput?.value;
-                if (dnsHostname) {
-                    initializeSMBTab(dnsHostname);
-                }
-                break;
+            
 
             case 'services':
                 const dnsHostnameServicesInput = ldapAttributeModal.querySelector('#dNSHostName-wrapper input');
@@ -3282,6 +3277,7 @@ async function fetchAndDisplayModalServices(computer) {
                                                         <option value="0" ${details.StartType === 0 ? 'selected' : ''}>Boot Start</option>
                                                         <option value="1" ${details.StartType === 1 ? 'selected' : ''}>System Start</option>
                                                         <option value="2" ${details.StartType === 2 ? 'selected' : ''}>Automatic</option>
+                                                        <option value="2-delayed">Automatic (Delayed Start)</option>
                                                         <option value="3" ${details.StartType === 3 ? 'selected' : ''}>Manual</option>
                                                         <option value="4" ${details.StartType === 4 ? 'selected' : ''}>Disabled</option>
                                                     </select>
@@ -3327,6 +3323,7 @@ async function fetchAndDisplayModalServices(computer) {
                                     detailsRow.querySelector('.error-control-input').value,
                                     detailsRow.querySelector('.service-start-name-input').value
                                 );
+                                await fetchAndDisplayModalServices(computer);
                             };
                         }
                     } catch (error) {
@@ -3362,7 +3359,8 @@ async function updateServiceConfig(computer, serviceName, displayName, binaryPat
                 display_name: displayName,
                 binary_path: binaryPath,
                 service_type: parseInt(serviceType),
-                start_type: parseInt(startType),
+                start_type: parseInt((startType || '').toString().replace('-delayed','')),
+                delayed_start: (startType || '').toString().includes('-delayed'),
                 error_control: parseInt(errorControl),
                 service_start_name: serviceStartName
             })
