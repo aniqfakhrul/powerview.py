@@ -548,7 +548,11 @@ class APIServer:
 	def handle_smb_connect(self):
 		try:
 			data = request.json
-			computer = data.get('computer').lower()
+			computer_input = data.get('computer')
+			if not computer_input:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+
+			computer = computer_input.lower()
 			username = data.get('username')
 			password = data.get('password')
 			nthash = data.get('nthash')
@@ -559,61 +563,27 @@ class APIServer:
 			if username and ('/' in username or '\\' in username):
 				domain, username = username.replace('/', '\\').split('\\')
 			
-			if not computer:
-				return jsonify({'error': 'Computer name/IP is required'}), 400
-
-			host = computer
-			is_fqdn = False
-
-			if not is_ipaddress(computer):
-				is_fqdn = True
-				if not is_valid_fqdn(computer):
-					host = f"{computer}.{self.powerview.domain}"
-				else:
-					host = computer
-				logging.debug(f"[SMB Connect] Using FQDN: {host}")
-
-			if self.powerview.conn.use_kerberos and is_ipaddress(computer):
+			resolved_host = self.powerview._resolve_host(computer)
+			if resolved_host is None:
 				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
 
-			try:
-				client = self.powerview.conn.init_smb_session(
-					host,
-					username=username,
-					password=password,
-					nthash=nthash,
-					lmhash=lmhash,
-					aesKey=aesKey,
-					domain=domain
-				)
-			except Exception as conn_error:
-				if is_fqdn and not is_ipaddress(host):
-					ip = host2ip(host, self.powerview.nameserver, 3, True, 
-								use_system_ns=self.powerview.use_system_nameserver, no_prompt=True)
-					if not ip:
-						return jsonify({'error': 'Host not found'}), 404
-					
-					logging.debug(f"[SMB Connect] Initial connection failed, trying IP: {ip}")
-					client = self.powerview.conn.init_smb_session(
-						ip,
-						username=username,
-						password=password,
-						nthash=nthash,
-						lmhash=lmhash,
-						aesKey=aesKey,
-						domain=domain
-					)
-					host = ip
-				else:
-					raise conn_error
-			
+			host = resolved_host
+			logging.debug(f"[SMB Connect] Using resolved host: {host}")
+
+			client = self.powerview.conn.init_smb_session(
+				host,
+				username=username,
+				password=password,
+				nthash=nthash,
+				lmhash=lmhash,
+				aesKey=aesKey,
+				domain=domain
+			)
+
 			if not client:
 				return jsonify({'error': f'Failed to connect to {host}'}), 400
 
-			return jsonify({
-				'status': 'connected',
-				'host': host
-			})
+			return jsonify({'status': 'connected', 'host': host})
 
 		except Exception as e:
 			logging.error(f"SMB Connect Error: {str(e)}")
