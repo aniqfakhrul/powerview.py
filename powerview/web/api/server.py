@@ -43,6 +43,7 @@ class APIServer:
 		self.host = host
 		self.port = port
 		self.status = False
+		self.smb_session_params = {}
 		
 		components = [self.powerview.flatName.lower(), self.powerview.args.username.lower(), self.powerview.args.ldap_address.lower()]
 		folder_name = '-'.join(filter(None, components)) or "default-log"
@@ -50,7 +51,6 @@ class APIServer:
 		self.log_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, file_name)
 		self.history_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, '.powerview_history')
 
-		# Define routes
 		self._register_routes()
 
 		self.nav_items = [
@@ -337,7 +337,6 @@ class APIServer:
 		return jsonify({'status': 'OK' if success else 'KO'}), 200 if success else 400
 	
 	def handle_settings(self):
-		# return all self.powerview.args in json
 		return jsonify(vars(self.powerview.args))
 	
 	def handle_server_info(self):
@@ -385,33 +384,26 @@ class APIServer:
 			''
 		]
 		try:
-			# Get the command from the request
 			command = request.json.get('command', '')
 			if not command:
 				return jsonify({'error': 'No command provided'}), 400
 
-			# Parse the command using shlex
 			try:
 				cmd = shlex.split(command)
 			except ValueError as e:
 				logging.error(f"Command parsing error: {str(e)}")
 				return jsonify({'error': f'Command parsing error: {str(e)}'}), 400
 
-			# Parse the command arguments using PowerView's argument parser
 			pv_args = powerview_arg_parse(cmd)
 
-			# Check if the command was parsed successfully
 			if pv_args is None:
 				return jsonify({'error': 'Invalid command or arguments'}), 400
 
-			# Check if the module is specified
 			if not pv_args.module:
 				return jsonify({'error': 'No module specified in the command'}), 400
 
-			# Execute the command using PowerView
 			result = self.powerview.execute(pv_args)
 
-			# Make the result serializable
 			serializable_result = make_serializable(result)
 
 			# Return the result along with pv_args
@@ -583,6 +575,19 @@ class APIServer:
 			if not client:
 				return jsonify({'error': f'Failed to connect to {host}'}), 400
 
+			params = {
+				'host': host,
+				'input': computer,
+				'username': username,
+				'password': password,
+				'nthash': nthash,
+				'lmhash': lmhash,
+				'aesKey': aesKey,
+				'domain': domain,
+			}
+			self.smb_session_params[computer] = params
+			self.smb_session_params[host.lower()] = params
+
 			return jsonify({'status': 'connected', 'host': host})
 
 		except Exception as e:
@@ -592,21 +597,40 @@ class APIServer:
 	def handle_smb_reconnect(self):
 		try:
 			data = request.json
-			computer = data.get('computer').lower()
-			
-			if not computer:
+			computer_input = data.get('computer')
+			if not computer_input:
 				return jsonify({'error': 'Computer name/IP is required'}), 400
+			computer = computer_input.lower()
 
-			try:
-				client = self.powerview.conn.init_smb_session(computer, force_new=True)
-				logging.debug(f"SMB Reconnect: Successfully reconnected to {computer}")
-				return jsonify({'status': 'reconnected'})
-			except Exception as e:
-				logging.error(f"SMB Reconnect: Failed to reconnect to {computer}: {str(e)}")
-				return jsonify({'error': 'Failed to reconnect'}), 500
+			stored = self.smb_session_params.get(computer)
+			resolved_host = self.powerview._resolve_host(computer)
+			if not stored and resolved_host:
+				stored = self.smb_session_params.get(str(resolved_host).lower())
+
+			if resolved_host is None and self.powerview.conn.use_kerberos:
+				host = (stored or {}).get('host')
+				if not host:
+					return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
+			else:
+				host = resolved_host or computer
+
+			kwargs = {}
+			if stored:
+				kwargs = {
+					'username': stored.get('username'),
+					'password': stored.get('password'),
+					'nthash': stored.get('nthash'),
+					'lmhash': stored.get('lmhash'),
+					'aesKey': stored.get('aesKey'),
+					'domain': stored.get('domain'),
+				}
+
+			client = self.powerview.conn.init_smb_session(host, force_new=True, **kwargs)
+			logging.debug(f"SMB Reconnect: Successfully reconnected to {host}")
+			return jsonify({'status': 'reconnected', 'host': host, 'used_stored_creds': bool(stored)})
 		except Exception as e:
-			logging.error(f"SMB Reconnect Error: {str(e)}")
-			return jsonify({'error': str(e)}), 500
+			logging.error(f"SMB Reconnect: Failed to reconnect: {str(e)}")
+			return jsonify({'error': 'Failed to reconnect'}), 500
 
 	def handle_smb_disconnect(self):
 		try:
