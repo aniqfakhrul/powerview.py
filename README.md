@@ -4,7 +4,9 @@
 <hr />
 
 <p align="center">
+
 <img src="https://img.shields.io/badge/version-2025.1.5-blue" alt="version 2025.1.5"/>
+
 <a href="https://x.com/aniqfakhrul">
     <img src="https://img.shields.io/twitter/follow/aniqfakhrul?style=social"
       alt="@aniqfakhrul on X"/></a>
