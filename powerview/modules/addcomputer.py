@@ -45,7 +45,7 @@ from binascii import unhexlify
 from powerview.utils.helpers import is_valid_dn
 
 class ADDCOMPUTER:
-    def __init__(self, username=None, password=None, domain=None, cmdLineOptions=None, computer_name=None, computer_pass=None, base_dn=None, ldap_session=None):
+    def __init__(self, username=None, password=None, domain=None, cmdLineOptions=None, computer_name=None, computer_pass=None, no_password=False, base_dn=None, ldap_session=None):
         self.options = cmdLineOptions
         self.__username = username
         self.__password = password
@@ -61,6 +61,7 @@ class ADDCOMPUTER:
         self.__kdcHost = cmdLineOptions.dc_ip
         self.__computerName = computer_name
         self.__computerPassword = computer_pass
+        self.__noPassword = no_password
         self.__method = cmdLineOptions.method
         self.__port = None
         self.__domainNetbios = None
@@ -94,7 +95,7 @@ class ADDCOMPUTER:
             if self.__computerName[-1] != '$' and not is_valid_dn(self.__computerName):
                 self.__computerName += '$'
 
-        if self.__computerPassword is None:
+        if self.__computerPassword is None and not self.__noPassword:
             self.__computerPassword = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
 
         if self.__target is None:
@@ -186,14 +187,16 @@ class ADDCOMPUTER:
                 'RestrictedKrbHost/%s' % computerHostname,
                 'RestrictedKrbHost/%s.%s' % (computerHostname, self.__domain),
             ]
+            uac_value = 0x1000 | (0x20 if self.__noPassword else 0)
             ucd = {
                 'dnsHostName': '%s.%s' % (computerHostname, self.__domain),
-                'userAccountControl': 0x1000,
+                'userAccountControl': uac_value,
                 'servicePrincipalName': spns,
                 'sAMAccountName': self.__computerName,
-                'unicodePwd': ('"%s"' % self.__computerPassword).encode('utf-16-le')
             }
-
+            if not self.__noPassword:
+                ucd['unicodePwd'] = ('"%s"' % self.__computerPassword).encode('utf-16-le')
+            
             res = ldapConn.add(computerDn, ['top','person','organizationalPerson','user','computer'], ucd)
             if not res:
                 if ldapConn.result['result'] == ldap3.core.results.RESULT_UNWILLING_TO_PERFORM:
@@ -207,7 +210,10 @@ class ADDCOMPUTER:
                 else:
                     raise Exception(str(ldapConn.result))
             else:
-                logging.info("Successfully added machine account %s with password %s." % (self.__computerName, self.__computerPassword))
+                if self.__noPassword:
+                    logging.info("Successfully added machine account %s without a password." % (self.__computerName))
+                else:
+                    logging.info("Successfully added machine account %s with password %s." % (self.__computerName, self.__computerPassword))
 
     def LDAPComputerExists(self, connection, computerName):
         connection.search(self.__baseDN, '(|(sAMAccountName={computerName})(distinguishedName={computerName}))'.format(computerName=computerName))
@@ -484,9 +490,13 @@ class ADDCOMPUTER:
                 logging.info("Successfully deleted %s." % self.__computerName)
                 userHandle = None
             else:
-                samr.hSamrSetPasswordInternal4New(dce, userHandle, self.__computerPassword)
+                if not self.__noPassword:
+                    samr.hSamrSetPasswordInternal4New(dce, userHandle, self.__computerPassword)
                 if self.__noAdd:
-                    logging.info("Successfully set password of %s to %s." % (self.__computerName, self.__computerPassword))
+                    if self.__noPassword:
+                        logging.info("Successfully cleared password requirement for %s." % (self.__computerName))
+                    else:
+                        logging.info("Successfully set password of %s to %s." % (self.__computerName, self.__computerPassword))
                 else:
                     checkForUser = samr.hSamrLookupNamesInDomain(dce, domainHandle, [self.__computerName])
                     userRID = checkForUser['RelativeIds']['Element'][0]
@@ -494,9 +504,13 @@ class ADDCOMPUTER:
                     userHandle = openUser['UserHandle']
                     req = samr.SAMPR_USER_INFO_BUFFER()
                     req['tag'] = samr.USER_INFORMATION_CLASS.UserControlInformation
-                    req['Control']['UserAccountControl'] = samr.USER_WORKSTATION_TRUST_ACCOUNT
+                    uac_value = samr.USER_WORKSTATION_TRUST_ACCOUNT | (0x20 if self.__noPassword else 0)
+                    req['Control']['UserAccountControl'] = uac_value
                     samr.hSamrSetInformationUser2(dce, userHandle, req)
-                    logging.info("Successfully added machine account %s with password %s." % (self.__computerName, self.__computerPassword))
+                    if self.__noPassword:
+                        logging.info("Successfully added machine account %s without a password." % (self.__computerName))
+                    else:
+                        logging.info("Successfully added machine account %s with password %s." % (self.__computerName, self.__computerPassword))
 
         except Exception as e:
             if logging.getLogger().level == logging.DEBUG:

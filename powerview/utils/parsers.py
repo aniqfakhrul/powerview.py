@@ -1186,8 +1186,10 @@ def powerview_arg_parse(cmd):
 
 	# add domain computer
 	add_domaincomputer_parser = subparsers.add_parser('Add-DomainComputer', aliases=['Add-ADComputer'], exit_on_error=False)
-	add_domaincomputer_parser.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
-	add_domaincomputer_parser.add_argument('-ComputerPass', action='store', const=None, dest='computerpass')
+	add_domaincomputer_parser.add_argument('-ComputerName', required=True, action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
+	add_domaincomputer_group = add_domaincomputer_parser.add_mutually_exclusive_group(required=True)
+	add_domaincomputer_group.add_argument('-ComputerPass', action='store', const=None, dest='computerpass')
+	add_domaincomputer_group.add_argument('-NoPassword', action='store_true', default=False, dest='no_password')
 	add_domaincomputer_parser.add_argument('-BaseDN', action='store', default=None, const=None, dest='basedn', type=lambda value: escape_filter_chars_except_asterisk(value))
 	add_domaincomputer_parser.add_argument('-Server', action='store', dest='server')
 	add_domaincomputer_parser.add_argument('-OutFile', action='store', dest='outfile')

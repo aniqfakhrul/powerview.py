@@ -4654,7 +4654,11 @@ displayName=New Group Policy Object
 		logging.info(f"[Remove-DomainDMSA] Successfully removed DMSA account {identity}")
 		return True
 
-	def add_domaincomputer(self, computer_name, computer_pass, basedn=None, args=None):
+	def add_domaincomputer(self, computer_name=None, computer_pass=None, no_password=False, basedn=None, args=None):
+		computer_name = args.computername if args and hasattr(args, 'computername') else computer_name
+		computer_pass = args.computerpass if args and hasattr(args, 'computerpass') else computer_pass
+		no_password = args.no_password if args and hasattr(args, 'no_password') else no_password
+		
 		parent_dn_entries = f"CN=Computers,{self.root_dn}"
 		if basedn:
 			parent_dn_entries = basedn
@@ -4690,6 +4694,7 @@ displayName=New Group Policy Object
 				cmdLineOptions = self.args,
 				computer_name = computer_name,
 				computer_pass = computer_pass,
+				no_password = no_password,
 				base_dn = parent_dn_entries,
 				ldap_session = self.ldap_session
 		)
