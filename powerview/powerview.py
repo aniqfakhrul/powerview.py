@@ -6326,7 +6326,7 @@ displayName=New Group Policy Object
 				logging.error("[Invoke-MessageBox] Invalid input or operation cancelled")
 				return False
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		pulResponse, success = ts.do_msg(session_id=session_id, title=title, message=message, style=style, timeout=timeout, dontwait=dontwait)
 		if success:
 			logging.info(f"[Invoke-MessageBox] Successfully sent message to session {session_id} on {identity}")
@@ -6490,7 +6490,7 @@ displayName=New Group Policy Object
 			logging.debug(f"[Get-NetTerminalSession] Failed SMB connection to {identity}")
 			return None
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		results = ts.do_qwinsta()
 		return results
 
@@ -6552,7 +6552,7 @@ displayName=New Group Policy Object
 			logging.debug(f"[Remove-NetTerminalSession] Failed SMB connection to {identity}")
 			return None
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		success = ts.do_tsdiscon(session_id=session_id)
 		if success:
 			logging.info(f"[Remove-NetTerminalSession] Successfully removed session {session_id} on {identity}")
@@ -6618,7 +6618,7 @@ displayName=New Group Policy Object
 			logging.debug(f"[Logoff-Session] Failed SMB connection to {identity}")
 			return None
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		success = ts.do_logoff(session_id=session_id)
 		if success:
 			logging.info(f"[Logoff-Session] Successfully logged off session {session_id} on {identity}")
@@ -6661,7 +6661,7 @@ displayName=New Group Policy Object
 			logging.debug(f"[Stop-Computer] Failed SMB connection to {identity}")
 			return None
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		success = ts.do_shutdown(logoff=True, shutdown=True, reboot=False, poweroff=False)
 		if success:
 			logging.info(f"[Stop-Computer] Successfully stopped computer {identity}")
@@ -6704,7 +6704,7 @@ displayName=New Group Policy Object
 			logging.debug(f"[Restart-Computer] Failed SMB connection to {identity}")
 			return None
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		success = ts.do_shutdown(logoff=True, shutdown=False, reboot=True, poweroff=False)
 		if success:
 			logging.info(f"[Restart-Computer] Successfully restarted computer {identity}")
@@ -6751,7 +6751,7 @@ displayName=New Group Policy Object
 			logging.debug(f"[Get-NetProcess] Failed SMB connection to {identity}")
 			return None
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		results = ts.do_tasklist(pid=pid, name=name)
 		return results
 
@@ -6794,7 +6794,7 @@ displayName=New Group Policy Object
 			logging.debug(f"[Stop-NetProcess] Failed SMB connection to {identity}")
 			return None
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		return ts.do_taskkill(pid=pid, name=name)
 
 	def get_netsession(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):

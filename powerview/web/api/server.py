@@ -16,6 +16,7 @@ from powerview.utils.constants import UAC_DICT
 from powerview._version import __version__ as version
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.modules.smbclient import SMBClient
+from powerview.lib.tsts import TSHandler
 from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip, is_valid_sid
 import json
 
@@ -135,6 +136,9 @@ class APIServer:
 		add_route_with_auth('/api/smb/remove-security', 'smb_remove_security', self.handle_smb_remove_security, methods=['POST'])
 		add_route_with_auth('/api/smb/set-share-security', 'smb_set_share_security', self.handle_smb_set_share_security, methods=['POST'])
 		add_route_with_auth('/api/smb/remove-share-security', 'smb_remove_share_security', self.handle_smb_remove_share_security, methods=['POST'])
+		add_route_with_auth('/api/computer/restart', 'computer_restart', self.handle_computer_restart, methods=['POST'])
+		add_route_with_auth('/api/computer/shutdown', 'computer_shutdown', self.handle_computer_shutdown, methods=['POST'])
+		add_route_with_auth('/api/computer/tasklist', 'computer_tasklist', self.handle_computer_tasklist, methods=['POST'])
 
 	def set_status(self, status):
 		self.status = status
@@ -1737,4 +1741,123 @@ class APIServer:
 
 		except Exception as e:
 			logging.error(f"[SMB REMOVE SHARE SECURITY] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_computer_restart(self):
+		try:
+			data = request.json or {}
+			computer_input = data.get('computer')
+			if not computer_input:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+			username = data.get('username')
+			password = data.get('password')
+			domain = data.get('domain')
+			lmhash = data.get('lmhash')
+			nthash = data.get('nthash')
+			if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\', 1)
+			if username and not (password or lmhash or nthash):
+				return jsonify({'error': 'Password or hash is required when specifying a username'}), 400
+			resolved_host = self.powerview._resolve_host(computer_input)
+			if resolved_host is None:
+				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
+			host = resolved_host
+			smbConn = self.powerview.conn.init_smb_session(
+				host,
+				username=username,
+				password=password,
+				domain=domain,
+				lmhash=lmhash,
+				nthash=nthash,
+				show_exceptions=False
+			)
+			if not smbConn:
+				return jsonify({'error': f'Failed to connect to {host}'}), 400
+			ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
+			success = ts.do_shutdown(logoff=True, shutdown=False, reboot=True, poweroff=False)
+			if success:
+				return jsonify({'status': 'OK', 'message': f'Restart signal sent to {host}'}), 200
+			return jsonify({'error': f'Failed to restart {host}'}), 500
+		except Exception as e:
+			logging.error(f"[RESTART COMPUTER] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_computer_shutdown(self):
+		try:
+			data = request.json or {}
+			computer_input = data.get('computer')
+			if not computer_input:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+			username = data.get('username')
+			password = data.get('password')
+			domain = data.get('domain')
+			lmhash = data.get('lmhash')
+			nthash = data.get('nthash')
+			if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\', 1)
+			if username and not (password or lmhash or nthash):
+				return jsonify({'error': 'Password or hash is required when specifying a username'}), 400
+			resolved_host = self.powerview._resolve_host(computer_input)
+			if resolved_host is None:
+				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
+			host = resolved_host
+			smbConn = self.powerview.conn.init_smb_session(
+				host,
+				username=username,
+				password=password,
+				domain=domain,
+				lmhash=lmhash,
+				nthash=nthash,
+				show_exceptions=False
+			)
+			if not smbConn:
+				return jsonify({'error': f'Failed to connect to {host}'}), 400
+			ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
+			success = ts.do_shutdown(logoff=True, shutdown=True, reboot=False, poweroff=False)
+			if success:
+				return jsonify({'status': 'OK', 'message': f'Shutdown signal sent to {host}'}), 200
+			return jsonify({'error': f'Failed to shutdown {host}'}), 500
+		except Exception as e:
+			logging.error(f"[SHUTDOWN COMPUTER] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_computer_tasklist(self):
+		try:
+			data = request.json or {}
+			computer_input = data.get('computer')
+			if not computer_input:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+			username = data.get('username')
+			password = data.get('password')
+			domain = data.get('domain')
+			lmhash = data.get('lmhash')
+			nthash = data.get('nthash')
+			pid = data.get('pid')
+			name = data.get('name')
+			if isinstance(pid, str) and pid.isdigit():
+				pid = int(pid)
+			if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\', 1)
+			if username and not (password or lmhash or nthash):
+				return jsonify({'error': 'Password or hash is required when specifying a username'}), 400
+			resolved_host = self.powerview._resolve_host(computer_input)
+			if resolved_host is None:
+				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
+			host = resolved_host
+			smbConn = self.powerview.conn.init_smb_session(
+				host,
+				username=username,
+				password=password,
+				domain=domain,
+				lmhash=lmhash,
+				nthash=nthash,
+				show_exceptions=False
+			)
+			if not smbConn:
+				return jsonify({'error': f'Failed to connect to {host}'}), 400
+			ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
+			result = ts.do_tasklist(pid=pid, name=name)
+			return jsonify(make_serializable(result))
+		except Exception as e:
+			logging.error(f"[TASKLIST COMPUTER] Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500

@@ -8,10 +8,11 @@ import traceback
 from powerview.utils.constants import DESKTOP_STATES, MSGBOX_TYPE
 
 class TSHandler:
-	def __init__(self, smb_connection, target_ip, doKerberos=False):
+	def __init__(self, smb_connection, target_ip, doKerberos=False, stack_trace=False):
 		self.__target_ip = target_ip
 		self.__doKerberos = doKerberos
 		self.__smbConnection = smb_connection
+		self.__stack_trace = stack_trace
 
 	def get_session_list(self):
 		# Retreive session list
@@ -83,6 +84,8 @@ class TSHandler:
 							continue
 						self.sessions[SessionId]["RemoteIp"] = client["pRemoteAddress"]["ipv4"]["in_addr"]
 					except Exception as e:
+						if self.__stack_trace:
+							raise
 						logging.debug(f"Error getting client address for session {SessionId}: {e}")
 		except SessionError:
 			logging.warning("RDP is probably not enabled, cannot list remote IPv4 addresses.")
@@ -217,6 +220,8 @@ class TSHandler:
 			logging.warning("RDP is probably not enabled, cannot perform tasklist.")
 			return None
 		except Exception as e:
+			if self.__stack_trace:
+				raise
 			logging.error(f'Error getting tasklist: {e}')
 			return []
 
@@ -252,6 +257,8 @@ class TSHandler:
 						else:
 							return False
 					except Exception as e:
+						if self.__stack_trace:
+							raise
 						logging.error(f'Error terminating pid: {pid}')
 						logging.error(str(e))
 						return False
@@ -259,6 +266,8 @@ class TSHandler:
 			logging.warning("RDP is probably not enabled, cannot perform taskkill.")
 			return False
 		except Exception as e:
+			if self.__stack_trace:
+				raise
 			logging.error(f'Error killing process: {e}')
 			return False
 
@@ -272,7 +281,8 @@ class TSHandler:
 					try:
 						session_handle = TSSession.hRpcOpenSession(options.source)
 					except Exception as e:
-						return False
+						if self.__stack_trace:
+							raise
 						if e.error_code == 0x80070002:
 							logging.error('Could not find source SessionID: %d' % options.source)
 						else:
@@ -285,17 +295,21 @@ class TSHandler:
 					else:
 						return False
 				except Exception as e:
-					return False
+					if self.__stack_trace:
+						raise
 					if e.error_code == 0x80070002:
 						logging.error('Could not find destination SessionID: %d' % options.dest)
 					elif e.error_code == 0x8007139f:
 						logging.error('Session in the invalid state. Did you mean %d -> %d?' % (options.dest, options.source))
 					else:
 						logging.error(str(e))
+					return False
 		except SessionError:
 			logging.warning("RDP is probably not enabled, cannot perform tscon.")
 			return False
 		except Exception as e:
+			if self.__stack_trace:
+				raise
 			logging.error(f'Error connecting session: {e}')
 			return False
 
@@ -310,6 +324,8 @@ class TSHandler:
 					else:
 						return False
 				except Exception as e:
+					if self.__stack_trace:
+						raise
 					return False
 					if e.error_code == 1:
 						logging.error('Maybe it is already disconnected?')
@@ -321,6 +337,8 @@ class TSHandler:
 			logging.warning("RDP is probably not enabled, cannot perform tsdiscon.")
 			return False
 		except Exception as e:
+			if self.__stack_trace:
+				raise
 			logging.error(f'Error disconnecting session: {e}')
 			return False
 
@@ -347,6 +365,8 @@ class TSHandler:
 			logging.warning("RDP is probably not enabled, cannot perform logoff.")
 			return False
 		except Exception as e:
+			if self.__stack_trace:
+				raise
 			logging.error(f'Error logging off session: {e}')
 			return False
 
@@ -358,21 +378,16 @@ class TSHandler:
 		try:
 			with TSTS.LegacyAPI(self.__smbConnection, self.__target_ip, self.__doKerberos) as legacy:
 				handle = legacy.hRpcWinStationOpenServer()
-				flags = TSTS.ShutdownFlags()
+				flags = 0
 				flagsList = []
-				shutdown_flags = [logoff, shutdown, reboot, poweroff]
-				for k,v in zip(shutdown_flags, ['logoff', 'shutdown', 'reboot', 'poweroff']):
+				ShutdownFlags = [logoff, shutdown, reboot, poweroff]
+				for k,v in zip(ShutdownFlags, ['logoff', 'shutdown', 'reboot', 'poweroff']):
 					if k:
 						flagsList.append(v)
 				flagsList = '|'.join(flagsList)
-				if logoff:
-					flags['Data'] |= TSTS.ShutdownFlags.enumItems.WSD_LOGOFF.value
-				if shutdown:
-					flags['Data'] |= TSTS.ShutdownFlags.enumItems.WSD_SHUTDOWN.value
-				if reboot:
-					flags['Data'] |= TSTS.ShutdownFlags.enumItems.WSD_REBOOT.value
-				if poweroff:
-					flags['Data'] |= TSTS.ShutdownFlags.enumItems.WSD_POWEROFF.value
+				for k,v in zip(ShutdownFlags, [1,2,4,8]):
+					if k:
+						flags |= v
 				try:
 					logging.debug('Sending shutdown (%s) event ...' % (flagsList))
 					resp = legacy.hRpcWinStationShutdownSystem(handle, 0, flags)
@@ -382,12 +397,16 @@ class TSHandler:
 						resp.dump()
 						return False
 				except Exception as e:
+					if self.__stack_trace:
+						raise
 					return False
 					logging.error(str(e))
 		except SessionError:
 			logging.warning("RDP is probably not enabled, cannot perform shutdown.")
 			return False
 		except Exception as e:
+			if self.__stack_trace:
+				raise
 			logging.error(f'Error shutting down: {e}')
 			return False
 	
@@ -490,5 +509,7 @@ class TSHandler:
 			logging.warning("RDP is probably not enabled, cannot perform messagebox.")
 			return None, False
 		except Exception as e:
+			if self.__stack_trace:
+				raise
 			logging.error(f'Error sending messagebox: {e}')
 			return None, False

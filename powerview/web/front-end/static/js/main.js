@@ -1080,6 +1080,13 @@ function handleModalSearch() {
                     row.style.display = text.includes(searchTerm) ? '' : 'none';
                 });
                 break;
+            case 'tabpanelTasklist':
+                const taskRows = document.querySelectorAll('#tasklist-rows tr');
+                taskRows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = text.includes(searchTerm) ? '' : 'none';
+                });
+                break;
 
             case 'tabpanelMembers':
                 // Filter members table rows
@@ -1219,11 +1226,13 @@ async function showLdapAttributesModal(attributes = {}, identity) {
         
         // Show/hide computer-specific tabs
         const sessionsTab = modal.querySelector('[aria-controls="tabpanelSessions"]');
+        const tasklistTab = modal.querySelector('[aria-controls="tabpanelTasklist"]');
         const loggedonTab = modal.querySelector('[aria-controls="tabpanelLoggedon"]');
         const servicesTab = modal.querySelector('[aria-controls="tabpanelServices"]');
         
-        if (sessionsTab && loggedonTab && servicesTab) {
+        if (sessionsTab && tasklistTab && loggedonTab && servicesTab) {
             sessionsTab.style.display = isComputer ? '' : 'none';
+            tasklistTab.style.display = isComputer ? '' : 'none';
             loggedonTab.style.display = isComputer ? '' : 'none';
             servicesTab.style.display = isComputer ? '' : 'none';
         }
@@ -1412,6 +1421,15 @@ async function selectModalTab(tabName) {
                 const dnsHostnameSessions = dnsHostnameSessionsInput?.value;
                 if (dnsHostnameSessions) {
                     await fetchAndDisplayModalSessions(dnsHostnameSessions);
+                } else {
+                    showErrorAlert('DNS Hostname not found for this computer');
+                }
+                break;
+            case 'tasklist':
+                const dnsHostnameTasklistInput = ldapAttributeModal.querySelector('#dNSHostName-wrapper input');
+                const dnsHostnameTasklist = dnsHostnameTasklistInput?.value;
+                if (dnsHostnameTasklist) {
+                    await fetchAndDisplayModalTasklist(dnsHostnameTasklist);
                 } else {
                     showErrorAlert('DNS Hostname not found for this computer');
                 }
@@ -2273,6 +2291,61 @@ async function fetchAndDisplayModalSessions(identity) {
     } finally {
         hideModalContentSpinner();
     }
+}
+
+async function fetchAndDisplayModalTasklist(dnsHostname) {
+    showModalContentSpinner();
+    try {
+        const response = await fetch('/api/computer/tasklist', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                computer: dnsHostname
+            })
+        });
+
+        await handleHttpError(response);
+        const tasklist = await response.json();
+        console.log(tasklist);
+        updateModalTasklistContent(tasklist);
+    } catch (error) {
+        console.error('Error fetching tasklist data:', error);
+        showErrorAlert('Failed to fetch tasklist');
+    } finally {
+        hideModalContentSpinner();
+    }
+}
+
+function updateModalTasklistContent(tasklist) {
+    const tbody = document.getElementById('tasklist-rows');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (!tasklist || !Array.isArray(tasklist) || tasklist.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="px-3 py-4 text-center text-neutral-500 dark:text-neutral-400">
+                    No processes found or access denied
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    tasklist.forEach(proc => {
+        const a = proc.attributes || {};
+        const row = document.createElement('tr');
+        row.classList.add('h-8','result-item','hover:bg-neutral-50','dark:hover:bg-neutral-800','border-b','border-neutral-200','dark:border-neutral-700','dark:text-neutral-200','text-neutral-600');
+        row.innerHTML = `
+            <td class="px-3 py-2">${a.PID ?? ''}</td>
+            <td class="px-3 py-2">${a.ImageName ?? ''}</td>
+            <td class="px-3 py-2">${a.SessionName ?? ''} (${a.SessionID ?? ''})</td>
+            <td class="px-3 py-2">${a.SessionUser ?? ''}</td>
+            <td class="px-3 py-2">${a.State ?? ''}</td>
+            <td class="px-3 py-2">${a.MemUsage ?? ''}</td>
+        `;
+        tbody.appendChild(row);
+    });
 }
 
 function updateModalSessionsContent(sessionsData) {
