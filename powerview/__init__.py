@@ -54,7 +54,7 @@ def main():
         init_ldap_address = args.ldap_address
         powerview = PowerView(conn, args)
         if powerview.ldap_session and powerview.ldap_session.bound:
-            powerview.add_domain_connection(powerview.conn.domain)
+            powerview.add_domain_connection(powerview.conn.get_domain())
 
         comp = Completer()
         comp.setup_completer()
@@ -916,7 +916,7 @@ def main():
                                     print(schema)
                                 else:
                                     if not pv_args.outfile:
-                                        pv_args.outfile = f"{powerview.conn.domain.lower()}-schema.json"
+                                        pv_args.outfile = f"{powerview.conn.get_domain().lower()}-schema.json"
                                     schema.to_file(os.path.expanduser(pv_args.outfile))
                                     logging.info(f"Schema dumped to {pv_args.outfile}")
                             elif pv_args.module.casefold() == 'dump-serverinfo':
@@ -928,7 +928,7 @@ def main():
                                     print(server_info)
                                 else:
                                     if not pv_args.outfile:
-                                        pv_args.outfile = f"{powerview.conn.domain.lower()}-server_info.json"
+                                        pv_args.outfile = f"{powerview.conn.get_domain().lower()}-server_info.json"
                                     server_info.to_file(os.path.expanduser(pv_args.outfile))
                                     logging.info(f"Server info dumped to {pv_args.outfile}")
                             elif pv_args.module.casefold() == 'get_pool_stats':

@@ -965,7 +965,50 @@ class CONNECTION:
 		self.domain = domain.lower()
 
 	def get_domain(self):
-		return self.domain.lower()
+		info = self.get_server_info()
+		if not info:
+			return None
+		
+		raw_info = info.get('raw', {})
+		
+		ldap_service_name = raw_info.get('ldapServiceName')
+		if ldap_service_name and len(ldap_service_name) > 0:
+			service_parts = ldap_service_name[0].split('@')
+			if len(service_parts) > 1:
+				domain = service_parts[1].lower()
+				domain_parts = domain.split('.')
+				if len(domain_parts) >= 2:
+					return '.'.join(domain_parts[-2:])
+				return domain
+		
+		default_naming_context = raw_info.get('defaultNamingContext')
+		if default_naming_context and len(default_naming_context) > 0:
+			dn = default_naming_context[0]
+			domain_parts = []
+			for part in dn.split(','):
+				if part.strip().upper().startswith('DC='):
+					domain_parts.append(part.strip()[3:])
+			if domain_parts:
+				full_domain = '.'.join(domain_parts).lower()
+				parts = full_domain.split('.')
+				if len(parts) >= 2:
+					return '.'.join(parts[-2:])
+				return full_domain
+		
+		dns_hostname = raw_info.get('dnsHostName')
+		if dns_hostname and len(dns_hostname) > 0:
+			hostname_parts = dns_hostname[0].split('.')
+			if len(hostname_parts) > 2:
+				return '.'.join(hostname_parts[-2:]).lower()
+			elif len(hostname_parts) > 1:
+				return '.'.join(hostname_parts[1:]).lower()
+		
+		if self.domain:
+			parts = self.domain.lower().split('.')
+			if len(parts) >= 2:
+				return '.'.join(parts[-2:])
+		
+		return self.domain.lower() if self.domain else None
 
 	def set_targetDomain(self, domain):
 		"""

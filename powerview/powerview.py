@@ -1448,7 +1448,7 @@ class PowerView:
 				'sAMAccountName': f"{identity}$" if not identity.endswith('$') else identity,
 				'cn': identity,
 				'userAccountControl': 0x1000,  # WORKSTATION_TRUST_ACCOUNT
-				'dNSHostName': f"{identity}.{self.conn.domain}" if not dnshostname else dnshostname,
+				'dNSHostName': f"{identity}.{self.conn.get_domain()}" if not dnshostname else dnshostname,
 				'msDS-ManagedPasswordInterval': 30,
 				'msDS-SupportedEncryptionTypes': 28, # RC4-HMAC,AES128,AES256
 			}
@@ -4497,7 +4497,7 @@ displayName=New Group Policy Object
 				'sAMAccountName': f"{identity}$" if not identity.endswith('$') else identity,
 				'cn': identity,
 				'userAccountControl': 4096,  # WORKSTATION_TRUST_ACCOUNT
-				'dNSHostName': f"{identity}.{self.conn.domain}" if not dnshostname else dnshostname,
+				'dNSHostName': f"{identity}.{self.conn.get_domain()}" if not dnshostname else dnshostname,
 				'msDS-SupportedEncryptionTypes': 28, # RC4-HMAC,AES128,AES256
 				'msDS-ManagedPasswordInterval': 30,
 				'msDS-DelegatedMSAState': DMSA_DELEGATED_MSA_STATE.DISABLED.value
@@ -5418,7 +5418,7 @@ displayName=New Group Policy Object
 				# Use provided creds if available, otherwise use current connection context
 				current_username = username or self.conn.username
 				current_password = password or self.conn.password
-				current_domain = domain or self.conn.domain
+				current_domain = domain or self.conn.get_domain()
 				current_lmhash = lmhash or self.conn.lmhash
 				current_nthash = nthash or self.conn.nthash
 
@@ -6417,11 +6417,11 @@ displayName=New Group Policy Object
 		tgt = self.conn.get_TGT()
 		if not tgt:
 			userName = Principal(self.conn.username, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
-			tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, self.conn.password, self.conn.domain,
+			tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, self.conn.password, self.conn.get_domain(),
 																unhexlify(self.conn.lmhash), unhexlify(self.conn.nthash), self.conn.auth_aes_key,
 																self.conn.kdcHost)
 
-		tgs, rcipher, oldSessionKey, sessionKey, previous_keys = MSA.request_dmsa_st(tgt, cipher, oldSessionKey, sessionKey, self.conn.kdcHost, self.conn.domain, dmsaname + '$')
+		tgs, rcipher, oldSessionKey, sessionKey, previous_keys = MSA.request_dmsa_st(tgt, cipher, oldSessionKey, sessionKey, self.conn.kdcHost, self.conn.get_domain(), dmsaname + '$')
 		if tgs:
 			sessionKey = oldSessionKey
 
@@ -6430,7 +6430,7 @@ displayName=New Group Policy Object
 					entries.append(
 						{
 							"attributes": {
-								"Domain": self.conn.domain,
+								"Domain": self.conn.get_domain(),
 								"Identity": targetidentity,
 								"RC4": key[constants.EncryptionTypes.rc4_hmac]
 							}
