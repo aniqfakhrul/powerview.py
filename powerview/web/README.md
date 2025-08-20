@@ -95,11 +95,10 @@ These wrappers invoke `PowerView` methods dynamically.
 - POST `/api/convertfrom/<method>` → calls `powerview.convertfrom_<method>(**params)`
 - POST `/api/convertto/<method>` → calls `powerview.convertto_<method>(**params)`
 
-Notes:
-
-- For GET routes, parameters may be passed via query string; for POST, via JSON body.
-- If the JSON includes an `args` object, it is converted to an `argparse.Namespace` and passed as `args`.
-- Response: JSON serialization of the return value; `{ "error": "..." }` with 4xx on errors.
+> [!note]
+> For GET routes, parameters may be passed via query string; for POST, via JSON body.
+> If the JSON includes an `args` object, it is converted to an `argparse.Namespace` and passed as `args`.
+> Response: JSON serialization of the return value; `{ "error": "..." }` with 4xx on errors.
 
 ---
 
@@ -172,7 +171,8 @@ POST `/api/smb/connect`
 - Body JSON:
   - required: `computer`
   - optional: `username`, `password`, `domain`, `lmhash`, `nthash`, `aesKey`
-- Notes: `username` may be `DOMAIN\user` or `DOMAIN/user`. When using Kerberos, the host must be resolvable to FQDN.
+> [!note]
+> `username` may be `DOMAIN\\user` or `DOMAIN/user`. When using Kerberos, the host must be resolvable to FQDN.
 - Response 200: `{ status: "connected", host }`
 
 POST `/api/smb/reconnect`
@@ -323,7 +323,9 @@ GET `/api/smb/search-stream`
 - Description: Server-Sent Events progressive search. Same semantics as `/api/smb/search` but via query string.
 - Query:
   - required: `computer`, `share`
-  - optional: same as POST `/api/smb/search` (note: `query` required unless `cred_hunt=true`)
+  - optional: same as POST `/api/smb/search`
+> [!note]
+> `query` is required unless `cred_hunt=true`.
 - Headers: `Content-Type: text/event-stream`
 - Events:
   - `data: { "type": "found", "item": { ... } }`
@@ -351,7 +353,8 @@ POST `/api/computer/restart`
   - required: `computer`
   - optional: `username`, `password`, `domain`, `lmhash`, `nthash`
   - constraint: if `username` is provided, one of `password|lmhash|nthash` is required
-- Notes: FQDN is required when using Kerberos. Returns success if the reboot signal is sent; does not await completion.
+> [!note]
+> FQDN is required when using Kerberos. Returns success if the reboot signal is sent; does not await completion.
 - Response 200: `{ status: "OK", message }`
 
 POST `/api/computer/shutdown`
@@ -360,7 +363,8 @@ POST `/api/computer/shutdown`
   - required: `computer`
   - optional: `username`, `password`, `domain`, `lmhash`, `nthash`
   - constraint: if `username` is provided, one of `password|lmhash|nthash` is required
-- Notes: Sends shutdown signal; does not await power-off completion.
+> [!note]
+> Sends shutdown signal; does not await power-off completion.
 - Response 200: `{ status: "OK", message }`
 
 POST `/api/computer/tasklist`
@@ -369,7 +373,8 @@ POST `/api/computer/tasklist`
   - required: `computer`
   - optional: `username`, `password`, `domain`, `lmhash`, `nthash`, `pid`, `name`
   - constraint: if `username` is provided, one of `password|lmhash|nthash` is required
-- Notes: Filters by `pid` or case-insensitive substring match on `name` when provided.
+> [!note]
+> Filters by `pid` or case-insensitive substring match on `name` when provided.
 - Response 200: `[{ attributes: { ImageName, PID, SessionID, SessionName, State, SessionUser, SID, MemUsage } }, ... ]`
 
 ---
