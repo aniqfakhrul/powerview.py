@@ -1061,6 +1061,11 @@ def powerview_arg_parse(cmd):
 	enable_adaccount_parser.add_argument('-OutFile', action='store', dest='outfile')
 	enable_adaccount_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
 
+	# enable efsrpc
+	enable_efsrpc_parser = subparsers.add_parser('Enable-EFSRPC', exit_on_error=False)
+	enable_efsrpc_parser.add_argument('-Computer', action='store', required=True, const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	enable_efsrpc_parser.add_argument('-Port', action='store', default=445, dest='port', type=int)
+
 	# disable adaccount
 	disable_adaccount_parser = subparsers.add_parser('Disable-ADAccount', aliases=['Disable-ADAccount'], exit_on_error=False)
 	disable_adaccount_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))

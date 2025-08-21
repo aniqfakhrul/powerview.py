@@ -70,6 +70,7 @@ import inspect
 import sys
 import random
 import time
+import contextlib
 
 class PowerView:
 	def __init__(self, conn, args, target_server=None, target_domain=None):
@@ -2876,6 +2877,31 @@ class PowerView:
 		else:
 			logging.info(f"[Disable-ADAccount] Failed to disable {identity_san}")
 			return False
+
+	def enable_efsrpc(self, computer=None, port=135, args=None):
+		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
+		port = args.port if hasattr(args, 'port') and args.port else port
+		
+		identity = self._resolve_host(computer)
+		if not identity:
+			logging.error(f"[Enable-EFSRPC] Failed to resolve hostname {computer}")
+			return False
+		
+		if computer.casefold() != identity.casefold():
+			logging.debug(f"[Enable-EFSRPC] Resolved hostname to IP: {identity}")
+			logging.debug(f"[Enable-EFSRPC] Connecting to {identity}")
+		else:
+			logging.debug(f"[Enable-EFSRPC] Connecting to {computer}")
+
+		with contextlib.suppress(Exception):
+			dce = self.conn.get_dynamic_endpoint("df1941c5-fe89-4e79-bf10-463657acf44d", identity, port=port)
+			if dce is None:
+				logging.error("[Enable-EFSRPC] Failed to enable EFSRPC on %s" % (identity))
+				return False
+
+		logging.info("[Enable-EFSRPC] Successfully enabled EFSRPC on %s" % (identity))
+		return True
+		
 
 	def add_domaingpo(self, identity, description=None, basedn=None, args=None):
 		name = '{%s}' % get_uuid(upper=True)

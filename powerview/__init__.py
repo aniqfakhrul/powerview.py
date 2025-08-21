@@ -591,6 +591,11 @@ def main():
                                         succeed = powerview.disable_adaccount(args=pv_args)
                                 else:
                                     logging.error('-Identity flag is required')
+                            elif pv_args.module.casefold() == 'enable-efsrpc':
+                                if temp_powerview:
+                                    succeed = temp_powerview.enable_efsrpc(args=pv_args)
+                                else:
+                                    succeed = powerview.enable_efsrpc(args=pv_args)
                             elif pv_args.module.casefold() == 'add-domaingpo' or pv_args.module.casefold() == 'add-gpo':
                                 if pv_args.identity is not None:
                                     if temp_powerview:

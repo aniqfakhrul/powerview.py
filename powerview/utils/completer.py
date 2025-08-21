@@ -76,6 +76,7 @@ COMMANDS = {
     'Unlock-ADAccount':['-Identity','-SearchBase', '-Server', '-Outfile', '-NoCache'],
     'Enable-ADAccount':['-Identity','-SearchBase', '-Server', '-Outfile', '-NoCache'],
     'Disable-ADAccount':['-Identity','-SearchBase', '-Server', '-Outfile', '-NoCache'],
+    'Enable-EFSRPC':['-Computer', '-Port'],
     'Get-DomainObject':['-Identity','-Properties','-IncludeDeleted','-Deleted','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-NoCache', '-NoVulnCheck', '-TableView', '-SortBy','-OutFile', '-Raw'],
     'Get-ADObject':['-Identity','-Properties','-IncludeDeleted','-Deleted','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-Raw'],
     'Remove-NetSession':['-Computer','-TargetSession','-Username','-Password','-Hash','-Server', '-OutFile', '-Count'],
