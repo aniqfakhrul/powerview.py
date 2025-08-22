@@ -968,9 +968,8 @@ def powerview_arg_parse(cmd):
 
 	# invoke printerbug
 	invoke_printerbug_parser = subparsers.add_parser('Invoke-PrinterBug', exit_on_error=False)
-	invoke_printerbug_parser.add_argument('-Target', action='store', dest='target', type=lambda value: escape_filter_chars_except_asterisk(value))
-	invoke_printerbug_parser.add_argument('-Listener', action='store', dest='listener', type=lambda value: escape_filter_chars_except_asterisk(value))
-	invoke_printerbug_parser.add_argument('-Port', action='store', dest='port', type=int)
+	invoke_printerbug_parser.add_argument('-Target', action='store', required=True, dest='target', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_printerbug_parser.add_argument('-Listener', action='store', required=True, dest='listener', type=lambda value: escape_filter_chars_except_asterisk(value))
 	invoke_printerbug_parser.add_argument('-Server', action='store', dest='server')
 	invoke_printerbug_parser.add_argument('-OutFile', action='store', dest='outfile')
 	invoke_printerbug_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
@@ -982,9 +981,8 @@ def powerview_arg_parse(cmd):
 
 	# invoke dfscoerce
 	invoke_dfscoerce_parser = subparsers.add_parser('Invoke-DFSCoerce', exit_on_error=False)
-	invoke_dfscoerce_parser.add_argument('-Target', action='store', dest='target', type=lambda value: escape_filter_chars_except_asterisk(value))
-	invoke_dfscoerce_parser.add_argument('-Listener', action='store', dest='listener', type=lambda value: escape_filter_chars_except_asterisk(value))
-	invoke_dfscoerce_parser.add_argument('-Port', action='store', dest='port', type=int)
+	invoke_dfscoerce_parser.add_argument('-Target', action='store', required=True, dest='target', type=lambda value: escape_filter_chars_except_asterisk(value))
+	invoke_dfscoerce_parser.add_argument('-Listener', action='store', required=True, dest='listener', type=lambda value: escape_filter_chars_except_asterisk(value))
 	invoke_dfscoerce_parser.add_argument('-Server', action='store', dest='server')
 	invoke_dfscoerce_parser.add_argument('-OutFile', action='store', dest='outfile')
 	invoke_dfscoerce_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
@@ -1053,6 +1051,18 @@ def powerview_arg_parse(cmd):
 	unlock_adaccount_parser.add_argument('-OutFile', action='store', dest='outfile')
 	unlock_adaccount_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
 	
+	# enable rdp
+	enable_rdp_parser = subparsers.add_parser('Enable-RDP', exit_on_error=False)
+	enable_rdp_parser.add_argument('-Computer', action='store', required=True, const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	enable_rdp_parser.add_argument('-NoCheck', action='store_true', default=False, dest='no_check')
+	enable_rdp_parser.add_argument('-DisableRestrictionAdmin', action='store_true', default=False, dest='disable_restriction_admin')
+	
+	# disable rdp
+	disable_rdp_parser = subparsers.add_parser('Disable-RDP', exit_on_error=False)
+	disable_rdp_parser.add_argument('-Computer', action='store', required=True, const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+	disable_rdp_parser.add_argument('-NoCheck', action='store_true', default=False, dest='no_check')
+	disable_rdp_parser.add_argument('-DisableRestrictionAdmin', action='store_true', default=False, dest='disable_restriction_admin')
+	
 	# enable adaccount
 	enable_adaccount_parser = subparsers.add_parser('Enable-ADAccount', aliases=['Enable-ADAccount'], exit_on_error=False)
 	enable_adaccount_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
@@ -1064,7 +1074,7 @@ def powerview_arg_parse(cmd):
 	# enable efsrpc
 	enable_efsrpc_parser = subparsers.add_parser('Enable-EFSRPC', exit_on_error=False)
 	enable_efsrpc_parser.add_argument('-Computer', action='store', required=True, const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
-	enable_efsrpc_parser.add_argument('-Port', action='store', default=445, dest='port', type=int)
+	enable_efsrpc_parser.add_argument('-Port', action='store', default=135, dest='port', type=int)
 
 	# disable adaccount
 	disable_adaccount_parser = subparsers.add_parser('Disable-ADAccount', aliases=['Disable-ADAccount'], exit_on_error=False)

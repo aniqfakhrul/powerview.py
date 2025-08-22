@@ -575,6 +575,16 @@ def main():
                                         succeed = powerview.unlock_adaccount(args=pv_args)
                                 else:
                                     logging.error('-Identity flag is required')
+                            elif pv_args.module.casefold() == 'enable-rdp':
+                                if temp_powerview:
+                                    succeed = temp_powerview.enable_rdp(args=pv_args)
+                                else:
+                                    succeed = powerview.enable_rdp(args=pv_args)
+                            elif pv_args.module.casefold() == 'disable-rdp':
+                                if temp_powerview:
+                                    succeed = temp_powerview.disable_rdp(args=pv_args)
+                                else:
+                                    succeed = powerview.disable_rdp(args=pv_args)
                             elif pv_args.module.casefold() == 'enable-adaccount':
                                 if pv_args.identity is not None:
                                     if temp_powerview:

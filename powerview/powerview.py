@@ -2790,6 +2790,72 @@ class PowerView:
 			logging.info(f"[Unlock-ADAccount] Failed to unlock {identity_san}")
 			return False
 
+	def enable_rdp(self, computer=None, no_check=False, disable_restriction_admin=False, args=None):
+		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
+		no_check = args.no_check if hasattr(args, 'no_check') and args.no_check else no_check
+		disable_restriction_admin = args.disable_restriction_admin if hasattr(args, 'disable_restriction_admin') and args.disable_restriction_admin else disable_restriction_admin
+
+		identity = self._resolve_host(computer)
+		if not identity:
+			logging.error(f"[Enable-RDP] Failed to resolve hostname {computer}")
+			return False
+		
+		if not no_check:
+			if check_tcp_port(identity, 3389, timeout=10, retries=1, retry_delay=0.3):
+				logging.error(f"[Enable-RDP] {computer} RDP port 3389 is already open")
+				return False
+		
+		try:
+			reg = RemoteOperations(self.conn)
+			dce = reg.connect(identity)
+			succeed = reg.add(dce, 'HKLM\\System\\CurrentControlSet\\Control\\Terminal Server', 'fDenyTSConnections', 'REG_DWORD', "0")
+		except Exception as e:
+			if self.args.stack_trace:
+				raise e
+			else:
+				logging.error(f"[Enable-RDP] Failed to enable RDP on {computer}: {e}")
+			return False
+
+		if succeed:
+			logging.info(f"[Enable-RDP] RDP enabled on {computer}")
+			return True
+		else:
+			logging.error(f"[Enable-RDP] Failed to enable RDP on {computer}")
+			return False
+
+	def disable_rdp(self, computer=None, no_check=False, disable_restriction_admin=False, args=None):
+		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
+		no_check = args.no_check if hasattr(args, 'no_check') and args.no_check else no_check
+		disable_restriction_admin = args.disable_restriction_admin if hasattr(args, 'disable_restriction_admin') and args.disable_restriction_admin else disable_restriction_admin
+
+		identity = self._resolve_host(computer)
+		if not identity:
+			logging.error(f"[Disable-RDP] Failed to resolve hostname {computer}")
+			return False
+
+		if not no_check:
+			if not check_tcp_port(identity, 3389, timeout=10, retries=1, retry_delay=0.3):
+				logging.error(f"[Disable-RDP] {computer} RDP port 3389 is already closed")
+				return False
+		
+		try:
+			reg = RemoteOperations(self.conn)
+			dce = reg.connect(identity)
+			succeed = reg.add(dce, 'HKLM\\System\\CurrentControlSet\\Control\\Terminal Server', 'fDenyTSConnections', 'REG_DWORD', "1")
+		except Exception as e:
+			if self.args.stack_trace:
+				raise e
+			else:
+				logging.error(f"[Disable-RDP] Failed to disable RDP on {computer}: {e}")
+			return False
+
+		if succeed:
+			logging.info(f"[Disable-RDP] RDP disabled on {computer}")
+			return True
+		else:
+			logging.error(f"[Disable-RDP] Failed to disable RDP on {computer}")
+			return False
+
 	def enable_adaccount(self, identity=None, searchbase=None, no_cache=False, args=None):
 		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
@@ -4767,8 +4833,8 @@ displayName=New Group Policy Object
 		binding_params = {
 				'lsarpc': {
 					'stringBinding': r'ncacn_np:%s[\PIPE\lsarpc]' % host,
-					'protocol': 'MS-EFSRPC',
-					'description': 'Encrypting File System Remote (EFSRPC) Protocol',
+					'protocol': 'MS-LSAD/MS-LSAT',
+					'description': 'Local Security Authority (LSA) Remote Protocol',
 					},
 				'efsr': {
 					'stringBinding': r'ncacn_np:%s[\PIPE\efsrpc]' % host,
@@ -5182,15 +5248,13 @@ displayName=New Group Policy Object
 
 		return succeeded
 
-	def invoke_dfscoerce(self, target=None, listener=None, port=445, args=None):
+	def invoke_dfscoerce(self, target=None, listener=None, args=None):
 		entry = {}
 		target = target if target else (args.target if args else None)
 		target = self._resolve_host(target)
 		if not target:
 			return
 		listener = listener if listener else (args.listener if args else None)
-		if args and args.port:
-			port = args.port
 
 		if not listener:
 			logging.error("[Invoke-DFSCoerce] Listener IP is required")
@@ -5200,17 +5264,12 @@ displayName=New Group Policy Object
 			logging.error("[Invoke-DFSCoerce] Target domain is required")
 			return
 
-		KNOWN_PROTOCOLS = {
-			139: {'bindstr': r'ncacn_np:%s[\PIPE\netdfs]', 'set_host': True},
-			445: {'bindstr': r'ncacn_np:%s[\PIPE\netdfs]', 'set_host': True},
-		}
-		
 		entry['attributes'] = {
 			'Target': target,
 			'Listener': listener,
 		}
 			
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		stringBinding = f"ncacn_np:{target}[\\pipe\\netdfs]"
 		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding, interface_uuid=MSRPC_UUID_DFSNM)
 
 		if dce is None:
@@ -5240,7 +5299,7 @@ displayName=New Group Policy Object
 		entry['attributes']['Status'] = 'Success'
 		return [entry]
 
-	def invoke_printerbug(self, target=None, listener=None, port=445, args=None):
+	def invoke_printerbug(self, target=None, listener=None, args=None):
 		# https://github.com/dirkjanm/krbrelayx/blob/master/printerbug.py
 		entry = {}
 		target = target if target else (args.target if args else None)
@@ -5248,13 +5307,6 @@ displayName=New Group Policy Object
 		if not target:
 			return
 		listener = listener if listener else (args.listener if args else None)
-		if args and args.port:
-			port = args.port
-
-		KNOWN_PROTOCOLS = {
-			139: {'bindstr': r'ncacn_np:%s[\pipe\spoolss]', 'set_host': True},
-			445: {'bindstr': r'ncacn_np:%s[\pipe\spoolss]', 'set_host': True},
-		}
 
 		if not listener:
 			logging.error("[Invoke-PrinterBug] Listener IP [-Listener] is required")
@@ -5269,7 +5321,7 @@ displayName=New Group Policy Object
 			'Listener': listener,
 		}
 			
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		stringBinding = f"ncacn_np:{target}[\\pipe\\spoolss]"
 		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding, interface_uuid = rprn.MSRPC_UUID_RPRN)
 
 		if dce is None:

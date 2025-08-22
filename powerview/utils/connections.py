@@ -49,6 +49,7 @@ import json
 import sys
 from struct import unpack
 import tempfile
+import socket
 
 from ldap3.operation import bind
 from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
