@@ -94,7 +94,7 @@ COMMANDS = {
     'Get-ObjectOwner':['-Identity','-ResolveSID','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainObjectAcl':['-Identity','-LDAPFilter','-SearchBase','-Server','-SecurityIdentifier','-ResolveGUIDs','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-ObjectAcl':['-Identity','-LDAPFilter','-SearchBase','-Server','-ResolveGUIDs','-SecurityIdentifier','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-DomainComputer':['-Identity','-Properties','-ResolveIP','-ResolveSIDs','-LDAPFilter','-SearchBase','-Server','-Select','-Enabled','-Disabled','-Obsolete','-Unconstrained','-TrustedToAuth', '-LAPS', '-BitLocker', '-RBCD', '-ShadowCred','-SPN','-GMSAPassword','-Pre2K','-Printers','-ExcludeDCs','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-DomainComputer':['-Identity','-Properties','-ResolveIP','-ResolveSIDs','-LDAPFilter','-SearchBase','-Server','-Select','-Enabled','-Disabled','-Workstation','-NotWorkstation','-Obsolete','-Unconstrained','-TrustedToAuth', '-LAPS', '-BitLocker', '-RBCD', '-ShadowCred','-SPN','-GMSAPassword','-Pre2K','-Printers','-ExcludeDCs','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Add-DomainComputer':['-ComputerName','-ComputerPass','-NoPassword','-BaseDN','-Server', '-OutFile'],
     'Add-DomainDMSA':['-Identity','-PrincipalsAllowedToRetrieveManagedPassword','-DNSHostName','-Hidden','-SupersededAccount','-BaseDN','-Server', '-NoWrap', '-OutFile'],
     'Add-DMSA':['-Identity','-PrincipalsAllowedToRetrieveManagedPassword','-DNSHostName','-Hidden','-SupersededAccount','-BaseDN','-Server', '-NoWrap', '-OutFile'],
@@ -202,48 +202,50 @@ class Completer(object):
 
     def complete(self, text, state):
         buffer = readline.get_line_buffer()
-        
-        # Handle empty buffer case
-        if not buffer.strip():
-            return [c + ' ' for c in list(COMMANDS.keys())][state]
-        
+        begidx = readline.get_begidx()
+        endidx = readline.get_endidx()
+
+        left = buffer[:begidx]
+        right = buffer[endidx:]
+
         try:
-            line = shlex.split(buffer)
+            left_tokens = shlex.split(left)
         except ValueError:
-            # Handle unclosed quotes
-            line = shlex.split(buffer + '"')
-        
-        # Add empty token if buffer ends with space
-        if RE_SPACE.match(buffer):
-            line.append('')
-        
-        cmd = line[0].strip().casefold()
-        
-        # Complete command names
-        if len(line) == 1:
-            results = [c + ' ' for c in list(COMMANDS.keys()) if c.casefold().startswith(cmd)] + [None]
+            left_tokens = shlex.split(left + '"')
+
+        try:
+            right_tokens = shlex.split(right)
+        except ValueError:
+            right_tokens = shlex.split(right + '"')
+
+        if not left_tokens:
+            prefix = text.strip()
+            results = [c + ' ' for c in list(COMMANDS.keys()) if c.casefold().startswith(prefix.casefold())] + [None]
             return results[state]
-        
-        # Complete command arguments
+
+        cmd = left_tokens[0].strip().casefold()
+
         if cmd in (c.casefold() for c in COMMANDS.keys()):
-            args = line[-1].strip()
             full_cmd = [c for c in list(COMMANDS.keys()) if c.casefold() == cmd][0]
-            
-            # Filter out flags already used in command
-            used_flags = [arg for arg in line if arg.startswith('-')]
-            available_flags = [arg for arg in COMMANDS[full_cmd] if arg not in used_flags]
-            
-            if args.startswith('-') or not args:
-                results = [arg + ' ' for arg in available_flags if arg.casefold().startswith(args.casefold())] + [None]
-                return results[state]
-            
-            # Handle file paths for specific arguments that need file completion
+
             file_related_flags = ['-OutFile']
-            prev_arg = line[-2] if len(line) > 1 else None
-            
-            if prev_arg in file_related_flags:
-                return self._complete_path(args)[state]
-        
+
+            tokens_before_current_args = left_tokens[1:] if len(left_tokens) > 1 else []
+            tokens_after_current_args = right_tokens
+            used_flags = [t for t in tokens_before_current_args + tokens_after_current_args if t.startswith('-')]
+
+            prev_token = tokens_before_current_args[-1] if tokens_before_current_args else None
+
+            if prev_token in file_related_flags:
+                path_prefix = text if text else None
+                results = self._complete_path(path_prefix) + [None]
+                return results[state]
+
+            if text.startswith('-') or not text:
+                available_flags = [arg for arg in COMMANDS[full_cmd] if arg not in used_flags]
+                results = [arg + ' ' for arg in available_flags if arg.casefold().startswith(text.casefold())] + [None]
+                return results[state]
+
         return None
 
     def setup_completer(self):

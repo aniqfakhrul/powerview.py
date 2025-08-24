@@ -348,6 +348,8 @@ def powerview_arg_parse(cmd):
 	get_domaincomputer_parser.add_argument('-Unconstrained', action='store_true', default=False, dest='unconstrained')
 	get_domaincomputer_parser.add_argument('-Enabled', action='store_true', default=False, dest='enabled')
 	get_domaincomputer_parser.add_argument('-Disabled', action='store_true', default=False, dest='disabled')
+	get_domaincomputer_parser.add_argument('-Workstation', action='store_true', default=False, dest='workstation')
+	get_domaincomputer_parser.add_argument('-NotWorkstation', action='store_true', default=False, dest='notworkstation')
 	get_domaincomputer_parser.add_argument('-Obsolete', action='store_true', default=False, dest='obsolete')
 	get_domaincomputer_parser.add_argument('-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
 	get_domaincomputer_parser.add_argument('-WDS', action='store_true', default=False, dest='wds')

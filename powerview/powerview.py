@@ -1282,6 +1282,12 @@ class PowerView:
 			if hasattr(args, 'disabled') and args.disabled:
 				logging.debug("[Get-DomainComputer] Searching for disabled computer")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=2)'
+			if hasattr(args, 'workstation') and args.workstation:
+				logging.debug("[Get-DomainComputer] Searching for workstation")
+				ldap_filter += f'(!(operatingSystem=*Server*))'
+			if hasattr(args, 'notworkstation') and args.notworkstation:
+				logging.debug("[Get-DomainComputer] Searching for not workstation")
+				ldap_filter += f'(operatingSystem=*Server*)'
 			if hasattr(args, 'obsolete') and args.obsolete:
 				logging.debug("[Get-DomainComputer] Searching for obsolete computer")
 				obsolete_os_patterns = ['2000', 'Windows XP', 'Windows Server 2003', 'Windows Server 2008', 'Windows 7', 'Windows 8', 'Windows Server 2012']
