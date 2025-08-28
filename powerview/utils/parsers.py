@@ -477,6 +477,8 @@ def powerview_arg_parse(cmd):
 	get_domaindnsrecord_parser = subparsers.add_parser('Get-DomainDNSRecord', exit_on_error=False)
 	get_domaindnsrecord_parser.add_argument('-ZoneName', action='store', dest='zonename')
 	get_domaindnsrecord_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domaindnsrecord_parser.add_argument('-Legacy', action='store_true', default=False, dest='legacy')
+	get_domaindnsrecord_parser.add_argument('-Forest', action='store_true', default=False, dest='forest')
 	get_domaindnsrecord_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaindnsrecord_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	get_domaindnsrecord_parser.add_argument('-Server', action='store', dest='server')

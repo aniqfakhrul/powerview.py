@@ -2427,8 +2427,8 @@ class PowerView:
 		args = args or self.args
 		properties = properties or def_prop
 		identity = '*' if not identity else identity
-		legacy = args.legacy if hasattr(args, 'legacy') and args.legacy else False
-		forest = args.forest if hasattr(args, 'forest') and args.forest else False
+		legacy = args.legacy if hasattr(args, 'legacy') and args.legacy else legacy
+		forest = args.forest if hasattr(args, 'forest') and args.forest else forest
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
@@ -2482,7 +2482,7 @@ class PowerView:
 
 		return entries
 
-	def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], legacy=False, forest=False, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'name',
 			'distinguishedName',
@@ -2495,6 +2495,8 @@ class PowerView:
 
 		zonename = '*' if not zonename else zonename
 		identity = escape_filter_chars(identity) if identity else None
+		legacy = args.legacy if hasattr(args, 'legacy') and args.legacy else legacy
+		forest = args.forest if hasattr(args, 'forest') and args.forest else forest
 		args = args or self.args
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
@@ -2502,11 +2504,16 @@ class PowerView:
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
 
 		if not searchbase:
-			searchbase = [
-				f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
-				f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
-				f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
-			]
+			if forest:
+				searchbase = f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}"
+			else:
+				if legacy:
+					searchbase = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
+				else:
+					searchbase = [
+						f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
+						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
+					]
 
 		zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'], searchbase=searchbase, no_cache=no_cache)
 		if not zones:
