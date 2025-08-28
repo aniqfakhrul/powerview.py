@@ -457,6 +457,8 @@ def powerview_arg_parse(cmd):
 	# Find DNS Zone
 	get_domaindnszone_parser = subparsers.add_parser('Get-DomainDNSZone', exit_on_error=False)
 	get_domaindnszone_parser.add_argument('-Identity', action='store', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domaindnszone_parser.add_argument('-Legacy', action='store_true', default=False, dest='legacy')
+	get_domaindnszone_parser.add_argument('-Forest', action='store_true', default=False, dest='forest')
 	get_domaindnszone_parser.add_argument('-Properties', action='store' , dest='properties', type=Helper.parse_properties)
 	get_domaindnszone_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaindnszone_parser.add_argument('-Server', action='store', dest='server')

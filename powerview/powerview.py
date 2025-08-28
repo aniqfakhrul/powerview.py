@@ -2411,7 +2411,7 @@ class PowerView:
 			else:
 				raise e
 
-	def get_domaindnszone(self, identity=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domaindnszone(self, identity=None, properties=[], legacy=False, forest=False, searchbase=None, args=None, search_scope=ldap3.LEVEL, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass',
 			'name',
@@ -2427,12 +2427,24 @@ class PowerView:
 		args = args or self.args
 		properties = properties or def_prop
 		identity = '*' if not identity else identity
+		legacy = args.legacy if hasattr(args, 'legacy') and args.legacy else False
+		forest = args.forest if hasattr(args, 'forest') and args.forest else False
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
-		
+		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
+
 		if not searchbase:
-			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}" 
+			if forest:
+				searchbase = f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}"
+			else:
+				if legacy:
+					searchbase = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
+				else:
+					searchbase = [
+						f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
+						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
+					]
 
 		identity_filter = f"(name={identity})"
 		ldap_filter = f"(&(objectClass=dnsZone){identity_filter})"
@@ -2440,17 +2452,34 @@ class PowerView:
 		logging.debug(f"[Get-DomainDNSZone] Search base: {searchbase}")
 		logging.debug(f"[Get-DomainDNSZone] LDAP Filter string: {ldap_filter}")
 
-		return self.ldap_session.extend.standard.paged_search(
-			searchbase, 
-			ldap_filter, 
-			attributes=properties, 
-			paged_size=1000, 
-			generator=False, 
-			search_scope=search_scope, 
-			no_cache=no_cache,
-			no_vuln_check=no_vuln_check,
-			raw=raw
-		)
+		if isinstance(searchbase, list):
+			entries = []
+			for base in searchbase:
+				entries.extend(self.ldap_session.extend.standard.paged_search(
+					base,
+					ldap_filter,
+					attributes=properties,
+					paged_size=1000,
+					generator=False,
+					search_scope=search_scope,
+					no_cache=no_cache,
+					no_vuln_check=no_vuln_check,
+					raw=raw
+				))
+		else:
+			entries = self.ldap_session.extend.standard.paged_search(
+				searchbase,
+				ldap_filter,
+				attributes=properties,
+				paged_size=1000,
+				generator=False,
+				search_scope=search_scope,
+				no_cache=no_cache,
+				no_vuln_check=no_vuln_check,
+				raw=raw
+			)
+
+		return entries
 
 	def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
