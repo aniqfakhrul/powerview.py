@@ -240,6 +240,10 @@
                         class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
                         type="button" role="tab" aria-controls="tabpanelSessions"
                         style="display: none;">Sessions</button>
+                    <button onclick="selectModalTab('tasklist')" aria-selected="false" tabindex="-1" 
+                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
+                        type="button" role="tab" aria-controls="tabpanelTasklist"
+                        style="display: none;">Tasklist</button>
                     <button onclick="selectModalTab('loggedon')" aria-selected="false" tabindex="-1" 
                         class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
                         type="button" role="tab" aria-controls="tabpanelLoggedon"
@@ -397,6 +401,21 @@
                         <tbody id="sessions-rows" class="divide-y divide-neutral-200 dark:divide-neutral-700">
                             <!-- Sessions will be dynamically populated -->
                         </tbody>
+                    </table>
+                </div>
+                <div id="tabpanelTasklist" role="tabpanel" aria-label="tasklist" class="p-4 relative" style="display: none;">
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="h-8 text-left text-neutral-600 dark:text-neutral-400">
+                                <th class="px-3 py-2">PID</th>
+                                <th class="px-3 py-2">Name</th>
+                                <th class="px-3 py-2">Session</th>
+                                <th class="px-3 py-2">User</th>
+                                <th class="px-3 py-2">State</th>
+                                <th class="px-3 py-2">Memory</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tasklist-rows" class="divide-y divide-neutral-200 dark:divide-neutral-700"></tbody>
                     </table>
                 </div>
                 <div id="tabpanelLoggedon" role="tabpanel" aria-label="loggedon" class="p-4 relative" style="display: none;">

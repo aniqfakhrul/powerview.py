@@ -20,6 +20,7 @@ RECORD_TYPE_MAPPING = {
 class DNS_UTIL:
     def get_next_serial(dnsserver, dc, zone, tcp, timeout=15):
         dnsresolver = dns.resolver.Resolver()
+        dnsresolver.timeout = timeout
         if dnsserver:
             server = dnsserver
         else:
@@ -31,7 +32,7 @@ class DNS_UTIL:
             
         except socket.error:
             pass
-        res = dnsresolver.resolve(zone, 'SOA',tcp=tcp, timeout=timeout)
+        res = dnsresolver.resolve(zone, 'SOA',tcp=tcp)
         for answer in res:
             return answer.serial + 1
 

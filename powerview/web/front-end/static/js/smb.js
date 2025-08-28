@@ -294,7 +294,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     hasCreds = true;
                 }
             }
-            if (hasCreds) {
+            if (hasCreds && authType === 'nthash' && nthash) {
                 connectionData.lmhash = 'aad3b435b51404eeaad3b435b51404ee';
             }
 

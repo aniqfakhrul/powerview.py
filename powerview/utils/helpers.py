@@ -21,6 +21,8 @@ import validators
 import random
 import locale
 import string
+import socket
+import time
 
 from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
@@ -1037,3 +1039,26 @@ def parse_username(username):
 		username, domain = username.split('@', 1)
 
 	return {'domain': domain, 'username': username}
+
+def check_tcp_port(host, port, timeout=3, retries=0, retry_delay=0.2):
+	"""
+	Lightweight TCP port check with timeout and optional retries.
+	Returns True if connect succeeds, False otherwise.
+	"""
+	attempts = retries + 1
+	for i in range(attempts):
+		try:
+			with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+				sock.settimeout(timeout)
+				result = sock.connect_ex((host, int(port)))
+				if result == 0:
+					return True
+		except Exception as e:
+			logging.debug(f"[check_tcp_port] attempt {i+1}/{attempts} to {host}:{port} failed: {e}")
+		finally:
+			if i < attempts - 1 and retry_delay > 0:
+				try:
+					time.sleep(retry_delay)
+				except Exception:
+					pass
+	return False

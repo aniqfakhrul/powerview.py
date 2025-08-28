@@ -319,6 +319,66 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 actionTd.appendChild(connectSmbButton);
 
+                const restartButton = document.createElement('button');
+                restartButton.className = 'text-yellow-600 hover:text-yellow-700 dark:text-yellow-500 dark:hover:text-yellow-400 p-1 rounded-md hover:bg-yellow-50 dark:hover:bg-yellow-950/50 transition-colors ml-2';
+                restartButton.innerHTML = '<i class="fas fa-rotate-right"></i>';
+                restartButton.title = 'Restart Computer';
+                restartButton.addEventListener('click', async (event) => {
+                    event.stopPropagation();
+                    const computerHostname = computer.attributes.dNSHostName || computer.attributes.sAMAccountName?.replace('$','');
+                    if (!computerHostname) {
+                        showErrorAlert('Computer hostname not found for restart.');
+                        return;
+                    }
+                    try {
+                        const response = await fetch('/api/computer/restart', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ computer: computerHostname })
+                        });
+                        await handleHttpError(response);
+                        const result = await response.json();
+                        if ((result && result.status === 'OK') || result === true) {
+                            showSuccessAlert(`Restart command sent to ${computerHostname}`);
+                        } else {
+                            showErrorAlert(`Failed to restart ${computerHostname}`);
+                        }
+                    } catch (error) {
+                        showErrorAlert(`Failed to restart ${computerHostname}`);
+                    }
+                });
+                actionTd.appendChild(restartButton);
+
+                const shutdownButton = document.createElement('button');
+                shutdownButton.className = 'text-orange-600 hover:text-orange-700 dark:text-orange-500 dark:hover:text-orange-400 p-1 rounded-md hover:bg-orange-50 dark:hover:bg-orange-950/50 transition-colors ml-2';
+                shutdownButton.innerHTML = '<i class="fas fa-power-off"></i>';
+                shutdownButton.title = 'Shutdown Computer';
+                shutdownButton.addEventListener('click', async (event) => {
+                    event.stopPropagation();
+                    const computerHostname = computer.attributes.dNSHostName || computer.attributes.sAMAccountName?.replace('$','');
+                    if (!computerHostname) {
+                        showErrorAlert('Computer hostname not found for shutdown.');
+                        return;
+                    }
+                    try {
+                        const response = await fetch('/api/computer/shutdown', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ computer: computerHostname })
+                        });
+                        await handleHttpError(response);
+                        const result = await response.json();
+                        if ((result && result.status === 'OK') || result === true) {
+                            showSuccessAlert(`Shutdown command sent to ${computerHostname}`);
+                        } else {
+                            showErrorAlert(`Failed to shutdown ${computerHostname}`);
+                        }
+                    } catch (error) {
+                        showErrorAlert(`Failed to shutdown ${computerHostname}`);
+                    }
+                });
+                actionTd.appendChild(shutdownButton);
+
                 tr.appendChild(actionTd);
                 tbody.appendChild(tr);
             });

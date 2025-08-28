@@ -54,7 +54,7 @@ def main():
         init_ldap_address = args.ldap_address
         powerview = PowerView(conn, args)
         if powerview.ldap_session and powerview.ldap_session.bound:
-            powerview.add_domain_connection(powerview.conn.domain)
+            powerview.add_domain_connection(powerview.conn.get_domain())
 
         comp = Completer()
         comp.setup_completer()
@@ -575,6 +575,16 @@ def main():
                                         succeed = powerview.unlock_adaccount(args=pv_args)
                                 else:
                                     logging.error('-Identity flag is required')
+                            elif pv_args.module.casefold() == 'enable-rdp':
+                                if temp_powerview:
+                                    succeed = temp_powerview.enable_rdp(args=pv_args)
+                                else:
+                                    succeed = powerview.enable_rdp(args=pv_args)
+                            elif pv_args.module.casefold() == 'disable-rdp':
+                                if temp_powerview:
+                                    succeed = temp_powerview.disable_rdp(args=pv_args)
+                                else:
+                                    succeed = powerview.disable_rdp(args=pv_args)
                             elif pv_args.module.casefold() == 'enable-adaccount':
                                 if pv_args.identity is not None:
                                     if temp_powerview:
@@ -591,6 +601,11 @@ def main():
                                         succeed = powerview.disable_adaccount(args=pv_args)
                                 else:
                                     logging.error('-Identity flag is required')
+                            elif pv_args.module.casefold() == 'enable-efsrpc':
+                                if temp_powerview:
+                                    succeed = temp_powerview.enable_efsrpc(args=pv_args)
+                                else:
+                                    succeed = powerview.enable_efsrpc(args=pv_args)
                             elif pv_args.module.casefold() == 'add-domaingpo' or pv_args.module.casefold() == 'add-gpo':
                                 if pv_args.identity is not None:
                                     if temp_powerview:
@@ -799,9 +814,9 @@ def main():
                                     if pv_args.computerpass is None:
                                         pv_args.computerpass = ''.join(random.choice(list(string.ascii_letters + string.digits + "!@#$%^&*()")) for _ in range(12))
                                     if temp_powerview:
-                                        temp_powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass, basedn=pv_args.basedn)
+                                        temp_powerview.add_domaincomputer(args=pv_args)
                                     else:
-                                        powerview.add_domaincomputer(pv_args.computername, pv_args.computerpass, basedn=pv_args.basedn)
+                                        powerview.add_domaincomputer(args=pv_args)
                                 else:
                                     logging.error(f'-ComputerName and -ComputerPass are required')
                             elif pv_args.module.casefold() == 'add-domaingmsa' or pv_args.module.casefold() == 'add-gmsa':
@@ -916,7 +931,7 @@ def main():
                                     print(schema)
                                 else:
                                     if not pv_args.outfile:
-                                        pv_args.outfile = f"{powerview.conn.domain.lower()}-schema.json"
+                                        pv_args.outfile = f"{powerview.conn.get_domain().lower()}-schema.json"
                                     schema.to_file(os.path.expanduser(pv_args.outfile))
                                     logging.info(f"Schema dumped to {pv_args.outfile}")
                             elif pv_args.module.casefold() == 'dump-serverinfo':
@@ -928,7 +943,7 @@ def main():
                                     print(server_info)
                                 else:
                                     if not pv_args.outfile:
-                                        pv_args.outfile = f"{powerview.conn.domain.lower()}-server_info.json"
+                                        pv_args.outfile = f"{powerview.conn.get_domain().lower()}-server_info.json"
                                     server_info.to_file(os.path.expanduser(pv_args.outfile))
                                     logging.info(f"Server info dumped to {pv_args.outfile}")
                             elif pv_args.module.casefold() == 'get_pool_stats':

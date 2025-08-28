@@ -70,6 +70,7 @@ import inspect
 import sys
 import random
 import time
+import contextlib
 
 class PowerView:
 	def __init__(self, conn, args, target_server=None, target_domain=None):
@@ -1281,6 +1282,12 @@ class PowerView:
 			if hasattr(args, 'disabled') and args.disabled:
 				logging.debug("[Get-DomainComputer] Searching for disabled computer")
 				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=2)'
+			if hasattr(args, 'workstation') and args.workstation:
+				logging.debug("[Get-DomainComputer] Searching for workstation")
+				ldap_filter += f'(&(operatingSystem=*)(!(operatingSystem=*Server*)))'
+			if hasattr(args, 'notworkstation') and args.notworkstation:
+				logging.debug("[Get-DomainComputer] Searching for not workstation")
+				ldap_filter += f'(&(operatingSystem=*)(operatingSystem=*Server*))'
 			if hasattr(args, 'obsolete') and args.obsolete:
 				logging.debug("[Get-DomainComputer] Searching for obsolete computer")
 				obsolete_os_patterns = ['2000', 'Windows XP', 'Windows Server 2003', 'Windows Server 2008', 'Windows 7', 'Windows 8', 'Windows Server 2012']
@@ -1448,7 +1455,7 @@ class PowerView:
 				'sAMAccountName': f"{identity}$" if not identity.endswith('$') else identity,
 				'cn': identity,
 				'userAccountControl': 0x1000,  # WORKSTATION_TRUST_ACCOUNT
-				'dNSHostName': f"{identity}.{self.conn.domain}" if not dnshostname else dnshostname,
+				'dNSHostName': f"{identity}.{self.conn.get_domain()}" if not dnshostname else dnshostname,
 				'msDS-ManagedPasswordInterval': 30,
 				'msDS-SupportedEncryptionTypes': 28, # RC4-HMAC,AES128,AES256
 			}
@@ -2404,7 +2411,7 @@ class PowerView:
 			else:
 				raise e
 
-	def get_domaindnszone(self, identity=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domaindnszone(self, identity=None, properties=[], legacy=False, forest=False, searchbase=None, args=None, search_scope=ldap3.LEVEL, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass',
 			'name',
@@ -2420,12 +2427,24 @@ class PowerView:
 		args = args or self.args
 		properties = properties or def_prop
 		identity = '*' if not identity else identity
+		legacy = args.legacy if hasattr(args, 'legacy') and args.legacy else False
+		forest = args.forest if hasattr(args, 'forest') and args.forest else False
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
-		
+		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
+
 		if not searchbase:
-			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}" 
+			if forest:
+				searchbase = f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}"
+			else:
+				if legacy:
+					searchbase = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
+				else:
+					searchbase = [
+						f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
+						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
+					]
 
 		identity_filter = f"(name={identity})"
 		ldap_filter = f"(&(objectClass=dnsZone){identity_filter})"
@@ -2433,17 +2452,34 @@ class PowerView:
 		logging.debug(f"[Get-DomainDNSZone] Search base: {searchbase}")
 		logging.debug(f"[Get-DomainDNSZone] LDAP Filter string: {ldap_filter}")
 
-		return self.ldap_session.extend.standard.paged_search(
-			searchbase, 
-			ldap_filter, 
-			attributes=properties, 
-			paged_size=1000, 
-			generator=False, 
-			search_scope=search_scope, 
-			no_cache=no_cache,
-			no_vuln_check=no_vuln_check,
-			raw=raw
-		)
+		if isinstance(searchbase, list):
+			entries = []
+			for base in searchbase:
+				entries.extend(self.ldap_session.extend.standard.paged_search(
+					base,
+					ldap_filter,
+					attributes=properties,
+					paged_size=1000,
+					generator=False,
+					search_scope=search_scope,
+					no_cache=no_cache,
+					no_vuln_check=no_vuln_check,
+					raw=raw
+				))
+		else:
+			entries = self.ldap_session.extend.standard.paged_search(
+				searchbase,
+				ldap_filter,
+				attributes=properties,
+				paged_size=1000,
+				generator=False,
+				search_scope=search_scope,
+				no_cache=no_cache,
+				no_vuln_check=no_vuln_check,
+				raw=raw
+			)
+
+		return entries
 
 	def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
@@ -2789,6 +2825,72 @@ class PowerView:
 			logging.info(f"[Unlock-ADAccount] Failed to unlock {identity_san}")
 			return False
 
+	def enable_rdp(self, computer=None, no_check=False, disable_restriction_admin=False, args=None):
+		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
+		no_check = args.no_check if hasattr(args, 'no_check') and args.no_check else no_check
+		disable_restriction_admin = args.disable_restriction_admin if hasattr(args, 'disable_restriction_admin') and args.disable_restriction_admin else disable_restriction_admin
+
+		identity = self._resolve_host(computer)
+		if not identity:
+			logging.error(f"[Enable-RDP] Failed to resolve hostname {computer}")
+			return False
+		
+		if not no_check:
+			if check_tcp_port(identity, 3389, timeout=10, retries=1, retry_delay=0.3):
+				logging.error(f"[Enable-RDP] {computer} RDP port 3389 is already open")
+				return False
+		
+		try:
+			reg = RemoteOperations(self.conn)
+			dce = reg.connect(identity)
+			succeed = reg.add(dce, 'HKLM\\System\\CurrentControlSet\\Control\\Terminal Server', 'fDenyTSConnections', 'REG_DWORD', "0")
+		except Exception as e:
+			if self.args.stack_trace:
+				raise e
+			else:
+				logging.error(f"[Enable-RDP] Failed to enable RDP on {computer}: {e}")
+			return False
+
+		if succeed:
+			logging.info(f"[Enable-RDP] RDP enabled on {computer}")
+			return True
+		else:
+			logging.error(f"[Enable-RDP] Failed to enable RDP on {computer}")
+			return False
+
+	def disable_rdp(self, computer=None, no_check=False, disable_restriction_admin=False, args=None):
+		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
+		no_check = args.no_check if hasattr(args, 'no_check') and args.no_check else no_check
+		disable_restriction_admin = args.disable_restriction_admin if hasattr(args, 'disable_restriction_admin') and args.disable_restriction_admin else disable_restriction_admin
+
+		identity = self._resolve_host(computer)
+		if not identity:
+			logging.error(f"[Disable-RDP] Failed to resolve hostname {computer}")
+			return False
+
+		if not no_check:
+			if not check_tcp_port(identity, 3389, timeout=10, retries=1, retry_delay=0.3):
+				logging.error(f"[Disable-RDP] {computer} RDP port 3389 is already closed")
+				return False
+		
+		try:
+			reg = RemoteOperations(self.conn)
+			dce = reg.connect(identity)
+			succeed = reg.add(dce, 'HKLM\\System\\CurrentControlSet\\Control\\Terminal Server', 'fDenyTSConnections', 'REG_DWORD', "1")
+		except Exception as e:
+			if self.args.stack_trace:
+				raise e
+			else:
+				logging.error(f"[Disable-RDP] Failed to disable RDP on {computer}: {e}")
+			return False
+
+		if succeed:
+			logging.info(f"[Disable-RDP] RDP disabled on {computer}")
+			return True
+		else:
+			logging.error(f"[Disable-RDP] Failed to disable RDP on {computer}")
+			return False
+
 	def enable_adaccount(self, identity=None, searchbase=None, no_cache=False, args=None):
 		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
@@ -2876,6 +2978,31 @@ class PowerView:
 		else:
 			logging.info(f"[Disable-ADAccount] Failed to disable {identity_san}")
 			return False
+
+	def enable_efsrpc(self, computer=None, port=135, args=None):
+		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
+		port = args.port if hasattr(args, 'port') and args.port else port
+		
+		identity = self._resolve_host(computer)
+		if not identity:
+			logging.error(f"[Enable-EFSRPC] Failed to resolve hostname {computer}")
+			return False
+		
+		if computer.casefold() != identity.casefold():
+			logging.debug(f"[Enable-EFSRPC] Resolved hostname to IP: {identity}")
+			logging.debug(f"[Enable-EFSRPC] Connecting to {identity}")
+		else:
+			logging.debug(f"[Enable-EFSRPC] Connecting to {computer}")
+
+		with contextlib.suppress(Exception):
+			dce = self.conn.get_dynamic_endpoint("df1941c5-fe89-4e79-bf10-463657acf44d", identity, port=port)
+			if dce is None:
+				logging.error("[Enable-EFSRPC] Failed to enable EFSRPC on %s" % (identity))
+				return False
+
+		logging.info("[Enable-EFSRPC] Successfully enabled EFSRPC on %s" % (identity))
+		return True
+		
 
 	def add_domaingpo(self, identity, description=None, basedn=None, args=None):
 		name = '{%s}' % get_uuid(upper=True)
@@ -4497,7 +4624,7 @@ displayName=New Group Policy Object
 				'sAMAccountName': f"{identity}$" if not identity.endswith('$') else identity,
 				'cn': identity,
 				'userAccountControl': 4096,  # WORKSTATION_TRUST_ACCOUNT
-				'dNSHostName': f"{identity}.{self.conn.domain}" if not dnshostname else dnshostname,
+				'dNSHostName': f"{identity}.{self.conn.get_domain()}" if not dnshostname else dnshostname,
 				'msDS-SupportedEncryptionTypes': 28, # RC4-HMAC,AES128,AES256
 				'msDS-ManagedPasswordInterval': 30,
 				'msDS-DelegatedMSAState': DMSA_DELEGATED_MSA_STATE.DISABLED.value
@@ -4654,7 +4781,11 @@ displayName=New Group Policy Object
 		logging.info(f"[Remove-DomainDMSA] Successfully removed DMSA account {identity}")
 		return True
 
-	def add_domaincomputer(self, computer_name, computer_pass, basedn=None, args=None):
+	def add_domaincomputer(self, computer_name=None, computer_pass=None, no_password=False, basedn=None, args=None):
+		computer_name = args.computername if args and hasattr(args, 'computername') else computer_name
+		computer_pass = args.computerpass if args and hasattr(args, 'computerpass') else computer_pass
+		no_password = args.no_password if args and hasattr(args, 'no_password') else no_password
+		
 		parent_dn_entries = f"CN=Computers,{self.root_dn}"
 		if basedn:
 			parent_dn_entries = basedn
@@ -4690,6 +4821,7 @@ displayName=New Group Policy Object
 				cmdLineOptions = self.args,
 				computer_name = computer_name,
 				computer_pass = computer_pass,
+				no_password = no_password,
 				base_dn = parent_dn_entries,
 				ldap_session = self.ldap_session
 		)
@@ -4736,8 +4868,8 @@ displayName=New Group Policy Object
 		binding_params = {
 				'lsarpc': {
 					'stringBinding': r'ncacn_np:%s[\PIPE\lsarpc]' % host,
-					'protocol': 'MS-EFSRPC',
-					'description': 'Encrypting File System Remote (EFSRPC) Protocol',
+					'protocol': 'MS-LSAD/MS-LSAT',
+					'description': 'Local Security Authority (LSA) Remote Protocol',
 					},
 				'efsr': {
 					'stringBinding': r'ncacn_np:%s[\PIPE\efsrpc]' % host,
@@ -5151,15 +5283,13 @@ displayName=New Group Policy Object
 
 		return succeeded
 
-	def invoke_dfscoerce(self, target=None, listener=None, port=445, args=None):
+	def invoke_dfscoerce(self, target=None, listener=None, args=None):
 		entry = {}
 		target = target if target else (args.target if args else None)
 		target = self._resolve_host(target)
 		if not target:
 			return
 		listener = listener if listener else (args.listener if args else None)
-		if args and args.port:
-			port = args.port
 
 		if not listener:
 			logging.error("[Invoke-DFSCoerce] Listener IP is required")
@@ -5169,17 +5299,12 @@ displayName=New Group Policy Object
 			logging.error("[Invoke-DFSCoerce] Target domain is required")
 			return
 
-		KNOWN_PROTOCOLS = {
-			139: {'bindstr': r'ncacn_np:%s[\PIPE\netdfs]', 'set_host': True},
-			445: {'bindstr': r'ncacn_np:%s[\PIPE\netdfs]', 'set_host': True},
-		}
-		
 		entry['attributes'] = {
 			'Target': target,
 			'Listener': listener,
 		}
 			
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		stringBinding = f"ncacn_np:{target}[\\pipe\\netdfs]"
 		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding, interface_uuid=MSRPC_UUID_DFSNM)
 
 		if dce is None:
@@ -5209,7 +5334,7 @@ displayName=New Group Policy Object
 		entry['attributes']['Status'] = 'Success'
 		return [entry]
 
-	def invoke_printerbug(self, target=None, listener=None, port=445, args=None):
+	def invoke_printerbug(self, target=None, listener=None, args=None):
 		# https://github.com/dirkjanm/krbrelayx/blob/master/printerbug.py
 		entry = {}
 		target = target if target else (args.target if args else None)
@@ -5217,13 +5342,6 @@ displayName=New Group Policy Object
 		if not target:
 			return
 		listener = listener if listener else (args.listener if args else None)
-		if args and args.port:
-			port = args.port
-
-		KNOWN_PROTOCOLS = {
-			139: {'bindstr': r'ncacn_np:%s[\pipe\spoolss]', 'set_host': True},
-			445: {'bindstr': r'ncacn_np:%s[\pipe\spoolss]', 'set_host': True},
-		}
 
 		if not listener:
 			logging.error("[Invoke-PrinterBug] Listener IP [-Listener] is required")
@@ -5238,7 +5356,7 @@ displayName=New Group Policy Object
 			'Listener': listener,
 		}
 			
-		stringBinding = KNOWN_PROTOCOLS[port]['bindstr'] % target
+		stringBinding = f"ncacn_np:{target}[\\pipe\\spoolss]"
 		dce = self.conn.connectRPCTransport(host=target, stringBindings=stringBinding, interface_uuid = rprn.MSRPC_UUID_RPRN)
 
 		if dce is None:
@@ -5413,7 +5531,7 @@ displayName=New Group Policy Object
 				# Use provided creds if available, otherwise use current connection context
 				current_username = username or self.conn.username
 				current_password = password or self.conn.password
-				current_domain = domain or self.conn.domain
+				current_domain = domain or self.conn.get_domain()
 				current_lmhash = lmhash or self.conn.lmhash
 				current_nthash = nthash or self.conn.nthash
 
@@ -6321,7 +6439,7 @@ displayName=New Group Policy Object
 				logging.error("[Invoke-MessageBox] Invalid input or operation cancelled")
 				return False
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		pulResponse, success = ts.do_msg(session_id=session_id, title=title, message=message, style=style, timeout=timeout, dontwait=dontwait)
 		if success:
 			logging.info(f"[Invoke-MessageBox] Successfully sent message to session {session_id} on {identity}")
@@ -6412,11 +6530,11 @@ displayName=New Group Policy Object
 		tgt = self.conn.get_TGT()
 		if not tgt:
 			userName = Principal(self.conn.username, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
-			tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, self.conn.password, self.conn.domain,
+			tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, self.conn.password, self.conn.get_domain(),
 																unhexlify(self.conn.lmhash), unhexlify(self.conn.nthash), self.conn.auth_aes_key,
 																self.conn.kdcHost)
 
-		tgs, rcipher, oldSessionKey, sessionKey, previous_keys = MSA.request_dmsa_st(tgt, cipher, oldSessionKey, sessionKey, self.conn.kdcHost, self.conn.domain, dmsaname + '$')
+		tgs, rcipher, oldSessionKey, sessionKey, previous_keys = MSA.request_dmsa_st(tgt, cipher, oldSessionKey, sessionKey, self.conn.kdcHost, self.conn.get_domain(), dmsaname + '$')
 		if tgs:
 			sessionKey = oldSessionKey
 
@@ -6425,7 +6543,7 @@ displayName=New Group Policy Object
 					entries.append(
 						{
 							"attributes": {
-								"Domain": self.conn.domain,
+								"Domain": self.conn.get_domain(),
 								"Identity": targetidentity,
 								"RC4": key[constants.EncryptionTypes.rc4_hmac]
 							}
@@ -6485,7 +6603,7 @@ displayName=New Group Policy Object
 			logging.debug(f"[Get-NetTerminalSession] Failed SMB connection to {identity}")
 			return None
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		results = ts.do_qwinsta()
 		return results
 
@@ -6547,7 +6665,7 @@ displayName=New Group Policy Object
 			logging.debug(f"[Remove-NetTerminalSession] Failed SMB connection to {identity}")
 			return None
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		success = ts.do_tsdiscon(session_id=session_id)
 		if success:
 			logging.info(f"[Remove-NetTerminalSession] Successfully removed session {session_id} on {identity}")
@@ -6613,7 +6731,7 @@ displayName=New Group Policy Object
 			logging.debug(f"[Logoff-Session] Failed SMB connection to {identity}")
 			return None
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		success = ts.do_logoff(session_id=session_id)
 		if success:
 			logging.info(f"[Logoff-Session] Successfully logged off session {session_id} on {identity}")
@@ -6656,7 +6774,7 @@ displayName=New Group Policy Object
 			logging.debug(f"[Stop-Computer] Failed SMB connection to {identity}")
 			return None
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		success = ts.do_shutdown(logoff=True, shutdown=True, reboot=False, poweroff=False)
 		if success:
 			logging.info(f"[Stop-Computer] Successfully stopped computer {identity}")
@@ -6699,7 +6817,7 @@ displayName=New Group Policy Object
 			logging.debug(f"[Restart-Computer] Failed SMB connection to {identity}")
 			return None
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		success = ts.do_shutdown(logoff=True, shutdown=False, reboot=True, poweroff=False)
 		if success:
 			logging.info(f"[Restart-Computer] Successfully restarted computer {identity}")
@@ -6746,7 +6864,7 @@ displayName=New Group Policy Object
 			logging.debug(f"[Get-NetProcess] Failed SMB connection to {identity}")
 			return None
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		results = ts.do_tasklist(pid=pid, name=name)
 		return results
 
@@ -6789,7 +6907,7 @@ displayName=New Group Policy Object
 			logging.debug(f"[Stop-NetProcess] Failed SMB connection to {identity}")
 			return None
 
-		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos)
+		ts = TSHandler(smb_connection=smbConn, target_ip=identity, doKerberos=self.use_kerberos, stack_trace=self.args.stack_trace)
 		return ts.do_taskkill(pid=pid, name=name)
 
 	def get_netsession(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):

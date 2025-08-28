@@ -23,47 +23,7 @@
 PowerView.py is an alternative for the awesome original [PowerView.ps1](https://github.com/PowerShellMafia/PowerSploit/blob/master/Recon/PowerView.ps1) script. Most of the modules used in PowerView are available here ( some of the flags are changed ). Main goal is to achieve interactive session without having to repeatedly authenticate to ldap.
 
 ## Installation
-Since powerview.py now supports Channel Binding and Seal and Sign, [gssapi](https://github.com/sigmaris/python-gssapi) is part of the dependencies which requires `libkrb5-dev` package from apt.
-* Pypi
-```bash
-sudo apt install libkrb5-dev
-pip3 install powerview
-```
-
-* Pipx
-```bash
-sudo apt install libkrb5-dev
-pipx install "git+https://github.com/aniqfakhrul/powerview.py"
-```
-
-* UV
-```bash
-uv tool install git+https://github.com/aniqfakhrul/powerview.py
-```
-
-* curl
-```
-curl -L powerview.sh | sh
-```
-
-* Nix
-    1. You can enable flakes and nix-command permanently by adding the following line  `experimental-features = nix-command flakes` to `/etc/nix/nix.conf`.
-    2. Instead of using: `nix shell github:aniqfakhrul/powerview.py --extra-experimental-features flakes --extra-experimental-features nix-command`.
-    3. You can use the command below.
-```bash
-nix shell github:aniqfakhrul/powerview.py
-```
-
-* Manual
-```
-git clone https://github.com/aniqfakhrul/powerview.py
-cd powerview.py
-sudo apt install libkrb5-dev
-./install.sh
-```
-> [!NOTE]
-> In case the installation throws error regarding `gssapi` library. You might need to install `libkrb5-dev` (Debian/Ubuntu) or `krb5-devel` (CentOS)
-> `sudo apt install libkrb5-dev`
+https://github.com/aniqfakhrul/powerview.py/wiki/Installation-Guide
 
 ## Basic Usage
 > [!NOTE]

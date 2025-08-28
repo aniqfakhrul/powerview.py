@@ -4,7 +4,8 @@ from impacket.smb3structs import FILE_READ_DATA, FILE_WRITE_DATA
 from impacket.dcerpc.v5 import samr, epm, transport, rpcrt, rprn, srvs, wkst, scmr, drsuapi
 from impacket.dcerpc.v5.rpcrt import DCERPCException, RPC_C_AUTHN_WINNT, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_AUTHN_GSS_NEGOTIATE
 from impacket.dcerpc.v5.dtypes import NULL
-from impacket.spnego import SPNEGO_NegTokenInit, TypesMech, SPNEGO_NegTokenResp 
+from impacket.spnego import SPNEGO_NegTokenInit, TypesMech, SPNEGO_NegTokenResp
+from impacket.uuid import uuidtup_to_bin
 # for relay used
 from impacket.examples.ntlmrelayx.servers.httprelayserver import HTTPRelayServer
 from impacket.examples.ntlmrelayx.clients.ldaprelayclient import LDAPRelayClient
@@ -48,6 +49,8 @@ import json
 import sys
 from struct import unpack
 import tempfile
+import socket
+
 from ldap3.operation import bind
 from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
 import powerview.lib.adws as adws
@@ -448,7 +451,7 @@ class SMBConnectionEntry(ConnectionPoolEntry):
 				if hasattr(self.connection, 'close'):
 					self.connection.close()
 			except Exception as e:
-				logging.debug(f"[SMBConnectionPool] {self._pool_type} error closing SMB connection for {self.host}: {str(e)}")
+				logging.debug(f"[SMBConnectionPool] error closing SMB connection for {self.host}: {str(e)}")
 
 class SMBConnectionPool(ConnectionPool):
 	"""
@@ -965,7 +968,50 @@ class CONNECTION:
 		self.domain = domain.lower()
 
 	def get_domain(self):
-		return self.domain.lower()
+		info = self.get_server_info()
+		if not info:
+			return None
+		
+		raw_info = info.get('raw', {})
+		
+		ldap_service_name = raw_info.get('ldapServiceName')
+		if ldap_service_name and len(ldap_service_name) > 0:
+			service_parts = ldap_service_name[0].split('@')
+			if len(service_parts) > 1:
+				domain = service_parts[1].lower()
+				domain_parts = domain.split('.')
+				if len(domain_parts) >= 2:
+					return '.'.join(domain_parts[-2:])
+				return domain
+		
+		default_naming_context = raw_info.get('defaultNamingContext')
+		if default_naming_context and len(default_naming_context) > 0:
+			dn = default_naming_context[0]
+			domain_parts = []
+			for part in dn.split(','):
+				if part.strip().upper().startswith('DC='):
+					domain_parts.append(part.strip()[3:])
+			if domain_parts:
+				full_domain = '.'.join(domain_parts).lower()
+				parts = full_domain.split('.')
+				if len(parts) >= 2:
+					return '.'.join(parts[-2:])
+				return full_domain
+		
+		dns_hostname = raw_info.get('dnsHostName')
+		if dns_hostname and len(dns_hostname) > 0:
+			hostname_parts = dns_hostname[0].split('.')
+			if len(hostname_parts) > 2:
+				return '.'.join(hostname_parts[-2:]).lower()
+			elif len(hostname_parts) > 1:
+				return '.'.join(hostname_parts[1:]).lower()
+		
+		if self.domain:
+			parts = self.domain.lower().split('.')
+			if len(parts) >= 2:
+				return '.'.join(parts[-2:])
+		
+		return self.domain.lower() if self.domain else None
 
 	def set_targetDomain(self, domain):
 		"""
@@ -1487,9 +1533,6 @@ class CONNECTION:
 			
 			ldap_session = ldap3.Connection(ldap_server, raise_exceptions=True, **ldap_connection_kwargs)
 			ldap_session.open()
-		except Exception as e:
-			logging.error("Error during schannel authentication with error: %s", str(e))
-			sys.exit(0)
 		except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
 			logging.debug("Server returns invalidCredentials")
 			if 'AcceptSecurityContext error, data 80090346' in str(ldap_session.result):
@@ -1515,6 +1558,9 @@ class CONNECTION:
 		except ldap3.core.exceptions.LDAPInvalidValueError as e:
 			logging.error(str(e))
 			sys.exit(-1)
+		except Exception as e:
+			logging.error("Error during schannel authentication with error: %s", str(e))
+			sys.exit(0)
 		
 		if ldap_session.result is not None:
 			logging.error(f"AuthError: {str(ldap_session.result['message'])}")
@@ -2059,6 +2105,19 @@ class CONNECTION:
 		if not self.samr:
 			self.samr = self.connectSamr()
 		return self.samr
+
+	@staticmethod
+	def get_dynamic_endpoint(interface, target, port=135, timeout=10):
+		if not isinstance(interface, bytes) and isinstance(interface, str):
+			interface = uuidtup_to_bin((interface, "0.0"))
+
+		string_binding = rf"ncacn_ip_tcp:{target}[{port}]"
+		logging.debug(f"[get_dynamic_endpoint] Connecting to {string_binding}")
+		rpctransport = transport.DCERPCTransportFactory(string_binding)
+		rpctransport.set_connect_timeout(timeout)
+		dce = rpctransport.get_dce_rpc()
+		dce.connect()
+		return epm.hept_map(target, interface, protocol="ncacn_ip_tcp", dce=dce)
 
 	# TODO: FIX kerberos auth
 	def connectSamr(self):

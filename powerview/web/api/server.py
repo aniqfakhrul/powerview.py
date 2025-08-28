@@ -16,6 +16,7 @@ from powerview.utils.constants import UAC_DICT
 from powerview._version import __version__ as version
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.modules.smbclient import SMBClient
+from powerview.lib.tsts import TSHandler
 from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip, is_valid_sid
 import json
 
@@ -43,6 +44,7 @@ class APIServer:
 		self.host = host
 		self.port = port
 		self.status = False
+		self.smb_session_params = {}
 		
 		components = [self.powerview.flatName.lower(), self.powerview.args.username.lower(), self.powerview.args.ldap_address.lower()]
 		folder_name = '-'.join(filter(None, components)) or "default-log"
@@ -50,7 +52,6 @@ class APIServer:
 		self.log_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, file_name)
 		self.history_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, '.powerview_history')
 
-		# Define routes
 		self._register_routes()
 
 		self.nav_items = [
@@ -135,6 +136,9 @@ class APIServer:
 		add_route_with_auth('/api/smb/remove-security', 'smb_remove_security', self.handle_smb_remove_security, methods=['POST'])
 		add_route_with_auth('/api/smb/set-share-security', 'smb_set_share_security', self.handle_smb_set_share_security, methods=['POST'])
 		add_route_with_auth('/api/smb/remove-share-security', 'smb_remove_share_security', self.handle_smb_remove_share_security, methods=['POST'])
+		add_route_with_auth('/api/computer/restart', 'computer_restart', self.handle_computer_restart, methods=['POST'])
+		add_route_with_auth('/api/computer/shutdown', 'computer_shutdown', self.handle_computer_shutdown, methods=['POST'])
+		add_route_with_auth('/api/computer/tasklist', 'computer_tasklist', self.handle_computer_tasklist, methods=['POST'])
 
 	def set_status(self, status):
 		self.status = status
@@ -337,7 +341,6 @@ class APIServer:
 		return jsonify({'status': 'OK' if success else 'KO'}), 200 if success else 400
 	
 	def handle_settings(self):
-		# return all self.powerview.args in json
 		return jsonify(vars(self.powerview.args))
 	
 	def handle_server_info(self):
@@ -385,33 +388,26 @@ class APIServer:
 			''
 		]
 		try:
-			# Get the command from the request
 			command = request.json.get('command', '')
 			if not command:
 				return jsonify({'error': 'No command provided'}), 400
 
-			# Parse the command using shlex
 			try:
 				cmd = shlex.split(command)
 			except ValueError as e:
 				logging.error(f"Command parsing error: {str(e)}")
 				return jsonify({'error': f'Command parsing error: {str(e)}'}), 400
 
-			# Parse the command arguments using PowerView's argument parser
 			pv_args = powerview_arg_parse(cmd)
 
-			# Check if the command was parsed successfully
 			if pv_args is None:
 				return jsonify({'error': 'Invalid command or arguments'}), 400
 
-			# Check if the module is specified
 			if not pv_args.module:
 				return jsonify({'error': 'No module specified in the command'}), 400
 
-			# Execute the command using PowerView
 			result = self.powerview.execute(pv_args)
 
-			# Make the result serializable
 			serializable_result = make_serializable(result)
 
 			# Return the result along with pv_args
@@ -548,7 +544,11 @@ class APIServer:
 	def handle_smb_connect(self):
 		try:
 			data = request.json
-			computer = data.get('computer').lower()
+			computer_input = data.get('computer')
+			if not computer_input:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+
+			computer = computer_input.lower()
 			username = data.get('username')
 			password = data.get('password')
 			nthash = data.get('nthash')
@@ -559,61 +559,40 @@ class APIServer:
 			if username and ('/' in username or '\\' in username):
 				domain, username = username.replace('/', '\\').split('\\')
 			
-			if not computer:
-				return jsonify({'error': 'Computer name/IP is required'}), 400
-
-			host = computer
-			is_fqdn = False
-
-			if not is_ipaddress(computer):
-				is_fqdn = True
-				if not is_valid_fqdn(computer):
-					host = f"{computer}.{self.powerview.domain}"
-				else:
-					host = computer
-				logging.debug(f"[SMB Connect] Using FQDN: {host}")
-
-			if self.powerview.conn.use_kerberos and is_ipaddress(computer):
+			resolved_host = self.powerview._resolve_host(computer)
+			if resolved_host is None:
 				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
 
-			try:
-				client = self.powerview.conn.init_smb_session(
-					host,
-					username=username,
-					password=password,
-					nthash=nthash,
-					lmhash=lmhash,
-					aesKey=aesKey,
-					domain=domain
-				)
-			except Exception as conn_error:
-				if is_fqdn and not is_ipaddress(host):
-					ip = host2ip(host, self.powerview.nameserver, 3, True, 
-								use_system_ns=self.powerview.use_system_nameserver, no_prompt=True)
-					if not ip:
-						return jsonify({'error': 'Host not found'}), 404
-					
-					logging.debug(f"[SMB Connect] Initial connection failed, trying IP: {ip}")
-					client = self.powerview.conn.init_smb_session(
-						ip,
-						username=username,
-						password=password,
-						nthash=nthash,
-						lmhash=lmhash,
-						aesKey=aesKey,
-						domain=domain
-					)
-					host = ip
-				else:
-					raise conn_error
-			
+			host = resolved_host
+			logging.debug(f"[SMB Connect] Using resolved host: {host}")
+
+			client = self.powerview.conn.init_smb_session(
+				host,
+				username=username,
+				password=password,
+				nthash=nthash,
+				lmhash=lmhash,
+				aesKey=aesKey,
+				domain=domain
+			)
+
 			if not client:
 				return jsonify({'error': f'Failed to connect to {host}'}), 400
 
-			return jsonify({
-				'status': 'connected',
-				'host': host
-			})
+			params = {
+				'host': host,
+				'input': computer,
+				'username': username,
+				'password': password,
+				'nthash': nthash,
+				'lmhash': lmhash,
+				'aesKey': aesKey,
+				'domain': domain,
+			}
+			self.smb_session_params[computer] = params
+			self.smb_session_params[host.lower()] = params
+
+			return jsonify({'status': 'connected', 'host': host})
 
 		except Exception as e:
 			logging.error(f"SMB Connect Error: {str(e)}")
@@ -622,21 +601,40 @@ class APIServer:
 	def handle_smb_reconnect(self):
 		try:
 			data = request.json
-			computer = data.get('computer').lower()
-			
-			if not computer:
+			computer_input = data.get('computer')
+			if not computer_input:
 				return jsonify({'error': 'Computer name/IP is required'}), 400
+			computer = computer_input.lower()
 
-			try:
-				client = self.powerview.conn.init_smb_session(computer, force_new=True)
-				logging.debug(f"SMB Reconnect: Successfully reconnected to {computer}")
-				return jsonify({'status': 'reconnected'})
-			except Exception as e:
-				logging.error(f"SMB Reconnect: Failed to reconnect to {computer}: {str(e)}")
-				return jsonify({'error': 'Failed to reconnect'}), 500
+			stored = self.smb_session_params.get(computer)
+			resolved_host = self.powerview._resolve_host(computer)
+			if not stored and resolved_host:
+				stored = self.smb_session_params.get(str(resolved_host).lower())
+
+			if resolved_host is None and self.powerview.conn.use_kerberos:
+				host = (stored or {}).get('host')
+				if not host:
+					return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
+			else:
+				host = resolved_host or computer
+
+			kwargs = {}
+			if stored:
+				kwargs = {
+					'username': stored.get('username'),
+					'password': stored.get('password'),
+					'nthash': stored.get('nthash'),
+					'lmhash': stored.get('lmhash'),
+					'aesKey': stored.get('aesKey'),
+					'domain': stored.get('domain'),
+				}
+
+			client = self.powerview.conn.init_smb_session(host, force_new=True, **kwargs)
+			logging.debug(f"SMB Reconnect: Successfully reconnected to {host}")
+			return jsonify({'status': 'reconnected', 'host': host, 'used_stored_creds': bool(stored)})
 		except Exception as e:
-			logging.error(f"SMB Reconnect Error: {str(e)}")
-			return jsonify({'error': str(e)}), 500
+			logging.error(f"SMB Reconnect: Failed to reconnect: {str(e)}")
+			return jsonify({'error': 'Failed to reconnect'}), 500
 
 	def handle_smb_disconnect(self):
 		try:
@@ -1743,4 +1741,123 @@ class APIServer:
 
 		except Exception as e:
 			logging.error(f"[SMB REMOVE SHARE SECURITY] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_computer_restart(self):
+		try:
+			data = request.json or {}
+			computer_input = data.get('computer')
+			if not computer_input:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+			username = data.get('username')
+			password = data.get('password')
+			domain = data.get('domain')
+			lmhash = data.get('lmhash')
+			nthash = data.get('nthash')
+			if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\', 1)
+			if username and not (password or lmhash or nthash):
+				return jsonify({'error': 'Password or hash is required when specifying a username'}), 400
+			resolved_host = self.powerview._resolve_host(computer_input)
+			if resolved_host is None:
+				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
+			host = resolved_host
+			smbConn = self.powerview.conn.init_smb_session(
+				host,
+				username=username,
+				password=password,
+				domain=domain,
+				lmhash=lmhash,
+				nthash=nthash,
+				show_exceptions=False
+			)
+			if not smbConn:
+				return jsonify({'error': f'Failed to connect to {host}'}), 400
+			ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
+			success = ts.do_shutdown(logoff=True, shutdown=False, reboot=True, poweroff=False)
+			if success:
+				return jsonify({'status': 'OK', 'message': f'Restart signal sent to {host}'}), 200
+			return jsonify({'error': f'Failed to restart {host}'}), 500
+		except Exception as e:
+			logging.error(f"[RESTART COMPUTER] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_computer_shutdown(self):
+		try:
+			data = request.json or {}
+			computer_input = data.get('computer')
+			if not computer_input:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+			username = data.get('username')
+			password = data.get('password')
+			domain = data.get('domain')
+			lmhash = data.get('lmhash')
+			nthash = data.get('nthash')
+			if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\', 1)
+			if username and not (password or lmhash or nthash):
+				return jsonify({'error': 'Password or hash is required when specifying a username'}), 400
+			resolved_host = self.powerview._resolve_host(computer_input)
+			if resolved_host is None:
+				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
+			host = resolved_host
+			smbConn = self.powerview.conn.init_smb_session(
+				host,
+				username=username,
+				password=password,
+				domain=domain,
+				lmhash=lmhash,
+				nthash=nthash,
+				show_exceptions=False
+			)
+			if not smbConn:
+				return jsonify({'error': f'Failed to connect to {host}'}), 400
+			ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
+			success = ts.do_shutdown(logoff=True, shutdown=True, reboot=False, poweroff=False)
+			if success:
+				return jsonify({'status': 'OK', 'message': f'Shutdown signal sent to {host}'}), 200
+			return jsonify({'error': f'Failed to shutdown {host}'}), 500
+		except Exception as e:
+			logging.error(f"[SHUTDOWN COMPUTER] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_computer_tasklist(self):
+		try:
+			data = request.json or {}
+			computer_input = data.get('computer')
+			if not computer_input:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+			username = data.get('username')
+			password = data.get('password')
+			domain = data.get('domain')
+			lmhash = data.get('lmhash')
+			nthash = data.get('nthash')
+			pid = data.get('pid')
+			name = data.get('name')
+			if isinstance(pid, str) and pid.isdigit():
+				pid = int(pid)
+			if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\', 1)
+			if username and not (password or lmhash or nthash):
+				return jsonify({'error': 'Password or hash is required when specifying a username'}), 400
+			resolved_host = self.powerview._resolve_host(computer_input)
+			if resolved_host is None:
+				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
+			host = resolved_host
+			smbConn = self.powerview.conn.init_smb_session(
+				host,
+				username=username,
+				password=password,
+				domain=domain,
+				lmhash=lmhash,
+				nthash=nthash,
+				show_exceptions=False
+			)
+			if not smbConn:
+				return jsonify({'error': f'Failed to connect to {host}'}), 400
+			ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
+			result = ts.do_tasklist(pid=pid, name=name)
+			return jsonify(make_serializable(result))
+		except Exception as e:
+			logging.error(f"[TASKLIST COMPUTER] Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500

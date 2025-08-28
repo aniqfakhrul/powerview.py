@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    showLoadingIndicator();
+    // showLoadingIndicator();
     try {
         await Promise.all([
             fetchDomainInfo(),
@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Error loading dashboard:', error);
         showErrorAlert('Failed to load some dashboard components');
     } finally {
-        hideLoadingIndicator();
+        // hideLoadingIndicator();
     }
 
     async function fetchDomainInfo() {
