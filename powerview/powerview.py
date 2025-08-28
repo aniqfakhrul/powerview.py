@@ -2449,12 +2449,11 @@ class PowerView:
 		identity_filter = f"(name={identity})"
 		ldap_filter = f"(&(objectClass=dnsZone){identity_filter})"
 
-		logging.debug(f"[Get-DomainDNSZone] Search base: {searchbase}")
-		logging.debug(f"[Get-DomainDNSZone] LDAP Filter string: {ldap_filter}")
-
 		if isinstance(searchbase, list):
 			entries = []
 			for base in searchbase:
+				logging.debug(f"[Get-DomainDNSZone] Search base: {base}")
+				logging.debug(f"[Get-DomainDNSZone] LDAP Filter string: {ldap_filter}")
 				entries.extend(self.ldap_session.extend.standard.paged_search(
 					base,
 					ldap_filter,
@@ -2467,6 +2466,8 @@ class PowerView:
 					raw=raw
 				))
 		else:
+			logging.debug(f"[Get-DomainDNSZone] Search base: {searchbase}")
+			logging.debug(f"[Get-DomainDNSZone] LDAP Filter string: {ldap_filter}")
 			entries = self.ldap_session.extend.standard.paged_search(
 				searchbase,
 				ldap_filter,
@@ -2498,9 +2499,14 @@ class PowerView:
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
 
 		if not searchbase:
-			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}" 
+			searchbase = [
+				f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
+				f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
+				f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
+			]
 
 		zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'], searchbase=searchbase, no_cache=no_cache)
 		if not zones:
