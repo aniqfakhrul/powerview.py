@@ -6470,6 +6470,10 @@ displayName=New Group Policy Object
 			logging.warning("[Invoke-BadSuccessor] No target identity provided. Using Administrator as default")
 			targetidentity = "Administrator"
 
+		# add mirrored value to the target identity
+		# msDS_SupersededManagedServiceAccountLink = DMSA_DN
+		# msDS-SupersededAccountState = 2
+
 		if not basedn:
 			logging.warning(f"[Invoke-BadSuccessor] No basedn provided. Searching for writable OU in {self.root_dn}...")
 			writable_ous = self.get_domainou(
@@ -6517,6 +6521,8 @@ displayName=New Group Policy Object
 			if str(e).find("invalid object class msDS-DelegatedManagedServiceAccount") >= 0:
 				logging.error(f"[Invoke-BadSuccessor] {str(e)}. Check if DC supports DMSA Account (Windows Server 2025+)")
 			else:
+				if self.args.stack_trace:
+					raise e
 				logging.error(f"[Invoke-BadSuccessor] {str(e)}")
 			return
 
