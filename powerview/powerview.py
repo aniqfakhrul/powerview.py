@@ -2443,7 +2443,8 @@ class PowerView:
 				else:
 					searchbase = [
 						f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
-						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
+						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
+						f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
 					]
 
 		identity_filter = f"(name={identity})"
@@ -2480,6 +2481,19 @@ class PowerView:
 				raw=raw
 			)
 
+		if not legacy and not forest:
+			for entry in entries:
+				if entry.get('attributes', {}).get('name') and entry.get('dn'):
+					if entry.get('attributes', {}).get('type'):
+						continue
+
+					if 'DomainDnsZone' in entry['dn']:
+						entry['attributes']['type'] = 'domain'
+					elif 'ForestDnsZone' in entry['dn']:
+						entry['attributes']['type'] = 'forest'
+					elif 'System' in entry['dn']:
+						entry['attributes']['type'] = 'legacy'
+
 		return entries
 
 	def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], legacy=False, forest=False, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
@@ -2510,10 +2524,7 @@ class PowerView:
 				if legacy:
 					searchbase = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
 				else:
-					searchbase = [
-						f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
-						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
-					]
+					searchbase = f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
 
 		zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'], searchbase=searchbase, no_cache=no_cache)
 		if not zones:
