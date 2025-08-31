@@ -20,8 +20,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedFilters = document.getElementById('selected-filters');
         const searchButton = document.getElementById('computer-search-button');
 
+        function updateDropdownSelections() {
+            dropdownMenu.querySelectorAll('button').forEach(btn => {
+                const key = btn.dataset.filter;
+                if (activeFilters.has(key)) {
+                    btn.classList.add('bg-neutral-100', 'dark:bg-neutral-700');
+                } else {
+                    btn.classList.remove('bg-neutral-100', 'dark:bg-neutral-700');
+                }
+            });
+        }
+
         dropdownButton.addEventListener('click', () => {
             dropdownMenu.classList.toggle('hidden');
+            if (!dropdownMenu.classList.contains('hidden')) {
+                updateDropdownSelections();
+            }
         });
 
         document.addEventListener('click', (event) => {
@@ -31,13 +45,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         dropdownMenu.querySelectorAll('button').forEach(button => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
                 const filter = button.dataset.filter;
-                if (!activeFilters.has(filter)) {
+                if (activeFilters.has(filter)) {
+                    activeFilters.delete(filter);
+                } else {
                     activeFilters.add(filter);
-                    renderActiveFilters();
                 }
-                dropdownMenu.classList.add('hidden');
+                updateDropdownSelections();
             });
         });
 

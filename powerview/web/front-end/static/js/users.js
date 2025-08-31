@@ -17,11 +17,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeQueryTemplates() {
         const dropdownButton = document.getElementById('user-filter-dropdown-button');
         const dropdownMenu = document.getElementById('user-filter-dropdown-menu');
-        const selectedFilters = document.getElementById('selected-user-filters');
         const searchButton = document.getElementById('user-search-button');
+
+        function updateDropdownSelections() {
+            dropdownMenu.querySelectorAll('button').forEach(btn => {
+                const key = btn.dataset.filter;
+                if (activeFilters.has(key)) {
+                    btn.classList.add('bg-neutral-100', 'dark:bg-neutral-700');
+                } else {
+                    btn.classList.remove('bg-neutral-100', 'dark:bg-neutral-700');
+                }
+            });
+        }
 
         dropdownButton.addEventListener('click', () => {
             dropdownMenu.classList.toggle('hidden');
+            if (!dropdownMenu.classList.contains('hidden')) {
+                updateDropdownSelections();
+            }
         });
 
         document.addEventListener('click', (event) => {
@@ -31,35 +44,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         dropdownMenu.querySelectorAll('button').forEach(button => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
                 const filter = button.dataset.filter;
-                if (!activeFilters.has(filter)) {
+                if (activeFilters.has(filter)) {
+                    activeFilters.delete(filter);
+                } else {
                     activeFilters.add(filter);
-                    renderActiveFilters();
                 }
-                dropdownMenu.classList.add('hidden');
+                updateDropdownSelections();
             });
         });
 
         searchButton.addEventListener('click', searchUsers);
     }
 
-    function renderActiveFilters() {
-        const container = document.getElementById('selected-user-filters');
-        container.innerHTML = Array.from(activeFilters).map(filter => `
-            <span class="px-2 py-1 bg-neutral-100 dark:bg-neutral-800 rounded-md text-sm flex items-center gap-1">
-                ${filter}
-                <button class="hover:text-red-500" onclick="removeFilter('${filter}')">
-                    <i class="fas fa-times fa-xs"></i>
-                </button>
-            </span>
-        `).join('');
-    }
-
-    window.removeFilter = (filter) => {
-        activeFilters.delete(filter);
-        renderActiveFilters();
-    };
+    function renderActiveFilters() {}
 
     function initializePropertyFilter(initialProperties) {
         const selectedProperties = [...initialProperties];
