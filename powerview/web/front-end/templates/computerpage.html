@@ -53,25 +53,31 @@
                                 <div class="flex gap-2 flex-wrap" id="selected-filters">
                                     <!-- Active filters will be shown here -->
                                 </div>
-                                <div class="relative flex-shrink-0">
-                                    <button id="filter-dropdown-button" 
-                                        class="px-2 py-1 text-sm rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1">
-                                        Add Filter <i class="fas fa-chevron-down"></i>
-                                    </button>
-                                    <div id="filter-dropdown-menu" 
-                                        class="hidden absolute right-0 mt-1 w-40 rounded-md border border-neutral-300 bg-white dark:border-neutral-700 dark:bg-neutral-800 shadow-lg z-10">
-                                        <div class="py-1">
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="unconstrained">Unconstrained</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="trustedtoauth">TrustedToAuth</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="laps">LAPS</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="rbcd">RBCD</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="shadowcred">ShadowCred</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="printers">Printers</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="spn">SPN</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="excludedcs">ExcludeDCs</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="bitlocker">BitLocker</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="gmsapassword">GMSAPassword</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="pre2k">Pre2K</button>
+                                <div class="flex items-center gap-2">
+                                    <label class="inline-flex items-center text-sm">
+                                        <input type="checkbox" id="computer-include-ip" class="mr-2">
+                                        <span>Include IP</span>
+                                    </label>
+                                    <div class="relative flex-shrink-0">
+                                        <button id="filter-dropdown-button" 
+                                            class="px-2 py-1 text-sm rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1">
+                                            Add Filter <i class="fas fa-chevron-down"></i>
+                                        </button>
+                                        <div id="filter-dropdown-menu" 
+                                            class="hidden absolute right-0 mt-1 w-40 rounded-md border border-neutral-300 bg-white dark:border-neutral-700 dark:bg-neutral-800 shadow-lg z-10">
+                                            <div class="py-1">
+                                                <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="unconstrained">Unconstrained</button>
+                                                <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="trustedtoauth">TrustedToAuth</button>
+                                                <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="laps">LAPS</button>
+                                                <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="rbcd">RBCD</button>
+                                                <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="shadowcred">ShadowCred</button>
+                                                <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="printers">Printers</button>
+                                                <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="spn">SPN</button>
+                                                <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="excludedcs">ExcludeDCs</button>
+                                                <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="bitlocker">BitLocker</button>
+                                                <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="gmsapassword">GMSAPassword</button>
+                                                <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="pre2k">Pre2K</button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

@@ -1217,7 +1217,7 @@ class PowerView:
 		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=security_identifier, guids_map_dict=guids_dict)
 		return enum.read_dacl()
 
-	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolveip=False, resolvesids=False, ldapfilter=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolvesids=False, ldapfilter=None, include_ip=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass',
 			'lastLogonTimestamp',
@@ -1254,8 +1254,7 @@ class PowerView:
 		if not searchbase:
 			searchbase = self.root_dn
 		ldapfilter = args.ldapfilter if hasattr(args, 'ldapfilter') and args.ldapfilter else ldapfilter
-
-		resolveip = args.resolveip if hasattr(args, 'resolveip') and args.resolveip else resolveip
+		include_ip = args.include_ip if hasattr(args, 'include_ip') and args.include_ip else include_ip
 		resolvesids = args.resolvesids if hasattr(args, 'resolvesids') and args.resolvesids else resolvesids
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
@@ -1342,6 +1341,20 @@ class PowerView:
 				logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
 				ldap_filter += f"{args.ldapfilter}"
 
+		records = []
+		if include_ip:
+			if not any(prop.lower() == 'dnshostname' for prop in properties):
+				properties.add('dnsHostName')
+			try:
+				records = self.get_domaindnsrecord(
+					zonename=self.conn.get_domain(),
+					identity=identity,
+					record_type="A",
+					no_cache=no_cache
+				) or []
+			except Exception:
+				records = []
+
 		ldap_filter = f'(&(objectClass=computer){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainComputer] LDAP search filter: {ldap_filter}')
 		entries = self.ldap_session.extend.standard.paged_search(
@@ -1356,12 +1369,23 @@ class PowerView:
 			raw=raw
 		)
 		for entry in entries:
-			if resolveip and entry.get('attributes', {}).get('dnsHostName'):
-				ip = host2ip(entry['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver, type=list, no_prompt=True)
-				if ip and ip != entry.get('attributes', {}).get('dnsHostName'):
-					entry['attributes']['IPAddress'] = ip
-					logging.debug(f"[Get-DomainComputer] Resolved {entry['attributes']['dnsHostName']} to {ip}")
-			
+			if include_ip:
+				ip_list = []
+				computer_dns = entry.get("attributes", {}).get("dnsHostName")
+				if computer_dns:
+					computer_name = computer_dns.split(".")[0]
+					for record in records:
+						r_name = record.get("attributes", {}).get("name")
+						r_address = record.get("attributes", {}).get("Address")
+						if r_name and r_address:
+							if r_name.lower() == computer_name.lower() or computer_dns.lower() == r_name.lower():
+								ip_list.append(r_address)
+					if ip_list:
+						if len(ip_list) == 1:
+							entry["attributes"]["IPAddress"] = ip_list[0]
+						else:
+							entry["attributes"]["IPAddress"] = ip_list
+
 			try:
 				if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(entry["attributes"].keys()):
 					parser = RBCD(entry)
@@ -1378,7 +1402,7 @@ class PowerView:
 					entry["attributes"]["msDS-GroupMSAMembership"] = self.convertfrom_sid(entry["attributes"]["msDS-GroupMSAMembership"])
 			except:
 				pass
-
+		
 		return entries
 
 	def get_domaingmsa(self, identity=None, properties=None, searchbase=None, args=None, no_cache=False, no_vuln_check=False, raw=False):
@@ -2496,7 +2520,7 @@ class PowerView:
 
 		return entries
 
-	def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], legacy=False, forest=False, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], legacy=False, forest=False, record_type=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'name',
 			'distinguishedName',
@@ -2511,6 +2535,7 @@ class PowerView:
 		identity = escape_filter_chars(identity) if identity else None
 		legacy = args.legacy if hasattr(args, 'legacy') and args.legacy else legacy
 		forest = args.forest if hasattr(args, 'forest') and args.forest else forest
+		record_type = args.record_type if hasattr(args, 'record_type') and args.record_type else record_type
 		args = args or self.args
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
@@ -2581,6 +2606,8 @@ class PowerView:
 						
 						parsed_data = DNS_UTIL.parse_record_data(dr)
 						if parsed_data:
+							if record_type and parsed_data.get('RecordType') and parsed_data.get('RecordType').lower() != record_type.lower():
+								continue
 							for data in parsed_data:
 								processed_entry = modify_entry(
 									processed_entry,
@@ -2598,7 +2625,6 @@ class PowerView:
 							"attributes": new_dict
 						})
 				else:
-					# If no dnsRecord attribute, just add the entry as is
 					processed_entries.append(entry)
 			
 		return processed_entries

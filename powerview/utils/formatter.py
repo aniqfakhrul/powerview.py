@@ -186,15 +186,12 @@ class FORMATTER:
                         print()
 
     def table_view(self, entries):
-        # Check if results are from cache
         self.last_results_from_cache = False
         if entries and len(entries) > 0:
-            # Check first entry for cache status
             first_entry = entries[0]
             if isinstance(first_entry, dict) and first_entry.get('from_cache', False):
                 self.last_results_from_cache = True
             
-        # Display cache notification if results are from cache
         if self.last_results_from_cache:
             cache_msg = "[Formatter] Results from cache. Use 'Clear-Cache' or '-NoCache' to refresh."
             logging.warning(cache_msg)
@@ -202,7 +199,7 @@ class FORMATTER:
         headers = []
         rows = []
         nested_list = False
-        if (hasattr(self.args, "select") and self.args.select) or (hasattr(self.args, "properties") and self.args.properties and not self.args.properties == '*'):
+        if (hasattr(self.args, "select") and self.args.select) or (hasattr(self.args, "properties") and self.args.properties and not self.args.properties == ldap3.ALL_ATTRIBUTES):
             if self.args.select:
                 headers = self.args.select
             elif self.args.properties:

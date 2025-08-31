@@ -5,6 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let rowToDelete = null;
     let allOUs = [];
     let searchBaseDropdownVisible = false;
+    let currentUsers = [];
+    let currentColumns = [];
+    let sortState = { key: null, asc: true };
 
     initializePropertyFilter(defaultProperties);
     initializeQueryTemplates();
@@ -194,30 +197,222 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchInput = document.getElementById('user-search').value.toLowerCase();
         const tbody = document.querySelector('#users-result-table tbody');
         const rows = tbody.querySelectorAll('tr:not(#initial-state):not(#loading-placeholder):not(#empty-placeholder)');
-
         rows.forEach(row => {
-            let found = false;
-            const cells = row.querySelectorAll('td');
-            
-            cells.forEach(cell => {
-                const cellText = cell.textContent.toLowerCase();
-                if (cellText.includes(searchInput)) {
-                    found = true;
-                }
-            });
-
-            if (found) {
+            const cells = Array.from(row.querySelectorAll('td'));
+            if (cells.length === 0) return;
+            const dataCells = cells.slice(0, -1);
+            const text = dataCells.map(td => td.innerText.toLowerCase()).join(' ');
+            if (text.includes(searchInput)) {
                 row.classList.remove('hidden');
             } else {
                 row.classList.add('hidden');
             }
         });
-
-        // Update counter to show filtered results
         const visibleRows = tbody.querySelectorAll('tr:not(.hidden):not(#initial-state):not(#loading-placeholder):not(#empty-placeholder)').length;
         const counter = document.getElementById('users-counter');
         const totalRows = tbody.querySelectorAll('tr:not(#initial-state):not(#loading-placeholder):not(#empty-placeholder)').length;
         counter.textContent = `Showing ${visibleRows} of ${totalRows} Users`;
+    }
+
+    function normalizeKey(key) {
+        return (key || '').toLowerCase();
+    }
+
+    function titleize(key) {
+        return key || '';
+    }
+
+    function getValueFromSources(attributes, sources) {
+        if (!attributes) return undefined;
+        for (const src of sources) {
+            const k = Object.keys(attributes).find(x => normalizeKey(x) === normalizeKey(src));
+            if (k && attributes[k] !== undefined && attributes[k] !== null && attributes[k] !== '') return attributes[k];
+        }
+        return undefined;
+    }
+
+    function buildColumnsFromData(users) {
+        const normMap = new Map();
+        users.forEach(u => {
+            Object.keys(u.attributes || {}).forEach(k => {
+                const nk = normalizeKey(k);
+                if (!normMap.has(nk)) normMap.set(nk, new Set());
+                normMap.get(nk).add(k);
+            });
+        });
+        const cols = Array.from(normMap.entries()).map(([nk, set]) => {
+            const originals = Array.from(set);
+            const displayKey = originals[0];
+            return { key: displayKey, label: titleize(displayKey), sources: originals };
+        });
+        cols.sort((a, b) => a.label.localeCompare(b.label));
+        return cols;
+    }
+
+    function renderTableHeader(columns) {
+        const table = document.getElementById('users-result-table');
+        const thead = table.querySelector('thead');
+        thead.innerHTML = '';
+        const headerRow = document.createElement('tr');
+        columns.forEach(col => {
+            const th = document.createElement('th');
+            th.scope = 'col';
+            th.className = 'p-1 select-none cursor-pointer';
+            th.dataset.key = col.key;
+            const labelSpan = document.createElement('span');
+            labelSpan.textContent = col.label;
+            th.appendChild(labelSpan);
+            th.addEventListener('click', () => {
+                if (sortState.key === col.key) {
+                    sortState.asc = !sortState.asc;
+                } else {
+                    sortState.key = col.key;
+                    sortState.asc = true;
+                }
+                renderRows(currentUsers);
+            });
+            headerRow.appendChild(th);
+        });
+        const actionTh = document.createElement('th');
+        actionTh.scope = 'col';
+        actionTh.className = 'p-1';
+        actionTh.textContent = 'Action';
+        headerRow.appendChild(actionTh);
+        thead.appendChild(headerRow);
+    }
+
+    function compareValues(a, b) {
+        const va = a ?? '';
+        const vb = b ?? '';
+        const sa = Array.isArray(va) ? va.join(' ') : String(va).toLowerCase();
+        const sb = Array.isArray(vb) ? vb.join(' ') : String(vb).toLowerCase();
+        return sa.localeCompare(sb);
+    }
+
+    function renderRows(data) {
+        const table = document.getElementById('users-result-table');
+        const tbody = table.querySelector('tbody');
+        tbody.innerHTML = '';
+        const counter = document.getElementById('users-counter');
+        counter.textContent = `Total Users Found: ${data.length}`;
+        if (data.length === 0) {
+            exportButton.classList.add('hidden');
+            tbody.innerHTML = `
+                <tr id="empty-placeholder">
+                    <td colspan="100%" class="text-center py-4">No users found</td>
+                </tr>
+            `;
+            return;
+        }
+        exportButton.classList.remove('hidden');
+        let rows = [...data];
+        if (sortState.key) {
+            const col = currentColumns.find(c => c.key === sortState.key) || null;
+            if (col) {
+                rows.sort((ra, rb) => {
+                    const va = getValueFromSources(ra.attributes, col.sources);
+                    const vb = getValueFromSources(rb.attributes, col.sources);
+                    const cmp = compareValues(va, vb);
+                    return sortState.asc ? cmp : -cmp;
+                });
+            }
+        }
+        rows.forEach(user => {
+            const tr = document.createElement('tr');
+            tr.classList.add('dark:hover:bg-white/5', 'dark:hover:text-white', 'cursor-pointer');
+            tr.dataset.identity = user.dn;
+            tr.addEventListener('click', (event) => {
+                if (event.target.closest('button')) return;
+                handleLdapLinkClick(event, user.dn);
+            });
+            currentColumns.forEach(col => {
+                const td = document.createElement('td');
+                td.className = 'p-1 whitespace-nowrap relative group align-top';
+                const wrapper = document.createElement('div');
+                wrapper.className = 'flex items-start gap-2';
+                const textSpan = document.createElement('span');
+                const value = getValueFromSources(user.attributes || {}, col.sources);
+                if (Array.isArray(value)) {
+                    if (value.length === 0) {
+                        textSpan.textContent = '';
+                    } else {
+                        textSpan.innerHTML = value.join('<br>');
+                    }
+                } else if (value === undefined || value === null) {
+                    textSpan.textContent = '';
+                } else {
+                    textSpan.textContent = value;
+                }
+                const copyButton = document.createElement('button');
+                copyButton.className = 'opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800';
+                copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
+                copyButton.title = 'Copy to clipboard';
+                copyButton.addEventListener('click', async (event) => {
+                    event.stopPropagation();
+                    const textToCopy = Array.isArray(value) ? value.join('\n') : (value || '');
+                    try {
+                        if (navigator.clipboard && window.isSecureContext) {
+                            await navigator.clipboard.writeText(textToCopy);
+                        } else {
+                            const textArea = document.createElement('textarea');
+                            textArea.value = textToCopy;
+                            textArea.style.position = 'fixed';
+                            textArea.style.left = '-999999px';
+                            textArea.style.top = '-999999px';
+                            document.body.appendChild(textArea);
+                            textArea.focus();
+                            textArea.select();
+                            try {
+                                document.execCommand('copy');
+                                textArea.remove();
+                            } catch (err) {
+                                textArea.remove();
+                                throw new Error('Copy failed');
+                            }
+                        }
+                        copyButton.innerHTML = '<i class="fas fa-check fa-xs"></i>';
+                        setTimeout(() => { copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>'; }, 1000);
+                    } catch (err) {
+                        showErrorAlert('Failed to copy to clipboard');
+                    }
+                });
+                wrapper.appendChild(textSpan);
+                wrapper.appendChild(copyButton);
+                td.appendChild(wrapper);
+                tr.appendChild(td);
+            });
+            const actionTd = document.createElement('td');
+            actionTd.className = 'p-1 whitespace-nowrap align-top';
+            const changePasswordButton = document.createElement('button');
+            changePasswordButton.className = 'text-blue-600 hover:text-blue-700 dark:text-blue-500 dark:hover:text-blue-400 p-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors mr-2';
+            changePasswordButton.innerHTML = '<i class="fas fa-key"></i>';
+            changePasswordButton.title = 'Change Password';
+            changePasswordButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                showChangePasswordModal(user.dn);
+            });
+            actionTd.appendChild(changePasswordButton);
+            const changeOwnerButton = document.createElement('button');
+            changeOwnerButton.className = 'text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400 p-1 rounded-md hover:bg-green-50 dark:hover:bg-green-950/50 transition-colors mr-2';
+            changeOwnerButton.innerHTML = '<i class="fas fa-user-shield"></i>';
+            changeOwnerButton.title = 'Change Owner';
+            changeOwnerButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                showChangeOwnerModal(user.dn);
+            });
+            actionTd.appendChild(changeOwnerButton);
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors';
+            deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
+            deleteButton.title = 'Delete User';
+            deleteButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                showDeleteModal(user.dn, tr);
+            });
+            actionTd.appendChild(deleteButton);
+            tr.appendChild(actionTd);
+            tbody.appendChild(tr);
+        });
     }
 
     // Add debounce to search filter
@@ -246,164 +441,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function populateUsersTable(users) {
         const table = document.getElementById('users-result-table');
-        const thead = table.querySelector('thead');
         const tbody = table.querySelector('tbody');
         tbody.innerHTML = '';
-
-        // Update counter
-        const counter = document.getElementById('users-counter');
-        counter.textContent = `Total Users Found: ${users.length}`;
-
-        if (users.length > 0) {
-            const attributeKeys = Object.keys(users[0].attributes);
-
-            thead.innerHTML = '';
-            const headerRow = document.createElement('tr');
-            attributeKeys.forEach(key => {
-                const th = document.createElement('th');
-                th.scope = 'col';
-                th.className = 'p-1';
-                th.textContent = key;
-                headerRow.appendChild(th);
-            });
-
-            const actionTh = document.createElement('th');
-            actionTh.scope = 'col';
-            actionTh.className = 'p-1';
-            actionTh.textContent = 'Action';
-            headerRow.appendChild(actionTh);
-
-            thead.appendChild(headerRow);
-
-            users.forEach(user => {
-                const tr = document.createElement('tr');
-                tr.classList.add('dark:hover:bg-white/5', 'dark:hover:text-white', 'cursor-pointer');
-                tr.dataset.identity = user.dn;
-
-                tr.addEventListener('click', (event) => {
-                    if (event.target.closest('button')) return;
-                    handleLdapLinkClick(event, user.dn);
-                });
-
-                attributeKeys.forEach(key => {
-                    const td = document.createElement('td');
-                    td.className = 'p-1 whitespace-nowrap relative group';
-                    const value = user.attributes[key];
-                    
-                    // Create wrapper div for content and copy button
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'flex items-center gap-2';
-                    
-                    // Create text content span
-                    const textSpan = document.createElement('span');
-                    if (Array.isArray(value)) {
-                        textSpan.innerHTML = value.join('<br>');
-                    } else {
-                        textSpan.textContent = value;
-                    }
-                    
-                    // Create copy button
-                    const copyButton = document.createElement('button');
-                    copyButton.className = 'opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800';
-                    copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
-                    copyButton.title = 'Copy to clipboard';
-                    
-                    // Add click handler for copy button
-                    copyButton.addEventListener('click', async (event) => {
-                        event.stopPropagation(); // Prevent row click event
-                        const textToCopy = Array.isArray(value) ? value.join('\n') : value;
-                        
-                        try {
-                            // Modern clipboard API
-                            if (navigator.clipboard && window.isSecureContext) {
-                                await navigator.clipboard.writeText(textToCopy);
-                            } else {
-                                // Fallback for older browsers or non-HTTPS
-                                const textArea = document.createElement('textarea');
-                                textArea.value = textToCopy;
-                                textArea.style.position = 'fixed';
-                                textArea.style.left = '-999999px';
-                                textArea.style.top = '-999999px';
-                                document.body.appendChild(textArea);
-                                textArea.focus();
-                                textArea.select();
-                                
-                                try {
-                                    document.execCommand('copy');
-                                    textArea.remove();
-                                } catch (err) {
-                                    console.error('Fallback: Oops, unable to copy', err);
-                                    textArea.remove();
-                                    throw new Error('Copy failed');
-                                }
-                            }
-                            
-                            // Show success feedback
-                            copyButton.innerHTML = '<i class="fas fa-check fa-xs"></i>';
-                            setTimeout(() => {
-                                copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
-                            }, 1000);
-                        } catch (err) {
-                            console.error('Failed to copy text: ', err);
-                            showErrorAlert('Failed to copy to clipboard');
-                        }
-                    });
-                    
-                    wrapper.appendChild(textSpan);
-                    wrapper.appendChild(copyButton);
-                    td.appendChild(wrapper);
-                    tr.appendChild(td);
-                });
-
-                const actionTd = document.createElement('td');
-                actionTd.className = 'p-1 whitespace-nowrap';
-
-                // Add Change Password button
-                const changePasswordButton = document.createElement('button');
-                changePasswordButton.className = 'text-blue-600 hover:text-blue-700 dark:text-blue-500 dark:hover:text-blue-400 p-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors mr-2';
-                changePasswordButton.innerHTML = '<i class="fas fa-key"></i>';
-                changePasswordButton.title = 'Change Password';
-                changePasswordButton.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    showChangePasswordModal(user.dn);
-                });
-                actionTd.appendChild(changePasswordButton);
-
-                // Add Change Owner button
-                const changeOwnerButton = document.createElement('button');
-                changeOwnerButton.className = 'text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400 p-1 rounded-md hover:bg-green-50 dark:hover:bg-green-950/50 transition-colors mr-2';
-                changeOwnerButton.innerHTML = '<i class="fas fa-user-shield"></i>';
-                changeOwnerButton.title = 'Change Owner';
-                changeOwnerButton.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    showChangeOwnerModal(user.dn);
-                });
-                actionTd.appendChild(changeOwnerButton);
-
-                // Existing Delete button
-                const deleteButton = document.createElement('button');
-                deleteButton.className = 'text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors';
-                deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
-                deleteButton.title = 'Delete User';
-                deleteButton.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    showDeleteModal(user.dn, tr);
-                });
-                actionTd.appendChild(deleteButton);
-
-                tr.appendChild(actionTd);
-                tbody.appendChild(tr);
-            });
-
-            exportButton.classList.remove('hidden'); // Show export button
-        } else {
-            tbody.innerHTML = `
-                <tr id="empty-placeholder">
-                    <td colspan="100%" class="text-center py-4">No users found</td>
-                </tr>
-            `;
-            exportButton.classList.add('hidden'); // Hide export button
-        }
+        currentUsers = Array.isArray(users) ? users : [];
+        currentColumns = buildColumnsFromData(currentUsers);
+        renderTableHeader(currentColumns);
+        renderRows(currentUsers);
     }
 
     function showDeleteModal(identity, rowElement) {
