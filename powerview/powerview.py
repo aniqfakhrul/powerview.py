@@ -1348,7 +1348,7 @@ class PowerView:
 			try:
 				records = self.get_domaindnsrecord(
 					zonename=self.conn.get_domain(),
-					identity=identity,
+					identity=identity.split('.')[0] if is_valid_fqdn(identity) else identity,
 					record_type="A",
 					no_cache=no_cache
 				) or []
@@ -1369,7 +1369,7 @@ class PowerView:
 			raw=raw
 		)
 		for entry in entries:
-			if include_ip:
+			if include_ip and records:
 				ip_list = []
 				computer_dns = entry.get("attributes", {}).get("dnsHostName")
 				if computer_dns:
