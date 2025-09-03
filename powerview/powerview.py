@@ -2450,7 +2450,7 @@ class PowerView:
 
 		args = args or self.args
 		properties = properties or def_prop
-		identity = '*' if not identity else identity
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
 		legacy = args.legacy if hasattr(args, 'legacy') and args.legacy else legacy
 		forest = args.forest if hasattr(args, 'forest') and args.forest else forest
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
@@ -2532,7 +2532,7 @@ class PowerView:
 		]
 
 		zonename = '*' if not zonename else zonename
-		identity = escape_filter_chars(identity) if identity else None
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
 		legacy = args.legacy if hasattr(args, 'legacy') and args.legacy else legacy
 		forest = args.forest if hasattr(args, 'forest') and args.forest else forest
 		record_type = args.record_type if hasattr(args, 'record_type') and args.record_type else record_type
