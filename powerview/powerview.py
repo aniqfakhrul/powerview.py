@@ -4179,13 +4179,13 @@ displayName=New Group Policy Object
 			return False
 
 	def remove_domaindnsrecord(self, recordname=None, zonename=None, basedn=None, no_cache=False, legacy=False, forest=False, args=None):
-		recordname = args.recordname if args and hasattr(args, 'recordname') else recordname
 		zonename = args.zonename if args and hasattr(args, 'zonename') else zonename
 		if zonename:
 			zonename = zonename.lower()
 		else:
 			zonename = self.domain.lower()
 			logging.debug("[Remove-DomainDNSRecord] Using current domain %s as zone name" % zonename)
+		recordname = args.recordname if args and hasattr(args, 'recordname') else recordname
 		basedn = args.basedn if args and hasattr(args, 'basedn') else basedn
 		forest = args.forest if args and hasattr(args, 'forest') else forest
 		legacy = args.legacy if args and hasattr(args, 'legacy') else legacy

@@ -134,7 +134,7 @@ COMMANDS = {
     'Set-DomainObjectDN':['-Identity','-DestinationDN','-SearchBase','-Server','-OutFile'],
     'Set-ADObjectDN':['-Identity','-DistinguishedName','-SearchBase','-Server','-OutFile'],
     'Set-DomainDNSRecord':['-ZoneName','-RecordName','-RecordAddress','-Server', '-OutFile'],
-    'Remove-DomainDNSRecord':['-ZoneName','-RecordName','-Server', '-OutFile'],
+    'Remove-DomainDNSRecord':['-ZoneName','-RecordName','-BaseDN','-Legacy','-Forest','-NoCache','-Server', '-OutFile'],
     'Disable-DomainDNSRecord':['-ZoneName','-RecordName','-Server', '-OutFile'],
     'Restore-DomainObject':['-Identity','-NewName','-TargetPath','-Server','-OutFile'],
     'Restore-ADObject':['-Identity','-NewName','-TargetPath','-Server','-OutFile'],
