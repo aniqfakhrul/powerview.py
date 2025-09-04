@@ -834,9 +834,9 @@ def main():
                                     logging.error("-RecordName and -RecordAddress flags are required")
                                     continue
                                 if temp_powerview:
-                                    temp_powerview.add_domaindnsrecord(recordname=pv_args.recordname, recordaddress=pv_args.recordaddress, zonename=pv_args.zonename)
+                                    temp_powerview.add_domaindnsrecord(args=pv_args)
                                 else:
-                                    powerview.add_domaindnsrecord(recordname=pv_args.recordname, recordaddress=pv_args.recordaddress, zonename=pv_args.zonename)
+                                    powerview.add_domaindnsrecord(args=pv_args)
                             elif pv_args.module.casefold() == 'add-domainuser' or pv_args.module.casefold() == 'add-aduser':
                                 if temp_powerview:
                                     temp_powerview.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
@@ -882,9 +882,9 @@ def main():
                                     logging.error("-RecordName flag is required")
                                     continue
                                 if temp_powerview:
-                                    temp_powerview.remove_domaindnsrecord(recordname=pv_args.recordname, zonename=pv_args.zonename)
+                                    temp_powerview.remove_domaindnsrecord(args=pv_args)
                                 else:
-                                    powerview.remove_domaindnsrecord(recordname=pv_args.recordname, zonename=pv_args.zonename)
+                                    powerview.remove_domaindnsrecord(args=pv_args)
                             elif pv_args.module.casefold() == 'disable-domaindnsrecord':
                                 if not pv_args.recordname:
                                     logging.error("-RecordName flag is required")

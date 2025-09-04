@@ -2471,7 +2471,11 @@ class PowerView:
 						f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
 					]
 
-		identity_filter = f"(name={identity})"
+		identity_filter = ""
+		if identity:
+			identity_filter += f"(distinguishedName={identity})" if is_dn(identity) else f"(name={identity})"
+
+		
 		ldap_filter = f"(&(objectClass=dnsZone){identity_filter})"
 
 		if isinstance(searchbase, list):
@@ -2531,7 +2535,7 @@ class PowerView:
 			'objectGUID'
 		]
 
-		zonename = '*' if not zonename else zonename
+		zonename = args.zonename if hasattr(args, 'zonename') and args.zonename else zonename
 		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
 		legacy = args.legacy if hasattr(args, 'legacy') and args.legacy else legacy
 		forest = args.forest if hasattr(args, 'forest') and args.forest else forest
@@ -2556,15 +2560,19 @@ class PowerView:
 			logging.error(f"[Get-DomainDNSRecord] No zones found")
 			return []
 
+		if record_type:
+			properties.append('dnsRecord') if properties else def_prop.append('dnsRecord')
+
 		processed_entries = []
 		
 		for zone in zones:
 			zoneDN = zone['attributes']['distinguishedName']
 			
+			identity_filter = ""
 			if identity:
-				ldap_filter = f"(&(objectClass=dnsNode)(name={identity}))"
-			else:
-				ldap_filter = f"(objectClass=dnsNode)"
+				identity_filter += f"(distinguishedName={identity})" if is_dn(identity) else f"(name={identity})"
+
+			ldap_filter = f"(&(objectClass=dnsNode){identity_filter})"
 				
 			logging.debug(f"[Get-DomainDNSRecord] Search base: {zoneDN}")
 			logging.debug(f"[Get-DomainDNSRecord] LDAP Filter string: {ldap_filter}")
@@ -4170,19 +4178,20 @@ displayName=New Group Policy Object
 			logging.error("[Disable-DomainDNSRecord] Failed to disable dns record")
 			return False
 
-	def remove_domaindnsrecord(self, recordname=None, zonename=None):
+	def remove_domaindnsrecord(self, recordname=None, zonename=None, basedn=None, no_cache=False, legacy=False, forest=False, args=None):
+		recordname = args.recordname if args and hasattr(args, 'recordname') else recordname
+		zonename = args.zonename if args and hasattr(args, 'zonename') else zonename
 		if zonename:
 			zonename = zonename.lower()
 		else:
 			zonename = self.domain.lower()
 			logging.debug("[Remove-DomainDNSRecord] Using current domain %s as zone name" % zonename)
+		basedn = args.basedn if args and hasattr(args, 'basedn') else basedn
+		forest = args.forest if args and hasattr(args, 'forest') else forest
+		legacy = args.legacy if args and hasattr(args, 'legacy') else legacy
+		no_cache = args.no_cache if args and hasattr(args, 'no_cache') else no_cache
 
-		zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
-		if zonename not in zones:
-			logging.info("[Remove-DomainDNSRecord] Zone %s not found" % zonename)
-			return
-
-		entry = self.get_domaindnsrecord(identity=recordname, zonename=zonename)
+		entry = self.get_domaindnsrecord(identity=recordname, zonename=zonename, searchbase=basedn, forest=forest, legacy=legacy, no_cache=no_cache)
 
 		if len(entry) == 0:
 			logging.info("[Remove-DomainDNSRecord] No record found")
@@ -4568,17 +4577,30 @@ displayName=New Group Policy Object
 			logging.info('[Set-DomainDNSRecord] Success! modified attribute for target record %s' % entry[0]['attributes']['distinguishedName'])
 			return True
 
-	def add_domaindnsrecord(self, recordname, recordaddress, zonename=None, timeout=15):
+	def add_domaindnsrecord(self, recordname=None, recordaddress=None, zonename=None, basedn=None, no_cache=False, legacy=False, forest=False, args=None, timeout=15):
+		recordname = args.recordname if args and hasattr(args, 'recordname') else recordname
+		recordaddress = args.recordaddress if args and hasattr(args, 'recordaddress') else recordaddress
+		zonename = args.zonename if args and hasattr(args, 'zonename') else zonename
 		if zonename:
 			zonename = zonename.lower()
 		else:
 			zonename = self.domain.lower()
 			logging.debug("[Add-DomainDNSRecord] Using current domain %s as zone name" % zonename)
+		basedn = args.basedn if args and hasattr(args, 'basedn') else basedn
+		forest = args.forest if args and hasattr(args, 'forest') else forest
+		legacy = args.legacy if args and hasattr(args, 'legacy') else legacy
+		no_cache = args.no_cache if args and hasattr(args, 'no_cache') else no_cache
 
-		zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
-		if zonename not in zones:
-			logging.info("[Add-DomainDNSRecord] Zone %s not found" % zonename)
-			return
+		if not basedn:
+			zones = self.get_domaindnszone(identity=zonename, properties=['name', 'distinguishedName'], forest=forest, legacy=legacy, no_cache=no_cache)
+			if len(zones) == 0:
+				logging.warning("[Add-DomainDNSRecord] No zones found")
+				return
+			elif len(zones) > 1:
+				logging.warning("[Add-DomainDNSRecord] More than one zone found")
+				return
+			basedn = zones[0]['attributes']['distinguishedName']
+			zonename = zones[0]['attributes']['name']
 
 		if recordname.lower().endswith(zonename.lower()):
 			recordname = recordname[:-(len(zonename)+1)]
@@ -4594,10 +4616,14 @@ displayName=New Group Policy Object
 				}
 		logging.debug("[Add-DomainDNSRecord] Creating DNS record structure")
 		record = DNS_UTIL.new_record(addtype, DNS_UTIL.get_next_serial(self.nameserver, self.dc_ip, zonename, True), recordaddress)
-		search_base = f"DC={zonename},CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
-		record_dn = 'DC=%s,%s' % (recordname, search_base)
+		record_dn = 'DC=%s,%s' % (recordname, basedn)
 		node_data['dnsRecord'] = [record.getData()]
-		
+
+		logging.debug(f"[Add-DomainDNSRecord] Base DN: {basedn}")
+		logging.debug(f"[Add-DomainDNSRecord] Zone Name: {zonename}")
+		logging.debug(f"[Add-DomainDNSRecord] Record Name: {recordname}")
+		logging.debug(f"[Add-DomainDNSRecord] Record Address: {recordaddress}")
+		logging.debug(f"[Add-DomainDNSRecord] Record DN: {record_dn}")
 		succeeded = self.ldap_session.add(record_dn, ['top', 'dnsNode'], node_data)
 		if not succeeded:
 			logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainDNSRecord] Failed adding DNS record to domain ({self.ldap_session.result['description']})")
