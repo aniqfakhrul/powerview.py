@@ -1350,6 +1350,7 @@ class PowerView:
 					zonename=self.conn.get_domain(),
 					identity=identity.split('.')[0] if is_valid_fqdn(identity) else identity,
 					record_type="A",
+					get_all=True,
 					no_cache=no_cache
 				) or []
 			except Exception:
@@ -2435,7 +2436,7 @@ class PowerView:
 			else:
 				raise e
 
-	def get_domaindnszone(self, identity=None, properties=[], legacy=False, forest=False, searchbase=None, args=None, search_scope=ldap3.LEVEL, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domaindnszone(self, identity=None, properties=[], legacy=False, forest=False, get_all=False, searchbase=None, args=None, search_scope=ldap3.LEVEL, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass',
 			'name',
@@ -2459,17 +2460,24 @@ class PowerView:
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
 
 		if not searchbase:
-			if forest:
-				searchbase = f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}"
-			else:
-				if legacy:
-					searchbase = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
-				else:
-					searchbase = [
+			if get_all:
+				searchbase = [
 						f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
 						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
 						f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
 					]
+			else:
+				if forest:
+					searchbase = f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}"
+				else:
+					if legacy:
+						searchbase = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
+					else:
+						searchbase = [
+							f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
+							f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
+							f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
+						]
 
 		identity_filter = ""
 		if identity:
