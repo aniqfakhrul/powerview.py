@@ -186,15 +186,12 @@ class FORMATTER:
                         print()
 
     def table_view(self, entries):
-        # Check if results are from cache
         self.last_results_from_cache = False
         if entries and len(entries) > 0:
-            # Check first entry for cache status
             first_entry = entries[0]
             if isinstance(first_entry, dict) and first_entry.get('from_cache', False):
                 self.last_results_from_cache = True
             
-        # Display cache notification if results are from cache
         if self.last_results_from_cache:
             cache_msg = "[Formatter] Results from cache. Use 'Clear-Cache' or '-NoCache' to refresh."
             logging.warning(cache_msg)
@@ -202,24 +199,33 @@ class FORMATTER:
         headers = []
         rows = []
         nested_list = False
-        if (hasattr(self.args, "select") and self.args.select) or (hasattr(self.args, "properties") and self.args.properties and not self.args.properties == '*'):
+        if not entries:
+            self.print_table(entries=rows, headers=headers)
+            return
+        if (hasattr(self.args, "select") and self.args.select) or (hasattr(self.args, "properties") and self.args.properties and not self.args.properties == ldap3.ALL_ATTRIBUTES):
             if self.args.select:
                 headers = self.args.select
             elif self.args.properties:
                 headers = self.args.properties
         else:
-            if isinstance(entries[0]["attributes"], dict) or isinstance(entries[0]["attributes"], ldap3.utils.ciDict.CaseInsensitiveDict):
-                headers = entries[0]["attributes"].keys()
-            elif isinstance(entries[0]["attributes"], list):
-                headers = entries[0]["attributes"][0].keys()
+            attrs0 = entries[0].get("attributes")
+            if isinstance(attrs0, dict) or isinstance(attrs0, ldap3.utils.ciDict.CaseInsensitiveDict):
+                headers = attrs0.keys()
+            elif isinstance(attrs0, list):
                 nested_list = True
+                for e in entries:
+                    attrs = e.get("attributes", [])
+                    if isinstance(attrs, list) and len(attrs) > 0 and isinstance(attrs[0], dict) and len(attrs[0]) > 0:
+                        headers = attrs[0].keys()
+                        break
 
-        if isinstance(entries[0]["attributes"], list):
+        if isinstance(entries[0].get("attributes"), list):
             for entry in entries:
-                for ent in entry["attributes"]:
+                attrs = entry.get("attributes", [])
+                for ent in attrs:
                     row = []
                     for head in headers:
-                        val = IDict(ent).get(head) # IDict give get() with case-insensitive capabilities :)
+                        val = IDict(ent).get(head)
                         val = self.format_value_by_type(val)
                         row.append(val)
                     rows.append(row)
@@ -227,7 +233,7 @@ class FORMATTER:
             for entry in entries:
                 row = []
                 for head in headers:
-                    val = IDict(entry["attributes"]).get(head) # IDict give get() with case-insensitive capabilities :)
+                    val = IDict(entry.get("attributes", {})).get(head)
                     val = self.format_value_by_type(val)
                     row.append(val)
                 rows.append(row)
@@ -235,7 +241,6 @@ class FORMATTER:
         self.print_table(entries=rows, headers=headers)
 
     def print(self, entries):
-        # Add pagination for large result sets
         total_entries = len(entries)
         if hasattr(self.args, 'paginate') and self.args.paginate and total_entries > self.config['max_entries']:
             self._print_paginated(entries)

@@ -51,10 +51,7 @@
                                 placeholder="Custom LDAP filter...">
                             
                             <!-- Existing Query Templates -->
-                            <div class="flex justify-between gap-2">
-                                <div class="flex gap-2 flex-wrap" id="selected-user-filters">
-                                    <!-- Active filters will be shown here -->
-                                </div>
+                            <div class="flex justify-end gap-2">
                                 <div class="relative flex-shrink-0">
                                     <button id="user-filter-dropdown-button" 
                                         class="px-2 py-1 text-sm rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1">
@@ -63,20 +60,20 @@
                                     <div id="user-filter-dropdown-menu" 
                                         class="hidden absolute right-0 mt-1 w-40 rounded-md border border-neutral-300 bg-white dark:border-neutral-700 dark:bg-neutral-800 shadow-lg z-10">
                                         <div class="py-1">
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="spn">SPN</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="admincount">AdminCount</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="lockout">Lockout</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="password_expired">PasswordExpired</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="passnotrequired">PassNotRequired</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="rbcd">RBCD</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="shadowcred">ShadowCred</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="preauthnotrequired">PreAuthNotRequired</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="trustedtoauth">TrustedToAuth</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="allowdelegation">AllowDelegation</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="disallowdelegation">DisallowDelegation</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="unconstrained">Unconstrained</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="enabled">Enabled</button>
-                                            <button class="w-full text-left px-4 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="disabled">Disabled</button>
+                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="spn">SPN</button>
+                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="admincount">AdminCount</button>
+                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="lockout">Lockout</button>
+                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="password_expired">PasswordExpired</button>
+                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="passnotrequired">PassNotRequired</button>
+                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="rbcd">RBCD</button>
+                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hoverbg-neutral-700" data-filter="shadowcred">ShadowCred</button>
+                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="preauthnotrequired">PreAuthNotRequired</button>
+                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="trustedtoauth">TrustedToAuth</button>
+                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="allowdelegation">AllowDelegation</button>
+                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="disallowdelegation">DisallowDelegation</button>
+                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="unconstrained">Unconstrained</button>
+                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="enabled">Enabled</button>
+                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="disabled">Disabled</button>
                                         </div>
                                     </div>
                                 </div>

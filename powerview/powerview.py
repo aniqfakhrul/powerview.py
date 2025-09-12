@@ -1217,7 +1217,7 @@ class PowerView:
 		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=security_identifier, guids_map_dict=guids_dict)
 		return enum.read_dacl()
 
-	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolveip=False, resolvesids=False, ldapfilter=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolvesids=False, ldapfilter=None, include_ip=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass',
 			'lastLogonTimestamp',
@@ -1254,8 +1254,7 @@ class PowerView:
 		if not searchbase:
 			searchbase = self.root_dn
 		ldapfilter = args.ldapfilter if hasattr(args, 'ldapfilter') and args.ldapfilter else ldapfilter
-
-		resolveip = args.resolveip if hasattr(args, 'resolveip') and args.resolveip else resolveip
+		include_ip = args.include_ip if hasattr(args, 'include_ip') and args.include_ip else include_ip
 		resolvesids = args.resolvesids if hasattr(args, 'resolvesids') and args.resolvesids else resolvesids
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
@@ -1342,6 +1341,22 @@ class PowerView:
 				logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
 				ldap_filter += f"{args.ldapfilter}"
 
+		records = []
+		if include_ip:
+			if not any(prop.lower() == 'dnshostname' for prop in properties):
+				properties.add('dnsHostName')
+			try:
+				records = self.get_domaindnsrecord(
+					zonename=self.conn.get_domain(),
+					identity=identity.split('.')[0] if is_valid_fqdn(identity) else identity,
+					record_type="A",
+					no_cache=no_cache
+				) or []
+			except Exception as e:
+				if self.args.stack_trace:
+					raise e
+				records = []
+
 		ldap_filter = f'(&(objectClass=computer){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainComputer] LDAP search filter: {ldap_filter}')
 		entries = self.ldap_session.extend.standard.paged_search(
@@ -1356,12 +1371,23 @@ class PowerView:
 			raw=raw
 		)
 		for entry in entries:
-			if resolveip and entry.get('attributes', {}).get('dnsHostName'):
-				ip = host2ip(entry['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver, type=list, no_prompt=True)
-				if ip and ip != entry.get('attributes', {}).get('dnsHostName'):
-					entry['attributes']['IPAddress'] = ip
-					logging.debug(f"[Get-DomainComputer] Resolved {entry['attributes']['dnsHostName']} to {ip}")
-			
+			if include_ip and records:
+				ip_list = []
+				computer_dns = entry.get("attributes", {}).get("dnsHostName")
+				if computer_dns:
+					computer_name = computer_dns.split(".")[0]
+					for record in records:
+						r_name = record.get("attributes", {}).get("name")
+						r_address = record.get("attributes", {}).get("Address")
+						if r_name and r_address:
+							if r_name.lower() == computer_name.lower() or computer_dns.lower() == r_name.lower():
+								ip_list.append(r_address)
+					if ip_list:
+						if len(ip_list) == 1:
+							entry["attributes"]["IPAddress"] = ip_list[0]
+						else:
+							entry["attributes"]["IPAddress"] = ip_list
+
 			try:
 				if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(entry["attributes"].keys()):
 					parser = RBCD(entry)
@@ -1378,7 +1404,7 @@ class PowerView:
 					entry["attributes"]["msDS-GroupMSAMembership"] = self.convertfrom_sid(entry["attributes"]["msDS-GroupMSAMembership"])
 			except:
 				pass
-
+		
 		return entries
 
 	def get_domaingmsa(self, identity=None, properties=None, searchbase=None, args=None, no_cache=False, no_vuln_check=False, raw=False):
@@ -2411,7 +2437,7 @@ class PowerView:
 			else:
 				raise e
 
-	def get_domaindnszone(self, identity=None, properties=[], legacy=False, forest=False, searchbase=None, args=None, search_scope=ldap3.LEVEL, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domaindnszone(self, identity=None, properties=[], legacy=False, forest=False, get_all=False, searchbase=None, args=None, search_scope=ldap3.LEVEL, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass',
 			'name',
@@ -2426,9 +2452,104 @@ class PowerView:
 
 		args = args or self.args
 		properties = properties or def_prop
-		identity = '*' if not identity else identity
-		legacy = args.legacy if hasattr(args, 'legacy') and args.legacy else False
-		forest = args.forest if hasattr(args, 'forest') and args.forest else False
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		legacy = args.legacy if hasattr(args, 'legacy') and args.legacy else legacy
+		forest = args.forest if hasattr(args, 'forest') and args.forest else forest
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
+
+		if not searchbase:
+			if get_all:
+				searchbase = [
+						f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
+						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
+						f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
+					]
+			else:
+				if forest:
+					searchbase = f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}"
+				else:
+					if legacy:
+						searchbase = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
+					else:
+						searchbase = [
+							f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
+							f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
+							f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
+						]
+
+		identity_filter = ""
+		if identity:
+			identity_filter += f"(distinguishedName={identity})" if is_dn(identity) else f"(name={identity})"
+
+		
+		ldap_filter = f"(&(objectClass=dnsZone){identity_filter})"
+
+		if isinstance(searchbase, list):
+			entries = []
+			for base in searchbase:
+				logging.debug(f"[Get-DomainDNSZone] Search base: {base}")
+				logging.debug(f"[Get-DomainDNSZone] LDAP Filter string: {ldap_filter}")
+				entries.extend(self.ldap_session.extend.standard.paged_search(
+					base,
+					ldap_filter,
+					attributes=properties,
+					paged_size=1000,
+					generator=False,
+					search_scope=search_scope,
+					no_cache=no_cache,
+					no_vuln_check=no_vuln_check,
+					raw=raw
+				))
+		else:
+			logging.debug(f"[Get-DomainDNSZone] Search base: {searchbase}")
+			logging.debug(f"[Get-DomainDNSZone] LDAP Filter string: {ldap_filter}")
+			entries = self.ldap_session.extend.standard.paged_search(
+				searchbase,
+				ldap_filter,
+				attributes=properties,
+				paged_size=1000,
+				generator=False,
+				search_scope=search_scope,
+				no_cache=no_cache,
+				no_vuln_check=no_vuln_check,
+				raw=raw
+			)
+
+		if not legacy and not forest:
+			for entry in entries:
+				if entry.get('attributes', {}).get('name') and entry.get('dn'):
+					if entry.get('attributes', {}).get('type'):
+						continue
+
+					if 'DomainDnsZone' in entry['dn']:
+						entry['attributes']['type'] = 'domain'
+					elif 'ForestDnsZone' in entry['dn']:
+						entry['attributes']['type'] = 'forest'
+					elif 'System' in entry['dn']:
+						entry['attributes']['type'] = 'legacy'
+
+		return entries
+
+	def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], legacy=False, forest=False, record_type=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+		def_prop = [
+			'name',
+			'distinguishedName',
+			'dnsRecord',
+			'whenCreated',
+			'uSNChanged',
+			'objectCategory',
+			'objectGUID'
+		]
+
+		zonename = args.zonename if hasattr(args, 'zonename') and args.zonename else zonename
+		identity = args.identity if hasattr(args, 'identity') and args.identity else identity
+		legacy = args.legacy if hasattr(args, 'legacy') and args.legacy else legacy
+		forest = args.forest if hasattr(args, 'forest') and args.forest else forest
+		record_type = args.record_type if hasattr(args, 'record_type') and args.record_type else record_type
+		args = args or self.args
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
@@ -2442,80 +2563,29 @@ class PowerView:
 					searchbase = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
 				else:
 					searchbase = [
+						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
 						f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
-						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
+						f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
 					]
-
-		identity_filter = f"(name={identity})"
-		ldap_filter = f"(&(objectClass=dnsZone){identity_filter})"
-
-		logging.debug(f"[Get-DomainDNSZone] Search base: {searchbase}")
-		logging.debug(f"[Get-DomainDNSZone] LDAP Filter string: {ldap_filter}")
-
-		if isinstance(searchbase, list):
-			entries = []
-			for base in searchbase:
-				entries.extend(self.ldap_session.extend.standard.paged_search(
-					base,
-					ldap_filter,
-					attributes=properties,
-					paged_size=1000,
-					generator=False,
-					search_scope=search_scope,
-					no_cache=no_cache,
-					no_vuln_check=no_vuln_check,
-					raw=raw
-				))
-		else:
-			entries = self.ldap_session.extend.standard.paged_search(
-				searchbase,
-				ldap_filter,
-				attributes=properties,
-				paged_size=1000,
-				generator=False,
-				search_scope=search_scope,
-				no_cache=no_cache,
-				no_vuln_check=no_vuln_check,
-				raw=raw
-			)
-
-		return entries
-
-	def get_domaindnsrecord(self, identity=None, zonename=None, properties=[], searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
-		def_prop = [
-			'name',
-			'distinguishedName',
-			'dnsRecord',
-			'whenCreated',
-			'uSNChanged',
-			'objectCategory',
-			'objectGUID'
-		]
-
-		zonename = '*' if not zonename else zonename
-		identity = escape_filter_chars(identity) if identity else None
-		args = args or self.args
-		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
-		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
-		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
-
-		if not searchbase:
-			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}" 
 
 		zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'], searchbase=searchbase, no_cache=no_cache)
 		if not zones:
 			logging.error(f"[Get-DomainDNSRecord] No zones found")
 			return []
 
+		if record_type:
+			properties.append('dnsRecord') if properties else def_prop.append('dnsRecord')
+
 		processed_entries = []
 		
 		for zone in zones:
 			zoneDN = zone['attributes']['distinguishedName']
 			
+			identity_filter = ""
 			if identity:
-				ldap_filter = f"(&(objectClass=dnsNode)(name={identity}))"
-			else:
-				ldap_filter = f"(objectClass=dnsNode)"
+				identity_filter += f"(distinguishedName={identity})" if is_dn(identity) else f"(name={identity})"
+
+			ldap_filter = f"(&(objectClass=dnsNode){identity_filter})"
 				
 			logging.debug(f"[Get-DomainDNSRecord] Search base: {zoneDN}")
 			logging.debug(f"[Get-DomainDNSRecord] LDAP Filter string: {ldap_filter}")
@@ -2557,6 +2627,8 @@ class PowerView:
 						
 						parsed_data = DNS_UTIL.parse_record_data(dr)
 						if parsed_data:
+							if record_type and parsed_data.get('RecordType') and parsed_data.get('RecordType').lower() != record_type.lower():
+								continue
 							for data in parsed_data:
 								processed_entry = modify_entry(
 									processed_entry,
@@ -2574,7 +2646,6 @@ class PowerView:
 							"attributes": new_dict
 						})
 				else:
-					# If no dnsRecord attribute, just add the entry as is
 					processed_entries.append(entry)
 			
 		return processed_entries
@@ -4120,19 +4191,20 @@ displayName=New Group Policy Object
 			logging.error("[Disable-DomainDNSRecord] Failed to disable dns record")
 			return False
 
-	def remove_domaindnsrecord(self, recordname=None, zonename=None):
+	def remove_domaindnsrecord(self, recordname=None, zonename=None, basedn=None, no_cache=False, legacy=False, forest=False, args=None):
+		zonename = args.zonename if args and hasattr(args, 'zonename') else zonename
 		if zonename:
 			zonename = zonename.lower()
 		else:
 			zonename = self.domain.lower()
 			logging.debug("[Remove-DomainDNSRecord] Using current domain %s as zone name" % zonename)
+		recordname = args.recordname if args and hasattr(args, 'recordname') else recordname
+		basedn = args.basedn if args and hasattr(args, 'basedn') else basedn
+		forest = args.forest if args and hasattr(args, 'forest') else forest
+		legacy = args.legacy if args and hasattr(args, 'legacy') else legacy
+		no_cache = args.no_cache if args and hasattr(args, 'no_cache') else no_cache
 
-		zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
-		if zonename not in zones:
-			logging.info("[Remove-DomainDNSRecord] Zone %s not found" % zonename)
-			return
-
-		entry = self.get_domaindnsrecord(identity=recordname, zonename=zonename)
+		entry = self.get_domaindnsrecord(identity=recordname, zonename=zonename, searchbase=basedn, forest=forest, legacy=legacy, no_cache=no_cache)
 
 		if len(entry) == 0:
 			logging.info("[Remove-DomainDNSRecord] No record found")
@@ -4518,17 +4590,30 @@ displayName=New Group Policy Object
 			logging.info('[Set-DomainDNSRecord] Success! modified attribute for target record %s' % entry[0]['attributes']['distinguishedName'])
 			return True
 
-	def add_domaindnsrecord(self, recordname, recordaddress, zonename=None, timeout=15):
+	def add_domaindnsrecord(self, recordname=None, recordaddress=None, zonename=None, basedn=None, no_cache=False, legacy=False, forest=False, args=None, timeout=15):
+		recordname = args.recordname if args and hasattr(args, 'recordname') else recordname
+		recordaddress = args.recordaddress if args and hasattr(args, 'recordaddress') else recordaddress
+		zonename = args.zonename if args and hasattr(args, 'zonename') else zonename
 		if zonename:
 			zonename = zonename.lower()
 		else:
 			zonename = self.domain.lower()
 			logging.debug("[Add-DomainDNSRecord] Using current domain %s as zone name" % zonename)
+		basedn = args.basedn if args and hasattr(args, 'basedn') else basedn
+		forest = args.forest if args and hasattr(args, 'forest') else forest
+		legacy = args.legacy if args and hasattr(args, 'legacy') else legacy
+		no_cache = args.no_cache if args and hasattr(args, 'no_cache') else no_cache
 
-		zones = [name['attributes']['name'].lower() for name in self.get_domaindnszone(properties=['name'])]
-		if zonename not in zones:
-			logging.info("[Add-DomainDNSRecord] Zone %s not found" % zonename)
-			return
+		if not basedn:
+			zones = self.get_domaindnszone(identity=zonename, properties=['name', 'distinguishedName'], forest=forest, legacy=legacy, no_cache=no_cache)
+			if len(zones) == 0:
+				logging.warning("[Add-DomainDNSRecord] No zones found")
+				return
+			elif len(zones) > 1:
+				logging.warning("[Add-DomainDNSRecord] More than one zone found")
+				return
+			basedn = zones[0]['attributes']['distinguishedName']
+			zonename = zones[0]['attributes']['name']
 
 		if recordname.lower().endswith(zonename.lower()):
 			recordname = recordname[:-(len(zonename)+1)]
@@ -4544,10 +4629,14 @@ displayName=New Group Policy Object
 				}
 		logging.debug("[Add-DomainDNSRecord] Creating DNS record structure")
 		record = DNS_UTIL.new_record(addtype, DNS_UTIL.get_next_serial(self.nameserver, self.dc_ip, zonename, True), recordaddress)
-		search_base = f"DC={zonename},CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
-		record_dn = 'DC=%s,%s' % (recordname, search_base)
+		record_dn = 'DC=%s,%s' % (recordname, basedn)
 		node_data['dnsRecord'] = [record.getData()]
-		
+
+		logging.debug(f"[Add-DomainDNSRecord] Base DN: {basedn}")
+		logging.debug(f"[Add-DomainDNSRecord] Zone Name: {zonename}")
+		logging.debug(f"[Add-DomainDNSRecord] Record Name: {recordname}")
+		logging.debug(f"[Add-DomainDNSRecord] Record Address: {recordaddress}")
+		logging.debug(f"[Add-DomainDNSRecord] Record DN: {record_dn}")
 		succeeded = self.ldap_session.add(record_dn, ['top', 'dnsNode'], node_data)
 		if not succeeded:
 			logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainDNSRecord] Failed adding DNS record to domain ({self.ldap_session.result['description']})")
