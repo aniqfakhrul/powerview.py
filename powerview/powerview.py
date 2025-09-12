@@ -1350,10 +1350,11 @@ class PowerView:
 					zonename=self.conn.get_domain(),
 					identity=identity.split('.')[0] if is_valid_fqdn(identity) else identity,
 					record_type="A",
-					get_all=True,
 					no_cache=no_cache
 				) or []
-			except Exception:
+			except Exception as e:
+				if self.args.stack_trace:
+					raise e
 				records = []
 
 		ldap_filter = f'(&(objectClass=computer){identity_filter}{ldap_filter})'
@@ -2561,7 +2562,11 @@ class PowerView:
 				if legacy:
 					searchbase = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
 				else:
-					searchbase = f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
+					searchbase = [
+						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
+						f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
+						f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
+					]
 
 		zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'], searchbase=searchbase, no_cache=no_cache)
 		if not zones:

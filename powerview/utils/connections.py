@@ -865,7 +865,6 @@ class CONNECTION:
 			'pools': {}
 		}
 		
-		# Get LDAP connection pool stats
 		try:
 			ldap_stats = self._connection_pool.get_pool_stats()
 			ldap_stats['protocol'] = 'LDAP'
@@ -881,7 +880,6 @@ class CONNECTION:
 				'domains': {}
 			}
 		
-		# Get SMB connection pool stats
 		try:
 			if hasattr(self, '_smb_pool'):
 				smb_stats = self._smb_pool.get_pool_stats()
@@ -981,8 +979,7 @@ class CONNECTION:
 				domain = service_parts[1].lower()
 				domain_parts = domain.split('.')
 				if len(domain_parts) >= 2:
-					return '.'.join(domain_parts[-2:])
-				return domain
+					return domain
 		
 		default_naming_context = raw_info.get('defaultNamingContext')
 		if default_naming_context and len(default_naming_context) > 0:
@@ -992,26 +989,18 @@ class CONNECTION:
 				if part.strip().upper().startswith('DC='):
 					domain_parts.append(part.strip()[3:])
 			if domain_parts:
-				full_domain = '.'.join(domain_parts).lower()
-				parts = full_domain.split('.')
-				if len(parts) >= 2:
-					return '.'.join(parts[-2:])
-				return full_domain
+				return '.'.join(domain_parts).lower()
 		
 		dns_hostname = raw_info.get('dnsHostName')
 		if dns_hostname and len(dns_hostname) > 0:
 			hostname_parts = dns_hostname[0].split('.')
-			if len(hostname_parts) > 2:
-				return '.'.join(hostname_parts[-2:]).lower()
-			elif len(hostname_parts) > 1:
+			if len(hostname_parts) > 1:
 				return '.'.join(hostname_parts[1:]).lower()
 		
 		if self.domain:
-			parts = self.domain.lower().split('.')
-			if len(parts) >= 2:
-				return '.'.join(parts[-2:])
+			return self.domain.lower()
 		
-		return self.domain.lower() if self.domain else None
+		return None
 
 	def set_targetDomain(self, domain):
 		"""
@@ -1536,6 +1525,7 @@ class CONNECTION:
 		except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
 			logging.debug("Server returns invalidCredentials")
 			if 'AcceptSecurityContext error, data 80090346' in str(ldap_session.result):
+				self.use_channel_binding = True
 				logging.warning("Channel binding is enforced!")
 				if self.tls_channel_binding_supported and (self.use_ldaps or self.use_gc_ldaps):
 					logging.debug("Re-authenticate with channel binding")
@@ -1545,6 +1535,7 @@ class CONNECTION:
 					sys.exit(-1)
 		except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult as e:
 			logging.debug("Server returns LDAPStrongerAuthRequiredResult")
+			self.use_sign_and_seal = True
 			logging.warning("LDAP Signing is enforced!")
 			if self.sign_and_seal_supported:
 				logging.debug("Re-authenticate with seal and sign")
