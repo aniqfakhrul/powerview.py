@@ -18,14 +18,18 @@ RECORD_TYPE_MAPPING = {
 }
 
 class DNS_UTIL:
-    def get_next_serial(server, zone, tcp):
-        # Create a resolver object
+    def get_next_serial(dnsserver, dc, zone, tcp, timeout=15):
         dnsresolver = dns.resolver.Resolver()
-        # Is our host an IP? In that case make sure the server IP is used
-        # if not assume lookups are working already
+        dnsresolver.timeout = timeout
+        if dnsserver:
+            server = dnsserver
+        else:
+            server = dc
+
         try:
             socket.inet_aton(server)
             dnsresolver.nameservers = [server]
+            
         except socket.error:
             pass
         res = dnsresolver.resolve(zone, 'SOA',tcp=tcp)

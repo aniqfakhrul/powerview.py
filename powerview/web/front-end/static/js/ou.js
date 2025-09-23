@@ -406,6 +406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             'dark:hover:bg-neutral-800',
             'rounded', 
             'cursor-pointer',
+            'text-sm',
         );
 
         const icon = isRoot ? icons.adIcon : icons.ouIcon;
@@ -457,7 +458,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             if (data && data.length > 0) {
                 const subtreeContainer = document.createElement('div');
-                subtreeContainer.classList.add('subtree', 'ml-6', 'space-y-1');
+                subtreeContainer.classList.add('subtree', 'ml-6', 'space-y-1', 'text-sm');
 
                 for (const ou of data) {
                     const ouNode = await createOUTreeNode(ou.dn, ou.attributes.name);

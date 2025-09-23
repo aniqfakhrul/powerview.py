@@ -4,7 +4,7 @@ from powerview.lib.adws.extend.standard.PagedSearch import adws_paged_search_gen
 from ldap3.extend import StandardExtendedOperations, ExtendedOperationsRoot
 from ldap3 import SUBTREE, DEREF_ALWAYS
 from .obfuscate import (
-	LdapParser,
+	FilterParser,
 	DNParser,
 	AttributeParser,
 	LdapObfuscate
@@ -93,17 +93,23 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 			modified_dn = search_base
 			
 			if self.obfuscate:
-				parser = LdapParser(search_filter)
+				parser = FilterParser(search_filter)
 				tokenized_filter = parser.parse()
-				parser.comparison_operator_obfuscation()
-				parser.prepend_zeros()
-				parser.random_wildcards()
-				parser.random_hex()
-				parser.boolean_operator_obfuscation()
-				parser.append_garbage()
-				parser.randomize_oid()
-				parser.random_casing()
+				
+				parser.oid_attribute_obfuscation(max_spaces=3, max_zeros=0, include_prefix=False) # have to set zeros to 0 and without prefix since ldap3 does not support it
+				parser.random_casing(probability=0.7)
+				
+				parser.prepend_zeros_obfuscation(max_zeros=5)
+				parser.hex_value_obfuscation(probability=0.5)
+				parser.spacing_obfuscation(max_spaces=3)
+				
+				parser.equality_to_approximation_obfuscation()
+				parser.wildcard_expansion_obfuscation()
+				
+				parser.anr_attribute_obfuscation()
+				
 				parser.random_spacing()
+				
 				modified_filter = parser.convert_to_ldap()
 				logging.debug("[CustomStandardExtendedOperations] Modified Filter: {}".format(modified_filter))
 
@@ -171,21 +177,36 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				return filtered_results
 			else:
 				if self.use_adws:
-					results = list(adws_paged_search_accumulator(self._connection, search_base, search_filter, search_scope, attributes, size_limit, time_limit, types_only, get_operational_attributes, controls, paged_size, paged_criticality))
+					results = list(adws_paged_search_accumulator(
+						self._connection,
+						search_base,
+						search_filter,
+						search_scope,
+						attributes,
+						size_limit,
+						time_limit,
+						types_only,
+						get_operational_attributes,
+						controls,
+						paged_size,
+						paged_criticality
+					))
 				else:
-					results = list(paged_search_accumulator(self._connection,
-												search_base,
-												search_filter,
-												search_scope,
-												dereference_aliases,
-												attributes,
-												size_limit,
-												time_limit,
-												types_only,
-												get_operational_attributes,
-												controls,
-												paged_size,
-												paged_criticality))
+					results = list(paged_search_accumulator(
+						self._connection,
+						search_base,
+						search_filter,
+						search_scope,
+						dereference_aliases,
+						attributes,
+						size_limit,
+						time_limit,
+						types_only,
+						get_operational_attributes,
+						controls,
+						paged_size,
+						paged_criticality
+					))
 				
 				# Filter out non-search results and strip entries if requested
 				filtered_results = []

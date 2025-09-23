@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 'dark:hover:bg-neutral-800',
                 'rounded', 
                 'cursor-pointer',
+                'text-sm',
             );
 
             // Add expand/collapse arrow
@@ -48,7 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             // Create subtree container
             const subtree = document.createElement('div');
-            subtree.className = 'ml-6 mt-2 space-y-2';
+            subtree.className = 'ml-6 mt-2 space-y-2 text-sm';
 
             let isExpanded = true; // Set initial state to expanded
             let contentLoaded = false;
@@ -94,6 +95,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             'dark:hover:bg-neutral-800',
                             'rounded', 
                             'cursor-pointer',
+                            'text-sm',
                         );
 
                         // Add expand/collapse arrow
@@ -113,7 +115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                         // Create GPO subtree container
                         const gpoSubtree = document.createElement('div');
-                        gpoSubtree.className = 'hidden ml-6 mt-2 space-y-2';
+                        gpoSubtree.className = 'hidden ml-6 mt-2 space-y-2 text-sm';
 
                         let gpoIsExpanded = false;
                         let gposLoaded = false;
@@ -200,7 +202,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // Set expanded state
                 arrow.style.transform = 'rotate(90deg)';
-                subtree.className = 'ml-6 mt-2 space-y-2';
+                subtree.className = 'ml-6 mt-2 space-y-2 text-sm';
             };
 
             // Add click handler
@@ -241,6 +243,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             'dark:hover:bg-neutral-800',
             'rounded', 
             'cursor-pointer',
+            'text-sm',
         );
 
         // Add expand/collapse arrow
@@ -262,7 +265,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Create subtree container (initially hidden)
         const subtree = document.createElement('div');
-        subtree.className = 'hidden ml-6 mt-2 space-y-2';
+        subtree.className = 'hidden ml-6 mt-2 space-y-2 text-sm';
 
         let isExpanded = false;
         let gposLoaded = false;
@@ -330,6 +333,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             'dark:hover:bg-neutral-800',
             'rounded', 
             'cursor-pointer',
+            'text-sm',
         );
 
         // Add GPO icon

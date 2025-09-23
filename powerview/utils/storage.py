@@ -116,8 +116,6 @@ class Storage:
                         logging.debug(f"[Storage] Deleted expired cache file: {cache_key}")
                     except Exception as e:
                         logging.error(f"[Storage] Error deleting expired cache file: {e}")
-            else:
-                logging.debug(f"[Storage] No cache found for key: {cache_key}")
         except Exception as e:
             logging.error(f"[Storage] Error reading cache: {e}")
         

@@ -16,7 +16,8 @@ from powerview.utils.constants import UAC_DICT
 from powerview._version import __version__ as version
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.modules.smbclient import SMBClient
-from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip
+from powerview.lib.tsts import TSHandler
+from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip, is_valid_sid
 import json
 
 class APIServer:
@@ -43,6 +44,7 @@ class APIServer:
 		self.host = host
 		self.port = port
 		self.status = False
+		self.smb_session_params = {}
 		
 		components = [self.powerview.flatName.lower(), self.powerview.args.username.lower(), self.powerview.args.ldap_address.lower()]
 		folder_name = '-'.join(filter(None, components)) or "default-log"
@@ -50,7 +52,6 @@ class APIServer:
 		self.log_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, file_name)
 		self.history_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, '.powerview_history')
 
-		# Define routes
 		self._register_routes()
 
 		self.nav_items = [
@@ -89,6 +90,8 @@ class APIServer:
 		add_route_with_auth('/gpo', 'gpo', self.render_gpo, methods=['GET'])
 		add_route_with_auth('/smb', 'smb', self.render_smb, methods=['GET'])
 		add_route_with_auth('/utils', 'utils', self.render_utils, methods=['GET'])
+		add_route_with_auth('/api/server/info', 'server_info', self.handle_server_info, methods=['GET'])
+		add_route_with_auth('/api/server/schema', 'schema_info', self.handle_schema_info, methods=['GET'])
 		add_route_with_auth('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
 		add_route_with_auth('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		add_route_with_auth('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
@@ -114,6 +117,8 @@ class APIServer:
 		add_route_with_auth('/api/smb/reconnect', 'smb_reconnect', self.handle_smb_reconnect, methods=['POST'])
 		add_route_with_auth('/api/smb/disconnect', 'smb_disconnect', self.handle_smb_disconnect, methods=['POST'])
 		add_route_with_auth('/api/smb/shares', 'smb_shares', self.handle_smb_shares, methods=['POST'])
+		add_route_with_auth('/api/smb/add-share', 'smb_add_share', self.handle_smb_add_share, methods=['POST'])
+		add_route_with_auth('/api/smb/delete-share', 'smb_delete_share', self.handle_smb_delete_share, methods=['POST'])
 		add_route_with_auth('/api/smb/ls', 'smb_ls', self.handle_smb_ls, methods=['POST'])
 		add_route_with_auth('/api/smb/mv', 'smb_mv', self.handle_smb_mv, methods=['POST'])
 		add_route_with_auth('/api/smb/get', 'smb_get', self.handle_smb_get, methods=['POST'])
@@ -127,6 +132,13 @@ class APIServer:
 		add_route_with_auth('/api/smb/sessions', 'smb_sessions', self.handle_smb_sessions, methods=['GET'])
 		add_route_with_auth('/api/login_as', 'login_as', self.handle_login_as, methods=['POST'])
 		add_route_with_auth('/api/smb/properties', 'smb_properties', self.handle_smb_properties, methods=['POST'])
+		add_route_with_auth('/api/smb/set-security', 'smb_set_security', self.handle_smb_set_security, methods=['POST'])
+		add_route_with_auth('/api/smb/remove-security', 'smb_remove_security', self.handle_smb_remove_security, methods=['POST'])
+		add_route_with_auth('/api/smb/set-share-security', 'smb_set_share_security', self.handle_smb_set_share_security, methods=['POST'])
+		add_route_with_auth('/api/smb/remove-share-security', 'smb_remove_share_security', self.handle_smb_remove_share_security, methods=['POST'])
+		add_route_with_auth('/api/computer/restart', 'computer_restart', self.handle_computer_restart, methods=['POST'])
+		add_route_with_auth('/api/computer/shutdown', 'computer_shutdown', self.handle_computer_shutdown, methods=['POST'])
+		add_route_with_auth('/api/computer/tasklist', 'computer_tasklist', self.handle_computer_tasklist, methods=['POST'])
 
 	def set_status(self, status):
 		self.status = status
@@ -329,9 +341,16 @@ class APIServer:
 		return jsonify({'status': 'OK' if success else 'KO'}), 200 if success else 400
 	
 	def handle_settings(self):
-		# return all self.powerview.args in json
 		return jsonify(vars(self.powerview.args))
 	
+	def handle_server_info(self):
+		server_info = self.powerview.conn.get_server_info()
+		return jsonify(server_info)
+
+	def handle_schema_info(self):
+		schema_info = self.powerview.conn.get_schema_info()
+		return jsonify(schema_info)
+		
 	def handle_set_settings(self):
 		try:
 			obfuscate = request.json.get('obfuscate', False)
@@ -357,9 +376,8 @@ class APIServer:
 		return jsonify({
 			'domain': self.powerview.domain,
 			'username': self.powerview.conn.get_username(),
-			'sid': self.powerview.current_user_sid,
 			'is_admin': self.powerview.is_admin,
-			'status': 'OK' if self.powerview.is_connection_alive() else 'KO',
+			'status': 'OK' if self.powerview.conn.is_connection_alive() else 'KO',
 			'protocol': self.powerview.conn.get_proto(),
 			'ldap_address': self.powerview.conn.get_ldap_address(),
 			'nameserver': self.powerview.conn.get_nameserver(),
@@ -370,33 +388,26 @@ class APIServer:
 			''
 		]
 		try:
-			# Get the command from the request
 			command = request.json.get('command', '')
 			if not command:
 				return jsonify({'error': 'No command provided'}), 400
 
-			# Parse the command using shlex
 			try:
 				cmd = shlex.split(command)
 			except ValueError as e:
 				logging.error(f"Command parsing error: {str(e)}")
 				return jsonify({'error': f'Command parsing error: {str(e)}'}), 400
 
-			# Parse the command arguments using PowerView's argument parser
 			pv_args = powerview_arg_parse(cmd)
 
-			# Check if the command was parsed successfully
 			if pv_args is None:
 				return jsonify({'error': 'Invalid command or arguments'}), 400
 
-			# Check if the module is specified
 			if not pv_args.module:
 				return jsonify({'error': 'No module specified in the command'}), 400
 
-			# Execute the command using PowerView
 			result = self.powerview.execute(pv_args)
 
-			# Make the result serializable
 			serializable_result = make_serializable(result)
 
 			# Return the result along with pv_args
@@ -490,23 +501,54 @@ class APIServer:
 			return jsonify({'error': str(e)}), 400
 
 	def start(self):
+		debug_enabled = bool(getattr(self.powerview.args, 'debug', False))
+		request_handler = None
+		try:
+			from werkzeug.serving import WSGIRequestHandler
+			class _SilentRequestHandler(WSGIRequestHandler):
+				def log_request(self, *args, **kwargs):
+					return
+			request_handler = _SilentRequestHandler
+		except Exception:
+			request_handler = None
 		log = logging.getLogger('werkzeug')
-		log.disabled = True
+		log.setLevel(logging.CRITICAL)
+		log.propagate = False
+		try:
+			self.app.logger.disabled = True
+		except Exception:
+			pass
 
-		with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+		run_kwargs = {'host': self.host, 'port': self.port, 'debug': False}
+		if request_handler is not None:
+			run_kwargs['request_handler'] = request_handler
+
+		if debug_enabled:
 			self.api_server_thread = threading.Thread(
 				target=self.app.run,
-				kwargs={'host': self.host, 'port': self.port, 'debug': False},
+				kwargs=run_kwargs,
 				daemon=True
 			)
-			self.set_status(True)
-			logging.info(f"Powerview web listening on {self.host}:{self.port}")
-			self.api_server_thread.start()
+		else:
+			with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+				self.api_server_thread = threading.Thread(
+					target=self.app.run,
+					kwargs=run_kwargs,
+					daemon=True
+				)
+
+		self.set_status(True)
+		logging.info(f"Powerview web listening on {self.host}:{self.port}")
+		self.api_server_thread.start()
 
 	def handle_smb_connect(self):
 		try:
 			data = request.json
-			computer = data.get('computer').lower()
+			computer_input = data.get('computer')
+			if not computer_input:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+
+			computer = computer_input.lower()
 			username = data.get('username')
 			password = data.get('password')
 			nthash = data.get('nthash')
@@ -517,65 +559,40 @@ class APIServer:
 			if username and ('/' in username or '\\' in username):
 				domain, username = username.replace('/', '\\').split('\\')
 			
-			if not computer:
-				return jsonify({'error': 'Computer name/IP is required'}), 400
-
-			host = computer
-			is_fqdn = False
-
-			if not is_ipaddress(computer):
-				is_fqdn = True
-				if not is_valid_fqdn(computer):
-					host = f"{computer}.{self.powerview.domain}"
-				else:
-					host = computer
-				logging.debug(f"[SMB Connect] Using FQDN: {host}")
-
-			if self.powerview.use_kerberos and is_ipaddress(computer):
+			resolved_host = self.powerview._resolve_host(computer)
+			if resolved_host is None:
 				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
 
-			try:
-				client = self.powerview.conn.init_smb_session(
-					host,
-					username=username,
-					password=password,
-					nthash=nthash,
-					lmhash=lmhash,
-					aesKey=aesKey,
-					domain=domain
-				)
-			except Exception as conn_error:
-				if is_fqdn and not is_ipaddress(host):
-					ip = host2ip(host, self.powerview.nameserver, 3, True, 
-								use_system_ns=self.powerview.use_system_nameserver, no_prompt=True)
-					if not ip:
-						return jsonify({'error': 'Host not found'}), 404
-					
-					logging.debug(f"[SMB Connect] Initial connection failed, trying IP: {ip}")
-					client = self.powerview.conn.init_smb_session(
-						ip,
-						username=username,
-						password=password,
-						nthash=nthash,
-						lmhash=lmhash,
-						aesKey=aesKey,
-						domain=domain
-					)
-					host = ip
-				else:
-					raise conn_error
-			
+			host = resolved_host
+			logging.debug(f"[SMB Connect] Using resolved host: {host}")
+
+			client = self.powerview.conn.init_smb_session(
+				host,
+				username=username,
+				password=password,
+				nthash=nthash,
+				lmhash=lmhash,
+				aesKey=aesKey,
+				domain=domain
+			)
+
 			if not client:
 				return jsonify({'error': f'Failed to connect to {host}'}), 400
 
-			if not hasattr(self.powerview.conn, 'smb_sessions'):
-				self.powerview.conn.smb_sessions = {}
-			self.powerview.conn.smb_sessions[computer] = client
+			params = {
+				'host': host,
+				'input': computer,
+				'username': username,
+				'password': password,
+				'nthash': nthash,
+				'lmhash': lmhash,
+				'aesKey': aesKey,
+				'domain': domain,
+			}
+			self.smb_session_params[computer] = params
+			self.smb_session_params[host.lower()] = params
 
-			return jsonify({
-				'status': 'connected',
-				'host': host
-			})
+			return jsonify({'status': 'connected', 'host': host})
 
 		except Exception as e:
 			logging.error(f"SMB Connect Error: {str(e)}")
@@ -584,27 +601,40 @@ class APIServer:
 	def handle_smb_reconnect(self):
 		try:
 			data = request.json
-			computer = data.get('computer').lower()
-			
-			if not computer:
+			computer_input = data.get('computer')
+			if not computer_input:
 				return jsonify({'error': 'Computer name/IP is required'}), 400
+			computer = computer_input.lower()
 
-			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
-				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+			stored = self.smb_session_params.get(computer)
+			resolved_host = self.powerview._resolve_host(computer)
+			if not stored and resolved_host:
+				stored = self.smb_session_params.get(str(resolved_host).lower())
 
-			logging.debug(f"SMB Reconnect: Attempting to reconnect to {computer}")
-			client = self.powerview.conn.smb_sessions[computer]
-			if client.reconnect():
-				logging.debug(f"SMB Reconnect: Successfully reconnected to {computer}")
-				self.powerview.conn.smb_sessions[computer] = client
-				return jsonify({'status': 'reconnected'})
+			if resolved_host is None and self.powerview.conn.use_kerberos:
+				host = (stored or {}).get('host')
+				if not host:
+					return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
 			else:
-				logging.error(f"SMB Reconnect: Failed to reconnect to {computer}")
-				del self.powerview.conn.smb_sessions[computer]
-				return jsonify({'error': 'Failed to reconnect'}), 500
+				host = resolved_host or computer
+
+			kwargs = {}
+			if stored:
+				kwargs = {
+					'username': stored.get('username'),
+					'password': stored.get('password'),
+					'nthash': stored.get('nthash'),
+					'lmhash': stored.get('lmhash'),
+					'aesKey': stored.get('aesKey'),
+					'domain': stored.get('domain'),
+				}
+
+			client = self.powerview.conn.init_smb_session(host, force_new=True, **kwargs)
+			logging.debug(f"SMB Reconnect: Successfully reconnected to {host}")
+			return jsonify({'status': 'reconnected', 'host': host, 'used_stored_creds': bool(stored)})
 		except Exception as e:
-			logging.error(f"SMB Reconnect Error: {str(e)}")
-			return jsonify({'error': str(e)}), 500
+			logging.error(f"SMB Reconnect: Failed to reconnect: {str(e)}")
+			return jsonify({'error': 'Failed to reconnect'}), 500
 
 	def handle_smb_disconnect(self):
 		try:
@@ -614,13 +644,7 @@ class APIServer:
 			if not computer:
 				return jsonify({'error': 'Computer name/IP is required'}), 400
 
-			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
-				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
-				
-			client = self.powerview.conn.smb_sessions[computer]
-			client.close()
-			del self.powerview.conn.smb_sessions[computer]
-
+			self.powerview.conn.remove_smb_connection(computer)
 			return jsonify({'status': 'disconnected'})
 		except Exception as e:
 			logging.error(f"SMB Disconnect Error: {str(e)}")
@@ -634,10 +658,11 @@ class APIServer:
 			if not host:
 				return jsonify({'error': 'Computer name/IP is required'}), 400
 
-			if not hasattr(self.powerview.conn, 'smb_sessions') or host not in self.powerview.conn.smb_sessions:
+			try:
+				client = self.powerview.conn.init_smb_session(host)
+			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.powerview.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 			shares = smb_client.shares()
 
@@ -657,6 +682,68 @@ class APIServer:
 			logging.error(f"SMB Shares Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500
 
+	def handle_smb_add_share(self):
+		try:
+			data = request.json
+			computer = data.get('computer', '').lower()
+			share_name = data.get('share_name')
+			share_path = data.get('share_path')
+			
+			if not all([computer, share_name, share_path]):
+				return jsonify({'error': 'Computer name/IP, share name, and share path are required'}), 400
+
+			try:
+				client = self.powerview.conn.init_smb_session(computer)
+			except Exception as e:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			smb_client = SMBClient(client)
+			
+			try:
+				result = smb_client.add_share(share_name, share_path)
+				if result:
+					return jsonify({
+						'status': 'success', 
+						'message': f'Share "{share_name}" created successfully at path "{share_path}"'
+					}), 200
+				else:
+					return jsonify({'error': 'Failed to create share'}), 500
+			except Exception as e:
+				return jsonify({'error': f'Failed to create share: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB ADD SHARE] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_delete_share(self):
+		try:
+			data = request.json
+			computer = data.get('computer', '').lower()
+			share = data.get('share')
+			
+			if not all([computer, share]):
+				return jsonify({'error': 'Computer name/IP and share name are required'}), 400
+
+			try:
+				client = self.powerview.conn.init_smb_session(computer)
+			except Exception as e:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
+			smb_client = SMBClient(client)
+			
+			try:
+				result = smb_client.delete_share(share)
+				if result:
+					return jsonify({'status': 'success', 'message': 'Share deleted successfully'}), 200
+				else:
+					return jsonify({'error': 'Failed to delete share'}), 500
+			except Exception as e:
+				return jsonify({'error': f'Failed to delete share: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB DELETE SHARE] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
 	def handle_smb_ls(self):
 		try:
 			data = request.json
@@ -667,10 +754,11 @@ class APIServer:
 			if not host or not share:
 				return jsonify({'error': 'Computer name/IP and share name are required'}), 400
 
-			if not hasattr(self.powerview.conn, 'smb_sessions') or host not in self.powerview.conn.smb_sessions:
+			try:
+				client = self.powerview.conn.init_smb_session(host)
+			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 			
-			client = self.powerview.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 			
 			files = smb_client.ls(share, path)
@@ -709,10 +797,11 @@ class APIServer:
 			if not all([computer, share, source, destination]):
 				return jsonify({'error': 'Missing required parameters'}), 400
 				
-			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+			try:
+				client = self.powerview.conn.init_smb_session(computer)
+			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 
 			smb_client.mv(share, source, destination)	
@@ -732,10 +821,11 @@ class APIServer:
 			if not host or not share or not path:
 				return jsonify({'error': 'Computer name/IP, share name, and file path are required'}), 400
 
-			if not hasattr(self.powerview.conn, 'smb_sessions') or host not in self.powerview.conn.smb_sessions:
+			try:
+				client = self.powerview.conn.init_smb_session(host)
+			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.powerview.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 			
 			try:
@@ -766,24 +856,19 @@ class APIServer:
 
 	def handle_smb_put(self):
 		try:
-			if 'file' not in request.files:
-				return jsonify({'error': 'No file provided'}), 400
-			
-			file = request.files['file']
-			if file.filename == '':
-				return jsonify({'error': 'No file selected'}), 400
-
 			computer = request.form.get('computer').lower()
 			share = request.form.get('share')
+			file = request.files.get('file')
 			current_path = request.form.get('path', '')
 			
 			if not computer or not share:
 				return jsonify({'error': 'Computer name/IP and share name are required'}), 400
 
-			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+			try:
+				client = self.powerview.conn.init_smb_session(computer)
+			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 			
 			# Save file temporarily
@@ -824,10 +909,14 @@ class APIServer:
 			if not all([computer, share, path]):
 				return jsonify({'error': 'Missing required parameters'}), 400
 
-			client = self.powerview.conn.smb_sessions[computer]
+			try:
+				client = self.powerview.conn.init_smb_session(computer)
+			except Exception as e:
+				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
+
 			smb_client = SMBClient(client)
 			content = smb_client.cat(share, path)
-			if content is None:
+			if content is None or len(content) == 0:
 				return jsonify({'error': 'Failed to read file content'}), 500
 
 			return content, 200
@@ -846,10 +935,11 @@ class APIServer:
 			if not all([computer, share, path]):
 				return jsonify({'error': 'Missing required parameters'}), 400
 
-			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+			try:
+				client = self.powerview.conn.init_smb_session(computer)
+			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 			
 			try:
@@ -873,10 +963,11 @@ class APIServer:
 			if not all([computer, share, path]):
 				return jsonify({'error': 'Missing required parameters'}), 400
 
-			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+			try:
+				client = self.powerview.conn.init_smb_session(computer)
+			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 			
 			try:
@@ -900,10 +991,11 @@ class APIServer:
 			if not all([computer, share, path]):
 				return jsonify({'error': 'Missing required parameters'}), 400
 
-			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+			try:
+				client = self.powerview.conn.init_smb_session(computer)
+			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 			
 			try:
@@ -957,10 +1049,11 @@ class APIServer:
 			if not query and not cred_hunt:
 				return jsonify({'error': 'Query is required or cred_hunt must be enabled'}), 400
 
-			if not hasattr(self.powerview.conn, 'smb_sessions') or host not in self.powerview.conn.smb_sessions:
+			try:
+				client = self.powerview.conn.init_smb_session(host)
+			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.powerview.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 			
 			mode = "cred_hunt" if cred_hunt else "content+regex" if content_search and use_regex else "content" if content_search else "regex" if use_regex else "pattern"
@@ -1224,7 +1317,6 @@ class APIServer:
 					connection_info = {
 						'domain': self.powerview.domain,
 						'username': self.powerview.conn.get_username(),
-						'sid': self.powerview.current_user_sid,
 						'is_admin': self.powerview.is_admin,
 						'status': 'OK' if self.powerview.is_connection_alive() else 'KO',
 						'protocol': self.powerview.conn.get_proto(),
@@ -1246,17 +1338,19 @@ class APIServer:
 
 	def handle_smb_sessions(self):
 		try:
-			if not hasattr(self.powerview.conn, 'smb_sessions'):
-				return jsonify({'sessions': {}}), 200
+			stats = self.powerview.conn.get_smb_session_stats()
 			
-			# Convert SMB sessions to serializable format
 			sessions = {}
-			for computer, client in self.powerview.conn.smb_sessions.items():
-				sessions[computer] = {
-					'computer': computer,
-					'connected': client.is_connected() if hasattr(client, 'is_connected') else True,
-					'authenticated': client.is_authenticated() if hasattr(client, 'is_authenticated') else True
-				}
+			if 'hosts' in stats:
+				for host, host_stats in stats['hosts'].items():
+					sessions[host] = {
+						'computer': host,
+						'connected': host_stats.get('is_alive', False),
+						'last_used': datetime.fromtimestamp(host_stats.get('last_used', 0)).strftime('%Y-%m-%d %H:%M:%S') if 'last_used' in host_stats else 'N/A',
+						'use_count': host_stats.get('use_count', 0),
+						'age': host_stats.get('age', 0),
+						'last_check': datetime.fromtimestamp(host_stats.get('last_check_time', 0)).strftime('%Y-%m-%d %H:%M:%S') if 'last_check_time' in host_stats else 'N/A'
+					}
 			
 			return jsonify({'sessions': sessions})
 		except Exception as e:
@@ -1282,10 +1376,11 @@ class APIServer:
 			if not host or not share:
 				return jsonify({'error': 'Computer and share are required'}), 400
 
-			if not hasattr(self.powerview.conn, 'smb_sessions') or host not in self.powerview.conn.smb_sessions:
+			try:
+				client = self.powerview.conn.init_smb_session(host)
+			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.powerview.conn.smb_sessions[host]
 			smb_client = SMBClient(client)
 
 			# Prepare helpers
@@ -1414,10 +1509,11 @@ class APIServer:
 			if not computer or not share:
 				return jsonify({'error': 'Missing required parameters'}), 400
 
-			if not hasattr(self.powerview.conn, 'smb_sessions') or computer not in self.powerview.conn.smb_sessions:
+			try:
+				client = self.powerview.conn.init_smb_session(computer)
+			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			client = self.powerview.conn.smb_sessions[computer]
 			smb_client = SMBClient(client)
 
 			if not path:
@@ -1466,4 +1562,302 @@ class APIServer:
 
 		except Exception as e:
 			logging.error(f"[SMB PROPERTIES] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_set_security(self):
+		try:
+			data = request.json
+			computer = data.get('computer', '').lower()
+			share = data.get('share')
+			path = data.get('path')
+			username = data.get('username')
+			mask = data.get('mask', 'fullcontrol').lower()
+			ace_type = data.get('ace_type', 'allow').lower()
+			
+			if not all([computer, share, path, username]):
+				return jsonify({'error': 'Missing required parameters. Computer, share, path, and username are required.'}), 400
+				
+			if ace_type not in ['allow', 'deny']:
+				return jsonify({'error': 'Invalid ace_type. Must be "allow" or "deny".'}), 400
+
+			if mask not in ['fullcontrol', 'modify', 'readandexecute', 'readandwrite', 'read', 'write']:
+				return jsonify({'error': 'Invalid mask. Must be "fullcontrol", "modify", "readandexecute", "readandwrite", "read", or "write".'}), 400
+
+			try:
+				client = self.powerview.conn.init_smb_session(computer)
+			except Exception as e:
+				return jsonify({'error': 'No active SMB session. Please connect first.'}), 400
+
+			if is_valid_sid(username):
+				sid = username
+			else:
+				sid = self.powerview.convertto_sid(username)
+			
+			if sid is None or not is_valid_sid(sid):
+				return jsonify({'error': f'Username {username} is not found in the domain. Use a SID instead.'}), 400
+
+			smb_client = SMBClient(client)
+			
+			try:
+				result = smb_client.set_file_security(share, path, sid, ace_type, mask)
+				if result:
+					return jsonify({'status': 'success', 'message': 'File security set successfully'}), 200
+				else:
+					return jsonify({'error': 'Failed to set file security'}), 500
+			except Exception as e:
+				return jsonify({'error': f'Failed to set file security: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB SET SECURITY] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_remove_security(self):
+		try:
+			data = request.json
+			computer = data.get('computer', '').lower()
+			share = data.get('share')
+			path = data.get('path')
+			username = data.get('username')
+			mask = data.get('mask')
+			ace_type = data.get('ace_type')
+			
+			if not all([computer, share, path, username]):
+				return jsonify({'error': 'Missing required parameters. Computer, share, path, and username are required.'}), 400
+
+			try:
+				client = self.powerview.conn.init_smb_session(computer)
+			except Exception as e:
+				return jsonify({'error': 'No active SMB session. Please connect first.'}), 400
+
+			if is_valid_sid(username):
+				sid = username
+			else:
+				sid = self.powerview.convertto_sid(username)
+			
+			if sid is None or not is_valid_sid(sid):
+				return jsonify({'error': f'Username {username} is not found in the domain. Use a SID instead.'}), 400
+
+			smb_client = SMBClient(client)
+			
+			try:
+				result = smb_client.remove_file_security(share, path, sid, mask, ace_type)
+				if result:
+					return jsonify({'status': 'success', 'message': 'ACE removed successfully'}), 200
+				else:
+					return jsonify({'error': 'No matching ACEs found to remove'}), 404
+			except Exception as e:
+				return jsonify({'error': f'Failed to remove ACE: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB REMOVE SECURITY] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_set_share_security(self):
+		try:
+			data = request.json
+			computer = data.get('computer', '').lower()
+			share = data.get('share')
+			username = data.get('username')
+			mask = data.get('mask', 'fullcontrol').lower()
+			ace_type = data.get('ace_type', 'allow').lower()
+			
+			if not all([computer, share, username]):
+				return jsonify({'error': 'Missing required parameters. Computer, share, and username are required.'}), 400
+				
+			if ace_type not in ['allow', 'deny']:
+				return jsonify({'error': 'Invalid ace_type. Must be "allow" or "deny".'}), 400
+
+			if mask not in ['fullcontrol', 'modify', 'readandexecute', 'readandwrite', 'read', 'write']:
+				return jsonify({'error': 'Invalid mask. Must be "fullcontrol", "modify", "readandexecute", "readandwrite", "read", or "write".'}), 400
+
+			try:
+				client = self.powerview.conn.init_smb_session(computer)
+			except Exception as e:
+				return jsonify({'error': 'No active SMB session. Please connect first.'}), 400
+
+			if is_valid_sid(username):
+				sid = username
+			else:
+				sid = self.powerview.convertto_sid(username)
+			
+			if sid is None or not is_valid_sid(sid):
+				return jsonify({'error': f'Username {username} is not found in the domain. Use a SID instead.'}), 400
+
+			smb_client = SMBClient(client)
+			
+			try:
+				result = smb_client.set_share_security(share, sid, mask, ace_type)
+				if result:
+					permission_name = mask.title().replace('and', ' & ')
+					action = 'granted' if ace_type == 'allow' else 'denied'
+					return jsonify({
+						'status': 'success', 
+						'message': f'{permission_name} permission {action} for {username} on share {share}'
+					}), 200
+				else:
+					return jsonify({'error': 'Failed to set share security'}), 500
+			except Exception as e:
+				return jsonify({'error': f'Failed to set share security: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB SET SHARE SECURITY] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_smb_remove_share_security(self):
+		try:
+			data = request.json
+			computer = data.get('computer', '').lower()
+			share = data.get('share')
+			username = data.get('username')
+			mask = data.get('mask')
+			ace_type = data.get('ace_type')
+			
+			if not all([computer, share, username]):
+				return jsonify({'error': 'Missing required parameters. Computer, share, and username are required.'}), 400
+
+			try:
+				client = self.powerview.conn.init_smb_session(computer)
+			except Exception as e:
+				return jsonify({'error': 'No active SMB session. Please connect first.'}), 400
+
+			if is_valid_sid(username):
+				sid = username
+			else:
+				sid = self.powerview.convertto_sid(username)
+			
+			if sid is None or not is_valid_sid(sid):
+				return jsonify({'error': f'Username {username} is not found in the domain. Use a SID instead.'}), 400
+
+			smb_client = SMBClient(client)
+			
+			try:
+				result = smb_client.remove_share_security(share, sid, mask, ace_type)
+				if result:
+					return jsonify({'status': 'success', 'message': 'Share security removed successfully'}), 200
+				else:
+					return jsonify({'error': 'No matching ACEs found to remove'}), 404
+			except Exception as e:
+				return jsonify({'error': f'Failed to remove share security: {str(e)}'}), 500
+
+		except Exception as e:
+			logging.error(f"[SMB REMOVE SHARE SECURITY] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_computer_restart(self):
+		try:
+			data = request.json or {}
+			computer_input = data.get('computer')
+			if not computer_input:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+			username = data.get('username')
+			password = data.get('password')
+			domain = data.get('domain')
+			lmhash = data.get('lmhash')
+			nthash = data.get('nthash')
+			if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\', 1)
+			if username and not (password or lmhash or nthash):
+				return jsonify({'error': 'Password or hash is required when specifying a username'}), 400
+			resolved_host = self.powerview._resolve_host(computer_input)
+			if resolved_host is None:
+				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
+			host = resolved_host
+			smbConn = self.powerview.conn.init_smb_session(
+				host,
+				username=username,
+				password=password,
+				domain=domain,
+				lmhash=lmhash,
+				nthash=nthash,
+				show_exceptions=False
+			)
+			if not smbConn:
+				return jsonify({'error': f'Failed to connect to {host}'}), 400
+			ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
+			success = ts.do_shutdown(logoff=True, shutdown=False, reboot=True, poweroff=False)
+			if success:
+				return jsonify({'status': 'OK', 'message': f'Restart signal sent to {host}'}), 200
+			return jsonify({'error': f'Failed to restart {host}'}), 500
+		except Exception as e:
+			logging.error(f"[RESTART COMPUTER] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_computer_shutdown(self):
+		try:
+			data = request.json or {}
+			computer_input = data.get('computer')
+			if not computer_input:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+			username = data.get('username')
+			password = data.get('password')
+			domain = data.get('domain')
+			lmhash = data.get('lmhash')
+			nthash = data.get('nthash')
+			if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\', 1)
+			if username and not (password or lmhash or nthash):
+				return jsonify({'error': 'Password or hash is required when specifying a username'}), 400
+			resolved_host = self.powerview._resolve_host(computer_input)
+			if resolved_host is None:
+				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
+			host = resolved_host
+			smbConn = self.powerview.conn.init_smb_session(
+				host,
+				username=username,
+				password=password,
+				domain=domain,
+				lmhash=lmhash,
+				nthash=nthash,
+				show_exceptions=False
+			)
+			if not smbConn:
+				return jsonify({'error': f'Failed to connect to {host}'}), 400
+			ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
+			success = ts.do_shutdown(logoff=True, shutdown=True, reboot=False, poweroff=False)
+			if success:
+				return jsonify({'status': 'OK', 'message': f'Shutdown signal sent to {host}'}), 200
+			return jsonify({'error': f'Failed to shutdown {host}'}), 500
+		except Exception as e:
+			logging.error(f"[SHUTDOWN COMPUTER] Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
+	def handle_computer_tasklist(self):
+		try:
+			data = request.json or {}
+			computer_input = data.get('computer')
+			if not computer_input:
+				return jsonify({'error': 'Computer name/IP is required'}), 400
+			username = data.get('username')
+			password = data.get('password')
+			domain = data.get('domain')
+			lmhash = data.get('lmhash')
+			nthash = data.get('nthash')
+			pid = data.get('pid')
+			name = data.get('name')
+			if isinstance(pid, str) and pid.isdigit():
+				pid = int(pid)
+			if username and ('/' in username or '\\' in username):
+				domain, username = username.replace('/', '\\').split('\\', 1)
+			if username and not (password or lmhash or nthash):
+				return jsonify({'error': 'Password or hash is required when specifying a username'}), 400
+			resolved_host = self.powerview._resolve_host(computer_input)
+			if resolved_host is None:
+				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
+			host = resolved_host
+			smbConn = self.powerview.conn.init_smb_session(
+				host,
+				username=username,
+				password=password,
+				domain=domain,
+				lmhash=lmhash,
+				nthash=nthash,
+				show_exceptions=False
+			)
+			if not smbConn:
+				return jsonify({'error': f'Failed to connect to {host}'}), 400
+			ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
+			result = ts.do_tasklist(pid=pid, name=name)
+			return jsonify(make_serializable(result))
+		except Exception as e:
+			logging.error(f"[TASKLIST COMPUTER] Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500

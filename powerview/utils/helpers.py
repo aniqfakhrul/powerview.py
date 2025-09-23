@@ -20,6 +20,9 @@ import configparser
 import validators
 import random
 import locale
+import string
+import socket
+import time
 
 from impacket.dcerpc.v5 import transport, wkst, srvs, samr, scmr, drsuapi, epm
 from impacket.smbconnection import SMBConnection
@@ -29,8 +32,9 @@ from impacket.examples.utils import parse_credentials, parse_target
 from impacket.krb5 import constants
 from impacket.krb5.types import Principal
 from impacket.krb5.kerberosv5 import getKerberosTGT
+from impacket.ldap.ldaptypes import LDAP_SID
 
-from powerview.utils.constants import WINDOWS_VERSION_MAP, LCID_TO_LOCALE
+from powerview.utils.constants import WINDOWS_VERSION_MAP, LCID_TO_LOCALE, KNOWN_HOSTNAME
 from powerview.lib.dns import (
 	STORED_ADDR
 )
@@ -50,6 +54,42 @@ def get_random_hex(length):
 
 def get_random_num(minimum,maximum):
 	return random.randint(minimum,maximum)
+
+def get_random_name(service_account=False):
+	if service_account:
+		service_prefixes = ['svc', 'service', 'app', 'web', 'db', 'sql', 'iis', 'exchange', 'backup', 'monitor', 'admin', 'system', 'proxy', 'mail', 'file', 'print', 'scan', 'report', 'sync', 'api']
+		service_suffixes = ['svc', 'service', 'account', 'user', 'app', 'proc', 'daemon', 'worker', 'agent', 'mgr', 'admin', 'sa', 'usr', 'acct']
+		service_names = ['exchange', 'sharepoint', 'sqlserver', 'iisapppool', 'backup', 'monitoring', 'antivirus', 'scanner', 'printer', 'fileserver', 'webserver', 'database', 'application', 'service', 'system', 'network', 'security', 'admin', 'manager', 'operator']
+		
+		name_type = random.choice(['prefix_suffix', 'name_suffix', 'simple_name'])
+		
+		if name_type == 'prefix_suffix':
+			prefix = random.choice(service_prefixes)
+			suffix = random.choice(service_suffixes)
+			return f"{prefix}_{suffix}"
+		elif name_type == 'name_suffix':
+			name = random.choice(service_names)
+			suffix = random.choice(service_suffixes)
+			return f"{name}_{suffix}"
+		else:
+			return random.choice(service_names)
+	else:
+		first_names = ['john', 'jane', 'michael', 'sarah', 'david', 'lisa', 'robert', 'jennifer', 'william', 'jessica', 'james', 'ashley', 'christopher', 'amanda', 'daniel', 'melissa', 'matthew', 'michelle', 'anthony', 'kimberly', 'mark', 'amy', 'donald', 'angela', 'steven', 'helen', 'paul', 'deborah', 'andrew', 'rachel', 'joshua', 'carolyn', 'kenneth', 'janet', 'kevin', 'catherine', 'brian', 'frances', 'george', 'christine', 'edward', 'samantha', 'ronald', 'debra', 'timothy', 'jason', 'jeffrey']
+		last_names = ['smith', 'johnson', 'williams', 'brown', 'jones', 'garcia', 'miller', 'davis', 'rodriguez', 'martinez', 'hernandez', 'lopez', 'gonzalez', 'wilson', 'anderson', 'thomas', 'taylor', 'moore', 'jackson', 'martin', 'lee', 'perez', 'thompson', 'white', 'harris', 'sanchez', 'clark', 'ramirez', 'lewis', 'robinson', 'walker', 'young', 'allen', 'king', 'wright', 'scott', 'torres', 'nguyen', 'hill', 'flores', 'green', 'adams', 'nelson', 'baker', 'hall', 'rivera', 'campbell', 'mitchell', 'carter', 'roberts']
+		
+		name_type = random.choice(['first_only', 'first_last', 'first_last_num'])
+		
+		if name_type == 'first_only':
+			return random.choice(first_names)
+		elif name_type == 'first_last':
+			first = random.choice(first_names)
+			last = random.choice(last_names)
+			return f"{first}.{last}"
+		else:
+			first = random.choice(first_names)
+			last = random.choice(last_names)
+			num = random.randint(1, 999)
+			return f"{first}.{last}{num}"
 
 def dn2rootdn(value):
 	return ','.join(re.findall(r"(DC=[\w-]+)", value))
@@ -263,6 +303,43 @@ def is_valid_dn(dn):
 
 	return bool(dn_pattern.match(dn))
 
+def is_valid_sid(sid_string):
+	"""
+	Validates if a string is a properly formatted Windows SID.
+
+	Args:
+		sid_string (str): The SID string to validate
+		
+	Returns:
+		bool: True if the SID is valid, False otherwise
+	"""
+	if not isinstance(sid_string, str):
+		return False
+		
+	basic_pattern = r'^S-1-\d+(-\d+)+$'
+	domain_pattern = r'^S-1-5-21-\d+-\d+-\d+(-\d+)?$'
+	builtin_pattern = r'^S-1-5-32-\d+$'
+	simple_pattern = r'^S-1-[0-9](-[0-9]+)?$'
+	
+	if (re.match(basic_pattern, sid_string) or 
+		re.match(domain_pattern, sid_string) or 
+		re.match(builtin_pattern, sid_string) or
+		re.match(simple_pattern, sid_string)):
+		
+		try:
+			components = sid_string.split('-')
+			if len(components) < 3:
+				return False
+				
+			for component in components[1:]:
+				int(component)
+				
+			return True
+		except ValueError:
+			return False
+	
+	return False
+
 def ini_to_dict(obj):
 	d = {}
 	try:
@@ -274,7 +351,7 @@ def ini_to_dict(obj):
 		return None
 	for k in t['dummy_section'].keys():
 		d['attribute'] = k
-		if re.search(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$', t.get('dummy_section', k)):
+		if is_dn(t.get('dummy_section', k)):
 			d['value'] = t.get('dummy_section', k)
 		else:
 			d['value'] = [i.strip() for i in t.get('dummy_section', k).split(",")]
@@ -354,6 +431,10 @@ def is_ipaddress(address):
 	except ValueError:
 		return False
 
+def is_dn(dn):
+	dn_pattern = re.compile(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$')
+	return bool(dn_pattern.match(dn))
+
 def is_proxychains():
 	"""
 	Check if current process is running under proxychains
@@ -375,7 +456,21 @@ def is_proxychains():
 	
 	return False
 
-def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_ns=True):
+def sid_string_to_bytes(sid_string):
+	"""
+	Convert a string representation of a SID to a bytes object.
+	
+	Args:
+		sid_string (str): The string representation of the SID
+	
+	Returns:
+		bytes: The bytes object representing the SID
+	"""
+	sid_obj = LDAP_SID()
+	sid_obj.fromCanonical(sid_string)
+	return sid_obj.getData()
+
+def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_ns=True, resolve_ip=True):
 	domain = str(domain)
 	if domain in list(STORED_ADDR.keys()):
 		return STORED_ADDR[domain]
@@ -406,7 +501,10 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
 		for r in q:
 			dc = str(r.target).removesuffix('.')
 		# Resolve IP for principal DC with same DNS settings
-		answer = host2ip(dc, nameserver, 3, dns_tcp, use_system_ns)
+		if resolve_ip:
+			answer = host2ip(dc, nameserver, 3, dns_tcp, use_system_ns)
+		else:
+			answer = dc
 		return answer
 	except resolver.NXDOMAIN as e:
 		logging.debug(str(e))
@@ -440,7 +538,8 @@ def get_principal_dc_address(domain, nameserver=None, dns_tcp=True, use_system_n
 	# If resolution fails, try direct domain resolution
 	logging.debug(f"DC resolution failed, attempting direct domain resolution")
 	answer = host2ip(domain, nameserver, 3, dns_tcp, use_system_ns)
-	
+	if not answer:
+		raise resolver.NXDOMAIN(f"Failed to resolve DC address for domain {domain}")
 	return answer
 
 def resolve_domain(domain, nameserver):
@@ -514,24 +613,17 @@ def get_system_nameserver():
 	return resolver.get_default_resolver().nameservers[0]
 
 def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_ns=True, type=str, no_prompt=False):
-	"""
-	Resolve hostname to IP address with flexible resolution options.
-	
-	Parameters:
-		hostname: The hostname to resolve
-		nameserver: Optional specific DNS server to use
-		dns_timeout: Timeout for DNS queries in seconds
-		dns_tcp: Whether to use TCP for DNS queries
-		use_system_ns: Whether to use system nameservers if no nameserver provided
-		type: Return type (str for single IP, list for multiple IPs)
-		no_prompt: If True, automatically select first IP without prompting
-	"""
 	if is_ipaddress(hostname):
 		return hostname
 
-	hostname = str(hostname)
+	hostname = str(hostname).lower()
+
 	if hostname in list(STORED_ADDR.keys()):
 		return STORED_ADDR[hostname]
+
+	if hostname in list(KNOWN_HOSTNAME.keys()):
+		logging.debug(f"Using cached IP for {hostname}: {KNOWN_HOSTNAME[hostname]}")
+		return KNOWN_HOSTNAME[hostname]
 
 	dnsresolver = None
 	if use_system_ns:
@@ -556,11 +648,12 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 
 		if len(addr) == 1:
 			STORED_ADDR[hostname] = addr[0]
+			KNOWN_HOSTNAME[hostname] = addr[0]
 			ip = addr[0] 
 		elif len(addr) > 1 and type == str:
 			if no_prompt:
 				logging.debug(f"Multiple IPs found. Selecting first IP for {hostname}: {addr[0]}")
-				ip = addr[0] # Automatically select first IP without prompting
+				ip = addr[0]
 			else:
 				c_key = 0
 				logging.info('We have more than one ip. Please choose one that is reachable')
@@ -576,8 +669,10 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 					except Exception:
 						pass
 				ip = addr[c_key]
+			KNOWN_HOSTNAME[hostname] = ip
 		elif len(addr) > 1 and type == list:
 			logging.debug(f"Multiple IPs found for {hostname}: {', '.join(addr)}")
+			KNOWN_HOSTNAME[hostname] = addr[0]
 			return addr
 		else:
 			logging.error(f"No address records found for {hostname}")
@@ -944,3 +1039,26 @@ def parse_username(username):
 		username, domain = username.split('@', 1)
 
 	return {'domain': domain, 'username': username}
+
+def check_tcp_port(host, port, timeout=3, retries=0, retry_delay=0.2):
+	"""
+	Lightweight TCP port check with timeout and optional retries.
+	Returns True if connect succeeds, False otherwise.
+	"""
+	attempts = retries + 1
+	for i in range(attempts):
+		try:
+			with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+				sock.settimeout(timeout)
+				result = sock.connect_ex((host, int(port)))
+				if result == 0:
+					return True
+		except Exception as e:
+			logging.debug(f"[check_tcp_port] attempt {i+1}/{attempts} to {host}:{port} failed: {e}")
+		finally:
+			if i < attempts - 1 and retry_delay > 0:
+				try:
+					time.sleep(retry_delay)
+				except Exception:
+					pass
+	return False

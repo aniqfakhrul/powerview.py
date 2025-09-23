@@ -1,10 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
     const activeFilters = new Set();
-    const defaultProperties = ['dnsHostName', 'operatingSystem', 'description'];
+    const defaultProperties = ['sAMAccountName', 'dnsHostName', 'operatingSystem'];
     let identityToDelete = null;
     let rowToDelete = null;
     let allOUs = [];
     let searchBaseDropdownVisible = false;
+    let currentComputers = [];
+    let currentColumns = [];
+    let sortState = { key: null, asc: true };
 
     initializePropertyFilter(defaultProperties);
     initializeQueryTemplates();
@@ -17,8 +20,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedFilters = document.getElementById('selected-filters');
         const searchButton = document.getElementById('computer-search-button');
 
+        function updateDropdownSelections() {
+            dropdownMenu.querySelectorAll('button').forEach(btn => {
+                const key = btn.dataset.filter;
+                if (activeFilters.has(key)) {
+                    btn.classList.add('bg-neutral-100', 'dark:bg-neutral-700');
+                } else {
+                    btn.classList.remove('bg-neutral-100', 'dark:bg-neutral-700');
+                }
+            });
+        }
+
         dropdownButton.addEventListener('click', () => {
             dropdownMenu.classList.toggle('hidden');
+            if (!dropdownMenu.classList.contains('hidden')) {
+                updateDropdownSelections();
+            }
         });
 
         document.addEventListener('click', (event) => {
@@ -28,13 +45,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         dropdownMenu.querySelectorAll('button').forEach(button => {
-            button.addEventListener('click', () => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
                 const filter = button.dataset.filter;
-                if (!activeFilters.has(filter)) {
+                if (activeFilters.has(filter)) {
+                    activeFilters.delete(filter);
+                } else {
                     activeFilters.add(filter);
-                    renderActiveFilters();
                 }
-                dropdownMenu.classList.add('hidden');
+                updateDropdownSelections();
             });
         });
 
@@ -127,20 +146,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function filterComputers() {
         const searchInput = document.getElementById('computer-search').value.toLowerCase();
-        const rows = document.querySelectorAll('tbody tr');
-
+        const rows = document.querySelectorAll('#computers-result-table tbody tr');
         rows.forEach(row => {
-            const name = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
-            const samAccountName = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-            const operatingSystem = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
-
-            if (name.includes(searchInput) || 
-                samAccountName.includes(searchInput) || 
-                operatingSystem.includes(searchInput)) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
+            if (row.id === 'initial-state' || row.id === 'loading-placeholder' || row.id === 'empty-placeholder') return;
+            const cells = Array.from(row.querySelectorAll('td'));
+            if (cells.length === 0) return;
+            const text = cells.slice(0, -1).map(td => td.innerText.toLowerCase()).join(' ');
+            row.style.display = text.includes(searchInput) ? '' : 'none';
         });
     }
 
@@ -153,183 +165,289 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function populateComputersTable(computers) {
+    function normalizeKey(key) {
+        return (key || '').toLowerCase();
+    }
+
+    function getValueFromSources(attributes, sources) {
+        if (!attributes) return undefined;
+        for (const src of sources) {
+            const k = Object.keys(attributes).find(x => normalizeKey(x) === normalizeKey(src));
+            if (k && attributes[k] !== undefined && attributes[k] !== null && attributes[k] !== '') return attributes[k];
+        }
+        return undefined;
+    }
+
+    function titleize(key) {
+        return key || '';
+    }
+
+    function buildColumnsFromData(computers) {
+        const normMap = new Map();
+        computers.forEach(c => {
+            Object.keys(c.attributes || {}).forEach(k => {
+                const nk = normalizeKey(k);
+                if (!normMap.has(nk)) normMap.set(nk, new Set());
+                normMap.get(nk).add(k);
+            });
+        });
+        const cols = Array.from(normMap.entries()).map(([nk, set]) => {
+            const originals = Array.from(set);
+            const displayKey = originals[0];
+            return { key: displayKey, label: titleize(displayKey), sources: originals };
+        });
+        cols.sort((a, b) => a.label.localeCompare(b.label));
+        return cols;
+    }
+
+    function renderTableHeader(columns) {
         const table = document.getElementById('computers-result-table');
         const thead = table.querySelector('thead');
+        thead.innerHTML = '';
+        const headerRow = document.createElement('tr');
+        columns.forEach(col => {
+            const th = document.createElement('th');
+            th.scope = 'col';
+            th.className = 'p-1 select-none cursor-pointer';
+            th.dataset.key = col.key;
+            const labelSpan = document.createElement('span');
+            labelSpan.textContent = col.label;
+            th.appendChild(labelSpan);
+            th.addEventListener('click', () => {
+                if (sortState.key === col.key) {
+                    sortState.asc = !sortState.asc;
+                } else {
+                    sortState.key = col.key;
+                    sortState.asc = true;
+                }
+                renderRows(currentComputers);
+            });
+            headerRow.appendChild(th);
+        });
+        const actionTh = document.createElement('th');
+        actionTh.scope = 'col';
+        actionTh.className = 'p-1';
+        actionTh.textContent = 'Action';
+        headerRow.appendChild(actionTh);
+        thead.appendChild(headerRow);
+    }
+
+    function compareValues(a, b, key) {
+        const parseIp = (s) => {
+            const m = /^\s*(\d+)\.(\d+)\.(\d+)\.(\d+)\s*$/.exec(s || '');
+            if (!m) return null;
+            return (parseInt(m[1])<<24) + (parseInt(m[2])<<16) + (parseInt(m[3])<<8) + parseInt(m[4]);
+        };
+        const va = a ?? '';
+        const vb = b ?? '';
+        if (normalizeKey(key) === 'ipaddress') {
+            const ia = Array.isArray(va) ? parseIp(va[0]) : parseIp(va);
+            const ib = Array.isArray(vb) ? parseIp(vb[0]) : parseIp(vb);
+            if (ia !== null && ib !== null) return ia - ib;
+        }
+        const sa = Array.isArray(va) ? va.join(' ') : String(va).toLowerCase();
+        const sb = Array.isArray(vb) ? vb.join(' ') : String(vb).toLowerCase();
+        return sa.localeCompare(sb);
+    }
+
+    function renderRows(data) {
+        const table = document.getElementById('computers-result-table');
         const tbody = table.querySelector('tbody');
         tbody.innerHTML = '';
-
         const counter = document.getElementById('computers-counter');
-        counter.textContent = `Total Computers: ${computers.length}`;
-
-        if (computers.length > 0) {
-            exportButton.classList.remove('hidden');
-            // Get all unique attribute keys from all computers and normalize them
-            const attributeKeys = [...new Set(
-                computers.flatMap(computer => 
-                    Object.keys(computer.attributes || {}).map(key => key.toLowerCase())
-                )
-            )];
-
-            // Create table headers
-            thead.innerHTML = '';
-            const headerRow = document.createElement('tr');
-            attributeKeys.forEach(key => {
-                const th = document.createElement('th');
-                th.scope = 'col';
-                th.className = 'p-1';
-                // Capitalize first letter of each word for display
-                th.textContent = key.split(/(?=[A-Z])/).join(' ').replace(/^\w/, c => c.toUpperCase());
-                headerRow.appendChild(th);
-            });
-
-            // Add Action column header
-            const actionTh = document.createElement('th');
-            actionTh.scope = 'col';
-            actionTh.className = 'p-1';
-            actionTh.textContent = 'Action';
-            headerRow.appendChild(actionTh);
-            thead.appendChild(headerRow);
-
-            // Populate table rows
-            computers.forEach(computer => {
-                const tr = document.createElement('tr');
-                tr.classList.add('dark:hover:bg-white/5', 'dark:hover:text-white', 'cursor-pointer');
-                tr.dataset.identity = computer.dn;
-
-                tr.addEventListener('click', (event) => {
-                    if (event.target.closest('button')) return;
-                    handleLdapLinkClick(event, computer.dn);
-                });
-
-                // Create cells for each attribute
-                attributeKeys.forEach(key => {
-                    const td = document.createElement('td');
-                    td.className = 'p-1 whitespace-nowrap relative group';
-                    
-                    const wrapper = document.createElement('div');
-                    wrapper.className = 'flex items-center gap-2';
-                    
-                    const textSpan = document.createElement('span');
-                    // Find the actual key in the attributes object (case-insensitive)
-                    const actualKey = Object.keys(computer.attributes || {})
-                        .find(k => k.toLowerCase() === key);
-                    const value = actualKey ? computer.attributes[actualKey] : null;
-                    
-                    // Handle different value types
-                    if (Array.isArray(value)) {
-                        if (value.length === 0) {
-                            textSpan.textContent = '';
-                        } else {
-                            textSpan.innerHTML = value.join('<br>');
-                        }
-                    } else if (value === undefined || value === null) {
-                        textSpan.textContent = '';
-                    } else {
-                        textSpan.textContent = value;
-                    }
-
-                    const copyButton = document.createElement('button');
-                    copyButton.className = 'opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800';
-                    copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
-                    copyButton.title = 'Copy to clipboard';
-                    
-                    copyButton.addEventListener('click', async (event) => {
-                        event.stopPropagation();
-                        const textToCopy = Array.isArray(value) ? value.join('\n') : (value || '');
-                        
-                        try {
-                            if (navigator.clipboard && window.isSecureContext) {
-                                await navigator.clipboard.writeText(textToCopy);
-                            } else {
-                                const textArea = document.createElement('textarea');
-                                textArea.value = textToCopy;
-                                textArea.style.position = 'fixed';
-                                textArea.style.left = '-999999px';
-                                textArea.style.top = '-999999px';
-                                document.body.appendChild(textArea);
-                                textArea.focus();
-                                textArea.select();
-                                
-                                try {
-                                    document.execCommand('copy');
-                                    textArea.remove();
-                                } catch (err) {
-                                    console.error('Fallback: Oops, unable to copy', err);
-                                    textArea.remove();
-                                    throw new Error('Copy failed');
-                                }
-                            }
-                            
-                            copyButton.innerHTML = '<i class="fas fa-check fa-xs"></i>';
-                            setTimeout(() => {
-                                copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
-                            }, 1000);
-                        } catch (err) {
-                            console.error('Failed to copy text: ', err);
-                            showErrorAlert('Failed to copy to clipboard');
-                        }
-                    });
-                    
-                    wrapper.appendChild(textSpan);
-                    wrapper.appendChild(copyButton);
-                    td.appendChild(wrapper);
-                    tr.appendChild(td);
-                });
-
-                // Add action column
-                const actionTd = document.createElement('td');
-                actionTd.className = 'p-1 whitespace-nowrap';
-
-                // Add Change Owner button
-                const changeOwnerButton = document.createElement('button');
-                changeOwnerButton.className = 'text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400 p-1 rounded-md hover:bg-green-50 dark:hover:bg-green-950/50 transition-colors mr-2';
-                changeOwnerButton.innerHTML = '<i class="fas fa-user-shield"></i>';
-                changeOwnerButton.title = 'Change Owner';
-                changeOwnerButton.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    showChangeOwnerModal(computer.dn);
-                });
-                actionTd.appendChild(changeOwnerButton);
-
-                // Existing delete button
-                const deleteButton = document.createElement('button');
-                deleteButton.className = 'text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors';
-                deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
-                deleteButton.title = 'Delete Computer';
-                deleteButton.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    showDeleteModal(computer.dn, tr);
-                });
-                actionTd.appendChild(deleteButton);
-
-                // Add Connect to SMB button
-                const connectSmbButton = document.createElement('button');
-                connectSmbButton.className = 'text-blue-600 hover:text-blue-700 dark:text-blue-500 dark:hover:text-blue-400 p-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors ml-2';
-                connectSmbButton.innerHTML = '<i class="fas fa-share-nodes"></i>';
-                connectSmbButton.title = 'Connect to SMB';
-                connectSmbButton.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    const computerHostname = computer.attributes.dNSHostName || computer.attributes.sAMAccountName?.replace('$','');
-                    if (computerHostname) {
-                        window.location.href = `/smb?computer=${encodeURIComponent(computerHostname)}`;
-                    } else {
-                        showErrorAlert('Computer hostname not found for SMB connection.');
-                    }
-                });
-                actionTd.appendChild(connectSmbButton);
-
-                tr.appendChild(actionTd);
-                tbody.appendChild(tr);
-            });
-        } else {
+        counter.textContent = `Total Computers: ${data.length}`;
+        if (data.length === 0) {
             exportButton.classList.add('hidden');
             tbody.innerHTML = `
                 <tr id="empty-placeholder">
                     <td colspan="100%" class="text-center py-4">No computers found</td>
                 </tr>
             `;
+            return;
         }
+        exportButton.classList.remove('hidden');
+        let rows = [...data];
+        if (sortState.key) {
+            const col = currentColumns.find(c => c.key === sortState.key) || null;
+            if (col) {
+                rows.sort((ra, rb) => {
+                    const va = getValueFromSources(ra.attributes, col.sources);
+                    const vb = getValueFromSources(rb.attributes, col.sources);
+                    const cmp = compareValues(va, vb, col.key);
+                    return sortState.asc ? cmp : -cmp;
+                });
+            }
+        }
+        rows.forEach(computer => {
+            const tr = document.createElement('tr');
+            tr.classList.add('dark:hover:bg-white/5', 'dark:hover:text-white', 'cursor-pointer');
+            tr.dataset.identity = computer.dn;
+            tr.addEventListener('click', (event) => {
+                if (event.target.closest('button')) return;
+                handleLdapLinkClick(event, computer.dn);
+            });
+            currentColumns.forEach(col => {
+                const td = document.createElement('td');
+                td.className = 'p-1 whitespace-nowrap relative group align-top';
+                const wrapper = document.createElement('div');
+                wrapper.className = 'flex items-start gap-2';
+                const textSpan = document.createElement('span');
+                const value = getValueFromSources(computer.attributes || {}, col.sources);
+                if (Array.isArray(value)) {
+                    if (value.length === 0) {
+                        textSpan.textContent = '';
+                    } else {
+                        textSpan.innerHTML = value.join('<br>');
+                    }
+                } else if (value === undefined || value === null) {
+                    textSpan.textContent = '';
+                } else {
+                    textSpan.textContent = value;
+                }
+                const copyButton = document.createElement('button');
+                copyButton.className = 'opacity-0 group-hover:opacity-100 text-neutral-400 hover:text-neutral-600 dark:text-neutral-500 dark:hover:text-neutral-300 transition-opacity p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800';
+                copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>';
+                copyButton.title = 'Copy to clipboard';
+                copyButton.addEventListener('click', async (event) => {
+                    event.stopPropagation();
+                    const textToCopy = Array.isArray(value) ? value.join('\n') : (value || '');
+                    try {
+                        if (navigator.clipboard && window.isSecureContext) {
+                            await navigator.clipboard.writeText(textToCopy);
+                        } else {
+                            const textArea = document.createElement('textarea');
+                            textArea.value = textToCopy;
+                            textArea.style.position = 'fixed';
+                            textArea.style.left = '-999999px';
+                            textArea.style.top = '-999999px';
+                            document.body.appendChild(textArea);
+                            textArea.focus();
+                            textArea.select();
+                            try {
+                                document.execCommand('copy');
+                                textArea.remove();
+                            } catch (err) {
+                                textArea.remove();
+                                throw new Error('Copy failed');
+                            }
+                        }
+                        copyButton.innerHTML = '<i class="fas fa-check fa-xs"></i>';
+                        setTimeout(() => { copyButton.innerHTML = '<i class="fas fa-copy fa-xs"></i>'; }, 1000);
+                    } catch (err) {
+                        showErrorAlert('Failed to copy to clipboard');
+                    }
+                });
+                wrapper.appendChild(textSpan);
+                wrapper.appendChild(copyButton);
+                td.appendChild(wrapper);
+                tr.appendChild(td);
+            });
+            const actionTd = document.createElement('td');
+            actionTd.className = 'p-1 whitespace-nowrap align-top';
+            const changeOwnerButton = document.createElement('button');
+            changeOwnerButton.className = 'text-green-600 hover:text-green-700 dark:text-green-500 dark:hover:text-green-400 p-1 rounded-md hover:bg-green-50 dark:hover:bg-green-950/50 transition-colors mr-2';
+            changeOwnerButton.innerHTML = '<i class="fas fa-user-shield"></i>';
+            changeOwnerButton.title = 'Change Owner';
+            changeOwnerButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                showChangeOwnerModal(computer.dn);
+            });
+            actionTd.appendChild(changeOwnerButton);
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors';
+            deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
+            deleteButton.title = 'Delete Computer';
+            deleteButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                showDeleteModal(computer.dn, tr);
+            });
+            actionTd.appendChild(deleteButton);
+            const connectSmbButton = document.createElement('button');
+            connectSmbButton.className = 'text-blue-600 hover:text-blue-700 dark:text-blue-500 dark:hover:text-blue-400 p-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors ml-2';
+            connectSmbButton.innerHTML = '<i class="fas fa-share-nodes"></i>';
+            connectSmbButton.title = 'Connect to SMB';
+            connectSmbButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const computerHostname = computer.attributes.dNSHostName || computer.attributes.sAMAccountName?.replace('$','');
+                if (computerHostname) {
+                    window.location.href = `/smb?computer=${encodeURIComponent(computerHostname)}`;
+                } else {
+                    showErrorAlert('Computer hostname not found for SMB connection.');
+                }
+            });
+            actionTd.appendChild(connectSmbButton);
+            const restartButton = document.createElement('button');
+            restartButton.className = 'text-yellow-600 hover:text-yellow-700 dark:text-yellow-500 dark:hover:text-yellow-400 p-1 rounded-md hover:bg-yellow-50 dark:hover:bg-yellow-950/50 transition-colors ml-2';
+            restartButton.innerHTML = '<i class="fas fa-rotate-right"></i>';
+            restartButton.title = 'Restart Computer';
+            restartButton.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                const computerHostname = computer.attributes.dNSHostName || computer.attributes.sAMAccountName?.replace('$','');
+                if (!computerHostname) {
+                    showErrorAlert('Computer hostname not found for restart.');
+                    return;
+                }
+                try {
+                    const response = await fetch('/api/computer/restart', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ computer: computerHostname })
+                    });
+                    await handleHttpError(response);
+                    const result = await response.json();
+                    if ((result && result.status === 'OK') || result === true) {
+                        showSuccessAlert(`Restart command sent to ${computerHostname}`);
+                    } else {
+                        showErrorAlert(`Failed to restart ${computerHostname}`);
+                    }
+                } catch (error) {
+                    showErrorAlert(`Failed to restart ${computerHostname}`);
+                }
+            });
+            actionTd.appendChild(restartButton);
+            const shutdownButton = document.createElement('button');
+            shutdownButton.className = 'text-orange-600 hover:text-orange-700 dark:text-orange-500 dark:hover:text-orange-400 p-1 rounded-md hover:bg-orange-50 dark:hover:bg-orange-950/50 transition-colors ml-2';
+            shutdownButton.innerHTML = '<i class="fas fa-power-off"></i>';
+            shutdownButton.title = 'Shutdown Computer';
+            shutdownButton.addEventListener('click', async (event) => {
+                event.stopPropagation();
+                const computerHostname = computer.attributes.dNSHostName || computer.attributes.sAMAccountName?.replace('$','');
+                if (!computerHostname) {
+                    showErrorAlert('Computer hostname not found for shutdown.');
+                    return;
+                }
+                try {
+                    const response = await fetch('/api/computer/shutdown', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ computer: computerHostname })
+                    });
+                    await handleHttpError(response);
+                    const result = await response.json();
+                    if ((result && result.status === 'OK') || result === true) {
+                        showSuccessAlert(`Shutdown command sent to ${computerHostname}`);
+                    } else {
+                        showErrorAlert(`Failed to shutdown ${computerHostname}`);
+                    }
+                } catch (error) {
+                    showErrorAlert(`Failed to shutdown ${computerHostname}`);
+                }
+            });
+            actionTd.appendChild(shutdownButton);
+            tr.appendChild(actionTd);
+            tbody.appendChild(tr);
+        });
+    }
+
+    function populateComputersTable(computers) {
+        const table = document.getElementById('computers-result-table');
+        const thead = table.querySelector('thead');
+        const tbody = table.querySelector('tbody');
+        tbody.innerHTML = '';
+        currentComputers = Array.isArray(computers) ? computers : [];
+        currentColumns = buildColumnsFromData(currentComputers);
+        renderTableHeader(currentColumns);
+        renderRows(currentComputers);
     }
 
     async function addComputer(computer_name, computer_pass, basedn) {
@@ -458,6 +576,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const identityFilter = document.getElementById('computer-identity')?.value.trim() || '';
         const ldapFilter = document.getElementById('custom-ldap-filter')?.value.trim() || '';
         const searchBase = document.getElementById('computer-search-base').value;
+        const includeIp = document.getElementById('computer-include-ip')?.checked === true;
         
         return {
             args: {
@@ -477,6 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 bitlocker: false,
                 gmsapassword: false,
                 pre2k: false,
+                include_ip: includeIp,
                 searchbase: searchBase,
                 ...getActiveFilters()
             }
@@ -811,3 +931,4 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+

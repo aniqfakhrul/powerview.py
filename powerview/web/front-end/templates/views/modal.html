@@ -189,9 +189,14 @@
 
             <!-- Modal header - fixed -->
             <div class="flex items-center justify-between border-b border-neutral-300 bg-neutral-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-950/20">
-                <h3 class="font-semibold tracking-wide text-neutral-900 dark:text-white">
-                    LDAP Attributes
-                </h3>
+                <div class="flex items-center gap-2 min-w-0">
+                    <h3 class="font-semibold tracking-wide text-neutral-900 dark:text-white truncate" title="Distinguished Name">
+                        LDAP Attributes
+                    </h3>
+                    <button id="modal-copy-dn" type="button" class="shrink-0 text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white" title="Copy DN">
+                        <i class="far fa-copy"></i>
+                    </button>
+                </div>
                 <button type="button" class="end-2.5 text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white" data-modal-hide="ldap-attributes-modal">
                     <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
                         <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
@@ -200,15 +205,30 @@
                 </button>
             </div>
 
+            <!-- Profile header section -->
+            <div class="flex items-center gap-4 p-4 border-b border-neutral-200 dark:border-neutral-800">
+                <div id="profile-avatar" class="shrink-0 w-14 h-14 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center text-xl font-semibold text-neutral-700 dark:text-neutral-200"></div>
+                <div class="flex-1 min-w-0">
+                    <div id="profile-name" class="text-xl font-semibold text-neutral-900 dark:text-white truncate"></div>
+                    <div class="text-sm text-neutral-600 dark:text-neutral-300 flex gap-2 truncate">
+                        <span id="profile-title"></span>
+                        <span id="profile-sep" class="hidden">•</span>
+                        <span id="profile-dept"></span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2"></div>
+            </div>
+
             <!-- Tabs -->
             <div class="flex justify-between items-center gap-2 overflow-x-auto border-b border-neutral-300 dark:border-neutral-700" role="tablist" aria-label="tab options">
                 <div class="flex gap-2">
-                    <button onclick="selectModalTab('info')" aria-selected="true" tabindex="0" 
+                    <button onclick="selectModalTab('overview')" aria-selected="true" tabindex="0" 
                         class="h-min px-4 py-2 text-sm font-bold text-black border-b-2 border-black dark:border-yellow-500 dark:text-yellow-500" 
-                        type="button" role="tab" aria-controls="tabpanelInfo">Info</button>
-                    <button onclick="selectModalTab('descendants')" aria-selected="false" tabindex="-1" 
+                        type="button" role="tab" aria-controls="tabpanelOverview">Overview</button>
+                    
+                    <button onclick="selectModalTab('attributes')" aria-selected="false" tabindex="-1" 
                         class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
-                        type="button" role="tab" aria-controls="tabpanelDescendants">Descendants</button>
+                        type="button" role="tab" aria-controls="tabpanelAttributes">Attributes</button>
                     <button onclick="selectModalTab('dacl')" aria-selected="false" tabindex="-1" 
                         class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
                         type="button" role="tab" aria-controls="tabpanelDacl">DACL</button>
@@ -220,6 +240,10 @@
                         class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
                         type="button" role="tab" aria-controls="tabpanelSessions"
                         style="display: none;">Sessions</button>
+                    <button onclick="selectModalTab('tasklist')" aria-selected="false" tabindex="-1" 
+                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
+                        type="button" role="tab" aria-controls="tabpanelTasklist"
+                        style="display: none;">Tasklist</button>
                     <button onclick="selectModalTab('loggedon')" aria-selected="false" tabindex="-1" 
                         class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
                         type="button" role="tab" aria-controls="tabpanelLoggedon"
@@ -228,10 +252,6 @@
                         class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
                         type="button" role="tab" aria-controls="tabpanelMemberof"
                         style="display: none;">Member Of</button>
-                    <button onclick="selectModalTab('shares')" aria-selected="false" tabindex="-1" 
-                        class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
-                        type="button" role="tab" aria-controls="tabpanelShares"
-                        style="display: none;">Shares</button>
                     <button onclick="selectModalTab('owner')" aria-selected="false" tabindex="-1" 
                         class="h-min px-4 py-2 text-sm text-neutral-600 font-medium dark:text-neutral-300 dark:hover:border-b-neutral-300 dark:hover:text-white hover:border-b-2 hover:border-b-neutral-800 hover:text-neutral-900" 
                         type="button" role="tab" aria-controls="tabpanelOwner">Owner</button>
@@ -261,8 +281,13 @@
                         <span class="!absolute !-m-px !h-px !w-px !overflow-hidden !whitespace-nowrap !border-0 !p-0 ![clip:rect(0,0,0,0)]">Loading...</span>
                     </div>
                 </div>
-                <!-- Info Tab -->
-                <div id="tabpanelInfo" role="tabpanel" aria-label="info" class="p-4" style="display: block;">
+                <!-- Overview Tab -->
+                <div id="tabpanelOverview" role="tabpanel" aria-label="overview" class="p-4" style="display: block;">
+                    <div id="overview-content" class="space-y-4"></div>
+                </div>
+
+                <!-- Attributes Tab -->
+                <div id="tabpanelAttributes" role="tabpanel" aria-label="attributes" class="p-4" style="display: none;">
                     <form id="ldap-attributes-form" class="space-y-4">
                         <!-- Existing Attributes Section -->
                         <div id="existing-attributes" class="space-y-4">
@@ -370,11 +395,27 @@
                                 <th class="px-3 py-2">Client</th>
                                 <th class="px-3 py-2">Connected</th>
                                 <th class="px-3 py-2">Idle Time</th>
+                                <th class="px-3 py-2 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="sessions-rows" class="divide-y divide-neutral-200 dark:divide-neutral-700">
                             <!-- Sessions will be dynamically populated -->
                         </tbody>
+                    </table>
+                </div>
+                <div id="tabpanelTasklist" role="tabpanel" aria-label="tasklist" class="p-4 relative" style="display: none;">
+                    <table class="w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="h-8 text-left text-neutral-600 dark:text-neutral-400">
+                                <th class="px-3 py-2">PID</th>
+                                <th class="px-3 py-2">Name</th>
+                                <th class="px-3 py-2">Session</th>
+                                <th class="px-3 py-2">User</th>
+                                <th class="px-3 py-2">State</th>
+                                <th class="px-3 py-2">Memory</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tasklist-rows" class="divide-y divide-neutral-200 dark:divide-neutral-700"></tbody>
                     </table>
                 </div>
                 <div id="tabpanelLoggedon" role="tabpanel" aria-label="loggedon" class="p-4 relative" style="display: none;">
@@ -424,28 +465,28 @@
                             <div class="flex items-center gap-2">
                                 <!-- Connect As Form (initially hidden) -->
                                 <div id="connect-as-form" class="hidden flex items-center gap-2">
-                                    <input type="text" id="smb-username" 
+                                    <input type="text" id="modal-smb-username" 
                                         placeholder="Username" 
                                         class="px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white">
-                                    <input type="password" id="smb-password" 
+                                    <input type="password" id="modal-smb-password" 
                                         placeholder="Password" 
                                         class="px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white">
                                 </div>
                                 
                                 <!-- Computer Input -->
-                                <input type="text" id="smb-computer" 
+                                <input type="text" id="modal-smb-computer" 
                                     placeholder="Computer" 
                                     class="w-64 px-2 py-1 text-sm border border-neutral-300 dark:border-neutral-600 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white">
                                 
                                 <!-- Connect As Button -->
-                                <button id="smb-connect-as-button" type="button" 
+                                <button id="modal-smb-connect-as-button" type="button" 
                                     class="inline-flex items-center gap-1.5 rounded-md bg-neutral-100 px-3 py-1.5 text-sm font-medium text-neutral-700 transition hover:bg-neutral-200 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-neutral-700">
                                     <i class="fas fa-user-shield fa-sm"></i>
                                     Connect As
                                 </button>
 
                                 <!-- Connect Button -->
-                                <button id="smb-connect-button" type="button" 
+                                <button id="modal-smb-connect-button" type="button" 
                                     class="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-neutral-800 dark:bg-yellow-500 dark:text-black dark:hover:bg-yellow-600">
                                     <i class="fas fa-plug fa-sm"></i>
                                     Connect
@@ -543,6 +584,7 @@
                                             <option value="0">Boot Start</option>
                                             <option value="1">System Start</option>
                                             <option value="2" selected>Automatic</option>
+                                            <option value="2-delayed">Automatic (Delayed Start)</option>
                                             <option value="3">Manual</option>
                                             <option value="4">Disabled</option>
                                         </select>

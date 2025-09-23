@@ -34,29 +34,37 @@
                 <div class="flex flex-col gap-2 overflow-y-auto pb-6 scrollbar">
                     {% for item in nav_items %}
                         {% if item.name == "Modules" %}
-                            <div class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-gray-400 cursor-default">
-                                <i class="fas fa-cubes w-5 h-5"></i>
-                                <span class="underline">{{ item.name }}</span>
+                            <div x-data="{ open: true }" class="w-full">
+                                <button type="button" class="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-neutral-700 dark:text-neutral-200 hover:bg-black/5 dark:hover:bg-white/5 transition"
+                                    x-on:click="open = !open">
+                                    <span class="flex items-center gap-2">
+                                        <i class="fas fa-cubes w-5 h-5"></i>
+                                        <span class="font-semibold">{{ item.name }}</span>
+                                    </span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4 transition-transform" x-bind:class="open ? 'rotate-180' : ''" aria-hidden="true">
+                                        <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                                <ul class="mt-1 pl-2 space-y-1" x-show="open" x-transition>
+                                    {% for subitem in item.subitems %}
+                                        <li>
+                                            <a href="{{ subitem.link }}" class="group flex items-center gap-2 px-2 py-1.5 text-sm rounded-md font-medium text-neutral-600 hover:bg-neutral-200/60 hover:text-neutral-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white dark:focus-visible:outline-white transition">
+                                                <i class="{{ subitem.icon }} w-5 h-5 opacity-70 group-hover:opacity-100"></i>
+                                                <span class="truncate">{{ subitem.name }}</span>
+                                            </a>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
                             </div>
-                            <ul class="pl-4 space-y-2">
-                                {% for subitem in item.subitems %}
-                                    <li>
-                                        <a href="{{ subitem.link }}" class="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md font-medium text-neutral-600 underline-offset-2 hover:bg-black/5 hover:text-neutral-900 focus-visible:underline focus:outline-none dark:text-neutral-300 dark:hover:bg-white/5 dark:hover:text-white">
-                                            <i class="{{ subitem.icon }} w-5 h-5"></i>
-                                            <span>{{ subitem.name }}</span>
-                                        </a>
-                                    </li>
-                                {% endfor %}
-                            </ul>
                         {% elif item.link %}
-                            <a href="{{ item.link }}" class="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md font-medium text-neutral-600 underline-offset-2 hover:bg-black/5 hover:text-neutral-900 focus-visible:underline focus:outline-none dark:text-neutral-300 dark:hover:bg-white/5 dark:hover:text-white">
-                                <i class="{{ item.icon }} w-5 h-5"></i>
-                                <span>{{ item.name }}</span>
+                            <a href="{{ item.link }}" class="group flex items-center gap-2 px-2 py-1.5 text-sm rounded-md font-medium text-neutral-600 hover:bg-neutral-200/60 hover:text-neutral-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white dark:focus-visible:outline-white transition">
+                                <i class="{{ item.icon }} w-5 h-5 opacity-70 group-hover:opacity-100"></i>
+                                <span class="truncate">{{ item.name }}</span>
                             </a>
                         {% else %}
-                            <button id="{{ item.button_id }}" class="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md font-medium text-neutral-600 underline-offset-2 hover:bg-black/5 hover:text-neutral-900 focus-visible:underline focus:outline-none dark:text-neutral-300 dark:hover:bg-white/5 dark:hover:text-white">
-                                <i class="{{ item.icon }} w-5 h-5"></i>
-                                <span>{{ item.name }}</span>
+                            <button id="{{ item.button_id }}" class="group flex items-center gap-2 px-2 py-1.5 text-sm rounded-md font-medium text-neutral-600 hover:bg-neutral-200/60 hover:text-neutral-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white dark:focus-visible:outline-white transition">
+                                <i class="{{ item.icon }} w-5 h-5 opacity-70 group-hover:opacity-100"></i>
+                                <span class="truncate">{{ item.name }}</span>
                             </button>
                         {% endif %}
                     {% endfor %}

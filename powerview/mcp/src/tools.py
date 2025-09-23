@@ -5,7 +5,8 @@ import json
 from typing import Any, Optional
 import datetime
 import os
-from powerview.modules.smbclient import SMBClient
+
+from powerview.modules.smbclient import SMBClient, SMBShell
 from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip
 
 def _format_mcp_response(
@@ -475,6 +476,46 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
+	async def get_domain_object(
+		identity: str = "*",
+		properties: str = "*",
+		include_deleted: bool = False,
+		ldap_filter: str = "",
+		searchbase: str = "",
+		no_cache: bool = False,
+		no_vuln_check: bool = False,
+		raw: bool = False
+	) -> str:
+		"""Get information about domain objects.
+
+		Args:
+			identity: Filter by object identity (DN, sAMAccountName, SID, GUID). Defaults to "*".
+			properties: List of properties to retrieve. Defaults to "*".
+			include_deleted: Include deleted objects in the results.
+			ldap_filter: Custom LDAP filter string.
+			searchbase: Specify the search base DN.
+			no_cache: Bypass the cache and perform a live query.
+			no_vuln_check: Disable vulnerability checks.
+			raw: Return raw LDAP entries without formatting.
+		"""
+		try:
+			props = properties.split(",") if properties else []
+			result = powerview_instance.get_domainobject(
+				identity=identity,
+				properties=props,
+				include_deleted=include_deleted,
+				ldap_filter=ldap_filter,
+				searchbase=searchbase,
+				no_cache=no_cache,
+				no_vuln_check=no_vuln_check,
+				raw=raw
+			)
+			return _format_mcp_response(data=result, message="No domain objects found")
+		except Exception as e:
+			logging.error(f"Error in get_domain_object: {str(e)}")
+			return _format_mcp_response(error=str(e))
+
+	@mcp.tool()
 	async def get_domain_object_acl(
 		identity: str = "*",
 		security_identifier: str = "",
@@ -765,7 +806,7 @@ def setup_tools(mcp, powerview_instance):
 		Args:
 			identity: Filter by CA identity (name, DN). Defaults to empty (all CAs).
 			properties: Comma-separated list of properties to retrieve. Defaults to '*'.
-			check_all: Check all CA configurations.
+			check_all: Check all CA configurations (recommended to get all cert managers and web enrollment status).
 			ldapfilter: Custom LDAP filter string.
 			searchbase: Specify the search base DN (usually Configuration NC).
 			no_cache: Bypass the cache and perform a live query.
@@ -1133,10 +1174,15 @@ def setup_tools(mcp, powerview_instance):
 		try:
 			if not members.strip():
 				return _format_mcp_response(success=False, message="Members string cannot be empty.")
+			
 			# Split comma-separated members into a list
 			member_list = [m.strip() for m in members.split(',') if m.strip()]
 
-			result = powerview_instance.add_domaingroupmember(identity=identity, members=member_list, args=None)
+			for member in member_list:
+				if not member.strip():
+					return _format_mcp_response(success=False, message=f"Member '{member}' is empty.")
+
+				result = powerview_instance.add_domaingroupmember(identity=identity, members=member, args=None)
 
 			if result is True:
 					return _format_mcp_response(success=True, message=f"Attempted to add members {member_list} to group '{identity}'.")
@@ -1355,202 +1401,14 @@ def setup_tools(mcp, powerview_instance):
 		try:
 			identity = powerview_instance.conn.who_am_i()
 			username = identity.split("\\")[-1] if "\\" in identity else identity
-			return _format_mcp_response(data={"identity": username})
+			result = powerview_instance.get_domainobject(identity=username, properties="*")
+			return _format_mcp_response(data=result, message=f"Current authenticated user context: {username}")
 		except AttributeError:
 			logging.error("Error in get_current_auth_context: powerview_instance or connection object not available.")
 			return _format_mcp_response(error="Internal server error: Could not access connection details.")
 		except Exception as e:
 			logging.error(f"Error in get_current_auth_context: {str(e)}")
 			return _format_mcp_response(error=str(e))
-
-	@mcp.tool()
-	async def generate_findings_report(
-		custom_findings: str,
-		report_title: str = "PowerView Findings Report",
-		target_domain: str = "",
-		report_format: str = "markdown"
-	) -> str:
-		"""Generate a custom security findings report based on user-defined findings.
-		
-		Args:
-			custom_findings: JSON string containing custom finding dictionaries with keys like "Title", "Description", "Risk", "Recommendation" etc.
-			report_title: Title for the report
-			target_domain: Target domain name for the report context
-			report_format: Output format (markdown, json, or text)
-		"""
-		try:
-			# Parse the custom findings from JSON string
-			findings_list = json.loads(custom_findings)
-			if not isinstance(findings_list, list):
-				findings_list = [findings_list]  # Convert single dict to list
-				
-			# Initialize report data
-			timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-			
-			# Process each custom finding dict and normalize keys
-			normalized_findings = []
-			for finding in findings_list:
-				# Normalize keys (case-insensitive matching)
-				normalized = {}
-				key_map = {
-					"title": ["title", "name", "finding", "issue"],
-					"risk": ["risk", "severity", "level", "criticality"],
-					"description": ["description", "desc", "details", "info"],
-					"affected_entity": ["affected_entity", "affected_objects", "affected", "entity", "entities", "target"],
-					"recommendation": ["recommendation", "remediation", "fix", "solution", "mitigation"],
-					"notes": ["notes", "comments", "additional", "context"]
-				}
-				
-				# Try to map keys from the input dict to our normalized structure
-				for norm_key, possible_keys in key_map.items():
-					for pk in possible_keys:
-						for k in finding.keys():
-							if k.lower() == pk.lower():
-								normalized[norm_key] = finding[k]
-								break
-						if norm_key in normalized:
-							break
-						
-				# Ensure required fields exist with defaults if missing
-				if "title" not in normalized:
-					normalized["title"] = "Unnamed Finding"
-				if "risk" not in normalized:
-					normalized["risk"] = "Medium"  # Default risk level
-				if "description" not in normalized:
-					normalized["description"] = "No description provided."
-				if "recommendation" not in normalized:
-					normalized["recommendation"] = "No specific recommendation provided."
-
-				# Handle affected_entity field specially (could be string or list or dict)
-				if "affected_entity" in normalized:
-					if isinstance(normalized["affected_entity"], str):
-						normalized["affected_objects"] = [{"name": normalized["affected_entity"]}]
-					elif isinstance(normalized["affected_entity"], list):
-						if all(isinstance(item, str) for item in normalized["affected_entity"]):
-							normalized["affected_objects"] = [{"name": item} for item in normalized["affected_entity"]]
-						else:
-							normalized["affected_objects"] = normalized["affected_entity"]
-					elif isinstance(normalized["affected_entity"], dict):
-						normalized["affected_objects"] = [normalized["affected_entity"]]
-					normalized["count"] = len(normalized["affected_objects"])
-				else:
-					normalized["affected_objects"] = []
-					normalized["count"] = 0
-					
-				# Add any extra fields not in our mapping
-				for k, v in finding.items():
-					if not any(k.lower() == pk.lower() for norm_keys in key_map.values() for pk in norm_keys):
-						normalized[k] = v
-						
-				normalized_findings.append(normalized)
-				
-			# Format the report
-			report = {
-				"title": report_title,
-				"target_domain": target_domain,
-				"timestamp": timestamp,
-				"summary": {
-					"total_findings": len(normalized_findings),
-					"risk_breakdown": {
-						"Critical": len([f for f in normalized_findings if f["risk"].lower() == "critical"]),
-						"High": len([f for f in normalized_findings if f["risk"].lower() == "high"]),
-						"Medium": len([f for f in normalized_findings if f["risk"].lower() == "medium"]),
-						"Low": len([f for f in normalized_findings if f["risk"].lower() == "low"])
-					}
-				},
-				"findings": normalized_findings
-			}
-			
-			# Generate report based on requested format
-			if report_format.lower() == "json":
-				return _format_mcp_response(data=report)
-			elif report_format.lower() == "markdown":
-				md_report = f"# {report_title}\n\n"
-				md_report += f"**Target Domain:** {target_domain}\n"
-				md_report += f"**Report Generated:** {timestamp}\n\n"
-				
-				md_report += "## Summary\n\n"
-				md_report += f"**Total Findings:** {report['summary']['total_findings']}\n\n"
-				md_report += "**Risk Breakdown:**\n"
-				md_report += f"- Critical: {report['summary']['risk_breakdown']['Critical']}\n"
-				md_report += f"- High: {report['summary']['risk_breakdown']['High']}\n"
-				md_report += f"- Medium: {report['summary']['risk_breakdown']['Medium']}\n"
-				md_report += f"- Low: {report['summary']['risk_breakdown']['Low']}\n\n"
-				
-				if normalized_findings:
-					md_report += "## Findings\n\n"
-					for i, finding in enumerate(normalized_findings, 1):
-						md_report += f"### {i}. {finding['title']} ({finding['risk']})\n\n"
-						md_report += f"**Description:** {finding['description']}\n\n"
-						
-						if finding.get('affected_objects'):
-							md_report += f"**Affected Objects:** {finding['count']}\n\n"
-							md_report += "**Examples:**\n\n"
-							md_report += "```\n"
-							for obj in finding['affected_objects'][:5]:  # Limit to 5 examples
-								md_report += json.dumps(obj, indent=2) + "\n"
-							md_report += "```\n\n"
-						
-						md_report += f"**Recommendation:** {finding['recommendation']}\n\n"
-						
-						# Add notes if present
-						if 'notes' in finding:
-							md_report += f"**Notes:** {finding['notes']}\n\n"
-							
-						# Add any custom fields
-						custom_fields = [k for k in finding.keys() if k not in ["title", "risk", "description", "affected_objects", "count", "recommendation", "notes"]]
-						if custom_fields:
-							md_report += "**Additional Information:**\n\n"
-							for field in custom_fields:
-								md_report += f"- **{field}:** {finding[field]}\n"
-							md_report += "\n"
-						
-						md_report += "---\n\n"
-				else:
-					md_report += "## No Findings\n\n"
-					md_report += "No security findings were provided.\n\n"
-				
-				return _format_mcp_response(data={"report": md_report})
-			else:  # text format
-				text_report = f"{report_title}\n"
-				text_report += f"Target Domain: {target_domain}\n"
-				text_report += f"Report Generated: {timestamp}\n\n"
-				
-				text_report += "SUMMARY:\n"
-				text_report += f"Total Findings: {report['summary']['total_findings']}\n\n"
-				text_report += "Risk Breakdown:\n"
-				text_report += f"Critical: {report['summary']['risk_breakdown']['Critical']}\n"
-				text_report += f"High: {report['summary']['risk_breakdown']['High']}\n"
-				text_report += f"Medium: {report['summary']['risk_breakdown']['Medium']}\n"
-				text_report += f"Low: {report['summary']['risk_breakdown']['Low']}\n\n"
-				
-				if normalized_findings:
-					text_report += "FINDINGS:\n\n"
-					for i, finding in enumerate(normalized_findings, 1):
-						text_report += f"{i}. {finding['title']} ({finding['risk']})\n\n"
-						text_report += f"Description: {finding['description']}\n\n"
-						
-						if finding.get('affected_objects'):
-							text_report += f"Affected Objects: {finding['count']}\n\n"
-						
-						text_report += f"Recommendation: {finding['recommendation']}\n\n"
-						
-						# Add notes if present
-						if 'notes' in finding:
-							text_report += f"Notes: {finding['notes']}\n\n"
-						
-						text_report += "----------\n\n"
-				else:
-					text_report += "NO FINDINGS\n\n"
-					text_report += "No security findings were provided.\n\n"
-				
-				return _format_mcp_response(data={"report": text_report})
-				
-		except Exception as e:
-			logging.error(f"Error in generate_custom_findings_report: {str(e)}")
-			import traceback
-			trace = traceback.format_exc()
-			return _format_mcp_response(error=f"Failed to generate report: {str(e)}\n{trace}")
 
 	@mcp.tool()
 	async def find_localadminaccess(
@@ -1582,15 +1440,16 @@ def setup_tools(mcp, powerview_instance):
 				'no_cache': no_cache,
 				'module': 'Find-LocalAdminAccess'
 			})
-			result = powerview_instance.find_localadminaccess(args=args)
+			result = powerview_instance.find_localadminaccess(args=args, no_resolve=True)
 			return _format_mcp_response(data=result, message="No local admin access found on any host.")
 		except Exception as e:
 			logging.error(f"Error in find_localadminaccess: {str(e)}")
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def smb_connect(
+	async def smbclient(
 		computer: str,
+		command: str,
 		username: str = "",
 		password: str = "",
 		nthash: str = "",
@@ -1598,23 +1457,41 @@ def setup_tools(mcp, powerview_instance):
 		domain: str = ""
 	) -> str:
 		"""
-		Establish an SMB connection to target system.
-		
-		This function establishes a connection to a remote system using SMB protocol, 
-		which can be leveraged for file operations, privilege escalation, lateral movement,
-		or intelligence gathering. Supports multiple authentication methods including
-		NTLM hash pass-the-hash attacks.
-		
+		Perform an SMB operations using smbclient. Normally used for lateral movement to find:
+		1. Plain-text passwords
+		2. Configuration files
+		3. Credentials
+		4. Unintended data exposure
+		5. Other interesting findings that can be laveraged for laterval movement or privilege escalation.
+
 		Parameters:
 			computer: Target hostname or IP address
-			username: Optional: Account username (optional if using current context)
-			password: Optional: Account password in cleartext
-			nthash: Optional: NT hash for pass-the-hash attacks
-			lmhash: Optional: LM hash (default: None)
-			domain: Optional: Domain name (will use current domain if not specified)
+			command: The smb operation to perform. Refer to the example commands below.
+				Example command:
+					List shares:
+						shares
+					List files:
+						ls C$\\Users\\Public\\Desktop
+					Read file:
+						cat C$\\Users\\Public\\Desktop\\file.txt
+					Delete file:
+						rm C$\\Users\\Public\\Desktop\\file.txt
+					Delete directory:
+						rmdir C$\\Users\\Public\\Desktop\\new_dir
+					Create directory:
+						mkdir C$\\Users\\Public\\Desktop\\new_dir
+					Move file:
+						mv C$\\Users\\Public\\Desktop\\file.txt C$\\Users\\Public\\Desktop\\file2.txt
+					View help for available commands:
+						help
+			username: The username to use for authentication. Ignore to use current user context.
+			password: The password to use for authentication. Ignore to use current user context.
+			nthash: The NTHash to use for authentication. Ignore to use current user context.
+			lmhash: The LMHash to use for authentication. Ignore to use current user context.
+			domain: The domain to use for authentication. Ignore to use current user context.
 		
 		Returns:
-			Connection status information
+			The output of the command
 		"""
 		try:
 			if username and ('/' in username or '\\' in username):
@@ -1654,111 +1531,11 @@ def setup_tools(mcp, powerview_instance):
 				lmhash=lmhash,
 				domain=domain
 			)
-			
 			if not client:
 				return _format_mcp_response(error=f"Failed to connect to {host}")
 
-			if not hasattr(powerview_instance.conn, 'smb_sessions'):
-				powerview_instance.conn.smb_sessions = {}
-			powerview_instance.conn.smb_sessions[computer.lower()] = client
-
-			return _format_mcp_response(data={"status": "connected", "host": host})
+			smb_client = SMBShell(client)
+			output = smb_client.onecmd(command)
+			return _format_mcp_response(data=output)
 		except Exception as e:
-			return _format_mcp_response(error=str(e))
-
-	@mcp.tool()
-	async def smb_shares(
-		computer: str
-	) -> str:
-		"""List available SMB shares on a target system.
-		
-		Enumerates available SMB shares on a target system, useful for reconnaissance
-		and identifying valuable data.
-		
-		Parameters:
-			computer: Target hostname or IP address
-		
-		Returns:
-			List of available SMB shares of the target computer
-		"""
-		try:
-			host = computer.lower()
-			
-			if not host:
-				return _format_mcp_response(error="Computer name/IP is required")
-			
-			if not hasattr(powerview_instance.conn, 'smb_sessions') or host not in powerview_instance.conn.smb_sessions:
-				return _format_mcp_response(error="No active SMB session. Please connect first")
-
-			client = powerview_instance.conn.smb_sessions[host]
-			smb_client = SMBClient(client)
-			shares = smb_client.shares()
-
-			formatted_shares = []
-			for share in shares:
-				entry = {
-					"Name": share['shi1_netname'][:-1],
-					"Remark": share['shi1_remark'][:-1],
-					"Address": host
-				}
-				formatted_shares.append({"attributes": entry})
-
-			return _format_mcp_response(data=formatted_shares)
-		except Exception as e:
-			return _format_mcp_response(error=str(e))
-
-	@mcp.tool()
-	async def smb_ls(
-		computer: str,
-		share: str,
-		path: str = ""
-	) -> str:
-		"""List contents of a directory on a remote SMB share.
-		
-		Enumerates files and directories within a specified share path, useful for
-		reconnaissance, identifying valuable data, and planning exfiltration.
-		Directory traversal is supported to explore the target filesystem.
-		
-		Parameters:
-			computer: Target hostname or IP address
-			share: Share name to access (e.g., "C$", "ADMIN$", "NETLOGON")
-			path: Directory path within the share to list (default: root of share) (i.e.: "\\Users\\Public\\Desktop")
-		
-		Returns:
-			File listing with metadata (size, timestamps, attributes)
-		"""
-		try:
-			host = computer.lower()
-			
-			if not host or not share:
-				return _format_mcp_response(error="Computer name/IP and share name are required")
-
-			if not hasattr(powerview_instance.conn, 'smb_sessions') or host not in powerview_instance.conn.smb_sessions:
-				return _format_mcp_response(error="No active SMB session. Please connect first")
-			
-			client = powerview_instance.conn.smb_sessions[host]
-			smb_client = SMBClient(client)
-			
-			files = smb_client.ls(share, path)
-			logging.debug(f"[SMB LS] Listing {path} on {host} with share {share}")
-			
-			file_list = []
-			for f in files:
-				name = f.get_longname()
-				if name in ['.', '..']:
-					continue
-				
-				file_info = {
-					"name": name,
-					"size": f.get_filesize(),
-					"is_directory": f.is_directory(),
-					"created": str(f.get_ctime()),
-					"modified": str(f.get_mtime()),
-					"accessed": str(f.get_atime())
-				}
-				file_list.append(file_info)
-
-			return _format_mcp_response(data=file_list)
-		except Exception as e:
-			logging.error(f"[SMB LS] Error: {str(e)}")
 			return _format_mcp_response(error=str(e))

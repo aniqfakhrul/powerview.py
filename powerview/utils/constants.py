@@ -311,6 +311,20 @@ class SERVICE_ERROR_CONTROL(IntFlag):
 	def to_str(self):
 		return f"{self._name_} ({self._value_})"
 
+# MessageBox uType flags (MSDN-MSGBOX)
+class MSGBOX_TYPE(IntFlag):
+    MB_OK = 0x00000000
+    MB_OKCANCEL = 0x00000001
+    MB_ABORTRETRYIGNORE = 0x00000002
+    MB_YESNOCANCEL = 0x00000003
+    MB_YESNO = 0x00000004
+    MB_RETRYCANCEL = 0x00000005
+    MB_CANCELTRYCONTINUE = 0x00000006
+    MB_HELP = 0x00004000
+
+    def to_str(self):
+        return f"{self._name_} ({self._value_})"
+
 # constants for dwServiceStatus
 class SERVICE_STATUS(IntFlag):
 	STOPPED = 0x00000001
@@ -643,8 +657,19 @@ def resolve_WellKnownSID(identifier):
 				)
 	return None
 
+# dMSA msDS-DelegatedMSAState
+# This are not yet officially documented by microsoft, values are based on this blog post https://www.akamai.com/blog/security-research/abusing-dmsa-for-privilege-escalation-in-active-directory#badsuccessor
+class DMSA_DELEGATED_MSA_STATE(IntFlag):
+	DISABLED = 0
+	MIGRATION_IN_PROGRESS = 1
+	MIGRATED = 2
+	STANDALONE = 3
+
 # store discovered sids
 KNOWN_SIDS = {}
+
+# store known hostname
+KNOWN_HOSTNAME = {}
 
 ATTRIBUTE_OID = {
 	"uid": "0.9.2342.19200300.100.1.1",
@@ -2254,6 +2279,12 @@ switcher_trustAttributes = {
 	512 : "CROSS_ORGANIZATION_NO_TGT_DELEGATION",
 	2048 : "CROSS_ORGANIZATION_ENABLE_TGT_DELEGATION",
 	1024 : "PIM_TRUST",
+}
+switcher_dsa_delegated_msa_state = {
+    0: "DISABLED",
+    1: "MIGRATION_IN_PROGRESS", 
+    2: "MIGRATED",
+    3: "STANDALONE"
 }
 
 PWD_FLAGS = {
@@ -4242,4 +4273,10 @@ TABLE_FMT_MAP = {
     "tsv": "tsv",
     "latex": "latex",
     "html": "html"
+}
+
+DESKTOP_STATES = {
+	'WTS_SESSIONSTATE_UNKNOWN': '',
+	'WTS_SESSIONSTATE_LOCK'   : 'Locked',
+	'WTS_SESSIONSTATE_UNLOCK' : 'Unlocked',
 }

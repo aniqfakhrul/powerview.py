@@ -5,7 +5,7 @@ from ldap3.protocol.formatters.formatters import format_sid
 from impacket.ldap.ldaptypes import SR_SECURITY_DESCRIPTOR
 from impacket.uuid import bin_to_string
 
-from powerview.modules.gmsa import GMSA
+from powerview.modules.msa import MSA
 from powerview.utils.constants import (
 	UAC_DICT,
 	LDAP_ERROR_STATUS,
@@ -15,7 +15,8 @@ from powerview.utils.constants import (
 	switcher_trustType,
 	switcher_trustAttributes,
 	PWD_FLAGS,
-	FOREST_TRUST_INFO
+	FOREST_TRUST_INFO,
+	switcher_dsa_delegated_msa_state
 )
 from powerview.modules.ldapattack import (
 	RBCD
@@ -98,7 +99,7 @@ class sAMAccountType:
 		if enc_value in SUPPORTED_sAMAccountType:
 			return SUPPORTED_sAMAccountType[enc_value]
 		else:
-			return env_value
+			return enc_value
 
 class LDAP:
 	@staticmethod
@@ -107,6 +108,15 @@ class LDAP:
 			return filetime_to_str(data)
 		except Exception as e:
 			return data
+
+	@staticmethod
+	def resolve_delegated_msa_state(data):
+		if isinstance(data, list):
+			return switcher_dsa_delegated_msa_state.get(int(data[0]))
+		elif isinstance(data, bytes):
+			return switcher_dsa_delegated_msa_state.get(int(data.decode()))
+		else:
+			return switcher_dsa_delegated_msa_state.get(int(data))
 
 	@staticmethod
 	def resolve_pKIOverlapPeriod(data):
@@ -239,11 +249,11 @@ class LDAP:
 
 	@staticmethod
 	def formatGMSApass(managedPassword):
-		return GMSA.decrypt(managedPassword)
+		return MSA.decrypt(managedPassword)
 
 	@staticmethod
-	def parseGMSAMembership(secDesc):
-		return GMSA.read_acl(secDesc)
+	def parseMSAMembership(secDesc):
+		return MSA.read_acl(secDesc)
 
 	@staticmethod
 	def resolve_pwdProperties(flag):

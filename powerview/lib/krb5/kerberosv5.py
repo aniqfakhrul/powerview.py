@@ -23,6 +23,7 @@ from pyasn1.error import PyAsn1Error
 from pyasn1.type.univ import noValue
 from six import b
 from binascii import unhexlify, hexlify
+from .asn1 import KERB_SUPERSEDED_BY_USER
 
 from impacket.krb5.asn1 import AS_REQ, AP_REQ, TGS_REQ, KERB_PA_PAC_REQUEST, KRB_ERROR, PA_ENC_TS_ENC, AS_REP, TGS_REP, \
     EncryptedData, Authenticator, EncASRepPart, EncTGSRepPart, seq_set, seq_set_iter, KERB_ERROR_DATA, METHOD_DATA, \
@@ -733,8 +734,22 @@ class KerberosError(SessionError):
             if self.error == constants.ErrorCodes.KRB_ERR_GENERIC.value:
                 eData = decoder.decode(self.packet['e-data'], asn1Spec = KERB_ERROR_DATA())[0]
                 nt_error = struct.unpack('<L', eData['data-value'].asOctets()[:4])[0]
-                retString += '\nNT ERROR: %s(%s)' % (nt_errors.ERROR_MESSAGES[nt_error])
-        except:
-            pass
 
-        return retString
+                if nt_error in nt_errors.ERROR_MESSAGES:
+                    error_msg_short = nt_errors.ERROR_MESSAGES[nt_error][0] 
+                    error_msg_verbose = nt_errors.ERROR_MESSAGES[nt_error][1] 
+                    retString += '\nNT ERROR: code: 0x%x - %s - %s' % (nt_error, error_msg_short, error_msg_verbose)
+                else:
+                    retString += '\nNT ERROR: unknown error code: 0x%x' % nt_error
+            
+            elif self.error == constants.ErrorCodes.KDC_ERR_CLIENT_REVOKED.value:
+                try:
+                    eData, _ = decoder.decode(self.packet['e-data'].asOctets())
+                    octet_string = eData[0][1].asOctets()
+                    superseded, _ = decoder.decode(octet_string, asn1Spec=KERB_SUPERSEDED_BY_USER())
+                    name = superseded['name']['name-string'][0].prettyPrint()
+                    retString += f". Account is superseded by {name}"
+                except Exception:
+                    pass
+        except Exception:
+            pass

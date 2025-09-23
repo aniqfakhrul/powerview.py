@@ -1,94 +1,116 @@
 import os
 import re
 import shlex
-from sys import platform
-if platform == "linux" or platform == "linux2":
+try:
     import gnureadline as readline
-else:
+except ImportError:
     import readline
 
 COMMANDS = {
     'Clear-Cache':[''],
     'Login-As':['-Username','-Password','-Domain','-Hash'],
     'Get-Domain':['-Identity','-Properties', '-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-NetDomain':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'ConvertFrom-SID':['-ObjectSID','-Server', '-Outfile', '-NoCache'],
     'ConvertFrom-UACValue':['-Value','-TableView','-Outfile'],
     'Get-DomainController':['-Identity','-ResolveSIDs','-SearchBase','-LDAPFilter','-Properties','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-NetDomainController':['-Identity','-ResolveSIDs','-SearchBase','-LDAPFilter','-Properties','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-DomainDNSZone':['-Identity','-Properties','-SearchBase','-Server','-Select','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-DomainDNSRecord':['-ZoneName','-Identity','-Properties','-SearchBase','-Server','-Select','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-DomainCA':['-CheckAll','-SearchBase','-Properties','-Server','-Select','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-CA':['-CheckAll','-SearchBase','-Properties','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-DomainDNSZone':['-Identity','-Legacy','-Forest','-Properties','-SearchBase','-Server','-Select','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-DomainDNSRecord':['-ZoneName','-Identity','-Legacy','-Forest','-RecordType','-Properties','-SearchBase','-Server','-Select','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-DomainCA':['-Identity','-CheckAll','-SearchBase','-Properties','-Server','-Select','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-CA':['-Identity','-CheckAll','-SearchBase','-Properties','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainSCCM':['-Identity','-CheckDatalib','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-SCCM':['-Identity','-CheckDatalib','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-DomainGMSA':['-Identity','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-GMSA':['-Identity','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-DomainGMSA':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-GMSA':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-DomainDMSA':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-DMSA':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainRBCD':['-Identity','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-RBCD':['-Identity','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-DomainWDS':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-WDS':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Where','-Count','-NoWrap','-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainCATemplate':['-Identity','-Vulnerable','-Enabled','-ResolveSIDs','-Properties', '-NoCache', '-NoVulnCheck','-SearchBase','-Server','-Select','-Where', '-TableView', '-SortBy', '-Count', '-NoWrap', '-OutFile', '-Raw'],
     'Get-CATemplate':['-Identity','-Vulnerable','-Enabled','-ResolveSIDs','-Properties', '-NoCache', '-NoVulnCheck','-SearchBase','-Server','-Select', '-Where', '-TableView', '-SortBy', '-Count', '-NoWrap', '-OutFile', '-Raw'],
     'Add-DomainCATemplate':['-DisplayName','-Name','-Duplicate','-Server','-NoWrap'],
     'Add-CATemplate':['-DisplayName','-Name','-Duplicate','-Server','-NoWrap'],
-    'Add-NetService':['-Computer','-Name','-DisplayName','-Path','-Password','-ServiceType','-StartType','-ErrorControl','-ServiceStartName'],
+    'Add-NetService':['-Computer','-Name','-DisplayName','-Path','-Password','-ServiceType','-StartType','-DelayedStart','-ErrorControl','-ServiceStartName'],
     'Get-DomainGPO':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-NetGPO':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainGPOLocalGroup':['-Identity','-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-GPOLocalGroup':['-Identity','-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Get-DomainGPOSettings':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-GPOSettings':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-DomainOU':['-Identity','-Properties','-SearchBase','-LDAPFilter','-Server','-Select','-GPLink', '-ResolveGPLink', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-NetOU':['-Identity','-Properties','-SearchBase','-LDAPFilter','-Server','-Select','-GPLink', '-ResolveGPLink', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-DomainOU':['-Identity','-Properties','-SearchBase','-LDAPFilter','-Server','-Select','-GPLink', '-Writable', '-ResolveGPLink', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainGroup':['-Identity','-Properties','-LDAPFilter','-SearchBase','-MemberIdentity','-AdminCount','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-NetGroup':['-Identity','-Properties','-LDAPFilter','-SearchBase','-MemberIdentity','-AdminCount','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainGroupMember':['-Identity','-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-NetGroupmember':['-Identity','-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainForeignGroupMember':['-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Find-ForeignGroup':['-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap','-OutFile'],
     'Get-DomainForeignUser':['-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Find-ForeignUser':['-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap','-OutFile'],
     'Get-DomainTrust':['-Identity','-LDAPFilter','-Properties','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-NetTrust':['-Identity','-LDAPFilter','-Properties','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainTrustKey':['-Identity','-Properties','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-TrustKey':['-Identity','-Properties','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-DomainUser':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Enabled','-Disabled','-RBCD', '-ShadowCred', '-Unconstrained','-PassNotRequired','-PreAuthNotRequired','-AllowDelegation','-DisallowDelegation','-AdminCount','-Lockout','-PassExpired','-TrustedToAuth','-SPN', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-NetUser':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-RBCD','-ShadowCred','-Unconstrained','-PassNotRequired','-PreAuthNotRequired','-AllowDelegation','-DisallowDelegation','-AdminCount','-Lockout','-PassExpired','-TrustedToAuth','-SPN', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-DomainUser':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Enabled','-Disabled','-RBCD', '-ShadowCred', '-Unconstrained','-PassNotRequired','-PreAuthNotRequired','-AllowDelegation','-DisallowDelegation','-AdminCount','-Lockout','-PassExpired','-TrustedToAuth','-SPN','-MemberOf','-Department','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-LocalUser':['-Computer','-ComputerName', '-Identity', '-Properties', '-Select','-Enabled','-Disabled', '-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Get-NamedPipes':['-Name','-Computer','-ComputerName', '-Timeout', '-MaxThreads', '-Server', '-NoWrap', '-Count', '-TableView', '-OutFile'],
     'Get-NetShare':['-Computer','-ComputerName','-TableView','-Server', '-NoWrap', '-Count', '-OutFile'],
     'Get-NetSession':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
+    'Get-NetTerminalSession':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
+    'qwinsta':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
+    'Remove-NetTerminalSession':['-Computer','-ComputerName','-SessionId','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
+    'Get-NetProcess':['-Computer','-ComputerName','-Pid','-Name','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
+    'tasklist':['-Computer','-ComputerName','-Pid','-Name','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
+    'Stop-NetProcess':['-Computer','-ComputerName','-Pid','-Name','-Username','-Password','-Hash','-Server', '-OutFile', '-TableView', '-SortBy'],
+    'taskkill':['-Computer','-ComputerName','-Pid','-Name','-Username','-Password','-Hash','-Server', '-OutFile', '-TableView', '-SortBy'],
     'Get-NetComputerInfo':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Get-NetLoggedOn':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Get-RegLoggedOn':['-Computer','-ComputerName','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Get-NetService':['-Name','-Computer','-ComputerName','-IsRunning','-IsStopped','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
-    'Find-LocalAdminAccess':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
+    'Find-LocalAdminAccess':['-Computer','-ComputerName','-Username','-Password','-Hash','-NoResolve','-Server', '-Count', '-OutFile', '-TableView'],
     'Invoke-ASREPRoast':['-Identity', '-SearchBase', '-NoCache', '-Server', '-Select', '-NoWrap', '-OutFile', '-TableView', '-SortBy', '-NoCache'],
     'Invoke-Kerberoast':['-Identity', '-Opsec','-LDAPFilter','-Server', '-Select', '-NoWrap', '-OutFile', '-TableView', '-SortBy', '-NoCache'],
-    'Invoke-PrinterBug':['-Target', '-Listener', '-Port', '-Server', '-OutFile', '-TableView', '-Select', '-Where', '-SortBy', '-Count', '-NoWrap'],
-    'Invoke-DFSCoerce':['-Target', '-Listener', '-Port', '-Server', '-OutFile', '-TableView', '-Select', '-Where', '-SortBy', '-Count', '-NoWrap'],
+    'Invoke-PrinterBug':['-Target', '-Listener', '-Server', '-OutFile', '-TableView', '-Select', '-Where', '-SortBy', '-Count', '-NoWrap'],
+    'Invoke-DFSCoerce':['-Target', '-Listener', '-Server', '-OutFile', '-TableView', '-Select', '-Where', '-SortBy', '-Count', '-NoWrap'],
+    'Invoke-MessageBox':['-Computer','-ComputerName','-SessionId','-Title','-Message','-Username','-Password','-Hash','-Server', '-OutFile', '-TableView', '-SortBy'],
+    'Invoke-BadSuccessor':['-DMSAName', '-PrincipalAllowed', '-TargetIdentity', '-Force', '-BaseDN', '-Server','-NoCache'],
     'Get-ExchangeServer':['-Identity','-Properties','-LDAPFilter','-SearchBase','-TableView', '-SortBy','-Server','-Select','-Count','-NoWrap','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-ExchangeMailbox':['-Identity','-Properties','-LDAPFilter','-SearchBase','-TableView', '-SortBy','-Server','-Select','-Count','-NoWrap','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-ExchangeDatabase':['-Identity','-Properties','-LDAPFilter','-SearchBase','-TableView', '-SortBy','-Server','-Select','-Count','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Unlock-ADAccount':['-Identity','-SearchBase', '-Server', '-Outfile'],
-    'Get-DomainObject':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-NoCache', '-NoVulnCheck', '-TableView', '-SortBy','-OutFile', '-Raw'],
-    'Get-ADObject':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-Raw'],
-    'Remove-DomainObject':['-Identity','-SearchBase','-Server','-OutFile'],
+    'Unlock-ADAccount':['-Identity','-SearchBase', '-Server', '-Outfile', '-NoCache'],
+    'Enable-RDP':['-Computer'],
+    'Disable-RDP':['-Computer'],
+    'Enable-ADAccount':['-Identity','-SearchBase', '-Server', '-Outfile', '-NoCache'],
+    'Disable-ADAccount':['-Identity','-SearchBase', '-Server', '-Outfile', '-NoCache'],
+    'Enable-EFSRPC':['-Computer', '-Port'],
+    'Get-DomainObject':['-Identity','-Properties','-IncludeDeleted','-Deleted','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-NoCache', '-NoVulnCheck', '-TableView', '-SortBy','-OutFile', '-Raw'],
+    'Get-ADObject':['-Identity','-Properties','-IncludeDeleted','-Deleted','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-Raw'],
+    'Remove-NetSession':['-Computer','-TargetSession','-Username','-Password','-Hash','-Server', '-OutFile', '-Count'],
+    'Remove-DomainObject':['-Identity','-BaseDN','-Legacy','-Forest','-NoCache','-Server','-OutFile'],
     'Remove-ADObject':['-Identity','-SearchBase','-Server','-OutFile'],
     'Remove-NetService':['-Computer','-Name'],
-    'Get-DomainObjectOwner':['-Identity','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Stop-Computer':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-OutFile', '-TableView', '-SortBy'],
+    'Shutdown-Computer':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-OutFile', '-TableView', '-SortBy'],
+    'Restart-Computer':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-OutFile', '-TableView', '-SortBy'],
+    'Reboot-Computer':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-OutFile', '-TableView', '-SortBy'],
+    'Logoff-Session':['-Computer','-ComputerName','-SessionId','-Username','-Password','-Hash','-Server', '-OutFile', '-TableView', '-SortBy'],
+    'Get-DomainObjectOwner':['-Identity','-LDAPFilter','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-ObjectOwner':['-Identity','-ResolveSID','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-DomainObjectAcl':['-Identity','-SearchBase','-Server','-SecurityIdentifier','-ResolveGUIDs','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-ObjectAcl':['-Identity','-SearchBase','-Server','-ResolveGUIDs','-SecurityIdentifier','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-DomainComputer':['-Identity','-Properties','-ResolveIP','-ResolveSIDs','-LDAPFilter','-SearchBase','-Server','-Select','-Enabled','-Disabled','-Unconstrained','-TrustedToAuth', '-LAPS', '-BitLocker', '-RBCD', '-ShadowCred','-SPN','-GMSAPassword','-Pre2K','-Printers','-ExcludeDCs','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-NetComputer':['-Identity','-Properties','-ResolveIP','-ResolveSIDs','-LDAPFilter','-SearchBase','-Server','-Select','-Enabled','-Disabled','-Unconstrained','-TrustedToAuth', '-LAPS', '-BitLocker', '-RBCD', '-ShadowCred','-SPN','-GMSAPassword','-Pre2K','-Printers','-ExcludeDCs','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Add-DomainComputer':['-ComputerName','-ComputerPass','-BaseDN','-Server', '-OutFile'],
-    'Add-DomainDNSRecord':['-ZoneName','-RecordName','-RecordAddress','-Server', '-OutFile'],
-    'Add-ADComputer':['-ComputerName','-ComputerPass','-Server', '-OutFile'],
+    'Get-DomainObjectAcl':['-Identity','-LDAPFilter','-SearchBase','-Server','-SecurityIdentifier','-ResolveGUIDs','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-ObjectAcl':['-Identity','-LDAPFilter','-SearchBase','-Server','-ResolveGUIDs','-SecurityIdentifier','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-DomainComputer':['-Identity','-Properties','-ResolveSIDs','-LDAPFilter','-SearchBase','-Server','-Select','-Enabled','-Disabled','-Workstation','-NotWorkstation','-Obsolete','-Unconstrained','-TrustedToAuth', '-LAPS', '-BitLocker', '-RBCD', '-ShadowCred','-SPN','-GMSAPassword','-Pre2K','-Printers','-ExcludeDCs','-IncludeIP','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Add-DomainComputer':['-ComputerName','-ComputerPass','-NoPassword','-BaseDN','-Server', '-OutFile'],
+    'Add-DomainDMSA':['-Identity','-PrincipalsAllowedToRetrieveManagedPassword','-DNSHostName','-Hidden','-SupersededAccount','-BaseDN','-Server', '-NoWrap', '-OutFile'],
+    'Add-DMSA':['-Identity','-PrincipalsAllowedToRetrieveManagedPassword','-DNSHostName','-Hidden','-SupersededAccount','-BaseDN','-Server', '-NoWrap', '-OutFile'],
+    'Add-DomainGMSA':['-Identity','-PrincipalsAllowedToRetrieveManagedPassword','-DNSHostName','-BaseDN','-Server', '-NoWrap', '-OutFile'],
+    'Add-GMSA':['-Identity','-PrincipalsAllowedToRetrieveManagedPassword','-DNSHostName','-BaseDN','-Server', '-NoWrap', '-OutFile'],
+    'Add-DomainDNSRecord':['-ZoneName','-RecordName','-RecordAddress','-BaseDN','-Legacy','-Forest','-NoCache','-Server', '-OutFile'],
+    'Add-ADComputer':['-ComputerName','-ComputerPass','-NoPassword','-Server', '-OutFile'],
     'Add-DomainUser':['-UserName','-UserPass','-BaseDN','-Server', '-OutFile'],
     'Add-DomainGroup':['-Identity','-BaseDN','-Server', '-OutFile'],
     'Add-ADUser':['-UserName','-UserPass','-BaseDN','-Server', '-OutFile'],
     'Remove-DomainUser':['-Identity','-Server', '-OutFile'],
     'Remove-ADUser':['-Identity','-Server', '-OutFile'],
+    'Remove-DomainDMSA':['-Identity','-SearchBase','-Server', '-OutFile'],
+    'Remove-DMSA':['-Identity','-SearchBase','-Server', '-OutFile'],
+    'Remove-DomainGMSA':['-Identity','-SearchBase','-Server', '-OutFile'],
+    'Remove-GMSA':['-Identity','-SearchBase','-Server', '-OutFile'],
     'Remove-DomainCATemplate':['-Identity','-Properties','-SearchBase','-Server','-Select','-Where', '-Count', '-NoWrap', '-OutFile'],
     'Remove-CATemplate':['-Identity','-Properties','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-OutFile'],
     'Remove-DomainComputer':['-ComputerName','-BaseDN','-Server', '-OutFile'],
@@ -112,8 +134,10 @@ COMMANDS = {
     'Set-DomainObjectDN':['-Identity','-DestinationDN','-SearchBase','-Server','-OutFile'],
     'Set-ADObjectDN':['-Identity','-DistinguishedName','-SearchBase','-Server','-OutFile'],
     'Set-DomainDNSRecord':['-ZoneName','-RecordName','-RecordAddress','-Server', '-OutFile'],
-    'Remove-DomainDNSRecord':['-ZoneName','-RecordName','-Server', '-OutFile'],
+    'Remove-DomainDNSRecord':['-ZoneName','-RecordName','-BaseDN','-Legacy','-Forest','-NoCache','-Server', '-OutFile'],
     'Disable-DomainDNSRecord':['-ZoneName','-RecordName','-Server', '-OutFile'],
+    'Restore-DomainObject':['-Identity','-NewName','-TargetPath','-Server','-OutFile'],
+    'Restore-ADObject':['-Identity','-NewName','-TargetPath','-Server','-OutFile'],
     'Set-DomainCATemplate':['-Identity','-Clear','-Set','-Append','-Server', '-OutFile'],
     'Set-CATemplate':['-Identity','-Clear','-Set','-Append','-Server', '-OutFile'],
     'Add-DomainCATemplateAcl':['-Template','-PrincipalIdentity','-Rights','-Server', '-OutFile'],
@@ -124,11 +148,16 @@ COMMANDS = {
     'Set-RBCD':['-Identity','-DelegateFrom','-SearchBase','-Server','-OutFile'],
     'Set-DomainObjectOwner':['-TargetIdentity','-PrincipalIdentity','-SearchBase','-Server','-OutFile'],
     'Set-ObjectOwner':['-TargetIdentity','-PrincipalIdentity','-SearchBase','-Server','-OutFile'],
-    'Set-NetService':['-Computer','-Name','-DisplayName','-Path','-Password'],
+    'Set-NetService':['-Computer','-Name','-DisplayName','-Path','-Password','-ServiceType','-StartType','-DelayedStart'],
     'Start-NetService':['-Computer','-Name'],
     'Stop-NetService':['-Computer','-Name'],
     'Add-GPLink':['-GUID','-TargetIdentity','-LinkEnabled','-Enforced','-SearchBase','-Server','-OutFile'],
     'Remove-GPLink':['-GUID','-TargetIdentity','-SearchBase','-Server','-OutFile'],
+    'history':['-Last','-Unique','-NoNumber'],
+    'Dump-Schema':['-Text', '-OutFile'],
+    'Dump-ServerInfo':['-Text', '-OutFile'],
+    'get_pool_stats':'',
+    'whoami':'',
     'clear':'',
     'exit':'',
 }
@@ -173,48 +202,50 @@ class Completer(object):
 
     def complete(self, text, state):
         buffer = readline.get_line_buffer()
-        
-        # Handle empty buffer case
-        if not buffer.strip():
-            return [c + ' ' for c in list(COMMANDS.keys())][state]
-        
+        begidx = readline.get_begidx()
+        endidx = readline.get_endidx()
+
+        left = buffer[:begidx]
+        right = buffer[endidx:]
+
         try:
-            line = shlex.split(buffer)
+            left_tokens = shlex.split(left)
         except ValueError:
-            # Handle unclosed quotes
-            line = shlex.split(buffer + '"')
-        
-        # Add empty token if buffer ends with space
-        if RE_SPACE.match(buffer):
-            line.append('')
-        
-        cmd = line[0].strip().casefold()
-        
-        # Complete command names
-        if len(line) == 1:
-            results = [c + ' ' for c in list(COMMANDS.keys()) if c.casefold().startswith(cmd)] + [None]
+            left_tokens = shlex.split(left + '"')
+
+        try:
+            right_tokens = shlex.split(right)
+        except ValueError:
+            right_tokens = shlex.split(right + '"')
+
+        if not left_tokens:
+            prefix = text.strip()
+            results = [c + ' ' for c in list(COMMANDS.keys()) if c.casefold().startswith(prefix.casefold())] + [None]
             return results[state]
-        
-        # Complete command arguments
+
+        cmd = left_tokens[0].strip().casefold()
+
         if cmd in (c.casefold() for c in COMMANDS.keys()):
-            args = line[-1].strip()
             full_cmd = [c for c in list(COMMANDS.keys()) if c.casefold() == cmd][0]
-            
-            # Filter out flags already used in command
-            used_flags = [arg for arg in line if arg.startswith('-')]
-            available_flags = [arg for arg in COMMANDS[full_cmd] if arg not in used_flags]
-            
-            if args.startswith('-') or not args:
-                results = [arg + ' ' for arg in available_flags if arg.casefold().startswith(args.casefold())] + [None]
-                return results[state]
-            
-            # Handle file paths for specific arguments that need file completion
+
             file_related_flags = ['-OutFile']
-            prev_arg = line[-2] if len(line) > 1 else None
-            
-            if prev_arg in file_related_flags:
-                return self._complete_path(args)[state]
-        
+
+            tokens_before_current_args = left_tokens[1:] if len(left_tokens) > 1 else []
+            tokens_after_current_args = right_tokens
+            used_flags = [t for t in tokens_before_current_args + tokens_after_current_args if t.startswith('-')]
+
+            prev_token = tokens_before_current_args[-1] if tokens_before_current_args else None
+
+            if prev_token in file_related_flags:
+                path_prefix = text if text else None
+                results = self._complete_path(path_prefix) + [None]
+                return results[state]
+
+            if text.startswith('-') or not text:
+                available_flags = [arg for arg in COMMANDS[full_cmd] if arg not in used_flags]
+                results = [arg + ' ' for arg in available_flags if arg.casefold().startswith(text.casefold())] + [None]
+                return results[state]
+
         return None
 
     def setup_completer(self):
