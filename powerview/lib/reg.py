@@ -49,6 +49,7 @@ class RemoteOperations:
 			# STATUS_PIPE_NOT_AVAILABLE error is expected
 			pass
 		# give remote registry time to start
+		self.pipetriggered = True
 		time.sleep(1)
 
 	def connect(self, target):
@@ -57,10 +58,11 @@ class RemoteOperations:
 			dce = self.connection.connectRPCTransport(host=target, stringBindings=stringBinding, interface_uuid=rrp.MSRPC_UUID_RRP, raise_exceptions=True)
 			return dce
 		except SessionError as e:
-			if str(e).find('STATUS_PIPE_NOT_AVAILABLE') >= 0:
-				logging.warning("Trying to start the Remote Registry...")
+			if str(e).find('STATUS_PIPE_NOT_AVAILABLE') >= 0 or str(e).find('STATUS_OBJECT_NAME_NOT_FOUND') >= 0:
+				logging.warning("Trying to trigger the Remote Registry...")
 				time.sleep(1)
 				if not self.pipetriggered:
+					self.triggerWinReg()
 					return self.connect(target)
 				else:
 					logging.error("Failed to bind")
@@ -68,7 +70,9 @@ class RemoteOperations:
 				logging.error(str(e))
 				return
 		except Exception as e:
-			self.triggerWinReg()
+			logging.error(str(e))
+			if not self.pipetriggered:
+				self.triggerWinReg()
 			return self.connect(target)
 
 	# stolen from impacket.examples.reg
