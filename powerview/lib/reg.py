@@ -56,7 +56,6 @@ class RemoteOperations:
 	def connect(self, target):
 		stringBinding = self.KNOWN_PROTOCOLS[self.port]['bindstr'] % target
 		try:
-			self.triggerWinReg(target)
 			dce = self.connection.connectRPCTransport(host=target, stringBindings=stringBinding, interface_uuid=rrp.MSRPC_UUID_RRP, raise_exceptions=True)
 			return dce
 		except SessionError as e:
