@@ -40,11 +40,12 @@ class RemoteOperations:
 		return hRootKey, subKey
 
 	# stolen from impacket.examples.reg
-	def triggerWinReg(self):
+	def triggerWinReg(self, target):
 		# original idea from https://twitter.com/splinter_code/status/1715876413474025704
-		tid = self.connection.connectTree('IPC$')
+		smbConn = self.connection.init_smb_session(target)
+		tid = smbConn.connectTree('IPC$')
 		try:
-			self.connection.openFile(tid, r'\winreg', 0x12019f, creationOption=0x40, fileAttributes=0x80)
+			smbConn.openFile(tid, r'\winreg', 0x12019f, creationOption=0x40, fileAttributes=0x80)
 		except SessionError:
 			# STATUS_PIPE_NOT_AVAILABLE error is expected
 			pass
@@ -55,6 +56,7 @@ class RemoteOperations:
 	def connect(self, target):
 		stringBinding = self.KNOWN_PROTOCOLS[self.port]['bindstr'] % target
 		try:
+			self.triggerWinReg(target)
 			dce = self.connection.connectRPCTransport(host=target, stringBindings=stringBinding, interface_uuid=rrp.MSRPC_UUID_RRP, raise_exceptions=True)
 			return dce
 		except SessionError as e:
@@ -62,7 +64,7 @@ class RemoteOperations:
 				logging.warning("Trying to trigger the Remote Registry...")
 				time.sleep(1)
 				if not self.pipetriggered:
-					self.triggerWinReg()
+					self.triggerWinReg(target)
 					return self.connect(target)
 				else:
 					logging.error("Failed to bind")
@@ -72,7 +74,7 @@ class RemoteOperations:
 		except Exception as e:
 			logging.error(str(e))
 			if not self.pipetriggered:
-				self.triggerWinReg()
+				self.triggerWinReg(target)
 			return self.connect(target)
 
 	# stolen from impacket.examples.reg
