@@ -543,7 +543,7 @@ def main():
                                     succeed = temp_powerview.invoke_messagebox(identity=computername, args=pv_args)
                                 else:
                                     succeed = powerview.invoke_messagebox(identity=computername, args=pv_args)
-                            elif pv_args.module.casefold() == 'invoke-badsuccessor':
+                            elif pv_args.module.casefold() == 'invoke-badsuccessor' or pv_args.module.casefold() == 'invoke-dmsasync':
                                 if temp_powerview:
                                     entries = temp_powerview.invoke_badsuccessor(args=pv_args)
                                 else:
