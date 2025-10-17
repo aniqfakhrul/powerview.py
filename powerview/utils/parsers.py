@@ -791,6 +791,7 @@ def powerview_arg_parse(cmd):
 	invoke_badsuccessor_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
 	invoke_badsuccessor_parser.add_argument('-Count', action='store_true', dest='count')
 	invoke_badsuccessor_parser.add_argument('-NoCache', default=False, action='store_true', dest='nocache')
+	invoke_badsuccessor_parser.add_argument('-NoDelete', default=False, action='store_true', dest='no_delete')
 
 	# logoff-session
 	logoff_session_parser = subparsers.add_parser('Logoff-Session', exit_on_error=False)
@@ -1398,7 +1399,8 @@ def powerview_arg_parse(cmd):
 	add_gplink_parser.add_argument('-TargetIdentity', action='store', const=None, dest='targetidentity')
 	add_gplink_parser.add_argument('-LinkEnabled', action='store', dest='link_enabled', default="Yes", choices=["Yes","No"])
 	add_gplink_parser.add_argument('-Enforced', action='store', dest='enforced', default="No", choices=["Yes","No"])
-	add_gplink_parser.add_argument('-SearchBase', action='store', dest='searchbase')
+	add_gplink_parser.add_argument('-TargetSearchBase', action='store', dest='targetsearchbase')
+	add_gplink_parser.add_argument('-GPOSearchBase', action='store', dest='gposearchbase')
 	add_gplink_parser.add_argument('-Server', action='store', dest='server')
 	add_gplink_parser.add_argument('-OutFile', action='store', dest='outfile')
 
@@ -1406,7 +1408,8 @@ def powerview_arg_parse(cmd):
 	remove_gplink_parser = subparsers.add_parser('Remove-GPLink', exit_on_error=False)
 	remove_gplink_parser.add_argument('-GUID', action='store', const=None, dest='guid')
 	remove_gplink_parser.add_argument('-TargetIdentity', action='store', const=None, dest='targetidentity')
-	remove_gplink_parser.add_argument('-SearchBase', action='store', dest='searchbase')
+	remove_gplink_parser.add_argument('-TargetSearchBase', action='store', dest='targetsearchbase')
+	remove_gplink_parser.add_argument('-GPOSearchBase', action='store', dest='gposearchbase')
 	remove_gplink_parser.add_argument('-Server', action='store', dest='server')
 	remove_gplink_parser.add_argument('-OutFile', action='store', dest='outfile')
 	

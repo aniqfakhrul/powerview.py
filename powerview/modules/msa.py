@@ -40,7 +40,14 @@ class MSA:
 		sd = AccessControl.create_empty_sd()
 		acl = AccessControl.create_ace(principal_sid)
 		sd['Dacl'].aces.append(acl)
-		return sd.getData() 
+		return sd.getData()
+
+	@staticmethod
+	def add_msamembership(secDesc: bytes, principal_sid: str):
+		sd = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDesc)
+		acl = AccessControl.create_ace(principal_sid)
+		sd['Dacl'].aces.append(acl)
+		return sd.getData()
 
 	@staticmethod
 	def set_hidden_secdesc(sec_desc: bytes, whitelisted_sids: list[str]):
