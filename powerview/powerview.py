@@ -3225,16 +3225,18 @@ displayName=New Group Policy Object
 			logging.info("[Remove-DomainOU] Success! Deleted the OU")
 			return True
 
-	def remove_gplink(self, guid, targetidentity, searchbase=None, sd_flag=None, args=None):
-		if not searchbase:
-			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+	def remove_gplink(self, guid, targetidentity, targetsearchbase=None, gposearchbase=None, sd_flag=None, args=None):
+		if not targetsearchbase:
+			targetsearchbase = args.targetsearchbase if hasattr(args, 'targetsearchbase') and args.targetsearchbase else self.root_dn
+		if not gposearchbase:
+			gposearchbase = args.gposearchbase if hasattr(args, 'gposearchbase') and args.gposearchbase else self.root_dn
 
 		# verify that the gpidentity exists
 		gpo = self.get_domaingpo(identity=guid, properties=[
 			'name',
 			'distinguishedName',
 			],
-			searchbase=searchbase,
+			searchbase=gposearchbase,
 		)
 		if len(gpo) > 1:
 			logging.error("[Remove-GPLink] More than one GPO found")
@@ -3254,7 +3256,7 @@ displayName=New Group Policy Object
 		target_identity = self.get_domainobject(identity=targetidentity, properties=[
 			'*',
 			],
-			searchbase=searchbase,
+			searchbase=targetsearchbase,
 			sd_flag=sd_flag
 			)
 		if len(target_identity) > 1:
@@ -3292,11 +3294,13 @@ displayName=New Group Policy Object
 											'attribute': 'gPLink',
 											'value': [new_gplink]
 										},
+									searchbase=targetsearchbase
 								  )
 		else:
 			succeed = self.set_domainobject(  
 									targetidentity_dn,
-									clear = "gPLink"
+									clear = "gPLink",
+									searchbase=targetsearchbase
 								  )
 
 		if succeed:
@@ -3306,16 +3310,18 @@ displayName=New Group Policy Object
 			logging.error(f"[Remove-GPLink] Failed to modify gPLink on {targetidentity_dn} OU")
 			return False
 
-	def add_gplink(self, guid, targetidentity, link_enabled="Yes", enforced="No", searchbase=None, sd_flag=None, args=None):
-		if not searchbase:
-			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
+	def add_gplink(self, guid, targetidentity, link_enabled="Yes", enforced="No", targetsearchbase=None, gposearchbase=None, sd_flag=None, args=None):
+		if not targetsearchbase:
+			targetsearchbase = args.targetsearchbase if hasattr(args, 'targetsearchbase') and args.targetsearchbase else self.root_dn
+		if not gposearchbase:
+			gposearchbase = args.gposearchbase if hasattr(args, 'gposearchbase') and args.gposearchbase else self.root_dn
 
 		# verify that the gpidentity exists
 		gpo = self.get_domaingpo(identity=guid, properties=[
 			'name',
 			'distinguishedName',
 			],
-			searchbase=searchbase,
+			searchbase=gposearchbase,
 		)
 		if len(gpo) > 1:
 			logging.error("[Add-GPLink] More than one GPO found")
@@ -3335,7 +3341,7 @@ displayName=New Group Policy Object
 		target_identity = self.get_domainobject(identity=targetidentity, properties=[
 			'*',
 			],
-			searchbase=searchbase,
+			searchbase=targetsearchbase,
 			sd_flag=sd_flag
 			)
 		if len(target_identity) > 1:
@@ -3389,6 +3395,7 @@ displayName=New Group Policy Object
 										'attribute': 'gPLink',
 										'value': [targetidentity_gplink]
 									},
+								searchbase=targetsearchbase
 							  )
 
 		if succeed:

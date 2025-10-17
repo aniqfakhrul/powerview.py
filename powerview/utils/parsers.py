@@ -1398,7 +1398,8 @@ def powerview_arg_parse(cmd):
 	add_gplink_parser.add_argument('-TargetIdentity', action='store', const=None, dest='targetidentity')
 	add_gplink_parser.add_argument('-LinkEnabled', action='store', dest='link_enabled', default="Yes", choices=["Yes","No"])
 	add_gplink_parser.add_argument('-Enforced', action='store', dest='enforced', default="No", choices=["Yes","No"])
-	add_gplink_parser.add_argument('-SearchBase', action='store', dest='searchbase')
+	add_gplink_parser.add_argument('-TargetSearchBase', action='store', dest='targetsearchbase')
+	add_gplink_parser.add_argument('-GPOSearchBase', action='store', dest='gposearchbase')
 	add_gplink_parser.add_argument('-Server', action='store', dest='server')
 	add_gplink_parser.add_argument('-OutFile', action='store', dest='outfile')
 
@@ -1406,7 +1407,8 @@ def powerview_arg_parse(cmd):
 	remove_gplink_parser = subparsers.add_parser('Remove-GPLink', exit_on_error=False)
 	remove_gplink_parser.add_argument('-GUID', action='store', const=None, dest='guid')
 	remove_gplink_parser.add_argument('-TargetIdentity', action='store', const=None, dest='targetidentity')
-	remove_gplink_parser.add_argument('-SearchBase', action='store', dest='searchbase')
+	remove_gplink_parser.add_argument('-TargetSearchBase', action='store', dest='targetsearchbase')
+	remove_gplink_parser.add_argument('-GPOSearchBase', action='store', dest='gposearchbase')
 	remove_gplink_parser.add_argument('-Server', action='store', dest='server')
 	remove_gplink_parser.add_argument('-OutFile', action='store', dest='outfile')
 	
