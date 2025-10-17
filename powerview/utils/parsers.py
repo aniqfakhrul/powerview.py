@@ -791,6 +791,7 @@ def powerview_arg_parse(cmd):
 	invoke_badsuccessor_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
 	invoke_badsuccessor_parser.add_argument('-Count', action='store_true', dest='count')
 	invoke_badsuccessor_parser.add_argument('-NoCache', default=False, action='store_true', dest='nocache')
+	invoke_badsuccessor_parser.add_argument('-NoDelete', default=False, action='store_true', dest='no_delete')
 
 	# logoff-session
 	logoff_session_parser = subparsers.add_parser('Logoff-Session', exit_on_error=False)

@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
     "ldap3-bleeding-edge",
-    "impacket",
+    "impacket @ git+https://github.com/fortra/impacket.git",
     "dnspython",
     "future",
     "gnureadline",

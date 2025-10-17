@@ -69,7 +69,7 @@ COMMANDS = {
     'Invoke-PrinterBug':['-Target', '-Listener', '-Server', '-OutFile', '-TableView', '-Select', '-Where', '-SortBy', '-Count', '-NoWrap'],
     'Invoke-DFSCoerce':['-Target', '-Listener', '-Server', '-OutFile', '-TableView', '-Select', '-Where', '-SortBy', '-Count', '-NoWrap'],
     'Invoke-MessageBox':['-Computer','-ComputerName','-SessionId','-Title','-Message','-Username','-Password','-Hash','-Server', '-OutFile', '-TableView', '-SortBy'],
-    'Invoke-BadSuccessor':['-DMSAName', '-PrincipalAllowed', '-TargetIdentity', '-Force', '-BaseDN', '-Server','-NoCache'],
+    'Invoke-BadSuccessor':['-DMSAName', '-PrincipalAllowed', '-TargetIdentity', '-Force', '-BaseDN', '-Server','-NoCache', '-TableView', '-OutFile', '-Count', '-NoWrap', '-NoDelete'],
     'Get-ExchangeServer':['-Identity','-Properties','-LDAPFilter','-SearchBase','-TableView', '-SortBy','-Server','-Select','-Count','-NoWrap','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-ExchangeMailbox':['-Identity','-Properties','-LDAPFilter','-SearchBase','-TableView', '-SortBy','-Server','-Select','-Count','-NoWrap','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-ExchangeDatabase':['-Identity','-Properties','-LDAPFilter','-SearchBase','-TableView', '-SortBy','-Server','-Select','-Count','-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],

