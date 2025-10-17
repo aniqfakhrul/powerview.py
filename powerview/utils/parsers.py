@@ -780,7 +780,7 @@ def powerview_arg_parse(cmd):
 	invoke_messagebox_parser.add_argument('-Count', action='store_true', dest='count')
 
 	# invoke-badsuccessor
-	invoke_badsuccessor_parser = subparsers.add_parser('Invoke-BadSuccessor', exit_on_error=False)
+	invoke_badsuccessor_parser = subparsers.add_parser('Invoke-BadSuccessor', aliases=['Invoke-DMSASync'], exit_on_error=False)
 	invoke_badsuccessor_parser.add_argument('-DMSAName', action='store', dest='dmsaname', type=lambda value: escape_filter_chars_except_asterisk(value))
 	invoke_badsuccessor_parser.add_argument('-PrincipalAllowed', action='store', dest='principalallowed', type=lambda value: escape_filter_chars_except_asterisk(value))
 	invoke_badsuccessor_parser.add_argument('-TargetIdentity', action='store', dest='targetidentity', type=lambda value: escape_filter_chars_except_asterisk(value))
