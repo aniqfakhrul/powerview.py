@@ -1692,13 +1692,6 @@ class CONNECTION:
 			"raise_exceptions": True,
 			"authentication": auth_method
 		}
-		# ldap_connection_kwargs = {
-		# 	"user":user,
-		# 	"raise_exceptions": True,
-		# 	"authentication": 'SASL',
-		# 	"sasl_mechanism": 'GSSAPI',
-		# 	"sasl_credentials": (None, 'Administrator', 'P@$$w0rd!xyz')
-		# }
 		logging.debug("Authentication: {}, User: {}".format(auth_method, user))
 
 		if seal_and_sign or self.use_sign_and_seal:
@@ -1730,6 +1723,8 @@ class CONNECTION:
 				ldap_connection_kwargs["password"] = password
 			
 			try:
+				# ldap_session = ldap3.Connection(ldap_server, version = 3, authentication = ldap3.SASL,
+                #          sasl_mechanism = ldap3.DIGEST_MD5, sasl_credentials = (domain, user, password, None, ldap3.ENCRYPT))
 				ldap_session = ldap3.Connection(ldap_server, **ldap_connection_kwargs)
 				bind = ldap_session.bind()
 			except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
