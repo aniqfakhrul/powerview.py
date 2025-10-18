@@ -23,8 +23,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "ldap3-bleeding-edge",
-    "impacket @ git+https://github.com/fortra/impacket.git",
     "dnspython",
     "future",
     "gnureadline",
@@ -35,6 +33,8 @@ dependencies = [
     "argparse",
     "requests_ntlm",
     "python-dateutil",
+    "ldap3 @ git+https://github.com/cannatag/ldap3.git",
+    "impacket @ git+https://github.com/fortra/impacket.git",
     "flask",
     "flask-basicauth",
     "pycryptodome",

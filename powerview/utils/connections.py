@@ -606,7 +606,7 @@ class SMBConnectionPool(ConnectionPool):
 			return stats
 
 class CONNECTION:
-	def __init__(self, args):
+	def __init__(self, args, get_alt_server_info=True):
 		self.args = args
 		self._connection_pool = ConnectionPool(
             max_connections=getattr(args, 'max_connections', 10),
@@ -618,10 +618,28 @@ class CONNECTION:
 			cleanup_interval=400,
 			keepalive_interval=300
 		)
+
+		self.alt_server_info = None
+		if get_alt_server_info:
+			_server = ldap3.Server(args.ldap_address)
+			_connection = ldap3.Connection(_server)
+			_connection.open(read_server_info=False)
+			_connection.search(search_base='',
+                                       search_filter='(objectClass=*)',
+                                       search_scope=ldap3.BASE,
+                                       attributes=['dnsHostName','defaultNamingContext', 'supportedCapabilities'],
+									   dereference_aliases=ldap3.DEREF_NEVER)
+			self.alt_server_info = _connection.response[0]['attributes']
+		
+		if self.alt_server_info and hasattr(self.alt_server_info, "dnsHostName") and len(self.alt_server_info["dnsHostName"]) > 0:
+			socket.gethostname = lambda: self.alt_server_info["dnsHostName"][0].split(".")[0]
+		else:
+			socket.gethostname = lambda: "DC01"
+
 		self._current_domain = None
 		self.username = args.username
 		self.password = args.password
-		self.domain = args.domain
+		self.domain = args.domain or dn2domain(self.alt_server_info["defaultNamingContext"][0])
 		self.lmhash = args.lmhash
 		self.nthash = args.nthash
 		self.use_kerberos = args.use_kerberos
@@ -764,11 +782,9 @@ class CONNECTION:
 			self.use_ldap = False
 
 	def add_domain_connection(self, domain):
-		"""Add a domain connection to the pool"""
 		self._connection_pool.add_connection(self, domain)
 
 	def get_domain_connection(self, domain):
-		"""Get or create a connection to a trusted domain using the connection pool"""
 		if not domain:
 			return self
 			
@@ -786,7 +802,6 @@ class CONNECTION:
 				logging.debug("Primary domain connection is dead, creating new one")
 		
 		def connection_factory():
-			"""Factory function to create new domain connections"""
 			new_conn = CONNECTION(self.args)
 			new_conn.username = self.username
 			new_conn.password = self.password
@@ -827,11 +842,6 @@ class CONNECTION:
 			raise
 	
 	def maintain_connections(self):
-		"""
-		Connection maintenance is handled by the pool's background threads
-		If keepalive_interval > 0, the pool automatically maintains connections
-		This method can manually trigger maintenance if needed
-		"""
 		if hasattr(self._connection_pool, 'health_check'):
 			dead_count = self._connection_pool.health_check()
 			if dead_count > 0:
@@ -840,26 +850,17 @@ class CONNECTION:
 			logging.debug("Connection maintenance is handled automatically by the pool")
 
 	def cleanup_domain_connections(self):
-		"""Cleanup all domain connections using the pool"""
 		self._connection_pool.shutdown()
 
 	def get_all_connected_domains(self):
-		"""Get list of all domains with active connections from the pool"""
 		domains = [self.get_domain()]
 		domains.extend(self._connection_pool.get_all_domains())
 		return domains
 
 	def remove_domain_connection(self, domain):
-		"""Remove a domain connection from the pool"""
 		self._connection_pool.remove_connection(domain)
 
 	def get_pool_stats(self):
-		"""
-		Get comprehensive connection pool statistics for all protocols
-		
-		Returns:
-			dict: Combined statistics from LDAP and SMB connection pools
-		"""
 		stats = {
 			'timestamp': time.time(),
 			'pools': {}
@@ -1233,14 +1234,20 @@ class CONNECTION:
 		if self.use_kerberos:
 			try:
 				if ldap_address and is_ipaddress(ldap_address):
-					target = get_machine_name(ldap_address)
+					target = self.alt_server_info["dnsHostName"][0] if self.alt_server_info["dnsHostName"] and len(self.alt_server_info["dnsHostName"]) > 0 else None
+					if not target:
+						target = get_machine_name(ldap_address)
 					self.kdcHost = target
 				elif self.ldap_address is not None and is_ipaddress(self.ldap_address):
-					target = get_machine_name(self.ldap_address)
+					target = self.alt_server_info["dnsHostName"][0] if self.alt_server_info["dnsHostName"] and len(self.alt_server_info["dnsHostName"]) > 0 else None
+					if not target:
+						target = get_machine_name(self.ldap_address)
 					self.kdcHost = target
 				else:
 					target = self.ldap_address
 			except Exception as e:
+				if self.args.stack_trace:
+					raise e
 				logging.debug("Performing reverse DNS lookup")
 				target = ip2host(self.ldap_address, nameserver=self.nameserver, timeout=5)
 				if not target:
@@ -1260,7 +1267,7 @@ class CONNECTION:
 				target = self.ldap_address
 			else:
 				target = self.domain
-
+		
 		if self.do_certificate:
 			logging.debug("Using Schannel, trying to authenticate with provided certificate")
 
@@ -1671,7 +1678,7 @@ class CONNECTION:
 		bind = False
 
 		ldap_server = ldap3.Server(**ldap_server_kwargs)
-
+		
 		user = None
 		if auth_method == ldap3.NTLM:
 			user = '%s\\%s' % (domain, username)
@@ -1685,6 +1692,13 @@ class CONNECTION:
 			"raise_exceptions": True,
 			"authentication": auth_method
 		}
+		# ldap_connection_kwargs = {
+		# 	"user":user,
+		# 	"raise_exceptions": True,
+		# 	"authentication": 'SASL',
+		# 	"sasl_mechanism": 'GSSAPI',
+		# 	"sasl_credentials": (None, 'Administrator', 'P@$$w0rd!xyz')
+		# }
 		logging.debug("Authentication: {}, User: {}".format(auth_method, user))
 
 		if seal_and_sign or self.use_sign_and_seal:
@@ -1693,7 +1707,7 @@ class CONNECTION:
 		elif tls_channel_binding or self.use_channel_binding:
 			logging.debug("Using channel binding")
 			ldap_connection_kwargs["channel_binding"] = ldap3.TLS_CHANNEL_BINDING
-
+		
 		logging.debug(f"Connecting to %s, Port: %s, SSL: %s" % (ldap_server_kwargs["host"], ldap_server_kwargs["port"], ldap_server_kwargs["use_ssl"]))
 		if self.use_kerberos:
 			ldap_connection_kwargs["sasl_mechanism"] = ldap3.KERBEROS
