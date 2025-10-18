@@ -3,6 +3,7 @@ import os
 import json
 import logging
 from datetime import datetime
+from powerview.utils.colors import bcolors
 
 class VulnerabilityDetector:
     def __init__(self, storage):
@@ -206,6 +207,11 @@ class VulnerabilityDetector:
                         "attribute": "userAccountControl",
                         "condition": "contains",
                         "value": "ACCOUNTDISABLE"
+                    },
+                    {
+                        "attribute": "distinguishedName",
+                        "condition": "contains",
+                        "value": "Domain Controllers"
                     }
                 ],
                 "severity": "high",
@@ -899,6 +905,13 @@ class VulnerabilityDetector:
     def detect_vulnerabilities(self, entry):
         vulnerabilities = []
         
+        severity_colors = {
+            "low": bcolors.OKGREEN,
+            "medium": bcolors.WARNING,
+            "high": bcolors.FAIL,
+            "critical": bcolors.BRIGHTRED
+        }
+        
         for rule_name, rule_data in self.rules.items():
             if not self._check_vulnerability_rules(entry, rule_data):
                 continue
@@ -907,10 +920,15 @@ class VulnerabilityDetector:
                 if self._check_vulnerability_exclusions(entry, rule_data):
                     continue
                 
+            sev = str(rule_data["severity"]).lower()
+            color = severity_colors.get(sev, bcolors.WHITE)
+            sev_colored = f"{color}{sev.upper()}{bcolors.ENDC}"
+            
             vuln_entry = {
                 "name": rule_name,
                 "description": rule_data["description"],
                 "severity": rule_data["severity"],
+                "severity_colored": sev_colored,
                 "id": rule_data.get("id", "VULN")
             }
             
