@@ -674,6 +674,58 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+// Function to handle distinguished name updates
+async function updateDistinguishedName(identity, newValue) {
+    try {
+        showLoadingIndicator();
+        
+        // Extract the parent container from the new DN
+        const dnParts = newValue.split(',');
+        const parentContainer = dnParts.slice(1).join(',');
+        
+        // Extract the search base from the parent container
+        // Find the common parent container by skipping the first two DN parts
+        const identityParts = identity.split(',');
+        const searchBase = identityParts.slice(2).join(','); // Skip the first two parts to get to common parent level
+        
+        const response = await fetch('/api/set/domainobjectdn', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                identity: identity,
+                destination_dn: parentContainer,
+                searchbase: searchBase
+            })
+        });
+        
+        if (response.ok) {
+            const responseData = await response.json();
+            
+            // Check if the backend operation actually succeeded
+            if (responseData === true) {
+                return true;
+            } else {
+                showErrorAlert('Failed to update distinguished name. The user may not exist or you may not have permission.');
+                return false;
+            }
+        } else {
+            return false;
+        }
+    } catch (error) {
+        console.error('Error updating distinguished name:', error);
+        showErrorAlert(`Failed to update distinguished name: ${error.message}`);
+        return false;
+    } finally {
+        hideLoadingIndicator();
+    }
+}
+
+
+// Make sure it's globally accessible
+window.updateDistinguishedName = updateDistinguishedName;
+
 function createAttributeEntry(name, value, identity) {
     const wrapper = document.createElement('div');
     wrapper.className = 'flex flex-col gap-1';
@@ -792,7 +844,13 @@ function createAttributeEntry(name, value, identity) {
                 
                 // Special handling for distinguishedName
                 if (name.toLowerCase() === 'distinguishedname') {
-                    success = await updateDistinguishedName(identity, newValue);
+                    const updateFn = updateDistinguishedName || window.updateDistinguishedName;
+                    if (typeof updateFn === 'function') {
+                        success = await updateFn(identity, newValue);
+                    } else {
+                        showErrorAlert('Update function not available. Please refresh the page.');
+                        return;
+                    }
                 } else {
                     success = await updateLdapAttribute(identity, name, newValue);
                 }
@@ -816,6 +874,8 @@ function createAttributeEntry(name, value, identity) {
                     } else {
                         valueContainer.textContent = newValue;
                     }
+                    // Update the input value to the full new DN for future edits
+                    input.value = newValue;
                     editButton.innerHTML = '<i class="fas fa-edit fa-xs"></i>';
                     // Show add and delete buttons again
                     addButton.style.display = '';
@@ -1304,6 +1364,7 @@ async function updateLdapAttribute(identity, attributeName, newValue) {
     }
     return false;
 }
+
 
 // Add this function to handle the new attribute addition
 function handleAddNewAttribute(identity) {

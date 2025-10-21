@@ -232,9 +232,13 @@ async function loadOUDescendants(identity) {
         tbody.innerHTML = '';
 
         if (data && Array.isArray(data)) {
-            const descendants = data.filter(item => 
-                item.attributes?.distinguishedName?.toLowerCase() !== identity.toLowerCase()
-            );
+            const descendants = data.filter(item => {
+                if (!item.attributes?.distinguishedName) return true;
+                const dn = Array.isArray(item.attributes.distinguishedName) 
+                    ? item.attributes.distinguishedName[0] 
+                    : item.attributes.distinguishedName;
+                return dn.toLowerCase() !== identity.toLowerCase();
+            });
 
             descendants.forEach(item => {
                 if (!item.attributes) return;
