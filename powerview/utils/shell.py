@@ -98,5 +98,5 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
         f"{web_indicator}"
         f"{domain_indicator}"
         f"{cache_indicator}"
-        f"\n{bcolors.OKBLUE}╰─{bcolors.OKGREEN}❯{bcolors.ENDC} "
+        f"\n{bcolors.OKBLUE}╰─{bcolors.OKGREEN} ❯{bcolors.ENDC} "
     )
