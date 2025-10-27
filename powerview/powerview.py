@@ -49,6 +49,7 @@ from powerview.lib.dns import (
 )
 from powerview.lib.reg import RemoteOperations
 from powerview.lib.samr import SamrObject
+from powerview.lib.efs import EFS_UUID
 from powerview.lib.resolver import (
 	UAC,
 	LDAP
@@ -3066,7 +3067,7 @@ class PowerView:
 		logging.debug(f"[Enable-EFSRPC] Connecting to {target}")
 
 		with contextlib.suppress(Exception):
-			dce = self.conn.get_dynamic_endpoint("df1941c5-fe89-4e79-bf10-463657acf44d", target, port=port)
+			dce = self.conn.get_dynamic_endpoint(EFS_UUID, target, port=port)
 			if dce is None:
 				logging.error("[Enable-EFSRPC] Failed to enable EFSRPC on %s" % (target))
 				return False
