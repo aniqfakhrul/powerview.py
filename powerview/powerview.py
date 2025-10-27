@@ -2590,18 +2590,22 @@ class PowerView:
 			logging.debug(f"[Get-DomainDNSRecord] Search base: {zoneDN}")
 			logging.debug(f"[Get-DomainDNSRecord] LDAP Filter string: {ldap_filter}")
 			
-			# Use the enhanced paged_search which already handles entry filtering and stripping
-			dns_entries = self.ldap_session.extend.standard.paged_search(
-				zoneDN, 
-				ldap_filter,
-				attributes=properties or def_prop, 
-				paged_size=1000, 
-				generator=False,
-				search_scope=search_scope, 
-				no_cache=no_cache, 
-				no_vuln_check=no_vuln_check,
-				raw=raw
-			)
+			try:
+				# Use the enhanced paged_search which already handles entry filtering and stripping
+				dns_entries = self.ldap_session.extend.standard.paged_search(
+					zoneDN, 
+					ldap_filter,
+					attributes=properties or def_prop, 
+					paged_size=1000, 
+					generator=False,
+					search_scope=search_scope, 
+					no_cache=no_cache, 
+					no_vuln_check=no_vuln_check,
+					raw=raw
+				)
+			except ldap3.core.exceptions.LDAPNoSuchObjectResult:
+				logging.error(f"[Get-DomainDNSRecord] No such object: {zoneDN}. Skipping...")
+				continue
 			
 			# Process the DNS records
 			for entry in dns_entries:
@@ -3054,24 +3058,20 @@ class PowerView:
 		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
 		port = args.port if hasattr(args, 'port') and args.port else port
 		
-		identity = self._resolve_host(computer)
-		if not identity:
-			logging.error(f"[Enable-EFSRPC] Failed to resolve hostname {computer}")
-			return False
+		target = self._resolve_host(computer)
 		
-		if computer.casefold() != identity.casefold():
-			logging.debug(f"[Enable-EFSRPC] Resolved hostname to IP: {identity}")
-			logging.debug(f"[Enable-EFSRPC] Connecting to {identity}")
-		else:
-			logging.debug(f"[Enable-EFSRPC] Connecting to {computer}")
+		if computer.casefold() != target.casefold():
+			logging.debug(f"[Enable-EFSRPC] Resolved hostname to IP: {target}")
+		
+		logging.debug(f"[Enable-EFSRPC] Connecting to {target}")
 
 		with contextlib.suppress(Exception):
-			dce = self.conn.get_dynamic_endpoint("df1941c5-fe89-4e79-bf10-463657acf44d", identity, port=port)
+			dce = self.conn.get_dynamic_endpoint("df1941c5-fe89-4e79-bf10-463657acf44d", target, port=port)
 			if dce is None:
-				logging.error("[Enable-EFSRPC] Failed to enable EFSRPC on %s" % (identity))
+				logging.error("[Enable-EFSRPC] Failed to enable EFSRPC on %s" % (target))
 				return False
 
-		logging.info("[Enable-EFSRPC] Successfully enabled EFSRPC on %s" % (identity))
+		logging.info("[Enable-EFSRPC] Successfully enabled EFSRPC on %s" % (target))
 		return True
 		
 

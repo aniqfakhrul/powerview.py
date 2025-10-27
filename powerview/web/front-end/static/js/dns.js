@@ -1,7 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
+    let recordnameToDelete = null;
     function convertZoneToId(zoneName) {
         return zoneName.replace(/\./g, '-');
     }
+
+    // Soft badge helpers moved to static.js and loaded globally
 
     async function fetchAndDisplayDnsZones() {
         // Select the spinner element
@@ -18,27 +21,32 @@ document.addEventListener('DOMContentLoaded', () => {
             await handleHttpError(response);
 
             const data = await response.json();
-            const zoneNames = data.map(obj => obj.attributes.name);
+            const rawZones = Array.isArray(data) ? data : [];
+            const zoneMap = new Map();
+            rawZones.forEach(item => {
+                if (typeof item === 'string') {
+                    const name = item;
+                    if (name && !zoneMap.has(name)) zoneMap.set(name, { name, type: '' });
+                } else {
+                    const attrs = (item && item.attributes) || {};
+                    const name = attrs.name || attrs.dc || '';
+                    const type = attrs.type || '';
+                    if (name && !zoneMap.has(name)) zoneMap.set(name, { name, type });
+                }
+            });
+            const zonesList = Array.from(zoneMap.values());
 
             // Populate the zone names in the modal dropdown
             const zoneDropdown = document.getElementById('dns-zone');
             if (zoneDropdown) {
-                zoneDropdown.innerHTML = ''; // Clear existing options
-                
-                // Get currently selected zone
-                const selectedZone = document.querySelector('.zone-item.bg-neutral-200, .zone-item.dark\\:bg-neutral-800');
-                const currentZoneName = selectedZone ? selectedZone.querySelector('span').textContent : null;
-
-                zoneNames.forEach((zoneName, index) => {
+                zoneDropdown.innerHTML = '';
+                const selectedZoneRow = document.querySelector('.zone-row.bg-neutral-200, .zone-row.dark\\:bg-neutral-800');
+                const currentZoneName = selectedZoneRow ? (selectedZoneRow.querySelector('td')?.textContent || '').split(' (')[0] : null;
+                zonesList.forEach((z, index) => {
                     const option = document.createElement('option');
-                    option.value = zoneName;
-                    option.textContent = zoneName;
-                    
-                    // Set as selected if it matches the current zone or if it's the first item and no zone is selected
-                    if ((currentZoneName && zoneName === currentZoneName) || (!currentZoneName && index === 0)) {
-                        option.selected = true;
-                    }
-                    
+                    option.value = z.name;
+                    option.textContent = z.name;
+                    if ((currentZoneName && z.name === currentZoneName) || (!currentZoneName && index === 0)) option.selected = true;
                     zoneDropdown.appendChild(option);
                 });
             }
@@ -52,44 +60,32 @@ document.addEventListener('DOMContentLoaded', () => {
             // Clear existing content
             zoneNameContainer.innerHTML = '';
 
-            // Create and append new zone names as dropdowns
-            zoneNames.forEach(name => {
-                const zoneDiv = document.createElement('div');
-                zoneDiv.classList.add(
-                    'cursor-pointer',
-                    'zone-item', 
-                    'flex', 
-                    'items-center',
-                    'p-2',
-                    'rounded', 
-                    'hover:bg-neutral-100', 
-                    'dark:hover:bg-neutral-700'
-                );
-                
-                zoneDiv.addEventListener('click', () => {
-                    // Remove selected classes from all zone items
-                    document.querySelectorAll('.zone-item').forEach(item => {
-                        item.classList.remove('bg-neutral-200', 'dark:bg-neutral-800');
-                    });
-                    // Add selected classes to clicked zone
-                    zoneDiv.classList.add('bg-neutral-200', 'dark:bg-neutral-800');
-                    toggleZoneRecords(name, zoneDiv);
+            const table = document.createElement('table');
+            table.classList.add('w-full', 'text-sm', 'border-collapse');
+
+            const tbody = document.createElement('tbody');
+            tbody.className = '';
+            zonesList.forEach(z => {
+                const tr = document.createElement('tr');
+                tr.className = 'zone-row cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700';
+                tr.addEventListener('click', () => {
+                    tbody.querySelectorAll('tr').forEach(r => r.classList.remove('bg-neutral-200', 'dark:bg-neutral-800'));
+                    tr.classList.add('bg-neutral-200', 'dark:bg-neutral-800');
+                    toggleZoneRecords(z.name);
                 });
-
-                const zoneSpan = document.createElement('span');
-                zoneSpan.textContent = name;
-                zoneSpan.classList.add('text-neutral-900', 'dark:text-white', 'mr-2','text-left');
-
-                const spinnerSVG = getSpinnerSVG(`button-${convertZoneToId(name)}`);
-
-                const recordsContainer = document.createElement('div');
-                recordsContainer.classList.add('records-container', 'ml-4', 'mt-2', 'hidden');
-
-                zoneDiv.appendChild(zoneSpan);
-                zoneDiv.insertAdjacentHTML('beforeend', spinnerSVG);
-                zoneDiv.appendChild(recordsContainer);
-                zoneNameContainer.appendChild(zoneDiv);
+                const td = document.createElement('td');
+                td.className = 'px-3 py-2 text-neutral-900 dark:text-white';
+                if (z.type) {
+                    const badge = `<span class="${getSoftBadgeClasses(zoneTypeColor(z.type))}">${z.type}</span>`;
+                    td.innerHTML = `${z.name} ${badge}`;
+                } else {
+                    td.textContent = z.name;
+                }
+                tr.appendChild(td);
+                tbody.appendChild(tr);
             });
+            table.appendChild(tbody);
+            zoneNameContainer.appendChild(table);
         } catch (error) {
             console.error('Error fetching DNS zones:', error);
         } finally {
@@ -97,20 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function toggleZoneRecords(zoneName, parentElement) {
-        const recordsContainer = parentElement.querySelector('.records-container');
-
-        if (!recordsContainer.classList.contains('hidden')) {
-            recordsContainer.classList.add('hidden');
-            recordsContainer.innerHTML = '';
-            return;
-        }
-
-        const zoneSpinner = document.getElementById(`spinner-button-${convertZoneToId(zoneName)}`);
-        if (zoneSpinner) {
-            zoneSpinner.classList.remove('hidden');
-        }
-
+    async function toggleZoneRecords(zoneName) {
         try {
             const response = await fetch('/api/get/domaindnsrecord', {
                 method: 'POST',
@@ -148,61 +131,89 @@ document.addEventListener('DOMContentLoaded', () => {
 
             recordNameSection.innerHTML = '';
 
-            // Create table with a specific class for filtering
             const table = document.createElement('table');
-            table.classList.add('w-full', 'text-left', 'border-collapse', 'dns-records-table');
-
-            // Create table header
+            table.classList.add('w-full', 'text-sm', 'border-collapse', 'dns-records-table');
             const thead = document.createElement('thead');
-            const headerRow = document.createElement('tr');
-            ['Name', 'Address'].forEach(headerText => {
+            const hr = document.createElement('tr');
+            ['Name', 'Type', 'TTL', 'Value', 'Actions'].forEach(h => {
                 const th = document.createElement('th');
-                th.textContent = headerText;
-                th.classList.add(
-                    'text-neutral-600',
-                    'dark:text-neutral-400',
-                    'px-3',
-                    'py-2',
-                    'font-medium'
-                );
-                headerRow.appendChild(th);
+                th.className = 'text-left px-3 py-2 text-neutral-600 dark:text-neutral-400 font-medium';
+                th.textContent = h;
+                hr.appendChild(th);
             });
-            thead.appendChild(headerRow);
+            thead.appendChild(hr);
             table.appendChild(thead);
 
-            // Create tbody
             const tbody = document.createElement('tbody');
-            tbody.classList.add('divide-y', 'divide-neutral-200', 'dark:divide-neutral-700');
+            tbody.className = 'divide-y divide-neutral-200 dark:divide-neutral-800';
 
-            // Populate table rows
-            Array.from(uniqueRecords.values()).forEach(record => {
-                const row = document.createElement('tr');
-                row.classList.add(
-                    'cursor-pointer',
-                    'hover:bg-neutral-100',
-                    'dark:hover:bg-neutral-700',
-                    'dns-record-row'  // Add specific class for filtering
-                );
+            const recordsArray = Array.from(uniqueRecords.values());
+            const typeSelect = document.getElementById('record-type-filter');
+            if (typeSelect) {
+                const types = Array.from(new Set(recordsArray.map(r => (r.attributes || {}).RecordType).filter(Boolean)));
+                typeSelect.innerHTML = '<option value="ALL">ALL</option>' + types.map(t => `<option value="${t}">${t}</option>`).join('');
+                typeSelect.addEventListener('change', filterRecords);
+            }
 
-                row.addEventListener('click', () => {
-                    tbody.querySelectorAll('tr').forEach(r => {
-                        r.classList.remove('bg-neutral-200', 'dark:bg-neutral-800');
-                    });
-                    row.classList.add('bg-neutral-200', 'dark:bg-neutral-800');
-                    fetchAndDisplayDnsRecordDetails(record.attributes.name, zoneName);
+            const exportBtn = document.getElementById('export-records-csv');
+            if (exportBtn) {
+                exportBtn.onclick = () => exportRecordsToCSV(recordsArray);
+            }
+
+            recordsArray.forEach(rec => {
+                const a = rec.attributes || {};
+                const tr = document.createElement('tr');
+                tr.className = 'dns-record-row cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700';
+                tr.addEventListener('click', () => {
+                    tbody.querySelectorAll('tr').forEach(r => r.classList.remove('bg-neutral-200', 'dark:bg-neutral-800'));
+                    tr.classList.add('bg-neutral-200', 'dark:bg-neutral-800');
+                    fetchAndDisplayDnsRecordDetails(a.name, zoneName);
                 });
 
-                const nameCell = document.createElement('td');
-                nameCell.textContent = record.attributes.name;
-                nameCell.classList.add('text-neutral-900', 'dark:text-white', 'px-3', 'py-2');
+                const nameTd = document.createElement('td');
+                nameTd.className = 'px-3 py-2 text-neutral-900 dark:text-white';
+                nameTd.textContent = a.name || '';
 
-                const addressCell = document.createElement('td');
-                addressCell.textContent = record.attributes.Address || '';
-                addressCell.classList.add('text-neutral-900', 'dark:text-white', 'px-3', 'py-2');
+                const typeTd = document.createElement('td');
+                typeTd.className = 'px-3 py-2 text-neutral-900 dark:text-white';
+                typeTd.textContent = a.RecordType || '';
 
-                row.appendChild(nameCell);
-                row.appendChild(addressCell);
-                tbody.appendChild(row);
+                const ttlTd = document.createElement('td');
+                ttlTd.className = 'px-3 py-2 text-neutral-900 dark:text-white';
+                ttlTd.textContent = a.TTL != null ? a.TTL : '';
+
+                const valueTd = document.createElement('td');
+                valueTd.className = 'px-3 py-2 text-neutral-900 dark:text-white';
+                let val = a.Address || '';
+                if (!val && a.RecordType === 'SRV') val = (a.Name || '') + (a.Port ? ':' + a.Port : '');
+                if (!val && a.RecordType === 'SOA') val = a['Primary Server'] || a.Name || '';
+                if (!val && Array.isArray(a.dnsRecord) && a.dnsRecord.length) {
+                    try { val = convertToBase64(a.dnsRecord[0]); } catch (e) { val = '[raw]'; }
+                }
+                valueTd.textContent = val || '';
+                
+                const actionsTd = document.createElement('td');
+                actionsTd.className = 'px-3 py-2 text-center';
+                const delBtn = document.createElement('button');
+                delBtn.className = 'text-red-600 hover:text-red-700 dark:text-red-500 dark:hover:text-red-400 p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20';
+                delBtn.title = `Delete ${a.name || ''}`;
+                delBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                delBtn.addEventListener('click', async (ev) => {
+                    ev.stopPropagation();
+                    if (!a.name) return;
+                    const ok = confirm(`Delete DNS record \"${a.name}\"?`);
+                    if (!ok) return;
+                    await deleteDnsRecord(a.name);
+                    tr.remove();
+                });
+                actionsTd.appendChild(delBtn);
+
+                tr.appendChild(nameTd);
+                tr.appendChild(typeTd);
+                tr.appendChild(ttlTd);
+                tr.appendChild(valueTd);
+                tr.appendChild(actionsTd);
+                tbody.appendChild(tr);
             });
 
             table.appendChild(tbody);
@@ -212,9 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error loading DNS records:', error);
             showErrorAlert('Failed to load DNS records');
         } finally {
-            if (zoneSpinner) {
-                zoneSpinner.classList.add('hidden');
-            }
         }
     }
 
@@ -257,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
         button.addEventListener('click', () => {
             const modalId = button.getAttribute('data-modal-hide');
             const modal = document.getElementById(modalId);
-            const overlay = document.getElementById('modal-overlay');
+            const overlay = document.getElementById('modal-overlay') || document.getElementById('dns-details-overlay');
             
             if (modal) {
                 modal.classList.add('hidden');
@@ -319,80 +327,81 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function populateDNSDetailsPanel(data) {
-
         const deleteButton = document.querySelector('[data-modal-target="delete-record-modal"]');
-        deleteButton.classList.remove('hidden');
-        deleteButton.addEventListener('click', () => {
-            const records = Array.isArray(data) ? data : [data];
-            if (records.length > 0) {
-                showDeleteModal(records[0].attributes.name);
-            } else {
-                console.error('No records available to delete');
-            }
-        });
-
-        const detailsContainer = document.querySelector('.dns-record-details-container');
-        if (!detailsContainer) {
-            console.error('DNS record details container not found');
-            return;
+        if (deleteButton) {
+            deleteButton.classList.remove('hidden');
+            deleteButton.onclick = () => {
+                const records = Array.isArray(data) ? data : [data];
+                if (records.length > 0) showDeleteModal(records[0].attributes.name);
+            };
         }
 
-        // Clear existing content
+        const modal = document.getElementById('dns-record-details-modal');
+        const overlay = document.getElementById('dns-details-overlay');
+        const detailsContainer = document.getElementById('dns-record-details-content');
+        if (!modal || !overlay || !detailsContainer) return;
         detailsContainer.innerHTML = '';
 
-        // Convert single object to array if necessary
         const records = Array.isArray(data) ? data : [data];
-
         records.forEach((record, index) => {
-            // Add a separator before each record except the first one
             if (index > 0) {
                 const separator = document.createElement('div');
                 separator.classList.add('my-4', 'border-t', 'border-neutral-200', 'dark:border-neutral-700');
-                
-                // Add record counter
-                const recordCounter = document.createElement('div');
-                recordCounter.classList.add(
-                    'mt-4', 
-                    'mb-2', 
-                    'font-semibold', 
-                    'text-neutral-700', 
-                    'dark:text-neutral-300'
-                );
-                
                 detailsContainer.appendChild(separator);
-                detailsContainer.appendChild(recordCounter);
             }
 
-            const attributes = record.attributes;
-            Object.entries(attributes).forEach(([key, value]) => {
-                const isDistinguishedName = Array.isArray(value) 
-                    ? value.some(isValidDistinguishedName) 
-                    : isValidDistinguishedName(value);
+            const table = document.createElement('table');
+            table.className = 'w-full text-sm border-collapse';
+            const thead = document.createElement('thead');
+            const hr = document.createElement('tr');
+            const th1 = document.createElement('th');
+            th1.className = 'text-left px-3 py-2 text-neutral-600 dark:text-neutral-400 font-medium';
+            th1.textContent = 'Attribute';
+            const th2 = document.createElement('th');
+            th2.className = 'text-left px-3 py-2 text-neutral-600 dark:text-neutral-400 font-medium';
+            th2.textContent = 'Value';
+            hr.appendChild(th1); hr.appendChild(th2);
+            thead.appendChild(hr);
+            table.appendChild(thead);
 
-                let detailHTML = `<strong>${key}:</strong> `;
+            const tbody = document.createElement('tbody');
+            tbody.className = '';
+
+            const attributes = record.attributes || {};
+            Object.entries(attributes).forEach(([key, value]) => {
+                const isDn = Array.isArray(value) ? value.some(isValidDistinguishedName) : isValidDistinguishedName(value);
+                const tr = document.createElement('tr');
+                tr.className = 'align-top';
+
+                const ktd = document.createElement('td');
+                ktd.className = 'px-3 py-2 text-neutral-600 dark:text-neutral-400 w-1/3';
+                ktd.textContent = key;
+
+                const vtd = document.createElement('td');
+                vtd.className = 'px-3 py-2 text-neutral-900 dark:text-white';
+
                 if (key === 'dnsRecord') {
-                    detailHTML += Array.isArray(value) 
-                        ? value.map(v => convertToBase64(v)).join('<br>')
-                        : convertToBase64(value);
-                } else if (isDistinguishedName) {
-                    detailHTML += Array.isArray(value) 
-                        ? value.map(v => `<a href="#" class="text-blue-400 hover:text-blue-600" data-identity="${v}" onclick="handleLdapLinkClick(event, '${v}')">${v}</a>`).join('<br>')
-                        : `<a href="#" class="text-blue-400 hover:text-blue-600" data-identity="${value}" onclick="handleLdapLinkClick(event, '${value}')">${value}</a>`;
+                    const val = Array.isArray(value) ? value.map(v => convertToBase64(v)).join('\n') : convertToBase64(value);
+                    vtd.innerHTML = val.toString().split('\n').map(s => `<span class="block">${s}</span>`).join('');
+                } else if (isDn) {
+                    const arr = Array.isArray(value) ? value : [value];
+                    vtd.innerHTML = arr.map(v => `<a href="#" class="text-blue-600 dark:text-yellow-500 hover:underline" onclick="handleLdapLinkClick(event, '${(v || '').replace(/'/g, "\\'")}')">${v}</a>`).join('<br>');
+                } else if (Array.isArray(value)) {
+                    vtd.innerHTML = value.map(v => `<span class="block">${v}</span>`).join('');
                 } else {
-                    detailHTML += Array.isArray(value) ? value.join('<br>') : value;
+                    vtd.textContent = value != null ? value : '';
                 }
 
-                const detailElement = document.createElement('p');
-                detailElement.innerHTML = detailHTML;
-                detailElement.classList.add(
-                    'text-sm', 
-                    'text-neutral-700', 
-                    'dark:text-neutral-300', 
-                    'py-1'
-                );
-                detailsContainer.appendChild(detailElement);
+                tr.appendChild(ktd);
+                tr.appendChild(vtd);
+                tbody.appendChild(tr);
             });
+
+            table.appendChild(tbody);
+            detailsContainer.appendChild(table);
         });
+        modal.classList.remove('hidden');
+        overlay.classList.remove('hidden');
     }
 
     function createDNLink(dn) {
@@ -519,8 +528,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showLoadingIndicator();
 
             // Updated selector to match new theme colors
-            const selectedZone = document.querySelector('.zone-item.bg-neutral-200, .zone-item.dark\\:bg-neutral-800');
-            const zoneName = selectedZone ? selectedZone.querySelector('span').textContent : null;
+            const selectedZone = document.querySelector('.zone-row.bg-neutral-200, .zone-row.dark\\:bg-neutral-800');
+            const zoneName = selectedZone ? selectedZone.querySelector('td')?.textContent : null;
 
             if (!zoneName) {
                 showErrorAlert('Could not determine the zone name');
@@ -592,32 +601,63 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function filterZones() {
         const searchTerm = zoneSearchInput.value.toLowerCase();
-        const zoneItems = document.querySelectorAll('.zone-item');
-
-        zoneItems.forEach(item => {
-            const zoneName = item.querySelector('span').textContent.toLowerCase();
-            if (zoneName.includes(searchTerm)) {
-                item.classList.remove('hidden');
-            } else {
-                item.classList.add('hidden');
-            }
+        const zoneRows = document.querySelectorAll('.zone-row');
+        zoneRows.forEach(row => {
+            const cell = row.querySelector('td');
+            const zoneName = (cell ? cell.textContent : '').toLowerCase();
+            row.style.display = zoneName.includes(searchTerm) ? '' : 'none';
         });
     }
 
     function filterRecords() {
-        const searchTerm = document.getElementById('record-search').value.toLowerCase();
+        const searchTerm = (document.getElementById('record-search')?.value || '').toLowerCase();
+        const typeFilter = document.getElementById('record-type-filter')?.value || 'ALL';
         const rows = document.querySelectorAll('.dns-record-row');
-        
         rows.forEach(row => {
             const cells = Array.from(row.getElementsByTagName('td'));
-            const textContent = cells.map(cell => cell.textContent.toLowerCase()).join(' ');
-            
-            if (textContent.includes(searchTerm)) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
+            const rowType = (cells[1]?.textContent || '').trim();
+            const textContent = cells.map(cell => (cell.textContent || '').toLowerCase()).join(' ');
+            const matchesSearch = textContent.includes(searchTerm);
+            const matchesType = typeFilter === 'ALL' || rowType === typeFilter;
+            row.style.display = matchesSearch && matchesType ? '' : 'none';
         });
+    }
+
+    // Modal overlay click to close
+    const dnsDetailsOverlay = document.getElementById('dns-details-overlay');
+    if (dnsDetailsOverlay) {
+        dnsDetailsOverlay.addEventListener('click', () => {
+            const modal = document.getElementById('dns-record-details-modal');
+            modal.classList.add('hidden');
+            dnsDetailsOverlay.classList.add('hidden');
+        });
+    }
+
+    function exportRecordsToCSV(records) {
+        try {
+            const headers = ['Name','RecordType','TTL','Value'];
+            const rows = records.map(r => {
+                const a = r.attributes || {};
+                let value = a.Address || '';
+                if (!value && a.RecordType === 'SRV') value = (a.Name || '') + (a.Port ? ':' + a.Port : '');
+                if (!value && a.RecordType === 'SOA') value = a['Primary Server'] || a.Name || '';
+                if (!value && Array.isArray(a.dnsRecord) && a.dnsRecord.length) {
+                    try { value = convertToBase64(a.dnsRecord[0]); } catch (e) { value = '[raw]'; }
+                }
+                return [a.name || '', a.RecordType || '', a.TTL != null ? a.TTL : '', (value || '').toString().replace(/\n/g,' ')]
+                    .map(v => '"' + String(v).replace(/"/g,'""') + '"').join(',');
+            });
+            const csv = headers.join(',') + '\n' + rows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'dns_records.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (e) { console.error('CSV export failed', e); }
     }
 
     // Add clear button functionality

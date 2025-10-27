@@ -2114,11 +2114,12 @@ class CONNECTION:
 			interface = uuidtup_to_bin((interface, "0.0"))
 
 		string_binding = rf"ncacn_ip_tcp:{target}[{port}]"
-		logging.debug(f"[get_dynamic_endpoint] Connecting to {string_binding}")
+		logging.debug(f"[Connections:get_dynamic_endpoint] Connecting to {string_binding}")
 		rpctransport = transport.DCERPCTransportFactory(string_binding)
 		rpctransport.set_connect_timeout(timeout)
 		dce = rpctransport.get_dce_rpc()
 		dce.connect()
+		logging.debug(f"[Connections:get_dynamic_endpoint] Connected to {string_binding}")
 		return epm.hept_map(target, interface, protocol="ncacn_ip_tcp", dce=dce)
 
 	# TODO: FIX kerberos auth

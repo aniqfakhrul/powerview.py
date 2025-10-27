@@ -56,7 +56,9 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
     if mcp_running:
         mcp_indicator = f" {bcolors.BOLD}{_gradient_text('[MCP]', [138,43,226], [0,191,255])}{bcolors.ENDC}"
 
-    web_indicator = f" {bcolors.OKBLUE}[WEB]{bcolors.ENDC}" if web_running else ""
+    web_indicator = ""
+    if web_running:
+        web_indicator = f" {bcolors.OKBLUE}[WEB:{args.web_host}:{args.web_port}]{bcolors.ENDC}"
 
     security_indicators = ""
     if channel_binding_active:
@@ -96,5 +98,5 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
         f"{web_indicator}"
         f"{domain_indicator}"
         f"{cache_indicator}"
-        f"\n{bcolors.OKBLUE}╰─{bcolors.BOLD}PV{bcolors.ENDC} {bcolors.OKGREEN}❯{bcolors.ENDC} "
+        f"\n{bcolors.OKBLUE}╰─{bcolors.OKGREEN}❯{bcolors.ENDC} "
     )
