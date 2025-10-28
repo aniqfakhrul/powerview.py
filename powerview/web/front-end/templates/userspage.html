@@ -55,25 +55,67 @@
                                 <div class="relative flex-shrink-0">
                                     <button id="user-filter-dropdown-button" 
                                         class="px-2 py-1 text-sm rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1">
-                                        Add Filter <i class="fas fa-chevron-down"></i>
+                                        Add Filter (0) <i class="fas fa-chevron-down"></i>
                                     </button>
                                     <div id="user-filter-dropdown-menu" 
-                                        class="hidden absolute right-0 mt-1 w-40 rounded-md border border-neutral-300 bg-white dark:border-neutral-700 dark:bg-neutral-800 shadow-lg z-10">
+                                        class="hidden absolute right-0 mt-1 w-56 rounded-md border border-neutral-300 bg-white dark:border-neutral-700 dark:bg-neutral-800 shadow-lg z-10">
                                         <div class="py-1">
-                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="spn">SPN</button>
-                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="admincount">AdminCount</button>
-                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="lockout">Lockout</button>
-                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="password_expired">PasswordExpired</button>
-                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="passnotrequired">PassNotRequired</button>
-                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="rbcd">RBCD</button>
-                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hoverbg-neutral-700" data-filter="shadowcred">ShadowCred</button>
-                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="preauthnotrequired">PreAuthNotRequired</button>
-                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="trustedtoauth">TrustedToAuth</button>
-                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="allowdelegation">AllowDelegation</button>
-                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="disallowdelegation">DisallowDelegation</button>
-                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="unconstrained">Unconstrained</button>
-                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="enabled">Enabled</button>
-                                            <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="disabled">Disabled</button>
+                                            <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                                <input type="checkbox" class="filter-checkbox" data-filter="spn">
+                                                <span>SPN</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                                <input type="checkbox" class="filter-checkbox" data-filter="admincount">
+                                                <span>AdminCount</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                                <input type="checkbox" class="filter-checkbox" data-filter="lockout">
+                                                <span>Lockout</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                                <input type="checkbox" class="filter-checkbox" data-filter="password_expired">
+                                                <span>PasswordExpired</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                                <input type="checkbox" class="filter-checkbox" data-filter="passnotrequired">
+                                                <span>PassNotRequired</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                                <input type="checkbox" class="filter-checkbox" data-filter="rbcd">
+                                                <span>RBCD</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                                <input type="checkbox" class="filter-checkbox" data-filter="shadowcred">
+                                                <span>ShadowCred</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                                <input type="checkbox" class="filter-checkbox" data-filter="preauthnotrequired">
+                                                <span>PreAuthNotRequired</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                                <input type="checkbox" class="filter-checkbox" data-filter="trustedtoauth">
+                                                <span>TrustedToAuth</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                                <input type="checkbox" class="filter-checkbox" data-filter="allowdelegation">
+                                                <span>AllowDelegation</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                                <input type="checkbox" class="filter-checkbox" data-filter="disallowdelegation">
+                                                <span>DisallowDelegation</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                                <input type="checkbox" class="filter-checkbox" data-filter="unconstrained">
+                                                <span>Unconstrained</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                                <input type="checkbox" class="filter-checkbox" data-filter="enabled">
+                                                <span>Enabled</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                                <input type="checkbox" class="filter-checkbox" data-filter="disabled">
+                                                <span>Disabled</span>
+                                            </label>
                                         </div>
                                     </div>
                                 </div>

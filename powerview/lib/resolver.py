@@ -22,7 +22,6 @@ from powerview.modules.ldapattack import (
 	RBCD
 )
 from powerview.utils.helpers import filetime_to_str
-from powerview.utils.colors import bcolors
 
 class UAC:
 	@staticmethod
@@ -227,7 +226,7 @@ class LDAP:
 		elif diff.days > 0:
 			return f"{diff.days} day{'s' if diff.days > 1 else ''} ago"
 		else:
-			return f"{bcolors.WARNING}today{bcolors.ENDC}"
+			return f"today"
 
 	@staticmethod
 	def resolve_generalized_time(ldap_time):
