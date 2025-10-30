@@ -1304,7 +1304,7 @@ class CONNECTION:
 			return self.ldap_server, self.ldap_session
 
 		_anonymous = False
-		if not self.domain and not self.username and (not self.password or not self.nthash or not self.lmhash):
+		if not self.username and (not self.password or not self.nthash or not self.lmhash):
 			if self.relay:
 				target = "ldaps://%s" % (self.ldap_address) if self.use_ldaps else "ldap://%s" % (self.ldap_address)
 				logging.info(f"[Relay] Targeting {target}")
