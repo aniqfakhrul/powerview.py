@@ -1234,12 +1234,12 @@ class CONNECTION:
 		if self.use_kerberos:
 			try:
 				if ldap_address and is_ipaddress(ldap_address):
-					target = self.alt_server_info["dnsHostName"][0] if self.alt_server_info["dnsHostName"] and len(self.alt_server_info["dnsHostName"]) > 0 else None
+					target = self.alt_server_info["dnsHostName"][0] if self.alt_server_info and hasattr(self.alt_server_info,"dnsHostName") and len(self.alt_server_info["dnsHostName"]) > 0 else None
 					if not target:
 						target = get_machine_name(ldap_address)
 					self.kdcHost = target
 				elif self.ldap_address is not None and is_ipaddress(self.ldap_address):
-					target = self.alt_server_info["dnsHostName"][0] if self.alt_server_info and self.alt_server_info["dnsHostName"] and len(self.alt_server_info["dnsHostName"]) > 0 else None
+					target = self.alt_server_info["dnsHostName"][0] if self.alt_server_info and hasattr(self.alt_server_info,"dnsHostName") and len(self.alt_server_info["dnsHostName"]) > 0 else None
 					if not target:
 						target = get_machine_name(self.ldap_address)
 					self.kdcHost = target
