@@ -226,7 +226,7 @@ class LDAP:
 		elif diff.days > 0:
 			return f"{diff.days} day{'s' if diff.days > 1 else ''} ago"
 		else:
-			return "today"
+			return f"today"
 
 	@staticmethod
 	def resolve_generalized_time(ldap_time):

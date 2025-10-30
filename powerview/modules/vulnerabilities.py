@@ -3,6 +3,7 @@ import os
 import json
 import logging
 from datetime import datetime
+from powerview.utils.colors import bcolors
 
 class VulnerabilityDetector:
     def __init__(self, storage):
@@ -10,10 +11,8 @@ class VulnerabilityDetector:
         self.rules = self._load_vulnerability_rules()
         
     def _load_vulnerability_rules(self):
-        """Load vulnerability rules from the vulns.json file"""
         vulns_file = os.path.join(self.storage.root_folder, "vulns.json")
         
-        # Check if vulns.json exists, if not, create it with default rules
         if not os.path.exists(vulns_file):
             default_rules = self._get_default_rules()
             os.makedirs(os.path.dirname(vulns_file), exist_ok=True)
@@ -24,12 +23,10 @@ class VulnerabilityDetector:
             logging.debug(f"[VulnerabilityDetector] Created default vulnerability rules at {vulns_file}")
             return default_rules
         
-        # Load existing rules
         try:
             with open(vulns_file, 'r') as f:
                 rules = json.load(f)
             
-            # Compare loaded rules with default rules
             default_rules = self._get_default_rules()
             if rules != default_rules:
                 logging.warning(f"[VulnerabilityDetector] Outdated vulnerability rules found in {vulns_file}. Updating with defaults.")
@@ -40,7 +37,6 @@ class VulnerabilityDetector:
                     return default_rules
                 except Exception as e:
                     logging.error(f"[VulnerabilityDetector] Error writing updated rules to {vulns_file}: {e}")
-                    # Fallback to returning the outdated rules if update fails
                     return rules
             else:
                 logging.debug(f"[VulnerabilityDetector] Loaded up-to-date vulnerability rules from {vulns_file}")
@@ -48,9 +44,7 @@ class VulnerabilityDetector:
 
         except Exception as e:
             logging.error(f"[VulnerabilityDetector] Error loading vulnerability rules: {e}")
-            # Return default rules if there's an error loading the file
             default_rules = self._get_default_rules()
-            # Attempt to write defaults if loading failed
             try:
                 with open(vulns_file, 'w') as f:
                     json.dump(default_rules, f, indent=4)
@@ -60,7 +54,6 @@ class VulnerabilityDetector:
             return default_rules
     
     def _get_default_rules(self):
-        """Return the default vulnerability rules"""
         return {
             "kerberoastable": {
                 "description": "Kerberoastable account",
@@ -214,6 +207,11 @@ class VulnerabilityDetector:
                         "attribute": "userAccountControl",
                         "condition": "contains",
                         "value": "ACCOUNTDISABLE"
+                    },
+                    {
+                        "attribute": "distinguishedName",
+                        "condition": "contains",
+                        "value": "Domain Controllers"
                     }
                 ],
                 "severity": "high",
@@ -562,56 +560,6 @@ class VulnerabilityDetector:
                 "id": "VULN-022",
                 "rule_operator": "AND"
             },
-            "dns_zone_transfer_enabled": {
-                "description": "DNS zone allows zone transfers to any server",
-                "rules": [
-                    {
-                        "attribute": "objectClass",
-                        "condition": "contains",
-                        "value": "dnsZone"
-                    },
-                    {
-                        "attribute": "allowedTransferIPs",
-                        "condition": "exists"
-                    }
-                ],
-                "exclusions": [],
-                "severity": "medium",
-                "id": "VULN-023",
-                "rule_operator": "AND"
-            },
-            "weak_certificate_template": {
-                "description": "Certificate template with vulnerable configuration",
-                "rules": [
-                    {
-                        "attribute": "objectClass",
-                        "condition": "contains",
-                        "value": "pKICertificateTemplate"
-                    },
-                    {
-                        "attribute": "msPKI-Certificate-Name-Flag",
-                        "condition": "equals",
-                        "value": 1
-                    }
-                ],
-                "exclusions": [],
-                "severity": "high",
-                "id": "VULN-024",
-                "rule_operator": "AND"
-            },
-            "gpo_with_cpassword": {
-                "description": "Group Policy with potential cpassword attribute",
-                "rules": [
-                    {
-                        "attribute": "objectClass",
-                        "condition": "contains",
-                        "value": "groupPolicyContainer"
-                    }
-                ],
-                "exclusions": [],
-                "severity": "high",
-                "id": "VULN-025"
-            },
             "high_machine_account_quota": {
                 "description": "Domain with high machine account quota (allows users to add computer accounts)",
                 "rules": [
@@ -955,28 +903,35 @@ class VulnerabilityDetector:
         }  
     
     def detect_vulnerabilities(self, entry):
-        """Detect vulnerabilities in an LDAP entry based on loaded rules"""
         vulnerabilities = []
         
+        severity_colors = {
+            "low": bcolors.OKGREEN,
+            "medium": bcolors.WARNING,
+            "high": bcolors.FAIL,
+            "critical": bcolors.BRIGHTRED
+        }
+        
         for rule_name, rule_data in self.rules.items():
-            # Check if this entry matches the vulnerability rule(s)
             if not self._check_vulnerability_rules(entry, rule_data):
                 continue
             
-            # Check exclusions if they exist
             if "exclusions" in rule_data and rule_data["exclusions"]:
                 if self._check_vulnerability_exclusions(entry, rule_data):
                     continue
                 
-            # If we get here, the rule matched and no exclusions applied
+            sev = str(rule_data["severity"]).lower()
+            color = severity_colors.get(sev, bcolors.WHITE)
+            sev_colored = f"{color}{sev.upper()}{bcolors.ENDC}"
+            
             vuln_entry = {
                 "name": rule_name,
                 "description": rule_data["description"],
                 "severity": rule_data["severity"],
+                "severity_colored": sev_colored,
                 "id": rule_data.get("id", "VULN")
             }
             
-            # Add details if they exist
             if "details" in rule_data:
                 vuln_entry["details"] = rule_data["details"]
                 
@@ -985,13 +940,9 @@ class VulnerabilityDetector:
         return vulnerabilities if vulnerabilities else None
     
     def _check_vulnerability_rules(self, entry, rule_data):
-        """Check if entry matches the vulnerability rules"""
-        # Get the rule operator (default to OR)
         rule_operator = rule_data.get("rule_operator", "OR").upper()
         
-        # Handle backward compatibility with old format
         if "rule" in rule_data:
-            # Convert old format to new format
             old_rule = rule_data["rule"]
             rules = [old_rule]
         else:
@@ -1002,7 +953,6 @@ class VulnerabilityDetector:
         
         results = []
         for rule in rules:
-            # Skip if entry doesn't have the attribute needed for the rule
             rule_attribute = rule["attribute"]
             if rule_attribute not in entry:
                 if rule_operator == "AND":
@@ -1010,39 +960,30 @@ class VulnerabilityDetector:
                 results.append(False)
                 continue
             
-            # Check if the rule condition is met
             rule_matched = self._check_condition(
                 entry[rule_attribute], 
                 rule["condition"],
                 rule.get("value")
             )
             
-            # Apply negation if specified
             if rule.get("negate", False):
                 rule_matched = not rule_matched
             
             results.append(rule_matched)
             
-            # For AND operator, we can short-circuit if any rule fails
             if rule_operator == "AND" and not rule_matched:
                 return False
             
-            # For OR operator, we can short-circuit if any rule succeeds
             if rule_operator == "OR" and rule_matched:
                 return True
         
-        # If we got here with AND operator, all rules matched
         if rule_operator == "AND":
             return True
         
-        # If we got here with OR operator, no rules matched
         return any(results)
     
     def _check_vulnerability_exclusions(self, entry, rule_data):
-        """Check if any exclusion rule applies to this entry"""
-        # Handle backward compatibility with old format
         if "exclusion" in rule_data:
-            # Convert old format to new format
             old_exclusion = rule_data["exclusion"]
             exclusions = [old_exclusion]
         else:
@@ -1051,14 +992,12 @@ class VulnerabilityDetector:
         if not exclusions:
             return False
         
-        # Get the exclusion operator (default to OR)
         exclusion_operator = rule_data.get("exclusion_operator", "OR").upper()
         
         results = []
         for exclusion in exclusions:
             exclusion_attribute = exclusion["attribute"]
             
-            # If the exclusion attribute doesn't exist, the exclusion doesn't apply
             if exclusion_attribute not in entry:
                 results.append(False)
                 continue
@@ -1071,15 +1010,12 @@ class VulnerabilityDetector:
             
             results.append(exclusion_matched)
             
-            # For OR operator, we can short-circuit if any exclusion applies
             if exclusion_operator == "OR" and exclusion_matched:
                 return True
         
-        # For OR operator, return true if any exclusion matched
         if exclusion_operator == "OR":
             return any(results)
         
-        # For AND operator, return true only if all exclusions matched
         return all(results)
     
     def _check_condition(self, attribute_value, condition, condition_value=None):
@@ -1091,11 +1027,9 @@ class VulnerabilityDetector:
             return attribute_value is None or attribute_value == []
             
         elif condition == "equals" and condition_value is not None:
-            # Handle list of values (OR condition)
             if isinstance(condition_value, list):
                 return any(self._check_condition(attribute_value, "equals", val) for val in condition_value)
             
-            # Handle pipe-separated values
             if isinstance(condition_value, str) and "|" in condition_value:
                 values = [v.strip() for v in condition_value.split("|")]
                 return any(self._check_condition(attribute_value, "equals", val) for val in values)
@@ -1105,11 +1039,9 @@ class VulnerabilityDetector:
             return attribute_value == condition_value
             
         elif condition == "not_equals" and condition_value is not None:
-            # Handle list of values (AND condition)
             if isinstance(condition_value, list):
                 return all(self._check_condition(attribute_value, "not_equals", val) for val in condition_value)
             
-            # Handle pipe-separated values
             if isinstance(condition_value, str) and "|" in condition_value:
                 values = [v.strip() for v in condition_value.split("|")]
                 return all(self._check_condition(attribute_value, "not_equals", val) for val in values)
@@ -1119,11 +1051,9 @@ class VulnerabilityDetector:
             return attribute_value != condition_value
             
         elif condition == "contains" and condition_value is not None:
-            # Handle list of values (OR condition)
             if isinstance(condition_value, list):
                 return any(self._check_condition(attribute_value, "contains", val) for val in condition_value)
             
-            # Handle pipe-separated values as OR condition
             if isinstance(condition_value, str) and "|" in condition_value:
                 values = [v.strip() for v in condition_value.split("|")]
                 return any(self._check_condition(attribute_value, "contains", val) for val in values)
@@ -1138,11 +1068,9 @@ class VulnerabilityDetector:
             return condition_value in str(attribute_value)
             
         elif condition == "not_contains" and condition_value is not None:
-            # Handle list of values (AND condition)
             if isinstance(condition_value, list):
                 return all(self._check_condition(attribute_value, "not_contains", val) for val in condition_value)
             
-            # Handle pipe-separated values as OR condition
             if isinstance(condition_value, str) and "|" in condition_value:
                 values = [v.strip() for v in condition_value.split("|")]
                 return all(self._check_condition(attribute_value, "not_contains", val) for val in values)
@@ -1157,11 +1085,9 @@ class VulnerabilityDetector:
             return condition_value not in str(attribute_value)
             
         elif condition == "startswith" and condition_value is not None:
-            # Handle list of values (OR condition)
             if isinstance(condition_value, list):
                 return any(self._check_condition(attribute_value, "startswith", val) for val in condition_value)
             
-            # Handle pipe-separated values as OR condition
             if isinstance(condition_value, str) and "|" in condition_value:
                 values = [v.strip() for v in condition_value.split("|")]
                 return any(self._check_condition(attribute_value, "startswith", val) for val in values)
@@ -1176,11 +1102,9 @@ class VulnerabilityDetector:
             return str(attribute_value).startswith(condition_value)
             
         elif condition == "endswith" and condition_value is not None:
-            # Handle list of values (OR condition)
             if isinstance(condition_value, list):
                 return any(self._check_condition(attribute_value, "endswith", val) for val in condition_value)
             
-            # Handle pipe-separated values as OR condition
             if isinstance(condition_value, str) and "|" in condition_value:
                 values = [v.strip() for v in condition_value.split("|")]
                 return any(self._check_condition(attribute_value, "endswith", val) for val in values)
@@ -1214,7 +1138,6 @@ class VulnerabilityDetector:
                 
         elif condition == "greater_than" and condition_value is not None:
             try:
-                # Convert values to integers for numeric comparison
                 attr_val = int(attribute_value) if not isinstance(attribute_value, int) else attribute_value
                 cond_val = int(condition_value) if not isinstance(condition_value, int) else condition_value
                 return attr_val > cond_val
@@ -1223,7 +1146,6 @@ class VulnerabilityDetector:
                 
         elif condition == "less_than" and condition_value is not None:
             try:
-                # Convert values to integers for numeric comparison
                 attr_val = int(attribute_value) if not isinstance(attribute_value, int) else attribute_value
                 cond_val = int(condition_value) if not isinstance(condition_value, int) else condition_value
                 return attr_val < cond_val
@@ -1232,7 +1154,6 @@ class VulnerabilityDetector:
                 
         elif condition == "greater_than_or_equal" and condition_value is not None:
             try:
-                # Convert values to integers for numeric comparison
                 attr_val = int(attribute_value) if not isinstance(attribute_value, int) else attribute_value
                 cond_val = int(condition_value) if not isinstance(condition_value, int) else condition_value
                 return attr_val >= cond_val
@@ -1241,7 +1162,6 @@ class VulnerabilityDetector:
                 
         elif condition == "less_than_or_equal" and condition_value is not None:
             try:
-                # Convert values to integers for numeric comparison
                 attr_val = int(attribute_value) if not isinstance(attribute_value, int) else attribute_value
                 cond_val = int(condition_value) if not isinstance(condition_value, int) else condition_value
                 return attr_val <= cond_val
@@ -1250,7 +1170,6 @@ class VulnerabilityDetector:
                 
         elif condition == "in_range" and condition_value is not None and isinstance(condition_value, list) and len(condition_value) == 2:
             try:
-                # Convert values to integers for numeric comparison
                 attr_val = int(attribute_value) if not isinstance(attribute_value, int) else attribute_value
                 min_val = int(condition_value[0]) if not isinstance(condition_value[0], int) else condition_value[0]
                 max_val = int(condition_value[1]) if not isinstance(condition_value[1], int) else condition_value[1]
@@ -1260,7 +1179,6 @@ class VulnerabilityDetector:
                 
         elif condition == "has_flag" and condition_value is not None:
             try:
-                # This checks if a specific bit flag is set in a value
                 attr_val = int(attribute_value) if not isinstance(attribute_value, int) else attribute_value
                 flag_val = int(condition_value) if not isinstance(condition_value, int) else condition_value
                 return (attr_val & flag_val) == flag_val
@@ -1269,7 +1187,6 @@ class VulnerabilityDetector:
                 
         elif condition == "missing_flag" and condition_value is not None:
             try:
-                # This checks if a specific bit flag is NOT set in a value
                 attr_val = int(attribute_value) if not isinstance(attribute_value, int) else attribute_value
                 flag_val = int(condition_value) if not isinstance(condition_value, int) else condition_value
                 return (attr_val & flag_val) == 0
@@ -1278,7 +1195,6 @@ class VulnerabilityDetector:
                 
         elif condition == "any_flag_set" and condition_value is not None and isinstance(condition_value, list):
             try:
-                # Check if any of the specified flags are set
                 attr_val = int(attribute_value) if not isinstance(attribute_value, int) else attribute_value
                 for flag in condition_value:
                     flag_val = int(flag) if not isinstance(flag, int) else flag
@@ -1290,7 +1206,6 @@ class VulnerabilityDetector:
                 
         elif condition == "all_flags_set" and condition_value is not None and isinstance(condition_value, list):
             try:
-                # Check if all of the specified flags are set
                 attr_val = int(attribute_value) if not isinstance(attribute_value, int) else attribute_value
                 for flag in condition_value:
                     flag_val = int(flag) if not isinstance(flag, int) else flag

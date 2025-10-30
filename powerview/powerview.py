@@ -49,6 +49,7 @@ from powerview.lib.dns import (
 )
 from powerview.lib.reg import RemoteOperations
 from powerview.lib.samr import SamrObject
+from powerview.lib.efs import EFS_UUID
 from powerview.lib.resolver import (
 	UAC,
 	LDAP
@@ -2590,18 +2591,22 @@ class PowerView:
 			logging.debug(f"[Get-DomainDNSRecord] Search base: {zoneDN}")
 			logging.debug(f"[Get-DomainDNSRecord] LDAP Filter string: {ldap_filter}")
 			
-			# Use the enhanced paged_search which already handles entry filtering and stripping
-			dns_entries = self.ldap_session.extend.standard.paged_search(
-				zoneDN, 
-				ldap_filter,
-				attributes=properties or def_prop, 
-				paged_size=1000, 
-				generator=False,
-				search_scope=search_scope, 
-				no_cache=no_cache, 
-				no_vuln_check=no_vuln_check,
-				raw=raw
-			)
+			try:
+				# Use the enhanced paged_search which already handles entry filtering and stripping
+				dns_entries = self.ldap_session.extend.standard.paged_search(
+					zoneDN, 
+					ldap_filter,
+					attributes=properties or def_prop, 
+					paged_size=1000, 
+					generator=False,
+					search_scope=search_scope, 
+					no_cache=no_cache, 
+					no_vuln_check=no_vuln_check,
+					raw=raw
+				)
+			except ldap3.core.exceptions.LDAPNoSuchObjectResult:
+				logging.error(f"[Get-DomainDNSRecord] No such object: {zoneDN}. Skipping...")
+				continue
 			
 			# Process the DNS records
 			for entry in dns_entries:
@@ -3054,24 +3059,20 @@ class PowerView:
 		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
 		port = args.port if hasattr(args, 'port') and args.port else port
 		
-		identity = self._resolve_host(computer)
-		if not identity:
-			logging.error(f"[Enable-EFSRPC] Failed to resolve hostname {computer}")
-			return False
+		target = self._resolve_host(computer)
 		
-		if computer.casefold() != identity.casefold():
-			logging.debug(f"[Enable-EFSRPC] Resolved hostname to IP: {identity}")
-			logging.debug(f"[Enable-EFSRPC] Connecting to {identity}")
-		else:
-			logging.debug(f"[Enable-EFSRPC] Connecting to {computer}")
+		if computer.casefold() != target.casefold():
+			logging.debug(f"[Enable-EFSRPC] Resolved hostname to IP: {target}")
+		
+		logging.debug(f"[Enable-EFSRPC] Connecting to {target}")
 
 		with contextlib.suppress(Exception):
-			dce = self.conn.get_dynamic_endpoint("df1941c5-fe89-4e79-bf10-463657acf44d", identity, port=port)
+			dce = self.conn.get_dynamic_endpoint(EFS_UUID, target, port=port)
 			if dce is None:
-				logging.error("[Enable-EFSRPC] Failed to enable EFSRPC on %s" % (identity))
+				logging.error("[Enable-EFSRPC] Failed to enable EFSRPC on %s" % (target))
 				return False
 
-		logging.info("[Enable-EFSRPC] Successfully enabled EFSRPC on %s" % (identity))
+		logging.info("[Enable-EFSRPC] Successfully enabled EFSRPC on %s" % (target))
 		return True
 		
 
@@ -7608,22 +7609,42 @@ displayName=New Group Policy Object
 		return formatted_results
 
 	def login_as(self, username=None, password='', domain=None, nthash=None, lmhash=None, auth_aes_key=None, args=None):
-		self.clear_cache()
-		self.conn.close()
-		if args:
-			if hasattr(args, 'username'):
-				self.conn.username = args.username
-			if hasattr(args, 'password') and args.password:
-				self.conn.password = args.password
-			if hasattr(args, 'domain') and args.domain:
-				self.conn.domain = args.domain
-			if hasattr(args, 'nthash') and args.nthash:
-				self.conn.nthash = args.nthash
-			if hasattr(args, 'lmhash') and args.lmhash:
-				self.conn.lmhash = args.lmhash
-			if hasattr(args, 'auth_aes_key') and args.auth_aes_key:
-				self.conn.auth_aes_key = args.auth_aes_key
-		else:
+		username = username or args.username
+		if is_dn(username):
+			username = self.get_domainobject(identity=username, properties=['sAMAccountName'])
+			if len(username) == 0:
+				logging.error(f"[Login-As] Failed to get username for {username}")
+				return False
+			elif len(username) > 1:
+				logging.error(f"[Login-As] More than one username found for {username}")
+				return False
+			username = username[0].get('attributes', {}).get('sAMAccountName')
+		if hasattr(args, 'password') and args.password:
+			password = args.password
+		if hasattr(args, 'domain') and args.domain:
+			domain = args.domain
+		if domain is None:
+			domain = self.conn.domain
+		if hasattr(args, 'nthash') and args.nthash:
+			nthash = args.nthash
+		if hasattr(args, 'lmhash') and args.lmhash:
+			lmhash = args.lmhash
+		if nthash is not None and lmhash is not None:
+			password = f"{lmhash}:{nthash}"
+		if hasattr(args, 'auth_aes_key') and args.auth_aes_key:
+			auth_aes_key = args.auth_aes_key
+		if auth_aes_key is not None:
+			raise ValueError("Auth AES key is not yet supported for Login-As")
+			return False
+		try:
+			logging.debug(f"[Login-As] Rebinding to {username}@{domain} with password {password}")
+			self.conn.ldap_session.rebind(
+				user='%s\\%s' % (domain, username),
+				password=password,
+				authentication=ldap3.NTLM
+			)
+			logging.info(f"[Login-As] Successfully logged in as {self.conn.who_am_i()}")
+			# self._initialize_attributes_from_connection()
 			if username:
 				self.conn.username = username
 			if password:
@@ -7637,11 +7658,6 @@ displayName=New Group Policy Object
 			if auth_aes_key:
 				self.conn.auth_aes_key = auth_aes_key
 
-		logging.info(f"[Login-As] Logging in as {self.conn.username}@{self.conn.domain}")
-		try:
-			self.ldap_server, self.ldap_session = self.conn.init_ldap_session()
-			logging.info(f"[Login-As] Successfully logged in as {self.conn.username}@{self.conn.domain}")
-			self._initialize_attributes_from_connection()
 			return True
 		except Exception as e:
 			if self.args.stack_trace:

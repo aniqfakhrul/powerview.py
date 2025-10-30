@@ -450,7 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
         contentDiv.className = 'p-4 space-y-2';
 
         const dl = document.createElement('dl');
-        dl.className = 'grid grid-cols-1 gap-1';
+        dl.className = 'grid grid-cols-1';
 
         for (const [key, value] of Object.entries(attributes)) {
             const isDistinguishedName = Array.isArray(value) ? value.some(isValidDistinguishedName) : isValidDistinguishedName(value);

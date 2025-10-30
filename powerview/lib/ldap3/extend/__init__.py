@@ -31,8 +31,12 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		"""Format a vulnerability dictionary as a string"""
 		vuln_id = vuln_dict.get('id', 'VULN')
 		description = vuln_dict.get('description', '')
-		severity = vuln_dict.get('severity', '').upper()
-		formatted = f"[{vuln_id}] {description} ({severity})"
+		sev_colored = vuln_dict.get('severity_colored')
+		if sev_colored:
+			formatted = f"[{vuln_id}] {description} ({sev_colored})"
+		else:
+			severity = vuln_dict.get('severity', '').upper()
+			formatted = f"[{vuln_id}] {description} ({severity})"
 		if 'details' in vuln_dict:
 			formatted += f" - {vuln_dict['details']}"
 		return formatted
@@ -60,7 +64,6 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		no_vuln_check = no_vuln_check or self.no_vuln_check
 		raw = raw or self.raw
 
-		# Save the original formatter
 		original_formatter = None
 		if raw and self.server and hasattr(self.server, 'custom_formatter'):
 			logging.debug("[CustomStandardExtendedOperations] Unsetting custom formatter")
@@ -73,18 +76,15 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				if cached_results is not None:
 					logging.debug("[CustomStandardExtendedOperations] Returning cached results for query")
 					
-					# Mark results as coming from cache
 					for entry in cached_results:
 						if 'attributes' in entry:
 							entry['from_cache'] = True
 					
-					# Process vulnerabilities for all objects
 					if not no_vuln_check:
 						for entry in cached_results:
 							if 'attributes' in entry:
 								vulnerabilities = self.vulnerability_detector.detect_vulnerabilities(entry['attributes'])
 								if vulnerabilities:
-									# Convert dictionary vulnerabilities to formatted strings
 									entry['attributes']['vulnerabilities'] = [self._format_vulnerability(v) for v in vulnerabilities]
 					
 					return cached_results
@@ -131,7 +131,6 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				if self.use_adws:
 					results = list(adws_paged_search_generator(self._connection, modified_dn, modified_filter, search_scope, attributes, size_limit, time_limit, types_only, get_operational_attributes, controls, paged_size, paged_criticality))
 				else:
-					# Get all results first so we can post-process them
 					results = list(paged_search_generator(self._connection,
 												modified_dn,
 												modified_filter,
@@ -146,29 +145,24 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 												paged_size,
 												paged_criticality))
 					
-				# Filter out non-search results
 				filtered_results = []
 				for entry in results:
 					if entry['type'] != 'searchResEntry':
 						continue
 					
-					# Strip entries if requested
 					if strip_entries:
 						strip_entry(entry)
 						
 					filtered_results.append(entry)
 					
-				# Process vulnerabilities for all objects
 				if not no_vuln_check:
 					for entry in filtered_results:
 						if 'attributes' in entry:
 							vulnerabilities = self.vulnerability_detector.detect_vulnerabilities(entry['attributes'])
 							if vulnerabilities:
-								# Convert dictionary vulnerabilities to formatted strings
 								entry['attributes']['vulnerabilities'] = [self._format_vulnerability(v) for v in vulnerabilities]
 				
 				if not no_cache:
-					# Remove from_cache attribute before caching if it exists
 					for entry in filtered_results:
 						if 'attributes' in entry and 'from_cache' in entry['attributes']:
 							del entry['attributes']['from_cache']
@@ -208,29 +202,24 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 						paged_criticality
 					))
 				
-				# Filter out non-search results and strip entries if requested
 				filtered_results = []
 				for entry in results:
 					if hasattr(entry, 'type') and entry['type'] != 'searchResEntry':
 						continue
 						
-					# Strip entries if requested
 					if strip_entries:
 						strip_entry(entry)
 						
 					filtered_results.append(entry)
 				
-				# Process vulnerabilities for all objects
 				if not no_vuln_check:
 					for entry in filtered_results:
 						if 'attributes' in entry:
 							vulnerabilities = self.vulnerability_detector.detect_vulnerabilities(entry['attributes'])
 							if vulnerabilities:
-								# Convert dictionary vulnerabilities to formatted strings
 								entry['attributes']['vulnerabilities'] = [self._format_vulnerability(v) for v in vulnerabilities]
 				
 				if not no_cache:
-					# Remove from_cache attribute before caching if it exists
 					for entry in filtered_results:
 						if 'attributes' in entry and 'from_cache' in entry['attributes']:
 							del entry['attributes']['from_cache']
@@ -238,7 +227,6 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 					self.storage.cache_results(search_base, search_filter, search_scope, attributes, host=self.server.host, results=filtered_results, raw=raw)
 				return filtered_results
 		finally:
-			# Restore the original formatter
 			if raw and original_formatter is not None and self.server:
 				self.server.custom_formatter = original_formatter
 

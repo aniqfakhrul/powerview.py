@@ -20,14 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchButton = document.getElementById('user-search-button');
 
         function updateDropdownSelections() {
-            dropdownMenu.querySelectorAll('button').forEach(btn => {
-                const key = btn.dataset.filter;
-                if (activeFilters.has(key)) {
-                    btn.classList.add('bg-neutral-100', 'dark:bg-neutral-700');
-                } else {
-                    btn.classList.remove('bg-neutral-100', 'dark:bg-neutral-700');
-                }
+            dropdownMenu.querySelectorAll('.filter-checkbox').forEach(chk => {
+                const key = chk.dataset.filter;
+                chk.checked = activeFilters.has(key);
             });
+            const count = activeFilters.size;
+            const label = count > 0 ? `Add Filter (${count})` : 'Add Filter (0)';
+            dropdownButton.childNodes[0].nodeValue = label + ' ';
         }
 
         dropdownButton.addEventListener('click', () => {
@@ -43,20 +42,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        dropdownMenu.querySelectorAll('button').forEach(button => {
-            button.addEventListener('click', (e) => {
-                e.preventDefault();
-                const filter = button.dataset.filter;
-                if (activeFilters.has(filter)) {
-                    activeFilters.delete(filter);
-                } else {
+        dropdownMenu.querySelectorAll('.filter-checkbox').forEach(chk => {
+            chk.addEventListener('change', () => {
+                const filter = chk.dataset.filter;
+                if (chk.checked) {
                     activeFilters.add(filter);
+                } else {
+                    activeFilters.delete(filter);
                 }
                 updateDropdownSelections();
             });
         });
 
         searchButton.addEventListener('click', searchUsers);
+        updateDropdownSelections();
     }
 
     function renderActiveFilters() {}

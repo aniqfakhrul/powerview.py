@@ -2,18 +2,16 @@
 
 {% block content %}
 <div class="flex h-screen bg-neutral-100 dark:bg-neutral-900">
-    <!-- Left Panel -->
-    <div class="w-1/3 flex flex-col border-r border-neutral-200 dark:border-neutral-700">
+    <!-- Left Pane: Zones (smaller) -->
+    <div class="w-1/4 flex flex-col border-r border-neutral-200 dark:border-neutral-700">
         {% include "views/initspinner.html" %}
-        <!-- Zone Names Section -->
-        <div class="h-1/2 flex flex-col bg-white dark:bg-neutral-800">
+        <div class="flex flex-col bg-white dark:bg-neutral-800 h-full">
             <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-globe text-neutral-500 dark:text-neutral-400"></i>
-                        <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Zone Names</h2>
+                        <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Zones</h2>
                     </div>
-                    <!-- Updated search input styling -->
                     <div class="relative flex items-center">
                         <input type="text" id="zone-search" 
                             class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1 text-sm 
@@ -27,74 +25,69 @@
                     </div>
                 </div>
             </div>
-            <div class="zone-name-container flex-1 overflow-y-auto p-4 scrollbar">
-                <!-- Zone names will be dynamically populated -->
+            <div class="zone-name-container flex-1 overflow-y-auto p-4 bg-neutral-100 dark:bg-neutral-900 scrollbar">
             </div>
         </div>
+    </div>
 
-        <!-- Record Names Section -->
-        <div class="h-1/2 flex flex-col bg-white dark:bg-neutral-800 border-t border-neutral-200 dark:border-neutral-700">
-            <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <i class="fa-solid fa-list text-neutral-500 dark:text-neutral-400"></i>
-                        <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">Record Names</h2>
-                    </div>
-                    <!-- Updated search input styling -->
+    <!-- Right Pane: Records Table (larger) -->
+    <div class="flex-1 flex flex-col bg-white dark:bg-neutral-800">
+        <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-list text-neutral-500 dark:text-neutral-400"></i>
+                    <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">DNS Records</h2>
+                </div>
+                <div class="flex items-center gap-3">
                     <div class="relative flex items-center">
                         <input type="text" id="record-search" 
                             class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1 text-sm 
                                    text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-400 hover:text-neutral-900 
                                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black 
-                                   dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-48" 
-                            placeholder="Search records...">
+                                   dark:border-neutral-700 dark:bg-neutral-900/50 dark:focus-visible:outline-yellow-500 w-64" 
+                            placeholder="Filter records...">
                         <button class="clear-input absolute right-0 px-2 text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-neutral-400 focus:outline-none">
                             <i class="fa-solid fa-xmark fa-xs"></i>
                         </button>
                     </div>
-                </div>
-            </div>
-            <div class="record-name-section flex-1 overflow-y-auto p-4 scrollbar">
-                <!-- Record names table will be dynamically populated -->
-            </div>
-        </div>
-    </div>
-
-    <!-- Right Panel: DNS Record Details -->
-    <div class="flex-1 flex flex-col bg-white dark:bg-neutral-800">
-        <!-- Header with Actions -->
-        <div class="p-4 border-b border-neutral-200 dark:border-neutral-700">
-            <div class="flex justify-between items-center">
-                <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-circle-info text-neutral-500 dark:text-neutral-400"></i>
-                    <h2 class="text-sm font-semibold text-neutral-900 dark:text-white">DNS Record Details</h2>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button data-modal-target="delete-record-modal" 
-                            data-modal-toggle="delete-dns-record-modal" 
-                            class="hidden rounded-lg px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 dark:bg-red-500 dark:hover:bg-red-600 dark:focus:ring-red-500">
-                        <i class="fa-solid fa-trash-can mr-1"></i>
-                        Delete Record
+                    <select id="record-type-filter" class="rounded-md border border-neutral-300 bg-neutral-50 px-2 py-1 text-sm text-neutral-900 dark:text-neutral-300 dark:border-neutral-700 dark:bg-neutral-900/50">
+                        <option value="ALL">ALL</option>
+                    </select>
+                    <button id="export-records-csv" class="rounded-lg px-3 py-1.5 text-sm font-medium text-white bg-neutral-900 hover:bg-neutral-800 focus:outline-none dark:bg-yellow-500 dark:text-black dark:hover:bg-yellow-600">
+                        <i class="fas fa-file-export mr-1"></i>
+                        Export CSV
                     </button>
+                    
                     <button data-modal-target="add-record-modal" 
                             data-modal-toggle="add-dns-record-modal" 
-                            class="rounded-lg px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:focus:ring-yellow-500">
+                            class="rounded-lg px-3 py-1.5 text-sm font-medium text-neutral-900 bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-yellow-500 dark:hover:bg-yellow-600 dark:focus:ring-yellow-500 dark:text-black">
                         <i class="fa-solid fa-plus mr-1"></i>
                         Add Record
                     </button>
                 </div>
             </div>
         </div>
-
-        <!-- Details Content -->
-        <div class="flex-1 overflow-y-auto relative scrollbar">
+        <div class="flex-1 overflow-y-auto bg-neutral-100 dark:bg-neutral-900 relative scrollbar">
             {% include 'views/spinner.html' %}
-            <div class="dns-record-details-container p-4">
-                <!-- DNS record details will be dynamically populated -->
+            <div class="record-name-section p-4">
             </div>
         </div>
     </div>
 </div>
+
+<!-- DNS Record Details Modal -->
+<div id="dns-record-details-modal" class="hidden fixed inset-0 z-50 p-4 flex items-center justify-center">
+    <div class="absolute inset-0 bg-black/50" id="dns-details-overlay"></div>
+    <div class="relative w-full max-w-6xl bg-white dark:bg-neutral-900 rounded-lg shadow-2xl">
+        <div class="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-800">
+            <h3 class="text-sm font-semibold text-neutral-900 dark:text-white">DNS Record Details</h3>
+            <button class="text-neutral-500 hover:text-neutral-700 dark:text-neutral-400" data-modal-hide="dns-record-details-modal">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-4 max-h-[80vh] overflow-auto break-words break-all" id="dns-record-details-content"></div>
+    </div>
+    </div>
 {% endblock %}
 
 {% block scripts %}

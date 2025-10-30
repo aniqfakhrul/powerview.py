@@ -408,3 +408,40 @@ function getSpinnerSVG(id, size = 'size-4') {
         </svg>
     `;
 }
+
+// Soft color badge helpers (globally available)
+function getSoftBadgeClasses(color) {
+    const palette = {
+        green: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800',
+        blue: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800',
+        amber: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800',
+        indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-800',
+        cyan: 'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-900/20 dark:text-cyan-300 dark:border-cyan-800',
+        purple: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800',
+        orange: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-800',
+        slate: 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900/20 dark:text-slate-300 dark:border-slate-800',
+        neutral: 'bg-neutral-100 text-neutral-700 border-neutral-200 dark:bg-neutral-800/30 dark:text-neutral-300 dark:border-neutral-700'
+    };
+    const base = 'inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium';
+    return base + ' ' + (palette[color] || palette.neutral);
+}
+
+function zoneTypeColor(t) {
+    const k = (t || '').toString().toLowerCase();
+    if (k === 'domain') return 'green';
+    if (k === 'forest') return 'blue';
+    if (k === 'legacy') return 'amber';
+    return 'neutral';
+}
+
+function recordTypeColor(t) {
+    const k = (t || '').toString().toUpperCase();
+    if (k === 'A') return 'green';
+    if (k === 'SRV') return 'purple';
+    if (k === 'NS') return 'orange';
+    if (k === 'SOA') return 'slate';
+    if (k === 'CNAME') return 'blue';
+    if (k === 'PTR') return 'indigo';
+    if (k === 'TXT') return 'cyan';
+    return 'neutral';
+}

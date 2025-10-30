@@ -374,9 +374,8 @@ class APIServer:
 
 	def handle_connection_info(self):
 		return jsonify({
-			'domain': self.powerview.domain,
+			'domain': self.powerview.conn.get_domain(),
 			'username': self.powerview.conn.get_username(),
-			'is_admin': self.powerview.is_admin,
 			'status': 'OK' if self.powerview.conn.is_connection_alive() else 'KO',
 			'protocol': self.powerview.conn.get_proto(),
 			'ldap_address': self.powerview.conn.get_ldap_address(),

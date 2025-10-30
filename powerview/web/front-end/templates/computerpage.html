@@ -50,36 +50,75 @@
                             
                             <!-- Existing Query Templates -->
                             <div class="flex justify-end gap-2">
-                                <div class="flex items-center gap-2">
-                                    <label class="inline-flex items-center text-sm">
-                                        <input type="checkbox" id="computer-include-ip" class="mr-2">
-                                        <span>Include IP</span>
-                                    </label>
-                                    <div class="relative flex-shrink-0">
-                                        <button id="filter-dropdown-button" 
-                                            class="px-2 py-1 text-sm rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1">
-                                            Add Filter <i class="fas fa-chevron-down"></i>
-                                        </button>
-                                        <div id="filter-dropdown-menu" 
-                                            class="hidden absolute right-0 mt-1 w-40 rounded-md border border-neutral-300 bg-white dark:border-neutral-700 dark:bg-neutral-800 shadow-lg z-10">
-                                            <div class="py-1">
-                                                <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="unconstrained">Unconstrained</button>
-                                                <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="enabled">Enabled</button>
-                                                <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="disabled">Disabled</button>
-                                                <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="trustedtoauth">TrustedToAuth</button>
-                                                <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="laps">LAPS</button>
-                                                <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="rbcd">RBCD</button>
-                                                <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="shadowcred">ShadowCred</button>
-                                                <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="printers">Printers</button>
-                                                <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="spn">SPN</button>
-                                                <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="excludedcs">ExcludeDCs</button>
-                                                <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="bitlocker">BitLocker</button>
-                                                <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="gmsapassword">GMSAPassword</button>
-                                                <button class="w-full text-left px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700" data-filter="pre2k">Pre2K</button>
-                                            </div>
-                                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="inline-flex items-center text-sm">
+                                <input type="checkbox" id="computer-include-ip" class="mr-2">
+                                <span>Include IP</span>
+                            </label>
+                            <div class="relative flex-shrink-0">
+                                <button id="filter-dropdown-button" 
+                                    class="px-2 py-1 text-sm rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-1">
+                                    Add Filter (0) <i class="fas fa-chevron-down"></i>
+                                </button>
+                                <div id="filter-dropdown-menu" 
+                                    class="hidden absolute right-0 mt-1 w-48 rounded-md border border-neutral-300 bg-white dark:border-neutral-700 dark:bg-neutral-800 shadow-lg z-10">
+                                    <div class="py-1">
+                                        <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                            <input type="checkbox" class="filter-checkbox" data-filter="unconstrained">
+                                            <span>Unconstrained</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                            <input type="checkbox" class="filter-checkbox" data-filter="enabled">
+                                            <span>Enabled</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                            <input type="checkbox" class="filter-checkbox" data-filter="disabled">
+                                            <span>Disabled</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                            <input type="checkbox" class="filter-checkbox" data-filter="trustedtoauth">
+                                            <span>TrustedToAuth</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                            <input type="checkbox" class="filter-checkbox" data-filter="laps">
+                                            <span>LAPS</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                            <input type="checkbox" class="filter-checkbox" data-filter="rbcd">
+                                            <span>RBCD</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                            <input type="checkbox" class="filter-checkbox" data-filter="shadowcred">
+                                            <span>ShadowCred</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                            <input type="checkbox" class="filter-checkbox" data-filter="printers">
+                                            <span>Printers</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                            <input type="checkbox" class="filter-checkbox" data-filter="spn">
+                                            <span>SPN</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                            <input type="checkbox" class="filter-checkbox" data-filter="excludedcs">
+                                            <span>ExcludeDCs</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                            <input type="checkbox" class="filter-checkbox" data-filter="bitlocker">
+                                            <span>BitLocker</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                            <input type="checkbox" class="filter-checkbox" data-filter="gmsapassword">
+                                            <span>GMSAPassword</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 w-full px-3 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer">
+                                            <input type="checkbox" class="filter-checkbox" data-filter="pre2k">
+                                            <span>Pre2K</span>
+                                        </label>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
                             </div>
                         </div>
                     </div>
