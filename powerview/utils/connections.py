@@ -619,23 +619,6 @@ class CONNECTION:
 			keepalive_interval=300
 		)
 
-		self.alt_server_info = None
-		if get_alt_server_info:
-			_server = ldap3.Server(args.ldap_address)
-			_connection = ldap3.Connection(_server)
-			_connection.open(read_server_info=False)
-			_connection.search(search_base='',
-                                       search_filter='(objectClass=*)',
-                                       search_scope=ldap3.BASE,
-                                       attributes=['dnsHostName','defaultNamingContext', 'supportedCapabilities'],
-									   dereference_aliases=ldap3.DEREF_NEVER)
-			self.alt_server_info = _connection.response[0]['attributes']
-		
-		if self.alt_server_info and hasattr(self.alt_server_info, "dnsHostName") and len(self.alt_server_info["dnsHostName"]) > 0:
-			socket.gethostname = lambda: self.alt_server_info["dnsHostName"][0].split(".")[0]
-		else:
-			socket.gethostname = lambda: "DC01"
-
 		self._current_domain = None
 		self.username = args.username
 		self.password = args.password
@@ -739,6 +722,16 @@ class CONNECTION:
 		self.samr = None
 		self.TGT = None
 		self.TGS = None
+
+		# get alt server info
+		self.alt_server_info = None
+		if get_alt_server_info:
+			self.alt_server_info = self.get_alt_server_info()
+		
+		if self.alt_server_info and hasattr(self.alt_server_info, "dnsHostName") and len(self.alt_server_info["dnsHostName"]) > 0:
+			socket.gethostname = lambda: self.alt_server_info["dnsHostName"][0].split(".")[0]
+		else:
+			socket.gethostname = lambda: "DC01"
 
 		# stolen from https://github.com/the-useless-one/pywerview/blob/master/pywerview/requester.py#L90
 		try:
@@ -859,6 +852,17 @@ class CONNECTION:
 
 	def remove_domain_connection(self, domain):
 		self._connection_pool.remove_connection(domain)
+
+	def get_alt_server_info(self):
+		_server = ldap3.Server(self.args.ldap_address)
+		_connection = ldap3.Connection(_server)
+		_connection.open(read_server_info=False)
+		_connection.search(search_base='',
+									search_filter='(objectClass=*)',
+									search_scope=ldap3.BASE,
+									attributes=['dnsHostName','defaultNamingContext', 'supportedCapabilities'],
+									dereference_aliases=ldap3.DEREF_NEVER)
+		return _connection.response[0]['attributes']
 
 	def get_pool_stats(self):
 		stats = {
@@ -1234,12 +1238,12 @@ class CONNECTION:
 		if self.use_kerberos:
 			try:
 				if ldap_address and is_ipaddress(ldap_address):
-					target = self.alt_server_info["dnsHostName"][0] if self.alt_server_info and hasattr(self.alt_server_info, "dnsHostName") and len(self.alt_server_info["dnsHostName"]) > 0 else None
+					target = self.get_alt_server_info().get("dnsHostName")[0]
 					if not target:
 						target = get_machine_name(ldap_address)
 					self.kdcHost = target
 				elif self.ldap_address is not None and is_ipaddress(self.ldap_address):
-					target = self.alt_server_info["dnsHostName"][0] if self.alt_server_info and hasattr(self.alt_server_info, "dnsHostName") and len(self.alt_server_info["dnsHostName"]) > 0 else None
+					target = self.get_alt_server_info().get("dnsHostName")[0]
 					if not target:
 						target = get_machine_name(self.ldap_address)
 					self.kdcHost = target
