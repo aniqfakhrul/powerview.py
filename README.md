@@ -5,7 +5,7 @@
 
 <p align="center">
 
-<img src="https://img.shields.io/badge/version-2025.1.7-blue" alt="version 2025.1.7"/>
+<img src="https://img.shields.io/badge/version-2025.1.8-blue" alt="version 2025.1.8"/>
 
 <a href="https://x.com/aniqfakhrul">
     <img src="https://img.shields.io/twitter/follow/aniqfakhrul?style=social"
