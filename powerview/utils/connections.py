@@ -606,7 +606,7 @@ class SMBConnectionPool(ConnectionPool):
 			return stats
 
 class CONNECTION:
-	def __init__(self, args, get_alt_server_info=True):
+	def __init__(self, args, get_alt_server_info=False):
 		self.args = args
 		self._connection_pool = ConnectionPool(
             max_connections=getattr(args, 'max_connections', 10),
@@ -639,7 +639,7 @@ class CONNECTION:
 		self._current_domain = None
 		self.username = args.username
 		self.password = args.password
-		self.domain = args.domain or dn2domain(self.alt_server_info["defaultNamingContext"][0])
+		self.domain = args.domain or dn2domain(self.alt_server_info["defaultNamingContext"][0]) if self.alt_server_info and hasattr(self.alt_server_info, "defaultNamingContext") and len(self.alt_server_info["defaultNamingContext"]) > 0 else None
 		self.lmhash = args.lmhash
 		self.nthash = args.nthash
 		self.use_kerberos = args.use_kerberos
@@ -1239,12 +1239,14 @@ class CONNECTION:
 						target = get_machine_name(ldap_address)
 					self.kdcHost = target
 				elif self.ldap_address is not None and is_ipaddress(self.ldap_address):
-					target = self.alt_server_info["dnsHostName"][0] if self.alt_server_info["dnsHostName"] and len(self.alt_server_info["dnsHostName"]) > 0 else None
+					target = self.alt_server_info["dnsHostName"][0] if self.alt_server_info and self.alt_server_info["dnsHostName"] and len(self.alt_server_info["dnsHostName"]) > 0 else None
 					if not target:
 						target = get_machine_name(self.ldap_address)
 					self.kdcHost = target
 				else:
 					target = self.ldap_address
+				if self.domain is None and target is not None and is_valid_fqdn(target):
+					self.domain = ".".join(target.split(".")[1:]) if "." in target else target
 			except Exception as e:
 				if self.args.stack_trace:
 					raise e
