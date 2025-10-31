@@ -860,7 +860,7 @@ class CONNECTION:
 		_connection.search(search_base='',
 									search_filter='(objectClass=*)',
 									search_scope=ldap3.BASE,
-									attributes=['dnsHostName','defaultNamingContext', 'supportedCapabilities'],
+									attributes=['dnsHostName','defaultNamingContext', 'namingContexts', 'supportedCapabilities'],
 									dereference_aliases=ldap3.DEREF_NEVER)
 		return _connection.response[0]['attributes']
 

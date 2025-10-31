@@ -2462,29 +2462,30 @@ class PowerView:
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
 
 		if not searchbase:
+			naming_contexts = getattr(self, 'naming_contexts', [])
+			if naming_contexts:
+				domain_dnszones_dn = next((ctx for ctx in naming_contexts if ctx.startswith("DC=DomainDnsZones")), None)
+				forest_dnszones_dn = next((ctx for ctx in naming_contexts if ctx.startswith("DC=ForestDnsZones")), None)
+			else:
+				domain_dnszones_dn = None
+				forest_dnszones_dn = None
+			domain_dnszone_base = f"CN=MicrosoftDNS,{domain_dnszones_dn}" if domain_dnszones_dn else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
+			forest_dnszone_base = f"CN=MicrosoftDNS,{forest_dnszones_dn}" if forest_dnszones_dn else f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}"
+			system_dnszone_base = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
 			if get_all:
-				searchbase = [
-						f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
-						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
-						f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
-					]
+				searchbase = [forest_dnszone_base, domain_dnszone_base, system_dnszone_base]
 			else:
 				if forest:
-					searchbase = f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}"
+					searchbase = forest_dnszone_base
 				else:
 					if legacy:
-						searchbase = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
+						searchbase = system_dnszone_base
 					else:
-						searchbase = [
-							f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
-							f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
-							f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
-						]
+						searchbase = [forest_dnszone_base, domain_dnszone_base]
 
 		identity_filter = ""
 		if identity:
 			identity_filter += f"(distinguishedName={identity})" if is_dn(identity) else f"(name={identity})"
-
 		
 		ldap_filter = f"(&(objectClass=dnsZone){identity_filter})"
 
@@ -2493,17 +2494,21 @@ class PowerView:
 			for base in searchbase:
 				logging.debug(f"[Get-DomainDNSZone] Search base: {base}")
 				logging.debug(f"[Get-DomainDNSZone] LDAP Filter string: {ldap_filter}")
-				entries.extend(self.ldap_session.extend.standard.paged_search(
-					base,
-					ldap_filter,
-					attributes=properties,
-					paged_size=1000,
-					generator=False,
-					search_scope=search_scope,
-					no_cache=no_cache,
-					no_vuln_check=no_vuln_check,
-					raw=raw
-				))
+				try:
+					entries.extend(self.ldap_session.extend.standard.paged_search(
+						base,
+						ldap_filter,
+						attributes=properties,
+						paged_size=1000,
+						generator=False,
+						search_scope=search_scope,
+						no_cache=no_cache,
+						no_vuln_check=no_vuln_check,
+						raw=raw
+					))
+				except ldap3.core.exceptions.LDAPNoSuchObjectResult:
+					logging.error(f"[Get-DomainDNSZone] No such object: {base}. Skipping...")
+					continue
 		else:
 			logging.debug(f"[Get-DomainDNSZone] Search base: {searchbase}")
 			logging.debug(f"[Get-DomainDNSZone] LDAP Filter string: {ldap_filter}")
@@ -2557,17 +2562,23 @@ class PowerView:
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
 
 		if not searchbase:
+			naming_contexts = getattr(self, 'naming_contexts', [])
+			if naming_contexts:
+				domain_dnszones_dn = next((ctx for ctx in naming_contexts if ctx.startswith("DC=DomainDnsZones")), None)
+				forest_dnszones_dn = next((ctx for ctx in naming_contexts if ctx.startswith("DC=ForestDnsZones")), None)
+			else:
+				domain_dnszones_dn = None
+				forest_dnszones_dn = None
+			domain_dnszone_base = f"CN=MicrosoftDNS,{domain_dnszones_dn}" if domain_dnszones_dn else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
+			forest_dnszone_base = f"CN=MicrosoftDNS,{forest_dnszones_dn}" if forest_dnszones_dn else f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}"
+			system_dnszone_base = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
 			if forest:
-				searchbase = f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}"
+				searchbase = forest_dnszone_base
 			else:
 				if legacy:
-					searchbase = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
+					searchbase = system_dnszone_base
 				else:
-					searchbase = [
-						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
-						f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
-						f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
-					]
+					searchbase = [forest_dnszone_base, domain_dnszone_base]
 
 		zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'], searchbase=searchbase, no_cache=no_cache)
 		if not zones:
