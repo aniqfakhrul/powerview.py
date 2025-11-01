@@ -1204,7 +1204,7 @@ class PowerView:
 			identity=identity, 
 			properties=['nTSecurityDescriptor', 'sAMAccountName', 'distinguishedName', 'objectSid'], 
 			searchbase=searchbase, 
-			ldap_filter=ldapfilter,
+			ldap_filter=ldapfilter or "(nTSecurityDescriptor=*)",
 			sd_flag=0x05,
 			no_cache=no_cache, 
 			no_vuln_check=no_vuln_check,
