@@ -1115,6 +1115,7 @@ class PowerView:
 			raw = args.raw if hasattr(args, 'raw') else raw
 			
 		searchbase = searchbase or self.root_dn
+		ldapfilter = f"(&{ldapfilter})(nTSecurityDescriptor=*)" if ldapfilter else "(nTSecurityDescriptor=*)"
 
 		guids_dict = guids_map_dict or {}
 		if not guids_map_dict:
@@ -1204,7 +1205,7 @@ class PowerView:
 			identity=identity, 
 			properties=['nTSecurityDescriptor', 'sAMAccountName', 'distinguishedName', 'objectSid'], 
 			searchbase=searchbase, 
-			ldap_filter=ldapfilter or "(nTSecurityDescriptor=*)",
+			ldap_filter=ldapfilter,
 			sd_flag=0x05,
 			no_cache=no_cache, 
 			no_vuln_check=no_vuln_check,
