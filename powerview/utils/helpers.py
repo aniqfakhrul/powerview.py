@@ -435,6 +435,10 @@ def is_dn(dn):
 	dn_pattern = re.compile(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$')
 	return bool(dn_pattern.match(dn))
 
+def is_sid(value: str) -> bool:
+    sid_pattern = re.compile(r"^S-\d+(-\d+){1,}$")
+    return bool(sid_pattern.match(value))
+
 def is_proxychains():
 	"""
 	Check if current process is running under proxychains

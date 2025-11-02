@@ -3887,29 +3887,33 @@ displayName=New Group Policy Object
 		logging.debug(f"[Set-DomainRBCD] {identity} identity found")
 		targetidentity = _identity[0]
 
-		# verify that delegate identity exists
-		delegfrom_identity = self.get_domainobject(identity=delegatefrom, properties = [
-				"sAMAccountName",
-				"objectSid",
-				"distinguishedName",
-			],
-			searchbase=searchbase
-		)
+		# verify that delegate identity exists if delegatefrom is not a sid
+		if not is_sid(delegatefrom):
+			delegfrom_identity = self.get_domainobject(identity=delegatefrom, properties = [
+					"sAMAccountName",
+					"objectSid",
+					"distinguishedName",
+				],
+				searchbase=searchbase
+			)
 
-		if len(delegfrom_identity) > 1:
-			logging.error("[Set-DomainRBCD] More then one identity found")
-			return False
-		elif len(delegfrom_identity) == 0:
-			logging.error(f"[Set-DomainRBCD] {delegatefrom} identity not found in domain")
-			return False
-		logging.debug(f"[Set-DomainRBCD] {delegatefrom} identity found")
+			if len(delegfrom_identity) > 1:
+				logging.error("[Set-DomainRBCD] More then one identity found")
+				return False
+			elif len(delegfrom_identity) == 0:
+				logging.error(f"[Set-DomainRBCD] {delegatefrom} identity not found in domain")
+				return False
+			logging.debug(f"[Set-DomainRBCD] {delegatefrom} identity found")
 
-		# now time to modify
-		delegfrom_identity = delegfrom_identity[0]
-		delegfrom_sid = delegfrom_identity.get("attributes").get("objectSid")
-
-		if delegfrom_sid is None:
-			return False
+			# now time to modify
+			delegfrom_identity = delegfrom_identity[0]
+			delegfrom_sid = delegfrom_identity.get("attributes").get("objectSid")
+			
+			if delegfrom_sid is None:
+				logging.error(f"[Set-DomainRBCD] objectSid not found for {delegatefrom} identity")
+				return False
+		else:
+			delegfrom_sid = delegatefrom
 
 		rbcd = RBCD(targetidentity, self.ldap_session)
 		succeed = rbcd.write_to(delegfrom_sid)
