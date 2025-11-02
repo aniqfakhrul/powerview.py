@@ -1392,12 +1392,17 @@ class PowerView:
 
 			try:
 				if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(entry["attributes"].keys()):
-					parser = RBCD(entry)
-					sids = parser.read()
-					if hasattr(args, 'resolvesids') and args.resolvesids:
-						for i in range(len(sids)):
-							sids[i] = self.convertfrom_sid(sids[i])
-					entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = sids
+					val = entry.get("attributes", {}).get("msDS-AllowedToActOnBehalfOfOtherIdentity")
+					if val is not None:
+						if isinstance(val, list):
+							for v in val:
+								if is_sid(v):
+									entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = self.convertfrom_sid(v)
+								else:
+									parser = RBCD(v)
+									entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = parser.read()
+						elif isinstance(val, str) and is_sid(val):
+							entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = self.convertfrom_sid(val)
 			except:
 				pass
 
