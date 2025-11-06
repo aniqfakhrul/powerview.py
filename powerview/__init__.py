@@ -585,6 +585,16 @@ def main():
                                     succeed = temp_powerview.disable_rdp(args=pv_args)
                                 else:
                                     succeed = powerview.disable_rdp(args=pv_args)
+                            elif pv_args.module.casefold() == 'enable-shadowrdp':
+                                if temp_powerview:
+                                    succeed = temp_powerview.enable_shadow_rdp(args=pv_args)
+                                else:
+                                    succeed = powerview.enable_shadow_rdp(args=pv_args)
+                            elif pv_args.module.casefold() == 'disable-shadowrdp':
+                                if temp_powerview:
+                                    succeed = temp_powerview.disable_shadow_rdp(args=pv_args)
+                                else:
+                                    succeed = powerview.disable_shadow_rdp(args=pv_args)
                             elif pv_args.module.casefold() == 'enable-adaccount':
                                 if pv_args.identity is not None:
                                     if temp_powerview:

@@ -375,8 +375,9 @@ class PowerView:
 	def is_admin(self):
 		self.is_domainadmin = False
 		self.is_admincount = False
+		username = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
 		try:
-			user_entry = self.get_domainobject(identity=self.username, properties=["distinguishedName", "adminCount"])
+			user_entry = self.ldap_session.extend.standard.paged_search(search_base=self.root_dn, search_filter=f"(&(sAMAccountName={username})(|(objectClass=user)(objectClass=computer)))", attributes=["distinguishedName", "adminCount"], generator=True, no_vuln_check=True)
 			if len(user_entry) == 0:
 				return False
 			attrs = user_entry[0].get("attributes", {})
@@ -386,10 +387,10 @@ class PowerView:
 			sids = []
 			for attr in ("tokenGroups", "tokenGroupsGlobalAndUniversal", "tokenGroupsNoGCAcceptable"):
 				try:
-					self.ldap_session.search(user_dn, "(1.2.840.113556.1.4.2=*)", attributes=[attr], search_scope=ldap3.BASE)
-					if not self.ldap_session.response:
+					entries = self.ldap_session.extend.standard.paged_search(user_dn, "(1.2.840.113556.1.4.2=*)", attributes=[attr], search_scope=ldap3.BASE)
+					if not entries:
 						continue
-					values = self.ldap_session.response[0].get("attributes", {}).get(attr)
+					values = entries[0].get("attributes", {}).get(attr)
 					if not values:
 						continue
 					if isinstance(values, list):
@@ -2918,50 +2919,56 @@ class PowerView:
 			logging.info(f"[Unlock-ADAccount] Failed to unlock {identity_san}")
 			return False
 
-	def enable_rdp(self, computer=None, no_check=False, disable_restriction_admin=False, args=None):
+	def enable_rdp(self, computer=None, no_verify=False, disable_restricted_admin=False, args=None):
 		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
-		no_check = args.no_check if hasattr(args, 'no_check') and args.no_check else no_check
-		disable_restriction_admin = args.disable_restriction_admin if hasattr(args, 'disable_restriction_admin') and args.disable_restriction_admin else disable_restriction_admin
+		no_verify = args.no_verify if hasattr(args, 'no_verify') and args.no_verify else no_verify
+		disable_restricted_admin = args.disable_restricted_admin if hasattr(args, 'disable_restricted_admin') and args.disable_restricted_admin else disable_restricted_admin
 
 		identity = self._resolve_host(computer)
 		if not identity:
 			logging.error(f"[Enable-RDP] Failed to resolve hostname {computer}")
 			return False
 		
-		if not no_check:
+		port_open = False
+		if not no_verify:
 			if check_tcp_port(identity, 3389, timeout=10, retries=1, retry_delay=0.3):
 				logging.error(f"[Enable-RDP] {computer} RDP port 3389 is already open")
-				return False
+				port_open = True
 		
-		try:
-			reg = RemoteOperations(self.conn)
-			dce = reg.connect(identity)
-			succeed = reg.add(dce, 'HKLM\\System\\CurrentControlSet\\Control\\Terminal Server', 'fDenyTSConnections', 'REG_DWORD', "0")
-		except Exception as e:
-			if self.args.stack_trace:
-				raise e
-			else:
-				logging.error(f"[Enable-RDP] Failed to enable RDP on {computer}: {e}")
-			return False
+		if not port_open:
+			try:
+				reg = RemoteOperations(self.conn)
+				dce = reg.connect(identity)
+				succeed = reg.add(dce, 'HKLM\\System\\CurrentControlSet\\Control\\Terminal Server', 'fDenyTSConnections', 'REG_DWORD', "0")
+				logging.info(f"[Enable-RDP] RDP enabled on {computer}")
+			except Exception as e:
+				if self.args.stack_trace:
+					raise e
+				else:
+					logging.error(f"[Enable-RDP] Failed to enable RDP on {computer}: {e}")
 
-		if succeed:
-			logging.info(f"[Enable-RDP] RDP enabled on {computer}")
-			return True
-		else:
-			logging.error(f"[Enable-RDP] Failed to enable RDP on {computer}")
-			return False
+		if disable_restricted_admin:
+			try:
+				reg = RemoteOperations(self.conn)
+				dce = reg.connect(identity)
+				succeed = reg.add(dce, 'HKLM\\System\\CurrentControlSet\\Control\\Lsa', 'DisableRestrictedAdmin', 'REG_DWORD', "0")
+				logging.info(f"[Enable-RDP] Disabled restricted admin on {computer}")
+			except Exception as e:
+				logging.error(f"[Enable-RDP] Failed to disable restricted admin on {computer}: {e}")
 
-	def disable_rdp(self, computer=None, no_check=False, disable_restriction_admin=False, args=None):
+		return True
+
+	def disable_rdp(self, computer=None, no_verify=False, disable_restricted_admin=False, args=None):
 		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
-		no_check = args.no_check if hasattr(args, 'no_check') and args.no_check else no_check
-		disable_restriction_admin = args.disable_restriction_admin if hasattr(args, 'disable_restriction_admin') and args.disable_restriction_admin else disable_restriction_admin
+		no_verify = args.no_verify if hasattr(args, 'no_verify') and args.no_verify else no_verify
+		disable_restricted_admin = args.disable_restricted_admin if hasattr(args, 'disable_restricted_admin') and args.disable_restricted_admin else disable_restricted_admin
 
 		identity = self._resolve_host(computer)
 		if not identity:
 			logging.error(f"[Disable-RDP] Failed to resolve hostname {computer}")
 			return False
 
-		if not no_check:
+		if not no_verify:
 			if not check_tcp_port(identity, 3389, timeout=10, retries=1, retry_delay=0.3):
 				logging.error(f"[Disable-RDP] {computer} RDP port 3389 is already closed")
 				return False
@@ -2970,18 +2977,64 @@ class PowerView:
 			reg = RemoteOperations(self.conn)
 			dce = reg.connect(identity)
 			succeed = reg.add(dce, 'HKLM\\System\\CurrentControlSet\\Control\\Terminal Server', 'fDenyTSConnections', 'REG_DWORD', "1")
+			logging.info(f"[Disable-RDP] RDP disabled on {computer}")
 		except Exception as e:
 			if self.args.stack_trace:
 				raise e
 			else:
 				logging.error(f"[Disable-RDP] Failed to disable RDP on {computer}: {e}")
+
+		return True
+
+	def enable_shadow_rdp(self, computer=None, args=None):
+		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
+
+		identity = self._resolve_host(computer)
+		if not identity:
+			logging.error(f"[Enable-ShadowRDP] Failed to resolve hostname {computer}")
+
+		try:
+			reg = RemoteOperations(self.conn)
+			dce = reg.connect(identity)
+			succeed = reg.add(dce, 'HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Terminal Services', 'Shadow', 'REG_DWORD', "2")
+		except Exception as e:
+			if self.args.stack_trace:
+				raise e
+			else:
+				logging.error(f"[Enable-ShadowRDP] Failed to enable Shadow RDP on {computer}: {e}")
 			return False
 
 		if succeed:
-			logging.info(f"[Disable-RDP] RDP disabled on {computer}")
+			logging.info(f"[Enable-ShadowRDP] Shadow RDP enabled on {computer}")
+		else:
+			logging.error(f"[Enable-ShadowRDP] Failed to enable Shadow RDP on {computer}")
+			return False
+		return True
+
+	def disable_shadow_rdp(self, computer=None, args=None):
+		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
+
+		identity = self._resolve_host(computer)
+		if not identity:
+			logging.error(f"[Disable-ShadowRDP] Failed to resolve hostname {computer}")
+			return False
+
+		try:
+			reg = RemoteOperations(self.conn)
+			dce = reg.connect(identity)
+			succeed = reg.add(dce, 'HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Terminal Services', 'Shadow', 'REG_DWORD', "0")
+		except Exception as e:
+			if self.args.stack_trace:
+				raise e
+			else:
+				logging.error(f"[Disable-ShadowRDP] Failed to disable Shadow RDP on {computer}: {e}")
+			return False
+
+		if succeed:
+			logging.info(f"[Disable-ShadowRDP] Shadow RDP disabled on {computer}")
 			return True
 		else:
-			logging.error(f"[Disable-RDP] Failed to disable RDP on {computer}")
+			logging.error(f"[Disable-ShadowRDP] Failed to disable Shadow RDP on {computer}")
 			return False
 
 	def enable_adaccount(self, identity=None, searchbase=None, no_cache=False, args=None):
