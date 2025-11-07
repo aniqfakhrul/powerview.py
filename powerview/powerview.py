@@ -411,11 +411,11 @@ class PowerView:
 					self.is_domainadmin = True
 					break
 			if self.is_domainadmin:
-				logging.info(f"User {self.username} is a Domain Admin")
+				logging.info(f"User {username} is a Domain Admin")
 			else:
 				self.is_admincount = bool(attrs.get("adminCount", 0))
 				if self.is_admincount:
-					logging.info(f"User {self.username} has adminCount attribute set to 1. Might be admin somewhere somehow :)")
+					logging.info(f"User {username} has adminCount attribute set to 1. Might be admin somewhere somehow :)")
 		except Exception:
 			if self.args.stack_trace:
 				raise
