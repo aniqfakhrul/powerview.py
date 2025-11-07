@@ -736,7 +736,7 @@ class CONNECTION:
 		if self.alt_server_info and hasattr(self.alt_server_info, "dnsHostName") and len(self.alt_server_info["dnsHostName"]) > 0:
 			socket.gethostname = lambda: self.alt_server_info["dnsHostName"][0].split(".")[0]
 		else:
-			socket.gethostname = lambda: "DC01"
+			socket.gethostname = lambda: "localhost"
 
 		# stolen from https://github.com/the-useless-one/pywerview/blob/master/pywerview/requester.py#L90
 		try:
