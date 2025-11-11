@@ -17,7 +17,6 @@ from impacket.dcerpc.v5.dcomrt import DCOMConnection
 from impacket.dcerpc.v5.dcom import wmi
 from impacket.dcerpc.v5.dcom.wmi import DCERPCSessionError
 from impacket.krb5.ccache import CCache
-import os
 from impacket.krb5.kerberosv5 import getKerberosTGT, getKerberosTGS
 from impacket.krb5.types import Principal
 from impacket.krb5 import constants
@@ -54,6 +53,7 @@ import json
 import sys
 from struct import unpack
 import tempfile
+import os
 import socket
 
 from ldap3.operation import bind

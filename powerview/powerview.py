@@ -456,11 +456,15 @@ class PowerView:
 		if identity:
 			if is_dn(identity):
 				identity_filter += f"(distinguishedName={identity})"
+			elif is_sid(identity):
+				identity_filter += f"(objectSid={identity})"
 			else:
 				identity_filter += f"(|(sAMAccountName={identity})(name={identity})(cn={identity}))"
 		elif args and hasattr(args, 'identity') and args.identity:
 			if is_dn(args.identity):
 				identity_filter += f"(distinguishedName={args.identity})"
+			elif is_sid(args.identity):
+				identity_filter += f"(objectSid={args.identity})"
 			else:
 				identity_filter += f"(|(sAMAccountName={args.identity})(name={args.identity})(cn={args.identity}))"
 
@@ -733,6 +737,8 @@ class PowerView:
 		if identity and not identity_filter:
 			if is_dn(identity):
 				identity_filter = f"(distinguishedName={identity})"
+			elif is_sid(identity):
+				identity_filter = f"(objectSid={identity})"
 			else:
 				identity_filter = f"(|(samAccountName={identity})(name={identity})(displayName={identity})(objectSid={identity})(distinguishedName={identity})(dnsHostName={identity})(objectGUID=*{identity}*))"
 		
@@ -1109,6 +1115,7 @@ class PowerView:
 		if args:
 			identity = args.identity if hasattr(args, 'identity') else identity
 			security_identifier = args.security_identifier if hasattr(args, 'security_identifier') else security_identifier
+			depth = args.depth if hasattr(args, 'depth') else 0
 			searchbase = args.searchbase if hasattr(args, 'searchbase') else searchbase
 			ldapfilter = args.ldapfilter if hasattr(args, 'ldapfilter') else ldapfilter
 			no_cache = args.no_cache if hasattr(args, 'no_cache') else no_cache
@@ -1148,17 +1155,16 @@ class PowerView:
 				logging.error(f"[Get-DomainObjectAcl] Error searching for GUIDs in {searchbase}. Ignoring...")
 
 		principal_SID = None
-		if security_identifier:
+		if security_identifier and not is_sid(security_identifier):
 			principalsid_entry = self.get_domainobject(
 				identity=security_identifier, 
-				properties=['objectSid'], 
+				properties=['objectSid', 'memberOf'], 
 				no_cache=no_cache, 
 				searchbase=searchbase, 
-				no_vuln_check=no_vuln_check,
-				raw=raw
+				no_vuln_check=no_vuln_check
 			)
 			
-			if not principalsid_entry:
+			if len(principalsid_entry) == 0:
 				logging.debug('[Get-DomainObjectAcl] Principal not found. Searching in Well Known SIDs...')
 				principal_SID = resolve_WellKnownSID(security_identifier)
 
@@ -1172,7 +1178,64 @@ class PowerView:
 				logging.error('[Get-DomainObjectAcl] Multiple identities found. Use exact match')
 				return None
 
-			security_identifier = principalsid_entry[0]['attributes']['objectSid'] if not principal_SID else principal_SID
+			security_identifier = principalsid_entry[0].get('attributes', {}).get('objectSid') if not principal_SID else principal_SID
+		
+		principalidentity_map = None
+		if security_identifier and depth > 0:
+			principalidentity_map = {}
+			start_display = self.convertfrom_sid(security_identifier)
+			start_entry = self.get_domainobject(
+				identity=security_identifier,
+				properties=['objectSid', 'memberOf', 'sAMAccountName', 'cn'],
+				no_cache=no_cache,
+				searchbase=searchbase,
+				no_vuln_check=no_vuln_check
+			)
+			start_attrs = start_entry[0].get('attributes', {}) if start_entry else {}
+			start_sid = start_attrs.get('objectSid') or security_identifier
+			if isinstance(start_sid, list) and start_sid:
+				start_sid = start_sid[0]
+			principalidentity_map[start_sid] = start_display
+			memberof_queue = []
+			mo = start_attrs.get('memberOf') or []
+			if isinstance(mo, str):
+				mo = [mo]
+			for dn in mo:
+				memberof_queue.append((dn, start_display))
+			visited = set()
+			level = 0
+			while level < depth and memberof_queue:
+				next_queue = []
+				for dn, chain in memberof_queue:
+					if dn in visited:
+						continue
+					visited.add(dn)
+					group_entry = self.get_domainobject(
+						identity=dn,
+						properties=['objectSid', 'memberOf', 'sAMAccountName', 'cn'],
+						no_cache=no_cache,
+						searchbase=searchbase,
+						no_vuln_check=no_vuln_check
+					)
+					if not group_entry:
+						continue
+					gattrs = group_entry[0].get('attributes', {})
+					gsid = gattrs.get('objectSid')
+					if isinstance(gsid, list) and gsid:
+						gsid = gsid[0]
+					gname = gattrs.get('sAMAccountName') or gattrs.get('cn')
+					if isinstance(gname, list) and gname:
+						gname = gname[0]
+					if gsid and gname:
+						new_chain = f"({gname}) -> {chain}"
+						principalidentity_map[gsid] = new_chain
+						mo2 = gattrs.get('memberOf') or []
+						if isinstance(mo2, str):
+							mo2 = [mo2]
+						for dn2 in mo2:
+							next_queue.append((dn2, new_chain))
+				memberof_queue = next_queue
+				level += 1
 
 		target_dn = None
 		if identity:
@@ -1181,18 +1244,17 @@ class PowerView:
 				properties=['objectSid', 'distinguishedName'], 
 				searchbase=searchbase, 
 				no_cache=no_cache, 
-				no_vuln_check=no_vuln_check,
-				raw=raw
+				no_vuln_check=no_vuln_check
 			)
 			
-			if not identity_entries:
+			if len(identity_entries) == 0:
 				logging.error(f'[Get-DomainObjectAcl] Identity {identity} not found. Try to use DN')
 				return None
 			elif len(identity_entries) > 1:
 				logging.error('[Get-DomainObjectAcl] Multiple identities found. Use exact match')
 				return None
 			
-			target_dn = identity_entries[0]["attributes"]["distinguishedName"]
+			target_dn = identity_entries[0].get("attributes", {}).get("distinguishedName")
 			if isinstance(target_dn, list):
 				target_dn = "".join(target_dn)
 				
@@ -1217,7 +1279,7 @@ class PowerView:
 			logging.error('[Get-DomainObjectAcl] Identity not found in domain')
 			return None
 
-		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=security_identifier, guids_map_dict=guids_dict)
+		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=(principalidentity_map if principalidentity_map else security_identifier), guids_map_dict=guids_dict)
 		return enum.read_dacl()
 
 	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolvesids=False, ldapfilter=None, include_ip=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
@@ -1271,6 +1333,8 @@ class PowerView:
 		if identity:
 			if is_dn(identity):
 				identity_filter += f"(distinguishedName={identity})"
+			elif is_sid(identity):
+				identity_filter += f"(objectSid={identity})"
 			else:
 				identity_filter += f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity})(cn={identity}))"
 
