@@ -1697,7 +1697,6 @@ class CONNECTION:
 					logging.critical('TLS negociation failed, this error is mostly due to your host '
 										  'not supporting SHA1 as signing algorithm for certificates')
 				sys.exit(-1)
-
 		except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult:
 			logging.warning("Server returns LDAPStrongerAuthRequiredResult")
 			if not self.sign_and_seal_supported:
@@ -1714,7 +1713,19 @@ class CONNECTION:
 				self.init_ldap_kerberos(target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, aesKey=aesKey, seal_and_sign=True)
 				return ldap_server, ldap_connection
 		except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult:
-			logging.warning("Server returns LDAPAuthMethodNotSupportedResult. Fall back to impacket style Kerberos login")
+			logging.warning("Server returns LDAPAuthMethodNotSupportedResult.")
+			if is_proxychains():
+				logging.warning("This might caused by gssapi is not supported via proxychains. Try to use https://github.com/hmgle/graftcp instead.")
+				fallback = input("Do you want to fallback to impacket style kerberos login? (y/n): ")
+				if fallback.lower() == "y":
+					self.impacket_ldap3_kerberos_login(ldap_connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost=kdcHost, useCache=self.no_pass)
+					ldap_connection.refresh_server_info()
+				else:
+					sys.exit(0)
+		except Exception as e:
+			if self.stack_trace:
+				raise e
+			logging.warning("Unknown error: {0}. Falling back to impacket style kerberos login".format(e))
 			self.impacket_ldap3_kerberos_login(ldap_connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost=kdcHost, useCache=self.no_pass)
 			ldap_connection.refresh_server_info()
 
