@@ -1475,6 +1475,7 @@ class CONNECTION:
 		self.domain = dn2domain(self.ldap_server.info.other['defaultNamingContext'][0])
 		if not self.ldap_session.search(base_dn,'(objectclass=*)'):
 			logging.warning("ANONYMOUS access not allowed for %s" % (self.domain))
+			print(self.ldap_server.info)
 			sys.exit(0)
 		else:
 			logging.info("Server allows ANONYMOUS access!")
@@ -1712,6 +1713,8 @@ class CONNECTION:
 				logging.warning("Falling back to Kerberos sealing")
 				self.init_ldap_kerberos(target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, auth_aes_key=auth_aes_key, seal_and_sign=True)
 				return ldap_server, ldap_connection
+		except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult:
+			logging.warning("Server returns LDAPAuthMethodNotSupportedResult. Fall back to ")
 
 		return ldap_server, ldap_connection
 

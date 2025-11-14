@@ -977,7 +977,7 @@ def main():
                                         logging.error("%s exists "%(pv_args.outfile))
                                         continue
 
-                                formatter = FORMATTER(pv_args, args.use_kerberos)
+                                formatter = FORMATTER(pv_args)
                                 if hasattr(pv_args, 'where') and pv_args.where is not None:
                                     entries = formatter.alter_entries(entries,pv_args.where)
 

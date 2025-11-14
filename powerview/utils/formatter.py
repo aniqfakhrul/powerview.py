@@ -21,10 +21,9 @@ from io import StringIO
 import csv
 
 class FORMATTER:
-    def __init__(self, pv_args, use_kerberos=False, config=None):
+    def __init__(self, pv_args, config=None):
         self.__newline = '\n'
         self.args = pv_args
-        self.use_kerberos = use_kerberos
         
         # Default configuration
         self.config = {
@@ -239,6 +238,10 @@ class FORMATTER:
                 rows.append(row)
 
         self.print_table(entries=rows, headers=headers)
+
+    @staticmethod
+    def pretty_print_json(json_data):
+        print(json.dumps(json_data, indent=4))
 
     def print(self, entries):
         total_entries = len(entries)
