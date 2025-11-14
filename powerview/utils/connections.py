@@ -16,10 +16,6 @@ from impacket.nt_errors import STATUS_SUCCESS, STATUS_ACCESS_DENIED
 from impacket.dcerpc.v5.dcomrt import DCOMConnection
 from impacket.dcerpc.v5.dcom import wmi
 from impacket.dcerpc.v5.dcom.wmi import DCERPCSessionError
-from impacket.krb5.ccache import CCache
-from impacket.krb5.kerberosv5 import getKerberosTGT, getKerberosTGS
-from impacket.krb5.types import Principal
-from impacket.krb5 import constants
 
 from powerview.utils.helpers import (
 	get_machine_name,
@@ -1513,6 +1509,10 @@ class CONNECTION:
 		return new_creds
 
 	def init_ldap_kerberos(self, target, tls=None, domain=None, username=None, password=None, lmhash=None, nthash=None, aesKey=None, kdcHost=None, seal_and_sign=False, channel_binding=False):
+		from impacket.krb5.ccache import CCache
+		from impacket.krb5.kerberosv5 import getKerberosTGT, getKerberosTGS
+		from impacket.krb5.types import Principal
+		from impacket.krb5 import constants
 		ldap_server_kwargs = {
 			"host": target,
 			"get_info": ldap3.ALL,
@@ -1630,7 +1630,6 @@ class CONNECTION:
 				ccache.fromTGS(tgs, oldSessionKey, sessionKey)
 
 		principal = 'ldap/{}@{}'.format(target.lower(), domain.upper())
-		print(principal)
 		creds = ccache.getCredential(principal, anySPN=False)
 		if creds:
 			creds_server_lower = creds['server'].prettyPrint().lower().decode('utf-8')
@@ -1715,10 +1714,183 @@ class CONNECTION:
 				self.init_ldap_kerberos(target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, aesKey=aesKey, seal_and_sign=True)
 				return ldap_server, ldap_connection
 		except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult:
-			logging.warning("Server returns LDAPAuthMethodNotSupportedResult. Fall back to ")
-			print(self.get_alt_server_info(read_server_info=True))
+			logging.warning("Server returns LDAPAuthMethodNotSupportedResult. Fall back to impacket style Kerberos login")
+			self.impacket_ldap3_kerberos_login(ldap_connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost=kdcHost, useCache=self.no_pass)
+			ldap_connection.refresh_server_info()
 
 		return ldap_server, ldap_connection
+
+	def impacket_ldap3_kerberos_login(self, connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True):
+		from pyasn1.codec.ber import encoder, decoder
+		from pyasn1.type.univ import noValue
+		from binascii import hexlify, unhexlify
+		"""
+		logins into the target system explicitly using Kerberos. Hashes are used if RC4_HMAC is supported.
+		:param string user: username
+		:param string password: password for the user
+		:param string domain: domain where the account is valid for (required)
+		:param string lmhash: LMHASH used to authenticate using hashes (password is not used)
+		:param string nthash: NTHASH used to authenticate using hashes (password is not used)
+		:param string aesKey: aes256-cts-hmac-sha1-96 or aes128-cts-hmac-sha1-96 used for Kerberos authentication
+		:param string kdcHost: hostname or IP Address for the KDC. If None, the domain will be used (it needs to resolve tho)
+		:param struct TGT: If there's a TGT available, send the structure here and it will be used
+		:param struct TGS: same for TGS. See smb3.py for the format
+		:param bool useCache: whether or not we should use the ccache for credentials lookup. If TGT or TGS are specified this is False
+		:return: True, raises an Exception if error.
+		"""
+
+		if lmhash != '' or nthash != '':
+			if len(lmhash) % 2:
+				lmhash = '0' + lmhash
+			if len(nthash) % 2:
+				nthash = '0' + nthash
+			try:  # just in case they were converted already
+				lmhash = unhexlify(lmhash)
+				nthash = unhexlify(nthash)
+			except TypeError:
+				pass
+
+		# Importing down here so pyasn1 is not required if kerberos is not used.
+		from impacket.krb5.ccache import CCache
+		from impacket.krb5.asn1 import AP_REQ, Authenticator, TGS_REP, seq_set
+		from impacket.krb5.kerberosv5 import getKerberosTGT, getKerberosTGS
+		from impacket.krb5 import constants
+		from impacket.krb5.types import Principal, KerberosTime, Ticket
+		import datetime
+
+		if self.TGT or self.TGS:
+			useCache = False
+
+		if useCache:
+			try:
+				env_krb5ccname = os.getenv('KRB5CCNAME')
+				if not env_krb5ccname:
+					logging.error("No KRB5CCNAME environment present.")
+					sys.exit(0)
+				ccache = CCache.loadFile(env_krb5ccname)
+			except Exception as e:
+				# No cache present
+				logging.warning("No Kerberos cache found")
+				pass
+			else:
+				# retrieve domain information from CCache file if needed
+				if domain == '':
+					domain = ccache.principal.realm['data'].decode('utf-8')
+					logging.debug('Domain retrieved from CCache: %s' % domain)
+
+				logging.debug('Using Kerberos Cache: %s' % os.getenv('KRB5CCNAME'))
+				principal = 'ldap/%s@%s' % (target.upper(), domain.upper())
+
+				creds = ccache.getCredential(principal)
+				if creds is None:
+					# Let's try for the TGT and go from there
+					principal = 'krbtgt/%s@%s' % (domain.upper(), domain.upper())
+					creds = ccache.getCredential(principal)
+					if creds is not None:
+						self.TGT = creds.toTGT()
+						logging.debug('Using TGT from cache')
+					else:
+						logging.debug('No valid credentials found in cache')
+				else:
+					self.TGS = creds.toTGS(principal)
+					logging.debug('Using TGS from cache')
+
+				# retrieve user information from CCache file if needed
+				if user == '' and creds is not None:
+					user = creds['client'].prettyPrint().split(b'@')[0].decode('utf-8')
+					logging.debug('Username retrieved from CCache: %s' % user)
+				elif user == '' and len(ccache.principal.components) > 0:
+					user = ccache.principal.components[0]['data'].decode('utf-8')
+					logging.debug('Username retrieved from CCache: %s' % user)
+
+		# First of all, we need to get a TGT for the user
+		userName = Principal(user, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
+		if not self.TGT:
+			self.TGT = dict()
+			if not self.TGS:
+				tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, password, domain, lmhash, nthash, aesKey, kdcHost)
+				self.TGT['KDC_REP'] = tgt
+				self.TGT['cipher'] = cipher
+				self.TGT['oldSessionKey'] = oldSessionKey
+				self.TGT['sessionKey'] = sessionKey
+		else:
+			tgt = self.TGT['KDC_REP']
+			cipher = self.TGT['cipher']
+			sessionKey = self.TGT['sessionKey']
+
+		if not self.TGS:
+			self.TGS = dict()
+			serverName = Principal('ldap/%s' % target, type=constants.PrincipalNameType.NT_SRV_INST.value)
+			tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey)
+			self.TGS['KDC_REP'] = tgs
+			self.TGS['cipher'] = cipher
+			self.TGS['oldSessionKey'] = oldSessionKey
+			self.TGS['sessionKey'] = sessionKey
+		else:
+			tgs = self.TGS['KDC_REP']
+			cipher = self.TGS['cipher']
+			sessionKey = self.TGS['sessionKey']
+
+			# Let's build a NegTokenInit with a Kerberos REQ_AP
+
+		blob = SPNEGO_NegTokenInit()
+
+		# Kerberos
+		blob['MechTypes'] = [TypesMech['MS KRB5 - Microsoft Kerberos 5']]
+
+		# Let's extract the ticket from the TGS
+		tgs = decoder.decode(tgs, asn1Spec=TGS_REP())[0]
+		ticket = Ticket()
+		ticket.from_asn1(tgs['ticket'])
+
+		# Now let's build the AP_REQ
+		apReq = AP_REQ()
+		apReq['pvno'] = 5
+		apReq['msg-type'] = int(constants.ApplicationTagNumbers.AP_REQ.value)
+
+		opts = []
+		apReq['ap-options'] = constants.encodeFlags(opts)
+		seq_set(apReq, 'ticket', ticket.to_asn1)
+
+		authenticator = Authenticator()
+		authenticator['authenticator-vno'] = 5
+		authenticator['crealm'] = domain
+		seq_set(authenticator, 'cname', userName.components_to_asn1)
+		now = datetime.datetime.utcnow()
+
+		authenticator['cusec'] = now.microsecond
+		authenticator['ctime'] = KerberosTime.to_asn1(now)
+
+		encodedAuthenticator = encoder.encode(authenticator)
+
+		# Key Usage 11
+		# AP-REQ Authenticator (includes application authenticator
+		# subkey), encrypted with the application session key
+		# (Section 5.5.1)
+		encryptedEncodedAuthenticator = cipher.encrypt(sessionKey, 11, encodedAuthenticator, None)
+
+		apReq['authenticator'] = noValue
+		apReq['authenticator']['etype'] = cipher.enctype
+		apReq['authenticator']['cipher'] = encryptedEncodedAuthenticator
+
+		blob['MechToken'] = encoder.encode(apReq)
+
+		request = ldap3.operation.bind.bind_operation(connection.version, connection.authentication, connection.user, None, 'GSS-SPNEGO',
+													  blob.getData())
+
+		# Done with the Kerberos saga, now let's get into LDAP
+		if connection.closed:  # try to open connection if closed
+			connection.open(read_server_info=False)
+
+		connection.sasl_in_progress = True
+		response = connection.post_send_single_response(connection.send('bindRequest', request, None))
+		connection.sasl_in_progress = False
+		if response[0]['result'] != 0:
+			raise Exception(response)
+
+		connection.bound = True
+
+		return True
 
 	def init_ldap_schannel_connection(self, target, tls, seal_and_sign=False, tls_channel_binding=False):
 		ldap_server_kwargs = {
