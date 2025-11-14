@@ -858,10 +858,10 @@ class CONNECTION:
 	def remove_domain_connection(self, domain):
 		self._connection_pool.remove_connection(domain)
 
-	def get_alt_server_info(self):
-		_server = ldap3.Server(self.args.ldap_address)
+	def get_alt_server_info(self, read_server_info=False):
+		_server = ldap3.Server(self.args.ldap_address, get_info=ldap3.ALL)
 		_connection = ldap3.Connection(_server)
-		_connection.open(read_server_info=False)
+		_connection.open(read_server_info=read_server_info)
 		_connection.search(search_base='',
 									search_filter='(objectClass=*)',
 									search_scope=ldap3.BASE,
@@ -1715,6 +1715,7 @@ class CONNECTION:
 				return ldap_server, ldap_connection
 		except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult:
 			logging.warning("Server returns LDAPAuthMethodNotSupportedResult. Fall back to ")
+			print(self.get_alt_server_info(read_server_info=True))
 
 		return ldap_server, ldap_connection
 
