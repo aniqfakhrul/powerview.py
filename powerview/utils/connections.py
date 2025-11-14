@@ -1569,25 +1569,25 @@ class CONNECTION:
 
 		ldap_server = ldap3.Server(**ldap_server_kwargs)
 		
+		ccache = None
 		try:
 			ccache_name = os.getenv('KRB5CCNAME')
 			if not ccache_name:
 				raise Exception("No KRB5CCNAME environment present.")
+
 			ccache = CCache.loadFile(ccache_name)
-			domain = ccache.principal.realm['data'].decode('utf-8')
-			username = ccache.principal.components[0]['data'].decode('utf-8')
-			principal = 'krbtgt/%s@%s' % (domain.upper(), domain.upper())
-			creds = ccache.getCredential(principal, anySPN=True)
+			if domain is None or domain == '':
+				domain = ccache.principal.realm['data'].decode('utf-8')
+			if username is None or username == '':
+				username = ccache.principal.components[0]['data'].decode('utf-8')
+			krbtgt_principal = 'krbtgt/%s@%s' % (domain.upper(), domain.upper())
+			creds = ccache.getCredential(krbtgt_principal, anySPN=True)
 			if creds is not None:
 				self.TGT = creds.toTGT()
-			principal = 'ldap/%s@%s' % (target.lower(), domain.upper())
-			creds = ccache.getCredential(principal, anySPN=True)
-			if creds is not None:
-				self.TGS = creds.toTGS()
 		except FileNotFoundError as e:
 			logging.error(str(e))
-			sys.exit(-1)
-		except Exception as e:
+			ccache = None
+		except Exception:
 			ccache = None
 
 		if ccache is None or self.TGS is None:
@@ -1630,6 +1630,7 @@ class CONNECTION:
 				ccache.fromTGS(tgs, oldSessionKey, sessionKey)
 
 		principal = 'ldap/{}@{}'.format(target.lower(), domain.upper())
+		print(principal)
 		creds = ccache.getCredential(principal, anySPN=False)
 		if creds:
 			creds_server_lower = creds['server'].prettyPrint().lower().decode('utf-8')
@@ -1707,11 +1708,11 @@ class CONNECTION:
 					version=ssl.PROTOCOL_TLSv1_2,
 					ciphers='ALL:@SECLEVEL=0',
 				)
-				self.init_ldap_kerberos(target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, auth_aes_key=auth_aes_key, seal_and_sign=False)
+				self.init_ldap_kerberos(target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, aesKey=aesKey, seal_and_sign=False)
 				return ldap_server, ldap_connection
 			else:
 				logging.warning("Falling back to Kerberos sealing")
-				self.init_ldap_kerberos(target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, auth_aes_key=auth_aes_key, seal_and_sign=True)
+				self.init_ldap_kerberos(target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, aesKey=aesKey, seal_and_sign=True)
 				return ldap_server, ldap_connection
 		except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult:
 			logging.warning("Server returns LDAPAuthMethodNotSupportedResult. Fall back to ")
