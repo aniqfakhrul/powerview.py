@@ -239,10 +239,6 @@ class FORMATTER:
 
         self.print_table(entries=rows, headers=headers)
 
-    @staticmethod
-    def pretty_print_json(json_data):
-        print(json.dumps(json_data, indent=4))
-
     def print(self, entries):
         total_entries = len(entries)
         if hasattr(self.args, 'paginate') and self.args.paginate and total_entries > self.config['max_entries']:
