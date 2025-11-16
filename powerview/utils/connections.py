@@ -1580,14 +1580,23 @@ class CONNECTION:
 				domain = ccache.principal.realm['data'].decode('utf-8')
 			if username is None or username == '':
 				username = ccache.principal.components[0]['data'].decode('utf-8')
+
 			krbtgt_principal = 'krbtgt/%s@%s' % (domain.upper(), domain.upper())
-			creds = ccache.getCredential(krbtgt_principal, anySPN=True)
-			if creds is not None:
-				self.TGT = creds.toTGT()
+			ldap_principal = 'ldap/%s@%s' % (target.lower(), domain.upper())
+			krbtgt_creds = ccache.getCredential(krbtgt_principal, anySPN=True)
+			ldap_creds = ccache.getCredential(ldap_principal, anySPN=True)
+			if krbtgt_creds is not None:
+				self.TGT = krbtgt_creds.toTGT()
+				logging.debug("Found TGT for %s in KRB5CCNAME, using as TGT" % krbtgt_principal)
+			elif ldap_creds is not None:
+				self.TGS = ldap_creds.toTGS(ldap_principal)
+				logging.debug("Found TGS for %s in KRB5CCNAME, using as TGS" % ldap_principal)
+			else:
+				logging.debug("No TGT or TGS found in KRB5CCNAME")
 		except FileNotFoundError as e:
 			logging.error(str(e))
 			ccache = None
-		except Exception:
+		except Exception as e:
 			ccache = None
 
 		if ccache is None or self.TGS is None:
@@ -1628,6 +1637,13 @@ class CONNECTION:
 				}
 				ccache = CCache()
 				ccache.fromTGS(tgs, oldSessionKey, sessionKey)
+
+		if ccache is None:
+			ccache = CCache()
+			if self.TGT and hasattr(self.TGT, 'oldSessionKey') and hasattr(self.TGT, 'sessionKey'):
+				ccache.fromTGT(self.TGT['KDC_REP'], self.TGT['oldSessionKey'], self.TGT['sessionKey'])
+			elif self.TGS and hasattr(self.TGS, 'oldSessionKey') and hasattr(self.TGS, 'sessionKey'):
+				ccache.fromTGS(self.TGS['KDC_REP'], self.TGS['oldSessionKey'], self.TGS['sessionKey'])
 
 		principal = 'ldap/{}@{}'.format(target.lower(), domain.upper())
 		creds = ccache.getCredential(principal, anySPN=False)
@@ -1706,28 +1722,22 @@ class CONNECTION:
 					version=ssl.PROTOCOL_TLSv1_2,
 					ciphers='ALL:@SECLEVEL=0',
 				)
-				self.init_ldap_kerberos(target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, aesKey=aesKey, seal_and_sign=False)
-				return ldap_server, ldap_connection
+				return self.init_ldap_kerberos(target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, aesKey=aesKey, seal_and_sign=False)
 			else:
 				logging.warning("Falling back to Kerberos sealing")
-				self.init_ldap_kerberos(target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, aesKey=aesKey, seal_and_sign=True)
-				return ldap_server, ldap_connection
+				return self.init_ldap_kerberos(target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, aesKey=aesKey, seal_and_sign=True)
 		except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult:
 			logging.warning("Server returns LDAPAuthMethodNotSupportedResult.")
 			if is_proxychains():
 				logging.warning("This might caused by gssapi is not supported via proxychains. Try to use https://github.com/hmgle/graftcp instead.")
-				fallback = input("Do you want to fallback to impacket style kerberos login? (y/n): ")
-				if fallback.lower() == "y":
-					self.impacket_ldap3_kerberos_login(ldap_connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost=kdcHost, useCache=self.no_pass)
-					ldap_connection.refresh_server_info()
-				else:
-					sys.exit(0)
+			
+			logging.warning("Falling back to impacket style kerberos login")
+			self.impacket_ldap3_kerberos_login(ldap_connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost=kdcHost, useCache=self.no_pass)
 		except Exception as e:
 			if self.stack_trace:
 				raise e
 			logging.warning("Unknown error: {0}. Falling back to impacket style kerberos login".format(e))
 			self.impacket_ldap3_kerberos_login(ldap_connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost=kdcHost, useCache=self.no_pass)
-			ldap_connection.refresh_server_info()
 
 		return ldap_server, ldap_connection
 
@@ -1900,6 +1910,8 @@ class CONNECTION:
 			raise Exception(response)
 
 		connection.bound = True
+		connection.session_security = None # just to skip the session security check
+		connection.refresh_server_info()
 
 		return True
 
