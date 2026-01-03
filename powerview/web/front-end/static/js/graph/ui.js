@@ -1,6 +1,11 @@
 import { graphData } from './state.js';
 import { addToGraph } from './viz.js';
-import { fetchFullDACL, loadGraphData } from './network.js';
+import { fetchFullDACL, fetchOutboundDACL, loadGraphData } from './network.js';
+
+const escapeHtml = (v) => {
+    if (v === undefined || v === null) return '';
+    return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+};
 
 // DOM Elements
 const loadingOverlay = document.getElementById('loading-overlay');
@@ -72,13 +77,13 @@ export function showNodeDetails(nodeId) {
         <div class="mb-6">
             <div class="flex items-center gap-2 mb-2">
                 <span class="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-1 rounded">
-                    ${data.type}
+                    ${escapeHtml(data.type)}
                 </span>
                 <h3 class="text-xl font-bold text-neutral-800 dark:text-neutral-100 truncate" title="${data.label}">
-                    ${data.label}
+                    ${escapeHtml(data.label)}
                 </h3>
             </div>
-            <p class="text-xs text-neutral-500 break-all font-mono">${nodeId}</p>
+            <p class="text-xs text-neutral-500 break-all font-mono">${escapeHtml(nodeId)}</p>
         </div>
     `;
 
@@ -92,8 +97,8 @@ export function showNodeDetails(nodeId) {
         if (val === undefined || val === null || val === '') return;
         html += `
             <tr class="border-b border-neutral-100 dark:border-neutral-800 last:border-0 hover:bg-neutral-50 dark:hover:bg-neutral-800/50">
-                <td class="py-1.5 pr-2 font-medium text-neutral-600 dark:text-neutral-400 whitespace-nowrap">${key}</td>
-                <td class="py-1.5 text-neutral-800 dark:text-neutral-200 font-mono break-all">${val}</td>
+                <td class="py-1.5 pr-2 font-medium text-neutral-600 dark:text-neutral-400 whitespace-nowrap">${escapeHtml(key)}</td>
+                <td class="py-1.5 text-neutral-800 dark:text-neutral-200 font-mono break-all">${escapeHtml(val)}</td>
             </tr>
             `;
     }
@@ -121,24 +126,61 @@ export function showNodeDetails(nodeId) {
         const groups = Array.isArray(raw.memberOf) ? raw.memberOf : [raw.memberOf];
         groups.forEach(g => {
             const gName = g.split(',')[0].split('=')[1] || g;
+            const gid = (g || '').toLowerCase();
             html += `<li class="text-xs text-neutral-600 dark:text-neutral-400 break-all flex items-start gap-2">
-                <i class="fas fa-users mt-0.5 text-amber-500"></i> ${gName}
+                <i class="fas fa-users mt-0.5 text-amber-500"></i>
+                <a href="#" class="text-blue-600 dark:text-blue-400 underline memberof-target" data-target-id="${escapeHtml(gid)}">${escapeHtml(gName)}</a>
                 </li>`;
         });
         html += `</ul>`;
     }
 
-    // Potential DACL Section
-    html += `<div id="dacl-section-${nodeId.replace(/[^a-z0-9]/gi, '_')}">
+    const safeId = nodeId.replace(/[^a-z0-9]/gi, '_');
+
+    html += `<div id="dacl-section-${safeId}">
         <h4 class="text-sm font-bold text-neutral-700 dark:text-neutral-300 mb-2 border-b border-neutral-200 dark:border-neutral-700 pb-1 flex justify-between items-center">
-            Access Control List
+            Inbound ACL
             <i class="fas fa-circle-notch fa-spin text-blue-500 hidden dacl-spinner"></i>
         </h4>
-        <div class="text-xs text-neutral-500 italic dacl-placeholder">Fetching full DACL...</div>
+        <div class="text-xs text-neutral-500 italic dacl-placeholder">Fetching inbound ACL...</div>
+    </div>`;
+
+    html += `<div id="dacl-outbound-section-${safeId}" class="mt-4">
+        <h4 class="text-sm font-bold text-neutral-700 dark:text-neutral-300 mb-2 border-b border-neutral-200 dark:border-neutral-700 pb-1 flex justify-between items-center">
+            Outbound ACL
+            <div class="flex items-center gap-2">
+                <button id="fetch-outbound-btn-${safeId}" class="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition dacl-outbound-button">Fetch</button>
+                <i class="fas fa-circle-notch fa-spin text-blue-500 hidden dacl-outbound-spinner"></i>
+            </div>
+        </h4>
+        <div class="text-xs text-neutral-500 italic dacl-outbound-placeholder">Not fetched.</div>
     </div>`;
 
     if (panelContent) panelContent.innerHTML = html;
     if (detailsPanel) detailsPanel.classList.remove('translate-x-full');
+    fetchFullDACL(nodeId);
+
+    const fetchOutboundBtn = document.getElementById(`fetch-outbound-btn-${safeId}`);
+    if (fetchOutboundBtn) {
+        fetchOutboundBtn.addEventListener('click', () => {
+            fetchOutboundDACL(nodeId);
+        });
+    }
+
+    panelContent?.addEventListener('click', (e) => {
+        const target = e.target;
+        if (target && target.classList && target.classList.contains('dacl-outbound-target')) {
+            e.preventDefault();
+            const targetId = target.getAttribute('data-target-id');
+            if (targetId) addToGraph(targetId);
+            return;
+        }
+        if (target && target.classList && target.classList.contains('memberof-target')) {
+            e.preventDefault();
+            const targetId = target.getAttribute('data-target-id');
+            if (targetId) addToGraph(targetId);
+        }
+    });
 }
 
 // Search Logic
@@ -257,8 +299,8 @@ export function updateSearchResults(query) {
                     data-id="${m.data.id}">
                 <i class="fas ${iconClass} text-xs"></i>
                 <div class="flex flex-col overflow-hidden">
-                    <span class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">${m.data.label}</span>
-                    <span class="text-[10px] text-neutral-500 uppercase">${m.data.type}</span>
+                    <span class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">${escapeHtml(m.data.label)}</span>
+                    <span class="text-[10px] text-neutral-500 uppercase">${escapeHtml(m.data.type)}</span>
                 </div>
             </div>
         `}).join('');
@@ -454,3 +496,12 @@ export function showOpsecModal(show) {
         }
     }
 }
+
+document.addEventListener('mousedown', (e) => {
+    if (!detailsPanel) return;
+    if (detailsPanel.classList.contains('translate-x-full')) return;
+    if (detailsPanel.contains(e.target)) return;
+    const contextMenu = document.getElementById('graph-context-menu');
+    if (contextMenu && contextMenu.contains(e.target)) return;
+    detailsPanel.classList.add('translate-x-full');
+});

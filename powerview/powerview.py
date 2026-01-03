@@ -755,7 +755,7 @@ class PowerView:
 				logging.debug(f'[Get-DomainObject] Using deleted flag from args: {args.deleted}')
 				ldap_filter += f"(isDeleted=*)"
 
-		ldap_filter = f'(&(objectClass=*){identity_filter}{ldap_filter})'
+		ldap_filter = f'(&(1.2.840.113556.1.4.2=*){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
 		entries = self.ldap_session.extend.standard.paged_search(
 			searchbase,
@@ -1111,7 +1111,7 @@ class PowerView:
 
 		return writable_entries
 
-	def get_domainobjectacl(self, identity=None, security_identifier=None, ldapfilter=None, resolveguids=False, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domainobjectacl(self, identity=None, security_identifier=None, ldapfilter=None, resolveguids=False, guids_map_dict=None, depth=1, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		if args:
 			identity = args.identity if hasattr(args, 'identity') else identity
 			security_identifier = args.security_identifier if hasattr(args, 'security_identifier') else security_identifier

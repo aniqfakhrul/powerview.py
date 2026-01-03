@@ -1,6 +1,16 @@
-import { graphData, addNode, addEdge, getId, saveToStorage, setStorageKey, clearData } from './state.js';
+import { graphData, addNode, addEdge, addForeignNode, getId, saveToStorage, setStorageKey, clearData } from './state.js';
 import { showLoading, updateStatus, showNodeDetails, updateStats } from './ui.js';
 import { clearGraph } from './viz.js';
+
+const ensureOk = (res, label) => {
+    if (!res.ok) throw new Error(`${label} failed (${res.status})`);
+    return res;
+};
+
+const escapeHtml = (v) => {
+    if (v === undefined || v === null) return '';
+    return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+};
 
 export async function initStorageKey(signal) {
     try {
@@ -25,12 +35,12 @@ export async function loadGraphData() {
     try {
         console.log("Fetching graph data from backend...");
         const [usersRes, groupsRes, computersRes, domainsRes, ouRes, gpoRes] = await Promise.all([
-            fetch('/api/get/domainuser?properties=*'),
-            fetch('/api/get/domaingroup?properties=*'),
-            fetch('/api/get/domaincomputer?properties=*'),
-            fetch('/api/get/domain?properties=*'),
-            fetch('/api/get/domainou?properties=*'),
-            fetch('/api/get/domaingpo?properties=*')
+            fetch('/api/get/domainuser?properties=*').then(r => ensureOk(r, 'Users')),
+            fetch('/api/get/domaingroup?properties=*').then(r => ensureOk(r, 'Groups')),
+            fetch('/api/get/domaincomputer?properties=*').then(r => ensureOk(r, 'Computers')),
+            fetch('/api/get/domain?properties=*').then(r => ensureOk(r, 'Domains')),
+            fetch('/api/get/domainou?properties=*').then(r => ensureOk(r, 'OUs')),
+            fetch('/api/get/domaingpo?properties=*').then(r => ensureOk(r, 'GPOs'))
         ]);
 
         const users = await usersRes.json();
@@ -160,6 +170,81 @@ export async function fetchFullDACL(nodeId) {
 
         const res = await fetch(`/api/get/domainobjectacl?identity=${encodeURIComponent(node.data.raw.distinguishedName)}`);
         const json = await res.json();
+        if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+
+        if (json.error) throw new Error(json.error);
+        if (!Array.isArray(json) || json.length === 0) {
+            if (placeholder) placeholder.textContent = "No ACL entries found.";
+            return;
+        }
+
+        const aces = [];
+        json.forEach(entry => {
+            const attrs = entry.attributes;
+            if (Array.isArray(attrs)) {
+                aces.push(...attrs);
+            } else if (attrs) {
+                aces.push(attrs);
+            }
+        });
+        if (aces.length === 0) {
+            if (placeholder) placeholder.textContent = "No ACL entries found.";
+            return;
+        }
+
+        let aceHtml = `<div class="mt-2 space-y-2 pr-2">`;
+        aces.forEach(ace => {
+            const type = ace.ACEType || 'Unknown';
+            const mask = ace.AccessMask || 'Unknown';
+            const principal = ace.SecurityIdentifier || 'Unknown';
+            const isInherited = ace.IsInherited === 'True';
+            const targetDn = ace.ObjectDN || 'Unknown object';
+
+            aceHtml += `
+                <div class="p-2 bg-neutral-50 dark:bg-neutral-800/50 rounded border border-neutral-100 dark:border-neutral-700">
+                    <div class="flex justify-between items-start mb-1">
+                        <span class="font-bold text-[10px] uppercase px-1.5 py-0.5 rounded ${type.includes('ALLOWED') ? 'bg-green-100 text-green-700 dark:bg-green-900/30' : 'bg-red-100 text-red-700 dark:bg-red-900/30'}">
+                            ${escapeHtml(type)}
+                        </span>
+                        ${isInherited ? '<span class="text-[9px] text-neutral-400">Inherited</span>' : ''}
+                    </div>
+                    <div class="font-mono text-[10px] text-neutral-800 dark:text-neutral-200 mb-1 break-all">${escapeHtml(principal)}</div>
+                    <div class="text-[10px] text-blue-600 dark:text-blue-400 font-medium">${escapeHtml(mask)}</div>
+                </div>
+            `;
+        });
+        aceHtml += `</div>`;
+
+        if (placeholder) placeholder.outerHTML = aceHtml;
+    } catch (e) {
+        console.error("DACL Dump Failed:", e);
+        if (placeholder) placeholder.textContent = "Failed to fetch DACL.";
+    } finally {
+        if (spinner) spinner.classList.add('hidden');
+    }
+}
+
+export async function fetchOutboundDACL(nodeId) {
+    const container = document.getElementById(`dacl-outbound-section-${nodeId.replace(/[^a-z0-9]/gi, '_')}`);
+    if (!container) return;
+
+    const placeholder = container.querySelector('.dacl-outbound-placeholder');
+    const spinner = container.querySelector('.dacl-outbound-spinner');
+    const button = container.querySelector('.dacl-outbound-button');
+    if (spinner) spinner.classList.remove('hidden');
+    if (button) button.disabled = true;
+
+    try {
+        const node = graphData.nodeMap.get(nodeId);
+        const sid = node?.data?.raw?.objectSid || (node?.data?.type === 'foreign' ? node?.data?.id : null);
+        if (!sid) {
+            if (placeholder) placeholder.textContent = "Unavailable (No SID)";
+            return;
+        }
+
+        const res = await fetch(`/api/get/domainobjectacl?security_identifier=${encodeURIComponent(sid)}`);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
 
         if (json.error) throw new Error(json.error);
         if (!Array.isArray(json) || json.length === 0) {
@@ -176,17 +261,24 @@ export async function fetchFullDACL(nodeId) {
             const mask = ace.AccessMask || 'Unknown';
             const principal = ace.SecurityIdentifier || 'Unknown';
             const isInherited = ace.IsInherited === 'True';
+            const targetDn = ace.ObjectDN || 'Unknown object';
 
             aceHtml += `
                 <div class="p-2 bg-neutral-50 dark:bg-neutral-800/50 rounded border border-neutral-100 dark:border-neutral-700">
                     <div class="flex justify-between items-start mb-1">
                         <span class="font-bold text-[10px] uppercase px-1.5 py-0.5 rounded ${type.includes('ALLOWED') ? 'bg-green-100 text-green-700 dark:bg-green-900/30' : 'bg-red-100 text-red-700 dark:bg-red-900/30'}">
-                            ${type}
+                            ${escapeHtml(type)}
                         </span>
                         ${isInherited ? '<span class="text-[9px] text-neutral-400">Inherited</span>' : ''}
                     </div>
-                    <div class="font-mono text-[10px] text-neutral-800 dark:text-neutral-200 mb-1 break-all">${principal}</div>
-                    <div class="text-[10px] text-blue-600 dark:text-blue-400 font-medium">${mask}</div>
+                    <div class="text-[10px] text-neutral-700 dark:text-neutral-300 mb-1">
+                        <span class="font-semibold">Target:</span>
+                        <a href="#" class="text-blue-600 dark:text-blue-400 underline break-all dacl-outbound-target" data-target-id="${escapeHtml(getId(targetDn))}">
+                            ${escapeHtml(targetDn)}
+                        </a>
+                    </div>
+                    <div class="font-mono text-[10px] text-neutral-800 dark:text-neutral-200 mb-1 break-all">${escapeHtml(principal)}</div>
+                    <div class="text-[10px] text-blue-600 dark:text-blue-400 font-medium">${escapeHtml(mask)}</div>
                 </div>
             `;
         });
@@ -194,10 +286,11 @@ export async function fetchFullDACL(nodeId) {
 
         if (placeholder) placeholder.outerHTML = aceHtml;
     } catch (e) {
-        console.error("DACL Dump Failed:", e);
-        if (placeholder) placeholder.textContent = "Failed to fetch DACL.";
+        console.error("Outbound DACL Dump Failed:", e);
+        if (placeholder) placeholder.textContent = "Failed to fetch outbound DACL.";
     } finally {
         if (spinner) spinner.classList.add('hidden');
+        if (button) button.disabled = false;
     }
 }
 
@@ -212,6 +305,10 @@ export async function fetchInboundACLs(nodeId) {
         console.log(`Requesting Inbound ACLs for DN: ${dn}`);
         const res = await fetch(`/api/get/domainobjectacl?identity=${encodeURIComponent(dn)}`);
         const json = await res.json();
+        if (!res.ok) {
+            console.warn("ACL Fetch Error:", json.error || res.status);
+            return false;
+        }
 
         if (json.error) {
             console.warn("ACL Fetch Error:", json.error);
@@ -246,6 +343,10 @@ export async function fetchOutboundACLs(nodeId) {
         console.log(`Requesting Outbound ACLs for Principal SID: ${sid}`);
         const res = await fetch(`/api/get/domainobjectacl?security_identifier=${encodeURIComponent(sid)}`);
         const json = await res.json();
+        if (!res.ok) {
+            console.warn("ACL Fetch Error:", json.error || res.status);
+            return false;
+        }
 
         if (json.error) {
             console.warn("ACL Fetch Error:", json.error);

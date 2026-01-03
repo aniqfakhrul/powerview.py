@@ -75,6 +75,7 @@ async function initializeGraph() {
 
     async function start() {
         try {
+            showOpsecModal(true);
             showLoading(true);
             updateStatus("Initializing connection...");
 
