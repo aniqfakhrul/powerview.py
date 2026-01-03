@@ -90,7 +90,11 @@ export function showNodeDetails(nodeId) {
     Object.keys(raw).forEach(k => {
         if (priorityFields.includes(k) || k === 'nTSecurityDescriptor' || k === 'memberOf' || k === 'distinguishedName') return;
         let val = raw[k];
-        if (typeof val === 'object') val = JSON.stringify(val);
+        if (Array.isArray(val)) {
+            val = val.join(', ');
+        } else if (typeof val === 'object' && val !== null) {
+            val = JSON.stringify(val);
+        }
         addRow(k, val);
     });
     html += `</tbody></table></div>`;
@@ -326,6 +330,41 @@ export function initSearchListeners() {
             if (searchResults) searchResults.classList.add('hidden');
         });
     }
+}
+
+// Resizable Panel Logic
+export function initResizablePanel() {
+    const resizer = document.getElementById('panel-resizer');
+    if (!resizer || !detailsPanel) return;
+
+    let isResizing = false;
+
+    resizer.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        document.body.classList.add('cursor-col-resize', 'select-none');
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+
+        const windowWidth = window.innerWidth;
+        const newWidth = windowWidth - e.clientX;
+
+        // Min/Max constraints
+        if (newWidth > 300 && newWidth < (windowWidth * 0.8)) {
+            detailsPanel.style.width = `${newWidth}px`;
+            // Also ensure it's responsive on small screens if width was auto
+            detailsPanel.classList.remove('md:w-96');
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            document.body.classList.remove('cursor-col-resize', 'select-none');
+        }
+    });
 }
 
 // Global modal handling

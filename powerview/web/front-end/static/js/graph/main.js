@@ -1,7 +1,7 @@
 import { initStorageKey, loadGraphData } from './network.js';
 import { loadFromStorage, clearData, setStorageKey, getStorageKey } from './state.js';
-import { initializeCytoscape, clearGraph, cy } from './viz.js';
-import { showLoading, updateStatus, showOpsecModal, initSearchListeners, updateStats } from './ui.js';
+import { initializeCytoscape, clearGraph, centerGraph, cy } from './viz.js';
+import { showLoading, updateStatus, showOpsecModal, initSearchListeners, updateStats, initResizablePanel } from './ui.js';
 
 async function initializeGraph() {
     console.log("Graph Page: Initializing script...");
@@ -11,6 +11,7 @@ async function initializeGraph() {
     const refreshBtn = document.getElementById('clear-btn');
     const fetchDataBtn = document.getElementById('fetch-data-btn');
     const clearGraphBtn = document.getElementById('clear-graph-btn');
+    const centerGraphBtn = document.getElementById('center-graph-btn');
     const confirmLoadBtn = document.getElementById('confirm-load-btn');
     const cancelLoadBtn = document.getElementById('cancel-load-btn');
     const closePanelBtn = document.getElementById('close-panel-btn');
@@ -59,7 +60,14 @@ async function initializeGraph() {
         });
     }
 
+    if (centerGraphBtn) {
+        centerGraphBtn.addEventListener('click', () => {
+            centerGraph();
+        });
+    }
+
     initSearchListeners();
+    initResizablePanel();
 
     // 3. INITIALIZE
     initializeCytoscape(cyContainer);

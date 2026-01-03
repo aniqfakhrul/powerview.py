@@ -6,6 +6,10 @@ export let cy = null;
 
 export function initializeCytoscape(container) {
     console.log("Graph Page: Initializing Cytoscape...");
+    
+    // Function to get theme color from Tailwind class on container
+    const getThemeColor = () => getComputedStyle(container).color || '#333';
+
     try {
         cy = cytoscape({
             container: container,
@@ -14,7 +18,7 @@ export function initializeCytoscape(container) {
                     selector: 'node',
                     style: {
                         'label': 'data(label)',
-                        'color': '#333',
+                        'color': getThemeColor,
                         'text-valign': 'bottom',
                         'text-halign': 'center',
                         'text-margin-y': 6,
@@ -75,7 +79,7 @@ export function initializeCytoscape(container) {
                         'font-size': '8px',
                         'text-rotation': 'autorotate',
                         'text-margin-y': -10,
-                        'color': '#666',
+                        'color': '#000',
                         'text-background-opacity': 1,
                         'text-background-color': '#ffffff',
                         'text-background-padding': '2px',
@@ -103,6 +107,12 @@ export function initializeCytoscape(container) {
             }
         });
 
+        // Watch for theme changes to update graph colors automatically
+        const observer = new MutationObserver(() => {
+            cy.style().update();
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+
         // Hook up click event on Cytoscape
         cy.on('tap', 'node', function (evt) {
             const node = evt.target;
@@ -122,6 +132,13 @@ export function clearGraph() {
         cy.elements().remove();
         const detailsPanel = document.getElementById('details-panel');
         if (detailsPanel) detailsPanel.classList.add('translate-x-full');
+    }
+}
+
+export function centerGraph() {
+    if (cy && cy.elements().length > 0) {
+        cy.fit();
+        cy.center();
     }
 }
 

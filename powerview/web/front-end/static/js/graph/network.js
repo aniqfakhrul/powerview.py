@@ -25,9 +25,9 @@ export async function loadGraphData() {
     try {
         console.log("Fetching graph data from backend...");
         const [usersRes, groupsRes, computersRes] = await Promise.all([
-            fetch('/api/get/domainuser?properties=samaccountname,distinguishedname,memberof,name,cn,objectSid'),
-            fetch('/api/get/domaingroup?properties=samaccountname,distinguishedname,memberof,name,cn,objectSid'),
-            fetch('/api/get/domaincomputer?properties=samaccountname,distinguishedname,memberof,name,cn,objectSid')
+            fetch('/api/get/domainuser?properties=*'),
+            fetch('/api/get/domaingroup?properties=*'),
+            fetch('/api/get/domaincomputer?properties=*')
         ]);
 
         const users = await usersRes.json();

@@ -56,18 +56,32 @@
 
     <!-- Canvas -->
     <div class="flex-grow w-full h-full relative overflow-hidden bg-neutral-50 dark:bg-neutral-900">
-        <div id="cy" class="w-full h-full"></div>
+        <div id="cy" class="w-full h-full text-neutral-800 dark:text-neutral-100"></div>
 
-        <!-- Clear Graph Button (Floating) -->
-        <button id="clear-graph-btn"
-            class="absolute bottom-6 right-6 p-4 bg-white dark:bg-neutral-800 text-red-600 dark:text-red-500 rounded-full shadow-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-all z-20 group"
-            title="Clear Canvas">
-            <i class="fas fa-eraser text-xl"></i>
-            <span
-                class="absolute right-full mr-3 px-2 py-1 bg-neutral-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                Clear Canvas
-            </span>
-        </button>
+        <!-- Floating Action Buttons -->
+        <div class="absolute bottom-6 right-6 flex flex-col gap-3 z-20">
+            <!-- Back to Center Button -->
+            <button id="center-graph-btn"
+                class="p-4 bg-white dark:bg-neutral-800 text-blue-600 dark:text-blue-500 rounded-full shadow-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-all group"
+                title="Back to Center">
+                <i class="fas fa-compress-arrows-alt text-xl"></i>
+                <span
+                    class="absolute right-full mr-3 px-2 py-1 bg-neutral-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                    Back to Center
+                </span>
+            </button>
+
+            <!-- Clear Graph Button -->
+            <button id="clear-graph-btn"
+                class="p-4 bg-white dark:bg-neutral-800 text-red-600 dark:text-red-500 rounded-full shadow-lg border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-all group"
+                title="Clear Canvas">
+                <i class="fas fa-eraser text-xl"></i>
+                <span
+                    class="absolute right-full mr-3 px-2 py-1 bg-neutral-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                    Clear Canvas
+                </span>
+            </button>
+        </div>
 
         <!-- Loading Overlay -->
         <div id="loading-overlay"
@@ -83,15 +97,25 @@
 
     <!-- Side Details Panel -->
     <div id="details-panel"
-        class="fixed top-0 right-0 h-full w-full md:w-96 bg-white dark:bg-neutral-950 border-l border-neutral-200 dark:border-neutral-800 shadow-2xl z-[60] transform translate-x-full transition-transform duration-300 ease-in-out overflow-y-auto">
-        <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-950 z-10">
-            <h2 class="text-lg font-bold text-neutral-800 dark:text-neutral-100">Object Details</h2>
-            <button id="close-panel-btn" class="p-2 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition">
-                <i class="fas fa-times text-xl"></i>
-            </button>
+        class="fixed top-0 right-0 h-full w-full md:w-96 bg-white dark:bg-neutral-950 border-l border-neutral-200 dark:border-neutral-800 shadow-2xl z-[60] transform translate-x-full transition-transform duration-300 ease-in-out">
+        <!-- Resize Handle -->
+        <div id="panel-resizer" class="absolute left-0 top-0 w-1 h-full cursor-col-resize hover:bg-blue-500 transition-colors z-20 group">
+            <div class="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 w-4 h-12 flex flex-col justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <div class="w-0.5 h-full bg-blue-500 rounded-full mx-0.5"></div>
+                <div class="w-0.5 h-full bg-blue-500 rounded-full mx-0.5"></div>
+            </div>
         </div>
-        <div id="panel-content" class="p-6">
-            <!-- Content dynamically populated by graph.js -->
+        
+        <div class="flex flex-col h-full">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-950 z-10">
+                <h2 class="text-lg font-bold text-neutral-800 dark:text-neutral-100">Object Details</h2>
+                <button id="close-panel-btn" class="p-2 text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div id="panel-content" class="p-6 overflow-y-auto flex-grow">
+                <!-- Content dynamically populated by graph.js -->
+            </div>
         </div>
     </div>
 </div>
