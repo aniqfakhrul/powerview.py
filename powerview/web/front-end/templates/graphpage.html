@@ -128,13 +128,17 @@
     </div>
 
     <!-- Context Menu -->
-    <div id="graph-context-menu" class="hidden fixed z-[200] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-xl py-1 min-w-[160px]">
+    <div id="graph-context-menu" class="hidden fixed z-[200] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow-xl py-1 min-w-[180px]">
         <div class="px-4 py-2 border-b border-neutral-100 dark:border-neutral-800">
             <span id="menu-node-label" class="text-xs font-bold text-neutral-400 uppercase tracking-wider truncate block">Node Actions</span>
         </div>
-        <button id="menu-get-dacl" class="w-full text-left px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 transition">
-            <i class="fas fa-shield-alt text-blue-500"></i>
-            <span>Get DACL</span>
+        <button id="menu-fetch-inbound" class="w-full text-left px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 transition">
+            <i class="fas fa-sign-in-alt text-green-500"></i>
+            <span>Fetch Inbound ACL</span>
+        </button>
+        <button id="menu-fetch-outbound" class="w-full text-left px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 transition">
+            <i class="fas fa-sign-out-alt text-blue-500"></i>
+            <span>Fetch Outbound ACL</span>
         </button>
     </div>
 </div>

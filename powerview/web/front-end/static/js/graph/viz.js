@@ -1,4 +1,6 @@
-import { showNodeDetails, showContextMenu, hideContextMenu, addToGraph } from './ui.js';
+import { graphData } from './state.js';
+import { fetchInboundACLs, fetchOutboundACLs } from './network.js';
+import { showNodeDetails, showContextMenu, hideContextMenu } from './ui.js';
 
 export let cy = null;
 
@@ -256,7 +258,7 @@ export function expandNode(nodeId) {
     return changed;
 }
 
-export async function addToGraph(nodeId) {
+export async function addToGraph(nodeId, aclDirection = 'inbound') {
     let needsLayout = false;
 
     // Add node if not present in CY
@@ -285,9 +287,16 @@ export async function addToGraph(nodeId) {
     // Show details immediately
     showNodeDetails(nodeId);
 
-    // Fetch ACLs dynamically
-    console.log(`Fetching ACLs for ${nodeId}...`);
-    const newAcls = await fetchACLs(nodeId);
+    // Fetch ACLs dynamically based on direction
+    let newAcls = false;
+    if (aclDirection === 'inbound' || aclDirection === 'both') {
+        console.log(`Fetching Inbound ACLs for ${nodeId}...`);
+        newAcls = (await fetchInboundACLs(nodeId)) || newAcls;
+    }
+    if (aclDirection === 'outbound' || aclDirection === 'both') {
+        console.log(`Fetching Outbound ACLs for ${nodeId}...`);
+        newAcls = (await fetchOutboundACLs(nodeId)) || newAcls;
+    }
     
     // Expand neighbors (including newly fetched ACLs)
     console.log(`Expanding node ${nodeId}...`);

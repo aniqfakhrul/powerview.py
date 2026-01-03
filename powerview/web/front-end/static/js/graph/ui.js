@@ -139,9 +139,6 @@ export function showNodeDetails(nodeId) {
 
     if (panelContent) panelContent.innerHTML = html;
     if (detailsPanel) detailsPanel.classList.remove('translate-x-full');
-
-    // Fetch Full DACL immediately
-    fetchFullDACL(nodeId);
 }
 
 // Search Logic
@@ -353,7 +350,8 @@ export function initSearchListeners() {
 // Context Menu Logic
 const contextMenu = document.getElementById('graph-context-menu');
 const menuNodeLabel = document.getElementById('menu-node-label');
-const menuGetDacl = document.getElementById('menu-get-dacl');
+const menuFetchInbound = document.getElementById('menu-fetch-inbound');
+const menuFetchOutbound = document.getElementById('menu-fetch-outbound');
 let activeContextMenuNodeId = null;
 
 export function showContextMenu(nodeId, x, y) {
@@ -378,14 +376,25 @@ export function hideContextMenu() {
 }
 
 export function initContextMenu() {
-    if (!menuGetDacl) return;
+    if (menuFetchInbound) {
+        menuFetchInbound.addEventListener('click', async () => {
+            if (activeContextMenuNodeId) {
+                const nodeId = activeContextMenuNodeId;
+                hideContextMenu();
+                await addToGraph(nodeId, 'inbound');
+            }
+        });
+    }
 
-    menuGetDacl.addEventListener('click', async () => {
-        if (activeContextMenuNodeId) {
-            hideContextMenu();
-            await addToGraph(activeContextMenuNodeId);
-        }
-    });
+    if (menuFetchOutbound) {
+        menuFetchOutbound.addEventListener('click', async () => {
+            if (activeContextMenuNodeId) {
+                const nodeId = activeContextMenuNodeId;
+                hideContextMenu();
+                await addToGraph(nodeId, 'outbound');
+            }
+        });
+    }
 
     // Hide on click elsewhere
     document.addEventListener('click', (e) => {

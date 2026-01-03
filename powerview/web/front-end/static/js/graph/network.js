@@ -201,15 +201,15 @@ export async function fetchFullDACL(nodeId) {
     }
 }
 
-export async function fetchACLs(nodeId) {
+export async function fetchInboundACLs(nodeId) {
     try {
         const node = graphData.nodeMap.get(nodeId);
         if (!node) return false;
 
-        // Fallback to ID if DN is missing
+        // Inbound: Who controls THIS node?
         const dn = (node.data.raw && node.data.raw.distinguishedName) ? node.data.raw.distinguishedName : node.data.id;
         
-        console.log(`Requesting ACLs for DN: ${dn}`);
+        console.log(`Requesting Inbound ACLs for DN: ${dn}`);
         const res = await fetch(`/api/get/domainobjectacl?identity=${encodeURIComponent(dn)}`);
         const json = await res.json();
 
@@ -222,11 +222,54 @@ export async function fetchACLs(nodeId) {
             return false;
         }
 
-        let newEdges = false;
-        const attributes = json[0].attributes;
-        const aces = Array.isArray(attributes) ? attributes : [attributes];
+        return processACLResults(json, nodeId, true);
+    } catch (e) {
+        console.error("Failed to fetch inbound ACLs", e);
+        return false;
+    }
+}
 
-        console.log(`Processing ${aces.length} ACEs...`);
+export async function fetchOutboundACLs(nodeId) {
+    try {
+        const node = graphData.nodeMap.get(nodeId);
+        if (!node) return false;
+
+        // Outbound: Who does THIS node control?
+        // We need the SID of the current node
+        const sid = (node.data.raw && node.data.raw.objectSid) ? node.data.raw.objectSid : (node.data.type === 'foreign' ? node.data.id : null);
+        
+        if (!sid) {
+            console.warn("Outbound ACL fetch requires a SID.");
+            return false;
+        }
+
+        console.log(`Requesting Outbound ACLs for Principal SID: ${sid}`);
+        const res = await fetch(`/api/get/domainobjectacl?security_identifier=${encodeURIComponent(sid)}`);
+        const json = await res.json();
+
+        if (json.error) {
+            console.warn("ACL Fetch Error:", json.error);
+            return false;
+        }
+        if (!Array.isArray(json) || json.length === 0) {
+            console.log("No ACLs returned.");
+            return false;
+        }
+
+        return processACLResults(json, nodeId, false);
+    } catch (e) {
+        console.error("Failed to fetch outbound ACLs", e);
+        return false;
+    }
+}
+
+function processACLResults(json, nodeId, isInbound) {
+    let newEdges = false;
+    
+    // Each element in json is a dict: { attributes: [list of ACEs] }
+    json.forEach(entry => {
+        const aces = entry.attributes;
+        if (!Array.isArray(aces)) return;
 
         aces.forEach(ace => {
             const mask = ace.AccessMask;
@@ -234,45 +277,61 @@ export async function fetchACLs(nodeId) {
             if (!interesting.includes(mask) && !interesting.some(i => mask.includes(i))) return;
             if (!ace.ACEType || !ace.ACEType.includes("ALLOWED")) return;
 
-            const sourceSid = ace.SecurityIdentifier;
-            let sourceId = sourceSid;
+            let sourceId, targetId;
 
-            if (sourceSid && sourceSid.startsWith("S-1-")) {
-                const mapped = graphData.sidMap.get(sourceSid);
-                if (mapped) sourceId = mapped;
+            if (isInbound) {
+                // Inbound: Who controls THIS node?
+                targetId = nodeId;
+                const sourceSid = ace.SecurityIdentifier;
+                sourceId = sourceSid;
+                if (sourceSid && sourceSid.startsWith("S-1-")) {
+                    const mapped = graphData.sidMap.get(sourceSid);
+                    if (mapped) sourceId = mapped;
+                }
+
+                // Create foreign node if missing
+                if (!graphData.nodeMap.has(sourceId)) {
+                    addForeignNode(sourceId, ace.SecurityIdentifier);
+                }
+            } else {
+                // Outbound: Who does THIS node control?
+                sourceId = nodeId;
+                const targetDn = ace.ObjectDN;
+                if (!targetDn) return;
+                targetId = getId(targetDn);
+
+                // If target node doesn't exist in memory, it might be in our full fetch
+                // If not, we could add it as an inferred node
+                if (!graphData.nodeMap.has(targetId)) {
+                    addNode({
+                        attributes: { distinguishedName: targetDn, objectSid: ace.ObjectSID }
+                    }, 'unknown');
+                }
             }
 
-            // Create foreign node if missing
-            if (!graphData.nodeMap.has(sourceId)) {
-                const foreignNode = {
-                    data: {
-                        id: sourceId,
-                        label: sourceId,
-                        type: 'foreign',
-                        raw: { objectSid: sourceSid }
-                    },
-                    style: { 'background-color': '#64748b' }
-                };
-                graphData.nodes.push(foreignNode);
-                graphData.nodeMap.set(sourceId, foreignNode);
-                if (sourceSid && sourceSid.startsWith("S-1-")) graphData.sidMap.set(sourceSid, sourceId);
-            }
-
-            const edge = addEdge(sourceId, nodeId, mask, true);
+            const edge = addEdge(sourceId, targetId, mask, true);
             if (edge) {
                 newEdges = true;
             }
         });
+    });
 
-        if (newEdges) {
-            saveToStorage();
-            // Refresh panel if showing this node
-            const openId = document.getElementById('panel-content')?.querySelector('.font-mono')?.innerText;
-            if (openId === nodeId) showNodeDetails(nodeId);
+    if (newEdges) {
+        saveToStorage();
+        // Refresh panel if showing this node
+        const openId = document.getElementById('panel-content')?.querySelector('.font-mono')?.innerText;
+        if (openId === nodeId) {
+            // If we just got inbound results, update the detailed DACL view in the side panel
+            if (isInbound) {
+                fetchFullDACL(nodeId);
+            }
         }
-        return newEdges;
-    } catch (e) {
-        console.error("Failed to fetch ACLs", e);
-        return false;
     }
+    return newEdges;
 }
+
+export async function fetchACLs(nodeId) {
+    // Legacy support, default to inbound
+    return fetchInboundACLs(nodeId);
+}
+
