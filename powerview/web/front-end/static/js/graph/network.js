@@ -20,31 +20,35 @@ export async function initStorageKey(signal) {
 
 export async function loadGraphData() {
     showLoading(true);
-    updateStatus("Fetching users, groups, and computers...");
+    updateStatus("Fetching Active Directory objects...");
 
     try {
         console.log("Fetching graph data from backend...");
-        const [usersRes, groupsRes, computersRes] = await Promise.all([
+        const [usersRes, groupsRes, computersRes, domainsRes, ouRes, gpoRes] = await Promise.all([
             fetch('/api/get/domainuser?properties=*'),
             fetch('/api/get/domaingroup?properties=*'),
-            fetch('/api/get/domaincomputer?properties=*')
+            fetch('/api/get/domaincomputer?properties=*'),
+            fetch('/api/get/domain?properties=*'),
+            fetch('/api/get/domainou?properties=*'),
+            fetch('/api/get/domaingpo?properties=*')
         ]);
 
         const users = await usersRes.json();
         const groups = await groupsRes.json();
         const computers = await computersRes.json();
-
-        console.log(`Fetched: ${users.length} users, ${groups.length} groups, ${computers.length} computers`);
-
-        if (users.error || groups.error || computers.error) {
-            throw new Error(users.error || groups.error || computers.error);
-        }
+        const domains = await domainsRes.json();
+        const ous = await ouRes.json();
+        const gpos = await gpoRes.json();
 
         updateStatus("Processing data...");
 
         // Clear old data
         clearData();
 
+        // Add Nodes
+        (Array.isArray(domains) ? domains : []).forEach(d => addNode(d, 'domain'));
+        (Array.isArray(ous) ? ous : []).forEach(o => addNode(o, 'ou'));
+        (Array.isArray(gpos) ? gpos : []).forEach(g => addNode(g, 'gpo'));
         (Array.isArray(groups) ? groups : []).forEach(g => addNode(g, 'group'));
         (Array.isArray(users) ? users : []).forEach(u => addNode(u, 'user'));
         (Array.isArray(computers) ? computers : []).forEach(c => addNode(c, 'computer'));
@@ -66,9 +70,61 @@ export async function loadGraphData() {
             });
         };
 
+        const processContainment = (items) => {
+            (items || []).forEach(item => {
+                const dn = item.attributes.distinguishedName;
+                if (!dn) return;
+                const sourceId = getId(dn);
+                
+                // Extract parent DN
+                const parts = dn.split(',');
+                if (parts.length > 1) {
+                    const parentDn = parts.slice(1).join(',');
+                    const targetId = getId(parentDn);
+                    // Only add edge if the target node (Domain or OU) exists in our map
+                    if (graphData.nodeMap.has(targetId)) {
+                        addEdge(sourceId, targetId, 'contains');
+                    }
+                }
+            });
+        };
+
+        const processGPOLinks = (containers) => {
+            (containers || []).forEach(container => {
+                const attrs = container.attributes;
+                const gpcLink = attrs.gPLink;
+                if (!gpcLink) return;
+
+                const targetId = getId(attrs.distinguishedName);
+                
+                // gpcLink format: [LDAP://CN={GUID},CN=Policies...;0]
+                const matches = gpcLink.match(/CN=({.*?})/gi);
+                if (matches) {
+                    matches.forEach(match => {
+                        const guid = match.split('=')[1].toLowerCase();
+                        // Find GPO node by GUID in its DN or CN
+                        for (const [id, node] of graphData.nodeMap) {
+                            if (node.data.type === 'gpo' && id.toLowerCase().includes(guid)) {
+                                addEdge(id, targetId, 'gpoLink');
+                                break;
+                            }
+                        }
+                    });
+                }
+            });
+        };
+
         processMemberOf(users);
         processMemberOf(groups);
         processMemberOf(computers);
+        
+        processContainment(ous);
+        processContainment(users);
+        processContainment(groups);
+        processContainment(computers);
+
+        processGPOLinks(domains);
+        processGPOLinks(ous);
 
         // Save to Cache
         saveToStorage();
@@ -77,7 +133,6 @@ export async function loadGraphData() {
         updateStatus("Ready.");
         showLoading(false);
 
-        // Do NOT render by default
         if (typeof clearGraph === 'function') {
             clearGraph();
         }

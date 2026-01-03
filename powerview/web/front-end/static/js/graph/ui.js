@@ -28,20 +28,35 @@ export function updateStatus(text, isError = false) {
 }
 
 export function updateStats() {
-    const usersCount = graphData.nodes.filter(n => n.data.type === 'user').length;
-    const groupsCount = graphData.nodes.filter(n => n.data.type === 'group').length;
-    const compsCount = graphData.nodes.filter(n => n.data.type === 'computer').length;
+    const users = graphData.nodes.filter(n => n.data.type === 'user');
+    const groups = graphData.nodes.filter(n => n.data.type === 'group');
+    const comps = graphData.nodes.filter(n => n.data.type === 'computer');
+    const ous = graphData.nodes.filter(n => n.data.type === 'ou');
+    const gpos = graphData.nodes.filter(n => n.data.type === 'gpo');
 
     const elUsers = document.getElementById('stats-users');
     const elGroups = document.getElementById('stats-groups');
     const elComps = document.getElementById('stats-computers');
+    const elOus = document.getElementById('stats-ous');
+    const elGpos = document.getElementById('stats-gpos');
     const elContainer = document.getElementById('stats-container');
 
-    if (elUsers) elUsers.textContent = usersCount;
-    if (elGroups) elGroups.textContent = groupsCount;
-    if (elComps) elComps.textContent = compsCount;
+    const setBadgeData = (el, items, label) => {
+        if (!el) return;
+        el.textContent = items.length;
+        const badge = el.parentElement;
+        if (badge) {
+            badge.title = label;
+        }
+    };
 
-    if (usersCount > 0 || groupsCount > 0 || compsCount > 0) {
+    setBadgeData(elUsers, users, 'Users');
+    setBadgeData(elGroups, groups, 'Groups');
+    setBadgeData(elComps, comps, 'Computers');
+    setBadgeData(elOus, ous, 'Organizational Units');
+    setBadgeData(elGpos, gpos, 'Group Policy Objects');
+
+    if (users.length > 0 || groups.length > 0 || comps.length > 0 || ous.length > 0 || gpos.length > 0) {
         if (elContainer) elContainer.classList.remove('hidden');
     }
 }
@@ -236,6 +251,9 @@ export function updateSearchResults(query) {
             else if (m.data.type === 'group') iconClass = 'fa-users text-amber-500';
             else if (m.data.type === 'computer') iconClass = 'fa-desktop text-blue-500';
             else if (m.data.type === 'foreign') iconClass = 'fa-globe text-neutral-500';
+            else if (m.data.type === 'domain') iconClass = 'fa-star text-violet-500';
+            else if (m.data.type === 'ou') iconClass = 'fa-building text-pink-500';
+            else if (m.data.type === 'gpo') iconClass = 'fa-file-contract text-cyan-500';
 
             return `
             <div class="search-result-item px-4 py-2 cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2 border-b last:border-0 border-neutral-100 dark:border-neutral-700" 

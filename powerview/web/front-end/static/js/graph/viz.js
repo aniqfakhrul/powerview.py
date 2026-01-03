@@ -67,6 +67,33 @@ export function initializeCytoscape(container) {
                     }
                 },
                 {
+                    selector: 'node[type="domain"]',
+                    style: {
+                        'background-color': '#8b5cf6', // violet-500
+                        'shape': 'star',
+                        'width': 35,
+                        'height': 35
+                    }
+                },
+                {
+                    selector: 'node[type="ou"]',
+                    style: {
+                        'background-color': '#ec4899', // pink-500
+                        'shape': 'round-rectangle',
+                        'width': 35,
+                        'height': 35
+                    }
+                },
+                {
+                    selector: 'node[type="gpo"]',
+                    style: {
+                        'background-color': '#06b6d4', // cyan-500
+                        'shape': 'hexagon',
+                        'width': 35,
+                        'height': 30
+                    }
+                },
+                {
                     selector: 'edge',
                     style: {
                         'width': 1.5,
