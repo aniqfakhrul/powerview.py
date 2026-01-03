@@ -748,7 +748,7 @@ class PowerView:
 				logging.debug(f'[Get-DomainObject] Using deleted flag from args: {args.deleted}')
 				ldap_filter += f"(isDeleted=*)"
 
-		ldap_filter = f'(&(1.2.840.113556.1.4.2=*){identity_filter}{ldap_filter})'
+		ldap_filter = f'(&(objectClass=*){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
 		entries = self.ldap_session.extend.standard.paged_search(
 			searchbase,
@@ -1170,7 +1170,12 @@ class PowerView:
 				logging.error('[Get-DomainObjectAcl] Multiple identities found. Use exact match')
 				return None
 
-			security_identifier = principalsid_entry[0]['attributes']['objectSid'] if not principal_SID else principal_SID
+			if not principal_SID:
+				security_identifier = principalsid_entry[0]['attributes']['objectSid']
+				if isinstance(security_identifier, list):
+					security_identifier = security_identifier[0]
+			else:
+				security_identifier = principal_SID
 
 		target_dn = None
 		if identity:
@@ -1201,7 +1206,7 @@ class PowerView:
 			logging.warning('[Get-DomainObjectAcl] Recursing all domain objects. This might take a while')
 			
 		entries = self.get_domainobject(
-			identity=identity, 
+			identity=identity if identity else "", 
 			properties=['nTSecurityDescriptor', 'sAMAccountName', 'distinguishedName', 'objectSid'], 
 			searchbase=searchbase, 
 			ldap_filter=ldapfilter,
