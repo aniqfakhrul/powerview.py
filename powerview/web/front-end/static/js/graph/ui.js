@@ -350,6 +350,54 @@ export function initSearchListeners() {
     }
 }
 
+// Context Menu Logic
+const contextMenu = document.getElementById('graph-context-menu');
+const menuNodeLabel = document.getElementById('menu-node-label');
+const menuGetDacl = document.getElementById('menu-get-dacl');
+let activeContextMenuNodeId = null;
+
+export function showContextMenu(nodeId, x, y) {
+    if (!contextMenu || !menuNodeLabel) return;
+
+    const node = graphData.nodeMap.get(nodeId);
+    if (!node) return;
+
+    activeContextMenuNodeId = nodeId;
+    menuNodeLabel.textContent = node.data.label;
+
+    contextMenu.style.left = `${x}px`;
+    contextMenu.style.top = `${y}px`;
+    contextMenu.classList.remove('hidden');
+}
+
+export function hideContextMenu() {
+    if (contextMenu) {
+        contextMenu.classList.add('hidden');
+        activeContextMenuNodeId = null;
+    }
+}
+
+export function initContextMenu() {
+    if (!menuGetDacl) return;
+
+    menuGetDacl.addEventListener('click', async () => {
+        if (activeContextMenuNodeId) {
+            hideContextMenu();
+            await addToGraph(activeContextMenuNodeId);
+        }
+    });
+
+    // Hide on click elsewhere
+    document.addEventListener('click', (e) => {
+        if (contextMenu && !contextMenu.contains(e.target)) {
+            hideContextMenu();
+        }
+    });
+
+    // Hide on scroll/zoom
+    window.addEventListener('blur', hideContextMenu);
+}
+
 // Resizable Panel Logic
 export function initResizablePanel() {
     const resizer = document.getElementById('panel-resizer');

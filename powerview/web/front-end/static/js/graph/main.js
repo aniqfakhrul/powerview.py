@@ -1,7 +1,7 @@
 import { initStorageKey, loadGraphData } from './network.js';
 import { loadFromStorage, clearData, setStorageKey, getStorageKey } from './state.js';
 import { initializeCytoscape, clearGraph, centerGraph, cy } from './viz.js';
-import { showLoading, updateStatus, showOpsecModal, initSearchListeners, updateStats, initResizablePanel } from './ui.js';
+import { showLoading, updateStatus, showOpsecModal, initSearchListeners, updateStats, initResizablePanel, initContextMenu } from './ui.js';
 
 async function initializeGraph() {
     console.log("Graph Page: Initializing script...");
@@ -68,6 +68,7 @@ async function initializeGraph() {
 
     initSearchListeners();
     initResizablePanel();
+    initContextMenu();
 
     // 3. INITIALIZE
     initializeCytoscape(cyContainer);

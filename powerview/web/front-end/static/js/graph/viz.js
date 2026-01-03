@@ -1,6 +1,4 @@
-import { graphData } from './state.js';
-import { fetchACLs } from './network.js';
-import { showNodeDetails } from './ui.js';
+import { showNodeDetails, showContextMenu, hideContextMenu, addToGraph } from './ui.js';
 
 export let cy = null;
 
@@ -143,7 +141,19 @@ export function initializeCytoscape(container) {
         // Hook up click event on Cytoscape
         cy.on('tap', 'node', function (evt) {
             const node = evt.target;
-            addToGraph(node.id());
+            showNodeDetails(node.id());
+        });
+
+        // Right-click context menu
+        cy.on('cxttap', 'node', function (evt) {
+            const node = evt.target;
+            const position = evt.renderedPosition;
+            showContextMenu(node.id(), position.x, position.y);
+        });
+
+        // Hide menu on interaction with canvas
+        cy.on('tap start zoom pan', function() {
+            hideContextMenu();
         });
 
         console.log("Graph Page: Cytoscape initialized successfully.");
