@@ -13,6 +13,7 @@ from argparse import Namespace
 from powerview.web.api.helpers import make_serializable
 from powerview.utils.parsers import powerview_arg_parse
 from powerview.utils.constants import UAC_DICT
+import types
 from powerview._version import __version__ as version
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.modules.smbclient import SMBClient
@@ -57,6 +58,7 @@ class APIServer:
 		self.nav_items = [
 			{"name": "Explorer", "icon": "fas fa-folder-tree", "link": "/"},
 			{"name": "Dashboard", "icon": "fas fa-chart-line", "link": "/dashboard"},
+			{"name": "Graph", "icon": "fas fa-project-diagram", "link": "/graph"},
 			{"name": "Modules", "icon": "fas fa-cubes", "subitems": [
 				{"name": "Users", "icon": "far fa-user", "link": "/users"},
 				{"name": "Computers", "icon": "fas fa-display", "link": "/computers"},
@@ -81,6 +83,7 @@ class APIServer:
 
 		add_route_with_auth('/', 'index', self.render_index, methods=['GET'])
 		add_route_with_auth('/dashboard', 'dashboard', self.render_dashboard, methods=['GET'])
+		add_route_with_auth('/graph', 'graph', self.render_graph, methods=['GET'])
 		add_route_with_auth('/users', 'users', self.render_users, methods=['GET'])
 		add_route_with_auth('/computers', 'computers', self.render_computers, methods=['GET'])
 		add_route_with_auth('/dns', 'dns', self.render_dns, methods=['GET'])
@@ -161,6 +164,14 @@ class APIServer:
 			'nav_items': self.nav_items
 		}
 		return render_template('dashboardpage.html', **context)
+
+	def render_graph(self):
+		context = {
+			'title': 'Powerview.py - Graph',
+			'version': version,
+			'nav_items': self.nav_items
+		}
+		return render_template('graphpage.html', **context)
 
 	def render_users(self):
 		context = {
@@ -485,11 +496,16 @@ class APIServer:
 
 		params = request.args.to_dict() if request.method == 'GET' else request.json or {}
 
+		if 'properties' in params and isinstance(params['properties'], str):
+			params['properties'] = [p.strip() for p in params['properties'].split(',')]
+
 		if 'args' in params:
 			params['args'] = Namespace(**params['args'])
 		
 		try:
 			result = method(**params)
+			if isinstance(result, types.GeneratorType):
+				result = list(result)
 			serializable_result = make_serializable(result)
 			return jsonify(serializable_result)
 		except Exception as e:

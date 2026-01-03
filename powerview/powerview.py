@@ -755,7 +755,7 @@ class PowerView:
 				logging.debug(f'[Get-DomainObject] Using deleted flag from args: {args.deleted}')
 				ldap_filter += f"(isDeleted=*)"
 
-		ldap_filter = f'(&(1.2.840.113556.1.4.2=*){identity_filter}{ldap_filter})'
+		ldap_filter = f'(&(objectClass=*){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainObject] LDAP search filter: {ldap_filter}')
 		entries = self.ldap_session.extend.standard.paged_search(
 			searchbase,
@@ -1265,7 +1265,7 @@ class PowerView:
 			logging.warning('[Get-DomainObjectAcl] Recursing all domain objects. This might take a while')
 			
 		entries = self.get_domainobject(
-			identity=identity, 
+			identity=identity if identity else "", 
 			properties=['nTSecurityDescriptor', 'sAMAccountName', 'distinguishedName', 'objectSid'], 
 			searchbase=searchbase, 
 			ldap_filter=ldapfilter,
