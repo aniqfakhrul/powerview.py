@@ -211,7 +211,8 @@ def powerview_arg_parse(cmd):
 	get_domainobjectacl_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainobjectacl_parser.add_argument('-Server', action='store', dest='server')
 	get_domainobjectacl_parser.add_argument('-SecurityIdentifier', action='store', dest='security_identifier')
-	get_domainobjectacl_parser.add_argument('-ResolveGUIDs', action='store_true',default=False, dest='resolveguids')
+	get_domainobjectacl_parser.add_argument('-ResolveGUIDs', action='store_true', default=False, dest='resolveguids')
+	get_domainobjectacl_parser.add_argument('-Depth', default=2, action='store', type=int, dest='depth', help='Resursively get security identifier groups up to the specified depth. Default is 1.')
 	get_domainobjectacl_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domainobjectacl_parser.add_argument('-Where', action='store', dest='where')
 	get_domainobjectacl_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
@@ -268,7 +269,7 @@ def powerview_arg_parse(cmd):
 
 	#groupmember
 	get_domaingroupmember_parser = subparsers.add_parser('Get-DomainGroupMember', exit_on_error=False)
-	get_domaingroupmember_parser.add_argument('-Identity', action='store',default='*', dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
+	get_domaingroupmember_parser.add_argument('-Identity', action='store', default='*', required=True, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaingroupmember_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
 	get_domaingroupmember_parser.add_argument('-Server', action='store', dest='server')
 	get_domaingroupmember_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
@@ -1064,15 +1065,22 @@ def powerview_arg_parse(cmd):
 	# enable rdp
 	enable_rdp_parser = subparsers.add_parser('Enable-RDP', exit_on_error=False)
 	enable_rdp_parser.add_argument('-Computer', action='store', required=True, const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
-	enable_rdp_parser.add_argument('-NoCheck', action='store_true', default=False, dest='no_check')
-	enable_rdp_parser.add_argument('-DisableRestrictionAdmin', action='store_true', default=False, dest='disable_restriction_admin')
-	
+	enable_rdp_parser.add_argument('-NoVerify', action='store_true', default=False, dest='no_verify')
+	enable_rdp_parser.add_argument('-DisableRestrictedAdmin', action='store_true', default=False, dest='disable_restricted_admin')
+
 	# disable rdp
 	disable_rdp_parser = subparsers.add_parser('Disable-RDP', exit_on_error=False)
 	disable_rdp_parser.add_argument('-Computer', action='store', required=True, const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
-	disable_rdp_parser.add_argument('-NoCheck', action='store_true', default=False, dest='no_check')
-	disable_rdp_parser.add_argument('-DisableRestrictionAdmin', action='store_true', default=False, dest='disable_restriction_admin')
+	disable_rdp_parser.add_argument('-NoVerify', action='store_true', default=False, dest='no_verify')
 	
+	# enable shadow rdp
+	enable_shadow_rdp_parser = subparsers.add_parser('Enable-ShadowRDP', exit_on_error=False)
+	enable_shadow_rdp_parser.add_argument('-Computer', action='store', required=True, const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+
+	# disable shadow rdp
+	disable_shadow_rdp_parser = subparsers.add_parser('Disable-ShadowRDP', exit_on_error=False)
+	disable_shadow_rdp_parser.add_argument('-Computer', action='store', required=True, const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
+
 	# enable adaccount
 	enable_adaccount_parser = subparsers.add_parser('Enable-ADAccount', aliases=['Enable-ADAccount'], exit_on_error=False)
 	enable_adaccount_parser.add_argument('-Identity', action='store', const=None, dest='identity', type=lambda value: escape_filter_chars_except_asterisk(value))

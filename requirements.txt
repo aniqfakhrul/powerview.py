@@ -14,3 +14,4 @@ flask
 flask-basicauth
 pycryptodome
 fastmcp
+gssapi

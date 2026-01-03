@@ -38,7 +38,8 @@ dependencies = [
     "flask",
     "flask-basicauth",
     "pycryptodome",
-    "fastmcp"
+    "fastmcp",
+    "gssapi"
 ]
 
 [project.optional-dependencies]

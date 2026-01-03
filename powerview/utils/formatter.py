@@ -21,10 +21,9 @@ from io import StringIO
 import csv
 
 class FORMATTER:
-    def __init__(self, pv_args, use_kerberos=False, config=None):
+    def __init__(self, pv_args, config=None):
         self.__newline = '\n'
         self.args = pv_args
-        self.use_kerberos = use_kerberos
         
         # Default configuration
         self.config = {

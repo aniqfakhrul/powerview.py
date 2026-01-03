@@ -585,6 +585,16 @@ def main():
                                     succeed = temp_powerview.disable_rdp(args=pv_args)
                                 else:
                                     succeed = powerview.disable_rdp(args=pv_args)
+                            elif pv_args.module.casefold() == 'enable-shadowrdp':
+                                if temp_powerview:
+                                    succeed = temp_powerview.enable_shadow_rdp(args=pv_args)
+                                else:
+                                    succeed = powerview.enable_shadow_rdp(args=pv_args)
+                            elif pv_args.module.casefold() == 'disable-shadowrdp':
+                                if temp_powerview:
+                                    succeed = temp_powerview.disable_shadow_rdp(args=pv_args)
+                                else:
+                                    succeed = powerview.disable_shadow_rdp(args=pv_args)
                             elif pv_args.module.casefold() == 'enable-adaccount':
                                 if pv_args.identity is not None:
                                     if temp_powerview:
@@ -772,11 +782,6 @@ def main():
                                         succeed = temp_powerview.set_domainuserpassword(pv_args.identity, pv_args.accountpassword, oldpassword=pv_args.oldpassword, args=pv_args)
                                     else:
                                         succeed = powerview.set_domainuserpassword(pv_args.identity, pv_args.accountpassword, oldpassword=pv_args.oldpassword, args=pv_args)
-
-                                    if succeed:
-                                        logging.info(f'Password changed for {pv_args.identity}')
-                                    else:
-                                        logging.error(f'Failed password change attempt for {pv_args.identity}')
                                 else:
                                     logging.error('-Identity and -AccountPassword flags are required')
                             elif pv_args.module.casefold() == 'set-domaincomputerpassword':
@@ -786,11 +791,6 @@ def main():
                                         succeed = temp_powerview.set_domaincomputerpassword(pv_args.identity, pv_args.accountpassword, oldpassword=pv_args.oldpassword, args=pv_args)
                                     else:
                                         succeed = powerview.set_domaincomputerpassword(pv_args.identity, pv_args.accountpassword, oldpassword=pv_args.oldpassword, args=pv_args)
-
-                                    if succeed:
-                                        logging.info(f'Password changed for {pv_args.identity}')
-                                    else:
-                                        logging.error(f'Failed password change attempt for {pv_args.identity}')
                                 else:
                                     logging.error('-Identity and -AccountPassword flags are required')
                             elif pv_args.module.casefold() == 'set-domainrbcd' or pv_args.module.casefold() == 'set-rbcd':
@@ -977,7 +977,7 @@ def main():
                                         logging.error("%s exists "%(pv_args.outfile))
                                         continue
 
-                                formatter = FORMATTER(pv_args, args.use_kerberos)
+                                formatter = FORMATTER(pv_args)
                                 if hasattr(pv_args, 'where') and pv_args.where is not None:
                                     entries = formatter.alter_entries(entries,pv_args.where)
 

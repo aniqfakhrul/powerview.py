@@ -375,8 +375,9 @@ class PowerView:
 	def is_admin(self):
 		self.is_domainadmin = False
 		self.is_admincount = False
+		username = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
 		try:
-			user_entry = self.get_domainobject(identity=self.username, properties=["distinguishedName", "adminCount"])
+			user_entry = self.ldap_session.extend.standard.paged_search(search_base=self.root_dn, search_filter=f"(&(sAMAccountName={username})(|(objectClass=user)(objectClass=computer)))", attributes=["distinguishedName", "adminCount"], generator=True, no_vuln_check=True)
 			if len(user_entry) == 0:
 				return False
 			attrs = user_entry[0].get("attributes", {})
@@ -386,10 +387,10 @@ class PowerView:
 			sids = []
 			for attr in ("tokenGroups", "tokenGroupsGlobalAndUniversal", "tokenGroupsNoGCAcceptable"):
 				try:
-					self.ldap_session.search(user_dn, "(1.2.840.113556.1.4.2=*)", attributes=[attr], search_scope=ldap3.BASE)
-					if not self.ldap_session.response:
+					entries = self.ldap_session.extend.standard.paged_search(user_dn, "(1.2.840.113556.1.4.2=*)", attributes=[attr], search_scope=ldap3.BASE)
+					if not entries:
 						continue
-					values = self.ldap_session.response[0].get("attributes", {}).get(attr)
+					values = entries[0].get("attributes", {}).get(attr)
 					if not values:
 						continue
 					if isinstance(values, list):
@@ -410,11 +411,11 @@ class PowerView:
 					self.is_domainadmin = True
 					break
 			if self.is_domainadmin:
-				logging.info(f"User {self.username} is a Domain Admin")
+				logging.info(f"User {username} is a Domain Admin")
 			else:
 				self.is_admincount = bool(attrs.get("adminCount", 0))
 				if self.is_admincount:
-					logging.info(f"User {self.username} has adminCount attribute set to 1. Might be admin somewhere somehow :)")
+					logging.info(f"User {username} has adminCount attribute set to 1. Might be admin somewhere somehow :)")
 		except Exception:
 			if self.args.stack_trace:
 				raise
@@ -455,11 +456,15 @@ class PowerView:
 		if identity:
 			if is_dn(identity):
 				identity_filter += f"(distinguishedName={identity})"
+			elif is_sid(identity):
+				identity_filter += f"(objectSid={identity})"
 			else:
 				identity_filter += f"(|(sAMAccountName={identity})(name={identity})(cn={identity}))"
 		elif args and hasattr(args, 'identity') and args.identity:
 			if is_dn(args.identity):
 				identity_filter += f"(distinguishedName={args.identity})"
+			elif is_sid(args.identity):
+				identity_filter += f"(objectSid={args.identity})"
 			else:
 				identity_filter += f"(|(sAMAccountName={args.identity})(name={args.identity})(cn={args.identity}))"
 
@@ -732,6 +737,8 @@ class PowerView:
 		if identity and not identity_filter:
 			if is_dn(identity):
 				identity_filter = f"(distinguishedName={identity})"
+			elif is_sid(identity):
+				identity_filter = f"(objectSid={identity})"
 			else:
 				identity_filter = f"(|(samAccountName={identity})(name={identity})(displayName={identity})(objectSid={identity})(distinguishedName={identity})(dnsHostName={identity})(objectGUID=*{identity}*))"
 		
@@ -1108,6 +1115,7 @@ class PowerView:
 		if args:
 			identity = args.identity if hasattr(args, 'identity') else identity
 			security_identifier = args.security_identifier if hasattr(args, 'security_identifier') else security_identifier
+			depth = args.depth if hasattr(args, 'depth') else 0
 			searchbase = args.searchbase if hasattr(args, 'searchbase') else searchbase
 			ldapfilter = args.ldapfilter if hasattr(args, 'ldapfilter') else ldapfilter
 			no_cache = args.no_cache if hasattr(args, 'no_cache') else no_cache
@@ -1115,6 +1123,7 @@ class PowerView:
 			raw = args.raw if hasattr(args, 'raw') else raw
 			
 		searchbase = searchbase or self.root_dn
+		ldapfilter = f"(&{ldapfilter})(nTSecurityDescriptor=*)" if ldapfilter else "(nTSecurityDescriptor=*)"
 
 		guids_dict = guids_map_dict or {}
 		if not guids_map_dict:
@@ -1146,17 +1155,16 @@ class PowerView:
 				logging.error(f"[Get-DomainObjectAcl] Error searching for GUIDs in {searchbase}. Ignoring...")
 
 		principal_SID = None
-		if security_identifier:
+		if security_identifier and not is_sid(security_identifier):
 			principalsid_entry = self.get_domainobject(
 				identity=security_identifier, 
-				properties=['objectSid'], 
+				properties=['objectSid', 'memberOf'], 
 				no_cache=no_cache, 
 				searchbase=searchbase, 
-				no_vuln_check=no_vuln_check,
-				raw=raw
+				no_vuln_check=no_vuln_check
 			)
 			
-			if not principalsid_entry:
+			if len(principalsid_entry) == 0:
 				logging.debug('[Get-DomainObjectAcl] Principal not found. Searching in Well Known SIDs...')
 				principal_SID = resolve_WellKnownSID(security_identifier)
 
@@ -1170,12 +1178,64 @@ class PowerView:
 				logging.error('[Get-DomainObjectAcl] Multiple identities found. Use exact match')
 				return None
 
-			if not principal_SID:
-				security_identifier = principalsid_entry[0]['attributes']['objectSid']
-				if isinstance(security_identifier, list):
-					security_identifier = security_identifier[0]
-			else:
-				security_identifier = principal_SID
+			security_identifier = principalsid_entry[0].get('attributes', {}).get('objectSid') if not principal_SID else principal_SID
+		
+		principalidentity_map = None
+		if security_identifier and depth > 0:
+			principalidentity_map = {}
+			start_display = self.convertfrom_sid(security_identifier)
+			start_entry = self.get_domainobject(
+				identity=security_identifier,
+				properties=['objectSid', 'memberOf', 'sAMAccountName', 'cn'],
+				no_cache=no_cache,
+				searchbase=searchbase,
+				no_vuln_check=no_vuln_check
+			)
+			start_attrs = start_entry[0].get('attributes', {}) if start_entry else {}
+			start_sid = start_attrs.get('objectSid') or security_identifier
+			if isinstance(start_sid, list) and start_sid:
+				start_sid = start_sid[0]
+			principalidentity_map[start_sid] = start_display
+			memberof_queue = []
+			mo = start_attrs.get('memberOf') or []
+			if isinstance(mo, str):
+				mo = [mo]
+			for dn in mo:
+				memberof_queue.append((dn, start_display))
+			visited = set()
+			level = 0
+			while level < depth and memberof_queue:
+				next_queue = []
+				for dn, chain in memberof_queue:
+					if dn in visited:
+						continue
+					visited.add(dn)
+					group_entry = self.get_domainobject(
+						identity=dn,
+						properties=['objectSid', 'memberOf', 'sAMAccountName', 'cn'],
+						no_cache=no_cache,
+						searchbase=searchbase,
+						no_vuln_check=no_vuln_check
+					)
+					if not group_entry:
+						continue
+					gattrs = group_entry[0].get('attributes', {})
+					gsid = gattrs.get('objectSid')
+					if isinstance(gsid, list) and gsid:
+						gsid = gsid[0]
+					gname = gattrs.get('sAMAccountName') or gattrs.get('cn')
+					if isinstance(gname, list) and gname:
+						gname = gname[0]
+					if gsid and gname:
+						new_chain = f"({gname}) -> {chain}"
+						principalidentity_map[gsid] = new_chain
+						mo2 = gattrs.get('memberOf') or []
+						if isinstance(mo2, str):
+							mo2 = [mo2]
+						for dn2 in mo2:
+							next_queue.append((dn2, new_chain))
+				memberof_queue = next_queue
+				level += 1
 
 		target_dn = None
 		if identity:
@@ -1184,18 +1244,17 @@ class PowerView:
 				properties=['objectSid', 'distinguishedName'], 
 				searchbase=searchbase, 
 				no_cache=no_cache, 
-				no_vuln_check=no_vuln_check,
-				raw=raw
+				no_vuln_check=no_vuln_check
 			)
 			
-			if not identity_entries:
+			if len(identity_entries) == 0:
 				logging.error(f'[Get-DomainObjectAcl] Identity {identity} not found. Try to use DN')
 				return None
 			elif len(identity_entries) > 1:
 				logging.error('[Get-DomainObjectAcl] Multiple identities found. Use exact match')
 				return None
 			
-			target_dn = identity_entries[0]["attributes"]["distinguishedName"]
+			target_dn = identity_entries[0].get("attributes", {}).get("distinguishedName")
 			if isinstance(target_dn, list):
 				target_dn = "".join(target_dn)
 				
@@ -1220,7 +1279,7 @@ class PowerView:
 			logging.error('[Get-DomainObjectAcl] Identity not found in domain')
 			return None
 
-		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=security_identifier, guids_map_dict=guids_dict)
+		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=(principalidentity_map if principalidentity_map else security_identifier), guids_map_dict=guids_dict)
 		return enum.read_dacl()
 
 	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolvesids=False, ldapfilter=None, include_ip=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
@@ -1274,6 +1333,8 @@ class PowerView:
 		if identity:
 			if is_dn(identity):
 				identity_filter += f"(distinguishedName={identity})"
+			elif is_sid(identity):
+				identity_filter += f"(objectSid={identity})"
 			else:
 				identity_filter += f"(|(name={identity})(sAMAccountName={identity})(dnsHostName={identity})(cn={identity}))"
 
@@ -1396,12 +1457,17 @@ class PowerView:
 
 			try:
 				if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(entry["attributes"].keys()):
-					parser = RBCD(entry)
-					sids = parser.read()
-					if hasattr(args, 'resolvesids') and args.resolvesids:
-						for i in range(len(sids)):
-							sids[i] = self.convertfrom_sid(sids[i])
-					entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = sids
+					val = entry.get("attributes", {}).get("msDS-AllowedToActOnBehalfOfOtherIdentity")
+					if val is not None:
+						if isinstance(val, list):
+							for v in val:
+								if is_sid(v):
+									entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = self.convertfrom_sid(v)
+								else:
+									parser = RBCD(v)
+									entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = parser.read()
+						elif isinstance(val, str) and is_sid(val):
+							entry["attributes"]["msDS-AllowedToActOnBehalfOfOtherIdentity"] = self.convertfrom_sid(val)
 			except:
 				pass
 
@@ -2467,29 +2533,30 @@ class PowerView:
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
 
 		if not searchbase:
+			naming_contexts = getattr(self, 'naming_contexts', [])
+			if naming_contexts:
+				domain_dnszones_dn = next((ctx for ctx in naming_contexts if ctx.startswith("DC=DomainDnsZones")), None)
+				forest_dnszones_dn = next((ctx for ctx in naming_contexts if ctx.startswith("DC=ForestDnsZones")), None)
+			else:
+				domain_dnszones_dn = None
+				forest_dnszones_dn = None
+			domain_dnszone_base = f"CN=MicrosoftDNS,{domain_dnszones_dn}" if domain_dnszones_dn else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
+			forest_dnszone_base = f"CN=MicrosoftDNS,{forest_dnszones_dn}" if forest_dnszones_dn else f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}"
+			system_dnszone_base = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
 			if get_all:
-				searchbase = [
-						f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
-						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
-						f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
-					]
+				searchbase = [forest_dnszone_base, domain_dnszone_base, system_dnszone_base]
 			else:
 				if forest:
-					searchbase = f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}"
+					searchbase = forest_dnszone_base
 				else:
 					if legacy:
-						searchbase = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
+						searchbase = system_dnszone_base
 					else:
-						searchbase = [
-							f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
-							f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
-							f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
-						]
+						searchbase = [forest_dnszone_base, domain_dnszone_base]
 
 		identity_filter = ""
 		if identity:
 			identity_filter += f"(distinguishedName={identity})" if is_dn(identity) else f"(name={identity})"
-
 		
 		ldap_filter = f"(&(objectClass=dnsZone){identity_filter})"
 
@@ -2498,17 +2565,21 @@ class PowerView:
 			for base in searchbase:
 				logging.debug(f"[Get-DomainDNSZone] Search base: {base}")
 				logging.debug(f"[Get-DomainDNSZone] LDAP Filter string: {ldap_filter}")
-				entries.extend(self.ldap_session.extend.standard.paged_search(
-					base,
-					ldap_filter,
-					attributes=properties,
-					paged_size=1000,
-					generator=False,
-					search_scope=search_scope,
-					no_cache=no_cache,
-					no_vuln_check=no_vuln_check,
-					raw=raw
-				))
+				try:
+					entries.extend(self.ldap_session.extend.standard.paged_search(
+						base,
+						ldap_filter,
+						attributes=properties,
+						paged_size=1000,
+						generator=False,
+						search_scope=search_scope,
+						no_cache=no_cache,
+						no_vuln_check=no_vuln_check,
+						raw=raw
+					))
+				except ldap3.core.exceptions.LDAPNoSuchObjectResult:
+					logging.error(f"[Get-DomainDNSZone] No such object: {base}. Skipping...")
+					continue
 		else:
 			logging.debug(f"[Get-DomainDNSZone] Search base: {searchbase}")
 			logging.debug(f"[Get-DomainDNSZone] LDAP Filter string: {ldap_filter}")
@@ -2562,17 +2633,23 @@ class PowerView:
 		searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else searchbase
 
 		if not searchbase:
+			naming_contexts = getattr(self, 'naming_contexts', [])
+			if naming_contexts:
+				domain_dnszones_dn = next((ctx for ctx in naming_contexts if ctx.startswith("DC=DomainDnsZones")), None)
+				forest_dnszones_dn = next((ctx for ctx in naming_contexts if ctx.startswith("DC=ForestDnsZones")), None)
+			else:
+				domain_dnszones_dn = None
+				forest_dnszones_dn = None
+			domain_dnszone_base = f"CN=MicrosoftDNS,{domain_dnszones_dn}" if domain_dnszones_dn else f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}"
+			forest_dnszone_base = f"CN=MicrosoftDNS,{forest_dnszones_dn}" if forest_dnszones_dn else f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}"
+			system_dnszone_base = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
 			if forest:
-				searchbase = f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}"
+				searchbase = forest_dnszone_base
 			else:
 				if legacy:
-					searchbase = f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
+					searchbase = system_dnszone_base
 				else:
-					searchbase = [
-						f"CN=MicrosoftDNS,DC=DomainDnsZones,{self.root_dn}",
-						f"CN=MicrosoftDNS,DC=ForestDnsZones,{self.root_dn}",
-						f"CN=MicrosoftDNS,CN=System,{self.root_dn}"
-					]
+					searchbase = [forest_dnszone_base, domain_dnszone_base]
 
 		zones = self.get_domaindnszone(identity=zonename, properties=['distinguishedName'], searchbase=searchbase, no_cache=no_cache)
 		if not zones:
@@ -2906,50 +2983,56 @@ class PowerView:
 			logging.info(f"[Unlock-ADAccount] Failed to unlock {identity_san}")
 			return False
 
-	def enable_rdp(self, computer=None, no_check=False, disable_restriction_admin=False, args=None):
+	def enable_rdp(self, computer=None, no_verify=False, disable_restricted_admin=False, args=None):
 		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
-		no_check = args.no_check if hasattr(args, 'no_check') and args.no_check else no_check
-		disable_restriction_admin = args.disable_restriction_admin if hasattr(args, 'disable_restriction_admin') and args.disable_restriction_admin else disable_restriction_admin
+		no_verify = args.no_verify if hasattr(args, 'no_verify') and args.no_verify else no_verify
+		disable_restricted_admin = args.disable_restricted_admin if hasattr(args, 'disable_restricted_admin') and args.disable_restricted_admin else disable_restricted_admin
 
 		identity = self._resolve_host(computer)
 		if not identity:
 			logging.error(f"[Enable-RDP] Failed to resolve hostname {computer}")
 			return False
 		
-		if not no_check:
+		port_open = False
+		if not no_verify:
 			if check_tcp_port(identity, 3389, timeout=10, retries=1, retry_delay=0.3):
 				logging.error(f"[Enable-RDP] {computer} RDP port 3389 is already open")
-				return False
+				port_open = True
 		
-		try:
-			reg = RemoteOperations(self.conn)
-			dce = reg.connect(identity)
-			succeed = reg.add(dce, 'HKLM\\System\\CurrentControlSet\\Control\\Terminal Server', 'fDenyTSConnections', 'REG_DWORD', "0")
-		except Exception as e:
-			if self.args.stack_trace:
-				raise e
-			else:
-				logging.error(f"[Enable-RDP] Failed to enable RDP on {computer}: {e}")
-			return False
+		if not port_open:
+			try:
+				reg = RemoteOperations(self.conn)
+				dce = reg.connect(identity)
+				succeed = reg.add(dce, 'HKLM\\System\\CurrentControlSet\\Control\\Terminal Server', 'fDenyTSConnections', 'REG_DWORD', "0")
+				logging.info(f"[Enable-RDP] RDP enabled on {computer}")
+			except Exception as e:
+				if self.args.stack_trace:
+					raise e
+				else:
+					logging.error(f"[Enable-RDP] Failed to enable RDP on {computer}: {e}")
 
-		if succeed:
-			logging.info(f"[Enable-RDP] RDP enabled on {computer}")
-			return True
-		else:
-			logging.error(f"[Enable-RDP] Failed to enable RDP on {computer}")
-			return False
+		if disable_restricted_admin:
+			try:
+				reg = RemoteOperations(self.conn)
+				dce = reg.connect(identity)
+				succeed = reg.add(dce, 'HKLM\\System\\CurrentControlSet\\Control\\Lsa', 'DisableRestrictedAdmin', 'REG_DWORD', "0")
+				logging.info(f"[Enable-RDP] Disabled restricted admin on {computer}")
+			except Exception as e:
+				logging.error(f"[Enable-RDP] Failed to disable restricted admin on {computer}: {e}")
 
-	def disable_rdp(self, computer=None, no_check=False, disable_restriction_admin=False, args=None):
+		return True
+
+	def disable_rdp(self, computer=None, no_verify=False, disable_restricted_admin=False, args=None):
 		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
-		no_check = args.no_check if hasattr(args, 'no_check') and args.no_check else no_check
-		disable_restriction_admin = args.disable_restriction_admin if hasattr(args, 'disable_restriction_admin') and args.disable_restriction_admin else disable_restriction_admin
+		no_verify = args.no_verify if hasattr(args, 'no_verify') and args.no_verify else no_verify
+		disable_restricted_admin = args.disable_restricted_admin if hasattr(args, 'disable_restricted_admin') and args.disable_restricted_admin else disable_restricted_admin
 
 		identity = self._resolve_host(computer)
 		if not identity:
 			logging.error(f"[Disable-RDP] Failed to resolve hostname {computer}")
 			return False
 
-		if not no_check:
+		if not no_verify:
 			if not check_tcp_port(identity, 3389, timeout=10, retries=1, retry_delay=0.3):
 				logging.error(f"[Disable-RDP] {computer} RDP port 3389 is already closed")
 				return False
@@ -2958,18 +3041,64 @@ class PowerView:
 			reg = RemoteOperations(self.conn)
 			dce = reg.connect(identity)
 			succeed = reg.add(dce, 'HKLM\\System\\CurrentControlSet\\Control\\Terminal Server', 'fDenyTSConnections', 'REG_DWORD', "1")
+			logging.info(f"[Disable-RDP] RDP disabled on {computer}")
 		except Exception as e:
 			if self.args.stack_trace:
 				raise e
 			else:
 				logging.error(f"[Disable-RDP] Failed to disable RDP on {computer}: {e}")
+
+		return True
+
+	def enable_shadow_rdp(self, computer=None, args=None):
+		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
+
+		identity = self._resolve_host(computer)
+		if not identity:
+			logging.error(f"[Enable-ShadowRDP] Failed to resolve hostname {computer}")
+
+		try:
+			reg = RemoteOperations(self.conn)
+			dce = reg.connect(identity)
+			succeed = reg.add(dce, 'HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Terminal Services', 'Shadow', 'REG_DWORD', "2")
+		except Exception as e:
+			if self.args.stack_trace:
+				raise e
+			else:
+				logging.error(f"[Enable-ShadowRDP] Failed to enable Shadow RDP on {computer}: {e}")
 			return False
 
 		if succeed:
-			logging.info(f"[Disable-RDP] RDP disabled on {computer}")
+			logging.info(f"[Enable-ShadowRDP] Shadow RDP enabled on {computer}")
+		else:
+			logging.error(f"[Enable-ShadowRDP] Failed to enable Shadow RDP on {computer}")
+			return False
+		return True
+
+	def disable_shadow_rdp(self, computer=None, args=None):
+		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
+
+		identity = self._resolve_host(computer)
+		if not identity:
+			logging.error(f"[Disable-ShadowRDP] Failed to resolve hostname {computer}")
+			return False
+
+		try:
+			reg = RemoteOperations(self.conn)
+			dce = reg.connect(identity)
+			succeed = reg.add(dce, 'HKLM\\Software\\Policies\\Microsoft\\Windows NT\\Terminal Services', 'Shadow', 'REG_DWORD', "0")
+		except Exception as e:
+			if self.args.stack_trace:
+				raise e
+			else:
+				logging.error(f"[Disable-ShadowRDP] Failed to disable Shadow RDP on {computer}: {e}")
+			return False
+
+		if succeed:
+			logging.info(f"[Disable-ShadowRDP] Shadow RDP disabled on {computer}")
 			return True
 		else:
-			logging.error(f"[Disable-RDP] Failed to disable RDP on {computer}")
+			logging.error(f"[Disable-ShadowRDP] Failed to disable Shadow RDP on {computer}")
 			return False
 
 	def enable_adaccount(self, identity=None, searchbase=None, no_cache=False, args=None):
@@ -3880,29 +4009,33 @@ displayName=New Group Policy Object
 		logging.debug(f"[Set-DomainRBCD] {identity} identity found")
 		targetidentity = _identity[0]
 
-		# verify that delegate identity exists
-		delegfrom_identity = self.get_domainobject(identity=delegatefrom, properties = [
-				"sAMAccountName",
-				"objectSid",
-				"distinguishedName",
-			],
-			searchbase=searchbase
-		)
+		# verify that delegate identity exists if delegatefrom is not a sid
+		if not is_sid(delegatefrom):
+			delegfrom_identity = self.get_domainobject(identity=delegatefrom, properties = [
+					"sAMAccountName",
+					"objectSid",
+					"distinguishedName",
+				],
+				searchbase=searchbase
+			)
 
-		if len(delegfrom_identity) > 1:
-			logging.error("[Set-DomainRBCD] More then one identity found")
-			return False
-		elif len(delegfrom_identity) == 0:
-			logging.error(f"[Set-DomainRBCD] {delegatefrom} identity not found in domain")
-			return False
-		logging.debug(f"[Set-DomainRBCD] {delegatefrom} identity found")
+			if len(delegfrom_identity) > 1:
+				logging.error("[Set-DomainRBCD] More then one identity found")
+				return False
+			elif len(delegfrom_identity) == 0:
+				logging.error(f"[Set-DomainRBCD] {delegatefrom} identity not found in domain")
+				return False
+			logging.debug(f"[Set-DomainRBCD] {delegatefrom} identity found")
 
-		# now time to modify
-		delegfrom_identity = delegfrom_identity[0]
-		delegfrom_sid = delegfrom_identity.get("attributes").get("objectSid")
-
-		if delegfrom_sid is None:
-			return False
+			# now time to modify
+			delegfrom_identity = delegfrom_identity[0]
+			delegfrom_sid = delegfrom_identity.get("attributes").get("objectSid")
+			
+			if delegfrom_sid is None:
+				logging.error(f"[Set-DomainRBCD] objectSid not found for {delegatefrom} identity")
+				return False
+		else:
+			delegfrom_sid = delegatefrom
 
 		rbcd = RBCD(targetidentity, self.ldap_session)
 		succeed = rbcd.write_to(delegfrom_sid)
