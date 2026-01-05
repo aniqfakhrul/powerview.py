@@ -65,6 +65,20 @@
     <!-- Canvas -->
     <div class="flex-grow w-full h-full relative overflow-hidden bg-neutral-50 dark:bg-neutral-900">
         <div id="cy" class="w-full h-full text-neutral-800 dark:text-neutral-100"></div>
+        <div class="absolute top-6 left-6 z-30 bg-white/90 dark:bg-neutral-900/90 border border-neutral-200 dark:border-neutral-800 rounded-lg shadow px-3 py-2 text-xs text-neutral-700 dark:text-neutral-300 space-y-1">
+            <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
+                <span>Inbound ACL (controls this)</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span>
+                <span>Outbound ACL (controlled by this)</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="w-5 h-0.5 rounded-full bg-neutral-300 inline-block"></span>
+                <span>Membership / containment</span>
+            </div>
+        </div>
 
         <!-- Floating Action Buttons -->
         <div class="absolute bottom-6 right-6 flex flex-col gap-3 z-20">
@@ -132,13 +146,17 @@
         <div class="px-4 py-2 border-b border-neutral-100 dark:border-neutral-800">
             <span id="menu-node-label" class="text-xs font-bold text-neutral-400 uppercase tracking-wider truncate block">Node Actions</span>
         </div>
-        <button id="menu-fetch-inbound" class="w-full text-left px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 transition">
-            <i class="fas fa-sign-in-alt text-green-500"></i>
-            <span>Fetch Inbound ACL</span>
+        <button id="menu-filter-incoming" class="w-full text-left px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 transition">
+            <i class="fas fa-arrow-down text-green-500"></i>
+            <span>Show Incoming Only</span>
         </button>
-        <button id="menu-fetch-outbound" class="w-full text-left px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 transition">
-            <i class="fas fa-sign-out-alt text-blue-500"></i>
-            <span>Fetch Outbound ACL</span>
+        <button id="menu-filter-outgoing" class="w-full text-left px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 transition">
+            <i class="fas fa-arrow-up text-blue-500"></i>
+            <span>Show Outgoing Only</span>
+        </button>
+        <button id="menu-clear-filter" class="w-full text-left px-4 py-2 text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 transition">
+            <i class="fas fa-sync text-neutral-500"></i>
+            <span>Show All Connections</span>
         </button>
     </div>
 </div>

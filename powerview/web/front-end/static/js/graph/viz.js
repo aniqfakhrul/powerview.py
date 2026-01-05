@@ -3,6 +3,7 @@ import { fetchInboundACLs, fetchOutboundACLs } from './network.js';
 import { showNodeDetails, showContextMenu, hideContextMenu } from './ui.js';
 
 export let cy = null;
+let activeFilter = null;
 
 export function initializeCytoscape(container) {
     console.log("Graph Page: Initializing Cytoscape...");
@@ -114,6 +115,28 @@ export function initializeCytoscape(container) {
                     }
                 },
                 {
+                    selector: 'edge[aclDirection]',
+                    style: {
+                        'line-style': 'dashed',
+                        'width': 2.5,
+                        'target-arrow-shape': 'triangle'
+                    }
+                },
+                {
+                    selector: 'edge[aclDirection = "inbound"]',
+                    style: {
+                        'line-color': '#22c55e',
+                        'target-arrow-color': '#22c55e'
+                    }
+                },
+                {
+                    selector: 'edge[aclDirection = "outbound"]',
+                    style: {
+                        'line-color': '#ef4444',
+                        'target-arrow-color': '#ef4444'
+                    }
+                },
+                {
                     selector: 'edge:selected',
                     style: {
                         'line-color': '#2563eb',
@@ -125,6 +148,12 @@ export function initializeCytoscape(container) {
                     style: {
                         'border-color': '#2563eb',
                         'border-width': 4
+                    }
+                },
+                {
+                    selector: '.filtered-out',
+                    style: {
+                        'display': 'none'
                     }
                 }
             ],
@@ -324,4 +353,52 @@ export async function addToGraph(nodeId, aclDirection = 'inbound') {
             });
         }
     }
+
+    if (activeFilter) {
+        filterNodeNeighbors(activeFilter.nodeId, activeFilter.direction);
+    }
+}
+
+export async function projectAclDirection(nodeId, direction, prefetchedJson = null) {
+    if (!cy) return;
+    const fetcher = direction === 'outbound' ? fetchOutboundACLs : fetchInboundACLs;
+    const newAcls = await fetcher(nodeId, prefetchedJson);
+    const updated = expandNode(nodeId) || newAcls;
+    if (updated) {
+        const layout = runLayout(false);
+        layout.one('layoutstop', () => {
+            const ele = cy.getElementById(nodeId);
+            if (ele.length > 0) {
+                cy.animate({
+                    center: { eles: ele },
+                    zoom: 1.2,
+                    duration: 500
+                });
+            }
+            if (activeFilter) {
+                filterNodeNeighbors(activeFilter.nodeId, activeFilter.direction);
+            }
+        });
+    } else if (activeFilter) {
+        filterNodeNeighbors(activeFilter.nodeId, activeFilter.direction);
+    }
+}
+
+export function filterNodeNeighbors(nodeId, direction) {
+    if (!cy) return;
+    const node = cy.getElementById(nodeId);
+    if (!node || node.length === 0) return;
+    const set = direction === 'incoming' ? node.incomers() : node.outgoers();
+    const keep = set.union(node);
+    cy.batch(() => {
+        cy.elements().removeClass('filtered-out');
+        cy.elements().not(keep).addClass('filtered-out');
+    });
+    activeFilter = { nodeId, direction };
+}
+
+export function clearGraphFilter() {
+    if (!cy) return;
+    cy.elements().removeClass('filtered-out');
+    activeFilter = null;
 }

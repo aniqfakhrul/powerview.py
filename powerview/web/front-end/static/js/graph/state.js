@@ -126,7 +126,7 @@ export function addNode(item, type) {
     return node;
 }
 
-export function addEdge(sourceId, targetId, label, isAcl = false) {
+export function addEdge(sourceId, targetId, label, isAcl = false, direction = null) {
     // Check if target exists; if not, create inferred
     if (!graphData.nodeMap.has(targetId)) {
         // Try to infer label from DN
@@ -155,13 +155,9 @@ export function addEdge(sourceId, targetId, label, isAcl = false) {
             source: sourceId,
             target: targetId,
             label: label,
-            acl: isAcl
-        },
-        style: isAcl ? {
-            'line-color': '#ef4444', // red-500
-            'target-arrow-color': '#ef4444',
-            'line-style': 'dashed'
-        } : undefined
+            acl: isAcl,
+            aclDirection: direction
+        }
     };
 
     graphData.edges.push(edge);

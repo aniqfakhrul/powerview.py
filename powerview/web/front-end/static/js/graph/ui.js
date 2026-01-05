@@ -1,5 +1,5 @@
 import { graphData } from './state.js';
-import { addToGraph } from './viz.js';
+import { addToGraph, filterNodeNeighbors, clearGraphFilter, projectAclDirection } from './viz.js';
 import { fetchFullDACL, fetchOutboundDACL, loadGraphData } from './network.js';
 
 const escapeHtml = (v) => {
@@ -162,8 +162,9 @@ export function showNodeDetails(nodeId) {
 
     const fetchOutboundBtn = document.getElementById(`fetch-outbound-btn-${safeId}`);
     if (fetchOutboundBtn) {
-        fetchOutboundBtn.addEventListener('click', () => {
-            fetchOutboundDACL(nodeId);
+        fetchOutboundBtn.addEventListener('click', async () => {
+            const outboundJson = await fetchOutboundDACL(nodeId);
+            await projectAclDirection(nodeId, 'outbound', outboundJson);
         });
     }
 
@@ -392,8 +393,9 @@ export function initSearchListeners() {
 // Context Menu Logic
 const contextMenu = document.getElementById('graph-context-menu');
 const menuNodeLabel = document.getElementById('menu-node-label');
-const menuFetchInbound = document.getElementById('menu-fetch-inbound');
-const menuFetchOutbound = document.getElementById('menu-fetch-outbound');
+const menuFilterIncoming = document.getElementById('menu-filter-incoming');
+const menuFilterOutgoing = document.getElementById('menu-filter-outgoing');
+const menuClearFilter = document.getElementById('menu-clear-filter');
 let activeContextMenuNodeId = null;
 
 export function showContextMenu(nodeId, x, y) {
@@ -418,23 +420,30 @@ export function hideContextMenu() {
 }
 
 export function initContextMenu() {
-    if (menuFetchInbound) {
-        menuFetchInbound.addEventListener('click', async () => {
+    if (menuFilterIncoming) {
+        menuFilterIncoming.addEventListener('click', () => {
             if (activeContextMenuNodeId) {
                 const nodeId = activeContextMenuNodeId;
                 hideContextMenu();
-                await addToGraph(nodeId, 'inbound');
+                filterNodeNeighbors(nodeId, 'incoming');
             }
         });
     }
 
-    if (menuFetchOutbound) {
-        menuFetchOutbound.addEventListener('click', async () => {
+    if (menuFilterOutgoing) {
+        menuFilterOutgoing.addEventListener('click', () => {
             if (activeContextMenuNodeId) {
                 const nodeId = activeContextMenuNodeId;
                 hideContextMenu();
-                await addToGraph(nodeId, 'outbound');
+                filterNodeNeighbors(nodeId, 'outgoing');
             }
+        });
+    }
+
+    if (menuClearFilter) {
+        menuClearFilter.addEventListener('click', () => {
+            hideContextMenu();
+            clearGraphFilter();
         });
     }
 

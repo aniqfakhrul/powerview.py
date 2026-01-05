@@ -195,7 +195,7 @@ export async function fetchFullDACL(nodeId) {
         let aceHtml = `<div class="mt-2 space-y-2 pr-2">`;
         aces.forEach(ace => {
             const type = ace.ACEType || 'Unknown';
-            const mask = ace.AccessMask || 'Unknown';
+            const mask = ace.ObjectAceType || ace.AccessMask || 'Unknown';
             const principal = ace.SecurityIdentifier || 'Unknown';
             const isInherited = ace.IsInherited === 'True';
             const targetDn = ace.ObjectDN || 'Unknown object';
@@ -249,16 +249,24 @@ export async function fetchOutboundDACL(nodeId) {
         if (json.error) throw new Error(json.error);
         if (!Array.isArray(json) || json.length === 0) {
             if (placeholder) placeholder.textContent = "No ACL entries found.";
-            return;
+            return [];
         }
 
-        const attributes = json[0].attributes;
-        const aces = Array.isArray(attributes) ? attributes : [attributes];
+        const aces = [];
+        json.forEach(entry => {
+            const attrs = entry.attributes;
+            if (Array.isArray(attrs)) aces.push(...attrs);
+            else if (attrs) aces.push(attrs);
+        });
+        if (aces.length === 0) {
+            if (placeholder) placeholder.textContent = "No ACL entries found.";
+            return [];
+        }
 
         let aceHtml = `<div class="mt-2 space-y-2 pr-2">`;
         aces.forEach(ace => {
             const type = ace.ACEType || 'Unknown';
-            const mask = ace.AccessMask || 'Unknown';
+            const mask = ace.ObjectAceType || ace.AccessMask || 'Unknown';
             const principal = ace.SecurityIdentifier || 'Unknown';
             const isInherited = ace.IsInherited === 'True';
             const targetDn = ace.ObjectDN || 'Unknown object';
@@ -285,9 +293,11 @@ export async function fetchOutboundDACL(nodeId) {
         aceHtml += `</div>`;
 
         if (placeholder) placeholder.outerHTML = aceHtml;
+        return json;
     } catch (e) {
         console.error("Outbound DACL Dump Failed:", e);
         if (placeholder) placeholder.textContent = "Failed to fetch outbound DACL.";
+        return null;
     } finally {
         if (spinner) spinner.classList.add('hidden');
         if (button) button.disabled = false;
@@ -326,7 +336,7 @@ export async function fetchInboundACLs(nodeId) {
     }
 }
 
-export async function fetchOutboundACLs(nodeId) {
+export async function fetchOutboundACLs(nodeId, prefetchedJson = null) {
     try {
         const node = graphData.nodeMap.get(nodeId);
         if (!node) return false;
@@ -340,12 +350,15 @@ export async function fetchOutboundACLs(nodeId) {
             return false;
         }
 
-        console.log(`Requesting Outbound ACLs for Principal SID: ${sid}`);
-        const res = await fetch(`/api/get/domainobjectacl?security_identifier=${encodeURIComponent(sid)}`);
-        const json = await res.json();
-        if (!res.ok) {
-            console.warn("ACL Fetch Error:", json.error || res.status);
-            return false;
+        let json = prefetchedJson;
+        if (!json) {
+            console.log(`Requesting Outbound ACLs for Principal SID: ${sid}`);
+            const res = await fetch(`/api/get/domainobjectacl?security_identifier=${encodeURIComponent(sid)}`);
+            json = await res.json();
+            if (!res.ok) {
+                console.warn("ACL Fetch Error:", json.error || res.status);
+                return false;
+            }
         }
 
         if (json.error) {
@@ -373,9 +386,9 @@ function processACLResults(json, nodeId, isInbound) {
         if (!Array.isArray(aces)) return;
 
         aces.forEach(ace => {
-            const mask = ace.AccessMask;
-            const interesting = ['GenericAll', 'WriteDacl', 'WriteOwner', 'GenericWrite', 'FullControl'];
-            if (!interesting.includes(mask) && !interesting.some(i => mask.includes(i))) return;
+            const permission = ace.ObjectAceType || ace.AccessMask;
+            const interesting = ['GenericAll', 'WriteDacl', 'WriteOwner', 'GenericWrite', 'FullControl', 'ControlAccess', 'DS-Replication-Get-Changes', 'DS-Replication-Get-Changes-All', 'DS-Replication-Get-Changes-In-Filtered-Set'];
+            if (!interesting.includes(permission) && !interesting.some(i => (permission || '').includes(i))) return;
             if (!ace.ACEType || !ace.ACEType.includes("ALLOWED")) return;
 
             let sourceId, targetId;
@@ -410,7 +423,7 @@ function processACLResults(json, nodeId, isInbound) {
                 }
             }
 
-            const edge = addEdge(sourceId, targetId, mask, true);
+            const edge = addEdge(sourceId, targetId, permission || 'Unknown', true, isInbound ? 'inbound' : 'outbound');
             if (edge) {
                 newEdges = true;
             }
