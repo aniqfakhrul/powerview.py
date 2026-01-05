@@ -387,7 +387,7 @@ function processACLResults(json, nodeId, isInbound) {
 
         aces.forEach(ace => {
             const permission = ace.ObjectAceType || ace.AccessMask;
-            const interesting = ['GenericAll', 'WriteDacl', 'WriteOwner', 'GenericWrite', 'FullControl', 'ControlAccess', 'DS-Replication-Get-Changes', 'DS-Replication-Get-Changes-All', 'DS-Replication-Get-Changes-In-Filtered-Set'];
+            const interesting = ['GenericAll', 'WriteDacl', 'WriteOwner', 'GenericWrite', 'FullControl', 'ControlAccess', 'DS-Replication-Get-Changes', 'DS-Replication-Get-Changes-All', 'DS-Replication-Get-Changes-In-Filtered-Set', 'User-Force-Change-Password', 'All-Extended-Rights'];
             if (!interesting.includes(permission) && !interesting.some(i => (permission || '').includes(i))) return;
             if (!ace.ACEType || !ace.ACEType.includes("ALLOWED")) return;
 
