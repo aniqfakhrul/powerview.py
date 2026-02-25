@@ -624,6 +624,7 @@ class CONNECTION:
 			"objectSid": LDAP.bin_to_sid,
 			"securityIdentifier": LDAP.bin_to_sid,
 			"mS-DS-CreatorSID": LDAP.bin_to_sid,
+			"ms-Mcs-AdmPwdExpirationTime": LDAP.ldap2datetime,
 			"msDS-ManagedPassword": LDAP.formatGMSApass,
 			"msDS-GroupMSAMembership": LDAP.parseMSAMembership,
 			"pwdProperties": LDAP.resolve_pwdProperties,
