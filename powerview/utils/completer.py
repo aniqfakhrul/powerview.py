@@ -243,4 +243,5 @@ class Completer(object):
     def setup_completer(self):
         readline.set_completer_delims(' \t\n;')
         readline.parse_and_bind("tab: complete")
+        readline.parse_and_bind(r'"\C-l": clear-screen')
         readline.set_completer(self.complete)
