@@ -403,7 +403,6 @@ def setup_tools(mcp, powerview_instance):
 		no_cache: bool = False,
 		no_vuln_check: bool = False,
 		raw: bool = False,
-		sd_flag: str = "" # Note: sd_flag is not in parser, might be internal
 	) -> str:
 		"""Get information about domain trusts.
 
@@ -415,7 +414,6 @@ def setup_tools(mcp, powerview_instance):
 			no_cache: Bypass the cache and perform a live query.
 			no_vuln_check: Disable vulnerability checks.
 			raw: Return raw LDAP entries without formatting.
-			sd_flag: Security Descriptor flag (internal use, likely not needed via MCP).
 		"""
 		try:
 			props = properties.split(",") if properties else []
@@ -427,7 +425,7 @@ def setup_tools(mcp, powerview_instance):
 				'no_cache': no_cache,
 				'no_vuln_check': no_vuln_check,
 				'raw': raw,
-				'sd_flag': sd_flag if sd_flag else None,
+				'sd_flag': None,
 				'module': 'Get-DomainTrust'
 			})
 			result = powerview_instance.get_domaintrust(args=args)
@@ -1462,7 +1460,7 @@ def setup_tools(mcp, powerview_instance):
 		2. Configuration files
 		3. Credentials
 		4. Unintended data exposure
-		5. Other interesting findings that can be laveraged for laterval movement or privilege escalation.
+		5. Other interesting findings that can be leveraged for lateral movement or privilege escalation.
 
 		Parameters:
 			computer: Target hostname or IP address

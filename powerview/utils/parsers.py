@@ -73,7 +73,7 @@ def arg_parse():
 	mcp.add_argument('--mcp-host', dest='mcp_host', action='store', default='127.0.0.1', help='Specify custom bind interface for MCP (Default: 127.0.0.1)')
 	mcp.add_argument('--mcp-port', dest='mcp_port', action='store', type=int, default=8080, help='Specify custom port for MCP server (Default: 8080)')
 	mcp.add_argument('--mcp-name', dest='mcp_name', action='store', default='PowerView', help='Specify MCP server name (Default: PowerView MCP)')
-	mcp.add_argument('--mcp-path', dest='mcp_path', action='store', default='/powerview', help='Specify MCP server path (Default: /powerview)')
+	mcp.add_argument('--mcp-path', dest='mcp_path', action='store', default='/mcp', help='Specify MCP server path (Default: /mcp)')
 	
 	pool = parser.add_argument_group('connection pool')
 	pool.add_argument('--max-connections', dest='max_connections', action='store', type=int, default=10, help='Maximum number of pooled domain connections (Default: 10)')
@@ -1522,7 +1522,28 @@ def powerview_arg_parse(cmd):
 		if "module" in str(e):
 			print("Invalid command")
 		else:
-			print(str(e))
+			msg = str(e)
+			module_name = cmd[0] if cmd else "Unknown"
+			# Resolve alias to canonical name (e.g. qwinsta -> Get-NetTerminalSession)
+			for action in parser._subparsers._actions:
+				if hasattr(action, '_name_parser_map'):
+					sub = action._name_parser_map.get(module_name) or action._name_parser_map.get(module_name.casefold())
+					if sub:
+						for name, s in action._name_parser_map.items():
+							if s is sub and name != module_name and '-' in name:
+								module_name = name
+								break
+					break
+			if "required" in msg:
+				# Extract flag names from argparse message like "the following arguments are required: -Identity, -Members"
+				parts = msg.split(":")
+				if len(parts) > 1:
+					flags = parts[-1].strip()
+					print(f"[{module_name}] Missing required argument: {flags}")
+				else:
+					print(f"[{module_name}] {msg}")
+			else:
+				print(f"[{module_name}] {msg}")
 		
 		return None
 	except SystemExit:

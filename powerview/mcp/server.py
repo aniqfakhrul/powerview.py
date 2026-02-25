@@ -6,7 +6,6 @@ import asyncio
 import logging
 import json
 import threading
-import sys
 import socket
 import time
 from typing import Dict, List, Optional, Any, Tuple, Union, Callable
@@ -27,7 +26,7 @@ class MCPServer:
     to AI assistants using the Model Context Protocol.
     """
     
-    def __init__(self, powerview, name="PowerView MCP", host="127.0.0.1", port=8080, path="/powerview"):
+    def __init__(self, powerview, name="PowerView MCP", host="127.0.0.1", port=8080, path="/mcp"):
         """
         Initialize the MCP server.
         
@@ -96,7 +95,6 @@ class MCPServer:
             except Exception as e:
                 self.set_status(False)
                 logging.error(f"Error starting MCP server: {str(e)}")
-                sys.exit(1)
 
         self.server_thread = threading.Thread(target=run_server, daemon=True)
         self.server_thread.start()

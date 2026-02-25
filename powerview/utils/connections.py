@@ -2207,19 +2207,23 @@ class CONNECTION:
 		ports = [445, 139] if not hasattr(self.args, 'smb_port') else [self.args.smb_port]
 		
 		for port in ports:
+			conn = None
 			try:
 				logging.debug(f"[SMB] Attempting connection to {host}:{port}")
 				conn = SMBConnection(host, host, sess_port=port, timeout=timeout)
-				
+
 				if useKerberos:
 					self._handle_kerberos_smb_auth(conn, username, password, domain, lmhash, nthash, aesKey, useCache)
 				else:
 					conn.login(username, password, domain, lmhash, nthash)
-				
+
 				logging.debug(f"[SMB] Successfully connected to {host}:{port}")
 				return conn
-				
+
 			except OSError as e:
+				if conn:
+					try: conn.close()
+					except Exception: pass
 				if port == 445 and 139 in ports:
 					logging.debug(f"[SMB] Port 445 failed for {host}, trying 139: {str(e)}")
 					continue
@@ -2227,6 +2231,9 @@ class CONNECTION:
 					logging.debug(f"[SMB] Connection failed to {host}:{port}: {str(e)}")
 					raise
 			except (SessionError, AssertionError) as e:
+				if conn:
+					try: conn.close()
+					except Exception: pass
 				logging.debug(f"[SMB] Authentication failed to {host}:{port}: {str(e)}")
 				raise
 		
@@ -2318,6 +2325,7 @@ class CONNECTION:
 
 		rpctransport.set_kerberos(self.use_kerberos, kdcHost=self.kdcHost)
 
+		dce = None
 		try:
 			dce = rpctransport.get_dce_rpc()
 			if self.use_kerberos:
@@ -2327,6 +2335,9 @@ class CONNECTION:
 			dce.bind(samr.MSRPC_UUID_SAMR)
 			return dce
 		except Exception:
+			if dce:
+				try: dce.disconnect()
+				except Exception: pass
 			return None
 
 	# stole from PetitPotam.py
@@ -2396,7 +2407,7 @@ class CONNECTION:
 
 		if set_authn:
 			dce.set_auth_type(RPC_C_AUTHN_WINNT)
-			dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)		
+			dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
 
 		try:
 			dce.connect()
@@ -2404,12 +2415,16 @@ class CONNECTION:
 				dce.bind(interface_uuid)
 			return dce
 		except SessionError as e:
+			try: dce.disconnect()
+			except Exception: pass
 			logging.debug(f"[RPCTransport:SessionError] {str(e)}")
 			if raise_exceptions:
 				raise e
 			else:
 				return
 		except Exception as e:
+			try: dce.disconnect()
+			except Exception: pass
 			logging.debug(f"[RPCTransport:Exception] {str(e)}")
 			if raise_exceptions:
 				raise e
@@ -2447,13 +2462,14 @@ class CONNECTION:
 
 		try:
 			dce.connect()
+			dce.bind(binding_strings[pipe[1:]])
+			self.rpc_conn = dce
 		except Exception as e:
+			try: dce.disconnect()
+			except Exception: pass
 			logging.critical('Error when creating RPC connection')
 			logging.critical(e)
 			self.rpc_conn = None
-		else:
-			dce.bind(binding_strings[pipe[1:]])
-			self.rpc_conn = dce
 
 		return self.rpc_conn
 
@@ -2478,12 +2494,15 @@ class CONNECTION:
 		except DCERPCSessionError as e:
 			if hasattr(e, 'error_code') and e.error_code == 0x80041003:
 				logging.debug(f"[init_wmi_session] Access denied (0x80041003): {e}")
-				return self.dcom, self.wmi_conn
+				self.disconnect_wmi_session()
+				return None, None
+			self.disconnect_wmi_session()
 			raise
 		except Exception as e:
 			if 'WBEM_E_ACCESS_DENIED' in str(e) or '0x80041003' in str(e):
 				logging.debug(f"[init_wmi_session] Access denied: {e}")
-				return self.dcom, self.wmi_conn
+				self.disconnect_wmi_session()
+				return None, None
 			self.disconnect_wmi_session()
 			raise
 
