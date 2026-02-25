@@ -1479,9 +1479,13 @@ class PowerView:
 			if not any(prop.lower() == 'dnshostname' for prop in properties):
 				properties.add('dnsHostName')
 			try:
+				dns_identity = None
+				if identity_values and len(identity_values) == 1:
+					val = identity_values[0]
+					dns_identity = val.split('.')[0] if is_valid_fqdn(val) else val
 				records = self.get_domaindnsrecord(
 					zonename=self.conn.get_domain(),
-					identity=identity.split('.')[0] if is_valid_fqdn(identity) else identity,
+					identity=dns_identity,
 					record_type="A",
 					no_cache=no_cache
 				) or []
