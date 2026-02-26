@@ -159,32 +159,33 @@ Add-ADComputer                 Find-ForeignUser               Get-DomainTrustKey
 Add-ADUser                     Find-LocalAdminAccess          Get-DomainUser                 Login-As                       Set-ADObject
 Add-CATemplate                 Get-ADObject                   Get-DomainWDS                  Logoff-Session                 Set-ADObjectDN
 Add-CATemplateAcl              Get-CA                         Get-EventLog                   Reboot-Computer                Set-CATemplate
-Add-DMSA                       Get-CATemplate                 Get-ExchangeDatabase           Remove-ADComputer              Set-DomainCATemplate
-Add-DomainCATemplate           Get-DMSA                       Get-ExchangeMailbox            Remove-ADObject                Set-DomainComputerPassword
-Add-DomainCATemplateAcl        Get-Domain                     Get-ExchangeServer             Remove-ADUser                  Set-DomainDNSRecord
-Add-DomainComputer             Get-DomainCA                   Get-GMSA                       Remove-CATemplate              Set-DomainObject
-Add-DomainDMSA                 Get-DomainCATemplate           Get-GPOLocalGroup              Remove-DMSA                    Set-DomainObjectDN
-Add-DomainDNSRecord            Get-DomainComputer             Get-GPOSettings                Remove-DomainCATemplate        Set-DomainObjectOwner
-Add-DomainGMSA                 Get-DomainController           Get-LocalUser                  Remove-DomainComputer          Set-DomainRBCD
-Add-DomainGPO                  Get-DomainDMSA                 Get-NamedPipes                 Remove-DomainDMSA              Set-DomainUserPassword
-Add-DomainGroup                Get-DomainDNSRecord            Get-NetComputerInfo            Remove-DomainDNSRecord         Set-NetService
-Add-DomainGroupMember          Get-DomainDNSZone              Get-NetLoggedOn                Remove-DomainGMSA              Set-ObjectOwner
-Add-DomainOU                   Get-DomainForeignGroupMember   Get-NetProcess                 Remove-DomainGroupMember       Set-RBCD
-Add-DomainObjectAcl            Get-DomainForeignUser          Get-NetService                 Remove-DomainOU                Shutdown-Computer
-Add-DomainUser                 Get-DomainGMSA                 Get-NetSession                 Remove-DomainObject            Start-NetService
-Add-GMSA                       Get-DomainGPO                  Get-NetShare                   Remove-DomainObjectAcl         Stop-Computer
-Add-GPLink                     Get-DomainGPOLocalGroup        Get-NetTerminalSession         Remove-DomainUser              Stop-NetProcess
-Add-GPO                        Get-DomainGPOSettings          Get-ObjectAcl                  Remove-GMSA                    Stop-NetService
-Add-GroupMember                Get-DomainGroup                Get-ObjectOwner                Remove-GPLink                  Unlock-ADAccount
-Add-NetService                 Get-DomainGroupMember          Get-RBCD                       Remove-GroupMember             clear
-Add-OU                         Get-DomainOU                   Get-RegLoggedOn                Remove-NetService              exit
-Add-ObjectAcl                  Get-DomainObject               Get-SCCM                       Remove-NetSession              get_pool_stats
-Clear-Cache                    Get-DomainObjectAcl            Get-TrustKey                   Remove-NetTerminalSession      history
-ConvertFrom-SID                Get-DomainObjectOwner          Get-WDS                        Remove-OU                      taskkill
-ConvertFrom-UACValue           Get-DomainRBCD                 Invoke-ASREPRoast              Remove-ObjectAcl               tasklist
-Disable-DomainDNSRecord        Get-DomainSCCM                 Invoke-DFSCoerce               Restart-Computer
-Find-ForeignGroup              Get-DomainTrust                Invoke-Kerberoast              Restore-ADObject
-Set-ShadowCredential           Set-ShadowCred                 Invoke-MessageBox
+Add-DMSA                       Get-CATemplate                 Get-EventLogChannel            Remove-ADComputer              Set-DomainCATemplate
+Add-DomainCATemplate           Get-DMSA                       Get-EventLogPublisher          Remove-ADObject                Set-DomainComputerPassword
+Add-DomainCATemplateAcl        Get-Domain                     Get-ExchangeDatabase           Remove-ADUser                  Set-DomainDNSRecord
+Add-DomainComputer             Get-DomainCA                   Get-ExchangeMailbox            Remove-CATemplate              Set-DomainObject
+Add-DomainDMSA                 Get-DomainCATemplate           Get-ExchangeServer             Remove-DMSA                    Set-DomainObjectDN
+Add-DomainDNSRecord            Get-DomainComputer             Get-GMSA                       Remove-DomainCATemplate        Set-DomainObjectOwner
+Add-DomainGMSA                 Get-DomainController           Get-GPOLocalGroup              Remove-DomainComputer          Set-DomainRBCD
+Add-DomainGPO                  Get-DomainDMSA                 Get-GPOSettings                Remove-DomainDMSA              Set-DomainUserPassword
+Add-DomainGroup                Get-DomainDNSRecord            Get-LocalUser                  Remove-DomainDNSRecord         Set-NetService
+Add-DomainGroupMember          Get-DomainDNSZone              Get-NamedPipes                 Remove-DomainGMSA              Set-ObjectOwner
+Add-DomainOU                   Get-DomainForeignGroupMember   Get-NetComputerInfo            Remove-DomainGroupMember       Set-RBCD
+Add-DomainObjectAcl            Get-DomainForeignUser          Get-NetLoggedOn                Remove-DomainOU                Shutdown-Computer
+Add-DomainUser                 Get-DomainGMSA                 Get-NetProcess                 Remove-DomainObject            Start-NetService
+Add-GMSA                       Get-DomainGPO                  Get-NetService                 Remove-DomainObjectAcl         Stop-Computer
+Add-GPLink                     Get-DomainGPOLocalGroup        Get-NetSession                 Remove-DomainUser              Stop-NetProcess
+Add-GPO                        Get-DomainGPOSettings          Get-NetShare                   Remove-GMSA                    Stop-NetService
+Add-GroupMember                Get-DomainGroup                Get-NetTerminalSession         Remove-GPLink                  Unlock-ADAccount
+Add-NetService                 Get-DomainGroupMember          Get-ObjectAcl                  Remove-GroupMember             clear
+Add-OU                         Get-DomainOU                   Get-ObjectOwner                Remove-NetService              exit
+Add-ObjectAcl                  Get-DomainObject               Get-RBCD                       Remove-NetSession              get_pool_stats
+Clear-Cache                    Get-DomainObjectAcl            Get-RegLoggedOn                Remove-NetTerminalSession      history
+ConvertFrom-SID                Get-DomainObjectOwner          Get-SCCM                       Remove-OU                      taskkill
+ConvertFrom-UACValue           Get-DomainRBCD                 Get-TrustKey                   Remove-ObjectAcl               tasklist
+Disable-DomainDNSRecord        Get-DomainSCCM                 Get-WDS                        Restart-Computer
+Find-ForeignGroup              Get-DomainTrust                Invoke-ASREPRoast              Restore-ADObject
+Set-ShadowCredential           Set-ShadowCred                 Invoke-DFSCoerce               Invoke-Kerberoast
+                                                              Invoke-MessageBox
 ```
 
 ### Domain/LDAP Functions
@@ -252,6 +253,8 @@ Set-ShadowCredential           Set-ShadowCred                 Invoke-MessageBox
 |Get-NetShare||Query open shares on the local or a remote computer|
 |Get-NetLoggedOn||[MS-WKST] Query logged on users on the local or a remote computer|
 |Get-EventLog||[MS-EVEN6] Query Windows Event Logs from a remote computer via RPC|
+|Get-EventLogChannel||[MS-EVEN6] List event log channels on a remote computer with security product detection|
+|Get-EventLogPublisher||[MS-EVEN6] List event log publishers on a remote computer with security product detection|
 |Get-NetService||[MS-SCMR] Query running services on the local or a remote computer|
 |Stop-NetService||[MS-SCMR] Stop a specific service on the local or a remote computer|
 |Get-NetProcess|tasklist|[MS-TSTS] Query running processes on the local or a remote computer|
