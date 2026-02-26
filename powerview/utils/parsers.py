@@ -734,7 +734,6 @@ def powerview_arg_parse(cmd):
 	get_eventlog_cred_group = get_eventlog_parser.add_mutually_exclusive_group()
 	get_eventlog_cred_group.add_argument('-Password', action='store', default=None, dest='password')
 	get_eventlog_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
-	get_eventlog_parser.add_argument('-ResolveSIDs', action='store_true', default=False, dest='resolve_sids')
 	get_eventlog_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
 	get_eventlog_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_eventlog_parser.add_argument('-Server', action='store', dest='server')

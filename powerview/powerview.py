@@ -6227,7 +6227,6 @@ displayName=New Group Policy Object
 			target_user = args.target_user if hasattr(args, 'target_user') and args.target_user else None
 			use_export = args.export if hasattr(args, 'export') and args.export else False
 			raw = args.raw if hasattr(args, 'raw') and args.raw else False
-			resolve_sids = args.resolve_sids if hasattr(args, 'resolve_sids') and args.resolve_sids else False
 
 			xpath = eq.build_xpath_query(event_ids=event_ids, logon_types=logon_types, target_user=target_user)
 			logging.debug(f"[Get-EventLog] Channel: {channel}, XPath: {xpath}, Max: {max_events}")
@@ -6241,10 +6240,6 @@ displayName=New Group Policy Object
 				for xml_str in xml_strings:
 					normalized = eq.normalize_event(xml_str, raw=raw)
 					if normalized:
-						if resolve_sids:
-							for key in list(normalized.keys()):
-								if key.endswith('Sid') and isinstance(normalized[key], str) and normalized[key].startswith('S-'):
-									normalized[key] = self.convertfrom_sid(normalized[key])
 						entries.append({"attributes": normalized})
 			else:
 				raw_events = eq.query_events(channel=channel, xpath=xpath, max_events=max_events, newest_first=newest_first)
@@ -6254,10 +6249,6 @@ displayName=New Group Policy Object
 					if xml_str:
 						normalized = eq.normalize_event(xml_str, raw=raw)
 						if normalized:
-							if resolve_sids:
-								for key in list(normalized.keys()):
-									if key.endswith('Sid') and isinstance(normalized[key], str) and normalized[key].startswith('S-'):
-										normalized[key] = self.convertfrom_sid(normalized[key])
 							entries.append({"attributes": normalized})
 
 			return entries
