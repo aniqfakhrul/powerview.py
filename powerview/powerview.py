@@ -6224,11 +6224,12 @@ displayName=New Group Policy Object
 			max_events = args.max_events if hasattr(args, 'max_events') and args.max_events else 100
 			newest_first = args.newest_first if hasattr(args, 'newest_first') else True
 			logon_types = args.logon_type if hasattr(args, 'logon_type') and args.logon_type else None
+			target_user = args.target_user if hasattr(args, 'target_user') and args.target_user else None
 			use_export = args.export if hasattr(args, 'export') and args.export else False
 			raw = args.raw if hasattr(args, 'raw') and args.raw else False
 			resolve_sids = args.resolve_sids if hasattr(args, 'resolve_sids') and args.resolve_sids else False
 
-			xpath = eq.build_xpath_query(event_ids=event_ids, logon_types=logon_types)
+			xpath = eq.build_xpath_query(event_ids=event_ids, logon_types=logon_types, target_user=target_user)
 			logging.debug(f"[Get-EventLog] Channel: {channel}, XPath: {xpath}, Max: {max_events}")
 
 			if use_export:

@@ -451,7 +451,7 @@ class EventLogQuery:
 
         return self._parse_lpwstr_array(raw, 8)
 
-    def build_xpath_query(self, event_ids=None, logon_types=None):
+    def build_xpath_query(self, event_ids=None, logon_types=None, target_user=None):
         """Build an XPath query for the event log."""
         conditions = []
 
@@ -473,6 +473,9 @@ class EventLogQuery:
             else:
                 lt_list = " or ".join([f"Data[@Name='LogonType']='{lt}'" for lt in logon_types])
                 data_conditions.append(f"({lt_list})")
+
+        if target_user:
+            data_conditions.append(f"Data[@Name='TargetUserName']='{target_user}'")
 
         event_data_filter = ""
         if data_conditions:

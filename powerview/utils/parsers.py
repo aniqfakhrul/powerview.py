@@ -725,6 +725,7 @@ def powerview_arg_parse(cmd):
 	get_eventlog_parser.add_argument('-Channel', action='store', default='Security', dest='channel')
 	get_eventlog_parser.add_argument('-EventId', nargs='+', type=int, default=[4624], dest='event_id')
 	get_eventlog_parser.add_argument('-LogonType', nargs='+', type=int, default=None, dest='logon_type')
+	get_eventlog_parser.add_argument('-TargetUser', action='store', default=None, dest='target_user')
 	get_eventlog_parser.add_argument('-MaxEvents', action='store', type=int, default=100, dest='max_events')
 	get_eventlog_parser.add_argument('-NewestFirst', action='store_true', default=True, dest='newest_first')
 	get_eventlog_parser.add_argument('-Export', action='store_true', default=False, dest='export')

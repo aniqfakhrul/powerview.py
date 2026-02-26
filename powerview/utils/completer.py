@@ -60,7 +60,7 @@ COMMANDS = {
     'taskkill':['-Computer','-ComputerName','-Pid','-Name','-Username','-Password','-Hash','-Server', '-OutFile', '-TableView', '-SortBy'],
     'Get-NetComputerInfo':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Get-NetLoggedOn':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
-    'Get-EventLog':['-Computer','-ComputerName','-Channel','-EventId','-LogonType','-MaxEvents','-NewestFirst','-Export','-Raw','-ResolveSIDs','-Username','-Password','-Hash','-Server','-Count','-NoWrap','-TableView','-SortBy','-OutFile'],
+    'Get-EventLog':['-Computer','-ComputerName','-Channel','-EventId','-LogonType','-TargetUser','-MaxEvents','-NewestFirst','-Export','-Raw','-ResolveSIDs','-Username','-Password','-Hash','-Server','-Count','-NoWrap','-TableView','-SortBy','-OutFile'],
     'Get-EventLogChannel':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server','-Count','-NoWrap','-TableView','-SortBy','-OutFile'],
     'Get-EventLogPublisher':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server','-Count','-NoWrap','-TableView','-SortBy','-OutFile'],
     'Get-RegLoggedOn':['-Computer','-ComputerName','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
