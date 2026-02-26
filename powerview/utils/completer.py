@@ -60,6 +60,7 @@ COMMANDS = {
     'taskkill':['-Computer','-ComputerName','-Pid','-Name','-Username','-Password','-Hash','-Server', '-OutFile', '-TableView', '-SortBy'],
     'Get-NetComputerInfo':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Get-NetLoggedOn':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
+    'Get-EventLog':['-Computer','-ComputerName','-Channel','-EventId','-LogonType','-MaxEvents','-NewestFirst','-Export','-ListChannels','-Raw','-ResolveSIDs','-Username','-Password','-Hash','-Server','-Count','-NoWrap','-TableView','-SortBy','-OutFile'],
     'Get-RegLoggedOn':['-Computer','-ComputerName','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Get-NetService':['-Name','-Computer','-ComputerName','-IsRunning','-IsStopped','-Server', '-Count', '-OutFile', '-TableView', '-SortBy'],
     'Find-LocalAdminAccess':['-Computer','-ComputerName','-Username','-Password','-Hash','-NoResolve','-Server', '-Count', '-OutFile', '-TableView'],

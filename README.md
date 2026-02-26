@@ -155,36 +155,36 @@ powerview range.net/lowpriv:Password123@192.168.86.192 --obfuscate
 
 ```cs
 PV >
-Add-ADComputer                 Find-ForeignUser               Get-DomainTrustKey             Invoke-PrinterBug              Restore-DomainObject 
-Add-ADUser                     Find-LocalAdminAccess          Get-DomainUser                 Login-As                       Set-ADObject 
-Add-CATemplate                 Get-ADObject                   Get-DomainWDS                  Logoff-Session                 Set-ADObjectDN 
-Add-CATemplateAcl              Get-CA                         Get-ExchangeDatabase           Reboot-Computer                Set-CATemplate 
-Add-DMSA                       Get-CATemplate                 Get-ExchangeMailbox            Remove-ADComputer              Set-DomainCATemplate 
-Add-DomainCATemplate           Get-DMSA                       Get-ExchangeServer             Remove-ADObject                Set-DomainComputerPassword 
-Add-DomainCATemplateAcl        Get-Domain                     Get-GMSA                       Remove-ADUser                  Set-DomainDNSRecord 
-Add-DomainComputer             Get-DomainCA                   Get-GPOLocalGroup              Remove-CATemplate              Set-DomainObject 
-Add-DomainDMSA                 Get-DomainCATemplate           Get-GPOSettings                Remove-DMSA                    Set-DomainObjectDN 
-Add-DomainDNSRecord            Get-DomainComputer             Get-LocalUser                  Remove-DomainCATemplate        Set-DomainObjectOwner 
-Add-DomainGMSA                 Get-DomainController           Get-NamedPipes                 Remove-DomainComputer          Set-DomainRBCD 
-Add-DomainGPO                  Get-DomainDMSA                 Get-NetComputerInfo            Remove-DomainDMSA              Set-DomainUserPassword 
-Add-DomainGroup                Get-DomainDNSRecord            Get-NetLoggedOn                Remove-DomainDNSRecord         Set-NetService 
-Add-DomainGroupMember          Get-DomainDNSZone              Get-NetProcess                 Remove-DomainGMSA              Set-ObjectOwner 
-Add-DomainOU                   Get-DomainForeignGroupMember   Get-NetService                 Remove-DomainGroupMember       Set-RBCD 
-Add-DomainObjectAcl            Get-DomainForeignUser          Get-NetSession                 Remove-DomainOU                Shutdown-Computer 
-Add-DomainUser                 Get-DomainGMSA                 Get-NetShare                   Remove-DomainObject            Start-NetService 
-Add-GMSA                       Get-DomainGPO                  Get-NetTerminalSession         Remove-DomainObjectAcl         Stop-Computer 
-Add-GPLink                     Get-DomainGPOLocalGroup        Get-ObjectAcl                  Remove-DomainUser              Stop-NetProcess 
-Add-GPO                        Get-DomainGPOSettings          Get-ObjectOwner                Remove-GMSA                    Stop-NetService 
-Add-GroupMember                Get-DomainGroup                Get-RBCD                       Remove-GPLink                  Unlock-ADAccount 
-Add-NetService                 Get-DomainGroupMember          Get-RegLoggedOn                Remove-GroupMember             clear 
-Add-OU                         Get-DomainOU                   Get-SCCM                       Remove-NetService              exit 
-Add-ObjectAcl                  Get-DomainObject               Get-TrustKey                   Remove-NetSession              get_pool_stats 
-Clear-Cache                    Get-DomainObjectAcl            Get-WDS                        Remove-NetTerminalSession      history 
-ConvertFrom-SID                Get-DomainObjectOwner          Invoke-ASREPRoast              Remove-OU                      taskkill 
-ConvertFrom-UACValue           Get-DomainRBCD                 Invoke-DFSCoerce               Remove-ObjectAcl               tasklist 
-Disable-DomainDNSRecord        Get-DomainSCCM                 Invoke-Kerberoast              Restart-Computer               
-Find-ForeignGroup              Get-DomainTrust                Invoke-MessageBox              Restore-ADObject               
-Set-ShadowCredential           Set-ShadowCred
+Add-ADComputer                 Find-ForeignUser               Get-DomainTrustKey             Invoke-PrinterBug              Restore-DomainObject
+Add-ADUser                     Find-LocalAdminAccess          Get-DomainUser                 Login-As                       Set-ADObject
+Add-CATemplate                 Get-ADObject                   Get-DomainWDS                  Logoff-Session                 Set-ADObjectDN
+Add-CATemplateAcl              Get-CA                         Get-EventLog                   Reboot-Computer                Set-CATemplate
+Add-DMSA                       Get-CATemplate                 Get-ExchangeDatabase           Remove-ADComputer              Set-DomainCATemplate
+Add-DomainCATemplate           Get-DMSA                       Get-ExchangeMailbox            Remove-ADObject                Set-DomainComputerPassword
+Add-DomainCATemplateAcl        Get-Domain                     Get-ExchangeServer             Remove-ADUser                  Set-DomainDNSRecord
+Add-DomainComputer             Get-DomainCA                   Get-GMSA                       Remove-CATemplate              Set-DomainObject
+Add-DomainDMSA                 Get-DomainCATemplate           Get-GPOLocalGroup              Remove-DMSA                    Set-DomainObjectDN
+Add-DomainDNSRecord            Get-DomainComputer             Get-GPOSettings                Remove-DomainCATemplate        Set-DomainObjectOwner
+Add-DomainGMSA                 Get-DomainController           Get-LocalUser                  Remove-DomainComputer          Set-DomainRBCD
+Add-DomainGPO                  Get-DomainDMSA                 Get-NamedPipes                 Remove-DomainDMSA              Set-DomainUserPassword
+Add-DomainGroup                Get-DomainDNSRecord            Get-NetComputerInfo            Remove-DomainDNSRecord         Set-NetService
+Add-DomainGroupMember          Get-DomainDNSZone              Get-NetLoggedOn                Remove-DomainGMSA              Set-ObjectOwner
+Add-DomainOU                   Get-DomainForeignGroupMember   Get-NetProcess                 Remove-DomainGroupMember       Set-RBCD
+Add-DomainObjectAcl            Get-DomainForeignUser          Get-NetService                 Remove-DomainOU                Shutdown-Computer
+Add-DomainUser                 Get-DomainGMSA                 Get-NetSession                 Remove-DomainObject            Start-NetService
+Add-GMSA                       Get-DomainGPO                  Get-NetShare                   Remove-DomainObjectAcl         Stop-Computer
+Add-GPLink                     Get-DomainGPOLocalGroup        Get-NetTerminalSession         Remove-DomainUser              Stop-NetProcess
+Add-GPO                        Get-DomainGPOSettings          Get-ObjectAcl                  Remove-GMSA                    Stop-NetService
+Add-GroupMember                Get-DomainGroup                Get-ObjectOwner                Remove-GPLink                  Unlock-ADAccount
+Add-NetService                 Get-DomainGroupMember          Get-RBCD                       Remove-GroupMember             clear
+Add-OU                         Get-DomainOU                   Get-RegLoggedOn                Remove-NetService              exit
+Add-ObjectAcl                  Get-DomainObject               Get-SCCM                       Remove-NetSession              get_pool_stats
+Clear-Cache                    Get-DomainObjectAcl            Get-TrustKey                   Remove-NetTerminalSession      history
+ConvertFrom-SID                Get-DomainObjectOwner          Get-WDS                        Remove-OU                      taskkill
+ConvertFrom-UACValue           Get-DomainRBCD                 Invoke-ASREPRoast              Remove-ObjectAcl               tasklist
+Disable-DomainDNSRecord        Get-DomainSCCM                 Invoke-DFSCoerce               Restart-Computer
+Find-ForeignGroup              Get-DomainTrust                Invoke-Kerberoast              Restore-ADObject
+Set-ShadowCredential           Set-ShadowCred                 Invoke-MessageBox
 ```
 
 ### Domain/LDAP Functions
@@ -251,6 +251,7 @@ Set-ShadowCredential           Set-ShadowCred
 |Get-NetSession||[MS-SRVS] Query session information for the local or a remote computer|
 |Get-NetShare||Query open shares on the local or a remote computer|
 |Get-NetLoggedOn||[MS-WKST] Query logged on users on the local or a remote computer|
+|Get-EventLog||[MS-EVEN6] Query Windows Event Logs from a remote computer via RPC|
 |Get-NetService||[MS-SCMR] Query running services on the local or a remote computer|
 |Stop-NetService||[MS-SCMR] Stop a specific service on the local or a remote computer|
 |Get-NetProcess|tasklist|[MS-TSTS] Query running processes on the local or a remote computer|

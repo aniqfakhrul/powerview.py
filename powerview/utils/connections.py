@@ -2351,9 +2351,10 @@ class CONNECTION:
 		nthash=None,
 		stringBindings=None,
 		interface_uuid=None,
-		port=445,
+		port=None,
 		auth=True,
 		set_authn=False,
+		authn_level=None,
 		raise_exceptions=False
 	):
 		if self.stack_trace:
@@ -2390,7 +2391,8 @@ class CONNECTION:
 
 		logging.debug(f"[RPCTransport] Connecting to {stringBindings}")
 		rpctransport = transport.DCERPCTransportFactory(stringBindings)
-		rpctransport.set_dport(port)
+		if port is not None:
+			rpctransport.set_dport(port)
 
 		if hasattr(rpctransport, 'set_credentials') and auth:
 			rpctransport.set_credentials(username, password, domain, lmhash, nthash, TGT=self.TGT)
@@ -2405,7 +2407,9 @@ class CONNECTION:
 		if self.use_kerberos:
 			dce.set_auth_type(RPC_C_AUTHN_GSS_NEGOTIATE)
 
-		if set_authn:
+		if authn_level is not None:
+			dce.set_auth_level(authn_level)
+		elif set_authn:
 			dce.set_auth_type(RPC_C_AUTHN_WINNT)
 			dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
 

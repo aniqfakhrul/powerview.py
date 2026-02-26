@@ -6225,6 +6225,91 @@ displayName=New Group Policy Object
 		dce.disconnect()
 		return entries
 
+	def get_eventlog(self, computer_name, username=None, password=None, domain=None, lmhash=None, nthash=None, args=None):
+		from powerview.modules.eventlog import EventLogQuery
+
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				logging.warning(f"[Get-EventLog] Using identity {args.username} from supplied username. Ignoring current user context...")
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'hash') and args.hash:
+				if ':' in args.hash:
+					lmhash, nthash = args.hash.split(':')
+				else:
+					nthash = args.hash
+			if lmhash is None and hasattr(args, 'lmhash') and args.lmhash:
+				lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+
+		if username and not (password or lmhash or nthash):
+			logging.error("[Get-EventLog] Password or hash is required when specifying a username")
+			return
+
+		computer_name = self._resolve_host(computer_name)
+		if not computer_name:
+			return
+
+		eq = EventLogQuery(self.conn)
+		if not eq.connect_even6(computer_name, username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash):
+			logging.error(f"[Get-EventLog] Failed to connect to {computer_name}")
+			return
+
+		try:
+			# List channels mode
+			if hasattr(args, 'list_channels') and args.list_channels:
+				channels = eq.list_channels()
+				entries = []
+				for ch in sorted(channels):
+					entries.append({"attributes": {"Channel": ch}})
+				return entries
+
+			channel = args.channel if hasattr(args, 'channel') and args.channel else "Security"
+			event_ids = args.event_id if hasattr(args, 'event_id') and args.event_id else [4624]
+			max_events = args.max_events if hasattr(args, 'max_events') and args.max_events else 100
+			newest_first = args.newest_first if hasattr(args, 'newest_first') else True
+			logon_types = args.logon_type if hasattr(args, 'logon_type') and args.logon_type else None
+			use_export = args.export if hasattr(args, 'export') and args.export else False
+			raw = args.raw if hasattr(args, 'raw') and args.raw else False
+			resolve_sids = args.resolve_sids if hasattr(args, 'resolve_sids') and args.resolve_sids else False
+
+			xpath = eq.build_xpath_query(event_ids=event_ids, logon_types=logon_types)
+			logging.debug(f"[Get-EventLog] Channel: {channel}, XPath: {xpath}, Max: {max_events}")
+
+			if use_export:
+				xml_strings = eq.export_events(
+					channel=channel, xpath=xpath, host=computer_name, max_events=max_events,
+					username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash
+				)
+				entries = []
+				for xml_str in xml_strings:
+					normalized = eq.normalize_event(xml_str, raw=raw)
+					if normalized:
+						if resolve_sids:
+							for key in list(normalized.keys()):
+								if key.endswith('Sid') and isinstance(normalized[key], str) and normalized[key].startswith('S-'):
+									normalized[key] = self.convertfrom_sid(normalized[key])
+						entries.append({"attributes": normalized})
+			else:
+				raw_events = eq.query_events(channel=channel, xpath=xpath, max_events=max_events, newest_first=newest_first)
+				entries = []
+				for raw_data in raw_events:
+					xml_str = eq.parse_event_xml(raw_data)
+					if xml_str:
+						normalized = eq.normalize_event(xml_str, raw=raw)
+						if normalized:
+							if resolve_sids:
+								for key in list(normalized.keys()):
+									if key.endswith('Sid') and isinstance(normalized[key], str) and normalized[key].startswith('S-'):
+										normalized[key] = self.convertfrom_sid(normalized[key])
+							entries.append({"attributes": normalized})
+
+			return entries
+		finally:
+			eq.disconnect()
+
 	def get_netcomputerinfo(self,
 		computer_name,
 		username=None,
