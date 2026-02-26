@@ -376,6 +376,67 @@ EDRS = [
 	}
 ]
 
+FINGERPRINTS = {
+	'edr_av': {
+		'label': 'EDR/AV',
+		'keywords': [
+			'defender', 'crowdstrike', 'sentinelone', 'sentinel', 'carbonblack',
+			'carbon black', 'cylance', 'symantec', 'kaspersky', 'sophos',
+			'eset', 'mcafee', 'trellix', 'trend micro', 'bitdefender',
+			'malware', 'antimalware', 'antivirus', 'sysmon', 'fireeye',
+			'mandiant', 'cortex', 'palo alto', 'falcon', 'cb defense',
+			'cybereason', 'elastic-endpoint', 'wdfilter', 'amfilter',
+		],
+	},
+	'adcs': {
+		'label': 'AD CS',
+		'keywords': [
+			'certificateservices', 'certificationauthority', 'certenroll',
+			'enrollment', 'cert-', 'pki', 'adcs', 'certificate-lifecycle',
+		],
+	},
+	'auth': {
+		'label': 'Authentication',
+		'keywords': [
+			'kerberos', 'ntlm', 'credential', 'lsass', 'smartcard',
+			'biometric', 'passkey', 'webauthn', 'fido', 'ngc',
+			'windows hello', 'tpm', 'credentialprovider',
+		],
+	},
+	'roles': {
+		'label': 'Server Roles',
+		'keywords': [
+			'dns-server', 'dnsserver', 'dhcp', 'hyper-v', 'hyperv',
+			'iis', 'exchange', 'sqlserver', 'sql-server', 'rds',
+			'terminalservices', 'remote desktop', 'nps', 'radius',
+			'adfs', 'federation', 'wap', 'wsus', 'sccm', 'configmgr',
+			'failovercluster', 'dfs', 'fileserver',
+		],
+	},
+	'security_tools': {
+		'label': 'Security/Monitoring',
+		'keywords': [
+			'sysmon', 'eventforwarding', 'wef', 'wec-', 'wecsvc',
+			'audit-cve', 'applocker', 'codeintegrity', 'deviceguard',
+			'exploit-protection', 'asr-', 'attack surface',
+		],
+	},
+	'backup': {
+		'label': 'Backup/Recovery',
+		'keywords': [
+			'veeam', 'backup', 'acronis', 'commvault', 'veritas',
+			'dpm', 'system center',
+		],
+	},
+	'remote': {
+		'label': 'Remote Access',
+		'keywords': [
+			'openssh', 'winrm', 'powershell-remoting', 'rdp',
+			'vpn', 'directaccess', 'always-on-vpn',
+		],
+	},
+}
+
 class EDR:
 	def __init__(self):
 		self.names = []
@@ -391,3 +452,18 @@ class EDR:
 			return True
 		else:
 			return False
+
+	@staticmethod
+	def classify(name):
+		"""Classify a channel/publisher name against the fingerprint database.
+		Returns a dict of matching category_id -> label."""
+		if not name:
+			return {}
+		lower = name.lower()
+		hits = {}
+		for cat_id, cat_info in FINGERPRINTS.items():
+			for kw in cat_info['keywords']:
+				if kw in lower:
+					hits[cat_id] = cat_info['label']
+					break
+		return hits

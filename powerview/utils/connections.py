@@ -2435,6 +2435,18 @@ class CONNECTION:
 			else:
 				return
 
+	def connectEVEN6(self, host, username=None, password=None, domain=None, lmhash=None, nthash=None):
+		"""Connect to EVEN6 RPC endpoint and return an EventLogQuery instance.
+
+		Tries TCP via EPM first (required for Server 2025), falls back to named pipe.
+		"""
+		from powerview.modules.eventlog import EventLogQuery
+
+		eq = EventLogQuery(self)
+		if eq.connect_even6(host, username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash):
+			return eq
+		return None
+
 	# stolen from pywerview
 	def create_rpc_connection(self, host, pipe):
 		binding_strings = dict()

@@ -344,21 +344,112 @@ class EventLogQuery:
                 pass
             self.dce = None
 
+    @staticmethod
+    def _align4(offset):
+        return (offset + 3) & ~3
+
+    @staticmethod
+    def _parse_lpwstr_array(raw, offset):
+        """Parse a conformant array of LPWSTR from NDR wire data."""
+        strings = []
+        if offset + 4 > len(raw):
+            return strings
+
+        max_count = struct.unpack_from('<I', raw, offset)[0]
+        offset += 4
+
+        referents = []
+        for _ in range(max_count):
+            if offset + 4 > len(raw):
+                break
+            referents.append(struct.unpack_from('<I', raw, offset)[0])
+            offset += 4
+
+        for ref in referents:
+            if ref == 0:
+                continue
+            if offset + 12 > len(raw):
+                break
+            str_max = struct.unpack_from('<I', raw, offset)[0]; offset += 4
+            str_off = struct.unpack_from('<I', raw, offset)[0]; offset += 4
+            str_act = struct.unpack_from('<I', raw, offset)[0]; offset += 4
+
+            byte_len = str_act * 2
+            if offset + byte_len > len(raw):
+                break
+
+            data = raw[offset:offset + byte_len]
+            offset += byte_len
+            offset = EventLogQuery._align4(offset)
+
+            try:
+                strings.append(data.decode('utf-16-le').rstrip('\x00'))
+            except Exception:
+                pass
+
+        return strings
+
     def list_channels(self):
-        """List available event log channels on the remote host."""
-        # Increase fragment size for the large channel list response
-        self.dce.set_max_fragment_size(65535)
+        """List available event log channels using raw DCE/RPC call.
+
+        Uses manual NDR parsing instead of impacket's hEvtRpcGetChannelList
+        which has a conformant array buffer overflow bug on large responses.
+        """
         try:
-            resp = even6.hEvtRpcGetChannelList(self.dce)
+            # EvtRpcGetChannelList (opnum 19), flags = 0
+            self.dce.call(19, struct.pack('<I', 0))
+            raw = self.dce.recv()
         except Exception as e:
             logging.error(f"[Get-EventLog] Failed to list channels: {e}")
             return []
-        channels = []
-        for i in range(resp['NumChannelPaths']):
-            channel_name = resp['ChannelPaths'][i]['Data']
-            if channel_name:
-                channels.append(channel_name.rstrip('\x00'))
-        return channels
+
+        if len(raw) < 12:
+            logging.error(f"[Get-EventLog] Channel list response too short: {len(raw)} bytes")
+            return []
+
+        retval = struct.unpack_from('<I', raw, len(raw) - 4)[0]
+        if retval != 0:
+            logging.error(f"[Get-EventLog] EvtRpcGetChannelList returned error: 0x{retval:08x}")
+            return []
+
+        num_channels = struct.unpack_from('<I', raw, 0)[0]
+        ptr = struct.unpack_from('<I', raw, 4)[0]
+
+        if ptr == 0 or num_channels == 0:
+            return []
+
+        return self._parse_lpwstr_array(raw, 8)
+
+    def list_publishers(self):
+        """List event publishers using raw DCE/RPC call.
+
+        Uses manual NDR parsing instead of impacket's built-in function
+        which has a conformant array buffer overflow bug on large responses.
+        """
+        try:
+            # EvtRpcGetPublisherList (opnum 22), flags = 0
+            self.dce.call(22, struct.pack('<I', 0))
+            raw = self.dce.recv()
+        except Exception as e:
+            logging.error(f"[Get-EventLog] Failed to list publishers: {e}")
+            return []
+
+        if len(raw) < 12:
+            logging.error(f"[Get-EventLog] Publisher list response too short: {len(raw)} bytes")
+            return []
+
+        retval = struct.unpack_from('<I', raw, len(raw) - 4)[0]
+        if retval != 0:
+            logging.error(f"[Get-EventLog] EvtRpcGetPublisherList returned error: 0x{retval:08x}")
+            return []
+
+        num_publishers = struct.unpack_from('<I', raw, 0)[0]
+        ptr = struct.unpack_from('<I', raw, 4)[0]
+
+        if ptr == 0 or num_publishers == 0:
+            return []
+
+        return self._parse_lpwstr_array(raw, 8)
 
     def build_xpath_query(self, event_ids=None, logon_types=None):
         """Build an XPath query for the event log."""

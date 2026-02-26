@@ -227,6 +227,12 @@ def main():
                             elif pv_args.module.casefold() == 'get-eventlog':
                                 computername = pv_args.computer if pv_args.computer else pv_args.computername
                                 entries = pv.get_eventlog(computer_name=computername, args=pv_args)
+                            elif pv_args.module.casefold() == 'get-eventlogchannel':
+                                computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                entries = pv.get_eventlogchannel(computer_name=computername, args=pv_args)
+                            elif pv_args.module.casefold() == 'get-eventlogpublisher':
+                                computername = pv_args.computer if pv_args.computer else pv_args.computername
+                                entries = pv.get_eventlogpublisher(computer_name=computername, args=pv_args)
                             elif pv_args.module.casefold() == 'get-netservice':
                                 computername = pv_args.computer if pv_args.computer else pv_args.computername
                                 entries = pv.get_netservice(

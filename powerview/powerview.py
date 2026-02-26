@@ -6008,21 +6008,7 @@ displayName=New Group Policy Object
 		host_entries = []
 		computer = args.computer if hasattr(args, 'computer') and args.computer else computer
 		no_resolve = args.no_resolve if hasattr(args, 'no_resolve') and args.no_resolve else no_resolve
-		if args:
-			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Find-LocalAdminAccess] Using identity {args.username} from supplied username. Ignoring current user context...")
-				username = args.username
-			if password is None and hasattr(args, 'password') and args.password:
-				password = args.password
-			if nthash is None and hasattr(args, 'hash') and args.hash:
-				if ':' in args.hash:
-					lmhash, nthash = args.hash.split(':')
-				else:
-					nthash = args.hash
-			if lmhash is None and hasattr(args, 'lmhash') and args.lmhash:
-				lmhash = args.lmhash
-			if domain is None and hasattr(args, 'domain') and args.domain:
-				domain = args.domain
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
 
 		if username and not (password or lmhash or nthash):
 			logging.error("[Find-LocalAdminAccess] Password or hash is required when specifying a username")
@@ -6055,7 +6041,10 @@ displayName=New Group Policy Object
 		else:
 			entries = self.get_domaincomputer(properties=['dnsHostName'], no_cache=no_cache)
 			for entry in entries:
-				dnshostname = entry.get('attributes', {}).get('dNSHostName', '').lower()
+				dnshostname = entry.get('attributes', {}).get('dNSHostName', '')
+				if isinstance(dnshostname, list):
+					dnshostname = dnshostname[0] if dnshostname else ''
+				dnshostname = dnshostname.lower()
 				if dnshostname:
 					resolved = resolve_host(dnshostname)
 					if resolved:
@@ -6141,18 +6130,7 @@ displayName=New Group Policy Object
 		return entries
 
 	def get_netloggedon(self, computer_name, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
-		if args:
-			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Get-NetLoggedOn] Using identity {args.username} from supplied username. Ignoring current user context...")
-				username = args.username
-			if password is None and hasattr(args, 'password') and args.password:
-				password = args.password
-			if nthash is None and hasattr(args, 'nthash'):
-				nthash = args.nthash
-			if lmhash is None and hasattr(args, 'lmhash'):
-				lmhash = args.lmhash
-			if domain is None and hasattr(args, 'domain') and args.domain:
-				domain = args.domain
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
 
 		if username and not (password or lmhash or nthash):
 			logging.error("[Get-NetLoggedOn] Password or hash is required when specifying a username")
@@ -6226,24 +6204,7 @@ displayName=New Group Policy Object
 		return entries
 
 	def get_eventlog(self, computer_name, username=None, password=None, domain=None, lmhash=None, nthash=None, args=None):
-		from powerview.modules.eventlog import EventLogQuery
-
-		if args:
-			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Get-EventLog] Using identity {args.username} from supplied username. Ignoring current user context...")
-				username = args.username
-			if password is None and hasattr(args, 'password') and args.password:
-				password = args.password
-			if nthash is None and hasattr(args, 'hash') and args.hash:
-				if ':' in args.hash:
-					lmhash, nthash = args.hash.split(':')
-				else:
-					nthash = args.hash
-			if lmhash is None and hasattr(args, 'lmhash') and args.lmhash:
-				lmhash = args.lmhash
-			if domain is None and hasattr(args, 'domain') and args.domain:
-				domain = args.domain
-
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
 		if username and not (password or lmhash or nthash):
 			logging.error("[Get-EventLog] Password or hash is required when specifying a username")
 			return
@@ -6252,20 +6213,12 @@ displayName=New Group Policy Object
 		if not computer_name:
 			return
 
-		eq = EventLogQuery(self.conn)
-		if not eq.connect_even6(computer_name, username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash):
+		eq = self.conn.connectEVEN6(computer_name, username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash)
+		if not eq:
 			logging.error(f"[Get-EventLog] Failed to connect to {computer_name}")
 			return
 
 		try:
-			# List channels mode
-			if hasattr(args, 'list_channels') and args.list_channels:
-				channels = eq.list_channels()
-				entries = []
-				for ch in sorted(channels):
-					entries.append({"attributes": {"Channel": ch}})
-				return entries
-
 			channel = args.channel if hasattr(args, 'channel') and args.channel else "Security"
 			event_ids = args.event_id if hasattr(args, 'event_id') and args.event_id else [4624]
 			max_events = args.max_events if hasattr(args, 'max_events') and args.max_events else 100
@@ -6310,6 +6263,79 @@ displayName=New Group Policy Object
 		finally:
 			eq.disconnect()
 
+	def _extract_alt_creds(self, username, password, domain, lmhash, nthash, args):
+		"""Extract alternate credentials from args, overriding None values."""
+		if args:
+			if username is None and hasattr(args, 'username') and args.username:
+				username = args.username
+			if password is None and hasattr(args, 'password') and args.password:
+				password = args.password
+			if nthash is None and hasattr(args, 'nthash') and args.nthash:
+				nthash = args.nthash
+			if lmhash is None and hasattr(args, 'lmhash') and args.lmhash:
+				lmhash = args.lmhash
+			if domain is None and hasattr(args, 'domain') and args.domain:
+				domain = args.domain
+		return username, password, domain, lmhash, nthash
+
+	def get_eventlogchannel(self, computer_name, username=None, password=None, domain=None, lmhash=None, nthash=None, args=None):
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
+		if username and not (password or lmhash or nthash):
+			logging.error("[Get-EventLogChannel] Password or hash is required when specifying a username")
+			return
+
+		computer_name = self._resolve_host(computer_name)
+		if not computer_name:
+			return
+
+		eq = self.conn.connectEVEN6(computer_name, username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash)
+		if not eq:
+			logging.error(f"[Get-EventLogChannel] Failed to connect to {computer_name}")
+			return
+
+		try:
+			channels = eq.list_channels()
+			entries = []
+			edr = EDR()
+			for ch in sorted(channels):
+				attrs = {"Channel": ch}
+				hits = edr.classify(ch)
+				if hits:
+					attrs["Product"] = ", ".join(hits.values())
+				entries.append({"attributes": attrs})
+			return entries
+		finally:
+			eq.disconnect()
+
+	def get_eventlogpublisher(self, computer_name, username=None, password=None, domain=None, lmhash=None, nthash=None, args=None):
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
+		if username and not (password or lmhash or nthash):
+			logging.error("[Get-EventLogPublisher] Password or hash is required when specifying a username")
+			return
+
+		computer_name = self._resolve_host(computer_name)
+		if not computer_name:
+			return
+
+		eq = self.conn.connectEVEN6(computer_name, username=username, password=password, domain=domain, lmhash=lmhash, nthash=nthash)
+		if not eq:
+			logging.error(f"[Get-EventLogPublisher] Failed to connect to {computer_name}")
+			return
+
+		try:
+			publishers = eq.list_publishers()
+			entries = []
+			edr = EDR()
+			for pub in sorted(publishers):
+				attrs = {"Publisher": pub}
+				hits = edr.classify(pub)
+				if hits:
+					attrs["Product"] = ", ".join(hits.values())
+				entries.append({"attributes": attrs})
+			return entries
+		finally:
+			eq.disconnect()
+
 	def get_netcomputerinfo(self,
 		computer_name,
 		username=None,
@@ -6320,21 +6346,10 @@ displayName=New Group Policy Object
 		port=445,
 		args=None
 	):
-		if args:
-			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Get-NetComputerInfo] Using identity {args.username} from supplied username. Ignoring current user context...")
-				username = args.username
-			if password is None and hasattr(args, 'password') and args.password:
-				password = args.password
-			if nthash is None and hasattr(args, 'nthash'):
-				nthash = args.nthash
-			if lmhash is None and hasattr(args, 'lmhash'):
-				 lmhash = args.lmhash
-			if domain is None and hasattr(args, 'domain') and args.domain:
-				domain = args.domain
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
 
 		if username and not (password or lmhash or nthash):
-			logging.error("[Get-ComputerInfo] Password or hash is required when specifying a username")
+			logging.error("[Get-NetComputerInfo] Password or hash is required when specifying a username")
 			return
 
 		KNOWN_PROTOCOLS = {
@@ -6994,25 +7009,15 @@ displayName=New Group Policy Object
 		return entries
 
 	def invoke_messagebox(self, identity=None, session_id=None, title=None, message=None, style=MSGBOX_TYPE.MB_OKCANCEL, timeout=0, dontwait=True, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
 		if args:
-			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Invoke-MessageBox] Using identity {args.username} from supplied username. Ignoring current user context...")
-				username = args.username
-			if password is None and hasattr(args, 'password') and args.password:
-				password = args.password
-			if nthash is None and hasattr(args, 'nthash'):
-				 nthash = args.nthash
-			if lmhash is None and hasattr(args, 'lmhash'):
-				 lmhash = args.lmhash
-			if domain is None and hasattr(args, 'domain') and args.domain:
-				domain = args.domain
 			if session_id is None and hasattr(args, 'session_id'):
 				session_id = args.session_id
 			if title is None and hasattr(args, 'title'):
 				title = args.title
 			if message is None and hasattr(args, 'message'):
 				message = args.message
-			
+
 		if username and not (password or lmhash or nthash):
 			logging.error("[Invoke-MessageBox] Password or hash is required when specifying a username")
 			return
@@ -7251,19 +7256,8 @@ displayName=New Group Policy Object
 		return entries
 
 	def get_netterminalsession(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
-		if args:
-			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Get-NetTerminalSession] Using identity {args.username} from supplied username. Ignoring current user context...")
-				username = args.username
-			if password is None and hasattr(args, 'password') and args.password:
-				password = args.password
-			if nthash is None and hasattr(args, 'nthash'):
-				 nthash = args.nthash
-			if lmhash is None and hasattr(args, 'lmhash'):
-				 lmhash = args.lmhash
-			if domain is None and hasattr(args, 'domain') and args.domain:
-				domain = args.domain
-		
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
+
 		if username and not (password or lmhash or nthash):
 			logging.error("[Get-NetTerminalSession] Password or hash is required when specifying a username")
 			return
@@ -7290,21 +7284,11 @@ displayName=New Group Policy Object
 		return results
 
 	def remove_netterminalsession(self, identity=None, session_id=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
 		if args:
-			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Remove-NetTerminalSession] Using identity {args.username} from supplied username. Ignoring current user context...")
-				username = args.username
-			if password is None and hasattr(args, 'password') and args.password:
-				password = args.password
-			if nthash is None and hasattr(args, 'nthash'):
-				 nthash = args.nthash
-			if lmhash is None and hasattr(args, 'lmhash'):
-				 lmhash = args.lmhash
-			if domain is None and hasattr(args, 'domain') and args.domain:
-				domain = args.domain
 			if session_id is None and hasattr(args, 'session_id'):
 				session_id = args.session_id
-		
+
 		if username and not (password or lmhash or nthash):
 			logging.error("[Remove-NetTerminalSession] Password or hash is required when specifying a username")
 			return
@@ -7356,21 +7340,11 @@ displayName=New Group Policy Object
 		return success
 
 	def logoff_session(self, identity=None, session_id=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
 		if args:
-			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Logoff-Session] Using identity {args.username} from supplied username. Ignoring current user context...")
-				username = args.username
-			if password is None and hasattr(args, 'password') and args.password:
-				password = args.password
-			if nthash is None and hasattr(args, 'nthash'):
-				 nthash = args.nthash
-			if lmhash is None and hasattr(args, 'lmhash'):
-				 lmhash = args.lmhash
-			if domain is None and hasattr(args, 'domain') and args.domain:
-				domain = args.domain
 			if session_id is None and hasattr(args, 'session_id'):
 				session_id = args.session_id
-				
+
 		if username and not (password or lmhash or nthash):
 			logging.error("[Logoff-Session] Password or hash is required when specifying a username")
 			return
@@ -7422,19 +7396,8 @@ displayName=New Group Policy Object
 		return success
 
 	def stop_computer(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
-		if args:
-			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Stop-Computer] Using identity {args.username} from supplied username. Ignoring current user context...")
-				username = args.username
-			if password is None and hasattr(args, 'password') and args.password:
-				password = args.password
-			if nthash is None and hasattr(args, 'nthash'):
-				 nthash = args.nthash
-			if lmhash is None and hasattr(args, 'lmhash'):
-				 lmhash = args.lmhash
-			if domain is None and hasattr(args, 'domain') and args.domain:
-				domain = args.domain
-		
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
+
 		if username and not (password or lmhash or nthash):
 			logging.error("[Stop-Computer] Password or hash is required when specifying a username")
 			return
@@ -7465,19 +7428,8 @@ displayName=New Group Policy Object
 		return success
 
 	def restart_computer(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
-		if args:
-			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Restart-Computer] Using identity {args.username} from supplied username. Ignoring current user context...")
-				username = args.username
-			if password is None and hasattr(args, 'password') and args.password:
-				password = args.password
-			if nthash is None and hasattr(args, 'nthash'):
-				 nthash = args.nthash
-			if lmhash is None and hasattr(args, 'lmhash'):
-				 lmhash = args.lmhash
-			if domain is None and hasattr(args, 'domain') and args.domain:
-				domain = args.domain
-		
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
+
 		if username and not (password or lmhash or nthash):
 			logging.error("[Restart-Computer] Password or hash is required when specifying a username")
 			return
@@ -7508,23 +7460,13 @@ displayName=New Group Policy Object
 		return success
 
 	def get_netprocess(self, identity=None, pid=None, name=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
 		if args:
-			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Get-NetProcess] Using identity {args.username} from supplied username. Ignoring current user context...")
-				username = args.username
-			if password is None and hasattr(args, 'password') and args.password:
-				password = args.password
-			if nthash is None and hasattr(args, 'nthash'):
-				 nthash = args.nthash
-			if lmhash is None and hasattr(args, 'lmhash'):
-				 lmhash = args.lmhash
-			if domain is None and hasattr(args, 'domain') and args.domain:
-				domain = args.domain
 			if pid is None and hasattr(args, 'pid'):
 				pid = args.pid
 			if name is None and hasattr(args, 'name'):
 				name = args.name
-		
+
 		if username and not (password or lmhash or nthash):
 			logging.error("[Get-NetProcess] Password or hash is required when specifying a username")
 			return
@@ -7551,23 +7493,13 @@ displayName=New Group Policy Object
 		return results
 
 	def stop_netprocess(self, identity=None, pid=None, name=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
 		if args:
-			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Stop-NetProcess] Using identity {args.username} from supplied username. Ignoring current user context...")
-				username = args.username
-			if password is None and hasattr(args, 'password') and args.password:
-				password = args.password
-			if nthash is None and hasattr(args, 'nthash'):
-				 nthash = args.nthash
-			if lmhash is None and hasattr(args, 'lmhash'):
-				 lmhash = args.lmhash
-			if domain is None and hasattr(args, 'domain') and args.domain:
-				domain = args.domain
 			if pid is None and hasattr(args, 'pid'):
 				pid = args.pid
 			if name is None and hasattr(args, 'name'):
 				name = args.name
-		
+
 		if username and not (password or lmhash or nthash):
 			logging.error("[Stop-NetProcess] Password or hash is required when specifying a username")
 			return
@@ -7593,19 +7525,8 @@ displayName=New Group Policy Object
 		return ts.do_taskkill(pid=pid, name=name)
 
 	def get_netsession(self, identity=None, username=None, password=None, domain=None, lmhash=None, nthash=None, port=445, args=None):
-		if args:
-			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Get-NetSession] Using identity {args.username} from supplied username. Ignoring current user context...")
-				username = args.username
-			if password is None and hasattr(args, 'password') and args.password:
-				password = args.password
-			if nthash is None and hasattr(args, 'nthash'):
-				 nthash = args.nthash
-			if lmhash is None and hasattr(args, 'lmhash'):
-				 lmhash = args.lmhash
-			if domain is None and hasattr(args, 'domain') and args.domain:
-				domain = args.domain
-		
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
+
 		if username and not (password or lmhash or nthash):
 			logging.error("[Get-NetSession] Password or hash is required when specifying a username")
 			return
@@ -7684,19 +7605,8 @@ displayName=New Group Policy Object
 			logging.error("[Remove-NetSession] Either computer or target_session is required")
 			return
 		
-		if args:
-			if username is None and hasattr(args, 'username') and args.username:
-				logging.warning(f"[Remove-NetSession] Using identity {args.username} from supplied username. Ignoring current user context...")
-				username = args.username
-			if password is None and hasattr(args, 'password') and args.password:
-				password = args.password
-			if nthash is None and hasattr(args, 'nthash'):
-				 nthash = args.nthash
-			if lmhash is None and hasattr(args, 'lmhash'):
-				 lmhash = args.lmhash
-			if domain is None and hasattr(args, 'domain') and args.domain:
-				domain = args.domain
-		
+		username, password, domain, lmhash, nthash = self._extract_alt_creds(username, password, domain, lmhash, nthash, args)
+
 		if username and not (password or lmhash or nthash):
 			logging.error("[Remove-NetSession] Password or hash is required when specifying a username")
 			return
