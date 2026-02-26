@@ -28,7 +28,8 @@ def _gradient_text(text, rgb_start, rgb_end):
     out = ""
     for i, ch in enumerate(text):
         r, g, b = colors[i]
-        out += f"{_rl(f'\033[38;2;{r};{g};{b}m')}{ch}{_rl(bcolors.ENDC)}"
+        color = f'\033[38;2;{r};{g};{b}m'
+        out += f"{_rl(color)}{ch}{_rl(bcolors.ENDC)}"
     return out
 
 def get_prompt(powerview, current_target_domain=None, using_cache=False, args=None):
