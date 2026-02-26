@@ -522,7 +522,8 @@ class EventLogQuery:
                 try:
                     resp = even6.hEvtRpcQueryNext(self.dce, log_handle, request_count, timeOutEnd=5000)
                 except Exception as e:
-                    if 'ERROR_NO_MORE_ITEMS' in str(e) or 'ERROR_TIMEOUT' in str(e):
+                    err = str(e)
+                    if 'ERROR_NO_MORE_ITEMS' in err or 'ERROR_TIMEOUT' in err or 'unpack_from' in err:
                         break
                     raise
 
