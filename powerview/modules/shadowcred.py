@@ -434,10 +434,10 @@ class ShadowCredential:
 
 		drs = None
 		try:
-			logging.info(f"[Set-ShadowCredential] DRS: Connecting to DC...")
+			logging.debug(f"[Set-ShadowCredential] DRS: Connecting to DC...")
 			drs = self._drs_connect()
 
-			logging.info(f"[Set-ShadowCredential] DRS: Writing NGC key to {target_dn} ({len(bcrypt_blob)} bytes)")
+			logging.warning(f"[Set-ShadowCredential] DRS: Writing NGC key to {target_dn} ({len(bcrypt_blob)} bytes)")
 			ret = drs.write_ngc_key(target_dn, bcrypt_blob)
 
 			if ret != 0:
@@ -483,7 +483,10 @@ class ShadowCredential:
 
 		drs = None
 		try:
+			logging.debug(f"[Set-ShadowCredential] DRS: Connecting to DC...")
 			drs = self._drs_connect()
+
+			logging.warning(f"[Set-ShadowCredential] DRS: Reading NGC key from {target_dn}")
 			ret, key_data = drs.read_ngc_key(target_dn)
 
 			if ret != 0:
@@ -528,7 +531,10 @@ class ShadowCredential:
 
 		drs = None
 		try:
+			logging.debug(f"[Set-ShadowCredential] DRS: Connecting to DC...")
 			drs = self._drs_connect()
+
+			logging.warning(f"[Set-ShadowCredential] DRS: Clearing NGC key on {target_dn}")
 			ret = drs.write_ngc_key(target_dn, b'')
 
 			if ret != 0:
