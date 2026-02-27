@@ -441,7 +441,10 @@ class ShadowCredential:
 			ret = drs.write_ngc_key(target_dn, bcrypt_blob)
 
 			if ret != 0:
-				logging.error(f"[Set-ShadowCredential] DRS WriteNgcKey failed with error code 0x{ret:08x}")
+				if ret == 0xc0000022:
+					logging.error("[Set-ShadowCredential] DRS WriteNgcKey failed: STATUS_ACCESS_DENIED. Insufficient privileges to write NGC key")
+				else:
+					logging.error(f"[Set-ShadowCredential] DRS WriteNgcKey failed with error code 0x{ret:08x}")
 				return None
 
 			logging.info("[Set-ShadowCredential] DRS: NGC key written successfully")
@@ -484,7 +487,10 @@ class ShadowCredential:
 			ret, key_data = drs.read_ngc_key(target_dn)
 
 			if ret != 0:
-				logging.error(f"[Set-ShadowCredential] DRS ReadNgcKey failed with error code 0x{ret:08x}")
+				if ret == 0xc0000022:
+					logging.error("[Set-ShadowCredential] DRS ReadNgcKey failed: STATUS_ACCESS_DENIED. Insufficient privileges to read NGC key")
+				else:
+					logging.error(f"[Set-ShadowCredential] DRS ReadNgcKey failed with error code 0x{ret:08x}")
 				return None
 
 			if not key_data:
@@ -526,7 +532,10 @@ class ShadowCredential:
 			ret = drs.write_ngc_key(target_dn, b'')
 
 			if ret != 0:
-				logging.error(f"[Set-ShadowCredential] DRS WriteNgcKey (clear) failed with error code 0x{ret:08x}")
+				if ret == 0xc0000022:
+					logging.error("[Set-ShadowCredential] DRS WriteNgcKey (clear) failed: STATUS_ACCESS_DENIED. Insufficient privileges to clear NGC key")
+				else:
+					logging.error(f"[Set-ShadowCredential] DRS WriteNgcKey (clear) failed with error code 0x{ret:08x}")
 				return None
 
 			logging.info(f"[Set-ShadowCredential] DRS: NGC key cleared on {target_dn}")
