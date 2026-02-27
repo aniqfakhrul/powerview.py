@@ -332,7 +332,11 @@ class ShadowCredential:
 	def _drs_connect(self, target=None):
 		"""Create a DRS connection using the current PowerView connection."""
 		drs = DRSHandler(self.powerview.conn)
-		drs.connect(target=target)
+		try:
+			drs.connect(target=target)
+		except ConnectionError as e:
+			logging.error(f"[ShadowCredential] DRS connection failed: {e}")
+			raise
 		return drs
 
 	def _generate_drs_keypair(self, subject_name, key_size=2048):
@@ -437,12 +441,18 @@ class ShadowCredential:
 			ret = drs.write_ngc_key(target_dn, bcrypt_blob)
 
 			if ret != 0:
-				logging.error(f"[Set-ShadowCredential] DRS WriteNgcKey failed: 0x{ret:08x}")
+				logging.error(f"[Set-ShadowCredential] DRS WriteNgcKey failed with error code 0x{ret:08x}")
 				return None
 
 			logging.info("[Set-ShadowCredential] DRS: NGC key written successfully")
+		except ConnectionError as e:
+			logging.error(f"[Set-ShadowCredential] {e}")
+			return None
+		except RuntimeError as e:
+			logging.error(f"[Set-ShadowCredential] {e}")
+			return None
 		except Exception as e:
-			logging.error(f"[Set-ShadowCredential] DRS error: {e}")
+			logging.error(f"[Set-ShadowCredential] Unexpected DRS error: {e}")
 			return None
 		finally:
 			if drs:
@@ -474,7 +484,7 @@ class ShadowCredential:
 			ret, key_data = drs.read_ngc_key(target_dn)
 
 			if ret != 0:
-				logging.error(f"[Set-ShadowCredential] DRS ReadNgcKey failed: 0x{ret:08x}")
+				logging.error(f"[Set-ShadowCredential] DRS ReadNgcKey failed with error code 0x{ret:08x}")
 				return None
 
 			if not key_data:
@@ -490,8 +500,14 @@ class ShadowCredential:
 					}
 				}
 			]
+		except ConnectionError as e:
+			logging.error(f"[Set-ShadowCredential] {e}")
+			return None
+		except RuntimeError as e:
+			logging.error(f"[Set-ShadowCredential] {e}")
+			return None
 		except Exception as e:
-			logging.error(f"[Set-ShadowCredential] DRS error: {e}")
+			logging.error(f"[Set-ShadowCredential] Unexpected DRS error: {e}")
 			return None
 		finally:
 			if drs:
@@ -510,13 +526,19 @@ class ShadowCredential:
 			ret = drs.write_ngc_key(target_dn, b'')
 
 			if ret != 0:
-				logging.error(f"[Set-ShadowCredential] DRS WriteNgcKey (clear) failed: 0x{ret:08x}")
+				logging.error(f"[Set-ShadowCredential] DRS WriteNgcKey (clear) failed with error code 0x{ret:08x}")
 				return None
 
 			logging.info(f"[Set-ShadowCredential] DRS: NGC key cleared on {target_dn}")
 			return [{"attributes": {"TargetDN": target_dn, "Method": "DRS", "Cleared": True}}]
+		except ConnectionError as e:
+			logging.error(f"[Set-ShadowCredential] {e}")
+			return None
+		except RuntimeError as e:
+			logging.error(f"[Set-ShadowCredential] {e}")
+			return None
 		except Exception as e:
-			logging.error(f"[Set-ShadowCredential] DRS error: {e}")
+			logging.error(f"[Set-ShadowCredential] Unexpected DRS error: {e}")
 			return None
 		finally:
 			if drs:

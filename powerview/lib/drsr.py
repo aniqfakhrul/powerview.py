@@ -3,7 +3,7 @@ import struct
 import logging
 
 from impacket.dcerpc.v5 import drsuapi, transport, epm
-from impacket.dcerpc.v5.rpcrt import RPC_C_AUTHN_LEVEL_PKT_PRIVACY
+from impacket.dcerpc.v5.rpcrt import RPC_C_AUTHN_LEVEL_PKT_PRIVACY, DCERPCException
 
 
 class DRSHandler:
@@ -23,11 +23,15 @@ class DRSHandler:
 		if not target:
 			target = self.connection.dc_ip
 
-		string_binding = epm.hept_map(
-			target,
-			drsuapi.MSRPC_UUID_DRSUAPI,
-			protocol='ncacn_ip_tcp',
-		)
+		try:
+			string_binding = epm.hept_map(
+				target,
+				drsuapi.MSRPC_UUID_DRSUAPI,
+				protocol='ncacn_ip_tcp',
+			)
+		except Exception as e:
+			raise ConnectionError(f"Failed to map DRSUAPI endpoint on {target}: {e}")
+
 		rpctransport = transport.DCERPCTransportFactory(string_binding)
 		rpctransport.set_credentials(
 			self.connection.username,
@@ -43,10 +47,15 @@ class DRSHandler:
 
 		rpctransport.setRemoteHost(target)
 
-		dce = rpctransport.get_dce_rpc()
-		dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
-		dce.connect()
-		dce.bind(drsuapi.MSRPC_UUID_DRSUAPI)
+		try:
+			dce = rpctransport.get_dce_rpc()
+			dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
+			dce.connect()
+			dce.bind(drsuapi.MSRPC_UUID_DRSUAPI)
+		except DCERPCException as e:
+			raise ConnectionError(f"DRSUAPI RPC connection failed: {e}")
+		except Exception as e:
+			raise ConnectionError(f"Failed to connect to DRSUAPI on {target}: {e}")
 
 		# DRSBind
 		request = drsuapi.DRSBind()
@@ -67,7 +76,15 @@ class DRSHandler:
 		request['pextClient']['cb'] = len(drs_ext)
 		request['pextClient']['rgb'] = list(drs_ext.getData())
 
-		resp = dce.request(request)
+		try:
+			resp = dce.request(request)
+		except DCERPCException as e:
+			dce.disconnect()
+			raise ConnectionError(f"DRSBind failed: {e}")
+		except Exception as e:
+			dce.disconnect()
+			raise ConnectionError(f"DRSBind failed: {e}")
+
 		handle = resp['phDrs']
 		if not isinstance(handle, bytes):
 			handle = handle.getData()
@@ -88,6 +105,9 @@ class DRSHandler:
 
 	def write_ngc_key(self, dn, key_data):
 		"""IDL_DRSWriteNgcKey (opnum 29). Returns retval (0 = success)."""
+		if not self.dce or not self.handle:
+			raise ConnectionError("DRS not connected. Call connect() first")
+
 		acct_utf16 = dn.encode('utf-16-le') + b'\x00\x00'
 		cc = len(dn) + 1
 
@@ -113,13 +133,25 @@ class DRSHandler:
 			pad = (4 - len(key_data) % 4) % 4
 			data += b'\x00' * pad
 
-		self.dce.call(29, data)
-		resp = self.dce.recv()
+		try:
+			self.dce.call(29, data)
+			resp = self.dce.recv()
+		except DCERPCException as e:
+			raise RuntimeError(f"DRS WriteNgcKey RPC call failed: {e}")
+		except Exception as e:
+			raise RuntimeError(f"DRS WriteNgcKey failed: {e}")
+
+		if len(resp) < 4:
+			raise RuntimeError(f"DRS WriteNgcKey returned truncated response ({len(resp)} bytes)")
+
 		ret = struct.unpack('<I', resp[-4:])[0]
 		return ret
 
 	def read_ngc_key(self, dn):
 		"""IDL_DRSReadNgcKey (opnum 30). Returns (retval, key_data)."""
+		if not self.dce or not self.handle:
+			raise ConnectionError("DRS not connected. Call connect() first")
+
 		acct_utf16 = dn.encode('utf-16-le') + b'\x00\x00'
 		cc = len(dn) + 1
 
@@ -130,8 +162,17 @@ class DRSHandler:
 		pad = (4 - len(acct_utf16) % 4) % 4
 		data += b'\x00' * pad
 
-		self.dce.call(30, data)
-		resp = self.dce.recv()
+		try:
+			self.dce.call(30, data)
+			resp = self.dce.recv()
+		except DCERPCException as e:
+			raise RuntimeError(f"DRS ReadNgcKey RPC call failed: {e}")
+		except Exception as e:
+			raise RuntimeError(f"DRS ReadNgcKey failed: {e}")
+
+		if len(resp) < 4:
+			raise RuntimeError(f"DRS ReadNgcKey returned truncated response ({len(resp)} bytes)")
+
 		ret = struct.unpack('<I', resp[-4:])[0]
 		key_data = None
 		if ret == 0 and len(resp) > 24:
