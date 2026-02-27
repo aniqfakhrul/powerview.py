@@ -11,3 +11,4 @@ powerview-venv
 venv
 .venv
 CLAUDE.md
+.python-version

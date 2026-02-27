@@ -1466,9 +1466,29 @@ def powerview_arg_parse(cmd):
 	set_shadowcred_password_group.add_argument('-PfxPassword', action='store', dest='pfx_password')
 	set_shadowcred_password_group.add_argument('-NoPassword', action='store_true', default=False, dest='no_password')
 	set_shadowcred_parser.add_argument('-KeySize', action='store', dest='key_size', type=int, default=2048)
+	set_shadowcred_parser.add_argument('-DRS', action='store_true', default=False, dest='drs')
 	set_shadowcred_parser.add_argument('-SearchBase', action='store', dest='searchbase')
 	set_shadowcred_parser.add_argument('-Server', action='store', dest='server')
 	set_shadowcred_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+	# get shadow credentials
+	get_shadowcred_parser = subparsers.add_parser('Get-ShadowCredential', aliases=['Get-ShadowCred'], exit_on_error=False)
+	get_shadowcred_parser.add_argument('-Identity', action='store', dest='identity', type=parse_identity_list)
+	get_shadowcred_parser.add_argument('-DRS', action='store_true', default=False, dest='drs')
+	get_shadowcred_parser.add_argument('-SearchBase', action='store', dest='searchbase')
+	get_shadowcred_parser.add_argument('-Server', action='store', dest='server')
+	get_shadowcred_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+	# remove shadow credentials
+	remove_shadowcred_parser = subparsers.add_parser('Remove-ShadowCredential', aliases=['Remove-ShadowCred'], exit_on_error=False)
+	remove_shadowcred_parser.add_argument('-Identity', action='store', dest='identity', required=True, type=parse_identity_list)
+	remove_group = remove_shadowcred_parser.add_mutually_exclusive_group(required=True)
+	remove_group.add_argument('-DeviceId', action='store', dest='deviceid')
+	remove_group.add_argument('-All', action='store_true', default=False, dest='all')
+	remove_shadowcred_parser.add_argument('-DRS', action='store_true', default=False, dest='drs')
+	remove_shadowcred_parser.add_argument('-SearchBase', action='store', dest='searchbase')
+	remove_shadowcred_parser.add_argument('-Server', action='store', dest='server')
+	remove_shadowcred_parser.add_argument('-OutFile', action='store', dest='outfile')
 
 	# set domain object owner
 	set_domainobjectowner_parser = subparsers.add_parser('Set-DomainObjectOwner', aliases=['Set-ObjectOwner'], exit_on_error=False)

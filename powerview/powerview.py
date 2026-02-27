@@ -4204,7 +4204,7 @@ displayName=New Group Policy Object
 
 		return True
 
-	def set_shadowcredential(self, identity=None, action="add", device_id=None, export="PFX", cert_outfile=None, pfx_password=None, no_password=False, key_size=2048, searchbase=None, args=None):
+	def set_shadowcredential(self, identity=None, action="add", device_id=None, export="PFX", cert_outfile=None, pfx_password=None, no_password=False, key_size=2048, searchbase=None, use_drs=False, args=None):
 		if args is not None:
 			if hasattr(args, 'identity') and args.identity is not None and identity is None:
 				identity = args.identity
@@ -4222,6 +4222,8 @@ displayName=New Group Policy Object
 				no_password = args.no_password
 			if hasattr(args, 'key_size') and args.key_size is not None:
 				key_size = args.key_size
+			if hasattr(args, 'drs') and args.drs:
+				use_drs = True
 			if hasattr(args, 'list') and args.list:
 				action = 'list'
 			elif hasattr(args, 'clear') and args.clear:
@@ -4234,7 +4236,7 @@ displayName=New Group Policy Object
 		if len(identity_values) > 1:
 			results = []
 			for ident in identity_values:
-				results.append(self.set_shadowcredential(identity=ident, action=action, device_id=device_id, export=export, cert_outfile=cert_outfile, pfx_password=pfx_password, no_password=no_password, key_size=key_size, searchbase=searchbase, args=args))
+				results.append(self.set_shadowcredential(identity=ident, action=action, device_id=device_id, export=export, cert_outfile=cert_outfile, pfx_password=pfx_password, no_password=no_password, key_size=key_size, searchbase=searchbase, use_drs=use_drs, args=args))
 			return all(result is True for result in results)
 		identity = identity_values[0] if identity_values else None
 
@@ -4249,6 +4251,91 @@ displayName=New Group Policy Object
 			no_password=no_password,
 			key_size=key_size,
 			searchbase=searchbase,
+			use_drs=use_drs,
+		)
+
+	def get_shadowcredential(self, identity=None, searchbase=None, use_drs=False, args=None):
+		if args is not None:
+			if hasattr(args, 'identity') and args.identity is not None and identity is None:
+				identity = args.identity
+			if hasattr(args, 'searchbase') and args.searchbase is not None:
+				searchbase = args.searchbase
+			if hasattr(args, 'drs') and args.drs:
+				use_drs = True
+
+		if use_drs and not identity:
+			logging.error("[Get-ShadowCredential] -DRS requires -Identity (DRS reads a single object by DN)")
+			return None
+
+		shadow = ShadowCredential(self)
+
+		if identity:
+			identity_values = self._resolve_identity_values(identity, args)
+			all_entries = []
+			for ident in identity_values:
+				result = shadow.execute(identity=ident, action='list', searchbase=searchbase, use_drs=use_drs)
+				if result:
+					all_entries.extend(result)
+			return all_entries or None
+
+		# No identity: query all objects with msDS-KeyCredentialLink set
+		searchbase = searchbase or self.root_dn
+		objects = self.get_domainobject(
+			properties=["distinguishedName", "objectSid", "sAMAccountName", "msDS-KeyCredentialLink", "objectClass"],
+			searchbase=searchbase,
+			ldap_filter="(msDS-KeyCredentialLink=*)",
+			raw=True,
+			no_cache=True,
+			no_vuln_check=True,
+		)
+
+		if not objects:
+			return None
+
+		all_entries = []
+		for obj in objects:
+			result = shadow.list_entry(obj)
+			if result:
+				all_entries.extend(result)
+		return all_entries or None
+
+	def remove_shadowcredential(self, identity=None, device_id=None, clear_all=False, searchbase=None, use_drs=False, args=None):
+		if args is not None:
+			if hasattr(args, 'identity') and args.identity is not None and identity is None:
+				identity = args.identity
+			if hasattr(args, 'searchbase') and args.searchbase is not None:
+				searchbase = args.searchbase
+			if hasattr(args, 'deviceid') and args.deviceid is not None:
+				device_id = args.deviceid
+			if hasattr(args, 'all') and args.all:
+				clear_all = True
+			if hasattr(args, 'drs') and args.drs:
+				use_drs = True
+
+		if not device_id and not clear_all:
+			logging.error("[Remove-ShadowCredential] Specify -DeviceId or -All")
+			return None
+
+		if device_id:
+			action = 'remove'
+		else:
+			action = 'clear'
+
+		identity_values = self._resolve_identity_values(identity, args)
+		if len(identity_values) > 1:
+			results = []
+			for ident in identity_values:
+				results.append(self.remove_shadowcredential(identity=ident, device_id=device_id, clear_all=clear_all, searchbase=searchbase, use_drs=use_drs, args=args))
+			return all(result is True for result in results)
+		identity = identity_values[0] if identity_values else None
+
+		shadow = ShadowCredential(self)
+		return shadow.execute(
+			identity=identity,
+			action=action,
+			device_id=device_id,
+			searchbase=searchbase,
+			use_drs=use_drs,
 		)
 
 	def set_domainobjectowner(self, targetidentity, principalidentity, searchbase=None, args=None):

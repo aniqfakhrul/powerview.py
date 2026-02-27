@@ -394,6 +394,10 @@ def main():
                                     logging.error('-DeviceId flag is required when using -Remove')
                                 else:
                                     entries = pv.set_shadowcredential(args=pv_args)
+                            elif pv_args.module.casefold() == 'get-shadowcredential' or pv_args.module.casefold() == 'get-shadowcred':
+                                entries = pv.get_shadowcredential(args=pv_args)
+                            elif pv_args.module.casefold() == 'remove-shadowcredential' or pv_args.module.casefold() == 'remove-shadowcred':
+                                entries = pv.remove_shadowcredential(args=pv_args)
                             elif pv_args.module.casefold() == 'set-domainobjectowner' or pv_args.module.casefold() == 'set-objectowner':
                                 pv.set_domainobjectowner(pv_args.targetidentity, pv_args.principalidentity, args=pv_args)
                             elif pv_args.module.casefold() == 'add-domaincomputer' or pv_args.module.casefold() == 'add-adcomputer':
