@@ -24,6 +24,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install build
 
+      - name: Replace git dependencies with PyPI packages
+        run: |
+          sed -i 's|"ldap3 @ git+https://github.com/cannatag/ldap3.git"|"ldap3"|' pyproject.toml
+          sed -i 's|"impacket @ git+https://github.com/fortra/impacket.git"|"impacket"|' pyproject.toml
+
       - name: Build package
         run: python -m build
 
