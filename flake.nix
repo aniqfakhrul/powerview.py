@@ -19,7 +19,7 @@
         pkgs = nixpkgs.legacyPackages.${system};
         powerview = pkgs.python3Packages.buildPythonApplication rec {
           pname = "powerview";
-          version = "2025.1.8";
+          version = "2026.1.9";
           format = "pyproject";
 
           src = pkgs.fetchFromGitHub {
