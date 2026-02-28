@@ -28,7 +28,7 @@ dependencies = [
     "gnureadline",
     "validators",
     "dsinternals",
-    "chardet",
+    "chardet>=3.0.2,<6",
     "tabulate",
     "argparse",
     "requests_ntlm",

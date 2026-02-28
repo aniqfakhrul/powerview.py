@@ -12,3 +12,4 @@ venv
 .venv
 CLAUDE.md
 .python-version
+uv.lock

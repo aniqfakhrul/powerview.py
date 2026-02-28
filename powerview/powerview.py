@@ -5209,7 +5209,7 @@ displayName=New Group Policy Object
 				'dNSHostName': f"{identity}.{self.conn.get_domain()}" if not dnshostname else dnshostname,
 				'msDS-SupportedEncryptionTypes': 28, # RC4-HMAC,AES128,AES256
 				'msDS-ManagedPasswordInterval': 30,
-				'msDS-DelegatedMSAState': DMSA_DELEGATED_MSA_STATE.DISABLED.value
+				'msDS-DelegatedMSAState': DMSA_DELEGATED_MSA_STATE.RESET.value
 			}
 			
 			if principals_allowed_to_retrieve_managed_password:
@@ -5253,7 +5253,7 @@ displayName=New Group Policy Object
 				else:
 					superseded_dn = supersededaccount
 				dmsa_attrs['msDS-ManagedAccountPrecededByLink'] = superseded_dn
-				dmsa_attrs['msDS-DelegatedMSAState'] = DMSA_DELEGATED_MSA_STATE.MIGRATED.value
+				dmsa_attrs['msDS-DelegatedMSAState'] = DMSA_DELEGATED_MSA_STATE.COMPLETE_MIGRATION.value
 
 			dmsa_dn = f"CN={identity},{parent_dn_entries}"
 			logging.debug(f"[Add-DomainDMSA] Creating DMSA account at {dmsa_dn}")
@@ -7288,11 +7288,11 @@ displayName=New Group Policy Object
 			target_objectclass = target.get('attributes', {}).get('objectClass')
 			if 'msDS-DelegatedManagedServiceAccount' in target_objectclass:
 				continue
-			succeeded = self.ldap_session.modify(dmsa_dn, {'msDS-ManagedAccountPrecededByLink': [(ldap3.MODIFY_REPLACE, [target_dn])], 'msDS-DelegatedMSAState': [(ldap3.MODIFY_REPLACE, [DMSA_DELEGATED_MSA_STATE.MIGRATED.value])]})
+			succeeded = self.ldap_session.modify(dmsa_dn, {'msDS-ManagedAccountPrecededByLink': [(ldap3.MODIFY_REPLACE, [target_dn])], 'msDS-DelegatedMSAState': [(ldap3.MODIFY_REPLACE, [DMSA_DELEGATED_MSA_STATE.START_MIGRATION.value])]})
 			if not succeeded:
 				logging.warning(f"[Invoke-BadSuccessor] Failed to change msDS-ManagedAccountPrecededByLink to {target_san or target_dn}")
 			
-			succeeded = self.ldap_session.modify(target_dn, {'msDS-SupersededManagedAccountLink': [(ldap3.MODIFY_REPLACE, [dmsa_dn])], 'msDS-SupersededServiceAccountState': [(ldap3.MODIFY_REPLACE, [DMSA_DELEGATED_MSA_STATE.MIGRATED.value])]})
+			succeeded = self.ldap_session.modify(target_dn, {'msDS-SupersededManagedAccountLink': [(ldap3.MODIFY_REPLACE, [dmsa_dn])], 'msDS-SupersededServiceAccountState': [(ldap3.MODIFY_REPLACE, [DMSA_DELEGATED_MSA_STATE.START_MIGRATION.value])]})
 			if not succeeded:
 				logging.warning(f"[Invoke-BadSuccessor] Failed to change msDS-SupersededManagedAccountLink to {dmsa_dn}")
 			
