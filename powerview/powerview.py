@@ -2260,50 +2260,34 @@ class PowerView:
 			no_vuln_check=no_vuln_check,
 			raw=raw
 		)
-		if len(entries) == 0:
+		if not entries:
 			logging.error("[Get-GPOSettings] No GPO object found")
 			return
 
-		policy_settings = []
-		for entry in entries:
-			try:
-				gpcfilesyspath = entry['attributes']['gPCFileSysPath']
-				
-				# Connect to SYSVOL share
-				conn = self.conn.init_smb_session(host2ip(self.dc_ip, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver))
-				share = 'sysvol'
-				base_path = ''.join(gpcfilesyspath.lower().split(share)[1:])
-				
-				policy_data = {
-					'attributes': {
-						'displayName': entry['attributes']['displayName'],
-						'name': entry['attributes']['name'],
-						'gPCFileSysPath': gpcfilesyspath,
-						'machineConfig': {},
-						'userConfig': {}
-					}
-				}
+		# Single SMB connection for all GPOs (same DC, same SYSVOL share)
+		smb_host = host2ip(self.dc_ip, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver) if not self.use_kerberos else self.dc_ip
+		conn = self.conn.init_smb_session(smb_host)
+		share = 'sysvol'
 
-				# Parse Machine Configuration
-				machine_paths = {
-					'Security': '\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf',
-					'Registry': '\\MACHINE\\Registry.pol',
-					'Scripts': '\\MACHINE\\Scripts\\scripts.ini',
-					'Preferences': '\\MACHINE\\Preferences'
-				}
-
-				# Parse User Configuration
-				user_paths = {
-					'Registry': '\\USER\\Registry.pol',
-					'Scripts': '\\USER\\Scripts\\scripts.ini',
-					'Preferences': '\\USER\\Preferences'
-				}
-
-				# Process Machine Configuration
-				for section, path in machine_paths.items():
-					try:
+		def _process_config_section(paths, base_path):
+			config = {}
+			for section, path in paths.items():
+				file_path = base_path + path
+				try:
+					if section == 'Preferences':
+						result = GPO.Helper._parse_preferences(file_path, conn, share)
+						if result:
+							config[section] = result
+					elif section == 'Registry':
 						fh = BytesIO()
-						file_path = base_path + path
+						try:
+							conn.getFile(share, file_path, fh.write)
+							config[section] = GPO.Helper._parse_registry_pol(fh.getvalue())
+						finally:
+							fh.close()
+					else:
+						# Text-based files (Security, Scripts)
+						fh = BytesIO()
 						try:
 							conn.getFile(share, file_path, fh.write)
 							content = fh.getvalue()
@@ -2311,48 +2295,42 @@ class PowerView:
 							if encoding:
 								data = content.decode(encoding)
 								if section == 'Security':
-									# Parse Security Settings (GptTmpl.inf)
-									policy_data['attributes']['machineConfig']['Security'] = GPO.Helper._parse_inf_file(data)
-								elif section == 'Registry':
-									# Parse Registry Settings
-									policy_data['attributes']['machineConfig']['Registry'] = GPO.Helper._parse_registry_pol(content)
+									config[section] = GPO.Helper._parse_inf_file(data)
 								elif section == 'Scripts':
-									# Parse Startup/Shutdown Scripts
-									policy_data['attributes']['machineConfig']['Scripts'] = GPO.Helper._parse_scripts_ini(data)
-								elif section == 'Preferences':
-									# Parse Group Policy Preferences
-									policy_data['attributes']['machineConfig']['Preferences'] = GPO.Helper._parse_preferences(file_path, conn, share)
-						except Exception as e:
-							logging.debug(f"[Get-GPOSettings] File not found or access denied: {file_path}")
+									config[section] = GPO.Helper._parse_scripts_ini(data)
 						finally:
 							fh.close()
-					except Exception as e:
-						logging.debug(f"[Get-GPOSettings] Error processing {section}: {str(e)}")
+				except Exception:
+					logging.debug(f"[Get-GPOSettings] File not found or access denied: {file_path}")
+			return config
 
-				# Process User Configuration (similar structure to Machine Configuration)
-				for section, path in user_paths.items():
-					try:
-						fh = BytesIO()
-						file_path = base_path + path
-						try:
-							conn.getFile(share, file_path, fh.write)
-							content = fh.getvalue()
-							encoding = chardet.detect(content)["encoding"]
-							if encoding:
-								data = content.decode(encoding)
-								if section == 'Registry':
-									policy_data['attributes']['userConfig']['Registry'] = GPO.Helper._parse_registry_pol(content)
-								elif section == 'Scripts':
-									policy_data['attributes']['userConfig']['Scripts'] = GPO.Helper._parse_scripts_ini(data)
-								elif section == 'Preferences':
-									policy_data['attributes']['userConfig']['Preferences'] = GPO.Helper._parse_preferences(file_path, conn, share)
-						except Exception as e:
-							logging.debug(f"[Get-GPOSettings] File not found or access denied: {file_path}")
-						finally:
-							fh.close()
-					except Exception as e:
-						logging.debug(f"[Get-GPOSettings] Error processing {section}: {str(e)}")
+		machine_paths = {
+			'Security': '\\MACHINE\\Microsoft\\Windows NT\\SecEdit\\GptTmpl.inf',
+			'Registry': '\\MACHINE\\Registry.pol',
+			'Scripts': '\\MACHINE\\Scripts\\scripts.ini',
+			'Preferences': '\\MACHINE\\Preferences'
+		}
+		user_paths = {
+			'Registry': '\\USER\\Registry.pol',
+			'Scripts': '\\USER\\Scripts\\scripts.ini',
+			'Preferences': '\\USER\\Preferences'
+		}
 
+		policy_settings = []
+		for entry in entries:
+			try:
+				gpcfilesyspath = entry['attributes']['gPCFileSysPath']
+				base_path = ''.join(gpcfilesyspath.lower().split(share)[1:])
+
+				policy_data = {
+					'attributes': {
+						'displayName': entry['attributes']['displayName'],
+						'name': entry['attributes']['name'],
+						'gPCFileSysPath': gpcfilesyspath,
+						'machineConfig': _process_config_section(machine_paths, base_path),
+						'userConfig': _process_config_section(user_paths, base_path)
+					}
+				}
 				policy_settings.append(policy_data)
 
 			except Exception as e:
