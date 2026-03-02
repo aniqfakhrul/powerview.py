@@ -148,32 +148,6 @@ class Storage:
         
         return None
 
-    def invalidate_for_dn(self, dn):
-        """Remove cache entries whose search_base would cover the given DN.
-
-        A cached query covers a DN when the DN equals the search_base or is
-        a descendant of it (i.e. the DN ends with ,<search_base>).
-        """
-        dn_lower = dn.lower()
-        removed = 0
-        try:
-            for entry in os.scandir(self.cache_path):
-                if not entry.name.endswith('.json'):
-                    continue
-                try:
-                    with open(entry.path, 'r') as f:
-                        data = json.load(f)
-                    search_base = data.get('search_base', '').lower()
-                    if search_base and (dn_lower == search_base or dn_lower.endswith(',' + search_base)):
-                        os.remove(entry.path)
-                        removed += 1
-                except Exception:
-                    pass
-        except Exception as e:
-            logging.debug(f"[Storage] Cache invalidation failed: {e}")
-        if removed:
-            logging.debug(f"[Storage] Invalidated {removed} cache entry/entries for DN: {dn}")
-
     def clear_cache(self) -> bool:
         """Clear all cached LDAP results"""
         try:
