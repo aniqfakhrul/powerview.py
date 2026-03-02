@@ -1955,16 +1955,23 @@ class PowerView:
 		)
 
 	def get_domainforeigngroupmember(self, args=None):
-		group_members = self.get_domaingroupmember(identity='*', multiple=True)
-		cur_domain_sid = self.get_domain()[0]['attributes']['objectSid']
+		domain = self.get_domain()
+		if not domain:
+			logging.error("[Get-DomainForeignGroupMember] Could not retrieve domain object")
+			return
+		cur_domain_sid = domain[0]['attributes']['objectSid']
 
+		group_members = self.get_domaingroupmember(identity='*', multiple=True)
 		if not group_members:
 			logging.info("[Get-DomainForeignGroupMember] No group members found")
 			return
-		
+
 		new_entries = []
 		for member in group_members:
-			member_sid = member['attributes']['MemberSID']
+			member_sid = member['attributes'].get('MemberSID', '')
+			# Normalise to string in case ldap3 returned bytes
+			if isinstance(member_sid, bytes):
+				member_sid = member_sid.decode('utf-8', errors='replace')
 			if cur_domain_sid not in member_sid:
 				new_entries.append(member)
 
@@ -1989,8 +1996,10 @@ class PowerView:
 					succeed = ldap_session.search(group_root_dn, ldap_filter, attributes='*')
 					if not succeed:
 						logging.error("[Get-DomainForeignUser] Failed ldap query")
-					if ldap_session.entries:
-						ent = ldap_session.entries[0]
+						continue
+					if not ldap_session.entries:
+						continue
+					ent = ldap_session.entries[0]
 					entries.append(
 							{'attributes':{
 									'UserDomain': dn2domain(user['attributes']['distinguishedName']),
@@ -2052,10 +2061,10 @@ class PowerView:
 						succeed = ldap_session.search(member_root_dn, ldap_filter, attributes='*')
 						if not succeed:
 							logging.error(f"[Get-DomainGroupMember] Failed to query for {member_dn}")
-							return
-						entries = ldap_session.entries
+							continue
+						member_entries = ldap_session.entries
 					else:
-						entries = self.ldap_session.extend.standard.paged_search(
+						member_entries = self.ldap_session.extend.standard.paged_search(
 							self.root_dn,
 							ldap_filter,
 							attributes=['userPrincipalName', 'sAMAccountName', 'distinguishedName', 'objectSid'],
@@ -2064,7 +2073,7 @@ class PowerView:
 							no_cache=no_cache
 						)
 
-					for ent in entries:
+					for ent in member_entries:
 						attr = {}
 						member_infos = {}
 						try:
