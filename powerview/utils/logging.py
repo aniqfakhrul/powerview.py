@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import os
 import logging
-from datetime import date
+from datetime import date, datetime, timedelta
 from sys import platform
 if platform == "linux" or platform == "linux2":
     import gnureadline as readline
@@ -44,6 +44,7 @@ class HistoryConsole:
             histfile = self.histfile
 
         try:
+            readline.clear_history()
             if os.path.exists(histfile):
                 readline.read_history_file(histfile)
         except FileNotFoundError:
@@ -61,7 +62,9 @@ class HistoryConsole:
             logging.error(f"Error writing history file {histfile}: {e}")
 
 class LOG:
-    def __init__(self, folder_name, root_folder=None):
+    LOG_RETENTION_DAYS = 30
+
+    def __init__(self, folder_name, root_folder=None, username=None):
         if not root_folder:
             if os.name == 'nt':
                 self.root_folder = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), "powerview")
@@ -69,23 +72,43 @@ class LOG:
                 self.root_folder = os.path.join(os.path.expanduser('~'), ".powerview")
         else:
             self.root_folder = root_folder
-        
+
         self.folder_name = folder_name.lower()
 
         self.logs_folder = os.path.join(self.root_folder, "logs", self.folder_name)
-        
+
         if not os.path.exists(self.logs_folder):
             self.create_folder()
 
-        self.file_name = "%s.log" % date.today()
+        if username:
+            self.file_name = "%s-%s.log" % (date.today(), username)
+        else:
+            self.file_name = "%s.log" % date.today()
 
         print("Logging directory is set to %s" % (self.logs_folder))
+
+        self._cleanup_old_logs()
 
         self.history_file = os.path.join(self.logs_folder, ".powerview_history")
         self.history_console = HistoryConsole(self.history_file)
 
     def save_history(self):
         self.history_console.save_history()
+
+    def _cleanup_old_logs(self):
+        cutoff = datetime.now() - timedelta(days=self.LOG_RETENTION_DAYS)
+        try:
+            for entry in os.scandir(self.logs_folder):
+                if not entry.name.endswith('.log'):
+                    continue
+                try:
+                    if datetime.fromtimestamp(entry.stat().st_mtime) < cutoff:
+                        os.remove(entry.path)
+                        logging.debug(f"[LOG] Deleted old log file: {entry.name}")
+                except Exception as e:
+                    logging.debug(f"[LOG] Could not remove old log {entry.name}: {e}")
+        except Exception as e:
+            logging.debug(f"[LOG] Log cleanup failed: {e}")
 
     def create_folder(self, folder=None):
         folder = folder if folder else self.logs_folder
@@ -121,29 +144,11 @@ class LOG:
         abspath = os.path.join(self.root_folder, file_name)
 
         try:
-            open(abspath,"a").write(text+"\n")
+            with open(abspath, "a") as f:
+                f.write(text + "\n")
             success = True
-        except IOError as e:
-            logging.error(
-                "Error writing to %s (%s)" % (
-                        abspath,
-                        str(e)
-                    )
-                )
-        except FileNotFoundError as e:
-            logging.error(
-                "Error writing to %s (%s)" % (
-                        abspath,
-                        str(e)
-                    )
-                )
-        except PermissionError as e:
-            logging.error(
-                "Error writing to %s (%s)" % (
-                        abspath,
-                        str(e)
-                    )
-                )
+        except (IOError, FileNotFoundError, PermissionError) as e:
+            logging.error("Error writing to %s (%s)" % (abspath, str(e)))
 
         return success
 

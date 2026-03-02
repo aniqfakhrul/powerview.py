@@ -47,14 +47,10 @@ def main():
     args = arg_parse()
 
     flat_domain = args.domain.split('.')[0] if '.' in args.domain else args.domain
-    flat_domain = sanitize_component(flat_domain.lower())
+    folder_name = sanitize_component(flat_domain.lower()) or "default-log"
     username = sanitize_component(args.username.lower())
-    ldap_address = sanitize_component(args.ldap_address.lower())
 
-    components = [flat_domain, username, ldap_address]
-    folder_name = '-'.join(filter(None, components)) or "default-log"
-
-    log_handler = LOG(folder_name)
+    log_handler = LOG(folder_name, username=username)
 
     if args.debug:
         logging = log_handler.setup_logger("DEBUG")

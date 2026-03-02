@@ -465,6 +465,15 @@ class PowerView:
 		logging.info("[Clear-Cache] Clearing cache")
 		return self.custom_paged_search.standard.storage.clear_cache()
 
+	def _invalidate_cache_for_dn(self, dn):
+		"""Invalidate cache entries that would cover the given DN after a write operation."""
+		if not dn:
+			return
+		try:
+			self.custom_paged_search.standard.storage.invalidate_for_dn(dn)
+		except Exception:
+			pass
+
 	def get_domainuser(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass', 'servicePrincipalName', 'objectCategory', 'objectGUID', 'primaryGroupID', 'userAccountControl',
@@ -943,7 +952,8 @@ class PowerView:
 			logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainObject] Failed to modify, view debug message with --debug")
 		else:
 			logging.info(f'[Remove-DomainObject] Success! {targetobject_dn} removed')
-		
+			self._invalidate_cache_for_dn(targetobject_dn)
+
 		return succeeded
 
 	def get_domainobjectowner(self, identity=None, ldapfilter=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
@@ -4198,6 +4208,7 @@ displayName=New Group Policy Object
 		succeed = rbcd.write_to(delegfrom_sid)
 		if succeed:
 			logging.info(f"[Set-DomainRBCD] Success! {delegatefrom} is now in {identity}'s msDS-AllowedToActOnBehalfOfOtherIdentity attribute")
+			self._invalidate_cache_for_dn(targetidentity.get("dn") or targetidentity["attributes"]["distinguishedName"])
 		else:
 			logging.error("[Set-DomainRBCD] Failed to write to {delegatefrom} object")
 			return False
@@ -4241,7 +4252,7 @@ displayName=New Group Policy Object
 		identity = identity_values[0] if identity_values else None
 
 		shadow = ShadowCredential(self)
-		return shadow.execute(
+		result = shadow.execute(
 			identity=identity,
 			action=action,
 			device_id=device_id,
@@ -4253,6 +4264,10 @@ displayName=New Group Policy Object
 			searchbase=searchbase,
 			use_drs=use_drs,
 		)
+		if result and action in ("add", "clear", "remove"):
+			target_dn = result[0].get("attributes", {}).get("TargetDN")
+			self._invalidate_cache_for_dn(target_dn)
+		return result
 
 	def get_shadowcredential(self, identity=None, searchbase=None, use_drs=False, args=None):
 		if args is not None:
@@ -4330,13 +4345,17 @@ displayName=New Group Policy Object
 		identity = identity_values[0] if identity_values else None
 
 		shadow = ShadowCredential(self)
-		return shadow.execute(
+		result = shadow.execute(
 			identity=identity,
 			action=action,
 			device_id=device_id,
 			searchbase=searchbase,
 			use_drs=use_drs,
 		)
+		if result:
+			target_dn = result[0].get("attributes", {}).get("TargetDN")
+			self._invalidate_cache_for_dn(target_dn)
+		return result
 
 	def set_domainobjectowner(self, targetidentity, principalidentity, searchbase=None, args=None):
 		"""
@@ -4407,6 +4426,7 @@ displayName=New Group Policy Object
 			return False
 		else:
 			logging.info(f'[Set-DomainObjectOwner] Success! modified owner for {target_identity[0]["attributes"]["distinguishedName"]}')
+			self._invalidate_cache_for_dn(target_identity[0]["attributes"]["distinguishedName"])
 
 		return succeeded
 
@@ -4581,7 +4601,8 @@ displayName=New Group Policy Object
 		
 		if succeeded:
 			logging.info(f"[Add-DomainGroupMember] Successfully added {members} to group {identity}")
-		
+			self._invalidate_cache_for_dn(targetobject_dn)
+
 		return succeeded
 
 	def disable_domaindnsrecord(self, recordname, zonename=None):
@@ -4704,6 +4725,8 @@ displayName=New Group Policy Object
 		succeeded = self.ldap_session.modify(targetobject_dn,{'member': [(ldap3.MODIFY_DELETE, [userobject_dn])]})
 		if not succeeded:
 			print(self.ldap_session.result['message'])
+		else:
+			self._invalidate_cache_for_dn(targetobject_dn)
 		return succeeded
 
 	def remove_domainuser(self, identity):
@@ -4724,7 +4747,10 @@ displayName=New Group Policy Object
 			return
 		identity_dn = entries[0]["attributes"]["distinguishedName"]
 		au = ADUser(self.ldap_session, self.root_dn)
-		return au.removeUser(identity_dn)
+		result = au.removeUser(identity_dn)
+		if result:
+			self._invalidate_cache_for_dn(identity_dn)
+		return result
 
 	def add_domaingroup(self, groupname, basedn=None, args=None):
 		identity_values = self._resolve_identity_values(groupname, args)
@@ -4765,6 +4791,7 @@ displayName=New Group Policy Object
 			return False
 		else:
 			logging.info('[Add-DomainGroup] Success! Created new group')
+			self._invalidate_cache_for_dn(parent_dn_entries)
 			return True
 
 	def add_domainuser(self, username, userpass, basedn=None, args=None):
@@ -4815,6 +4842,7 @@ displayName=New Group Policy Object
 			return False
 		else:
 			logging.info('[Add-DomainUser] Success! Created new user')
+			self._invalidate_cache_for_dn(parent_dn_entries)
 
 			if not self.conn.use_ldaps:
 				logging.info("[Add-DomainUser] Setting password via LDAP modify operation")
@@ -4893,6 +4921,7 @@ displayName=New Group Policy Object
 				inheritance
 			)
 		dacledit.remove()
+		self._invalidate_cache_for_dn(target_dn)
 
 	def add_domainobjectacl(self, targetidentity, principalidentity, rights="fullcontrol", rights_guid=None, ace_type="allowed", inheritance=False):
 		# verify if target identity exists
@@ -4962,6 +4991,7 @@ displayName=New Group Policy Object
 		success = dacledit.write()
 		if success:
 			logging.info(f'[Add-DomainObjectACL] Success! Added ACL to {target_dn if target_dn else target_sAMAccountName}')
+			self._invalidate_cache_for_dn(target_dn)
 			return True
 		else:
 			logging.error(f'[Add-DomainObjectACL] Failed to add ACL to {target_dn if target_dn else target_sAMAccountName}')
@@ -5601,12 +5631,14 @@ displayName=New Group Policy Object
 			logging.error(f'[Set-DomainUserPassword] Multiple principal objects found in domain. Use specific identifier')
 			return
 		logging.info(f'[Set-DomainUserPassword] Principal {"".join(entries[0]["attributes"]["distinguishedName"])} found in domain')
-		
+		identity_dn = entries[0]["attributes"]["distinguishedName"]
+
 		if self.conn.use_ldaps:
 			logging.debug("[Set-DomainUserPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
-			succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0]["attributes"]["distinguishedName"], accountpassword, old_password=oldpassword)
+			succeed = modifyPassword.ad_modify_password(self.ldap_session, identity_dn, accountpassword, old_password=oldpassword)
 			if succeed:
 				logging.info(f'[Set-DomainUserPassword] Password has been successfully changed for user {"".join(entries[0]["attributes"]["sAMAccountName"])}')
+				self._invalidate_cache_for_dn(identity_dn)
 				return True
 			else:
 				logging.error(f'[Set-DomainUserPassword] Failed to change password for {"".join(entries[0]["attributes"]["sAMAccountName"])}')
@@ -5635,6 +5667,7 @@ displayName=New Group Policy Object
 
 				resp = dce.request(req)
 				logging.info(f'[Set-DomainUserPassword] Password has been successfully changed for user {"".join(entries[0]["attributes"]["sAMAccountName"])}')
+				self._invalidate_cache_for_dn(identity_dn)
 				return True
 			except:
 				logging.error(f'[Set-DomainUserPassword] Failed to change password for {"".join(entries[0]["attributes"]["sAMAccountName"])}')
@@ -5658,12 +5691,14 @@ displayName=New Group Policy Object
 		elif len(entries) > 1:
 			logging.error("[Get-DomainComputerPassword] Multiple computers found in domain")
 			return False
+		identity_dn = entries[0]["attributes"]["distinguishedName"]
 
 		if self.conn.use_ldaps:
 			logging.debug("[Set-DomainComputerPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
-			succeed = modifyPassword.ad_modify_password(self.ldap_session, entries[0]["attributes"]["distinguishedName"], accountpassword, old_password=oldpassword)
+			succeed = modifyPassword.ad_modify_password(self.ldap_session, identity_dn, accountpassword, old_password=oldpassword)
 			if succeed:
 				logging.info(f'[Set-DomainComputerPassword] Password has been successfully changed for user {entries[0]["attributes"]["sAMAccountName"]}')
+				self._invalidate_cache_for_dn(identity_dn)
 				return True
 			else:
 				logging.error(f'[Set-DomainComputerPassword] Failed to change password for {entries[0]["attributes"]["sAMAccountName"]}')
@@ -5692,6 +5727,7 @@ displayName=New Group Policy Object
 
 				resp = dce.request(req)
 				logging.info(f'[Set-DomainComputerPassword] Password has been successfully changed for user {"".join(entries[0]["attributes"]["sAMAccountName"])}')
+				self._invalidate_cache_for_dn(identity_dn)
 				return True
 			except:
 				logging.error(f'[Set-DomainComputerPassword] Failed to change password for {"".join(entries[0]["attributes"]["sAMAccountName"])}')
@@ -5854,6 +5890,7 @@ displayName=New Group Policy Object
 			logging.error(f"[Set-DomainObject] Failed to modify attribute {attr_key} for {targetobject[0]['attributes']['distinguishedName']}")
 		else:
 			logging.info(f'[Set-DomainObject] Success! modified attribute {attr_key} for {targetobject[0]["attributes"]["distinguishedName"]}')
+			self._invalidate_cache_for_dn(targetobject[0]["attributes"]["distinguishedName"])
 
 		return succeeded
 
@@ -5898,6 +5935,8 @@ displayName=New Group Policy Object
 			logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Set-DomainObjectDN] Failed to modify, view debug message with --debug")
 		else:
 			logging.info(f'[Set-DomainObject] Success! modified new dn for {targetobject_dn}')
+			self._invalidate_cache_for_dn(targetobject_dn)
+			self._invalidate_cache_for_dn(destination_dn)
 
 		return succeeded
 

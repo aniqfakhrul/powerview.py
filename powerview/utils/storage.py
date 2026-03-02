@@ -24,8 +24,9 @@ class Storage:
             
             os.makedirs(self.cache_path, mode=0o700, exist_ok=True)
             os.makedirs(self.root_folder, mode=0o700, exist_ok=True)
-            
+
             logging.debug(f"[Storage] Using cache directory: {self.cache_path}")
+            self._cleanup_expired_cache()
             
         except Exception as e:
             temp_dir = tempfile.mkdtemp(prefix="powerview_")
@@ -74,6 +75,32 @@ class Storage:
             return [self._deserialize_complex_types(item) for item in obj]
         return obj
 
+    def _cleanup_expired_cache(self, cache_ttl=1800):
+        """Remove expired cache files on startup."""
+        removed = 0
+        cutoff = datetime.now() - timedelta(seconds=cache_ttl)
+        try:
+            for entry in os.scandir(self.cache_path):
+                if not entry.name.endswith('.json'):
+                    continue
+                try:
+                    with open(entry.path, 'r') as f:
+                        data = json.load(f)
+                    if datetime.fromisoformat(data['timestamp']) < cutoff:
+                        os.remove(entry.path)
+                        removed += 1
+                except Exception:
+                    # Unreadable or malformed cache file — remove it
+                    try:
+                        os.remove(entry.path)
+                        removed += 1
+                    except Exception:
+                        pass
+        except Exception as e:
+            logging.debug(f"[Storage] Cache cleanup failed: {e}")
+        if removed:
+            logging.debug(f"[Storage] Removed {removed} expired cache file(s) on startup")
+
     def cache_results(self, search_base, search_filter, search_scope, attributes, host, results, raw=False):
         """Cache LDAP query results"""
         cache_key = self._generate_cache_key(search_base, search_filter, search_scope, attributes, host, raw)
@@ -120,6 +147,32 @@ class Storage:
             logging.error(f"[Storage] Error reading cache: {e}")
         
         return None
+
+    def invalidate_for_dn(self, dn):
+        """Remove cache entries whose search_base would cover the given DN.
+
+        A cached query covers a DN when the DN equals the search_base or is
+        a descendant of it (i.e. the DN ends with ,<search_base>).
+        """
+        dn_lower = dn.lower()
+        removed = 0
+        try:
+            for entry in os.scandir(self.cache_path):
+                if not entry.name.endswith('.json'):
+                    continue
+                try:
+                    with open(entry.path, 'r') as f:
+                        data = json.load(f)
+                    search_base = data.get('search_base', '').lower()
+                    if search_base and (dn_lower == search_base or dn_lower.endswith(',' + search_base)):
+                        os.remove(entry.path)
+                        removed += 1
+                except Exception:
+                    pass
+        except Exception as e:
+            logging.debug(f"[Storage] Cache invalidation failed: {e}")
+        if removed:
+            logging.debug(f"[Storage] Invalidated {removed} cache entry/entries for DN: {dn}")
 
     def clear_cache(self) -> bool:
         """Clear all cached LDAP results"""
