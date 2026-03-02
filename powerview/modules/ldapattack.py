@@ -905,12 +905,12 @@ class LDAPAttack(ProtocolAttack):
 						hash = MD4.new ()
 						hash.update (blob['CurrentPassword'][:-2])
 						passwd = binascii.hexlify(hash.digest()).decode("utf-8")
-						userpass = sam + ':::' + passwd
-						LOG.info(userpass)
+						password = sam + ':::' + passwd
+						LOG.info(password)
 						count += 1
 						if fd is None:
 							fd = open(filename, "a+")
-						fd.write(userpass)
+						fd.write(password)
 						fd.write("\n")
 					except:
 						continue

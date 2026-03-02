@@ -405,7 +405,7 @@ def main():
                             elif pv_args.module.casefold() == 'add-domaindnsrecord':
                                 pv.add_domaindnsrecord(args=pv_args)
                             elif pv_args.module.casefold() == 'add-domainuser' or pv_args.module.casefold() == 'add-aduser':
-                                pv.add_domainuser(pv_args.username, pv_args.userpass, args=pv_args)
+                                pv.add_domainuser(pv_args.username, pv_args.password, args=pv_args)
                             elif pv_args.module.casefold() == 'add-domaingroup' or pv_args.module.casefold() == 'add-adgroup':
                                 pv.add_domaingroup(pv_args.identity, basedn=pv_args.basedn, args=pv_args)
                             elif pv_args.module.casefold() == 'remove-domainobject' or pv_args.module.casefold() == 'remove-adobject':

@@ -1101,7 +1101,7 @@ def setup_tools(mcp, powerview_instance):
 	@mcp.tool()
 	async def add_domain_user(
 		username: str,
-		userpass: str,
+		password: str,
 		basedn: str | None = None
 	) -> str:
 		"""
@@ -1109,16 +1109,16 @@ def setup_tools(mcp, powerview_instance):
 
 		Args:
 			username: The sAMAccountName for the new user.
-			userpass: The password for the new user.
+			password: The password for the new user.
 			basedn: The distinguished name of the container/OU to add the user to (default: CN=Users,<domainDN>).
 		"""
-		if not username or not userpass:
-			return _format_mcp_response(success=False, message="Username and Userpass are required.")
+		if not username or not password:
+			return _format_mcp_response(success=False, message="Username and Password are required.")
 		try:
 			args = type('Args', (), {'module': 'Add-DomainUser'})
 			result = powerview_instance.add_domainuser(
 				username=username,
-				userpass=userpass,
+				password=password,
 				basedn=basedn,
 				args=args
 			)

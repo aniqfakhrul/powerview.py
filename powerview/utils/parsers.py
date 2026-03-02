@@ -1336,8 +1336,8 @@ def powerview_arg_parse(cmd):
 
 	# add domain user
 	add_domainuser_parser = subparsers.add_parser('Add-DomainUser', aliases=['Add-ADUser'], exit_on_error=False)
-	add_domainuser_parser.add_argument('-UserName', action='store', default=None, const=None, dest='username')
-	add_domainuser_parser.add_argument('-UserPass', action='store', default=None, const=None, dest='userpass')
+	add_domainuser_parser.add_argument('-UserName', action='store', default=None, required=True, const=None, dest='username')
+	add_domainuser_parser.add_argument('-Password', action='store', default=None, required=True, const=None, dest='password')
 	add_domainuser_parser.add_argument('-BaseDN', action='store', default=None, const=None, dest='basedn', type=lambda value: escape_filter_chars_except_asterisk(value))
 	add_domainuser_parser.add_argument('-Server', action='store', dest='server')
 	add_domainuser_parser.add_argument('-OutFile', action='store', dest='outfile')

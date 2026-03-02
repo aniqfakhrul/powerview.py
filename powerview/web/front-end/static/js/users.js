@@ -572,7 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({ 
                     username, 
-                    userpass: password,
+                    password: password,
                     basedn: basedn || ''
                 })
             });
