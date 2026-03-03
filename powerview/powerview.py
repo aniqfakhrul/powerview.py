@@ -4993,7 +4993,7 @@ displayName=New Group Policy Object
 		sam_name = entries[0]["attributes"]["sAMAccountName"]
 
 		try:
-			if self.conn.use_ldaps:
+			if self.conn.use_ldaps or self.conn.use_adws:
 				logging.debug("[Remove-DomainComputer] Deleting computer via LDAPS")
 				succeed = self.ldap_session.delete(computer_dn)
 				if not succeed:
@@ -5383,7 +5383,7 @@ displayName=New Group Policy Object
 		computer_hostname = computer_name[:-1]
 
 		try:
-			if self.conn.use_ldaps:
+			if self.conn.use_ldaps or self.conn.use_adws:
 				logging.debug("[Add-DomainComputer] Adding computer via LDAPS")
 				
 				parent_dn = f"CN=Computers,{self.root_dn}"
