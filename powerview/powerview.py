@@ -8,7 +8,6 @@ from typing import List, Optional
 from powerview.modules.msa import MSA
 from powerview.modules.ca import CAEnum, PARSE_TEMPLATE, UTILS
 from powerview.modules.sccm import SCCM
-from powerview.modules.addcomputer import ADDCOMPUTER
 from powerview.modules.smbclient import SMBClient
 from powerview.modules.kerberoast import GetUserSPNs
 from powerview.modules.asreproast import ASREProast
@@ -4959,51 +4958,39 @@ displayName=New Group Policy Object
 			return False
 
 	def remove_domaincomputer(self, computer_name, args=None):
-		parent_dn_entries = self.root_dn
-		if hasattr(args, 'basedn') and args.basedn:
-			entries = self.get_domainobject(identity=args.basedn)
-			if len(entries) <= 0:
-				logging.error(f"[Add-DomainComputer] {args.basedn} could not be found in the domain")
-				return
-			elif len(entries) > 1:
-				logging.error("[Add-DomainComputer] More then one computer found in domain")
-				return
+		if computer_name[-1] != '$':
+			computer_name += '$'
 
-			parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
-		
-		setattr(self.args, "TGT", self.conn.get_TGT())
-		setattr(self.args, "TGS", self.conn.get_TGS())
-		setattr(self.args, "dc_host", self.dc_dnshostname)
-		setattr(self.args, "delete", True)
+		entries = self.get_domaincomputer(identity=computer_name, properties=['distinguishedName', 'sAMAccountName'])
+		if not entries:
+			logging.error("[Remove-DomainComputer] Computer %s not found in domain" % computer_name)
+			return False
+		elif len(entries) > 1:
+			logging.error("[Remove-DomainComputer] Multiple computers found, use a more specific identifier")
+			return False
 
-		if self.ssl:
-			setattr(self.args, "method", "LDAPS")
-		else:
-			setattr(self.args, "method", "SAMR")
+		computer_dn = entries[0]["attributes"]["distinguishedName"]
+		sam_name = entries[0]["attributes"]["sAMAccountName"]
 
-		# Creating Machine Account
-		addmachineaccount = ADDCOMPUTER(
-				username = self.username,
-				password = self.password,
-				domain = self.domain,
-				cmdLineOptions = self.args,
-				computer_name = computer_name,
-				base_dn = parent_dn_entries,
-				ldap_session = self.ldap_session
-				)
 		try:
-			if self.ssl:
-				addmachineaccount.run_ldaps()
+			if self.conn.use_ldaps:
+				logging.debug("[Remove-DomainComputer] Deleting computer via LDAPS")
+				succeed = self.ldap_session.delete(computer_dn)
+				if not succeed:
+					logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Remove-DomainComputer] Failed deleting {computer_name} ({self.ldap_session.result['description']})")
+					return False
 			else:
-				addmachineaccount.run_samr()
+				logging.debug("[Remove-DomainComputer] Deleting computer via SAMR")
+				samrobj = SamrObject(connection=self.conn, port=445)
+				dce = samrobj.connect(self.dc_ip)
+				domain_handle = samrobj.open_handle(dce)
+				samrobj.delete_computer(dce, domain_handle, sam_name)
 		except Exception as e:
 			logging.error(str(e))
 			return False
 
-		if len(self.get_domainobject(identity=computer_name)) == 0:
-			return True
-		else:
-			return False
+		logging.info("[Remove-DomainComputer] Successfully deleted %s." % computer_name)
+		return not bool(self.get_domainobject(identity=computer_name))
 
 	def set_domaindnsrecord(self, recordname, recordaddress, zonename=None, timeout=15):
 		if zonename:
@@ -5366,61 +5353,73 @@ displayName=New Group Policy Object
 		computer_name = args.computername if args and hasattr(args, 'computername') else computer_name
 		computer_pass = args.computerpass if args and hasattr(args, 'computerpass') else computer_pass
 		no_password = args.no_password if args and hasattr(args, 'no_password') else no_password
-		
-		parent_dn_entries = f"CN=Computers,{self.root_dn}"
-		if basedn:
-			parent_dn_entries = basedn
-		if hasattr(args, 'basedn') and args.basedn:
-			entries = self.get_domainobject(identity=args.basedn)
-			if len(entries) <= 0:
-				logging.error(f"[Add-DomainComputer] {args.basedn} could not be found in the domain")
-				return
-			elif len(entries) > 1:
-				logging.error("[Add-DomainComputer] More then one computer found in domain")
-				return
 
-			parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
-		
 		if computer_name[-1] != '$':
 			computer_name += '$'
 
-		setattr(self.args, "TGT", self.conn.get_TGT())
-		setattr(self.args, "TGS", self.conn.get_TGS())
-		setattr(self.args, "dc_host", self.dc_dnshostname)
-		setattr(self.args, "delete", False)
+		if computer_pass is None and not no_password:
+			chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+			computer_pass = ''.join(random.choices(chars, k=32))
 
-		if self.ssl:
-			setattr(self.args, "method", "LDAPS")
-		else:
-			setattr(self.args, "method", "SAMR")
+		computer_hostname = computer_name[:-1]
 
-		# Creating Machine Account
-		addmachineaccount = ADDCOMPUTER(
-				username=self.username,
-				password=self.password,
-				domain=self.domain,
-				cmdLineOptions = self.args,
-				computer_name = computer_name,
-				computer_pass = computer_pass,
-				no_password = no_password,
-				base_dn = parent_dn_entries,
-				ldap_session = self.ldap_session
-		)
 		try:
-			if self.ssl:
+			if self.conn.use_ldaps:
 				logging.debug("[Add-DomainComputer] Adding computer via LDAPS")
-				addmachineaccount.run_ldaps()
+				
+				parent_dn = f"CN=Computers,{self.root_dn}"
+				if basedn:
+					parent_dn = basedn
+				if hasattr(args, 'basedn') and args.basedn:
+					entries = self.get_domainobject(identity=args.basedn, properties=['distinguishedName'])
+					if not entries:
+						logging.error(f"[Add-DomainComputer] {args.basedn} could not be found in the domain")
+						return False
+					elif len(entries) > 1:
+						logging.error("[Add-DomainComputer] More than one object found for BaseDN")
+						return False
+					parent_dn = entries[0]["attributes"]["distinguishedName"]
+
+				computer_dn = "CN=%s,%s" % (computer_hostname, parent_dn)
+				spns = [
+					'HOST/%s' % computer_hostname,
+					'HOST/%s.%s' % (computer_hostname, self.domain),
+					'RestrictedKrbHost/%s' % computer_hostname,
+					'RestrictedKrbHost/%s.%s' % (computer_hostname, self.domain),
+				]
+				uac_value = 0x1000 | (0x20 if no_password else 0)
+				ucd = {
+					'dnsHostName': '%s.%s' % (computer_hostname, self.domain),
+					'userAccountControl': uac_value,
+					'servicePrincipalName': spns,
+					'sAMAccountName': computer_name,
+				}
+				if not no_password:
+					ucd['unicodePwd'] = ('"%s"' % computer_pass).encode('utf-16-le')
+
+				object_class = ['computer']
+				if not self.conn.use_adws:
+					object_class.extend(['top', 'person', 'organizationalPerson', 'user'])
+
+				succeed = self.ldap_session.add(computer_dn, object_class, ucd)
+				if not succeed:
+					logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainComputer] Failed adding {computer_name} ({self.ldap_session.result['description']})")
+					return False
 			else:
-				logging.debug("[Add-DomainComputer] Adding computer via SAMR")
-				addmachineaccount.run_samr()
+				samrobj = SamrObject(connection=self.conn, port=445)
+				dce = samrobj.connect(self.dc_ip)
+				domain_handle = samrobj.open_handle(dce)
+				samrobj.add_computer(dce, domain_handle, computer_name, computer_pass, no_password)
 		except Exception as e:
-			logging.error(str(e))
+			logging.error(f"[Add-DomainComputer] Error adding computer {computer_name}: {str(e)}")
 			return False
 
-		if self.get_domainobject(identity=computer_name, properties=['distinguishedName'])[0]['attributes']['distinguishedName']:
-			return True
+		if no_password:
+			logging.info("[Add-DomainComputer] Successfully added machine account %s without a password." % computer_name)
 		else:
-			return False
+			logging.info("[Add-DomainComputer] Successfully added machine account %s with password %s." % (computer_name, computer_pass))
+
+		return True
 
 	def get_namedpipes(self, args=None, timeout=5, max_threads=10):
 		"""
@@ -5604,32 +5603,22 @@ displayName=New Group Policy Object
 				logging.error(f'[Set-DomainUserPassword] Failed to change password for {"".join(entries[0]["attributes"]["sAMAccountName"])}')
 				return False
 		else:
-			logging.debug("[Set-DomainUserPassword] Using SAMR to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
+			sam_name = entries[0]['attributes']['sAMAccountName']
+			logging.debug("[Set-DomainUserPassword] Using SAMR to change %s password" % sam_name)
 			try:
-				dce = self.conn.init_samr_session()
-				if not dce:
-					logging.error('[Set-DomainUserPassword] Error binding with SAMR')
-					return
-
-				server_handle = samr.hSamrConnect(dce, self.dc_ip + '\x00')['ServerHandle']
-				domainSID = samr.hSamrLookupDomainInSamServer(dce, server_handle, self.domain)['DomainId']
-				domain_handle = samr.hSamrOpenDomain(dce, server_handle, domainId=domainSID)['DomainHandle']
-				userRID = samr.hSamrLookupNamesInDomain(dce, domain_handle, (entries[0]['attributes']['sAMAccountName'],))['RelativeIds']['Element'][0]
-				opened_user = samr.hSamrOpenUser(dce, domain_handle, userId=userRID)
-
-				req = samr.SamrSetInformationUser2()
-				req['UserHandle'] = opened_user['UserHandle']
-				req['UserInformationClass'] = samr.USER_INFORMATION_CLASS.UserInternal5Information
-				req['Buffer'] = samr.SAMPR_USER_INFO_BUFFER()
-				req['Buffer']['tag'] = samr.USER_INFORMATION_CLASS.UserInternal5Information
-				req['Buffer']['Internal5']['UserPassword'] = cryptPassword(b'SystemLibraryDTC', accountpassword)
-				req['Buffer']['Internal5']['PasswordExpired'] = 0
-
-				resp = dce.request(req)
-				logging.info(f'[Set-DomainUserPassword] Password has been successfully changed for user {"".join(entries[0]["attributes"]["sAMAccountName"])}')
+				samrobj = SamrObject(connection=self.conn, port=445)
+				dce = samrobj.connect(self.dc_ip)
+				if oldpassword:
+					logging.debug("[Set-DomainUserPassword] Changing password for %s using SAMR" % sam_name)
+					samrobj.change_password(dce, sam_name, oldpassword, accountpassword)
+				else:
+					logging.debug("[Set-DomainUserPassword] Resetting password for %s using SAMR" % sam_name)
+					domain_handle = samrobj.open_handle(dce)
+					samrobj.set_password(dce, domain_handle, sam_name, accountpassword)
+				logging.info(f'[Set-DomainUserPassword] Password has been successfully changed for user {"".join(sam_name)}')
 				return True
-			except:
-				logging.error(f'[Set-DomainUserPassword] Failed to change password for {"".join(entries[0]["attributes"]["sAMAccountName"])}')
+			except Exception as e:
+				logging.error(f'[Set-DomainUserPassword] Failed to change password for {"".join(sam_name)}: {e}')
 				return False
 
 	def set_domaincomputerpassword(self, identity, accountpassword, oldpassword=None, args=None):
@@ -5645,10 +5634,10 @@ displayName=New Group Policy Object
 			'sAMAccountName',
 			])
 		if len(entries) == 0:
-			logging.error("[Get-DomainComputerPassword] Computer %s not found in domain" % (identity))
+			logging.error("[Set-DomainComputerPassword] Computer %s not found in domain" % (identity))
 			return False
 		elif len(entries) > 1:
-			logging.error("[Get-DomainComputerPassword] Multiple computers found in domain")
+			logging.error("[Set-DomainComputerPassword] Multiple computers found in domain")
 			return False
 		identity_dn = entries[0]["attributes"]["distinguishedName"]
 
@@ -5662,34 +5651,23 @@ displayName=New Group Policy Object
 				logging.error(f'[Set-DomainComputerPassword] Failed to change password for {entries[0]["attributes"]["sAMAccountName"]}')
 				return False
 		else:
-			logging.debug("[Set-DomainComputerPassword] Using SAMR to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
+			sam_name = entries[0]['attributes']['sAMAccountName']
+			logging.debug("[Set-DomainComputerPassword] Using SAMR to change %s password" % sam_name)
 			try:
-				dce = self.conn.init_samr_session()
-				if not dce:
-					logging.error('Error binding with SAMR')
-					return
-
-				server_handle = samr.hSamrConnect(dce, self.dc_ip + '\x00')['ServerHandle']
-				domainSID = samr.hSamrLookupDomainInSamServer(dce, server_handle, self.domain)['DomainId']
-				domain_handle = samr.hSamrOpenDomain(dce, server_handle, domainId=domainSID)['DomainHandle']
-				userRID = samr.hSamrLookupNamesInDomain(dce, domain_handle, (entries[0]['attributes']['sAMAccountName'],))['RelativeIds']['Element'][0]
-				opened_user = samr.hSamrOpenUser(dce, domain_handle, userId=userRID)
-
-				req = samr.SamrSetInformationUser2()
-				req['UserHandle'] = opened_user['UserHandle']
-				req['UserInformationClass'] = samr.USER_INFORMATION_CLASS.UserInternal5Information
-				req['Buffer'] = samr.SAMPR_USER_INFO_BUFFER()
-				req['Buffer']['tag'] = samr.USER_INFORMATION_CLASS.UserInternal5Information
-				req['Buffer']['Internal5']['UserPassword'] = cryptPassword(b'SystemLibraryDTC', accountpassword)
-				req['Buffer']['Internal5']['PasswordExpired'] = 0
-
-				resp = dce.request(req)
-				logging.info(f'[Set-DomainComputerPassword] Password has been successfully changed for user {"".join(entries[0]["attributes"]["sAMAccountName"])}')
+				samrobj = SamrObject(connection=self.conn, port=445)
+				dce = samrobj.connect(self.dc_ip)
+				if oldpassword:
+					logging.debug("[Set-DomainComputerPassword] Changing password for %s using SAMR" % sam_name)
+					samrobj.change_password(dce, sam_name, oldpassword, accountpassword)
+				else:
+					logging.debug("[Set-DomainComputerPassword] Resetting password for %s using SAMR" % sam_name)
+					domain_handle = samrobj.open_handle(dce)
+					samrobj.set_password(dce, domain_handle, sam_name, accountpassword)
+				logging.info(f'[Set-DomainComputerPassword] Password has been successfully changed for {sam_name}')
 				return True
-			except:
-				logging.error(f'[Set-DomainComputerPassword] Failed to change password for {"".join(entries[0]["attributes"]["sAMAccountName"])}')
+			except Exception as e:
+				logging.error(f'[Set-DomainComputerPassword] Failed to change password for {sam_name}: {e}')
 				return False
-
 
 	def set_domainobject(self, identity, clear=None, _set=None, append=None, remove=None, searchbase=None, sd_flag=None, args=None):
 		operations = [op for op in [_set, clear, append, remove] if op]
