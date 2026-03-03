@@ -13,3 +13,5 @@ venv
 CLAUDE.md
 .python-version
 uv.lock
+win-libs
+ghidraScripts
