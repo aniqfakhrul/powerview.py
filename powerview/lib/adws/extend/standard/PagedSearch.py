@@ -21,21 +21,21 @@ def adws_paged_search_generator(connection,
     cookie = None
     total_results = 0
     while True:
-        results = connection.search(search_base,
-                                   search_filter,
-                                   search_scope,
-                                   attributes,
-                                   size_limit,
-                                   time_limit,
-                                   types_only,
-                                   get_operational_attributes,
-                                   controls,
-                                   paged_size,
-                                   paged_criticality,
-                                   None if cookie is True else cookie)
-        if not results:
+        success = connection.search(search_base,
+                                    search_filter,
+                                    search_scope,
+                                    attributes,
+                                    size_limit,
+                                    time_limit,
+                                    types_only,
+                                    get_operational_attributes,
+                                    controls,
+                                    paged_size,
+                                    paged_criticality,
+                                    None if cookie is True else cookie)
+        if not success or not connection.entries:
             break
-        for entry in results:
+        for entry in connection.entries:
             yield entry
             total_results += 1
             if size_limit and total_results >= size_limit:

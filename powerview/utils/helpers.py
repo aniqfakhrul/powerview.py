@@ -331,7 +331,7 @@ def modify_entry(entry, new_attributes=[], remove=[]):
 
 	for i in j:
 		if i not in remove:
-			entries[i] = j[i]
+			entries[str(i)] = j[i]
 
 	if new_attributes:
 		for attr in new_attributes:

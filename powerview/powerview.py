@@ -2075,63 +2075,71 @@ class PowerView:
 					for ent in member_entries:
 						attr = {}
 						member_infos = {}
-						try:
-							member_infos['GroupDomainName'] = group_identity_sam
-						except:
-							pass
-						try:
-							member_infos['GroupDistinguishedName'] = group_identity_dn
-						except:
-							pass
+						member_infos['GroupDomainName'] = group_identity_sam
+						member_infos['GroupDistinguishedName'] = group_identity_dn
+						# Handle both ldap3 Entry objects (.value) and dict-style entries
 						try:
 							member_infos['MemberDomain'] = ent['userPrincipalName'].value.split("@")[-1]
-						except:
-							member_infos['MemberDomain'] = self.domain
+						except (AttributeError, KeyError, TypeError):
+							try:
+								member_infos['MemberDomain'] = ent['attributes']['userPrincipalName'].split("@")[-1]
+							except (KeyError, TypeError, AttributeError):
+								member_infos['MemberDomain'] = self.domain
 						try:
 							member_infos['MemberName'] = ent['sAMAccountName'].value
-						except:
-							pass
+						except (AttributeError, KeyError, TypeError):
+							try:
+								member_infos['MemberName'] = ent['attributes']['sAMAccountName']
+							except (KeyError, TypeError):
+								pass
 						try:
 							member_infos['MemberDistinguishedName'] = ent['distinguishedName'].value
-						except:
-							pass
+						except (AttributeError, KeyError, TypeError):
+							try:
+								member_infos['MemberDistinguishedName'] = ent['attributes']['distinguishedName']
+							except (KeyError, TypeError):
+								pass
 						try:
 							member_infos['MemberSID'] = ent['objectSid'].value
-						except:
-							pass
+						except (AttributeError, KeyError, TypeError):
+							try:
+								member_infos['MemberSID'] = ent['attributes']['objectSid']
+							except (KeyError, TypeError):
+								pass
 
 						attr['attributes'] = member_infos
 						new_entries.append(attr.copy())
 			else:
 				ldap_filter = f"(&(objectCategory=*)(memberof:1.2.840.113556.1.4.1941:={group_identity_dn}))"
-				self.ldap_session.search(self.root_dn, ldap_filter, attributes='*')
+				member_entries = self.ldap_session.extend.standard.paged_search(
+					self.root_dn,
+					ldap_filter,
+					attributes=['userPrincipalName', 'sAMAccountName', 'distinguishedName', 'objectSid'],
+					paged_size=1000,
+					generator=True,
+					no_cache=no_cache
+				)
 
-				for entry in self.ldap_session.entries:
+				for entry in member_entries:
 					attr = {}
 					member_infos = {}
+					member_infos['GroupDomainName'] = group_identity_sam
+					member_infos['GroupDistinguishedName'] = group_identity_dn
 					try:
-						member_infos['GroupDomainName'] = group_identity_sam
-					except:
-						pass
-					try:
-						member_infos['GroupDistinguishedName'] = group_identity_dn
-					except:
-						pass
-					try:
-						member_infos['MemberDomain'] = entry['userPrincipalName'].value.split("@")[-1]
-					except:
+						member_infos['MemberDomain'] = entry['attributes']['userPrincipalName'].split("@")[-1]
+					except (KeyError, TypeError, AttributeError):
 						member_infos['MemberDomain'] = self.domain
 					try:
-						member_infos['MemberName'] = entry['sAMAccountName'].value
-					except:
+						member_infos['MemberName'] = entry['attributes']['sAMAccountName']
+					except (KeyError, TypeError):
 						pass
 					try:
-						member_infos['MemberDistinguishedName'] = entry['distinguishedName'].value
-					except:
+						member_infos['MemberDistinguishedName'] = entry['attributes']['distinguishedName']
+					except (KeyError, TypeError):
 						pass
 					try:
-						member_infos['MemberSID'] = entry['objectSid'].value
-					except:
+						member_infos['MemberSID'] = entry['attributes']['objectSid']
+					except (KeyError, TypeError):
 						pass
 
 					attr['attributes'] = member_infos
@@ -3440,11 +3448,14 @@ displayName=New Group Policy Object
 
 		
 		ou_data = {
-				'objectCategory': f'CN=Organizational-Unit,{self.schema_dn}',
 				'name': identity,
 				}
+		object_class = ['organizationalUnit']
+		if not self.conn.use_adws:
+			object_class = ['top', 'organizationalUnit']
+			ou_data['objectCategory'] = f'CN=Organizational-Unit,{self.schema_dn}'
 
-		self.ldap_session.add(dn, ['top','organizationalUnit'], ou_data)
+		self.ldap_session.add(dn, object_class, ou_data)
 		
 		if args.protectedfromaccidentaldeletion:
 			logging.info("[Add-DomainOU] Protect accidental deletion enabled")
@@ -4756,11 +4767,13 @@ displayName=New Group Policy Object
 				ucd = {
 					'displayName': groupname,
 					'sAMAccountName': groupname,
-					'objectCategory': f'CN=Group,{self.schema_dn}',
-					'objectClass': ['top', 'group'],
 				}
+				object_class = ['group']
+				if not self.conn.use_adws:
+					object_class = ['top', 'group']
+					ucd['objectCategory'] = f'CN=Group,{self.schema_dn}'
 
-				succeed = self.ldap_session.add(group_dn, ['top', 'group'], ucd)
+				succeed = self.ldap_session.add(group_dn, object_class, ucd)
 				if not succeed:
 					logging.error(f"[Add-DomainGroup] Failed adding {groupname} to domain ({self.ldap_session.result['description']})")
 					return False
@@ -4811,7 +4824,7 @@ displayName=New Group Policy Object
 			}
 			object_class = ['user']
 			if not self.conn.use_adws:
-				object_class.extend(['top', 'person', 'organizationalPerson'])
+				object_class = ['top', 'user', 'person', 'organizationalPerson']
 			succeed = self.ldap_session.add(udn, object_class, ucd)
 			
 		if not succeed:
@@ -5086,11 +5099,15 @@ displayName=New Group Policy Object
 		addtype = 1
 		DNS_UTIL.get_next_serial(self.nameserver, self.dc_ip, zonename, True, timeout)
 		node_data = {
-				# Schema is in the root domain (take if from schemaNamingContext to be sure)
-				'objectCategory': f'CN=Dns-Node,{self.schema_dn}',
-				'dNSTombstoned': "FALSE", # Need to hardcoded because of Kerberos issue, will revisit.
 				'name': recordname
 				}
+		object_class = ['dnsNode']
+		if not self.conn.use_adws:
+			object_class = ['top', 'dnsNode']
+			node_data['dNSTombstoned'] = "FALSE"
+			# Schema is in the root domain (take if from schemaNamingContext to be sure)
+			node_data['objectCategory'] = f'CN=Dns-Node,{self.schema_dn}'
+
 		logging.debug("[Add-DomainDNSRecord] Creating DNS record structure")
 		record = DNS_UTIL.new_record(addtype, DNS_UTIL.get_next_serial(self.nameserver, self.dc_ip, zonename, True), recordaddress)
 		record_dn = 'DC=%s,%s' % (recordname, basedn)
@@ -5101,7 +5118,7 @@ displayName=New Group Policy Object
 		logging.debug(f"[Add-DomainDNSRecord] Record Name: {recordname}")
 		logging.debug(f"[Add-DomainDNSRecord] Record Address: {recordaddress}")
 		logging.debug(f"[Add-DomainDNSRecord] Record DN: {record_dn}")
-		succeeded = self.ldap_session.add(record_dn, ['top', 'dnsNode'], node_data)
+		succeeded = self.ldap_session.add(record_dn, object_class, node_data)
 		if not succeeded:
 			logging.error(self.ldap_session.result['message'] if self.args.debug else f"[Add-DomainDNSRecord] Failed adding DNS record to domain ({self.ldap_session.result['description']})")
 			return False
@@ -5413,7 +5430,7 @@ displayName=New Group Policy Object
 
 				object_class = ['computer']
 				if not self.conn.use_adws:
-					object_class.extend(['top', 'person', 'organizationalPerson', 'user'])
+					object_class = ['top', 'computer', 'person', 'organizationalPerson', 'user']
 
 				succeed = self.ldap_session.add(computer_dn, object_class, ucd)
 				if not succeed:
@@ -5600,21 +5617,21 @@ displayName=New Group Policy Object
 		entries = self.get_domainuser(identity=identity, properties=['distinguishedName','sAMAccountName'])
 		if len(entries) == 0:
 			logging.error(f'[Set-DomainUserPassword] No principal object found in domain')
-			return
+			return False
 		elif len(entries) > 1:
 			logging.error(f'[Set-DomainUserPassword] Multiple principal objects found in domain. Use specific identifier')
-			return
-		logging.info(f'[Set-DomainUserPassword] Principal {"".join(entries[0]["attributes"]["distinguishedName"])} found in domain')
+			return False
 		identity_dn = entries[0]["attributes"]["distinguishedName"]
+		sam_name = entries[0]["attributes"]["sAMAccountName"]
+		logging.info(f'[Set-DomainUserPassword] Principal {identity_dn} found in domain')
 
 		if self.conn.use_adws:
-			sam_name = entries[0]['attributes']['sAMAccountName']
 			try:
 				if oldpassword:
-					logging.debug("[Set-DomainUserPassword] Using ADWS ChangePassword for %s" % sam_name)
+					logging.debug(f"[Set-DomainUserPassword] Using ADWS ChangePassword for {sam_name}")
 					succeed = self.ldap_session.change_password(identity_dn, oldpassword, accountpassword)
 				else:
-					logging.debug("[Set-DomainUserPassword] Using ADWS SetPassword for %s" % sam_name)
+					logging.debug(f"[Set-DomainUserPassword] Using ADWS SetPassword for {sam_name}")
 					succeed = self.ldap_session.set_password(identity_dn, accountpassword)
 				if succeed:
 					logging.info(f'[Set-DomainUserPassword] Password has been successfully changed for user {sam_name}')
@@ -5625,17 +5642,16 @@ displayName=New Group Policy Object
 				logging.error(f'[Set-DomainUserPassword] Failed to change password for {sam_name}: {e}')
 				return False
 		elif self.conn.use_ldaps:
-			logging.debug("[Set-DomainUserPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
+			logging.debug(f"[Set-DomainUserPassword] Using LDAPS to change {sam_name} password")
 			succeed = modifyPassword.ad_modify_password(self.ldap_session, identity_dn, accountpassword, old_password=oldpassword)
 			if succeed:
-				logging.info(f'[Set-DomainUserPassword] Password has been successfully changed for user {"".join(entries[0]["attributes"]["sAMAccountName"])}')
+				logging.info(f'[Set-DomainUserPassword] Password has been successfully changed for user {sam_name}')
 				return True
 			else:
-				logging.error(f'[Set-DomainUserPassword] Failed to change password for {"".join(entries[0]["attributes"]["sAMAccountName"])}')
+				logging.error(f'[Set-DomainUserPassword] Failed to change password for {sam_name}')
 				return False
 		else:
-			sam_name = entries[0]['attributes']['sAMAccountName']
-			logging.debug("[Set-DomainUserPassword] Using SAMR to change %s password" % sam_name)
+			logging.debug(f"[Set-DomainUserPassword] Using SAMR to change {sam_name} password")
 			old_hash = getattr(args, 'hash', None)
 			old_nt_hash = ''
 			old_lm_hash = ''
@@ -5650,16 +5666,16 @@ displayName=New Group Policy Object
 				samrobj = SamrObject(connection=self.conn, port=445)
 				dce = samrobj.connect(self.dc_ip)
 				if oldpassword or old_hash:
-					logging.debug("[Set-DomainUserPassword] Changing password for %s using SAMR" % sam_name)
+					logging.debug(f"[Set-DomainUserPassword] Changing password for {sam_name} using SAMR")
 					samrobj.change_password(dce, sam_name, oldpassword or '', accountpassword, old_pwd_hash_nt=old_nt_hash, old_pwd_hash_lm=old_lm_hash)
 				else:
-					logging.debug("[Set-DomainUserPassword] Resetting password for %s using SAMR" % sam_name)
+					logging.debug(f"[Set-DomainUserPassword] Resetting password for {sam_name} using SAMR")
 					domain_handle = samrobj.open_handle(dce)
 					samrobj.set_password(dce, domain_handle, sam_name, accountpassword)
-				logging.info(f'[Set-DomainUserPassword] Password has been successfully changed for user {"".join(sam_name)}')
+				logging.info(f'[Set-DomainUserPassword] Password has been successfully changed for user {sam_name}')
 				return True
 			except Exception as e:
-				logging.error(f'[Set-DomainUserPassword] Failed to change password for {"".join(sam_name)}: {e}')
+				logging.error(f'[Set-DomainUserPassword] Failed to change password for {sam_name}: {e}')
 				return False
 
 	def set_domaincomputerpassword(self, identity, accountpassword, oldpassword=None, args=None):
@@ -5675,21 +5691,22 @@ displayName=New Group Policy Object
 			'sAMAccountName',
 			])
 		if len(entries) == 0:
-			logging.error("[Set-DomainComputerPassword] Computer %s not found in domain" % (identity))
+			logging.error(f'[Set-DomainComputerPassword] Computer {identity} not found in domain')
 			return False
 		elif len(entries) > 1:
-			logging.error("[Set-DomainComputerPassword] Multiple computers found in domain")
+			logging.error(f'[Set-DomainComputerPassword] Multiple computers found in domain. Use specific identifier')
 			return False
 		identity_dn = entries[0]["attributes"]["distinguishedName"]
+		sam_name = entries[0]["attributes"]["sAMAccountName"]
+		logging.info(f'[Set-DomainComputerPassword] Principal {identity_dn} found in domain')
 
 		if self.conn.use_adws:
-			sam_name = entries[0]['attributes']['sAMAccountName']
 			try:
 				if oldpassword:
-					logging.debug("[Set-DomainComputerPassword] Using ADWS ChangePassword for %s" % sam_name)
+					logging.debug(f"[Set-DomainComputerPassword] Using ADWS ChangePassword for {sam_name}")
 					succeed = self.ldap_session.change_password(identity_dn, oldpassword, accountpassword)
 				else:
-					logging.debug("[Set-DomainComputerPassword] Using ADWS SetPassword for %s" % sam_name)
+					logging.debug(f"[Set-DomainComputerPassword] Using ADWS SetPassword for {sam_name}")
 					succeed = self.ldap_session.set_password(identity_dn, accountpassword)
 				if succeed:
 					logging.info(f'[Set-DomainComputerPassword] Password has been successfully changed for {sam_name}')
@@ -5700,17 +5717,16 @@ displayName=New Group Policy Object
 				logging.error(f'[Set-DomainComputerPassword] Failed to change password for {sam_name}: {e}')
 				return False
 		elif self.conn.use_ldaps:
-			logging.debug("[Set-DomainComputerPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
+			logging.debug(f"[Set-DomainComputerPassword] Using LDAPS to change {sam_name} password")
 			succeed = modifyPassword.ad_modify_password(self.ldap_session, identity_dn, accountpassword, old_password=oldpassword)
 			if succeed:
-				logging.info(f'[Set-DomainComputerPassword] Password has been successfully changed for user {entries[0]["attributes"]["sAMAccountName"]}')
+				logging.info(f'[Set-DomainComputerPassword] Password has been successfully changed for {sam_name}')
 				return True
 			else:
-				logging.error(f'[Set-DomainComputerPassword] Failed to change password for {entries[0]["attributes"]["sAMAccountName"]}')
+				logging.error(f'[Set-DomainComputerPassword] Failed to change password for {sam_name}')
 				return False
 		else:
-			sam_name = entries[0]['attributes']['sAMAccountName']
-			logging.debug("[Set-DomainComputerPassword] Using SAMR to change %s password" % sam_name)
+			logging.debug(f"[Set-DomainComputerPassword] Using SAMR to change {sam_name} password")
 			old_hash = getattr(args, 'hash', None)
 			old_nt_hash = ''
 			old_lm_hash = ''
@@ -5725,10 +5741,10 @@ displayName=New Group Policy Object
 				samrobj = SamrObject(connection=self.conn, port=445)
 				dce = samrobj.connect(self.dc_ip)
 				if oldpassword or old_hash:
-					logging.debug("[Set-DomainComputerPassword] Changing password for %s using SAMR" % sam_name)
+					logging.debug(f"[Set-DomainComputerPassword] Changing password for {sam_name} using SAMR")
 					samrobj.change_password(dce, sam_name, oldpassword or '', accountpassword, old_pwd_hash_nt=old_nt_hash, old_pwd_hash_lm=old_lm_hash)
 				else:
-					logging.debug("[Set-DomainComputerPassword] Resetting password for %s using SAMR" % sam_name)
+					logging.debug(f"[Set-DomainComputerPassword] Resetting password for {sam_name} using SAMR")
 					domain_handle = samrobj.open_handle(dce)
 					samrobj.set_password(dce, domain_handle, sam_name, accountpassword)
 				logging.info(f'[Set-DomainComputerPassword] Password has been successfully changed for {sam_name}')

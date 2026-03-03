@@ -11,13 +11,22 @@ from .response import parse_soap_response
 
 from ldap3 import SEQUENCE_TYPES
 from uuid import uuid4
+from base64 import b64encode
+from xml.sax.saxutils import escape as xml_escape
 
 ATTRIBUTE_TYPE_AND_VALUE_FSTRING = """<AttributeTypeAndValue>
     <AttributeType>{attribute}</AttributeType>
     <AttributeValue>
-        <ad:value xsi:type="xsd:string">{value}</ad:value>
+        {values}
     </AttributeValue>
 </AttributeTypeAndValue>"""
+
+
+def _serialize_value(value):
+    """Serialize a single attribute value to an <ad:value> XML element."""
+    if isinstance(value, (bytes, bytearray)):
+        return f'<ad:value xsi:type="xsd:base64Binary">{b64encode(value).decode("ascii")}</ad:value>'
+    return f'<ad:value xsi:type="xsd:string">{xml_escape(str(value))}</ad:value>'
 
 
 def get_rdn(dn: str):
@@ -49,17 +58,24 @@ def add_operation(fqdn: str, dn: str, attributes: dict, controls=None):
     parent_dn = get_parent_dn(dn)
     rdn = get_rdn(dn)
     if parent_dn:
-        attr_xml += ATTRIBUTE_TYPE_AND_VALUE_FSTRING.format(attribute="ad:container-hierarchy-parent", value=parent_dn)
+        attr_xml += ATTRIBUTE_TYPE_AND_VALUE_FSTRING.format(
+            attribute="ad:container-hierarchy-parent",
+            values=_serialize_value(parent_dn))
 
     if rdn:
-        attr_xml += ATTRIBUTE_TYPE_AND_VALUE_FSTRING.format(attribute="ad:relativeDistinguishedName", value=rdn)
+        attr_xml += ATTRIBUTE_TYPE_AND_VALUE_FSTRING.format(
+            attribute="ad:relativeDistinguishedName",
+            values=_serialize_value(rdn))
 
-    for pos, attribute in enumerate(attributes):
-        if isinstance(attributes[attribute], SEQUENCE_TYPES):
-            for index, value in enumerate(attributes[attribute]):
-                attr_xml += ATTRIBUTE_TYPE_AND_VALUE_FSTRING.format(attribute=f"addata:{attribute}", value=value)
+    for attribute in attributes:
+        vals = attributes[attribute]
+        if isinstance(vals, SEQUENCE_TYPES):
+            values_xml = "\n        ".join(_serialize_value(v) for v in vals)
         else:
-            attr_xml += ATTRIBUTE_TYPE_AND_VALUE_FSTRING.format(attribute=f"addata:{attribute}", value=attributes[attribute])
+            values_xml = _serialize_value(vals)
+        attr_xml += ATTRIBUTE_TYPE_AND_VALUE_FSTRING.format(
+            attribute=f"addata:{attribute}", values=values_xml)
+
     add_vars = {
         "fqdn": fqdn,
         "uuid": str(uuid4()),

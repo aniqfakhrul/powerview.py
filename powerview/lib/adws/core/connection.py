@@ -58,7 +58,8 @@ class Connection(object):
         self.bound = False
         self.closed = True
         self.last_error = None
-        
+        self.entries = []
+
         # Add compatibility attributes for connection pooling
         self.nmf = None
 
@@ -323,7 +324,8 @@ class Connection(object):
                     enum_ctx = new_enum_ctx
 
             logging.debug(f"[ADWS] Search complete: {len(all_entries)} total entries in {pull_count} pulls")
-            return all_entries
+            self.entries = all_entries
+            return True
         except ADWSError as e:
             if "size limit was exceeded" in str(e).lower() and attributes and isinstance(attributes, list) and attributes != [ALL_ATTRIBUTES]:
                 logging.warning("Size limit was exceeded, retrying with wildcard attributes")

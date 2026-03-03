@@ -57,11 +57,11 @@ class Server(object):
             'isGlobalCatalogReady',
             'currentTime'
         ]
-        response = connection.search(search_base='',
-                                   search_filter='(objectClass=*)',
-                                   search_scope=BASE,
-                                   attributes=attributes_to_request)
-        self._dsa_info = DsaInfo(response[0]['attributes'], response[0]['raw_attributes'])
+        connection.search(search_base='',
+                         search_filter='(objectClass=*)',
+                         search_scope=BASE,
+                         attributes=attributes_to_request)
+        self._dsa_info = DsaInfo(connection.entries[0]['attributes'], connection.entries[0]['raw_attributes'])
 
     def _get_schema_info(self, connection, entry=''):
         """
@@ -76,21 +76,21 @@ class Server(object):
                 schema_entry = self._dsa_info.schema_entry if self._dsa_info.schema_entry else None
         else:
             result = connection.search(entry, '(objectClass=*)', BASE, attributes=['subschemaSubentry'], get_operational_attributes=True)
-            if result and 'subschemaSubentry' in result[0]['raw_attributes']:
-                if len(result[0]['raw_attributes']['subschemaSubentry']) > 0:
-                    schema_entry = result[0]['raw_attributes']['subschemaSubentry'][0]
+            if result and connection.entries and 'subschemaSubentry' in connection.entries[0]['raw_attributes']:
+                if len(connection.entries[0]['raw_attributes']['subschemaSubentry']) > 0:
+                    schema_entry = connection.entries[0]['raw_attributes']['subschemaSubentry'][0]
         
         if schema_entry:
-            response = connection.search(schema_entry,
-                                        search_filter='(objectClass=subschema)',
-                                        search_scope=BASE,
-                                        attributes=[
-                                            'objectClasses',
-                                            'attributeTypes',
-                                            'createTimestamp',
-                                            'modifyTimestamp'
-                                        ])
-            self._schema_info = SchemaInfo(schema_entry, response[0]['attributes'], response[0]['raw_attributes'])
+            connection.search(schema_entry,
+                             search_filter='(objectClass=subschema)',
+                             search_scope=BASE,
+                             attributes=[
+                                 'objectClasses',
+                                 'attributeTypes',
+                                 'createTimestamp',
+                                 'modifyTimestamp'
+                             ])
+            self._schema_info = SchemaInfo(schema_entry, connection.entries[0]['attributes'], connection.entries[0]['raw_attributes'])
             if self._schema_info:  # if schema is valid tries to apply formatter to the "other" dict with raw values for schema and info
                 for attribute in self._schema_info.other:
                     self._schema_info.other[attribute] = format_attribute_values(self._schema_info, attribute, self._schema_info.raw[attribute], self.custom_formatter)
