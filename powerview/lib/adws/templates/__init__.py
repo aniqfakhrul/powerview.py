@@ -169,3 +169,46 @@ LDAP_MODIFY_DN_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/
         {controls}
     </s:Body>
 </s:Envelope>"""
+
+SET_PASSWORD_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+    xmlns:a="http://www.w3.org/2005/08/addressing">
+    <s:Header>
+        <a:Action s:mustUnderstand="1">http://schemas.microsoft.com/2008/1/ActiveDirectory/CustomActions/AccountManagement/SetPassword</a:Action>
+        <Server xmlns="http://schemas.microsoft.com/2008/1/ActiveDirectory/CustomActions">ldap:389</Server>
+        <a:MessageID>urn:uuid:{uuid}</a:MessageID>
+        <a:ReplyTo>
+            <a:Address>http://www.w3.org/2005/08/addressing/anonymous</a:Address>
+        </a:ReplyTo>
+        <a:To s:mustUnderstand="1">net.tcp://{fqdn}:9389/ActiveDirectoryWebServices/Windows/AccountManagement</a:To>
+    </s:Header>
+    <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+        <SetPasswordRequest xmlns="http://schemas.microsoft.com/2008/1/ActiveDirectory/CustomActions">
+            <AccountDN>{account_dn}</AccountDN>
+            <NewPassword>{new_password}</NewPassword>
+            <PartitionDN>{partition_dn}</PartitionDN>
+        </SetPasswordRequest>
+    </s:Body>
+</s:Envelope>"""
+
+CHANGE_PASSWORD_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope"
+    xmlns:a="http://www.w3.org/2005/08/addressing">
+    <s:Header>
+        <a:Action s:mustUnderstand="1">http://schemas.microsoft.com/2008/1/ActiveDirectory/CustomActions/AccountManagement/ChangePassword</a:Action>
+        <Server xmlns="http://schemas.microsoft.com/2008/1/ActiveDirectory/CustomActions">ldap:389</Server>
+        <a:MessageID>urn:uuid:{uuid}</a:MessageID>
+        <a:ReplyTo>
+            <a:Address>http://www.w3.org/2005/08/addressing/anonymous</a:Address>
+        </a:ReplyTo>
+        <a:To s:mustUnderstand="1">net.tcp://{fqdn}:9389/ActiveDirectoryWebServices/Windows/AccountManagement</a:To>
+    </s:Header>
+    <s:Body xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+        <ChangePasswordRequest xmlns="http://schemas.microsoft.com/2008/1/ActiveDirectory/CustomActions">
+            <AccountDN>{account_dn}</AccountDN>
+            <NewPassword>{new_password}</NewPassword>
+            <OldPassword>{old_password}</OldPassword>
+            <PartitionDN>{partition_dn}</PartitionDN>
+        </ChangePasswordRequest>
+    </s:Body>
+</s:Envelope>"""

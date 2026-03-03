@@ -4,6 +4,7 @@ from ..operation.modify import modify_operation, modify_response_to_dict
 from ..operation.delete import delete_operation, delete_response_to_dict
 from ..operation.add import add_operation, add_response_to_dict
 from ..operation.modifyDN import modify_dn_operation, modify_dn_response_to_dict
+from ..operation.customaction import set_password_operation, change_password_operation, password_response_to_dict
 from ..nns import NNS
 from ..nmf import NMFConnection
 from ..error import ADWSError
@@ -521,6 +522,86 @@ class Connection(object):
                 return False
         else:
             return True
+
+    @staticmethod
+    def _derive_partition_dn(account_dn):
+        """Extract partition DN (DC= components) from an account DN."""
+        parts = [p.strip() for p in account_dn.split(',')]
+        dc_parts = [p for p in parts if p.upper().startswith('DC=')]
+        return ','.join(dc_parts) if dc_parts else ''
+
+    def set_password(self, account_dn, new_password, partition_dn=None):
+        """Reset an account's password via ADWS AccountManagement (SetPassword).
+
+        This is an admin password reset — no old password required.
+        Requires Reset Password permission on the target object.
+
+        Args:
+            account_dn:   DN of the target account
+            new_password: New password to set
+            partition_dn: Domain partition DN (auto-derived if None)
+
+        Returns:
+            True on success
+
+        Raises:
+            ADWSError: On SOAP fault
+        """
+        if self.resource != ACCOUNT_MANAGEMENT:
+            logging.debug("SetPassword requires AccountManagement endpoint, reconnecting")
+            self.reconnect(ACCOUNT_MANAGEMENT)
+
+        if not partition_dn:
+            partition_dn = self._derive_partition_dn(account_dn)
+
+        request = set_password_operation(self.host, account_dn, new_password, partition_dn)
+        response = self.send_and_recv(request)
+        resp_dict = password_response_to_dict(response)
+        self._prepare_return_value(resp_dict)
+        if resp_dict.get("Error"):
+            if self.raise_exceptions:
+                raise ADWSError(resp_dict)
+            else:
+                logging.error(f"SetPassword failed: {self.result['description']}")
+                return False
+        return True
+
+    def change_password(self, account_dn, old_password, new_password, partition_dn=None):
+        """Change an account's password via ADWS AccountManagement (ChangePassword).
+
+        Requires knowledge of the current password. Any authenticated user
+        can change their own password this way.
+
+        Args:
+            account_dn:   DN of the target account
+            old_password: Current password
+            new_password: New password to set
+            partition_dn: Domain partition DN (auto-derived if None)
+
+        Returns:
+            True on success, False on error (if raise_exceptions=False)
+
+        Raises:
+            ADWSError: On SOAP fault (if raise_exceptions=True)
+        """
+        if self.resource != ACCOUNT_MANAGEMENT:
+            logging.debug("ChangePassword requires AccountManagement endpoint, reconnecting")
+            self.reconnect(ACCOUNT_MANAGEMENT)
+
+        if not partition_dn:
+            partition_dn = self._derive_partition_dn(account_dn)
+
+        request = change_password_operation(self.host, account_dn, old_password, new_password, partition_dn)
+        response = self.send_and_recv(request)
+        resp_dict = password_response_to_dict(response)
+        self._prepare_return_value(resp_dict)
+        if resp_dict.get("Error"):
+            if self.raise_exceptions:
+                raise ADWSError(resp_dict)
+            else:
+                logging.error(f"ChangePassword failed: {self.result['description']}")
+                return False
+        return True
 
     def connect(self, resource=None, get_info=False):
         """Connect to the specified ADWS endpoint at the

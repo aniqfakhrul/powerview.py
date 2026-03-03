@@ -1,6 +1,8 @@
+import logging
 from io import BytesIO
 
 from .records import Net7BitInteger, record, dump_records, print_records
+from .records.constants import DICTIONARY
 from .xml_parser import XMLParser
 
 
@@ -112,7 +114,13 @@ class Encoder:
                 string_table = self._extract_stringtable_inband(
                     data[len_len3 : len_len3 + size3]
                 )
-                print(string_table)
+                # Merge server in-band dictionary into DICTIONARY so that
+                # dictionary element/attribute records resolve correctly.
+                for idx, val in string_table.items():
+                    if isinstance(val, bytes):
+                        val = val.decode('utf-8', errors='replace')
+                    DICTIONARY[idx] = val
+                    logging.debug(f"[NBFSE] In-band dict[{idx}] = {val}")
 
             # then index data to be the start of the actual xml blob
             data = data[len_len3 + size3 :]

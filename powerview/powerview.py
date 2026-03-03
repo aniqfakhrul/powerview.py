@@ -5607,7 +5607,24 @@ displayName=New Group Policy Object
 		logging.info(f'[Set-DomainUserPassword] Principal {"".join(entries[0]["attributes"]["distinguishedName"])} found in domain')
 		identity_dn = entries[0]["attributes"]["distinguishedName"]
 
-		if self.conn.use_ldaps:
+		if self.conn.use_adws:
+			sam_name = entries[0]['attributes']['sAMAccountName']
+			try:
+				if oldpassword:
+					logging.debug("[Set-DomainUserPassword] Using ADWS ChangePassword for %s" % sam_name)
+					succeed = self.ldap_session.change_password(identity_dn, oldpassword, accountpassword)
+				else:
+					logging.debug("[Set-DomainUserPassword] Using ADWS SetPassword for %s" % sam_name)
+					succeed = self.ldap_session.set_password(identity_dn, accountpassword)
+				if succeed:
+					logging.info(f'[Set-DomainUserPassword] Password has been successfully changed for user {sam_name}')
+					return True
+				else:
+					return False
+			except ADWSError as e:
+				logging.error(f'[Set-DomainUserPassword] Failed to change password for {sam_name}: {e}')
+				return False
+		elif self.conn.use_ldaps:
 			logging.debug("[Set-DomainUserPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
 			succeed = modifyPassword.ad_modify_password(self.ldap_session, identity_dn, accountpassword, old_password=oldpassword)
 			if succeed:
@@ -5665,7 +5682,24 @@ displayName=New Group Policy Object
 			return False
 		identity_dn = entries[0]["attributes"]["distinguishedName"]
 
-		if self.conn.use_ldaps:
+		if self.conn.use_adws:
+			sam_name = entries[0]['attributes']['sAMAccountName']
+			try:
+				if oldpassword:
+					logging.debug("[Set-DomainComputerPassword] Using ADWS ChangePassword for %s" % sam_name)
+					succeed = self.ldap_session.change_password(identity_dn, oldpassword, accountpassword)
+				else:
+					logging.debug("[Set-DomainComputerPassword] Using ADWS SetPassword for %s" % sam_name)
+					succeed = self.ldap_session.set_password(identity_dn, accountpassword)
+				if succeed:
+					logging.info(f'[Set-DomainComputerPassword] Password has been successfully changed for {sam_name}')
+					return True
+				else:
+					return False
+			except ADWSError as e:
+				logging.error(f'[Set-DomainComputerPassword] Failed to change password for {sam_name}: {e}')
+				return False
+		elif self.conn.use_ldaps:
 			logging.debug("[Set-DomainComputerPassword] Using LDAPS to change %s password" % (entries[0]["attributes"]["sAMAccountName"]))
 			succeed = modifyPassword.ad_modify_password(self.ldap_session, identity_dn, accountpassword, old_password=oldpassword)
 			if succeed:
