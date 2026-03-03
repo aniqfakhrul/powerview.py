@@ -108,7 +108,7 @@ COMMANDS = {
     'Add-DomainDNSRecord':['-ZoneName','-RecordName','-RecordAddress','-BaseDN','-Legacy','-Forest','-NoCache','-Server', '-OutFile'],
     'Add-ADComputer':['-ComputerName','-ComputerPass','-NoPassword','-Server', '-OutFile'],
     'Add-DomainUser':['-UserName','-Password','-BaseDN','-Server', '-OutFile'],
-    'Add-DomainGroup':['-Identity','-BaseDN','-Server', '-OutFile'],
+    'Add-DomainGroup':['-Identity','-Method','-BaseDN','-Server', '-OutFile'],
     'Add-ADUser':['-UserName','-Password','-BaseDN','-Server', '-OutFile'],
     'Remove-DomainUser':['-Identity','-Server', '-OutFile'],
     'Remove-ADUser':['-Identity','-Server', '-OutFile'],

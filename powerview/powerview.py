@@ -4724,38 +4724,52 @@ displayName=New Group Policy Object
 				results.append(self.add_domaingroup(ident, basedn=basedn, args=args))
 			return all(result is True for result in results)
 		groupname = identity_values[0] if identity_values else None
-		parent_dn_entries = f"CN=Users,{self.root_dn}"
-		if basedn:
-			parent_dn_entries = basedn
-		if hasattr(args, 'basedn') and args.basedn:
-			parent_dn_entries = args.basedn
 
-		entries = self.get_domainobject(identity=parent_dn_entries)
-		if len(entries) <= 0:
-			logging.error(f"[Add-DomainGroup] {parent_dn_entries} could not be found in the domain")
-			return
-		elif len(entries) > 1:
-			logging.error("[Add-DomainGroup] More than one group found in domain")
-			return
+		method = getattr(args, 'method', 'ldap') or 'ldap'
 
-		parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
-		logging.debug(f"[Add-DomainGroup] Adding group in {parent_dn_entries}")
+		try:
+			if method == 'samr':
+				logging.debug("[Add-DomainGroup] Adding group via SAMR")
+				samrobj = SamrObject(connection=self.conn, port=445)
+				dce = samrobj.connect(self.dc_ip)
+				domain_handle = samrobj.open_handle(dce)
+				samrobj.add_group(dce, domain_handle, groupname)
+			else:
+				parent_dn_entries = f"CN=Users,{self.root_dn}"
+				if basedn:
+					parent_dn_entries = basedn
+				if hasattr(args, 'basedn') and args.basedn:
+					parent_dn_entries = args.basedn
 
-		group_dn = f"CN={groupname},{parent_dn_entries}"
-		ucd = {
-			'displayName': groupname,
-			'sAMAccountName': groupname,
-			'objectCategory': f'CN=Group,{self.schema_dn}',
-			'objectClass': ['top', 'group'],
-		}
+				entries = self.get_domainobject(identity=parent_dn_entries)
+				if len(entries) <= 0:
+					logging.error(f"[Add-DomainGroup] {parent_dn_entries} could not be found in the domain")
+					return
+				elif len(entries) > 1:
+					logging.error("[Add-DomainGroup] More than one group found in domain")
+					return
 
-		succeed = self.ldap_session.add(group_dn, ['top', 'group'], ucd)
-		if not succeed:
-			logging.error(f"[Add-DomainGroup] Failed adding {groupname} to domain ({self.ldap_session.result['description']})")
+				parent_dn_entries = entries[0]["attributes"]["distinguishedName"]
+				logging.debug(f"[Add-DomainGroup] Adding group in {parent_dn_entries}")
+
+				group_dn = f"CN={groupname},{parent_dn_entries}"
+				ucd = {
+					'displayName': groupname,
+					'sAMAccountName': groupname,
+					'objectCategory': f'CN=Group,{self.schema_dn}',
+					'objectClass': ['top', 'group'],
+				}
+
+				succeed = self.ldap_session.add(group_dn, ['top', 'group'], ucd)
+				if not succeed:
+					logging.error(f"[Add-DomainGroup] Failed adding {groupname} to domain ({self.ldap_session.result['description']})")
+					return False
+		except Exception as e:
+			logging.error(f"[Add-DomainGroup] Error adding group {groupname}: {str(e)}")
 			return False
-		else:
-			logging.info('[Add-DomainGroup] Success! Created new group')
-			return True
+
+		logging.info('[Add-DomainGroup] Success! Created group %s' % groupname)
+		return True
 
 	def add_domainuser(self, username, password, basedn=None, args=None):
 		parent_dn_entries = f"CN=Users,{self.root_dn}"

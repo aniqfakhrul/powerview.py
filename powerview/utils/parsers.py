@@ -1345,6 +1345,7 @@ def powerview_arg_parse(cmd):
 	# add domain group
 	add_domaingroup_parser = subparsers.add_parser('Add-DomainGroup', aliases=['Add-ADGroup'], exit_on_error=False)
 	add_domaingroup_parser.add_argument('-Identity', action='store', required=True, default=None, const=None, dest='identity', type=parse_identity_list)
+	add_domaingroup_parser.add_argument('-Method', action='store', default='ldap', const=None, dest='method', choices=['ldap', 'samr'], type=str.lower)
 	add_domaingroup_parser.add_argument('-BaseDN', action='store', default=None, const=None, dest='basedn', type=lambda value: escape_filter_chars_except_asterisk(value))
 	add_domaingroup_parser.add_argument('-Server', action='store', dest='server')
 	add_domaingroup_parser.add_argument('-OutFile', action='store', dest='outfile')
