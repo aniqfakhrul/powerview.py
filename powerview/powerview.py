@@ -1901,7 +1901,8 @@ class PowerView:
 			'objectSid',
 			'sAMAccountName',
 			'sAMAccountType',
-			'name'
+			'name',
+			'objectClass'
 		]
 
 		properties = set(properties or def_prop)
@@ -2710,7 +2711,8 @@ class PowerView:
 			'whenCreated',
 			'uSNChanged',
 			'objectCategory',
-			'objectGUID'
+			'objectGUID',
+			'objectClass'
 		]
 
 		zonename = args.zonename if hasattr(args, 'zonename') and args.zonename else zonename
@@ -3445,15 +3447,11 @@ displayName=New Group Policy Object
 
 		dn = "OU=%s,%s" % (identity, basedn)
 		logging.debug(f"[Add-DomainOU] OU distinguishedName: {dn}")
-
 		
 		ou_data = {
 				'name': identity,
 				}
 		object_class = ['organizationalUnit']
-		if not self.conn.use_adws:
-			object_class = ['top', 'organizationalUnit']
-			ou_data['objectCategory'] = f'CN=Organizational-Unit,{self.schema_dn}'
 
 		self.ldap_session.add(dn, object_class, ou_data)
 		
@@ -4769,9 +4767,6 @@ displayName=New Group Policy Object
 					'sAMAccountName': groupname,
 				}
 				object_class = ['group']
-				if not self.conn.use_adws:
-					object_class = ['top', 'group']
-					ucd['objectCategory'] = f'CN=Group,{self.schema_dn}'
 
 				succeed = self.ldap_session.add(group_dn, object_class, ucd)
 				if not succeed:
@@ -4823,8 +4818,6 @@ displayName=New Group Policy Object
 				'userAccountControl': ['66080'],
 			}
 			object_class = ['user']
-			if not self.conn.use_adws:
-				object_class = ['top', 'user', 'person', 'organizationalPerson']
 			succeed = self.ldap_session.add(udn, object_class, ucd)
 			
 		if not succeed:
@@ -5102,11 +5095,6 @@ displayName=New Group Policy Object
 				'name': recordname
 				}
 		object_class = ['dnsNode']
-		if not self.conn.use_adws:
-			object_class = ['top', 'dnsNode']
-			node_data['dNSTombstoned'] = "FALSE"
-			# Schema is in the root domain (take if from schemaNamingContext to be sure)
-			node_data['objectCategory'] = f'CN=Dns-Node,{self.schema_dn}'
 
 		logging.debug("[Add-DomainDNSRecord] Creating DNS record structure")
 		record = DNS_UTIL.new_record(addtype, DNS_UTIL.get_next_serial(self.nameserver, self.dc_ip, zonename, True), recordaddress)
@@ -5429,8 +5417,6 @@ displayName=New Group Policy Object
 					ucd['unicodePwd'] = ('"%s"' % computer_pass).encode('utf-16-le')
 
 				object_class = ['computer']
-				if not self.conn.use_adws:
-					object_class = ['top', 'computer', 'person', 'organizationalPerson', 'user']
 
 				succeed = self.ldap_session.add(computer_dn, object_class, ucd)
 				if not succeed:
