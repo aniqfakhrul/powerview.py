@@ -41,10 +41,8 @@ LDAP_QUERY_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap
                     <adlq:Scope>{search_scope}</adlq:Scope>
                 </adlq:LdapQuery>
             </wsen:Filter>
-            <ad:Selection Dialect="http://schemas.microsoft.com/2008/1/ActiveDirectory/Dialect/XPath-Level-1">
-                <ad:SelectionProperty>ad:distinguishedName</ad:SelectionProperty>
-                {attributes}
-            </ad:Selection>
+            {selection}
+            {controls}
         </wsen:Enumerate>
     </s:Body>
 </s:Envelope>"""
@@ -68,6 +66,7 @@ LDAP_PULL_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-
         <wsen:Pull>
             <wsen:EnumerationContext>{enum_ctx}</wsen:EnumerationContext>
             <wsen:MaxElements>256</wsen:MaxElements>
+            {controls}
         </wsen:Pull>
     </s:Body>
 </s:Envelope>"""
@@ -94,6 +93,7 @@ LDAP_PUT_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-e
         </s:Header>
         <s:Body>
             {attributes}
+            {controls}
         </s:Body>
     </s:Envelope>"""
 
@@ -113,6 +113,7 @@ LDAP_DELETE_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soa
     <a:To s:mustUnderstand="1">net.tcp://{fqdn}:9389/ActiveDirectoryWebServices/Windows/Resource</a:To>
   </s:Header>
   <s:Body>
+    {controls}
   </s:Body>
 </s:Envelope>
 """
@@ -138,6 +139,7 @@ LDAP_ADD_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-e
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
             xmlns:xsd="http://www.w3.org/2001/XMLSchema">
             {attributes}
+            {controls}
         </AddRequest>
     </s:Body>
 </s:Envelope>"""
@@ -164,5 +166,6 @@ LDAP_MODIFY_DN_FSTRING: str = """<s:Envelope xmlns:s="http://www.w3.org/2003/05/
             <da:DeleteOldRdn>{delete_old_rdn}</da:DeleteOldRdn>
             <da:NewParentDistinguishedName>{new_superior}</da:NewParentDistinguishedName>
         </da:ModifyDNRequest>
+        {controls}
     </s:Body>
 </s:Envelope>"""

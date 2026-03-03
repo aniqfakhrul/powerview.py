@@ -1,12 +1,11 @@
 from .. import OPERATIONAL_ATTRIBUTES, RESOURCE, RESOURCE_FACTORY, ENUMERATION, ACCOUNT_MANAGEMENT, TOPOLOGY_MANAGEMENT, COMMON_ATTRIBUTES
-from ..operation.search import search_operation, handle_str_to_xml, handle_enum_ctx, xml_to_dict
-from ..operation.modify import modify_operation
-from ..operation.delete import delete_operation
-from ..operation.add import add_operation
-from ..operation.modifyDN import modify_dn_operation
+from ..operation.search import search_operation, search_pull_operation, search_enumerate_response_to_dict, search_pull_response_to_dict
+from ..operation.modify import modify_operation, modify_response_to_dict
+from ..operation.delete import delete_operation, delete_response_to_dict
+from ..operation.add import add_operation, add_response_to_dict
+from ..operation.modifyDN import modify_dn_operation, modify_dn_response_to_dict
 from ..nns import NNS
 from ..nmf import NMFConnection
-from ..templates import NAMESPACES
 from ..error import ADWSError
 
 from ldap3.utils.dn import safe_dn
@@ -267,15 +266,10 @@ class Connection(object):
 
         try:
             # make search operation to the server before pulling the results
-            request = search_operation(self.host, search_base, search_filter, search_scope, attributes)
+            request = search_operation(self.host, search_base, search_filter, search_scope, attributes, controls=controls)
             response = self.send_and_recv(request)
-            et = handle_str_to_xml(response)
-            if not et:
-                raise ValueError("was unable to parse xml from the server response")
-
-            enum_ctx = et.find(".//wsen:EnumerationContext", NAMESPACES).text
-            if enum_ctx is None:
-                raise ValueError("Enum Context not found in response")
+            enum_resp = search_enumerate_response_to_dict(response)
+            enum_ctx = enum_resp['EnumerationContext']
 
             # Pull results in a loop until EndOfSequence.
             # In WS-Enumeration the EnumerationContext is a session handle that
@@ -290,9 +284,9 @@ class Connection(object):
             consecutive_empty = 0
             while True:
                 pull_count += 1
-                pull_request = handle_enum_ctx(self.host, enum_ctx)
+                pull_request = search_pull_operation(self.host, enum_ctx, controls=controls)
                 response = self.send_and_recv(pull_request)
-                resp_dict = xml_to_dict(response, attributes)
+                resp_dict = search_pull_response_to_dict(response, attributes)
 
                 entries = resp_dict.get('entries', [])
                 logging.debug(f"[ADWS] Pull #{pull_count}: {len(entries)} entries, EndOfSequence={resp_dict.get('EndOfSequence', False)}")
@@ -388,9 +382,9 @@ class Connection(object):
                         raise LDAPChangeError(self.last_error)
                 changelist[attribute_name] = change
         
-        request = modify_operation(self.host, dn, changelist, self.auto_encode, self.server.schema if self.server else None, validator=self.server.custom_validator if self.server else None, check_names=self.check_names)
+        request = modify_operation(self.host, dn, changelist, self.auto_encode, self.server.schema if self.server else None, validator=self.server.custom_validator if self.server else None, check_names=self.check_names, controls=controls)
         response = self.send_and_recv(request)
-        resp_dict = xml_to_dict(response)
+        resp_dict = modify_response_to_dict(response)
         self._prepare_return_value(resp_dict)
         if resp_dict.get("Error"):
             if self.raise_exceptions:
@@ -416,9 +410,9 @@ class Connection(object):
             logging.debug("ModifyDN is only supported for the \"Resource\" resource, reconnecting to the server")
             self.reconnect(RESOURCE)
 
-        request = modify_dn_operation(self.host, dn, relative_dn, delete_old_dn, new_superior)
+        request = modify_dn_operation(self.host, dn, relative_dn, delete_old_dn, new_superior, controls=controls)
         response = self.send_and_recv(request)
-        resp_dict = xml_to_dict(response)
+        resp_dict = modify_dn_response_to_dict(response)
         self._prepare_return_value(resp_dict)
         if resp_dict.get("Error"):
             if self.raise_exceptions:
@@ -492,9 +486,9 @@ class Connection(object):
                 if attribute_name_to_check.lower() not in conf_attributes_excluded_from_check and attribute_name_to_check not in self.server.schema.attribute_types:
                     raise LDAPAttributeError('invalid attribute type ' + attribute_name_to_check)
 
-        request = add_operation(self.host, dn, _attributes)
+        request = add_operation(self.host, dn, _attributes, controls=controls)
         response = self.send_and_recv(request)
-        resp_dict = xml_to_dict(response)
+        resp_dict = add_response_to_dict(response)
         self._prepare_return_value(resp_dict)
         if resp_dict.get("Error"):
             if self.raise_exceptions:
@@ -515,9 +509,9 @@ class Connection(object):
             logging.debug("Delete is only supported for the \"Resource\" resource, reconnecting to the server")
             self.reconnect(RESOURCE)
 
-        request = delete_operation(self.host, dn)
+        request = delete_operation(self.host, dn, controls=controls)
         response = self.send_and_recv(request)
-        resp_dict = xml_to_dict(response)
+        resp_dict = delete_response_to_dict(response)
         self._prepare_return_value(resp_dict)
         if resp_dict.get("Error"):
             if self.raise_exceptions:

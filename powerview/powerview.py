@@ -5004,7 +5004,7 @@ displayName=New Group Policy Object
 			return False
 
 		logging.info("[Remove-DomainComputer] Successfully deleted %s." % computer_name)
-		return not bool(self.get_domainobject(identity=computer_name))
+		return True
 
 	def set_domaindnsrecord(self, recordname, recordaddress, zonename=None, timeout=15):
 		if zonename:

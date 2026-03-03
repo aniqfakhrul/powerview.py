@@ -1,9 +1,13 @@
+import re
 import xml.etree.ElementTree as ET
 from .templates import NAMESPACES
+
+_BARE_AMP_RE = re.compile(r'&(?!(?:amp|lt|gt|apos|quot|#\d+|#x[0-9a-fA-F]+);)')
+
 class ADWSError(Exception):
     """Custom exception for ADWS SOAP Faults."""
     def __init__(self, fault_data):
-        self.raw_fault = fault_data if isinstance(fault_data, str) else fault_data.get("RawXML", "")
+        self.raw_fault = fault_data if isinstance(fault_data, str) else (fault_data.get("RawXML", "") if isinstance(fault_data, dict) else "")
         self.detail_error = "Unknown ADWS Error"
         self.message = None
         self.errorcode = None
@@ -20,7 +24,10 @@ class ADWSError(Exception):
                 for prefix, uri in NAMESPACES.items():
                     ET.register_namespace(prefix, uri)
 
-                root = ET.fromstring(fault_data)
+                try:
+                    root = ET.fromstring(fault_data)
+                except ET.ParseError:
+                    root = ET.fromstring(_BARE_AMP_RE.sub('&amp;', fault_data))
 
                 detail_element = root.find(".//soapenv:Detail", NAMESPACES) or root.find(".//s:Detail", NAMESPACES)
                 if detail_element is not None:

@@ -1,13 +1,21 @@
+"""ADWS modify (WS-Transfer Put) request building and response parsing.
+
+Mirrors ldap3.operation.modify structure:
+- modify_operation()          builds Put SOAP request
+- modify_response_to_dict()   parses Put response
+"""
+
 from ldap3 import SEQUENCE_TYPES, MODIFY_ADD, MODIFY_DELETE, MODIFY_REPLACE, MODIFY_INCREMENT
 from ldap3.protocol.rfc4511 import AttributeDescription, PartialAttribute, Vals, Change, Operation, Changes
 from ldap3.protocol.convert import prepare_for_sending, validate_attribute_value
 
 from ..templates import LDAP_PUT_FSTRING
+from .controls import serialize_controls
+from .response import parse_soap_response
 
 from uuid import uuid4
-import sys
 
-change_table = {MODIFY_ADD: 0,  # accepts actual values too
+change_table = {MODIFY_ADD: 0,
                 MODIFY_DELETE: 1,
                 MODIFY_REPLACE: 2,
                 MODIFY_INCREMENT: 3,
@@ -16,26 +24,27 @@ change_table = {MODIFY_ADD: 0,  # accepts actual values too
                 2: 2,
                 3: 3}
 
-def modify_operation(fqdn,
-                    dn,
-                    changes,
-                    auto_encode,
-                    schema=None,
-                    validator=None,
-                    check_names=False):
-    """CRUD on attribute
 
-        Args:
-            client (NMFConnection): connected client
-            object_ref (str): DN of object to write attribute on
-            fqdn (str): fqdn of the DC
-            operation (str): operation to preform on the attribute: <MODIFY_ADD, MODIFY_DELETE, MODIFY_REPLACE> [MS-WSTIM]: 3.2.4.2.3.1
-            attribute (str): attribute type including the namespace
-            data_type (str): datatype, <'string', 'base64Base'> [MS-ADDM]: 2.3.4
-            value (str): string value for attribute in UTF-8
+# ── Request builder ──────────────────────────────────────────────────
 
-        Returns:
-            str: error
+def modify_operation(fqdn, dn, changes, auto_encode, schema=None,
+                     validator=None, check_names=False, controls=None):
+    """Build WS-Transfer Put SOAP request for modifying attributes.
+
+    Mirrors ldap3.operation.modify.modify_operation().
+
+    Args:
+        fqdn:        DC fully-qualified domain name
+        dn:          DN of object to modify
+        changes:     Dict of {attribute: [(operation, [values]), ...]}
+        auto_encode: Auto-encode attribute values
+        schema:      Optional ldap3 schema for validation
+        validator:   Optional custom validator
+        check_names: Validate attribute names against schema
+        controls:    Optional ldap3 controls
+
+    Returns:
+        str: SOAP XML request string
     """
     # changes is a dictionary in the form {'attribute': [(operation, [val1, ...]), ...], ...}
     # operation is 0 (add), 1 (delete), 2 (replace), 3 (increment)
@@ -65,18 +74,18 @@ def modify_operation(fqdn,
                 operation = change['operation']
                 attribute = str(change['modification']['type'])
                 vals = change['modification']['vals']
-                
+
                 mRequest += f"""<da:ModifyRequest Dialect="http://schemas.microsoft.com/2008/1/ActiveDirectory/Dialect/XPath-Level-1">
             <da:Change Operation="{operation}">
                 <da:AttributeType>addata:{attribute}</da:AttributeType>
                 <da:AttributeValue>"""
-                
+
                 data_type = "string"
                 for v in vals:
                     value = str(v)
                     mRequest += f"""
                     <ad:value xsi:type="xsd:{data_type}">{value}</ad:value>"""
-                
+
                 mRequest += f"""
                 </da:AttributeValue>
             </da:Change>
@@ -88,5 +97,23 @@ def modify_operation(fqdn,
         "uuid": str(uuid4()),
         "fqdn": fqdn,
         "attributes": mRequest,
+        "controls": serialize_controls(controls),
     }
     return LDAP_PUT_FSTRING.format(**put_vars)
+
+
+# ── Response decoder ─────────────────────────────────────────────────
+
+def modify_response_to_dict(xml_string):
+    """Parse WS-Transfer Put response.
+
+    Mirrors ldap3.operation.modify.modify_response_to_dict().
+
+    Args:
+        xml_string: Raw SOAP XML response
+
+    Returns:
+        dict: Empty on success, contains 'Error'/'ErrorDetail' on fault.
+    """
+    _root, fault = parse_soap_response(xml_string)
+    return fault
