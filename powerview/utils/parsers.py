@@ -1433,6 +1433,7 @@ def powerview_arg_parse(cmd):
 	set_domainuserpassword_parser.add_argument('-Identity', action='store', required=True, dest='identity', type=parse_identity_list)
 	set_domainuserpassword_parser.add_argument('-AccountPassword', action='store', required=True, dest='accountpassword')
 	set_domainuserpassword_parser.add_argument('-OldPassword', action='store', dest='oldpassword')
+	set_domainuserpassword_parser.add_argument('-Hash', action='store', dest='hash')
 	set_domainuserpassword_parser.add_argument('-Server', action='store', dest='server')
 	set_domainuserpassword_parser.add_argument('-OutFile', action='store', dest='outfile')
 
@@ -1441,6 +1442,7 @@ def powerview_arg_parse(cmd):
 	set_domaincomputerpassword_parser.add_argument('-Identity', action='store', required=True, dest='identity', type=parse_identity_list)
 	set_domaincomputerpassword_parser.add_argument('-AccountPassword', action='store', required=True, dest='accountpassword')
 	set_domaincomputerpassword_parser.add_argument('-OldPassword', action='store', dest='oldpassword')
+	set_domaincomputerpassword_parser.add_argument('-Hash', action='store', dest='hash')
 	set_domaincomputerpassword_parser.add_argument('-Server', action='store', dest='server')
 	set_domaincomputerpassword_parser.add_argument('-OutFile', action='store', dest='outfile')
 

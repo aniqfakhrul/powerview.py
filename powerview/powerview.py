@@ -5619,12 +5619,22 @@ displayName=New Group Policy Object
 		else:
 			sam_name = entries[0]['attributes']['sAMAccountName']
 			logging.debug("[Set-DomainUserPassword] Using SAMR to change %s password" % sam_name)
+			old_hash = getattr(args, 'hash', None)
+			old_nt_hash = ''
+			old_lm_hash = ''
+			if old_hash:
+				if ':' in old_hash:
+					old_lm_hash, old_nt_hash = old_hash.split(':', 1)
+				else:
+					old_nt_hash = old_hash
+				old_nt_hash = bytes.fromhex(old_nt_hash) if old_nt_hash else b''
+				old_lm_hash = bytes.fromhex(old_lm_hash) if old_lm_hash else b''
 			try:
 				samrobj = SamrObject(connection=self.conn, port=445)
 				dce = samrobj.connect(self.dc_ip)
-				if oldpassword:
+				if oldpassword or old_hash:
 					logging.debug("[Set-DomainUserPassword] Changing password for %s using SAMR" % sam_name)
-					samrobj.change_password(dce, sam_name, oldpassword, accountpassword)
+					samrobj.change_password(dce, sam_name, oldpassword or '', accountpassword, old_pwd_hash_nt=old_nt_hash, old_pwd_hash_lm=old_lm_hash)
 				else:
 					logging.debug("[Set-DomainUserPassword] Resetting password for %s using SAMR" % sam_name)
 					domain_handle = samrobj.open_handle(dce)
@@ -5667,12 +5677,22 @@ displayName=New Group Policy Object
 		else:
 			sam_name = entries[0]['attributes']['sAMAccountName']
 			logging.debug("[Set-DomainComputerPassword] Using SAMR to change %s password" % sam_name)
+			old_hash = getattr(args, 'hash', None)
+			old_nt_hash = ''
+			old_lm_hash = ''
+			if old_hash:
+				if ':' in old_hash:
+					old_lm_hash, old_nt_hash = old_hash.split(':', 1)
+				else:
+					old_nt_hash = old_hash
+				old_nt_hash = bytes.fromhex(old_nt_hash) if old_nt_hash else b''
+				old_lm_hash = bytes.fromhex(old_lm_hash) if old_lm_hash else b''
 			try:
 				samrobj = SamrObject(connection=self.conn, port=445)
 				dce = samrobj.connect(self.dc_ip)
-				if oldpassword:
+				if oldpassword or old_hash:
 					logging.debug("[Set-DomainComputerPassword] Changing password for %s using SAMR" % sam_name)
-					samrobj.change_password(dce, sam_name, oldpassword, accountpassword)
+					samrobj.change_password(dce, sam_name, oldpassword or '', accountpassword, old_pwd_hash_nt=old_nt_hash, old_pwd_hash_lm=old_lm_hash)
 				else:
 					logging.debug("[Set-DomainComputerPassword] Resetting password for %s using SAMR" % sam_name)
 					domain_handle = samrobj.open_handle(dce)

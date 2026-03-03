@@ -203,9 +203,9 @@ class SamrObject:
 		samr.hSamrCloseHandle(dce, group_handle)
 		return rid
 
-	def change_password(self, dce, account_name, old_password, new_password):
+	def change_password(self, dce, account_name, old_password, new_password, old_pwd_hash_nt='', old_pwd_hash_lm=''):
 		try:
-			samr.hSamrUnicodeChangePasswordUser2(dce=dce, serverName='\x00', userName=account_name, oldPassword=old_password, newPassword=new_password, oldPwdHashLM='', oldPwdHashNT='')
+			samr.hSamrUnicodeChangePasswordUser2(dce=dce, serverName='\x00', userName=account_name, oldPassword=old_password, newPassword=new_password, oldPwdHashLM=old_pwd_hash_lm, oldPwdHashNT=old_pwd_hash_nt)
 			return True
 		except samr.DCERPCSessionError as e:
 			if e.error_code == 0xc0000073:
