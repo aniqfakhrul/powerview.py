@@ -10,7 +10,7 @@ from .controls import serialize_controls
 from .response import parse_soap_response
 
 from uuid import uuid4
-
+from xml.sax.saxutils import escape as xml_escape
 
 # ── Request builder ──────────────────────────────────────────────────
 
@@ -30,7 +30,7 @@ def delete_operation(fqdn, dn, controls=None):
     delete_vars = {
         "fqdn": fqdn,
         "uuid": str(uuid4()),
-        "object_ref": dn,
+        "object_ref": xml_escape(dn),
         "controls": serialize_controls(controls),
     }
     request = LDAP_DELETE_FSTRING.format(**delete_vars)

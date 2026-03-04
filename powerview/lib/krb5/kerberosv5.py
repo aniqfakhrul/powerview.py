@@ -13,6 +13,7 @@
 #
 
 import datetime
+import os
 import random
 import socket
 import struct
@@ -458,7 +459,7 @@ def getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey, options
     else:
         # Let's extract the Ticket, change the domain and keep asking
         domain = spn.components[1]
-        return getKerberosTGS(serverName, domain, kdcHost, r, cipher, newSessionKey)
+        return getKerberosTGS(serverName, domain, kdcHost, r, cipher, newSessionKey, options=options, encType=encType)
 
 ################################################################################
 # DCE RPC Helpers
@@ -512,7 +513,7 @@ def getKerberosType3(cipher, sessionKey, auth_data):
     return cipher, sessionKey2, resp.getData()
 
 def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT = None, TGS = None, targetName='',
-                     kdcHost = None, useCache = True):
+                     kdcHost = None, useCache = True, dce_style = True):
 
     # Convert to binary form, just in case we're receiving strings
     if isinstance(lmhash, str):
@@ -601,7 +602,7 @@ def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT 
         if TGS is None:
             serverName = Principal('host/%s' % targetName, type=constants.PrincipalNameType.NT_SRV_INST.value)
             try:
-                tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey)
+                tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey, options=[], encType=None)
             except KerberosError as e:
                 if e.getErrorCode() == constants.ErrorCodes.KDC_ERR_ETYPE_NOSUPP.value:
                     # We might face this if the target does not support AES 
@@ -663,8 +664,10 @@ def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT 
     chkField = CheckSumField()
     chkField['Lgth'] = 16
 
-    chkField['Flags'] = GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG | GSS_C_SEQUENCE_FLAG | GSS_C_REPLAY_FLAG | GSS_C_MUTUAL_FLAG | GSS_C_DCE_STYLE
-    #chkField['Flags'] = GSS_C_INTEG_FLAG | GSS_C_SEQUENCE_FLAG | GSS_C_REPLAY_FLAG | GSS_C_MUTUAL_FLAG | GSS_C_DCE_STYLE
+    flags = GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG | GSS_C_SEQUENCE_FLAG | GSS_C_REPLAY_FLAG | GSS_C_MUTUAL_FLAG
+    if dce_style:
+        flags |= GSS_C_DCE_STYLE
+    chkField['Flags'] = flags
     authenticator['cksum']['checksum'] = chkField.getData()
     authenticator['seq-number'] = 0
     encodedAuthenticator = encoder.encode(authenticator)

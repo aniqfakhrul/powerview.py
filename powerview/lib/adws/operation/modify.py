@@ -14,6 +14,15 @@ from .controls import serialize_controls
 from .response import parse_soap_response
 
 from uuid import uuid4
+from base64 import b64encode
+from xml.sax.saxutils import escape as xml_escape
+
+def _serialize_value(value):
+    """Serialize a single attribute value to an <ad:value> XML element."""
+    if isinstance(value, (bytes, bytearray)):
+        return f'<ad:value xsi:type="xsd:base64Binary">{b64encode(value).decode("ascii")}</ad:value>'
+    return f'<ad:value xsi:type="xsd:string">{xml_escape(str(value))}</ad:value>'
+
 
 change_table = {MODIFY_ADD: 0,
                 MODIFY_DELETE: 1,
@@ -80,11 +89,9 @@ def modify_operation(fqdn, dn, changes, auto_encode, schema=None,
                 <da:AttributeType>addata:{attribute}</da:AttributeType>
                 <da:AttributeValue>"""
 
-                data_type = "string"
                 for v in vals:
-                    value = str(v)
                     mRequest += f"""
-                    <ad:value xsi:type="xsd:{data_type}">{value}</ad:value>"""
+                    {_serialize_value(v)}"""
 
                 mRequest += f"""
                 </da:AttributeValue>
@@ -93,7 +100,7 @@ def modify_operation(fqdn, dn, changes, auto_encode, schema=None,
         """
 
     put_vars = {
-        "object_ref": dn,
+        "object_ref": xml_escape(dn),
         "uuid": str(uuid4()),
         "fqdn": fqdn,
         "attributes": mRequest,

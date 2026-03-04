@@ -74,12 +74,17 @@ def parse_soap_response(xml_string):
         def _parse_element(element, current_dict):
             for sub_element in element:
                 sub_tag = sub_element.tag.split("}")[-1]
-                if sub_element.text:
+                if sub_element.text and sub_element.text.strip():
                     current_dict[sub_tag] = sub_element.text
                 elif len(sub_element) > 0:
-                    nested_dict = {}
-                    _parse_element(sub_element, nested_dict)
-                    current_dict[sub_tag] = nested_dict
+                    # Check if all children are leaf text nodes (e.g. Referral list)
+                    children = list(sub_element)
+                    if children and all(c.text and c.text.strip() and len(c) == 0 for c in children):
+                        current_dict[sub_tag] = [c.text.strip() for c in children]
+                    else:
+                        nested_dict = {}
+                        _parse_element(sub_element, nested_dict)
+                        current_dict[sub_tag] = nested_dict
 
         _parse_element(detail, detail_dict)
         fault_dict["ErrorDetail"] = detail_dict

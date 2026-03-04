@@ -10,6 +10,7 @@ from .controls import serialize_controls
 from .response import parse_soap_response
 
 from uuid import uuid4
+from xml.sax.saxutils import escape as xml_escape
 
 
 # ── Request builder ──────────────────────────────────────────────────
@@ -34,10 +35,10 @@ def modify_dn_operation(fqdn, dn, new_relative_dn, delete_old_rdn=True,
     modify_dn_vars = {
         "fqdn": fqdn,
         "uuid": str(uuid4()),
-        "object_ref": dn,
-        "relative_dn": new_relative_dn,
+        "object_ref": xml_escape(dn),
+        "relative_dn": xml_escape(new_relative_dn),
         "delete_old_rdn": delete_old_rdn,
-        "new_superior": new_superior,
+        "new_superior": xml_escape(new_superior) if new_superior is not None else new_superior,
         "controls": serialize_controls(controls),
     }
     return LDAP_MODIFY_DN_FSTRING.format(**modify_dn_vars)

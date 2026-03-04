@@ -7,9 +7,9 @@ from .xml_parser import XMLParser
 
 
 class Encoder:
-    """Preforms encoding and decoding on xml data.
+    """Performs encoding and decoding on xml data.
 
-    Compliant with [MC-NBFX] and known extentions.
+    Compliant with [MC-NBFX] and known extensions.
 
     Supports known encoding types:
 
@@ -19,21 +19,7 @@ class Encoder:
 
     def __init__(self, encoding: int = 0x8):
         self._encoding = encoding
-
-    """
-    # TODO:
-        Notes:
-            Need to deal with persistant nbfse talk.
-
-            Since we are the sender, we dont need
-            to track a dict from the server I think.
-
-            The exception to this is mex responses.  The server
-            sends dictionaries with mex responses
-
-            We should prefer to not use a dict if possible.
-    
-    """
+        self._inband_entries = {}
 
     def _extract_dict_from_xml(self) -> dict[int, str]:
         """TODO: needs to be populated"""
@@ -41,7 +27,7 @@ class Encoder:
         return {}
 
     def _inband_dict_to_bin(self, inbandDict: dict[int, str]) -> bytes:
-        """Convert dict into string table and seralize"""
+        """Convert dict into string table and serialize."""
 
         string_table = bytes()
 
@@ -72,8 +58,7 @@ class Encoder:
     # ========== Interface =============
 
     def encode(self, xml: str) -> bytes:
-        """Serialize xml data with appropreate
-        encoding type into bytes.
+        """Serialize xml data with appropriate encoding type into bytes.
 
         Args:
             xml (str): xml data in string form
@@ -91,19 +76,17 @@ class Encoder:
             inbandDict = self._inband_dict_to_bin(self._extract_dict_from_xml())
             return inbandDict + base_data
 
+        raise ValueError(f"Unsupported encoding: {self._encoding:#x}")
+
     def decode(self, data: bytes) -> str:
-        """Deseralize and decode xml bytes into
-        string form
+        """Deserialize and decode xml bytes into string form.
 
         Args:
-            data (bytes): seralize and encoded data
+            data (bytes): serialized and encoded data
 
         Returns:
             (str): xml in string form
         """
-
-        if self._encoding == 0x07:
-            data = data
 
         if self._encoding == 0x08:
             size3, len_len3 = Net7BitInteger.decode7bit(data)
@@ -114,16 +97,27 @@ class Encoder:
                 string_table = self._extract_stringtable_inband(
                     data[len_len3 : len_len3 + size3]
                 )
-                # Merge server in-band dictionary into DICTIONARY so that
-                # dictionary element/attribute records resolve correctly.
+                # Merge server in-band dictionary into both per-instance
+                # tracking and the shared DICTIONARY (required because record
+                # classes import DICTIONARY by reference at import time).
                 for idx, val in string_table.items():
                     if isinstance(val, bytes):
                         val = val.decode('utf-8', errors='replace')
+                    self._inband_entries[idx] = val
                     DICTIONARY[idx] = val
                     logging.debug(f"[NBFSE] In-band dict[{idx}] = {val}")
 
             # then index data to be the start of the actual xml blob
             data = data[len_len3 + size3 :]
+
+        elif self._encoding != 0x07:
+            raise ValueError(f"Unsupported encoding: {self._encoding:#x}")
+
+        # Restore this instance's in-band entries into the shared DICTIONARY
+        # before parsing, in case another Encoder instance overwrote entries
+        # between calls (sequential multi-connection safety, not thread-safe).
+        for idx, val in self._inband_entries.items():
+            DICTIONARY[idx] = val
 
         r = record.parse(BytesIO(data))  # begin parsing from first record
         xml = print_records(r)

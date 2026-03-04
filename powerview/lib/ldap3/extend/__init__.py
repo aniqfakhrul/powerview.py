@@ -14,6 +14,10 @@ import logging
 from powerview.utils.storage import Storage
 from powerview.modules.vulnerabilities import VulnerabilityDetector
 from powerview.utils.helpers import strip_entry
+from powerview.utils.hints import patch_ldap3_exceptions
+
+# Patch ldap3's LDAPOperationResult to include error hints
+patch_ldap3_exceptions()
 
 class CustomStandardExtendedOperations(StandardExtendedOperations):
 	def __init__(self, connection, server=None, obfuscate=False, no_cache=False, no_vuln_check=False, use_adws=False, raw=False):

@@ -434,8 +434,8 @@ class NMFConnection:
 		# wait for ack
 		self._throw_if_not(NMFUpgradeResponse, self._recv())
 
-		# nns auth
-		self._nns.auth_ntlm()
+		# nns auth (dispatches to NTLM or Kerberos)
+		self._nns.authenticate()
 
 		# switch to upgraded transport now
 		self._transport = self._nns

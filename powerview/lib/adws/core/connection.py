@@ -38,7 +38,7 @@ from copy import deepcopy
 from functools import reduce
 
 class Connection(object):
-    def __init__(self, server, user, password, domain, lmhash, nthash, raise_exceptions=False, authentication=NTLM, check_names=True, auto_encode=True, client_strategy=SYNC):
+    def __init__(self, server, user, password, domain, lmhash, nthash, raise_exceptions=False, authentication=NTLM, check_names=True, auto_encode=True, client_strategy=SYNC, aesKey='', kdcHost=None, use_kerberos=False, no_pass=False):
         self.server = server
         self.host = server.host
         self.port = server.port
@@ -50,6 +50,10 @@ class Connection(object):
         self.nthash = nthash
         self.raise_exceptions = raise_exceptions
         self.authentication = authentication
+        self.aesKey = aesKey
+        self.kdcHost = kdcHost
+        self.use_kerberos = use_kerberos
+        self.no_pass = no_pass
         self.check_names = check_names
         self.auto_encode = auto_encode
         self.result = {}
@@ -154,44 +158,89 @@ class Connection(object):
         return self.is_connection_alive()
 
     def _create_NNS_from_auth(self, sock: socket.socket) -> NNS:
-        if self.authentication == NTLM:
-            return NNS(
-                socket=sock,
-                fqdn=self.host,
-                domain=self.domain,
-                username=self.user,
-                password=self.password,
-                nt=self.nthash if self.nthash else "",
-                lm=self.lmhash if self.lmhash else ""
-            )
-        raise NotImplementedError
+        return NNS(
+            socket=sock,
+            fqdn=self.host,
+            domain=self.domain,
+            username=self.user,
+            password=self.password,
+            nt=self.nthash if self.nthash else "",
+            lm=self.lmhash if self.lmhash else "",
+            aesKey=self.aesKey if self.aesKey else "",
+            kdcHost=self.kdcHost,
+            use_kerberos=self.use_kerberos,
+            no_pass=self.no_pass,
+        )
 
-    def _prepare_return_value(self, response):
+    def _prepare_return_value(self, response, dn='', response_type=''):
+        from ..error import RESULT_DESCRIPTIONS
+
         error_detail = response.get("ErrorDetail", {})
-        fault_detail = error_detail.get("FaultDetail", {})
+
+        # Navigate: ErrorDetail -> FaultDetail (or first nested dict)
+        fault_detail = error_detail.get("FaultDetail")
+        if fault_detail is None:
+            for _val in error_detail.values():
+                if isinstance(_val, dict):
+                    fault_detail = _val
+                    break
+        if not isinstance(fault_detail, dict):
+            fault_detail = {}
+
+        # Find specific error dict (DirectoryError, ArgumentError, etc.)
         specific_error = {}
-
         if isinstance(fault_detail, dict) and fault_detail:
-            specific_error = next(iter(fault_detail.values()), {})
-            if not isinstance(specific_error, dict):
-                specific_error = {}
+            for key in ("DirectoryError", "ArgumentError"):
+                if key in fault_detail and isinstance(fault_detail[key], dict):
+                    specific_error = fault_detail[key]
+                    break
+            else:
+                for _val in fault_detail.values():
+                    if isinstance(_val, dict):
+                        specific_error = _val
+                        break
 
-        self.result['message'] = specific_error.get("ExtendedErrorMessage", fault_detail.get("ExtendedErrorMessage", response.get("Error", "Unknown error")))
-        self.result['description'] = specific_error.get("Message", fault_detail.get("ExtendedErrorDescription", response.get("Error", "Unknown error")))
-
+        # Error code
         error_code_val = specific_error.get("ErrorCode", fault_detail.get("ErrorCode", 0))
         try:
             self.result['result'] = int(error_code_val)
         except (ValueError, TypeError):
-            self.result['result'] = str(error_code_val) if error_code_val else 0
+            self.result['result'] = 0
 
+        # ldap3-compatible description from result code
+        self.result['description'] = RESULT_DESCRIPTIONS.get(self.result['result'], 'other')
+
+        # Message: prefer ExtendedErrorMessage > Message > Reason text
+        ext_msg = specific_error.get("ExtendedErrorMessage",
+                  fault_detail.get("ExtendedErrorMessage", "")).strip()
+        short_msg = specific_error.get("Message", "").strip()
+        reason_text = response.get("Error", "").strip()
+        self.result['message'] = ext_msg or short_msg or reason_text
+
+        # DN and response type (for ldap3-compatible result dict)
+        self.result['dn'] = dn
+        self.result['type'] = response_type
+
+        # ADWS-specific extras
         win32_error_code_val = specific_error.get("Win32ErrorCode", 0)
         try:
             self.result['win32_error_code'] = int(win32_error_code_val)
         except (ValueError, TypeError):
             self.result['win32_error_code'] = 0
 
-        self.result['short_message'] = specific_error.get("ShortMessage", fault_detail.get("ShortError", "Unknown"))
+        self.result['short_message'] = specific_error.get("ShortMessage", fault_detail.get("ShortError", ""))
+
+        # Referrals (ldap3-compatible)
+        raw_referral = specific_error.get("Referral")
+        if isinstance(raw_referral, list) and raw_referral:
+            self.result['referrals'] = raw_referral
+        elif isinstance(raw_referral, dict):
+            vals = [v for v in raw_referral.values() if isinstance(v, str) and v.strip()]
+            self.result['referrals'] = vals if vals else None
+        elif isinstance(raw_referral, str) and raw_referral.strip():
+            self.result['referrals'] = [raw_referral.strip()]
+        else:
+            self.result['referrals'] = None
 
         self.entries = response.get("entries", [])
         response['entries'] = self.entries
@@ -388,12 +437,17 @@ class Connection(object):
         request = modify_operation(self.host, dn, changelist, self.auto_encode, self.server.schema if self.server else None, validator=self.server.custom_validator if self.server else None, check_names=self.check_names, controls=controls)
         response = self.send_and_recv(request)
         resp_dict = modify_response_to_dict(response)
-        self._prepare_return_value(resp_dict)
+        self._prepare_return_value(resp_dict, dn=dn, response_type='modifyResponse')
         if resp_dict.get("Error"):
             if self.raise_exceptions:
-                raise ADWSError(f"{self.result['short_message']}: {self.result['description']}")
+                raise ADWSError(result=self.result['result'], dn=dn,
+                                message=self.result['message'],
+                                response_type='modifyResponse',
+                                win32_error_code=self.result.get('win32_error_code', 0),
+                                response=self.result.copy(),
+                                referrals=self.result.get('referrals'))
             else:
-                logging.error(f"{self.result['short_message']}: {self.result['description']}")
+                logging.error(f"[ADWS] {self.result['description']}: {self.result['message']}")
                 return False
         else:
             return True
@@ -416,12 +470,17 @@ class Connection(object):
         request = modify_dn_operation(self.host, dn, relative_dn, delete_old_dn, new_superior, controls=controls)
         response = self.send_and_recv(request)
         resp_dict = modify_dn_response_to_dict(response)
-        self._prepare_return_value(resp_dict)
+        self._prepare_return_value(resp_dict, dn=dn, response_type='modDNResponse')
         if resp_dict.get("Error"):
             if self.raise_exceptions:
-                raise ADWSError(f"{self.result['short_message']}: {self.result['description']}")
+                raise ADWSError(result=self.result['result'], dn=dn,
+                                message=self.result['message'],
+                                response_type='modDNResponse',
+                                win32_error_code=self.result.get('win32_error_code', 0),
+                                response=self.result.copy(),
+                                referrals=self.result.get('referrals'))
             else:
-                logging.error(f"{self.result['short_message']}: {self.result['description']}")
+                logging.error(f"[ADWS] {self.result['description']}: {self.result['message']}")
                 return False
         else:
             return True
@@ -492,12 +551,17 @@ class Connection(object):
         request = add_operation(self.host, dn, _attributes, controls=controls)
         response = self.send_and_recv(request)
         resp_dict = add_response_to_dict(response)
-        self._prepare_return_value(resp_dict)
+        self._prepare_return_value(resp_dict, dn=dn, response_type='addResponse')
         if resp_dict.get("Error"):
             if self.raise_exceptions:
-                raise ADWSError(f"{self.result['short_message']}: {self.result['description']}")
+                raise ADWSError(result=self.result['result'], dn=dn,
+                                message=self.result['message'],
+                                response_type='addResponse',
+                                win32_error_code=self.result.get('win32_error_code', 0),
+                                response=self.result.copy(),
+                                referrals=self.result.get('referrals'))
             else:
-                logging.error(f"{self.result['short_message']}: {self.result['description']}")
+                logging.error(f"[ADWS] {self.result['description']}: {self.result['message']}")
                 return False
         else:
             return True
@@ -515,12 +579,17 @@ class Connection(object):
         request = delete_operation(self.host, dn, controls=controls)
         response = self.send_and_recv(request)
         resp_dict = delete_response_to_dict(response)
-        self._prepare_return_value(resp_dict)
+        self._prepare_return_value(resp_dict, dn=dn, response_type='delResponse')
         if resp_dict.get("Error"):
             if self.raise_exceptions:
-                raise ADWSError(self.result['message'])
+                raise ADWSError(result=self.result['result'], dn=dn,
+                                message=self.result['message'],
+                                response_type='delResponse',
+                                win32_error_code=self.result.get('win32_error_code', 0),
+                                response=self.result.copy(),
+                                referrals=self.result.get('referrals'))
             else:
-                logging.error(self.result['message'])
+                logging.error(f"[ADWS] {self.result['description']}: {self.result['message']}")
                 return False
         else:
             return True
@@ -559,12 +628,17 @@ class Connection(object):
         request = set_password_operation(self.host, account_dn, new_password, partition_dn)
         response = self.send_and_recv(request)
         resp_dict = password_response_to_dict(response)
-        self._prepare_return_value(resp_dict)
+        self._prepare_return_value(resp_dict, dn=account_dn, response_type='setPasswordResponse')
         if resp_dict.get("Error"):
             if self.raise_exceptions:
-                raise ADWSError(resp_dict)
+                raise ADWSError(result=self.result['result'], dn=account_dn,
+                                message=self.result['message'],
+                                response_type='setPasswordResponse',
+                                win32_error_code=self.result.get('win32_error_code', 0),
+                                response=self.result.copy(),
+                                referrals=self.result.get('referrals'))
             else:
-                logging.error(f"SetPassword failed: {self.result['description']}")
+                logging.error(f"[ADWS] SetPassword failed: {self.result['description']}: {self.result['message']}")
                 return False
         return True
 
@@ -596,12 +670,17 @@ class Connection(object):
         request = change_password_operation(self.host, account_dn, old_password, new_password, partition_dn)
         response = self.send_and_recv(request)
         resp_dict = password_response_to_dict(response)
-        self._prepare_return_value(resp_dict)
+        self._prepare_return_value(resp_dict, dn=account_dn, response_type='changePasswordResponse')
         if resp_dict.get("Error"):
             if self.raise_exceptions:
-                raise ADWSError(resp_dict)
+                raise ADWSError(result=self.result['result'], dn=account_dn,
+                                message=self.result['message'],
+                                response_type='changePasswordResponse',
+                                win32_error_code=self.result.get('win32_error_code', 0),
+                                response=self.result.copy(),
+                                referrals=self.result.get('referrals'))
             else:
-                logging.error(f"ChangePassword failed: {self.result['description']}")
+                logging.error(f"[ADWS] ChangePassword failed: {self.result['description']}: {self.result['message']}")
                 return False
         return True
 
@@ -617,7 +696,8 @@ class Connection(object):
             logging.debug(f"[ADWS] Connecting to {self.host}:{self.port} for {resource}")
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect(server_address)
-            logging.debug(f"[ADWS] TCP connection established, starting NNS/NTLM authentication")
+            auth_method = "Kerberos" if self.use_kerberos else "NTLM"
+            logging.debug(f"[ADWS] TCP connection established, starting NNS/{auth_method} authentication")
             self.nmf = NMFConnection(
                 self._create_NNS_from_auth(sock),
                 fqdn=self.host,

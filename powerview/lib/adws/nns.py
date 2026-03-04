@@ -1,6 +1,7 @@
 # This code is adapted from https://github.dev/xforcered/SoaPy/
 import logging
 import socket
+import struct
 
 import impacket.examples.logger
 import impacket.ntlm
@@ -8,6 +9,7 @@ import impacket.spnego
 import impacket.structure
 from Cryptodome.Cipher import ARC4
 from impacket.hresult_errors import ERROR_MESSAGES
+from impacket.krb5.gssapi import GSSAPI
 
 from .encoder.records.utils import Net7BitInteger
 
@@ -130,6 +132,10 @@ class NNS:
 		password: str | None = None,
 		nt: str = "",
 		lm: str = "",
+		aesKey: str = "",
+		kdcHost: str | None = None,
+		use_kerberos: bool = False,
+		no_pass: bool = False,
 	):
 		self._sock = socket
 
@@ -145,6 +151,15 @@ class NNS:
 		self._session_key: bytes = b""
 		self._flags: int = -1
 		self._sequence: int = 0
+
+		# Kerberos-specific
+		self._aesKey = aesKey
+		self._kdcHost = kdcHost
+		self._use_kerberos = use_kerberos
+		self._no_pass = no_pass
+		self._auth_type: str = ""  # set to 'ntlm' or 'kerberos' after auth
+		self._gss = None           # GSSAPI wrapper (Kerberos only)
+		self._krb_session_key = None  # impacket Key object (Kerberos only)
 
 	def _fix_hashes(self, hash: str | bytes) -> bytes | str:
 		"""fixes up hash if present into bytes and
@@ -167,8 +182,17 @@ class NNS:
 
 		return bytes.fromhex(hash) if isinstance(hash, str) else hash
 
+	def _recv_handshake(self) -> 'NNS_handshake':
+		"""Receive an NNS handshake message from the server."""
+		return NNS_handshake(
+			message_id=int.from_bytes(self._sock.recv(1), "big"),
+			major_version=int.from_bytes(self._sock.recv(1), "big"),
+			minor_version=int.from_bytes(self._sock.recv(1), "big"),
+			payload=self._sock.recv(int.from_bytes(self._sock.recv(2), "big")),
+		)
+
 	def seal(self, data: bytes) -> tuple[bytes, bytes]:
-		"""seals data with the current context
+		"""seals data with the current context (NTLM only)
 
 		Args:
 			data (bytes): bytes to seal
@@ -230,6 +254,62 @@ class NNS:
 
 		return pkt
 
+	def _strip_gss_header(self, data: bytes) -> bytes:
+		"""Strip MechIndepToken GSS-API header (Application tag + length + OID).
+
+		Returns the raw mechanism token (Token ID + WRAP + data).
+		"""
+		if data[0] != 0x60:
+			return data  # No GSS wrapping, return as-is
+		offset = 1
+		if data[offset] < 128:
+			offset += 1  # short form DER length
+		else:
+			offset += 1 + (data[offset] - 128)  # long form DER length
+		# Skip OID: 06 <len> <value bytes>
+		oid_len = data[offset + 1]
+		offset += 2 + oid_len
+		return data[offset:]
+
+	def _krb_rc4_unwrap(self, data: bytes) -> bytes:
+		"""Correctly unwrap RC4 GSS WRAP token.
+
+		Works around impacket MechIndepToken.from_bytes() parsing bug
+		that misaligns the WRAP structure for short-form DER lengths.
+		"""
+		from Cryptodome.Cipher import ARC4 as ARC4_cipher
+		from Cryptodome.Hash import HMAC, MD5
+
+		# Strip GSS header to get raw mechanism token
+		inner = self._strip_gss_header(data)
+
+		# Parse WRAP structure (32 bytes):
+		# TOK_ID(2) + SGN_ALG(2) + SEAL_ALG(2) + Filler(2) +
+		# SND_SEQ(8) + SGN_CKSUM(8) + Confounder(8)
+		snd_seq_enc = inner[8:16]
+		sgn_cksum = inner[16:24]
+		confounder_enc = inner[24:32]
+		encrypted_payload = inner[32:]
+
+		session_key = self._krb_session_key.contents
+
+		# Derive Klocal (XOR key with 0xF0)
+		klocal = bytes(b ^ 0xF0 for b in session_key)
+
+		# Derive Kseq and decrypt SND_SEQ
+		kseq = HMAC.new(session_key, struct.pack('<L', 0), MD5).digest()
+		kseq = HMAC.new(kseq, sgn_cksum, MD5).digest()
+		snd_seq = ARC4_cipher.new(kseq).encrypt(snd_seq_enc)
+
+		# Derive Kcrypt using decrypted sequence number
+		kcrypt = HMAC.new(klocal, struct.pack('<L', 0), MD5).digest()
+		kcrypt = HMAC.new(kcrypt, snd_seq[:4], MD5).digest()
+
+		# Decrypt confounder + data, skip 8-byte confounder, strip 1-byte padding
+		rc4 = ARC4_cipher.new(kcrypt)
+		plaintext = rc4.decrypt(confounder_enc + encrypted_payload)
+		return plaintext[8:-1]
+
 	def _recv(self, _: int = 0) -> bytes:
 		"""Recive an NNS packet and return the entire
 		decrypted contents.
@@ -237,28 +317,49 @@ class NNS:
 		The paramiter is used to allow interoperability with socket.socket.recv.
 		Does not respect any passed buffer sizes.
 		"""
-		nns_data = NNS_data()
 		size = int.from_bytes(self._sock.recv(4), "little")
 
 		payload = b""
 		while len(payload) != size:
 			payload += self._sock.recv(size - len(payload))
-		nns_data["payload"] = payload
 
-		nns_signed_payload = NNS_Signed_payload()
-		nns_signed_payload["signature"] = nns_data["payload"][0:16]
-		nns_signed_payload["cipherText"] = nns_data["payload"][16:]
+		if self._auth_type == 'kerberos':
+			from impacket.krb5.gssapi import GSSAPI_RC4
+			if isinstance(self._gss, GSSAPI_RC4):
+				# RC4: payload is MechIndepToken-wrapped (GSS header + WRAP + data)
+				return self._krb_rc4_unwrap(payload)
+			else:
+				# AES: payload is raw [16-byte WRAP header][ciphertext]
+				clearText, _ = self._gss.GSS_Unwrap_LDAP(
+					self._krb_session_key, payload, self._sequence, direction='init'
+				)
+				return clearText
 
-		clearText, sig = self.seal(nns_signed_payload["cipherText"])
+		# NTLM: payload is [16-byte signature][ciphertext]
+		signature = payload[0:16]
+		cipherText = payload[16:]
+		clearText, sig = self.seal(cipherText)
 		return clearText
 
 	def sendall(self, data: bytes):
-		"""send to server in NTLM sealed NNS data packet via tcp socket.
+		"""Send data in a sealed NNS data packet via tcp socket.
 
 		Args:
-			data (bytes): utf-16le encoded payload data
+			data (bytes): payload data to send
 		"""
 
+		if self._auth_type == 'kerberos':
+			# Kerberos GSS_Wrap: returns (cipherText, token_header)
+			cipherText, token_header = self._gss.GSS_Wrap_LDAP(
+				self._krb_session_key, data, self._sequence
+			)
+			pkt = NNS_data()
+			pkt["payload"] = token_header + cipherText
+			self._sock.sendall(pkt.getData())
+			self._sequence += 1
+			return
+
+		# NTLM SEAL path
 		cipherText, sig = impacket.ntlm.SEAL(
 			self._flags,
 			self._client_signing_key,
@@ -284,6 +385,87 @@ class NNS:
 
 		# and we increment the sequence number after sending
 		self._sequence += 1
+
+	def authenticate(self) -> None:
+		"""Dispatch to the appropriate authentication method."""
+		if self._use_kerberos:
+			self.auth_kerberos()
+		else:
+			self.auth_ntlm()
+
+	def auth_kerberos(self) -> None:
+		"""Authenticate using Kerberos via SPNEGO (2-leg, no DCE_STYLE)."""
+		from powerview.lib.krb5.kerberosv5 import getKerberosType1
+		from impacket.krb5.asn1 import AP_REP, EncAPRepPart
+		from impacket.krb5.crypto import _enctype_table, Key
+		from pyasn1.codec.der import decoder
+
+		logging.debug("[NNS] Starting Kerberos authentication")
+
+		# Step 1: Build SPNEGO NegTokenInit with AP-REQ (no DCE_STYLE = 2-leg)
+		cipher, sessionKey, blob = getKerberosType1(
+			self._username,
+			self._password or '',
+			self._domain,
+			self._lm,
+			self._nt,
+			aesKey=self._aesKey or '',
+			targetName=self._fqdn,
+			kdcHost=self._kdcHost,
+			useCache=self._no_pass,
+			dce_style=False,
+		)
+
+		# Step 2: Send NegTokenInit in NNS handshake
+		NNS_handshake(
+			message_id=MessageID.IN_PROGRESS,
+			major_version=1,
+			minor_version=0,
+			payload=blob,
+		).send(self._sock)
+
+		# Step 3: Receive server response (DONE with AP-REP payload)
+		server_resp = self._recv_handshake()
+		if server_resp["message_id"] == MessageID.ERROR:
+			raise SystemExit("[-] Kerberos Auth Failed: server rejected token")
+
+		# Step 4: Extract subkey from AP-REP (no third message needed)
+		negTokenResp = impacket.spnego.SPNEGO_NegTokenResp(server_resp["payload"])
+		response_token = negTokenResp["ResponseToken"]
+
+		# Without DCE_STYLE, ResponseToken has KRB5 GSS header prefix.
+		# Try raw decode first, then strip prefix if needed.
+		try:
+			ap_rep = decoder.decode(response_token, asn1Spec=AP_REP())[0]
+		except Exception:
+			# Strip KRB5 GSS-API header to find raw AP-REP
+			idx = response_token.find(b'\x6f')
+			if idx < 0:
+				raise ConnectionError("Failed to parse AP-REP from server response")
+			ap_rep = decoder.decode(response_token[idx:], asn1Spec=AP_REP())[0]
+
+		cipherText = ap_rep['enc-part']['cipher']
+
+		# Key Usage 12: AP-REP encrypted part (contains subkey)
+		plainText = cipher.decrypt(sessionKey, 12, cipherText)
+		encAPRepPart = decoder.decode(plainText, asn1Spec=EncAPRepPart())[0]
+
+		cipher2 = _enctype_table[int(encAPRepPart['subkey']['keytype'])]()
+		sessionKey2 = Key(cipher2.enctype, encAPRepPart['subkey']['keyvalue'].asOctets())
+
+		# Step 5: If server sent IN_PROGRESS, receive the DONE message
+		if server_resp["message_id"] == MessageID.IN_PROGRESS:
+			server_done = self._recv_handshake()
+			if server_done["message_id"] == MessageID.ERROR:
+				raise SystemExit("[-] Kerberos Auth Failed: server rejected auth")
+
+		# Step 6: Set up Kerberos GSS-API context for message protection
+		self._gss = GSSAPI(cipher2)
+		self._krb_session_key = sessionKey2
+		self._auth_type = 'kerberos'
+		self._sequence = 0
+
+		logging.debug("[NNS] Kerberos authentication successful")
 
 	def auth_ntlm(self) -> None:
 		"""Authenticate to the dest with NTLMV2 authentication"""
@@ -330,12 +512,7 @@ class NNS:
 		NTLMSSP_chall: impacket.ntlm.NTLMAuthChallenge
 
 		# Receive the NNS NTLMSSP_Challenge
-		NNS_msg_chall = NNS_handshake(
-			message_id=int.from_bytes(self._sock.recv(1), "big"),
-			major_version=int.from_bytes(self._sock.recv(1), "big"),
-			minor_version=int.from_bytes(self._sock.recv(1), "big"),
-			payload=self._sock.recv(int.from_bytes(self._sock.recv(2), "big")),
-		)
+		NNS_msg_chall = self._recv_handshake()
 
 		# Extract the NegTokenResp ( NegTokenTarg )
 		# Note: Potentially consider SupportedMech from s_NegTokenTarg for determining stuff like signing?
@@ -370,6 +547,7 @@ class NNS:
 		# set up info for crypto
 		self._flags = NTLMSSP_chall_resp["flags"]
 		self._sequence = 0
+		self._auth_type = 'ntlm'
 
 		if self._flags & impacket.ntlm.NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY:
 			self._client_signing_key = impacket.ntlm.SIGNKEY(
@@ -419,12 +597,7 @@ class NNS:
 		NNS_msg_done: NNS_handshake
 
 		# Check for success
-		NNS_msg_done = NNS_handshake(
-			message_id=int.from_bytes(self._sock.recv(1), "big"),
-			major_version=int.from_bytes(self._sock.recv(1), "big"),
-			minor_version=int.from_bytes(self._sock.recv(1), "big"),
-			payload=self._sock.recv(int.from_bytes(self._sock.recv(2), "big")),
-		)
+		NNS_msg_done = self._recv_handshake()
 
 		# check for errors
 		if NNS_msg_done["message_id"] == 0x15:

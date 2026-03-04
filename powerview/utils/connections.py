@@ -1027,6 +1027,8 @@ class CONNECTION:
 	def get_domain(self):
 		info = self.get_server_info()
 		if not info:
+			if self.domain:
+				return self.domain.lower()
 			return None
 		
 		raw_info = info.get('raw', {})
@@ -1322,8 +1324,18 @@ class CONNECTION:
 					self.kdcHost = target
 				else:
 					target = self.ldap_address
-				if self.domain is None and target is not None and is_valid_fqdn(target):
+				if not self.domain and target is not None and is_valid_fqdn(target):
 					self.domain = ".".join(target.split(".")[1:]) if "." in target else target
+				# Extract username from ccache when no explicit identity provided
+				if not self.username and self.no_pass:
+					try:
+						from impacket.krb5.ccache import CCache
+						ccache = CCache.loadFile(os.environ['KRB5CCNAME'])
+						if len(ccache.principal.components) > 0:
+							self.username = ccache.principal.components[0]['data'].decode('utf-8')
+							logging.debug(f"Username retrieved from CCache: {self.username}")
+					except Exception:
+						pass
 			except Exception as e:
 				if self.args.stack_trace:
 					raise e
@@ -1462,6 +1474,13 @@ class CONNECTION:
 					return self.init_ldap_session(_retry_depth=_retry_depth + 1)
 		elif self.use_adws:
 			self.ldap_server, self.ldap_session = self.init_adws_session()
+			# Extract domain from server info if available (like LDAP path)
+			try:
+				server_domain = dn2domain(self.ldap_server.info.other["defaultNamingContext"][0])
+				if server_domain:
+					self.domain = server_domain
+			except Exception:
+				pass
 			return self.ldap_server, self.ldap_session
 		else:
 			if _anonymous:
@@ -1475,12 +1494,12 @@ class CONNECTION:
 			return self.ldap_server, self.ldap_session
 
 	def init_adws_session(self):
-		if self.auth_method != ldap3.NTLM:
-			logging.error("ADWS protocol only supports NTLM authentication as of now")
-			raise ConnectionSetupError("ADWS protocol only supports NTLM authentication")
-
 		target = self.ldap_address
-		self.ldap_server, self.ldap_session = self.init_adws_connection(target, self.domain, self.username, self.password, self.lmhash, self.nthash)
+		self.ldap_server, self.ldap_session = self.init_adws_connection(
+			target, self.domain, self.username, self.password, self.lmhash, self.nthash,
+			aesKey=self.auth_aes_key or '', kdcHost=self.kdcHost,
+			use_kerberos=self.use_kerberos, no_pass=self.no_pass,
+		)
 		return self.ldap_server, self.ldap_session
 
 	def init_ldap_anonymous(self, target, tls=None):
@@ -2000,9 +2019,9 @@ class CONNECTION:
 
 		return ldap_server, ldap_session
 
-	def init_adws_connection(self, target, domain=None, username=None, password=None, lmhash=None, nthash=None, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM):
+	def init_adws_connection(self, target, domain=None, username=None, password=None, lmhash=None, nthash=None, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM, aesKey='', kdcHost=None, use_kerberos=False, no_pass=False):
 		self.proto = "ADWS"
-		
+
 		adws_server_kwargs = {
 			"host": target,
 			"port": 9389,
@@ -2016,7 +2035,11 @@ class CONNECTION:
 			"domain": domain,
 			"lmhash": lmhash,
 			"nthash": nthash,
-			"raise_exceptions": True
+			"raise_exceptions": True,
+			"aesKey": aesKey,
+			"kdcHost": kdcHost,
+			"use_kerberos": use_kerberos,
+			"no_pass": no_pass,
 		}
 		try:
 			adws_connection = adws.Connection(adws_server, **adws_connection_kwargs)
