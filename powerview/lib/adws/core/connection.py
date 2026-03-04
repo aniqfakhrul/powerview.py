@@ -66,6 +66,7 @@ class Connection(object):
 
         # Add compatibility attributes for connection pooling
         self.nmf = None
+        self._cached_tgt = None  # Cache TGT across reconnections
 
         conf_default_pool_name = get_config_parameter('DEFAULT_THREADED_POOL_NAME')
         if client_strategy not in CLIENT_STRATEGIES:
@@ -170,6 +171,7 @@ class Connection(object):
             kdcHost=self.kdcHost,
             use_kerberos=self.use_kerberos,
             no_pass=self.no_pass,
+            TGT=self._cached_tgt,
         )
 
     def _prepare_return_value(self, response, dn='', response_type=''):
@@ -698,14 +700,19 @@ class Connection(object):
             sock.connect(server_address)
             auth_method = "Kerberos" if self.use_kerberos else "NTLM"
             logging.debug(f"[ADWS] TCP connection established, starting NNS/{auth_method} authentication")
+            nns = self._create_NNS_from_auth(sock)
             self.nmf = NMFConnection(
-                self._create_NNS_from_auth(sock),
+                nns,
                 fqdn=self.host,
                 port=self.port
             )
             self.nmf.connect(f"Windows/{resource}")
             logging.debug(f"[ADWS] NMF session established for {resource}")
             self.resource = resource
+
+            # Cache TGT from NNS for reuse on reconnections
+            if self.use_kerberos and self._cached_tgt is None and hasattr(nns, '_cached_tgt') and nns._cached_tgt:
+                self._cached_tgt = nns._cached_tgt
 
             # Set connection state
             self.bound = True

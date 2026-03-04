@@ -136,6 +136,7 @@ class NNS:
 		kdcHost: str | None = None,
 		use_kerberos: bool = False,
 		no_pass: bool = False,
+		TGT: dict | None = None,
 	):
 		self._sock = socket
 
@@ -157,6 +158,8 @@ class NNS:
 		self._kdcHost = kdcHost
 		self._use_kerberos = use_kerberos
 		self._no_pass = no_pass
+		self._TGT = TGT  # Pre-cached TGT to avoid re-requesting from KDC
+		self._cached_tgt = None  # Populated after auth for caller to cache
 		self._auth_type: str = ""  # set to 'ntlm' or 'kerberos' after auth
 		self._gss = None           # GSSAPI wrapper (Kerberos only)
 		self._krb_session_key = None  # impacket Key object (Kerberos only)
@@ -403,6 +406,7 @@ class NNS:
 		logging.debug("[NNS] Starting Kerberos authentication")
 
 		# Step 1: Build SPNEGO NegTokenInit with AP-REQ (no DCE_STYLE = 2-leg)
+		tgt_cache = {}
 		cipher, sessionKey, blob = getKerberosType1(
 			self._username,
 			self._password or '',
@@ -410,11 +414,18 @@ class NNS:
 			self._lm,
 			self._nt,
 			aesKey=self._aesKey or '',
+			TGT=self._TGT,
 			targetName=self._fqdn,
 			kdcHost=self._kdcHost,
-			useCache=self._no_pass,
+			useCache=self._no_pass if self._TGT is None else False,
 			dce_style=False,
+			tgt_cache=tgt_cache,
 		)
+		# Cache TGT for reuse on reconnections
+		if tgt_cache:
+			self._cached_tgt = tgt_cache
+		elif self._TGT:
+			self._cached_tgt = self._TGT
 
 		# Step 2: Send NegTokenInit in NNS handshake
 		NNS_handshake(

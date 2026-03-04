@@ -513,7 +513,8 @@ def getKerberosType3(cipher, sessionKey, auth_data):
     return cipher, sessionKey2, resp.getData()
 
 def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT = None, TGS = None, targetName='',
-                     kdcHost = None, useCache = True, dce_style = True):
+                     kdcHost = None, useCache = True, dce_style = True, targetService = 'host', mutual_auth = True,
+                     tgt_cache = None):
 
     # Convert to binary form, just in case we're receiving strings
     if isinstance(lmhash, str):
@@ -546,7 +547,7 @@ def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT 
                     LOG.debug('Domain retrieved from CCache: %s' % domain)
 
                 LOG.debug("Using Kerberos Cache: %s" % os.getenv('KRB5CCNAME'))
-                principal = 'host/%s@%s' % (targetName.upper(), domain.upper())
+                principal = '%s/%s@%s' % (targetService, targetName.upper(), domain.upper())
                 creds = ccache.getCredential(principal)
                 if creds is None:
                     # Let's try for the TGT and go from there
@@ -555,6 +556,8 @@ def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT 
                     if creds is not None:
                         TGT = creds.toTGT()
                         LOG.debug('Using TGT from cache')
+                        if tgt_cache is not None:
+                            tgt_cache.update(TGT)
                     else:
                         LOG.debug("No valid credentials found in cache. ")
                 else:
@@ -577,7 +580,7 @@ def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT 
                     tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, password, domain, lmhash, nthash, aesKey, kdcHost)
                 except KerberosError as e:
                     if e.getErrorCode() == constants.ErrorCodes.KDC_ERR_ETYPE_NOSUPP.value:
-                        # We might face this if the target does not support AES 
+                        # We might face this if the target does not support AES
                         # So, if that's the case we'll force using RC4 by converting
                         # the password to lm/nt hashes and hope for the best. If that's already
                         # done, byebye.
@@ -585,22 +588,28 @@ def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT 
                             from impacket.ntlm import compute_lmhash, compute_nthash
                             LOG.debug('Got KDC_ERR_ETYPE_NOSUPP, fallback to RC4')
                             lmhash = compute_lmhash(password)
-                            nthash = compute_nthash(password) 
+                            nthash = compute_nthash(password)
                             continue
                         else:
-                            raise 
+                            raise
                     else:
                         raise
+                else:
+                    # Cache TGT for reuse across reconnections
+                    if tgt_cache is not None:
+                        tgt_cache['KDC_REP'] = tgt
+                        tgt_cache['cipher'] = cipher
+                        tgt_cache['sessionKey'] = sessionKey
 
         else:
             tgt = TGT['KDC_REP']
             cipher = TGT['cipher']
-            sessionKey = TGT['sessionKey'] 
+            sessionKey = TGT['sessionKey']
 
         # Now that we have the TGT, we should ask for a TGS for cifs
 
         if TGS is None:
-            serverName = Principal('host/%s' % targetName, type=constants.PrincipalNameType.NT_SRV_INST.value)
+            serverName = Principal('%s/%s' % (targetService, targetName), type=constants.PrincipalNameType.NT_SRV_INST.value)
             try:
                 tgs, cipher, oldSessionKey, sessionKey = getKerberosTGS(serverName, domain, kdcHost, tgt, cipher, sessionKey, options=[], encType=None)
             except KerberosError as e:
@@ -644,7 +653,8 @@ def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT 
     apReq['msg-type'] = int(constants.ApplicationTagNumbers.AP_REQ.value)
 
     opts = list()
-    opts.append(constants.APOptions.mutual_required.value)
+    if mutual_auth:
+        opts.append(constants.APOptions.mutual_required.value)
     apReq['ap-options'] = constants.encodeFlags(opts)
     seq_set(apReq,'ticket', ticket.to_asn1)
 
@@ -657,19 +667,20 @@ def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT 
     authenticator['cusec'] = now.microsecond
     authenticator['ctime'] = KerberosTime.to_asn1(now)
 
-    
-    authenticator['cksum'] = noValue
-    authenticator['cksum']['cksumtype'] = 0x8003
+    if mutual_auth:
+        authenticator['cksum'] = noValue
+        authenticator['cksum']['cksumtype'] = 0x8003
 
-    chkField = CheckSumField()
-    chkField['Lgth'] = 16
+        chkField = CheckSumField()
+        chkField['Lgth'] = 16
 
-    flags = GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG | GSS_C_SEQUENCE_FLAG | GSS_C_REPLAY_FLAG | GSS_C_MUTUAL_FLAG
-    if dce_style:
-        flags |= GSS_C_DCE_STYLE
-    chkField['Flags'] = flags
-    authenticator['cksum']['checksum'] = chkField.getData()
-    authenticator['seq-number'] = 0
+        flags = GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG | GSS_C_SEQUENCE_FLAG | GSS_C_REPLAY_FLAG | GSS_C_MUTUAL_FLAG
+        if dce_style:
+            flags |= GSS_C_DCE_STYLE
+        chkField['Flags'] = flags
+        authenticator['cksum']['checksum'] = chkField.getData()
+        authenticator['seq-number'] = 0
+
     encodedAuthenticator = encoder.encode(authenticator)
 
     # Key Usage 11
@@ -682,8 +693,11 @@ def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT 
     apReq['authenticator']['etype'] = cipher.enctype
     apReq['authenticator']['cipher'] = encryptedEncodedAuthenticator
 
-    blob['MechToken'] = struct.pack('B', ASN1_AID) + asn1encode( struct.pack('B', ASN1_OID) + asn1encode(
-            TypesMech['KRB5 - Kerberos 5'] ) + KRB5_AP_REQ + encoder.encode(apReq))
+    if mutual_auth:
+        blob['MechToken'] = struct.pack('B', ASN1_AID) + asn1encode( struct.pack('B', ASN1_OID) + asn1encode(
+                TypesMech['KRB5 - Kerberos 5'] ) + KRB5_AP_REQ + encoder.encode(apReq))
+    else:
+        blob['MechToken'] = encoder.encode(apReq)
 
     return cipher, sessionKey, blob.getData()
 
