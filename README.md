@@ -492,3 +492,4 @@ You can modify this in cursor settings under MCP options button.
 * https://github.com/ly4k/Certipy
 * https://github.com/MaLDAPtive/Invoke-Maldaptive
 * https://github.com/xforcered/SoaPy
+* https://github.com/Macmod/sopa
