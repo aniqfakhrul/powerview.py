@@ -713,7 +713,11 @@ class Connection(object):
         except Exception as e:
             self.bound = False
             self.closed = True
-            raise ADWSError(f"Failed to connect: {str(e)}")
+            try:
+                err_msg = str(e)
+            except Exception:
+                err_msg = repr(e)
+            raise ADWSError(f"Failed to connect: {err_msg}")
 
         if get_info:
             logging.debug(f"[ADWS] Fetching server info (DSA + schema)")

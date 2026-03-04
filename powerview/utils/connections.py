@@ -1495,6 +1495,9 @@ class CONNECTION:
 
 	def init_adws_session(self):
 		target = self.ldap_address
+		# Kerberos needs FQDN for SPN construction; use resolved hostname when target is IP
+		if self.use_kerberos and is_ipaddress(target) and self.kdcHost and is_valid_fqdn(self.kdcHost):
+			target = self.kdcHost
 		self.ldap_server, self.ldap_session = self.init_adws_connection(
 			target, self.domain, self.username, self.password, self.lmhash, self.nthash,
 			aesKey=self.auth_aes_key or '', kdcHost=self.kdcHost,
