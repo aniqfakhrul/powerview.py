@@ -16,6 +16,8 @@ from powerview.utils.connections import CONNECTION, ConnectionSetupError
 from powerview.lib.adws.error import ADWSError
 from powerview.utils.logging import LOG
 from powerview.utils.parsers import powerview_arg_parse, arg_parse
+from powerview.plugins.registry import PluginRegistry
+from powerview.plugins.loader import load_plugins
 from powerview.utils.shell import get_prompt
 from powerview.utils.colors import bcolors, Gradient
 from powerview.utils.history import get_shell_history
@@ -66,6 +68,20 @@ def main():
 
         comp = Completer()
         comp.setup_completer()
+
+        # Load plugins
+        plugin_registry = PluginRegistry()
+        load_plugins(plugin_registry, powerview)
+        powerview.plugin_registry = plugin_registry
+
+        # Inject plugin commands into completer
+        from powerview.utils.completer import COMMANDS
+        for cmd_name, cmd_info in plugin_registry.commands.items():
+            COMMANDS[cmd_name] = cmd_info["args"]
+
+        # Register plugin commands in argparse
+        from powerview.utils.parsers import set_plugin_registry
+        set_plugin_registry(plugin_registry)
 
         current_target_domain = None
 
@@ -120,6 +136,13 @@ def main():
 
                         try:
                             entries = None
+
+                            if pv.plugin_registry:
+                                for hook in pv.plugin_registry.get_before_hooks(pv_args.module):
+                                    modified = hook(pv, pv_args)
+                                    if modified is not None:
+                                        pv_args = modified
+
                             if pv_args.module.casefold() == 'get-domain':
                                 entries = pv.get_domain(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domainobject' or pv_args.module.casefold() == 'get-adobject':
@@ -467,6 +490,14 @@ def main():
                                     powerview.mcp_server.stop()
                                 log_handler.save_history()
                                 sys.exit(0)
+                            elif pv.plugin_registry and pv.plugin_registry.find_command(pv_args.module)[1]:
+                                entries = pv.execute(pv_args)
+
+                            if pv.plugin_registry and entries is not None:
+                                for hook in pv.plugin_registry.get_after_hooks(pv_args.module):
+                                    modified = hook(pv, pv_args, entries)
+                                    if modified is not None:
+                                        entries = modified
 
                             if entries:
                                 if pv_args.outfile:
