@@ -52,7 +52,12 @@ def search_operation(fqdn, search_base, search_filter, search_scope,
     # Build <ad:Selection> block.
     # Per MS-WSTIM 3.3.5.5.1: omitting <ad:Selection> returns all attributes.
     if ALL_ATTRIBUTES in attributes:
-        selection_xml = ""
+        selection_xml = (
+            '<ad:Selection Dialect='
+            '"http://schemas.microsoft.com/2008/1/ActiveDirectory/Dialect/XPath-Level-1">'
+            '<ad:SelectionProperty>ad:all</ad:SelectionProperty>'
+            '</ad:Selection>'
+        )
     elif NO_ATTRIBUTES in attributes:
         selection_xml = (
             '<ad:Selection Dialect='
