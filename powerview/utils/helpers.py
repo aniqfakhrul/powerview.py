@@ -702,7 +702,7 @@ def host2ip(hostname, nameserver=None, dns_timeout=10, dns_tcp=True, use_system_
 			KNOWN_HOSTNAME[hostname] = addr[0]
 			ip = addr[0] 
 		elif len(addr) > 1 and type == str:
-			if no_prompt:
+			if no_prompt or not sys.stdin.isatty():
 				logging.debug(f"Multiple IPs found. Selecting first IP for {hostname}: {addr[0]}")
 				ip = addr[0]
 			else:

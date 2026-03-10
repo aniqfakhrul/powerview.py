@@ -743,7 +743,8 @@ class KerberosError(SessionError):
         return constants.ERROR_MESSAGES[self.error]
 
     def __str__( self ):
-        retString = 'Kerberos SessionError: %s(%s)' % (constants.ERROR_MESSAGES[self.error])
+        error_msg = constants.ERROR_MESSAGES.get(self.error, ('Unknown', 'Unknown error code 0x%x' % self.error))
+        retString = 'Kerberos SessionError: %s(%s)' % error_msg
         try:
             # Let's try to get the NT ERROR, if not, we quit and give the general one
             if self.error == constants.ErrorCodes.KRB_ERR_GENERIC.value:
@@ -768,3 +769,4 @@ class KerberosError(SessionError):
                     pass
         except Exception:
             pass
+        return retString
