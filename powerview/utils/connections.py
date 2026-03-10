@@ -114,11 +114,12 @@ class ConnectionPool:
 		self.keepalive_interval = keepalive_interval
 		self._shutdown_in_progress = False
 		self._pool_type = 'LDAP'
-		
+
 		self._pool = OrderedDict()
 		self._pool_lock = threading.RLock()
-		
+
 		self._connection_attempts = {}
+		self._attempts_lock = threading.Lock()
 		self._max_connection_attempts = 3
 		self._attempt_reset_time = 300
 		
@@ -202,76 +203,88 @@ class ConnectionPool:
 	
 	def _cleanup_expired_connections(self):
 		"""Remove only truly dead connections from the pool"""
-		dead_domains = []
-		
+		# Snapshot entries under lock, check liveness outside
+		candidates = []
 		with self._pool_lock:
 			for domain, entry in list(self._pool.items()):
-				if not entry.is_alive():
-					dead_domains.append(domain)
-			
-			for domain in dead_domains:
-				if domain in self._pool:
-					entry = self._pool.pop(domain)
-					entry.close()
-					logging.debug(f"[ConnectionPool] {self._pool_type} removed dead connection for domain: {domain}")
+				candidates.append((domain, entry))
+
+		dead_domains = []
+		for domain, entry in candidates:
+			if not entry.is_alive():
+				dead_domains.append(domain)
+
+		if dead_domains:
+			with self._pool_lock:
+				for domain in dead_domains:
+					if domain in self._pool:
+						entry = self._pool.pop(domain)
+						entry.close()
+						logging.debug(f"[ConnectionPool] {self._pool_type} removed dead connection for domain: {domain}")
 	
 	def _reset_connection_attempts(self):
 		"""Reset connection attempt counters for domains after timeout"""
 		current_time = time.time()
 		domains_to_reset = []
-		
-		for domain, (attempts, last_attempt_time) in list(self._connection_attempts.items()):
-			if (current_time - last_attempt_time) > self._attempt_reset_time:
-				domains_to_reset.append(domain)
-		
-		for domain in domains_to_reset:
-			if domain in self._connection_attempts:
-				del self._connection_attempts[domain]
-				logging.debug(f"[ConnectionPool] {self._pool_type} reset connection attempts for domain: {domain}")
-	
+
+		with self._attempts_lock:
+			for domain, (attempts, last_attempt_time) in list(self._connection_attempts.items()):
+				if (current_time - last_attempt_time) > self._attempt_reset_time:
+					domains_to_reset.append(domain)
+
+			for domain in domains_to_reset:
+				if domain in self._connection_attempts:
+					del self._connection_attempts[domain]
+					logging.debug(f"[ConnectionPool] {self._pool_type} reset connection attempts for domain: {domain}")
+
 	def _can_attempt_connection(self, domain):
 		"""Check if we can attempt a connection to the domain (rate limiting)"""
 		current_time = time.time()
-		if domain in self._connection_attempts:
-			attempts, last_attempt_time = self._connection_attempts[domain]
-			if attempts >= self._max_connection_attempts and (current_time - last_attempt_time) < 60:
-				return False
+		with self._attempts_lock:
+			if domain in self._connection_attempts:
+				attempts, last_attempt_time = self._connection_attempts[domain]
+				if attempts >= self._max_connection_attempts and (current_time - last_attempt_time) < 60:
+					return False
 		return True
-	
+
 	def _record_connection_attempt(self, domain, success=False):
 		"""Record a connection attempt (success or failure)"""
 		current_time = time.time()
-		if success:
-			if domain in self._connection_attempts:
-				del self._connection_attempts[domain]
-		else:
-			attempts, _ = self._connection_attempts.get(domain, (0, 0))
-			self._connection_attempts[domain] = (attempts + 1, current_time)
+		with self._attempts_lock:
+			if success:
+				if domain in self._connection_attempts:
+					del self._connection_attempts[domain]
+			else:
+				attempts, _ = self._connection_attempts.get(domain, (0, 0))
+				self._connection_attempts[domain] = (attempts + 1, current_time)
 	
 	def get_connection(self, domain, connection_factory):
 		"""
 		Get a connection for the specified domain, creating one if necessary
-		
+
 		Args:
 			domain (str): Target domain name
 			connection_factory (callable): Function to create new connections
-			
+
 		Returns:
 			Connection object for the domain
-			
+
 		Raises:
 			ConnectionError: If connection cannot be established or rate limited
 		"""
 		domain = domain.lower()
-		
+
 		# Check rate limiting
 		if not self._can_attempt_connection(domain):
 			raise ConnectionError(f"Too many recent failed connection attempts to domain {domain}")
-		
+
+		# Check for existing live connection (lock held briefly, no I/O)
 		with self._pool_lock:
 			if domain in self._pool:
 				entry = self._pool[domain]
-				if entry.is_alive():
+				# Use is_healthy flag for fast check under lock; full liveness
+				# is verified by keepalive/cleanup threads outside the lock
+				if entry.is_healthy:
 					entry.mark_used()
 					self._pool.move_to_end(domain)
 					logging.debug(f"[ConnectionPool] {self._pool_type} reusing existing connection for domain: {domain}")
@@ -280,49 +293,71 @@ class ConnectionPool:
 					entry.close()
 					del self._pool[domain]
 					logging.debug(f"[ConnectionPool] {self._pool_type} removed dead connection for domain: {domain}")
-			
+
+		# Factory call outside the lock — may block on DNS/TCP/bind
+		try:
+			new_connection = connection_factory()
+
+			if not new_connection.is_connection_alive():
+				raise ConnectionError(f"Created connection for {domain} is not alive")
+		except Exception as e:
+			self._record_connection_attempt(domain, success=False)
+			logging.error(f"Failed to create connection for domain {domain}: {str(e)}")
+			raise
+
+		# Re-acquire lock to insert the new connection
+		with self._pool_lock:
+			# Another thread may have inserted a connection while we were
+			# creating ours — prefer the one already in the pool
+			if domain in self._pool:
+				existing = self._pool[domain]
+				if existing.is_healthy:
+					existing.mark_used()
+					self._pool.move_to_end(domain)
+					logging.debug(f"[ConnectionPool] {self._pool_type} discarding duplicate connection for domain: {domain}")
+					# Close the one we just created
+					try:
+						if hasattr(new_connection, 'close'):
+							new_connection.close()
+					except Exception:
+						pass
+					return existing.connection
+				else:
+					existing.close()
+					del self._pool[domain]
+
 			if len(self._pool) >= self.max_connections:
 				oldest_domain, oldest_entry = self._pool.popitem(last=False)
 				oldest_entry.close()
 				logging.debug(f"[ConnectionPool] {self._pool_type} evicted oldest connection for domain: {oldest_domain}")
-			
-			try:
-				new_connection = connection_factory()
-				
-				if not new_connection.is_connection_alive():
-					raise ConnectionError(f"Created connection for {domain} is not alive")
-				
-				entry = ConnectionPoolEntry(new_connection, domain)
-				entry.mark_used()
-				self._pool[domain] = entry
-				self._record_connection_attempt(domain, success=True)
-				
-				logging.debug(f"[ConnectionPool] {self._pool_type} created new connection for domain: {domain}")
-				return new_connection
-				
-			except Exception as e:
-				self._record_connection_attempt(domain, success=False)
-				logging.error(f"Failed to create connection for domain {domain}: {str(e)}")
-				raise
+
+			entry = ConnectionPoolEntry(new_connection, domain)
+			entry.mark_used()
+			self._pool[domain] = entry
+			self._record_connection_attempt(domain, success=True)
+
+			logging.debug(f"[ConnectionPool] {self._pool_type} created new connection for domain: {domain}")
+			return new_connection
 	
 	def add_connection(self, connection, domain):
 		"""Add a connection to the pool with proper validation and management"""
 		domain = domain.lower()
-		
+
+		# Liveness check outside the lock — may perform LDAP search
+		if not connection.is_connection_alive():
+			raise ConnectionError(f"Cannot add dead connection for domain {domain}")
+
 		with self._pool_lock:
 			if domain in self._pool:
 				old_entry = self._pool[domain]
 				old_entry.close()
 				logging.debug(f"[ConnectionPool] {self._pool_type} replaced existing connection for domain: {domain}")
-			
+
 			if len(self._pool) >= self.max_connections and domain not in self._pool:
 				oldest_domain, oldest_entry = self._pool.popitem(last=False)
 				oldest_entry.close()
 				logging.debug(f"[ConnectionPool] {self._pool_type} evicted oldest connection for domain: {oldest_domain}")
-			
-			if not connection.is_connection_alive():
-				raise ConnectionError(f"Cannot add dead connection for domain {domain}")
-			
+
 			self._pool[domain] = ConnectionPoolEntry(connection, domain)
 			logging.debug(f"[ConnectionPool] {self._pool_type} added connection for domain: {domain}")
 
@@ -345,38 +380,48 @@ class ConnectionPool:
 	def get_pool_stats(self):
 		"""Get detailed statistics about the connection pool"""
 		with self._pool_lock:
+			snapshot = list(self._pool.items())
+			with self._attempts_lock:
+				failed_attempts = len(self._connection_attempts)
 			stats = {
-				'total_connections': len(self._pool),
+				'total_connections': len(snapshot),
 				'max_connections': self.max_connections,
-				'failed_attempts': len(self._connection_attempts),
+				'failed_attempts': failed_attempts,
 				'domains': {}
 			}
-			
-			for domain, entry in self._pool.items():
-				stats['domains'][domain] = {
-					'last_used': entry.last_used,
-					'use_count': entry.use_count,
-					'age': time.time() - entry.created_time,
-					'is_alive': entry.is_alive()
-				}
-			
-			return stats
+
+		# Check liveness outside pool lock
+		for domain, entry in snapshot:
+			stats['domains'][domain] = {
+				'last_used': entry.last_used,
+				'use_count': entry.use_count,
+				'age': time.time() - entry.created_time,
+				'is_alive': entry.is_healthy
+			}
+
+		return stats
 	
 	def health_check(self):
 		"""Perform a health check on all connections and remove dead ones"""
-		dead_domains = []
-		
+		# Snapshot entries under lock, check liveness outside
+		candidates = []
 		with self._pool_lock:
 			for domain, entry in list(self._pool.items()):
-				if not entry.is_alive():
-					dead_domains.append(domain)
-			
-			for domain in dead_domains:
-				if domain in self._pool:
-					entry = self._pool.pop(domain)
-					entry.close()
-					logging.debug(f"[ConnectionPool] {self._pool_type} health check removed dead connection for domain: {domain}")
-		
+				candidates.append((domain, entry))
+
+		dead_domains = []
+		for domain, entry in candidates:
+			if not entry.is_alive():
+				dead_domains.append(domain)
+
+		if dead_domains:
+			with self._pool_lock:
+				for domain in dead_domains:
+					if domain in self._pool:
+						entry = self._pool.pop(domain)
+						entry.close()
+						logging.debug(f"[ConnectionPool] {self._pool_type} health check removed dead connection for domain: {domain}")
+
 		return len(dead_domains)
 	
 	def shutdown(self):
@@ -445,8 +490,7 @@ class SMBConnectionEntry(ConnectionPoolEntry):
 	
 	def mark_used(self):
 		super().mark_used()
-		self.last_check_time = time.time()
-	
+
 	def close(self):
 		"""Close the underlying SMB connection"""
 		with self._lock:
@@ -502,26 +546,27 @@ class SMBConnectionPool(ConnectionPool):
 	def get_connection(self, host, connection_factory, show_exceptions=True):
 		"""
 		Get an SMB connection for the specified host, creating one if necessary
-		
+
 		Args:
 			host (str): Target host name or IP
 			connection_factory (callable): Function to create new SMB connections
-			
+
 		Returns:
 			SMBConnection object for the host
-			
+
 		Raises:
 			ConnectionError: If connection cannot be established or rate limited
 		"""
 		host = host.lower()
-		
+
 		if not self._can_attempt_connection(host):
 			raise ConnectionError(f"Too many recent failed SMB connection attempts to host {host}")
-		
+
+		# Check for existing live connection (lock held briefly, no I/O)
 		with self._pool_lock:
 			if host in self._pool:
 				entry = self._pool[host]
-				if entry.is_alive():
+				if entry.is_healthy:
 					entry.mark_used()
 					self._pool.move_to_end(host)
 					logging.debug(f"[SMBConnectionPool] {self._pool_type} reusing existing SMB connection for host: {host}")
@@ -530,28 +575,47 @@ class SMBConnectionPool(ConnectionPool):
 					entry.close()
 					del self._pool[host]
 					logging.debug(f"[SMBConnectionPool] {self._pool_type} removed dead SMB connection for host: {host}")
-			
+
+		# Factory call outside the lock — may block on TCP connect/auth
+		try:
+			new_connection = connection_factory()
+		except Exception as e:
+			self._record_connection_attempt(host, success=False)
+			if show_exceptions:
+				logging.error(f"Failed to create SMB connection for host {host}: {str(e)}")
+				raise
+			return None
+
+		# Re-acquire lock to insert the new connection
+		with self._pool_lock:
+			if host in self._pool:
+				existing = self._pool[host]
+				if existing.is_healthy:
+					existing.mark_used()
+					self._pool.move_to_end(host)
+					logging.debug(f"[SMBConnectionPool] {self._pool_type} discarding duplicate SMB connection for host: {host}")
+					try:
+						if hasattr(new_connection, 'close'):
+							new_connection.close()
+					except Exception:
+						pass
+					return existing.connection
+				else:
+					existing.close()
+					del self._pool[host]
+
 			if len(self._pool) >= self.max_connections:
 				oldest_host, oldest_entry = self._pool.popitem(last=False)
 				oldest_entry.close()
 				logging.debug(f"[SMBConnectionPool] {self._pool_type} evicted oldest SMB connection for host: {oldest_host}")
-			
-			try:
-				new_connection = connection_factory()
-				
-				entry = SMBConnectionEntry(new_connection, host)
-				entry.mark_used()
-				self._pool[host] = entry
-				self._record_connection_attempt(host, success=True)
-				
-				logging.debug(f"[SMBConnectionPool] {self._pool_type} created new SMB connection for host: {host}")
-				return new_connection
-				
-			except Exception as e:
-				self._record_connection_attempt(host, success=False)
-				if show_exceptions:
-					logging.error(f"Failed to create SMB connection for host {host}: {str(e)}")
-					raise
+
+			entry = SMBConnectionEntry(new_connection, host)
+			entry.mark_used()
+			self._pool[host] = entry
+			self._record_connection_attempt(host, success=True)
+
+			logging.debug(f"[SMBConnectionPool] {self._pool_type} created new SMB connection for host: {host}")
+			return new_connection
 	
 	def add_connection(self, connection, host):
 		"""Add an SMB connection to the pool with proper validation and management"""
@@ -590,24 +654,27 @@ class SMBConnectionPool(ConnectionPool):
 	def get_pool_stats(self):
 		"""Get detailed statistics about the SMB connection pool"""
 		with self._pool_lock:
+			snapshot = list(self._pool.items())
+			with self._attempts_lock:
+				failed_attempts = len(self._connection_attempts)
 			stats = {
 				'protocol': 'SMB',
-				'total_connections': len(self._pool),
+				'total_connections': len(snapshot),
 				'max_connections': self.max_connections,
-				'failed_attempts': len(self._connection_attempts),
+				'failed_attempts': failed_attempts,
 				'hosts': {}
 			}
-			
-			for host, entry in self._pool.items():
-				stats['hosts'][host] = {
-					'last_used': entry.last_used,
-					'use_count': entry.use_count,
-					'age': time.time() - entry.created_time,
-					'is_alive': entry.is_alive(),
-					'last_check_time': entry.last_check_time
-				}
-			
-			return stats
+
+		for host, entry in snapshot:
+			stats['hosts'][host] = {
+				'last_used': entry.last_used,
+				'use_count': entry.use_count,
+				'age': time.time() - entry.created_time,
+				'is_alive': entry.is_healthy,
+				'last_check_time': entry.last_check_time
+			}
+
+		return stats
 
 class CONNECTION:
 	@staticmethod
