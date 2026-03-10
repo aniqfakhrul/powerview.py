@@ -1,3 +1,29 @@
+from dataclasses import dataclass, field, asdict
+from typing import Optional
+
+
+@dataclass
+class PowerviewPlugin:
+    """
+    Declare plugin-level metadata at the top of a plugin file.
+
+    Usage:
+        plugin = PowerviewPlugin(
+            name="",
+            description="",
+            author="",
+        )
+    """
+    name: str
+    description: str = ""
+    author: Optional[str] = None
+    version: Optional[str] = None
+    builtin: bool = field(default=False, repr=False)
+
+    def to_dict(self):
+        return {k: v for k, v in asdict(self).items() if v is not None and v != ""}
+
+
 def command(name, args=None, description=None):
     """Register a function as a new PowerView command.
 
@@ -17,16 +43,16 @@ def command(name, args=None, description=None):
 
 
 def before(command_name, priority=50):
-    """Run before an existing command. Can modify args.
+    """
+    Run before an existing command. Can modify args.
 
     Usage:
         @before("Get-DomainUser")
-        def filter_disabled(pv, args):
-            return args
+        @before(["Get-DomainUser", "Get-DomainComputer"])
     """
     def decorator(func):
         func._plugin_before = {
-            "command": command_name,
+            "commands": [command_name] if isinstance(command_name, str) else list(command_name),
             "priority": priority,
         }
         return func
@@ -34,16 +60,16 @@ def before(command_name, priority=50):
 
 
 def after(command_name, priority=50):
-    """Run after an existing command. Can modify results.
+    """
+    Run after an existing command. Can modify results.
 
     Usage:
         @after("Get-DomainUser")
-        def enrich_results(pv, args, results):
-            return results
+        @after(["Get-DomainUser", "Get-DomainComputer"])
     """
     def decorator(func):
         func._plugin_after = {
-            "command": command_name,
+            "commands": [command_name] if isinstance(command_name, str) else list(command_name),
             "priority": priority,
         }
         return func

@@ -15,43 +15,62 @@
         </button>
     </div>
 
-    <div class="p-6 space-y-6">
-        <!-- Obfuscate Toggle -->
-        <div class="flex items-center justify-between">
-            <div>
-                <h3 class="text-sm font-medium text-neutral-900 dark:text-white">Obfuscate</h3>
-                <p class="text-sm text-neutral-500 dark:text-neutral-400">LDAP queries will be obfuscated</p>
+    <div class="p-5 space-y-5 overflow-y-auto scrollbar" style="max-height: calc(100vh - 57px);">
+
+        <!-- LDAP Section -->
+        <div>
+            <div class="pv-section-label">LDAP</div>
+            <div class="space-y-3">
+                <!-- Obfuscate Toggle -->
+                <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <h3 class="text-sm font-medium text-neutral-900 dark:text-white">Obfuscate</h3>
+                        <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Obfuscate LDAP queries</p>
+                    </div>
+                    <label class="pv-toggle">
+                        <input type="checkbox" id="obfuscate-toggle" disabled>
+                        <div class="pv-toggle-track"></div>
+                        <div class="pv-toggle-knob"></div>
+                    </label>
+                </div>
+
+                <!-- Cache Toggle -->
+                <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <h3 class="text-sm font-medium text-neutral-900 dark:text-white">Cache</h3>
+                        <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Cache LDAP query results</p>
+                    </div>
+                    <label class="pv-toggle">
+                        <input type="checkbox" id="cache-toggle" disabled>
+                        <div class="pv-toggle-track"></div>
+                        <div class="pv-toggle-knob"></div>
+                    </label>
+                </div>
+
+                <!-- Vuln Check Toggle -->
+                <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <h3 class="text-sm font-medium text-neutral-900 dark:text-white">Vulnerability Checks</h3>
+                        <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Run security checks on results</p>
+                    </div>
+                    <label class="pv-toggle">
+                        <input type="checkbox" id="vuln-check-toggle" disabled>
+                        <div class="pv-toggle-track"></div>
+                        <div class="pv-toggle-knob"></div>
+                    </label>
+                </div>
             </div>
-            <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" id="obfuscate-toggle" class="sr-only peer" disabled>
-                <div class="w-11 h-6 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
-                <span class="sr-only">Toggle obfuscation</span>
-            </label>
         </div>
 
-        <!-- Cache Toggle -->
-        <div class="flex items-center justify-between">
-            <div>
-                <h3 class="text-sm font-medium text-neutral-900 dark:text-white">Cache</h3>
-                <p class="text-sm text-neutral-500 dark:text-neutral-400">Enable caching of LDAP queries</p>
+        <!-- Plugins Section -->
+        <div class="border-t border-neutral-200 dark:border-neutral-700/50 pt-5">
+            <div class="pv-section-label">Plugins</div>
+            <div id="plugins-container" class="space-y-2">
+                <div class="flex items-center gap-2 py-3">
+                    <div class="w-3 h-3 border-2 border-neutral-300 dark:border-neutral-600 border-t-yellow-500 rounded-full animate-spin"></div>
+                    <span class="text-xs text-neutral-500 dark:text-neutral-400">Loading plugins...</span>
+                </div>
             </div>
-            <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" id="cache-toggle" class="sr-only peer" disabled>
-                <div class="w-11 h-6 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
-                <span class="sr-only">Toggle caching</span>
-            </label>    
         </div>
-
-        <!-- Vuln Check Toggle -->
-        <div class="flex items-center justify-between">
-            <div>
-                <h3 class="text-sm font-medium text-neutral-900 dark:text-white">Vulnerability Checks</h3>
-                <p class="text-sm text-neutral-500 dark:text-neutral-400">Enable vulnerability checks</p>
-            </div>
-            <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" id="vuln-check-toggle" class="sr-only peer" disabled>
-                <div class="w-11 h-6 bg-neutral-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
-                <span class="sr-only">Toggle vulnerability checks</span>
-            </label>
-        </div>
+    </div>
 </div>

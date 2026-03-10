@@ -1549,13 +1549,29 @@ def powerview_arg_parse(cmd):
 	subparsers.add_parser('clear', exit_on_error=False)
 	subparsers.add_parser('exit', exit_on_error=False)
 
+	get_plugin_parser = subparsers.add_parser('Get-Plugin', exit_on_error=False)
+	get_plugin_parser.add_argument('-OutFile', action='store', dest='outfile')
+	enable_plugin_parser = subparsers.add_parser('Enable-Plugin', exit_on_error=False)
+	enable_plugin_parser.add_argument('-Name', action='store', dest='name', required=True)
+	disable_plugin_parser = subparsers.add_parser('Disable-Plugin', exit_on_error=False)
+	disable_plugin_parser.add_argument('-Name', action='store', dest='name', required=True)
+
 	# Register plugin commands
 	if _plugin_registry:
 		for cmd_name, cmd_info in _plugin_registry.commands.items():
 			plugin_parser = subparsers.add_parser(cmd_name, exit_on_error=False)
 			for arg in cmd_info["args"]:
-				dest = arg.lstrip('-').lower().replace('-', '_')
-				plugin_parser.add_argument(arg, action='store', dest=dest)
+				if isinstance(arg, dict):
+					name = arg["name"]
+					dest = name.lstrip('-').lower().replace('-', '_')
+					kwargs = {"dest": dest}
+					for key in ("type", "action", "nargs", "default", "choices", "help"):
+						if key in arg:
+							kwargs[key] = arg[key]
+					plugin_parser.add_argument(name, **kwargs)
+				else:
+					dest = arg.lstrip('-').lower().replace('-', '_')
+					plugin_parser.add_argument(arg, action='store', dest=dest)
 			plugin_parser.add_argument('-OutFile', action='store', dest='outfile')
 			plugin_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', type=Helper.parse_tableview)
 			plugin_parser.add_argument('-SortBy', action='store', dest='sort_by')
@@ -1624,7 +1640,6 @@ def powerview_arg_parse(cmd):
 		else:
 			msg = str(e)
 			module_name = cmd[0] if cmd else "Unknown"
-			# Resolve alias to canonical name (e.g. qwinsta -> Get-NetTerminalSession)
 			for action in parser._subparsers._actions:
 				if hasattr(action, '_name_parser_map'):
 					sub = action._name_parser_map.get(module_name) or action._name_parser_map.get(module_name.casefold())
@@ -1635,7 +1650,6 @@ def powerview_arg_parse(cmd):
 								break
 					break
 			if "required" in msg:
-				# Extract flag names from argparse message like "the following arguments are required: -Identity, -Members"
 				parts = msg.split(":")
 				if len(parts) > 1:
 					flags = parts[-1].strip()

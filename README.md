@@ -16,7 +16,7 @@
 </p>
 <hr />
 
-[Installation](#installation) | [Basic Usage](#basic-usage) | [Obfuscation](#obfuscation) | [Modules](#module-available-so-far) | [Logging](#logging) | [User Defined Rules](#user-defined-rules) | [MCP](#mcp) | [Acknowledgements](#acknowledgements)
+[Installation](#installation) | [Basic Usage](#basic-usage) | [Obfuscation](#obfuscation) | [Modules](#module-available-so-far) | [Logging](#logging) | [User Defined Rules](#user-defined-rules) | [MCP](#mcp) | [Plugins](#plugins) | [Acknowledgements](#acknowledgements)
 
 ## Overview
 
@@ -479,6 +479,108 @@ You can modify this in cursor settings under MCP options button.
 
 > [!warning]
 > When using MCP with public AI models (like Claude, GPT, etc.), your Active Directory data may be transmitted to and logged by these services according to their data handling policies. Be mindful of sensitive information exposure when using these tools. We are not responsible for any data leakage or security implications resulting from connecting PowerView to third-party AI services. Self-hosted FTW!
+
+### Plugins
+
+PowerView supports a decorator-based plugin system that lets you add new commands and hook before/after existing commands. Plugins are single `.py` files discovered automatically from two paths:
+
+| Path | Purpose |
+|------|---------|
+| `powerview/plugins/builtin/` | Ships with the package |
+| `~/.powerview/plugins/` | User-managed plugins |
+
+#### Built-in Plugins
+
+| Plugin | Commands | Hooks | Description |
+|--------|----------|-------|-------------|
+| Recon | `Invoke-DomainRecon` | — | Single-command domain reconnaissance summary |
+| Highlight | — | `after:Get-DomainUser` | Highlights passwords found in user descriptions |
+
+#### Plugin Management
+
+```
+Get-Plugin                          # List all plugins with status
+Enable-Plugin -Name <plugin_name>   # Enable a disabled plugin
+Disable-Plugin -Name <plugin_name>  # Disable a plugin at runtime
+```
+
+#### Writing a Plugin
+
+Create a `.py` file in `~/.powerview/plugins/`. Plugins use three decorators: `@command` to register new commands, `@before` to run logic before an existing command, and `@after` to run logic after.
+
+```python
+# ~/.powerview/plugins/custom_enum.py
+from powerview.plugins import command, before, after, PowerviewPlugin
+
+plugin = PowerviewPlugin(
+    name="CustomEnum",
+    description="Custom enumeration helpers",
+    author="yourname",
+    version="1.0",
+)
+
+@command("Get-DomainAdminUser", args=["-Identity", "-Properties", "-SearchBase"],
+         description="Find users with adminCount=1")
+def get_domainadminuser(pv, args=None, identity=None, properties=None, searchbase=None):
+    results = pv.get_domainuser(
+        identity=identity or "*",
+        properties=properties or ["sAMAccountName", "adminCount", "memberOf", "description"],
+        searchbase=searchbase,
+    )
+    if results:
+        return [r for r in results
+                if str(r.get("attributes", r).get("adminCount", "")) == "1"]
+    return results
+
+@before("Get-DomainUser", priority=10)
+def inject_enabled_filter(pv, args):
+    """Automatically filter out disabled accounts."""
+    if not hasattr(args, 'ldapfilter') or not args.ldapfilter:
+        args.ldapfilter = "(!(userAccountControl:1.2.840.113556.1.4.803:=2))"
+    return args
+
+@after("Get-DomainUser", priority=20)
+def add_password_age(pv, args, results):
+    """Enrich results with password age."""
+    from datetime import datetime, timezone
+    if not results:
+        return results
+    for entry in results:
+        attrs = entry.get("attributes", entry)
+        pwdlast = attrs.get("pwdLastSet")
+        if isinstance(pwdlast, datetime):
+            if pwdlast.tzinfo is None:
+                pwdlast = pwdlast.replace(tzinfo=timezone.utc)
+            age = (datetime.now(timezone.utc) - pwdlast).days
+            attrs["PasswordAge"] = f"{age} days"
+    return results
+```
+
+**Decorators:**
+
+| Decorator | Signature | Description |
+|-----------|-----------|-------------|
+| `@command(name, args, description)` | `func(pv, args=None, **kwargs)` | Register a new verb-noun command |
+| `@before(command_name, priority)` | `func(pv, args)` | Run before a command. Return modified args or `None` |
+| `@after(command_name, priority)` | `func(pv, args, results)` | Run after a command. Return modified results or `None` |
+
+> [!NOTE]
+> `@before` and `@after` accept a single command name or a list (e.g., `@after(["Get-DomainUser", "Get-DomainComputer"])`). Lower priority values run first.
+
+**Advanced argument definitions:**
+
+Plugin args can be simple strings (`"-Identity"`) or dicts for finer control:
+
+```python
+@command("Get-CustomThing", args=[
+    "-Identity",
+    {"name": "-Days", "type": int, "default": 90, "help": "Threshold in days"},
+    {"name": "-Verbose", "action": "store_true", "help": "Show details"},
+])
+```
+
+> [!TIP]
+> All plugin commands automatically get `-OutFile`, `-TableView`, and `-SortBy` flags.
 
 ### Credits
 * https://github.com/SecureAuthCorp/impacket

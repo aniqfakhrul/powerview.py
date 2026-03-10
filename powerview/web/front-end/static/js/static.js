@@ -277,6 +277,112 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    async function initializePluginToggles() {
+        const container = document.getElementById('plugins-container');
+        if (!container) return;
+
+        try {
+            const response = await fetch('/api/plugins');
+            if (!response.ok) throw new Error('Failed to fetch plugins');
+
+            const plugins = await response.json();
+
+            if (!plugins.length) {
+                container.innerHTML = '<p class="text-xs text-neutral-500 dark:text-neutral-400">No plugins loaded</p>';
+                return;
+            }
+
+            container.innerHTML = '';
+
+            plugins.forEach((plugin, idx) => {
+                const src = plugin.source;
+                const toggleId = `plugin-toggle-${src}`;
+                const card = document.createElement('div');
+                card.className = `plugin-card plugin-card-enter${plugin.enabled ? '' : ' plugin-disabled'}`;
+                card.style.animationDelay = `${idx * 60}ms`;
+                card.id = `plugin-card-${src}`;
+
+                // Build badge markup
+                const badges = [];
+                if (plugin.builtin) {
+                    badges.push(`<span class="pv-badge pv-badge-cmd" style="background:rgba(234,179,8,0.06);border-color:rgba(234,179,8,0.15)"><i class="fas fa-cube" style="font-size:8px"></i> builtin</span>`);
+                }
+                plugin.commands.forEach(cmd => {
+                    badges.push(`<span class="pv-badge pv-badge-cmd"><i class="fas fa-terminal" style="font-size:8px"></i> ${escapeHtml(cmd)}</span>`);
+                });
+                const hookTargets = [...new Set([...plugin.before_hooks, ...plugin.after_hooks])];
+                hookTargets.forEach(hook => {
+                    badges.push(`<span class="pv-badge pv-badge-hook"><i class="fas fa-link" style="font-size:8px"></i> ${escapeHtml(hook)}</span>`);
+                });
+                const badgeHtml = badges.length
+                    ? `<div class="flex flex-wrap gap-1 mt-2">${badges.join('')}</div>`
+                    : '';
+
+                // Description line
+                const descHtml = plugin.description
+                    ? `<p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">${escapeHtml(plugin.description)}</p>`
+                    : '';
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2">
+                                <div class="pv-status-dot ${plugin.enabled ? 'pv-status-active' : 'pv-status-inactive'}" id="plugin-dot-${src}"></div>
+                                <span class="text-sm font-medium text-neutral-900 dark:text-white">${escapeHtml(plugin.name)}</span>
+                                ${plugin.version ? `<span class="text-xs text-neutral-500 dark:text-neutral-500">v${escapeHtml(plugin.version)}</span>` : ''}
+                            </div>
+                            ${descHtml}
+                            ${badgeHtml}
+                        </div>
+                        <label class="pv-toggle" style="margin-top:2px">
+                            <input type="checkbox" id="${toggleId}" ${plugin.enabled ? 'checked' : ''}>
+                            <div class="pv-toggle-track"></div>
+                            <div class="pv-toggle-knob"></div>
+                        </label>
+                    </div>
+                `;
+                container.appendChild(card);
+
+                const toggle = document.getElementById(toggleId);
+                toggle.addEventListener('change', async (e) => {
+                    const action = e.target.checked ? 'enable' : 'disable';
+                    const dot = document.getElementById(`plugin-dot-${src}`);
+                    const parentCard = document.getElementById(`plugin-card-${src}`);
+                    try {
+                        const res = await fetch(`/api/plugins/${encodeURIComponent(src)}/${action}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        if (!res.ok) throw new Error(`Failed to ${action} plugin`);
+                        if (e.target.checked) {
+                            parentCard.classList.remove('plugin-disabled');
+                            dot.classList.remove('pv-status-inactive');
+                            dot.classList.add('pv-status-active');
+                        } else {
+                            parentCard.classList.add('plugin-disabled');
+                            dot.classList.remove('pv-status-active');
+                            dot.classList.add('pv-status-inactive');
+                        }
+                        showSuccessAlert(`Plugin '${plugin.name}' ${action}d`);
+                    } catch (err) {
+                        console.error(`Error toggling plugin ${src}:`, err);
+                        showErrorAlert(`Failed to ${action} plugin '${plugin.name}'`);
+                        e.target.checked = !e.target.checked;
+                    }
+                });
+            });
+        } catch (error) {
+            console.error('Error fetching plugins:', error);
+            container.innerHTML = '<p class="text-xs text-neutral-500 dark:text-neutral-400">Failed to load plugins</p>';
+        }
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.appendChild(document.createTextNode(str));
+        return div.innerHTML;
+    }
+
     settingsButton.addEventListener('click', function() {
         if (settingsPanel.classList.contains('hidden')) {
             settingsPanel.classList.remove('hidden');
@@ -303,6 +409,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize settings
     initializeSettingsToggles();
+    initializePluginToggles();
 
     // Add event listeners for alert close buttons
     document.querySelectorAll('.close-alert').forEach(button => {

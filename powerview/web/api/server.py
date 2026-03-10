@@ -116,6 +116,9 @@ class APIServer:
 		add_route_with_auth('/api/constants', 'constants', self.handle_constants, methods=['GET'])
 		add_route_with_auth('/api/clear-cache', 'clear_cache', self.handle_clear_cache, methods=['GET'])
 		add_route_with_auth('/api/settings', 'settings', self.handle_settings, methods=['GET'])
+		add_route_with_auth('/api/plugins', 'plugins_list', self.handle_plugins_list, methods=['GET'])
+		add_route_with_auth('/api/plugins/<plugin_name>/enable', 'plugin_enable', self.handle_plugin_enable, methods=['POST'])
+		add_route_with_auth('/api/plugins/<plugin_name>/disable', 'plugin_disable', self.handle_plugin_disable, methods=['POST'])
 		add_route_with_auth('/api/smb/connect', 'smb_connect', self.handle_smb_connect, methods=['POST'])
 		add_route_with_auth('/api/smb/reconnect', 'smb_reconnect', self.handle_smb_reconnect, methods=['POST'])
 		add_route_with_auth('/api/smb/disconnect', 'smb_disconnect', self.handle_smb_disconnect, methods=['POST'])
@@ -353,7 +356,29 @@ class APIServer:
 	
 	def handle_settings(self):
 		return jsonify(vars(self.powerview.args))
-	
+
+	def handle_plugins_list(self):
+		registry = getattr(self.powerview, 'plugin_registry', None)
+		if not registry:
+			return jsonify([])
+		return jsonify(registry.list_plugins())
+
+	def handle_plugin_enable(self, plugin_name):
+		registry = getattr(self.powerview, 'plugin_registry', None)
+		if not registry:
+			return jsonify({'error': 'Plugin system not loaded'}), 400
+		if registry.enable_plugin(plugin_name):
+			return jsonify({'status': 'OK', 'message': f"Plugin '{plugin_name}' enabled"})
+		return jsonify({'error': f"Plugin '{plugin_name}' not found"}), 404
+
+	def handle_plugin_disable(self, plugin_name):
+		registry = getattr(self.powerview, 'plugin_registry', None)
+		if not registry:
+			return jsonify({'error': 'Plugin system not loaded'}), 400
+		if registry.disable_plugin(plugin_name):
+			return jsonify({'status': 'OK', 'message': f"Plugin '{plugin_name}' disabled"})
+		return jsonify({'error': f"Plugin '{plugin_name}' not found"}), 404
+
 	def handle_server_info(self):
 		server_info = self.powerview.conn.get_server_info()
 		return jsonify(server_info)
