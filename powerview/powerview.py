@@ -108,6 +108,7 @@ class PowerView:
 			self.is_admin = self._check_admin_status()
 
 		self.domain_instances = {}
+		self._parent_powerview = None  # Set by get_domain_powerview() for cross-domain instances
 		self.plugin_registry = None
 
 		# API server
@@ -351,7 +352,8 @@ class PowerView:
 					raise ConnectionError(f"Connection to domain {domain} doesn't have an initialized LDAP session")
 				
 				pv = PowerView(domain_conn, self.args, target_domain=domain)
-				
+				pv._parent_powerview = self  # Back-reference for foreign member resolution
+
 				if pv.ldap_session.closed:
 					raise ConnectionError(f"Created PowerView for {domain} but connection is not alive")
 				
@@ -2001,15 +2003,43 @@ class PowerView:
 		entries = []
 		for user in domain_users:
 			user_san = user['attributes']['sAMAccountName']
-			user_memberof = user['attributes']['memberOf']
+			user_memberof = user['attributes'].get('memberOf', [])
 			if isinstance(user_memberof, str):
 				user_memberof = [user_memberof]
+			if not user_memberof:
+				continue
 
 			for group in user_memberof:
 				group_domain = dn2domain(group)
 				group_root_dn = dn2rootdn(group)
 				if group_domain.casefold() != self.domain.casefold():
-					_, ldap_session = self.conn.init_ldap_session(ldap_address=group_domain)
+					try:
+						# Use cached cross-domain instance if available
+						foreign_pv = self.domain_instances.get(group_domain.casefold())
+						if foreign_pv and not foreign_pv.ldap_session.closed:
+							ldap_session = foreign_pv.ldap_session
+						elif self._parent_powerview and group_domain.casefold() == self._parent_powerview.domain.casefold():
+							ldap_session = self._parent_powerview.ldap_session
+						else:
+							import concurrent.futures
+							with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+								future = executor.submit(self.conn.init_ldap_session, ldap_address=group_domain)
+								_, ldap_session = future.result(timeout=10)
+					except Exception as e:
+						logging.warning(f"[Get-DomainForeignUser] Cannot reach domain {group_domain}: {e}")
+						# Add a stub entry with available info
+						entries.append(
+							{'attributes':{
+									'UserDomain': dn2domain(user['attributes']['distinguishedName']),
+									'UserName': user_san,
+									'UserDistinguishedName': user['attributes']['distinguishedName'],
+									'GroupDomain': group_domain,
+									'GroupName': group.split(',')[0].split('=')[-1] if '=' in group else group,
+									'GroupDistinguishedName': group
+								}
+							 }
+							)
+						continue
 					ldap_filter = f"(&(objectCategory=group)(distinguishedName={group}))"
 					succeed = ldap_session.search(group_root_dn, ldap_filter, attributes='*')
 					if not succeed:
@@ -2075,7 +2105,33 @@ class PowerView:
 					ldap_filter = f"(&(objectCategory=*)(|(distinguishedName={member_dn})))"
 
 					if len(member_domain) != 0 and member_domain.casefold() != self.domain.casefold():
-						_, ldap_session = self.conn.init_ldap_session(ldap_address=member_domain)
+						# Try to resolve foreign member via cross-domain LDAP.
+						# Use cached domain instances first; fall back to init_ldap_session
+						# with a timeout guard to prevent hangs on unreachable domains.
+						try:
+							foreign_pv = self.domain_instances.get(member_domain.casefold())
+							if foreign_pv and not foreign_pv.ldap_session.closed:
+								ldap_session = foreign_pv.ldap_session
+							elif self._parent_powerview and member_domain.casefold() == self._parent_powerview.domain.casefold():
+								ldap_session = self._parent_powerview.ldap_session
+							else:
+								import concurrent.futures
+								with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+									future = executor.submit(self.conn.init_ldap_session, ldap_address=member_domain)
+									_, ldap_session = future.result(timeout=10)
+						except Exception as e:
+							logging.warning(f"[Get-DomainGroupMember] Cannot reach domain {member_domain} for foreign member {member_dn}: {e}")
+							# Build a stub entry from the DN itself so we don't lose the member
+							stub_infos = {
+								'GroupDomainName': group_identity_sam,
+								'GroupDistinguishedName': group_identity_dn,
+								'MemberDomain': member_domain,
+								'MemberName': member_dn.split(',')[0].split('=')[-1] if '=' in member_dn else member_dn,
+								'MemberDistinguishedName': member_dn,
+								'MemberSID': '(unresolvable — foreign domain unreachable)',
+							}
+							new_entries.append({'attributes': stub_infos})
+							continue
 						succeed = ldap_session.search(member_root_dn, ldap_filter, attributes='*')
 						if not succeed:
 							logging.error(f"[Get-DomainGroupMember] Failed to query for {member_dn}")
@@ -6100,6 +6156,21 @@ displayName=New Group Policy Object
 		)
 		logging.debug("[Invoke-ASREPRoast] Found %d users with preauthnotrequired enabled" % (len(users)))
 
+		# Resolve the actual target domain name and KDC for cross-domain AS-REP roasting
+		target_kdc_ip = self.dc_ip
+		target_domain_name = self.domain
+		if hasattr(args, 'server') and args.server:
+			from powerview.utils.helpers import is_ipaddress
+			target_kdc_ip = args.server
+			# If server is an IP, resolve the actual domain name from the LDAP rootDSE
+			if is_ipaddress(args.server):
+				if hasattr(self, 'root_dn') and self.root_dn:
+					target_domain_name = self.root_dn.replace('DC=', '').replace(',', '.').lower()
+				else:
+					target_domain_name = self.conn.get_domain() or self.domain
+			else:
+				target_domain_name = args.server
+
 		entries = []
 		for user in users:
 			samaccountname = user.get("attributes").get("sAMAccountName")
@@ -6107,7 +6178,14 @@ displayName=New Group Policy Object
 				logging.debug("[Invoke-ASREPRoast] No sAMAccountName found for %s" % (user.get("attributes").get("dn")))
 				continue
 			asreproast = ASREProast(self)
-			ticket = asreproast.request(samaccountname)
+			# Override domain and KDC for cross-domain roasting
+			asreproast._ASREProast__domain = target_domain_name
+			asreproast._ASREProast__kdcIP = target_kdc_ip
+			try:
+				ticket = asreproast.request(samaccountname)
+			except Exception as e:
+				logging.warning(f"[Invoke-ASREPRoast] Failed for {samaccountname}: {e}")
+				ticket = None
 			user['attributes']["Hash"] = ticket if ticket and 'attributes' in user.keys() else None
 			entries.append(user)
 		return entries
@@ -6132,12 +6210,31 @@ displayName=New Group Policy Object
 		)
 		if len(entries) == 0:
 			logging.debug("[Invoke-Kerberoast] No identity found")
-			return
+			return []
 
 		if target_domain:
 			target_domain = args.server
 		else:
 			target_domain = self.domain
+
+		# Resolve actual domain names for cross-domain kerberoasting
+		from powerview.utils.helpers import is_ipaddress
+		actual_user_domain = self.domain
+		actual_target_domain = target_domain
+		if is_ipaddress(actual_user_domain) and hasattr(self, 'root_dn') and self.root_dn:
+			actual_target_domain = self.root_dn.replace('DC=', '').replace(',', '.').lower()
+		if is_ipaddress(actual_target_domain) and hasattr(self, 'root_dn') and self.root_dn:
+			actual_target_domain = self.root_dn.replace('DC=', '').replace(',', '.').lower()
+		# If we have a parent powerview, use its domain as the user domain
+		if self._parent_powerview:
+			actual_user_domain = self._parent_powerview.domain
+
+		# For cross-domain, use parent's TGT (authenticated to home domain)
+		tgt = None
+		if self._parent_powerview:
+			tgt = self._parent_powerview.conn.get_TGT()
+		if not tgt:
+			tgt = self.conn.get_TGT()
 
 		kdc_options = None
 		enctype = None
@@ -6145,9 +6242,9 @@ displayName=New Group Policy Object
 			enctype = 18 # aes
 			kdc_options = "0x40810000"
 
-		userspn = GetUserSPNs(self.username, self.password, self.domain, target_domain, self.args, identity=identity, options=kdc_options, encType=enctype, TGT=self.conn.get_TGT())
+		userspn = GetUserSPNs(self.username, self.password, actual_user_domain, actual_target_domain, self.args, identity=identity, options=kdc_options, encType=enctype, TGT=tgt)
 		entries = userspn.run(entries)
-		return entries
+		return entries if entries is not None else []
 
 	def find_localadminaccess(self, computer=None, username=None, password=None, domain=None, nthash=None, lmhash=None, no_cache=False, no_resolve=False, args=None):
 		import concurrent.futures
