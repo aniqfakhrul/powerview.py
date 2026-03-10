@@ -47,6 +47,7 @@ import ldap3
 import logging
 import json
 from struct import unpack
+from binascii import unhexlify
 import tempfile
 import os
 import socket
@@ -54,6 +55,9 @@ import socket
 from ldap3.operation import bind
 from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
 import powerview.lib.adws as adws
+
+_gethostname_lock = threading.Lock()
+_original_gethostname = socket.gethostname
 
 class ConnectionSetupError(Exception):
 	"""Raised when a connection cannot be established due to configuration or auth errors."""
@@ -488,9 +492,6 @@ class SMBConnectionEntry(ConnectionPoolEntry):
 					return False
 			return True
 	
-	def mark_used(self):
-		super().mark_used()
-
 	def close(self):
 		"""Close the underlying SMB connection"""
 		with self._lock:
@@ -726,17 +727,18 @@ class CONNECTION:
 				return "LDAP", False, self.port or 389
 		return None, None, None
 
-	def __init__(self, args, get_alt_server_info=False):
+	def __init__(self, args, get_alt_server_info=False, _is_child=False):
 		self.args = args
 		self._connection_pool = ConnectionPool(
 			max_connections=getattr(args, 'max_connections', 10),
 			cleanup_interval=getattr(args, 'pool_cleanup_interval', 0),
 			keepalive_interval=getattr(args, 'keepalive_interval', 0)
 		)
+		# Child connections (cross-domain) don't need SMB pool maintenance threads
 		self._smb_pool = SMBConnectionPool(
 			max_connections=20,
-			cleanup_interval=400,
-			keepalive_interval=300
+			cleanup_interval=0 if _is_child else 400,
+			keepalive_interval=0 if _is_child else 300
 		)
 
 		self._current_domain = None
@@ -849,10 +851,11 @@ class CONNECTION:
 		if get_alt_server_info:
 			self.alt_server_info = self.get_alt_server_info()
 		
-		if self.alt_server_info and hasattr(self.alt_server_info, "dnsHostName") and len(self.alt_server_info["dnsHostName"]) > 0:
-			socket.gethostname = lambda: self.alt_server_info["dnsHostName"][0].split(".")[0]
-		else:
-			socket.gethostname = lambda: "localhost"
+		with _gethostname_lock:
+			if self.alt_server_info and hasattr(self.alt_server_info, "dnsHostName") and len(self.alt_server_info["dnsHostName"]) > 0:
+				socket.gethostname = lambda: self.alt_server_info["dnsHostName"][0].split(".")[0]
+			else:
+				socket.gethostname = lambda: "localhost"
 
 		# stolen from https://github.com/the-useless-one/pywerview/blob/master/pywerview/requester.py#L90
 		try:
@@ -916,7 +919,7 @@ class CONNECTION:
 				logging.debug("Primary domain connection is dead, creating new one")
 		
 		def connection_factory():
-			new_conn = CONNECTION(self.args)
+			new_conn = CONNECTION(self.args, _is_child=True)
 			new_conn.username = self.username
 			new_conn.password = self.password
 			new_conn.lmhash = self.lmhash
@@ -1798,7 +1801,7 @@ class CONNECTION:
 			ldap_connection.bind()
 		except ldap3.core.exceptions.LDAPSocketOpenError as e:
 				logging.critical(e)
-				if self._do_tls:
+				if tls:
 					logging.critical('TLS negotiation failed, this error is mostly due to your host '
 										  'not supporting SHA1 as signing algorithm for certificates')
 				raise ConnectionSetupError(f"LDAP socket open error: {str(e)}")
@@ -2167,12 +2170,12 @@ class CONNECTION:
 		Raises:
 			ConnectionError: If connection cannot be established on any port
 		"""
-		username = username or self.username
-		password = password or self.password 
-		nthash = nthash or self.nthash
-		lmhash = lmhash or self.lmhash
-		aesKey = aesKey or self.auth_aes_key
-		domain = domain or self.domain
+		username = username if username is not None else self.username
+		password = password if password is not None else self.password
+		nthash = nthash if nthash is not None else self.nthash
+		lmhash = lmhash if lmhash is not None else self.lmhash
+		aesKey = aesKey if aesKey is not None else self.auth_aes_key
+		domain = domain if domain is not None else self.domain
 		
 		if aesKey:
 			useKerberos = True
@@ -2241,8 +2244,7 @@ class CONNECTION:
 			try:
 				ccache = CCache.loadFile(os.getenv('KRB5CCNAME'))
 			except Exception as e:
-				logging.info(str(e))
-				return
+				logging.debug(f'Could not load KRB5CCNAME: {str(e)}')
 			else:
 				if domain == '':
 					domain = ccache.principal.realm['data'].decode('utf-8')
@@ -2643,18 +2645,17 @@ class CONNECTION:
 	def check_smb_connection_health(self, host):
 		"""
 		Check if SMB connection to host is healthy
-		
+
 		Args:
 			host: Target host name or IP
-			
+
 		Returns:
 			bool: True if connection is healthy, False otherwise
 		"""
 		try:
 			with self._smb_pool._pool_lock:
 				if host.lower() in self._smb_pool._pool:
-					entry = self._smb_pool._pool[host.lower()]
-					return entry.is_alive()
+					return self._smb_pool._pool[host.lower()].is_healthy
 			return False
 		except Exception:
 			return False
@@ -2874,7 +2875,7 @@ class HTTPRelayServer(HTTPRelayServer):
 						self.target = self.server.config.target.getTarget(identity=self.authUser)
 
 						if self.target is None:
-							LOG.info("HTTPD(%s): Connection from %s@%s controlled, but there are no more targets left!" % (
+							logging.info("HTTPD(%s): Connection from %s@%s controlled, but there are no more targets left!" % (
 								self.server.server_address[1], self.authUser, self.client_address[0]))
 
 							# Return Multi-Status status code to WebDAV servers
