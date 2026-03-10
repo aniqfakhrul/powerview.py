@@ -2,14 +2,15 @@
 from __future__ import annotations
 
 import re
-from argparse import Namespace
 from typing import TYPE_CHECKING
 
 from powerview.plugins import after, PowerviewPlugin
 from powerview.utils.colors import bcolors
 
+# for contributors, you dont have to include imports below. These are optional
 if TYPE_CHECKING:
     from powerview.powerview import PowerView
+from argparse import Namespace
 
 plugin = PowerviewPlugin(
     name="Highlight",
