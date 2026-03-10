@@ -1,8 +1,13 @@
+from __future__ import annotations
+
 import base64
 import datetime
 import struct
 from html.entities import codepoint2name
-from typing import Self
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Self
 
 from .constants import DICTIONARY
 from .datatypes import Decimal, MultiByteInt31

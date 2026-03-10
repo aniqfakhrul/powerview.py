@@ -1,6 +1,10 @@
-import struct
+from __future__ import annotations
 
-from typing import Self
+import struct
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Self
 
 class MultiByteInt31(object):
     def __init__(self, value: int):

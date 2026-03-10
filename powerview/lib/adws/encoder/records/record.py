@@ -1,6 +1,11 @@
+from __future__ import annotations
+
 import struct
 import logging
-from typing import Self, Type
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Self
 
 from .datatypes import MultiByteInt31, Utf8String
 
