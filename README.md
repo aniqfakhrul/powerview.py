@@ -482,7 +482,72 @@ You can modify this in cursor settings under MCP options button.
 
 ### Plugins
 
-PowerView supports a decorator-based plugin system that lets you add new commands and hook before/after existing commands. Plugins are single `.py` files discovered automatically from two paths:
+PowerView supports a decorator-based plugin system that lets you add new commands and hook before/after existing commands.
+
+#### How It Works
+
+```
+                         ┌──────────────────────────────┐
+                         │         Plugin Loader         │
+                         │  Scans directories on startup │
+                         └──────────┬───────────────────┘
+                                    │
+                    ┌───────────────┴───────────────┐
+                    ▼                               ▼
+        ┌───────────────────┐           ┌───────────────────┐
+        │ builtin/ plugins  │           │  ~/.powerview/     │
+        │                   │           │  plugins/          │
+        │  dehashed.py      │           │                    │
+        │  highlight.py     │           │  my_plugin.py      │
+        │  recon.py         │           │  ...               │
+        └───────────────────┘           └───────────────────┘
+                    │                               │
+                    └───────────────┬───────────────┘
+                                    ▼
+                         ┌──────────────────────┐
+                         │   Sanity Validation   │
+                         │  Check signatures &   │
+                         │  required decorators   │
+                         └──────────┬───────────┘
+                                    ▼
+                         ┌──────────────────────┐
+                         │   Plugin Registry     │
+                         │                       │
+                         │  commands: {}          │
+                         │  before_hooks: {}      │
+                         │  after_hooks: {}       │
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+         ┌─────────────────────────────────────────────────┐
+         │              Command Execution Flow             │
+         │                                                 │
+         │  User Input: "Get-DomainUser -Identity admin"   │
+         │                       │                         │
+         │                       ▼                         │
+         │          ┌────────────────────────┐             │
+         │          │   @before hooks        │             │
+         │          │   (modify args)        │             │
+         │          └───────────┬────────────┘             │
+         │                      │                          │
+         │                      ▼                          │
+         │          ┌────────────────────────┐             │
+         │          │   Core command OR      │             │
+         │          │   @command plugin      │             │
+         │          └───────────┬────────────┘             │
+         │                      │                          │
+         │                      ▼                          │
+         │          ┌────────────────────────┐             │
+         │          │   @after hooks         │             │
+         │          │   (modify results)     │             │
+         │          └───────────┬────────────┘             │
+         │                      │                          │
+         │                      ▼                          │
+         │               Format & Display                  │
+         └─────────────────────────────────────────────────┘
+```
+
+Plugins are single `.py` files discovered automatically from two paths:
 
 | Path | Purpose |
 |------|---------|
