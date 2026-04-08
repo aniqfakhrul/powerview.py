@@ -3,18 +3,17 @@ from ldap3.extend.standard.PagedSearch import paged_search_generator, paged_sear
 from powerview.lib.adws.extend.standard.PagedSearch import adws_paged_search_generator, adws_paged_search_accumulator
 from ldap3.extend import StandardExtendedOperations, ExtendedOperationsRoot
 from ldap3 import SUBTREE, DEREF_ALWAYS
-from .obfuscate import (
-	FilterParser,
-	DNParser,
-	AttributeParser,
-	LdapObfuscate
-)
+import ldapx
 
 import logging
 from powerview.utils.storage import Storage
 from powerview.modules.vulnerabilities import VulnerabilityDetector
 from powerview.utils.helpers import strip_entry
 from powerview.utils.hints import patch_ldap3_exceptions
+
+DEFAULT_FILTER_CHAIN = "CZANDR"
+DEFAULT_BASEDN_CHAIN = "CX"
+DEFAULT_ATTRLIST_CHAIN = "CR"
 
 # Patch ldap3's LDAPOperationResult to include error hints
 patch_ldap3_exceptions()
@@ -98,44 +97,19 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 			modified_attributes = attributes
 
 			if self.obfuscate:
-				parser = FilterParser(search_filter)
-				parser.parse()
+				filter_chain = self.obfuscate if isinstance(self.obfuscate, str) else DEFAULT_FILTER_CHAIN
+				basedn_chain = DEFAULT_BASEDN_CHAIN
+				attrlist_chain = DEFAULT_ATTRLIST_CHAIN
 
-				# OID: converts attr names to OID dotted notation + trailing spaces.
-				# max_zeros=0, include_prefix=False because ldap3 rejects OID zero-padding
-				# and the "oID." prefix. Only attr-to-OID conversion + spacing is effective.
-				parser.oid_attribute_obfuscation(max_spaces=3, max_zeros=0, include_prefix=False)
-				parser.random_casing(probability=0.7)
-
-				parser.prepend_zeros_obfuscation(max_zeros=5)
-				parser.hex_value_obfuscation(probability=0.5)
-				parser.spacing_obfuscation(max_spaces=3)
-
-				# NOTE: ~= (approximate match) changes query semantics — may return
-				# broader results than exact equality. This is intentional for evasion.
-				parser.equality_to_approximation_obfuscation()
-				parser.wildcard_expansion_obfuscation()
-
-				parser.anr_attribute_obfuscation()
-
-				parser.random_spacing()
-
-				modified_filter = parser.convert_to_ldap()
+				modified_filter = ldapx.obfuscate_filter(search_filter, filter_chain)
 				logging.debug("[CustomStandardExtendedOperations] Modified Filter: {}".format(modified_filter))
 
-				dn_parser = DNParser(search_base)
-				dn_parser.parse()
-				dn_parser.dn_hex()
-				dn_parser.dn_randomcase()
-				dn_parser.random_spacing()
-				modified_dn = dn_parser.convert_to_dn()
+				modified_dn = ldapx.obfuscate_basedn(search_base, basedn_chain)
 				logging.debug("[CustomStandardExtendedOperations] Modified DN: {}".format(modified_dn))
 
-				attribute_parser = AttributeParser(attributes)
-				attribute_parser.random_oid()
-				attribute_parser.random_casing()
-				modified_attributes = attribute_parser.get_attributes()
-				logging.debug("[CustomStandardExtendedOperations] Modified Attributes: {}".format(modified_attributes))
+				if attributes:
+					modified_attributes = ldapx.obfuscate_attrlist(attributes, attrlist_chain)
+					logging.debug("[CustomStandardExtendedOperations] Modified Attributes: {}".format(modified_attributes))
 
 			if generator:
 				if self.use_adws:
