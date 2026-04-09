@@ -161,8 +161,12 @@ class PowerView:
 		self.root_dn = self.ldap_server.info.other["defaultNamingContext"][0] if isinstance(self.ldap_server.info.other["defaultNamingContext"], list) else self.ldap_server.info.other["defaultNamingContext"]
 		self.configuration_dn = self.ldap_server.info.other["configurationNamingContext"][0] if isinstance(self.ldap_server.info.other["configurationNamingContext"], list) else self.ldap_server.info.other["configurationNamingContext"]
 		self.schema_dn = self.ldap_server.info.other["schemaNamingContext"][0] if isinstance(self.ldap_server.info.other["schemaNamingContext"], list) else self.ldap_server.info.other["schemaNamingContext"]
-		if not self.domain:
-			self.domain = dn2domain(self.root_dn)
+		# Sync self.domain with the DC's actual domain from server info.
+		# This handles the case where a cross-trust user (e.g. DEF\user) connects
+		# to ABC's DC — args.domain would be 'def.local' but the DC serves 'abc.local'.
+		server_domain = dn2domain(self.root_dn)
+		if server_domain:
+			self.domain = server_domain
 		self.flatName = self.ldap_server.info.other["ldapServiceName"][0].split("@")[-1].split(".")[0] if isinstance(self.ldap_server.info.other["ldapServiceName"], list) else self.ldap_server.info.other["ldapServiceName"].split("@")[-1].split(".")[0]
 		self.dc_dnshostname = self.ldap_server.info.other["dnsHostName"][0] if isinstance(self.ldap_server.info.other["dnsHostName"], list) else self.ldap_server.info.other["dnsHostName"]
 		self.whoami = self.conn.who_am_i()
@@ -265,6 +269,64 @@ class PowerView:
 					logging.error(f"Failed to query domain {trust_name}: {str(e)}")
 					continue
 		return objects
+
+	def _is_cross_trust_user(self):
+		"""Check if the authenticated user belongs to a different domain than the connected DC."""
+		if "\\" not in self.whoami:
+			return False
+		return self.whoami.split('\\')[0].upper() != self.flatName.upper()
+
+	def _resolve_current_user(self, properties=None, caller=""):
+		"""Resolve the current authenticated user, handling cross-trust scenarios.
+
+		When a user from domain B authenticates to domain A's DC, the user
+		object only exists in domain B. For cross-trust users, we must search
+		the user's home domain directly — searching locally would either fail
+		(user not found) or return the wrong user (same sAMAccountName exists
+		in both domains, e.g. 'Administrator').
+		"""
+		if properties is None:
+			properties = ['objectSid']
+		username = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
+
+		# Cross-trust user: search their home domain directly, never local
+		if self._is_cross_trust_user():
+			user_netbios = self.whoami.split('\\')[0].upper()
+			user_domain = None
+			try:
+				trusts = self.get_domaintrust(properties=['name', 'flatName'], no_cache=True)
+				for trust in trusts:
+					attrs = trust.get("attributes", {})
+					if attrs.get("flatName", "").upper() == user_netbios:
+						user_domain = attrs.get("name")
+						break
+			except Exception as e:
+				logging.debug(f"[{caller}] Failed to enumerate trusts: {str(e)}")
+
+			if not user_domain:
+				logging.debug(f"[{caller}] Could not resolve home domain for {self.whoami}")
+				return []
+
+			logging.debug(f"[{caller}] Cross-trust user {username}, searching home domain {user_domain}")
+			try:
+				domain_pv = self.get_domain_powerview(user_domain)
+				entries = domain_pv.get_domainobject(
+					ldap_filter=f"(sAMAccountName={username})",
+					properties=properties,
+					no_cache=True
+				)
+				if entries:
+					logging.debug(f"[{caller}] Found user {username} in {user_domain}")
+					return entries
+			except Exception as e:
+				logging.debug(f"[{caller}] Cross-domain lookup to {user_domain} failed: {str(e)}")
+			return []
+
+		# Local user: search the connected domain
+		return self.get_domainobject(
+			ldap_filter=f"(sAMAccountName={username})",
+			properties=properties
+		)
 
 	def get_domain_sid(self):
 		"""
@@ -432,6 +494,16 @@ class PowerView:
 		self.is_domainadmin = False
 		self.is_admincount = False
 		username = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
+
+		# Skip admin check for cross-trust users — searching the local domain
+		# would find a different user with the same sAMAccountName (e.g. both
+		# domains have an "Administrator") and produce false results.
+		if "\\" in self.whoami:
+			user_netbios = self.whoami.split('\\')[0].upper()
+			if user_netbios != self.flatName.upper():
+				logging.debug(f"Skipping admin check for cross-trust user {self.whoami}")
+				return False
+
 		try:
 			user_entry = self.ldap_session.extend.standard.paged_search(search_base=self.root_dn, search_filter=f"(&(sAMAccountName={username})(|(objectClass=user)(objectClass=computer)))", attributes=["distinguishedName", "adminCount"], generator=True, no_vuln_check=True)
 			if len(user_entry) == 0:
@@ -4031,9 +4103,9 @@ displayName=New Group Policy Object
 		list_entries = []
 
 		username = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
-		current_user = self.get_domainobject(
-			ldap_filter=f"(sAMAccountName={username})",
-			properties=['objectSid']
+		current_user = self._resolve_current_user(
+			properties=['objectSid'],
+			caller="Get-DomainCATemplate"
 		)
 		if len(current_user) == 0:
 			logging.error(f"[Get-DomainCATemplate] Current user {username} not found")
@@ -4042,10 +4114,34 @@ displayName=New Group Policy Object
 			logging.error(f"[Get-DomainCATemplate] More than one current user {username} found")
 			return
 		current_user_sid = current_user[0].get("attributes", {}).get("objectSid")
-		
+
 		if not current_user_sid:
 			logging.error(f"[Get-DomainCATemplate] Current user {username} has no objectSid")
 			return
+
+		# For cross-trust users, pre-compute SIDs using their home domain's LDAP session
+		# so template ACL evaluation works correctly with cross-trust group memberships
+		cross_trust_user_sids = None
+		if self._is_cross_trust_user():
+			user_netbios = self.whoami.split('\\')[0].upper()
+			user_domain = None
+			try:
+				trusts = self.get_domaintrust(properties=['name', 'flatName'], no_cache=True)
+				for trust in trusts:
+					attrs = trust.get("attributes", {})
+					if attrs.get("flatName", "").upper() == user_netbios:
+						user_domain = attrs.get("name")
+						break
+			except Exception:
+				pass
+			if user_domain:
+				try:
+					domain_pv = self.get_domain_powerview(user_domain)
+					user_domain_sid = '-'.join(current_user_sid.split('-')[:-1])
+					cross_trust_user_sids = get_user_sids(user_domain_sid, current_user_sid, domain_pv.ldap_session)
+					logging.debug(f"[Get-DomainCATemplate] Resolved {len(cross_trust_user_sids)} SIDs for cross-trust user from {user_domain}")
+				except Exception as e:
+					logging.debug(f"[Get-DomainCATemplate] Failed to resolve cross-trust SIDs: {str(e)}")
 
 		oids = ca_fetch.get_issuance_policies(no_cache=no_cache, no_vuln_check=no_vuln_check, raw=raw)
 		for ca in cas:
@@ -4082,7 +4178,7 @@ displayName=New Group Policy Object
 						linked_group = oid.get("attributes").get("msDS-OIDToGroupLink")
 
 
-				template_ops = PARSE_TEMPLATE(template.get("attributes"), current_user_sid=current_user_sid, linked_group=linked_group, ldap_session=self.ldap_session)
+				template_ops = PARSE_TEMPLATE(template.get("attributes"), current_user_sid=current_user_sid, linked_group=linked_group, ldap_session=self.ldap_session, user_sids=cross_trust_user_sids)
 				parsed_dacl = template_ops.parse_dacl()
 				template_ops.resolve_flags()
 				template_owner = template_ops.get_owner_sid()
