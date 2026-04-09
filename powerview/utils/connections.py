@@ -745,6 +745,7 @@ class CONNECTION:
 		self.username = args.username
 		self.password = args.password
 		self.domain = args.domain
+		self.auth_domain = args.domain  # Preserved for RPC auth (self.domain may change to DC's domain after bind)
 		self.lmhash = args.lmhash
 		self.nthash = args.nthash
 		self.use_kerberos = args.use_kerberos
@@ -2343,7 +2344,7 @@ class CONNECTION:
 			host = self.dc_ip
 
 		if not domain:
-			domain = self.domain
+			domain = getattr(self, 'auth_domain', self.domain)
 
 		if not username:
 			username = self.username
