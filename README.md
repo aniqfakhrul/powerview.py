@@ -135,7 +135,7 @@ powerview range.net/lowpriv:Password123@192.168.86.192 --obfuscate CZXANDR
 - Attributes: mutates the requested attribute list
 
 **Default chain codes**
-- Filter: `CZANDR` - Case randomization, Zero-prepend, Approx match, aNR, De Morgan, Reorder
+- Filter: `CZNDR` - Case randomization, Zero-prepend, aNR, De Morgan, Reorder
 - BaseDN: `CX` - Case randomization, heX encoding
 - Attributes: `CR` - Case randomization, Reorder
 

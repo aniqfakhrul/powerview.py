@@ -11,7 +11,7 @@ from powerview.modules.vulnerabilities import VulnerabilityDetector
 from powerview.utils.helpers import strip_entry
 from powerview.utils.hints import patch_ldap3_exceptions
 
-DEFAULT_FILTER_CHAIN = "CZANDR"
+DEFAULT_FILTER_CHAIN = "CZNDR"
 DEFAULT_BASEDN_CHAIN = "CX"
 DEFAULT_ATTRLIST_CHAIN = "CR"
 
