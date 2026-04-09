@@ -134,23 +134,26 @@ powerview range.net/lowpriv:Password123@192.168.86.192 --obfuscate CZXANDR
 - DN: mutates the search base distinguishedName
 - Attributes: mutates the requested attribute list
 
-**Default chain codes**
-- Filter: `CZNDR` - Case randomization, Zero-prepend, aNR, De Morgan, Reorder
-- BaseDN: `CX` - Case randomization, heX encoding
-- Attributes: `CR` - Case randomization, Reorder
+**Default chains** (when using `--obfuscate` with no value)
+
+| Target | Chain | Techniques |
+|--------|-------|-----------|
+| Filter | `CZNDR` | Case, Zeros, aNR, De Morgan, Reorder |
+| BaseDN | `CX` | Case, heX encoding |
+| Attributes | `CR` | Case, Reorder |
 
 Run `ldapx codes --all` to see all available obfuscation codes.
 
 > [!NOTE]
 > Results are functionally equivalent in most cases, but approximation/wildcard expansions can broaden matches. Some codes (G, O, S) may not be compatible with ldap3 - use with caution.
 
-> [!warning]
+> [!WARNING]
 > Excessive obfuscation may be rejected by strict servers or intermediary tooling. Use only when needed.
 
-* ldapx-py: LDAP query obfuscation library - https://github.com/j0hnZ3RA/ldapx-py
-* ldapx: Flexible LDAP proxy used for reference - https://github.com/Macmod/ldapx
-* Research: MaLDAPtive: Obfuscation and De-Obfuscation (DEF CON 32 talk) - https://www.youtube.com/watch?v=mKRS5Iyy7Qo
-* Authors: Sabajete Elezaj - https://x.com/sabi_elezi, Daniel Bohannon - https://x.com/danielhbohannon
+* ldapx-py: LDAP query obfuscation library — https://github.com/j0hnZ3RA/ldapx-py
+* ldapx: Flexible LDAP proxy used for reference — https://github.com/Macmod/ldapx
+* Research: MaLDAPtive: Obfuscation and De-Obfuscation (DEF CON 32 talk) — https://www.youtube.com/watch?v=mKRS5Iyy7Qo
+* Authors: Sabajete Elezaj — https://x.com/sabi_elezi, Daniel Bohannon — https://x.com/danielhbohannon
 
 ## Module available (so far?)
 
