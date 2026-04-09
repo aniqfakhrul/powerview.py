@@ -554,7 +554,7 @@ class CAEnum:
 
 
 class PARSE_TEMPLATE:
-    def __init__(self, template, current_user_sid=None, linked_group=None, ldap_session=None):
+    def __init__(self, template, current_user_sid=None, linked_group=None, ldap_session=None, user_sids=None):
         self.template = template
         self.owner_sid = None
         self.parsed_dacl = {}
@@ -573,6 +573,14 @@ class PARSE_TEMPLATE:
         self.current_user_sid = current_user_sid
         self.linked_group = linked_group
         self.ldap_session = ldap_session
+        self._user_sids_override = user_sids
+
+    def _get_user_sids(self):
+        """Get the current user's SIDs. Uses pre-computed override if available
+        (needed for cross-trust users whose groups can't be resolved locally)."""
+        if self._user_sids_override:
+            return self._user_sids_override
+        return get_user_sids(self.domain_sid, self.current_user_sid, self.ldap_session)
 
     def get_owner_sid(self):
         return self.owner_sid
@@ -740,7 +748,7 @@ class PARSE_TEMPLATE:
     def can_user_enroll_template(self):
         enrollable_sids = []
         user_can_enroll = False
-        for sid in get_user_sids(self.domain_sid, self.current_user_sid, self.ldap_session):
+        for sid in self._get_user_sids():
             if sid in self.parsed_dacl["Enrollment Rights"]:
                 enrollable_sids.append(sid)
                 user_can_enroll = True
@@ -780,7 +788,7 @@ class PARSE_TEMPLATE:
         security = CertificateSecurity(self.template.get("nTSecurityDescriptor"))
         owner_sid = security.owner
 
-        if owner_sid in get_user_sids(self.domain_sid, self.current_user_sid, self.ldap_session):
+        if owner_sid in self._get_user_sids():
             vulns["ESC4"] = [owner_sid]
         else:
             has_vulnerable_acl = False
@@ -788,7 +796,7 @@ class PARSE_TEMPLATE:
             vulnerable_acl_sids = set()
             
             for sid, rights in aces.items():
-                if sid not in get_user_sids(self.domain_sid, self.current_user_sid, self.ldap_session):
+                if sid not in self._get_user_sids():
                     continue
 
                 ad_rights = rights["rights"] 
