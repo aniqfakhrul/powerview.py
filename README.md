@@ -113,11 +113,16 @@ powerview 10.10.10.10 --relay [--relay-host] [--relay-port] [--use-ldap | --use-
 
 ### Obfuscation
 
-PowerView can obfuscate LDAP queries and related parameters to vary observable patterns while preserving query intent.
+PowerView uses [ldapx-py](https://github.com/j0hnZ3RA/ldapx-py) to obfuscate LDAP queries and related parameters, varying observable patterns while preserving query intent.
 
-* Enable via CLI
+* Enable via CLI (default chain)
 ```
 powerview range.net/lowpriv:Password123@192.168.86.192 --obfuscate
+```
+
+* Enable via CLI (custom chain codes)
+```
+powerview range.net/lowpriv:Password123@192.168.86.192 --obfuscate CZXANDR
 ```
 
 * Enable via Web
@@ -129,27 +134,23 @@ powerview range.net/lowpriv:Password123@192.168.86.192 --obfuscate
 - DN: mutates the search base distinguishedName
 - Attributes: mutates the requested attribute list
 
-**Techniques used**
-- OID attribute encoding with spacing/zero-variation (prefix omitted for compatibility)
-- Random casing of attributes/values
-- Numeric/SID zero-prepend on values
-- Hex-encoding of eligible values
-- Context-aware spacing in filters and DNs
-- Equality to approximation operator substitution
-- Wildcard expansion
-- ANR attribute randomization
-- DN hex escaping + random casing
-- Attribute list OID aliasing + random casing
+**Default chain codes**
+- Filter: `CZNDR` - Case randomization, Zero-prepend, aNR, De Morgan, Reorder
+- BaseDN: `CX` - Case randomization, heX encoding
+- Attributes: `CR` - Case randomization, Reorder
+
+Run `ldapx codes --all` to see all available obfuscation codes.
 
 > [!NOTE]
-> Results are functionally equivalent in most cases, but approximation/wildcard expansions can broaden matches. Performance may vary.
+> Results are functionally equivalent in most cases, but approximation/wildcard expansions can broaden matches. Some codes (G, O, S) may not be compatible with ldap3 - use with caution.
 
 > [!warning]
 > Excessive obfuscation may be rejected by strict servers or intermediary tooling. Use only when needed.
 
-* ldapx: Flexible LDAP proxy used for inspiration and reference on filter/DN/attribute transformations — https://github.com/Macmod/ldapx
-* Research: MaLDAPtive: Obfuscation and De-Obfuscation (DEF CON 32 talk) — https://www.youtube.com/watch?v=mKRS5Iyy7Qo
-* Authors: Sabajete Elezaj — https://x.com/sabi_elezi, Daniel Bohannon — https://x.com/danielhbohannon
+* ldapx-py: LDAP query obfuscation library - https://github.com/j0hnZ3RA/ldapx-py
+* ldapx: Flexible LDAP proxy used for reference - https://github.com/Macmod/ldapx
+* Research: MaLDAPtive: Obfuscation and De-Obfuscation (DEF CON 32 talk) - https://www.youtube.com/watch?v=mKRS5Iyy7Qo
+* Authors: Sabajete Elezaj - https://x.com/sabi_elezi, Daniel Bohannon - https://x.com/danielhbohannon
 
 ## Module available (so far?)
 

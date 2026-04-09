@@ -31,7 +31,7 @@ def arg_parse():
 	parser.add_argument('--stack-trace', dest='stack_trace', action='store_true', help='raise exceptions and exit if unhandled errors')
 	parser.add_argument('-q','--query', dest='query', action='store', help='PowerView query to be executed one-time')
 	parser.add_argument('--no-admin-check', dest='no_admin_check', default=False, action='store_true', help='Skip admin check when first logging in')
-	parser.add_argument('--obfuscate', dest='obfuscate', default=False, action='store_true', help='Obfuscate search filter')
+	parser.add_argument('--obfuscate', dest='obfuscate', nargs='?', const=True, default=False, help='Obfuscate LDAP queries. Optionally specify ldapx chain codes (e.g. --obfuscate CZXANDR)')
 	parser.add_argument('--no-cache', dest='no_cache', default=False, action='store_true', help='Disable caching of LDAP queries')
 	parser.add_argument('--no-vuln-check', dest='no_vuln_check', default=False, action='store_true', help='Disable vulnerability detection')
 	parser.add_argument('--raw', dest='raw', default=False, action='store_true', help='Return raw LDAP entries without formatting')
