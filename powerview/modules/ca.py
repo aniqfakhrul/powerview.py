@@ -206,6 +206,9 @@ class CAEnum:
                     continue
 
                 entry_rrp = self.get_rrp_config(computer_name=entry["attributes"]["dNSHostName"], ca=entry["attributes"]["name"])
+                if not entry_rrp:
+                    logging.warning(f"[CAEnum] Skipping CA {entry['attributes']['name']} — could not read registry configuration")
+                    continue
                 aces = entry_rrp["aces"].aces
 
                 # Access Rights + owner
