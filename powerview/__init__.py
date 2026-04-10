@@ -58,7 +58,20 @@ def main():
         logging = log_handler.setup_logger("DEBUG")
     else:
         logging = log_handler.setup_logger()
-    
+
+    # CPython's input() only hooks into readline when BOTH stdin and stdout
+    # are TTYs. Without a PTY (e.g. `docker exec` without -t), input() falls
+    # back to plain fgets() — no line editing at all. Detect this up front
+    # so we can warn the user and render a degraded ASCII prompt instead of
+    # a fancy one with \001\002 markers that will leak through as junk.
+    non_tty = not (sys.stdin.isatty() and sys.stdout.isatty())
+    if non_tty:
+        logging.warning(
+            "stdin/stdout is not a TTY — line editing (backspace, arrow keys, "
+            "Ctrl+L) will be broken. If running via docker, relaunch with -it: "
+            "`docker exec -it <container> powerview ...`"
+        )
+
     try:
         conn = CONNECTION(args)
         init_ldap_address = args.ldap_address
@@ -96,7 +109,7 @@ def main():
                 if args.query:
                     cmd = args.query
                 else:
-                    cmd = input(get_prompt(powerview, current_target_domain, using_cache, args))
+                    cmd = input(get_prompt(powerview, current_target_domain, using_cache, args, plain=non_tty))
 
                 if cmd:
                     try:

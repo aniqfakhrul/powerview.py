@@ -32,7 +32,7 @@ def _gradient_text(text, rgb_start, rgb_end):
         out += f"{_rl(color)}{ch}{_rl(bcolors.ENDC)}"
     return out
 
-def get_prompt(powerview, current_target_domain=None, using_cache=False, args=None):
+def get_prompt(powerview, current_target_domain=None, using_cache=False, args=None, plain=False):
     init_proto = _safe(lambda: powerview.conn.get_proto(), "LDAP")
     server_dns = _safe(lambda: powerview.get_server_dns(), "<server>")
     nameserver = _safe(lambda: powerview.conn.get_nameserver(), None)
@@ -43,8 +43,6 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
         is_admin = _safe(lambda: powerview.get_admin_status(), False)
 
     cur_user = _safe(lambda: powerview.conn.who_am_i(), "")
-    if is_admin:
-        cur_user = f"{_rl(bcolors.WARNING)}{cur_user}{_rl(bcolors.ENDC)}"
 
     mcp_running = False
     web_running = False
@@ -53,6 +51,25 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
             mcp_running = _safe(lambda: powerview.mcp_server.get_status(), False)
         if getattr(args, 'web', False) and hasattr(powerview, 'api_server'):
             web_running = _safe(lambda: powerview.api_server.get_status(), False)
+
+    if plain:
+        # Degraded prompt for non-TTY sessions. CPython's input() bypasses
+        # readline when stdin/stdout isn't a TTY (e.g. `docker exec` without
+        # -t), so invisible \001\002 markers and multi-byte glyphs leak
+        # through as literal junk. Strip to plain ASCII on a single line.
+        admin_mark = "*" if is_admin else ""
+        ns_p = nameserver if nameserver else "<auto>"
+        mcp_p = " [MCP]" if mcp_running else ""
+        web_p = f" [WEB:{args.web_host}:{args.web_port}]" if web_running and args else ""
+        dom_p = f" [-> {current_target_domain}]" if current_target_domain else ""
+        cache_p = " [CACHED]" if using_cache else ""
+        return (
+            f"PV {init_proto} [{server_dns}] [{admin_mark}{cur_user}]"
+            f" NS:{ns_p}{mcp_p}{web_p}{dom_p}{cache_p} > "
+        )
+
+    if is_admin:
+        cur_user = f"{_rl(bcolors.WARNING)}{cur_user}{_rl(bcolors.ENDC)}"
 
     channel_binding_active = getattr(powerview.conn, 'use_channel_binding', False)
     ldap_signing_active = getattr(powerview.conn, 'use_sign_and_seal', False)
