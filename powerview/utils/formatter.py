@@ -437,7 +437,7 @@ class FORMATTER:
                         if str(right).casefold() in str(temp_entry['attributes'][left]).casefold():
                             temp_alter_entries.append(entry)
                     except KeyError:
-                        return None
+                        continue
                 elif isinstance(entry['attributes'],list):
                     temp_aces = []
                     for ace in entry['attributes']:

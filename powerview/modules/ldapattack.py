@@ -1309,20 +1309,20 @@ class ObjectOwner:
 	def __init__(self, entry):
 		try:
 			self.__target_samaccountname = entry["attributes"]["sAMAccountName"][0] if isinstance(entry["attributes"]["sAMAccountName"],list) else entry["attributes"]["sAMAccountName"]
-		except IndexError as e:
-			pass
+		except (IndexError, KeyError):
+			self.__target_samaccountname = None
 		try:
 			self.__target_sid = entry["attributes"]["objectSid"][0] if isinstance(entry["attributes"]["objectSid"], list) else entry["attributes"]["objectSid"]
-		except IndexError as e:
-			pass
+		except (IndexError, KeyError):
+			self.__target_sid = None
 		try:
 			self.__target_dn = entry["attributes"]["distinguishedName"][0] if isinstance(entry["attributes"]["distinguishedName"], list) else entry["attributes"]["distinguishedName"]
-		except IndexError as e:
-			pass
+		except (IndexError, KeyError):
+			self.__target_dn = None
 		try:
 			self.__target_secdesc = entry["attributes"]["nTSecurityDescriptor"][0] if isinstance(entry["attributes"]["nTSecurityDescriptor"], list) else entry["attributes"]["nTSecurityDescriptor"]
-		except IndexError as e:
-			pass
+		except (IndexError, KeyError):
+			self.__target_secdesc = None
 		self.__target_securitydescriptor = ldaptypes.SR_SECURITY_DESCRIPTOR(data=self.__target_secdesc)
 
 		self.new_owner_samaccountname = None
