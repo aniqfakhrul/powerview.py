@@ -187,6 +187,7 @@ Clear-Cache                    Get-DomainRBCD                 Get-TrustKey      
 ConvertFrom-SID                Get-DomainSCCM                 Get-WDS                        Remove-OU                      history
 ConvertFrom-UACValue           Get-DomainTrust                Invoke-ASREPRoast              Remove-ShadowCred              taskkill
 Disable-DomainDNSRecord        Get-DomainTrustKey             Invoke-DFSCoerce               Remove-ShadowCredential        tasklist
+                               Get-DomainTrustMapping
 Find-ForeignGroup              Get-DomainUser                 Invoke-Kerberoast              Restart-Computer
 Find-ForeignUser               Get-DomainWDS                  Invoke-MessageBox              Restore-ADObject
 Find-LocalAdminAccess          Get-EventLog                   Invoke-PrinterBug              Restore-DomainObject
@@ -292,6 +293,7 @@ Find-LocalAdminAccess          Get-EventLog                   Invoke-PrinterBug 
 | Module | Alias | Description |
 | ------ | ----- | ---- |
 |Get-DomainTrust||Query all Domain Trusts|
+|Get-DomainTrustMapping||Recursively map all trusts reachable from the current domain. Hops into each trust partner and flattens results with `SourceName` / `TargetName` columns (mirrors PowerView.ps1's `Get-DomainTrustMapping`). Use `-NoRecurse` to limit to the starting domain.|
 |Get-DomainForeignUser|Find-ForeignUser|Query users who are in group outside of the user's domain|
 |Get-DomainForeignGroupMember|Find-ForeignGroup|Query groups with users outside of group's domain and look for foreign member|
 

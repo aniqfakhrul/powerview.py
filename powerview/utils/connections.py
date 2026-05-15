@@ -306,7 +306,7 @@ class ConnectionPool:
 				raise ConnectionError(f"Created connection for {domain} is not alive")
 		except Exception as e:
 			self._record_connection_attempt(domain, success=False)
-			logging.error(f"Failed to create connection for domain {domain}: {str(e)}")
+			logging.warning(f"Failed to create connection for domain {domain}: {str(e)}")
 			raise
 
 		# Re-acquire lock to insert the new connection
@@ -956,7 +956,7 @@ class CONNECTION:
 			logging.debug(f"Retrieved connection for domain {domain} from pool")
 			return connection
 		except Exception as e:
-			logging.error(f"Failed to get connection for domain {domain}: {str(e)}")
+			logging.warning(f"Failed to get connection for domain {domain}: {str(e)}")
 			raise
 	
 	def maintain_connections(self):

@@ -1185,6 +1185,21 @@ def powerview_arg_parse(cmd):
 	get_domaintrust_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 	get_domaintrust_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
 
+	#trust mapping (recursive across reachable trust partners)
+	get_domaintrustmapping_parser = subparsers.add_parser('Get-DomainTrustMapping', exit_on_error=False)
+	get_domaintrustmapping_parser.add_argument('-Server', action='store', dest='server')
+	get_domaintrustmapping_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
+	get_domaintrustmapping_parser.add_argument('-Where', action='store', dest='where')
+	get_domaintrustmapping_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaintrustmapping_parser.add_argument('-SortBy', action='store', dest='sort_by')
+	get_domaintrustmapping_parser.add_argument('-OutFile', action='store', dest='outfile')
+	get_domaintrustmapping_parser.add_argument('-Count', action='store_true', dest='count')
+	get_domaintrustmapping_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
+	get_domaintrustmapping_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
+	get_domaintrustmapping_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
+	get_domaintrustmapping_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
+	get_domaintrustmapping_parser.add_argument('-NoRecurse', action='store_true', default=False, dest='no_recurse', help="Only enumerate trusts on the starting domain; skip hopping into trust partners.")
+
 	#trust key
 	get_domaintrustkey_parser = subparsers.add_parser('Get-DomainTrustKey', aliases=['Get-TrustKey'], exit_on_error=False)
 	get_domaintrustkey_parser.add_argument('-Identity', action='store', dest='identity', type=parse_identity_list)

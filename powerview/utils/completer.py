@@ -44,6 +44,7 @@ COMMANDS = {
     'Get-DomainForeignUser':['-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile'],
     'Find-ForeignUser':['-LDAPFilter','-Server','-Select', '-Where', '-Count', '-NoWrap','-OutFile'],
     'Get-DomainTrust':['-Identity','-LDAPFilter','-Properties','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
+    'Get-DomainTrustMapping':['-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw', '-NoRecurse'],
     'Get-DomainTrustKey':['-Identity','-Properties','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-TrustKey':['-Identity','-Properties','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainUser':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Enabled','-Disabled','-RBCD', '-ShadowCred', '-Unconstrained','-PassNotRequired','-PreAuthNotRequired','-AllowDelegation','-DisallowDelegation','-AdminCount','-LockedOut','-PassExpired','-TrustedToAuth','-SPN','-MemberOf','-Department','-Where', '-Count', '-NoWrap', '-TableView', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
