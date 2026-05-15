@@ -225,6 +225,8 @@ def main():
                                 pv.add_domaincatemplateacl(pv_args.template, pv_args.principalidentity, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domaintrust':
                                 entries = pv.get_domaintrust(args=pv_args)
+                            elif pv_args.module.casefold() == 'get-domaintrustmapping':
+                                entries = pv.get_domaintrustmapping(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domaintrustkey' or pv_args.module.casefold() == 'get-trustkey':
                                 entries = pv.get_domaintrustkey(args=pv_args)
                             elif pv_args.module.casefold() == 'convertfrom-uacvalue':

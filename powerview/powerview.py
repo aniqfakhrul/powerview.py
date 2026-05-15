@@ -2556,6 +2556,101 @@ class PowerView:
 			raw=raw
 		)
 
+	def get_domaintrustmapping(self, args=None, no_cache=False, no_vuln_check=False, raw=False):
+		"""
+		Recursively enumerate trustedDomain objects starting from the current domain and
+		hopping into every reachable trust partner. Mirrors PowerView.ps1's
+		Get-DomainTrustMapping by flattening results into rows with SourceName / TargetName.
+
+		Best-effort: partners we can't bind to (e.g. external forests with different creds)
+		are logged and skipped, not fatal. A (source, target) visited-set prevents cycles
+		between parent/child trusts.
+		"""
+		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
+		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
+		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
+		no_recurse = bool(getattr(args, 'no_recurse', False))
+
+		properties = [
+			'name',
+			'trustPartner',
+			'trustDirection',
+			'trustType',
+			'trustAttributes',
+			'flatName',
+			'whenCreated',
+			'whenChanged',
+			'objectGUID',
+			'securityIdentifier',
+		]
+
+		logging.debug(f"[Get-DomainTrustMapping] Starting trust enumeration from {self.domain} (recurse={not no_recurse})")
+
+		queue = [self.domain]
+		visited_domains = set()
+		visited_pairs = set()
+		results = []
+
+		while queue:
+			source_domain = queue.pop(0)
+			source_key = source_domain.lower()
+			if source_key in visited_domains:
+				continue
+			visited_domains.add(source_key)
+
+			try:
+				pv = self.get_domain_powerview(source_domain)
+			except Exception as e:
+				logging.warning(f"[Get-DomainTrustMapping] Skipping {source_domain}: cannot bind ({str(e)})")
+				continue
+
+			count = 0
+			try:
+				for entry in pv.get_domaintrust(
+					properties=properties,
+					no_cache=no_cache,
+					no_vuln_check=no_vuln_check,
+					raw=raw,
+				):
+					attrs = entry.get('attributes', {}) or {}
+					target_name = attrs.get('trustPartner') or attrs.get('name')
+					if not target_name:
+						continue
+					if isinstance(target_name, list):
+						target_name = target_name[0] if target_name else None
+						if not target_name:
+							continue
+
+					pair_key = (source_key, target_name.lower())
+					if pair_key in visited_pairs:
+						continue
+					visited_pairs.add(pair_key)
+
+					results.append({
+						'attributes': {
+							'SourceName': source_domain,
+							'TargetName': target_name,
+							'TrustType': attrs.get('trustType'),
+							'TrustAttributes': attrs.get('trustAttributes'),
+							'TrustDirection': attrs.get('trustDirection'),
+							'WhenCreated': attrs.get('whenCreated'),
+							'WhenChanged': attrs.get('whenChanged'),
+						}
+					})
+					count += 1
+
+					if not no_recurse and target_name.lower() not in visited_domains:
+						queue.append(target_name)
+			except Exception as e:
+				logging.warning(f"[Get-DomainTrustMapping] Failed to enumerate trusts on {source_domain}: {str(e)}")
+				continue
+
+			logging.debug(f"[Get-DomainTrustMapping] Found {count} trust(s) on {source_domain}")
+
+		if not results:
+			logging.error("[Get-DomainTrustMapping] No trusts discovered")
+		return results
+
 	def convertto_uacvalue(self, value, args=None, output=False):
 		if value.isdigit() or not isinstance(value, str):
 			raise ValueError("Value is not a string")
