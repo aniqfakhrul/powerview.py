@@ -1414,3 +1414,86 @@ kbd {
   font-size: var(--fs-sm); gap: 8px; padding: 40px; text-align: center;
 }
 .empty-detail .icon { font-size: 28px; color: var(--dim); }
+
+/* ───────── dashboard: domain snapshot ───────── */
+.snapshot-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+.snapshot-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  gap: 14px;
+}
+.snapshot-grid .snapshot-row:nth-last-child(-n+2) { border-bottom: 0; }
+.snapshot-grid .snapshot-row { padding-right: 12px; }
+.snapshot-grid .snapshot-row:nth-child(even) {
+  padding-left: 12px; padding-right: 0;
+  border-left: 1px solid var(--border);
+}
+.snapshot-row .k { color: var(--muted); font-size: 10.5px; }
+.snapshot-row .v { color: var(--text); font-weight: 500; text-align: right; overflow-wrap: anywhere; }
+.snapshot-row .v.r { color: var(--red); }
+.snapshot-row .v.y { color: var(--yellow); }
+.snapshot-row .v.g { color: var(--accent); }
+
+/* ───────── dashboard: tier-0 inventory ───────── */
+.member-strip { display: flex; flex-direction: column; gap: 8px; }
+.member-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.member-group:last-child { border-bottom: 0; }
+.member-group .gname { width: 150px; flex-shrink: 0; }
+.member-group .gname .nm {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--red);
+  font-weight: 600;
+}
+.member-group .gname .sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+.member-group .avatars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+}
+.avatar-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px 2px 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-2);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-2);
+}
+.avatar-pill .av {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3a3a48, #25252f);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8.5px;
+  color: var(--text);
+  font-weight: 600;
+}
+.avatar-pill.svc .av { background: linear-gradient(135deg, var(--accent-2), #2a6a55); color: #0a0a0d; }
+.avatar-pill.admin .av { background: linear-gradient(135deg, #b85555, #8a3030); color: #fff; }

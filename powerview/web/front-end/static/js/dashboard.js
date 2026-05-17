@@ -85,6 +85,8 @@ window.PV.pages.dashboard = function () {
 	const bComp  = box(3, 'COMPUTERS', 'all OUs');
 	const bGroup = box(3, 'GROUPS', '');
 	const bFind  = box(3, 'FINDINGS', 'action needed');
+	const bSnap  = box(6, 'DOMAIN SNAPSHOT', '…');
+	const bTier  = box(6, 'TIER-0 INVENTORY', 'protected by AdminSDHolder');
 	const bSurf  = box(6, 'ATTACK SURFACE', 'live');
 	const bOs    = box(6, 'OS BREAKDOWN', 'computer accounts');
 	const bFindT = box(6, 'FINDINGS', 'by severity', true);
@@ -316,6 +318,104 @@ window.PV.pages.dashboard = function () {
 				h('span.msg', l.debug_message || '')))
 				: h('div.empty', 'no recent activity'));
 		} catch (e) { fill(bAct, h('div.empty', e.message)); }
+	})();
+
+	/* ─────────────── domain snapshot ─────────────── */
+	(async () => {
+		const FL = { '0': '2000', '1': '2003 interim', '2': '2003', '3': '2008',
+			'4': '2008 R2', '5': '2012', '6': '2012 R2', '7': '2016 / 2019 / 2022' };
+		const fl = v => {
+			v = Array.isArray(v) ? v[0] : v;
+			return FL[String(v)] ? 'Windows Server ' + FL[String(v)] : (v == null ? '—' : String(v));
+		};
+		const rows = [];
+		try {
+			const si = await api.get('/api/server/info');
+			const raw = (si && si.raw) || {};
+			rows.push(['Domain functional level', fl(raw.domainFunctionality), '']);
+			rows.push(['Forest functional level', fl(raw.forestFunctionality), '']);
+			rows.push(['DC functional level', fl(raw.domainControllerFunctionality), '']);
+		} catch (e) {}
+		try {
+			const dcs = await api.get('/api/get/domaincontroller');
+			const names = (Array.isArray(dcs) ? dcs : []).map(e => {
+				const a = e.attributes || {};
+				return attr(a, 'dNSHostName') || attr(a, 'name') || attr(a, 'cn') || '';
+			}).filter(Boolean).map(n => n.split('.')[0]);
+			rows.push(['Domain controllers',
+				names.length + (names.length ? '  (' + names.join(', ') + ')' : ''), '']);
+		} catch (e) {}
+		try {
+			const info = await api.get('/api/get/domaininfo');
+			if (info && info.root_dn) {
+				const dobj = await api.op('get', 'domainobject',
+					{ identity: info.root_dn, properties: ['ms-DS-MachineAccountQuota'] });
+				const da = Array.isArray(dobj) ? dobj[0] : dobj;
+				const maq = da && da.attributes && attr(da.attributes, 'ms-DS-MachineAccountQuota');
+				if (maq != null && maq !== '')
+					rows.push(['MachineAccountQuota', String(maq), String(maq) === '0' ? 'g' : 'y']);
+			}
+		} catch (e) {}
+		try {
+			const kt = await api.op('get', 'domainuser', { identity: 'krbtgt', properties: ['pwdLastSet'] });
+			const ka = Array.isArray(kt) ? kt[0] : kt;
+			const t = Date.parse(ka && ka.attributes && attr(ka.attributes, 'pwdLastSet'));
+			if (!isNaN(t)) {
+				const d = Math.floor((Date.now() - t) / 864e5);
+				rows.push(['krbtgt password age', d + ' days' + (d > 180 ? '   ⚠ rotate' : ''),
+					d > 180 ? 'r' : 'g']);
+			}
+		} catch (e) {}
+		try {
+			const trusts = await api.get('/api/get/domaintrust');
+			const n = Array.isArray(trusts) ? trusts.length : 0;
+			rows.push(['Trusts', n ? String(n) : 'none', n ? 'y' : 'g']);
+		} catch (e) {}
+
+		const note = bSnap.parentNode && bSnap.parentNode.querySelector('.card-head .mono');
+		if (note) {
+			try { note.textContent = (await api.get('/api/connectioninfo')).domain || ''; }
+			catch (e) { note.textContent = ''; }
+		}
+		fill(bSnap, rows.length
+			? h('div.snapshot-grid', rows.map(r => h('div.snapshot-row',
+				h('span.k', r[0]), h('span', { class: 'v ' + (r[2] || '') }, r[1]))))
+			: h('div.empty', 'snapshot unavailable'));
+	})();
+
+	/* ─────────────── tier-0 inventory ─────────────── */
+	(async () => {
+		const GROUPS = ['Domain Admins', 'Enterprise Admins', 'Schema Admins',
+			'Account Operators', 'Backup Operators'];
+		const strip = h('div.member-strip');
+		let any = false;
+		for (const gname of GROUPS) {
+			let members;
+			try {
+				const data = await api.op('get', 'domaingroupmember', { identity: gname });
+				members = (Array.isArray(data) ? data : []).map(e => {
+					const a = e.attributes || {};
+					return attr(a, 'MemberName') || attr(a, 'MemberSID') || '';
+				}).filter(Boolean);
+			} catch (e) { continue; }
+			any = true;
+			strip.appendChild(h('div.member-group',
+				h('div.gname',
+					h('div.nm', gname),
+					h('div.sub', members.length + ' member' + (members.length === 1 ? '' : 's'))),
+				h('div.avatars', members.length
+					? members.map(m => {
+						const low = m.toLowerCase();
+						const isSvc = /^svc[._-]/.test(low) || low.indexOf('backup') > -1 || m.endsWith('$');
+						const isAdmin = low === 'administrator';
+						const ini = (m.replace(/\$$/, '').split(/[._\- ]/).map(s => s[0])
+							.filter(Boolean).slice(0, 2).join('') || m.slice(0, 2)).toUpperCase();
+						return h('span', { class: 'avatar-pill' + (isSvc ? ' svc' : '') + (isAdmin ? ' admin' : '') },
+							h('span.av', ini), m);
+					})
+					: h('span.muted.mono.xs', '— no members resolved'))));
+		}
+		fill(bTier, any ? strip : h('div.empty', 'no tier-0 groups resolved'));
 	})();
 
 	function lvlColor(t) {
