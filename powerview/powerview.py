@@ -2174,8 +2174,10 @@ class PowerView:
 			haveForeign = False
 			group_identity_sam = ent['attributes']['sAMAccountName']
 			group_identity_dn = ent['attributes']['distinguishedName']
-			group_members = ent['attributes']['member']
-			if isinstance(group_members, str):
+			group_members = ent['attributes'].get('member')
+			if group_members is None:
+				group_members = []
+			elif isinstance(group_members, str):
 				group_members = [group_members]
 			
 			for dn in group_members:
