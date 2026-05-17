@@ -1,3 +1,4 @@
+import threading
 from .. import OPERATIONAL_ATTRIBUTES, RESOURCE, RESOURCE_FACTORY, ENUMERATION, ACCOUNT_MANAGEMENT, TOPOLOGY_MANAGEMENT, COMMON_ATTRIBUTES
 from ..operation.search import search_operation, search_pull_operation, search_enumerate_response_to_dict, search_pull_response_to_dict
 from ..operation.modify import modify_operation, modify_response_to_dict
@@ -67,6 +68,7 @@ class Connection(object):
         # Add compatibility attributes for connection pooling
         self.nmf = None
         self._cached_tgt = None  # Cache TGT across reconnections
+        self._io_lock = threading.RLock()  # serialise NMF socket I/O across threads
 
         conf_default_pool_name = get_config_parameter('DEFAULT_THREADED_POOL_NAME')
         if client_strategy not in CLIENT_STRATEGIES:
@@ -251,9 +253,10 @@ class Connection(object):
         self.server.get_info_from_server(self)
 
     def send_and_recv(self, request):
-        self.nmf.send(request)
-        response = self.nmf.recv()
-        return response
+        with self._io_lock:
+            self.nmf.send(request)
+            response = self.nmf.recv()
+            return response
 
     def search(self,
                search_base,
@@ -317,6 +320,7 @@ class Connection(object):
                     if self.raise_exceptions:
                         raise LDAPAttributeError(self.last_error)
 
+        self._io_lock.acquire()
         try:
             # make search operation to the server before pulling the results
             request = search_operation(self.host, search_base, search_filter, search_scope, attributes, controls=controls)
@@ -383,6 +387,8 @@ class Connection(object):
                 return self.search(search_base, search_filter, search_scope, [ALL_ATTRIBUTES], size_limit, time_limit, types_only, get_operational_attributes, controls, paged_size, paged_criticality, paged_cookie, auto_escape)
             else:
                 raise
+        finally:
+            self._io_lock.release()
 
     def modify(self,
                dn,
