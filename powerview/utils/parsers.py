@@ -8,13 +8,6 @@ from powerview.utils.colors import bcolors, Gradient
 from powerview.utils.helpers import escape_filter_chars_except_asterisk, parse_hashes, parse_username, parse_identity, parse_identity_list
 from powerview._version import BANNER,__version__
 
-_plugin_registry = None
-
-def set_plugin_registry(registry):
-    """Set the plugin registry for argument parsing."""
-    global _plugin_registry
-    _plugin_registry = registry
-
 # https://stackoverflow.com/questions/14591168/argparse-dont-show-usage-on-h
 class PowerViewParser(argparse.ArgumentParser):
 	def error(self, message):
@@ -1565,36 +1558,6 @@ def powerview_arg_parse(cmd):
 	subparsers.add_parser('whoami', exit_on_error=False)
 	subparsers.add_parser('clear', exit_on_error=False)
 	subparsers.add_parser('exit', exit_on_error=False)
-
-	get_plugin_parser = subparsers.add_parser('Get-Plugin', exit_on_error=False)
-	get_plugin_parser.add_argument('-OutFile', action='store', dest='outfile')
-	enable_plugin_parser = subparsers.add_parser('Enable-Plugin', exit_on_error=False)
-	enable_plugin_parser.add_argument('-Name', action='store', dest='name', required=True)
-	disable_plugin_parser = subparsers.add_parser('Disable-Plugin', exit_on_error=False)
-	disable_plugin_parser.add_argument('-Name', action='store', dest='name', required=True)
-
-	# Register plugin commands
-	if _plugin_registry:
-		for cmd_name, cmd_info in _plugin_registry.commands.items():
-			plugin_parser = subparsers.add_parser(cmd_name, exit_on_error=False)
-			for arg in cmd_info["args"]:
-				if isinstance(arg, dict):
-					name = arg["name"]
-					dest = name.lstrip('-').lower().replace('-', '_')
-					kwargs = {"dest": dest}
-					for key in ("type", "action", "nargs", "default", "choices", "help"):
-						if key in arg:
-							kwargs[key] = arg[key]
-					plugin_parser.add_argument(name, **kwargs)
-				else:
-					dest = arg.lstrip('-').lower().replace('-', '_')
-					plugin_parser.add_argument(arg, action='store', dest=dest)
-			plugin_parser.add_argument('-OutFile', action='store', dest='outfile')
-			plugin_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', type=Helper.parse_tableview)
-			plugin_parser.add_argument('-SortBy', action='store', dest='sort_by')
-			plugin_parser.add_argument('-NoCache', action='store_true', dest='no_cache')
-			plugin_parser.add_argument('-NoVulnCheck', action='store_true', dest='no_vuln_check')
-			plugin_parser.add_argument('-Raw', action='store_true', dest='raw')
 
 	try:
 		args, unknown = parser.parse_known_args(cmd)

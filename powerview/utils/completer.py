@@ -172,9 +172,6 @@ COMMANDS = {
     'whoami':'',
     'clear':'',
     'exit':'',
-    'Get-Plugin':[''],
-    'Enable-Plugin':['-Name'],
-    'Disable-Plugin':['-Name'],
 }
 
 class Completer(object):

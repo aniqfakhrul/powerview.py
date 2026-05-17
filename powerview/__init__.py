@@ -16,8 +16,6 @@ from powerview.utils.connections import CONNECTION, ConnectionSetupError
 from powerview.lib.adws.error import ADWSError
 from powerview.utils.logging import LOG
 from powerview.utils.parsers import powerview_arg_parse, arg_parse
-from powerview.plugins.registry import PluginRegistry
-from powerview.plugins.loader import load_plugins
 from powerview.utils.shell import get_prompt
 from powerview.utils.colors import bcolors, Gradient
 from powerview.utils.history import get_shell_history
@@ -68,23 +66,6 @@ def main():
 
         comp = Completer()
         comp.setup_completer()
-
-        # Load plugins
-        plugin_registry = PluginRegistry()
-        load_plugins(plugin_registry, powerview)
-        powerview.plugin_registry = plugin_registry
-
-        # Inject plugin commands into completer
-        from powerview.utils.completer import COMMANDS
-        for cmd_name, cmd_info in plugin_registry.commands.items():
-            COMMANDS[cmd_name] = [
-                a["name"] if isinstance(a, dict) else a
-                for a in cmd_info["args"]
-            ]
-
-        # Register plugin commands in argparse
-        from powerview.utils.parsers import set_plugin_registry
-        set_plugin_registry(plugin_registry)
 
         current_target_domain = None
 
@@ -139,19 +120,6 @@ def main():
 
                         try:
                             entries = None
-
-                            _before_hooks = pv.plugin_registry.get_before_hooks(pv_args.module) if pv.plugin_registry else []
-                            if _before_hooks:
-                                for hook in _before_hooks:
-                                    try:
-                                        modified = hook(pv, pv_args)
-                                        if modified is not None:
-                                            pv_args = modified
-                                    except Exception as e:
-                                        logging.error(f"Plugin before hook failed: {e}")
-                                        if args.stack_trace:
-                                            import traceback
-                                            logging.debug(traceback.format_exc())
 
                             if pv_args.module.casefold() == 'get-domain':
                                 entries = pv.get_domain(args=pv_args)
@@ -502,56 +470,6 @@ def main():
                                     powerview.mcp_server.stop()
                                 log_handler.save_history()
                                 sys.exit(0)
-                            elif pv_args.module.casefold() == 'get-plugin' and pv.plugin_registry:
-                                plugins = pv.plugin_registry.list_plugins()
-                                if not plugins:
-                                    print("No plugins loaded")
-                                else:
-                                    headers = ["Name", "Author", "Type", "Status", "Description", "Commands", "Hooks"]
-                                    rows = []
-                                    for p in plugins:
-                                        status = f"{bcolors.OKGREEN}enabled{bcolors.ENDC}" if p["enabled"] else f"{bcolors.FAIL}disabled{bcolors.ENDC}"
-                                        tag = f"{bcolors.WARNING}builtin{bcolors.ENDC}" if p.get("builtin") else "user"
-                                        cmds = ", ".join(p["commands"]) if p["commands"] else ""
-                                        hooks = []
-                                        if p["before_hooks"]:
-                                            hooks.append(f"before: {', '.join(set(p['before_hooks']))}")
-                                        if p["after_hooks"]:
-                                            hooks.append(f"after: {', '.join(set(p['after_hooks']))}")
-                                        rows.append([p["name"], p.get("author", ""), tag, status, p.get("description", ""), cmds, "; ".join(hooks)])
-                                    FORMATTER(pv_args).print_table(rows, headers)
-                            elif pv_args.module.casefold() == 'enable-plugin' and pv.plugin_registry:
-                                name = getattr(pv_args, 'name', None)
-                                if not name:
-                                    logging.error("Usage: Enable-Plugin -Name <plugin_name>")
-                                elif not pv.plugin_registry.enable_plugin(name):
-                                    logging.error(f"Plugin '{name}' not found")
-                            elif pv_args.module.casefold() == 'disable-plugin' and pv.plugin_registry:
-                                name = getattr(pv_args, 'name', None)
-                                if not name:
-                                    logging.error("Usage: Disable-Plugin -Name <plugin_name>")
-                                elif not pv.plugin_registry.disable_plugin(name):
-                                    logging.error(f"Plugin '{name}' not found")
-                            elif pv.plugin_registry and pv.plugin_registry.find_command(pv_args.module)[1]:
-                                try:
-                                    entries = pv.execute(pv_args)
-                                except Exception as e:
-                                    logging.error(f"Plugin command '{pv_args.module}' failed: {e}")
-                                    if args.stack_trace:
-                                        import traceback
-                                        logging.debug(traceback.format_exc())
-
-                            if pv.plugin_registry and entries is not None:
-                                for hook in pv.plugin_registry.get_after_hooks(pv_args.module):
-                                    try:
-                                        modified = hook(pv, pv_args, entries)
-                                        if modified is not None:
-                                            entries = modified
-                                    except Exception as e:
-                                        logging.error(f"Plugin after hook failed: {e}")
-                                        if args.stack_trace:
-                                            import traceback
-                                            logging.debug(traceback.format_exc())
 
                             if entries:
                                 if pv_args.outfile:

@@ -111,7 +111,6 @@ class PowerView:
 
 		self.domain_instances = {}
 		self._parent_powerview = None  # Set by get_domain_powerview() for cross-domain instances
-		self.plugin_registry = None
 
 		# API server
 		if hasattr(self.args, 'web') and self.args.web and self.ldap_session:
@@ -475,32 +474,19 @@ class PowerView:
 	def execute(self, args):
 		module_name = args.module
 
-		# Try plugin command first, then core method
-		cmd_name, cmd_info = (self.plugin_registry.find_command(module_name)
-			if self.plugin_registry else (None, None))
-		if cmd_info:
-			func = cmd_info["func"]
-			func_signature = inspect.signature(func)
-			func_params = func_signature.parameters
-			func_args = {k: v for k, v in vars(args).items() if k in func_params}
-			func_args['pv'] = self
-			if 'args' in func_params:
-				func_args['args'] = args
-			result = func(**func_args)
-		else:
-			method_name = module_name.replace('-', '_').lower()
-			method = getattr(self, method_name, None)
-			if not method:
-				raise ValueError(f"Method {method_name} not found in PowerView")
-			method_signature = inspect.signature(method)
-			method_params = method_signature.parameters
-			method_args = {k: v for k, v in vars(args).items() if k in method_params}
-			# Pass the parsed Namespace through as `args` so methods can read
-			# their flag options (e.g. -SPN, -Unconstrained, -PreauthNotRequired)
-			# off it — without this, flag-based filtering is silently dropped.
-			if 'args' in method_params:
-				method_args['args'] = args
-			result = method(**method_args)
+		method_name = module_name.replace('-', '_').lower()
+		method = getattr(self, method_name, None)
+		if not method:
+			raise ValueError(f"Method {method_name} not found in PowerView")
+		method_signature = inspect.signature(method)
+		method_params = method_signature.parameters
+		method_args = {k: v for k, v in vars(args).items() if k in method_params}
+		# Pass the parsed Namespace through as `args` so methods can read
+		# their flag options (e.g. -SPN, -Unconstrained, -PreauthNotRequired)
+		# off it — without this, flag-based filtering is silently dropped.
+		if 'args' in method_params:
+			method_args['args'] = args
+		result = method(**method_args)
 
 		return result
 

@@ -359,7 +359,7 @@ window.PV.pages.utils = function () {
 window.PV.pages.settings = function () {
 	const main = $('#main');
 	const formHost = h('div.pane.fill', { style: { overflow: 'auto' } });
-	const cats = ['Connection', 'Query Options', 'Appearance', 'Plugins', 'Raw Config'];
+	const cats = ['Connection', 'Query Options', 'Appearance', 'Raw Config'];
 	const catEl = h('div.tree');
 
 	main.append(
@@ -385,10 +385,9 @@ window.PV.pages.settings = function () {
 	}
 
 	(async () => {
-		let cinfo = {}, settings = {}, plugins = [];
+		let cinfo = {}, settings = {};
 		try { cinfo = await api.get('/api/connectioninfo'); } catch (e) {}
 		try { settings = await api.get('/api/settings'); } catch (e) {}
-		try { plugins = await api.get('/api/plugins'); } catch (e) {}
 
 		const fg = h('div.form-grid');
 		const state = { obfuscate: !!settings.obfuscate, no_cache: !!settings.no_cache, no_vuln_check: !!settings.no_vuln_check };
@@ -423,20 +422,8 @@ window.PV.pages.settings = function () {
 			h('span.label', 'Theme controls'),
 			h('div.mono.xs.muted', 'use the View ▸ menu in the top bar for accent, density, font scale & background tone'));
 
-		/* plugins */
-		fg.append(h('div.section-divider', { id: 'sec-3' }, 'PLUGINS'));
-		if (!plugins.length) fg.append(h('span.label', ''), h('div.mono.xs.muted', 'no plugins loaded'));
-		plugins.forEach(p => {
-			fg.append(h('span.label', p.name + (p.version ? ' v' + p.version : '')),
-				toggle(p.enabled, v => {
-					api.post('/api/plugins/' + encodeURIComponent(p.source) + '/' + (v ? 'enable' : 'disable'), {})
-						.then(() => toast('success', "plugin '" + p.name + "' " + (v ? 'enabled' : 'disabled')))
-						.catch(e => toast('error', e.message));
-				}));
-		});
-
 		/* raw config */
-		fg.append(h('div.section-divider', { id: 'sec-4' }, 'RAW CONFIG (read-only)'));
+		fg.append(h('div.section-divider', { id: 'sec-3' }, 'RAW CONFIG (read-only)'));
 		fg.append(h('span.label', 'powerview args'),
 			h('textarea', { rows: 10, readonly: 'readonly' }, JSON.stringify(settings, null, 2)));
 
