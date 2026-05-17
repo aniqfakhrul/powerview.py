@@ -2115,6 +2115,74 @@ class CONNECTION:
 
 		return ldap_server, ldap_session
 
+	def check_ldap_enforcement(self):
+		"""Probe whether the target DC enforces LDAP signing and LDAPS channel binding.
+
+		Performs two throwaway NTLM binds, independent of how the main session
+		authenticated:
+		  * plaintext LDAP/389 with no signing -> strongerAuthRequired means
+		    LDAP signing is enforced.
+		  * LDAPS/636 with no channel-binding token -> invalidCredentials with
+		    error data 80090346 means channel binding is enforced.
+
+		Returns (signing_enforced, channel_binding_enforced). Either value is
+		None when its probe could not be completed (e.g. Kerberos-only auth
+		with no password/hash, or the port is unreachable).
+		"""
+		cached = getattr(self, '_ldap_enforcement_cache', None)
+		if cached is not None:
+			return cached
+
+		target = self.targetIp or self.ldap_address
+
+		if self.hashes is not None:
+			password = f'{self.lmhash}:{self.nthash}'
+		else:
+			password = self.password
+
+		if not password:
+			logging.debug("[LDAP Enforcement] No password or NT hash available - skipping probes")
+			return None, None
+
+		user = f'{self.auth_domain or self.domain}\\{self.username}'
+
+		signing_enforced = None
+		try:
+			server = ldap3.Server(target, port=389, use_ssl=False, get_info=ldap3.NONE, connect_timeout=5)
+			conn = ldap3.Connection(server, user=user, password=password,
+				authentication=ldap3.NTLM, raise_exceptions=True)
+			conn.bind()
+			signing_enforced = False
+			conn.unbind()
+		except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult:
+			signing_enforced = True
+		except ldap3.core.exceptions.LDAPInvalidCredentialsResult:
+			logging.warning("[LDAP Enforcement] Signing probe rejected the supplied credentials")
+		except Exception as e:
+			logging.debug(f"[LDAP Enforcement] Signing probe failed: {str(e)}")
+
+		channel_binding_enforced = None
+		try:
+			tls = ldap3.Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLS_CLIENT,
+				ciphers="ALL:@SECLEVEL=0", ssl_options=[ssl.OP_ALL])
+			server = ldap3.Server(target, port=636, use_ssl=True, tls=tls, get_info=ldap3.NONE, connect_timeout=5)
+			conn = ldap3.Connection(server, user=user, password=password,
+				authentication=ldap3.NTLM, raise_exceptions=True)
+			conn.bind()
+			channel_binding_enforced = False
+			conn.unbind()
+		except ldap3.core.exceptions.LDAPInvalidCredentialsResult:
+			if '80090346' in str(getattr(conn, 'result', '')):
+				channel_binding_enforced = True
+			else:
+				logging.warning("[LDAP Enforcement] Channel binding probe rejected the supplied credentials")
+		except Exception as e:
+			logging.debug(f"[LDAP Enforcement] Channel binding probe failed: {str(e)}")
+
+		logging.debug(f"[LDAP Enforcement] signing_enforced={signing_enforced}, channel_binding_enforced={channel_binding_enforced}")
+		self._ldap_enforcement_cache = (signing_enforced, channel_binding_enforced)
+		return signing_enforced, channel_binding_enforced
+
 	def init_smb_session(self, host, username=None, password=None, nthash=None, lmhash=None, aesKey=None, domain=None, timeout=10, useCache=True, force_new=False, show_exceptions=True, ccache=None, remote_host=None):
 		"""
 		Initialize or retrieve an SMB session using the connection pool

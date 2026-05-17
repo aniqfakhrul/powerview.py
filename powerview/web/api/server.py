@@ -93,6 +93,7 @@ class APIServer:
 		add_route_with_auth('/settings', 'settings_page', self.render_settings, methods=['GET'])
 		add_route_with_auth('/api/server/info', 'server_info', self.handle_server_info, methods=['GET'])
 		add_route_with_auth('/api/server/schema', 'schema_info', self.handle_schema_info, methods=['GET'])
+		add_route_with_auth('/api/server/ldap-enforcement', 'ldap_enforcement', self.handle_ldap_enforcement, methods=['GET'])
 		add_route_with_auth('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
 		add_route_with_auth('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		add_route_with_auth('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
@@ -392,6 +393,14 @@ class APIServer:
 	def handle_schema_info(self):
 		schema_info = self.powerview.conn.get_schema_info()
 		return jsonify(schema_info)
+
+	def handle_ldap_enforcement(self):
+		try:
+			signing, channel_binding = self.powerview.conn.check_ldap_enforcement()
+			return jsonify({'signing': signing, 'channel_binding': channel_binding})
+		except Exception as e:
+			logging.error(f"LDAP Enforcement Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
 		
 	def handle_set_settings(self):
 		try:

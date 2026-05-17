@@ -427,6 +427,18 @@ window.PV.pages.dashboard = function () {
 			const n = Array.isArray(trusts) ? trusts.length : 0;
 			rows.push(['Trusts', n ? String(n) : 'none', n ? 'y' : 'g']);
 		} catch (e) {}
+		try {
+			const enf = await api.get('/api/server/ldap-enforcement');
+			if (enf.signing == null && enf.channel_binding == null) {
+				rows.push(['LDAP enforcement', 'could not probe (Kerberos auth)', 'y']);
+			} else {
+				const mark = v => v == null ? ['(could not probe)', 'y']
+					: v ? ['Required', 'g'] : ['Not required', 'r'];
+				const s = mark(enf.signing), c = mark(enf.channel_binding);
+				rows.push(['LDAP signing required', s[0], s[1]]);
+				rows.push(['Channel binding', c[0], c[1]]);
+			}
+		} catch (e) {}
 
 		const note = bSnap.parentNode && bSnap.parentNode.querySelector('.card-head .mono');
 		if (note) {
