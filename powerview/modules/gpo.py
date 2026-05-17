@@ -341,3 +341,115 @@ class GPO:
 					seen.add(sid)
 					names.append(self.convertfrom_sid(sid) or sid)
 				a['securityFilter'] = names
+
+		# ── per-setting GPO finding classification ──────────────────────────
+		# Each rule inspects one parsed setting (name + value) and, when it
+		# matches a known-risky configuration, yields a finding. This is the
+		# authoritative classifier — the web UI consumes these findings rather
+		# than re-implementing the heuristics client-side.
+		@staticmethod
+		def _flatten_gpo_obj(obj, prefix, out):
+			"""flatten a nested dict (e.g. a GPP preference entry) into
+			'a / b / c' -> value leaf rows."""
+			for k, v in (obj or {}).items():
+				key = f"{prefix} / {k}" if prefix else str(k)
+				if isinstance(v, dict):
+					GPO.Helper._flatten_gpo_obj(v, key, out)
+				else:
+					out[key] = ', '.join(map(str, v)) if isinstance(v, list) else ('' if v is None else str(v))
+			return out
+
+		@staticmethod
+		def _classify_gpo_setting(name, value, path):
+			"""Return a finding dict for a single risky setting, else None."""
+			blob = f"{name} {value}".lower()
+			path_blob = ' / '.join(path).lower()
+			rule = None
+			if 'cpassword' in blob:
+				rule = ('GPP_CPASSWORD', 'high', 'cpassword',
+					'Group Policy Preferences cpassword found. The AES key is published by '
+					'Microsoft (MS14-025); the credential decrypts in seconds. Extract it with '
+					'Get-GPPPassword and use it directly.')
+			elif ('alwaysinstallelevated' in blob) and any(t in blob for t in ('enabled', '1')):
+				rule = ('ALWAYS_INSTALL_ELEVATED', 'high', 'AlwaysInstallElevated',
+					'AlwaysInstallElevated is enabled — any user can install a crafted MSI as '
+					'SYSTEM, a reliable local privilege-escalation primitive.')
+			elif ('mrxsmb10' in blob or 'smb1' in blob or 'smbv1' in blob) and 'disable' not in blob \
+					and any(t in blob for t in ('enable', 'normal', 'auto', ',1', '=1', ' 1')):
+				rule = ('SMBV1_ENABLED', 'high', 'SMBv1',
+					'SMBv1 is enabled on hosts this GPO applies to — exposed to EternalBlue '
+					'(MS17-010) and NTLM relay; SMBv1 offers no signing or encryption.')
+			elif ('disableantispyware' in blob or 'disablerealtimemonitoring' in blob
+					or 'turn off microsoft defender' in blob) and any(t in blob for t in ('enabled', 'true', ',1', '=1', ' 1')):
+				rule = ('DEFENDER_DISABLED', 'high', 'defender off',
+					'Microsoft Defender / real-time protection is disabled by policy — payload '
+					'execution on applied hosts goes uninspected.')
+			elif 'defaultpassword' in blob and value:
+				rule = ('AUTOLOGON_PASSWORD', 'high', 'autologon pwd',
+					'A cleartext autologon password (DefaultPassword) is configured via policy — '
+					'readable by anyone who can read this GPO.')
+			elif 'enablefirewall' in blob and str(value).strip().lower().endswith(',0'):
+				rule = ('FIREWALL_DISABLED', 'medium', 'firewall off',
+					'Windows Firewall is disabled by policy for one or more network profiles on '
+					'hosts this GPO applies to, widening the network attack surface.')
+			elif 'lmcompatibilitylevel' in blob and any(f'{sep}{d}' in blob for sep in (',', '=', ' ') for d in '012'):
+				rule = ('WEAK_NTLM', 'medium', 'weak NTLM',
+					'A weak LAN Manager authentication level is set — LM / NTLMv1 responses are '
+					'permitted and are crackable and relayable.')
+			elif 'group membership' in path_blob and value \
+					and ('544' in name or 'administrators' in name.lower()):
+				rule = ('RESTRICTED_GROUPS_ADMIN', 'high', 'restricted-groups',
+					'A Restricted Groups / Group Membership policy writes the local '
+					'Administrators group — principals listed here gain local admin on every '
+					'host this GPO applies to.')
+			if not rule:
+				return None
+			return {'id': rule[0], 'severity': rule[1], 'label': rule[2], 'title': rule[3],
+				'path': list(path), 'name': str(name)}
+
+		@staticmethod
+		def _walk_gpo_settings(node, path, findings):
+			"""Walk a parsed Machine/User config tree, classifying each leaf.
+			The traversal mirrors the web UI's tree builder so a finding's
+			(path, name) pair lines up with the matching tree leaf."""
+			if isinstance(node, dict):
+				for k, v in node.items():
+					if isinstance(v, (dict, list)):
+						GPO.Helper._walk_gpo_settings(v, path + [str(k)], findings)
+					else:
+						f = GPO.Helper._classify_gpo_setting(str(k), v, path)
+						if f:
+							findings.append(f)
+			elif isinstance(node, list):
+				scalar = all(not isinstance(x, (dict, list)) for x in node)
+				if scalar:
+					for item in node:
+						f = GPO.Helper._classify_gpo_setting(str(item), '', path)
+						if f:
+							findings.append(f)
+				else:
+					for i, item in enumerate(node):
+						if not isinstance(item, dict):
+							continue
+						name = item.get('name') or item.get('uid') or item.get('key') \
+							or item.get('subkey') or item.get('title') or f'item {i + 1}'
+						flat = GPO.Helper._flatten_gpo_obj(item, '', {})
+						blob = ' '.join(flat.keys()) + ' ' + ' '.join(flat.values())
+						f = GPO.Helper._classify_gpo_setting(blob, blob, path)
+						if f:
+							f['name'] = str(name)
+							findings.append(f)
+
+		@staticmethod
+		def _resolve_gposetting_findings(policy_settings):
+			"""Attach a 'findings' list (risky settings) to each parsed GPO."""
+			for entry in (policy_settings or []):
+				if not isinstance(entry, dict) or 'attributes' not in entry:
+					continue
+				a = entry['attributes']
+				findings = []
+				for cfg_name, cfg in (('Computer Configuration', a.get('machineConfig')),
+									  ('User Configuration', a.get('userConfig'))):
+					if cfg:
+						GPO.Helper._walk_gpo_settings(cfg, [cfg_name], findings)
+				a['findings'] = findings
