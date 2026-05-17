@@ -1,7 +1,25 @@
 #!/usr/bin/env python3
 """
+# passive checks
 1. kerberoastable accounts
 2. kerberoastable admin accounts
+3. ASREPRoastable accounts
+4. Constrained delegation accounts
+5. Obsolete computer checks
+6. RBCD checks
+7. Unconstrained delegation
+8. Vulnerable cert template
+9. Privileged account
+10. Stale passwords
+11. DNS creation as authenticated users
+12. DCSync
+13. MAQ
+14. Lockout policy
+
+# active checks
+15. LDAP enforcement
+16. Nopac
+17. Petitpotam
 """
 import logging
 from datetime import datetime
@@ -494,6 +512,7 @@ class LdapEnforcementCheck(Check):
 	severity = 'high'
 	category = 'config'
 	unit = 'setting(s)'
+	mode = 'active'
 	detail = 'The domain controller does not require LDAP signing or LDAPS channel binding. An attacker can relay NTLM authentication to LDAP and take over the domain.'
 	remediation = 'Require LDAP signing and enable LDAPS channel binding on all domain controllers through Group Policy.'
 	references = ['https://attack.mitre.org/techniques/T1557/']
