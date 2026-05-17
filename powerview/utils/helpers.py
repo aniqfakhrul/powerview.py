@@ -479,7 +479,10 @@ def is_ipaddress(address):
 		return False
 
 def is_dn(dn):
-	dn_pattern = re.compile(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$')
+	if not isinstance(dn, str):
+		return False
+	rdn = r'[A-Za-z][\w-]*=(?:[^,\\]|\\.)+'
+	dn_pattern = re.compile(r'^\s*(?:%s\s*,\s*)*DC=(?:[^,\\]|\\.)+(?:\s*,\s*DC=(?:[^,\\]|\\.)+)*\s*$' % rdn)
 	return bool(dn_pattern.match(dn))
 
 def is_sid(value: str) -> bool:
