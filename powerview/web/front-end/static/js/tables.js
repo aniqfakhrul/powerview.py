@@ -1140,7 +1140,7 @@ window.PV.pages.users = function () {
 				asrep: fl.includes('DONT_REQ_PREAUTH'), deleg: deleg,
 				pwdAge: ageDays(attr(a, 'pwdLastSet')),
 				lastLogon: attr(a, 'lastLogonTimestamp') || '',
-				ou: ouOf(e.dn || attr(a, 'distinguishedName')),
+				_ou: ouOf(e.dn || attr(a, 'distinguishedName')),
 				dn: e.dn || attr(a, 'distinguishedName'), sid: attr(a, 'objectSid') || '',
 				desc: attr(a, 'description') || '', groups: a.memberOf ? (Array.isArray(a.memberOf) ? a.memberOf : [a.memberOf]) : [],
 				uac: fl
@@ -1155,7 +1155,7 @@ window.PV.pages.users = function () {
 				render: v => String(v) === '1' ? tag('1', 'red') : h('span.muted', '—') },
 			{ key: 'pwdLastSet', label: 'pwdLastSet', w: 115, render: v => daysCell(v) },
 			{ key: 'lastLogonTimestamp', label: 'Last Logon', w: 150, render: v => daysCell(v) },
-			{ key: 'description', label: 'description', color: () => 'var(--text-2)' }
+			{ key: '_ou', label: 'OU', color: () => 'var(--text-2)' }
 		],
 		inspector: (u, body, ctx) => {
 			/* memberOf panel — rebuilt in place when Add-to-Group succeeds */
@@ -1231,7 +1231,7 @@ window.PV.pages.computers = function () {
 		contextMenu: computerMenu, createModal: addComputerModal, createLabel: '+ Add Computer',
 		fixedArgs: { include_ip: true },   /* -IncludeIP: resolve each host's A record → IPAddress */
 		reqProps: ['sAMAccountName','name','dnsHostName','operatingSystem','operatingSystemVersion',
-			'userAccountControl','servicePrincipalName','lastLogonTimestamp','distinguishedName','description'],
+			'userAccountControl','servicePrincipalName','lastLogonTimestamp','distinguishedName'],
 		shownProps: ['sAMAccountName','operatingSystem','lastLogonTimestamp','dnsHostName',
 			'IPAddress','userAccountControl','distinguishedName','name'],
 		mapRow: e => {
@@ -1245,7 +1245,7 @@ window.PV.pages.computers = function () {
 				role: role, os: os || '—', osVer: attr(a, 'operatingSystemVersion') || '',
 				spnCount: spn,
 				lastLogon: attr(a, 'lastLogonTimestamp') || '',
-				ou: ouOf(e.dn || attr(a, 'distinguishedName')),
+				_ou: ouOf(e.dn || attr(a, 'distinguishedName')),
 				dn: e.dn || attr(a, 'distinguishedName'), uac: fl
 			};
 		},
@@ -1254,7 +1254,7 @@ window.PV.pages.computers = function () {
 			{ key: 'role', label: 'Role', w: 64, render: v => tag(v, v === 'DC' ? 'red' : v === 'SRV' ? 'blue' : 'gray') },
 			{ key: 'operatingSystem', label: 'operatingSystem', w: 185 },
 			{ key: 'lastLogonTimestamp', label: 'Last Logon', w: 150, render: v => daysCell(v) },
-			{ key: 'description', label: 'description', w: 170, color: () => 'var(--text-2)' },
+			{ key: '_ou', label: 'OU', w: 170, color: () => 'var(--text-2)' },
 			{ key: 'dNSHostName', label: 'dnsHostName', w: 200, color: () => 'var(--accent)' },
 			{ key: 'IPAddress', label: 'IP', w: 130, color: () => 'var(--text-2)' }
 		],
