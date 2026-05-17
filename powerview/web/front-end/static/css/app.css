@@ -624,7 +624,9 @@ table.grid tbody tr.selected td { color: var(--text); }
 .status { cursor: pointer; }
 
 .log-panel {
-  grid-area: panel;
+  position: fixed;
+  left: 0; right: 0; bottom: 26px;
+  z-index: 100;
   display: flex; flex-direction: column;
   height: 280px; min-height: 120px;
   background: var(--panel);
