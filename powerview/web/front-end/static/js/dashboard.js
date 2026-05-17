@@ -355,7 +355,7 @@ window.PV.pages.dashboard = function () {
 			if (rootDn) {
 				const owners = [];
 				const domR = await api.op('get', 'domainobject',
-					{ searchbase: rootDn, ldapfilter: '(fSMORoleOwner=*)', properties: ['fSMORoleOwner'] });
+					{ searchbase: rootDn, ldap_filter: '(fSMORoleOwner=*)', properties: ['fSMORoleOwner'] });
 				(Array.isArray(domR) ? domR : []).forEach(e => {
 					const o = e.attributes && attr(e.attributes, 'fSMORoleOwner');
 					if (o) owners.push(o);
@@ -363,7 +363,7 @@ window.PV.pages.dashboard = function () {
 				let cfgR = null;
 				try {
 					cfgR = await api.op('get', 'domainobject', { searchbase: 'CN=Configuration,' + rootDn,
-						ldapfilter: '(fSMORoleOwner=*)', properties: ['fSMORoleOwner', 'msDS-EnabledFeature'] });
+						ldap_filter: '(fSMORoleOwner=*)', properties: ['fSMORoleOwner', 'msDS-EnabledFeature'] });
 				} catch (e) {}
 				let rbList = [];
 				(Array.isArray(cfgR) ? cfgR : []).forEach(e => {
@@ -373,6 +373,17 @@ window.PV.pages.dashboard = function () {
 					const ef = a['msDS-EnabledFeature'];
 					if (ef) rbList = rbList.concat(Array.isArray(ef) ? ef : [ef]);
 				});
+				/* the Schema NC is a separate partition — a subtree search of
+				   the Configuration NC doesn't reach it, so read it directly. */
+				try {
+					const schR = await api.op('get', 'domainobject',
+						{ searchbase: 'CN=Schema,CN=Configuration,' + rootDn, search_scope: 'BASE',
+						  properties: ['fSMORoleOwner'] });
+					(Array.isArray(schR) ? schR : []).forEach(e => {
+						const o = e.attributes && attr(e.attributes, 'fSMORoleOwner');
+						if (o) owners.push(o);
+					});
+				} catch (e) {}
 				if (owners.length) {
 					const counts = {};
 					owners.forEach(dn => {
