@@ -65,16 +65,9 @@ class LOG:
     LOG_RETENTION_DAYS = 30
 
     def __init__(self, folder_name, root_folder=None, username=None):
-        if not root_folder:
-            if os.name == 'nt':
-                self.root_folder = os.path.join(os.environ.get('APPDATA', os.path.expanduser('~')), "powerview")
-            else:
-                self.root_folder = os.path.join(os.path.expanduser('~'), ".powerview")
-        else:
-            self.root_folder = root_folder
-
+        from powerview.utils import paths
         self.folder_name = folder_name.lower()
-
+        self.root_folder = root_folder or paths.base_dir()
         self.logs_folder = os.path.join(self.root_folder, "logs", self.folder_name)
 
         if not os.path.exists(self.logs_folder):

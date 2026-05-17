@@ -14,6 +14,7 @@ from powerview.web.api.helpers import make_serializable
 from powerview.utils.parsers import powerview_arg_parse
 from powerview.utils.constants import UAC_DICT
 from powerview.utils.completer import COMMANDS
+from powerview.utils import paths
 import types
 from powerview._version import __version__ as version
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
@@ -496,7 +497,7 @@ class APIServer:
 		username = (self.powerview.args.username or '').lower()
 		today = datetime.now().strftime('%Y-%m-%d')
 		file_name = '%s-%s.log' % (today, username) if username else '%s.log' % today
-		return os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, file_name)
+		return os.path.join(paths.logs_dir(folder_name), file_name)
 
 	def generate_log_stream(self):
 		try:

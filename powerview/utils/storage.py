@@ -6,36 +6,21 @@ from datetime import datetime, timedelta
 import logging
 from ldap3.utils.ciDict import CaseInsensitiveDict
 import base64
-import tempfile
+
+from powerview.utils import paths
 
 class Storage:
     def __init__(self):
+        self.root_folder = paths.base_dir()
+        self.storage_folder = paths.storage_dir()
+        self.cache_folder = "ldap_cache"
+        self.cache_path = paths.cache_dir()
         try:
-            home_path = os.path.expanduser('~')
-            if os.path.exists(home_path) and os.access(home_path, os.W_OK):
-                self.root_folder = os.path.join(home_path, ".powerview")
-                self.storage_folder = os.path.join(self.root_folder, "storage")
-            else:
-                self.root_folder = os.path.join(tempfile.gettempdir(), "powerview")
-                self.storage_folder = os.path.join(self.root_folder, "storage")
-            
-            self.cache_folder = "ldap_cache"
-            self.cache_path = os.path.join(self.storage_folder, self.cache_folder)
-            
             os.makedirs(self.cache_path, mode=0o700, exist_ok=True)
-            os.makedirs(self.root_folder, mode=0o700, exist_ok=True)
-
             logging.debug(f"[Storage] Using cache directory: {self.cache_path}")
             self._cleanup_expired_cache()
-            
         except Exception as e:
-            temp_dir = tempfile.mkdtemp(prefix="powerview_")
-            self.root_folder = temp_dir
-            self.storage_folder = temp_dir
-            self.cache_path = os.path.join(temp_dir, "ldap_cache")
-            os.makedirs(self.cache_path, mode=0o700, exist_ok=True)
-            logging.warning(f"[Storage] Using temporary directory for storage: {self.cache_path}")
-            logging.error(f"[Storage] Original error: {e}")
+            logging.error(f"[Storage] Cache initialisation failed: {e}")
 
     def _generate_cache_key(self, search_base, search_filter, search_scope, attributes, host, raw=False):
         """Generate a unique cache key based on search parameters"""
