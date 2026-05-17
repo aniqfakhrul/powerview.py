@@ -1,7 +1,7 @@
 /* powerview.py web ui — ops pages: SMB, Utils, Logs, Settings */
 (function () {
 "use strict";
-const { h, $, $$, clear, api, attr, objIcon, grid, tag, btn, toast, runCmd, withSpinner, searchField } = window.PV;
+const { h, $, $$, clear, api, objIcon, grid, tag, btn, toast, runCmd, withSpinner } = window.PV;
 
 /* ============================ SMB BROWSER ============================ */
 window.PV.pages.smb = function () {

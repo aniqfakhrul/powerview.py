@@ -1,7 +1,7 @@
 /* powerview.py web ui — object pages: DNS, CA, OUs, GPOs */
 (function () {
 "use strict";
-const { h, $, clear, api, attr, fmtVal, objIcon, grid, tag, btn, propsView, toast, withSpinner, runCmd, inspectorPane, modal } = window.PV;
+const { h, $, clear, api, attr, objIcon, grid, tag, btn, propsView, toast, withSpinner, runCmd, inspectorPane, modal } = window.PV;
 
 
 /* ---- DNS record helpers ---- */

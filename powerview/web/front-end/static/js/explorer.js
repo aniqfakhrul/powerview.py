@@ -1,7 +1,7 @@
 /* powerview.py web ui — Explorer (ADSI-edit style tree + property grid) */
 (function () {
 "use strict";
-const { h, $, clear, api, attr, fmtVal, uacFlags, objIcon, pageHead, propsView, propRow, propGroup, btn, toast, withSpinner } = window.PV;
+const { h, $, clear, api, attr, fmtVal, uacFlags, objIcon, propsView, btn, toast, withSpinner } = window.PV;
 
 function typeOf(oc) {
 	const c = (Array.isArray(oc) ? oc.join(' ') : (oc || '')).toLowerCase();

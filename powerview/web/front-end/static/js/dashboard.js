@@ -1,7 +1,7 @@
 /* powerview.py web ui — Dashboard (domain summary + quick queries) */
 (function () {
 "use strict";
-const { h, $, $$, add, clear, api, attr, fmtVal, uacFlags, tag, btn, toast } = window.PV;
+const { h, $, $$, add, clear, api, attr, uacFlags, tag, btn } = window.PV;
 
 function kpi(value, delta, deltaCls, sub) {
 	return [h('div.kpi', String(value), delta ? h('span', { class: 'delta ' + (deltaCls || '') }, delta) : null),
