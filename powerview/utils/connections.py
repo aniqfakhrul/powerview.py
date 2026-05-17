@@ -2115,7 +2115,7 @@ class CONNECTION:
 
 		return ldap_server, ldap_session
 
-	def init_smb_session(self, host, username=None, password=None, nthash=None, lmhash=None, aesKey=None, domain=None, timeout=10, useCache=True, force_new=False, show_exceptions=True):
+	def init_smb_session(self, host, username=None, password=None, nthash=None, lmhash=None, aesKey=None, domain=None, timeout=10, useCache=True, force_new=False, show_exceptions=True, ccache=None, remote_host=None):
 		"""
 		Initialize or retrieve an SMB session using the connection pool
 		
@@ -2141,7 +2141,7 @@ class CONNECTION:
 			self._smb_pool.remove_connection(host)
 		
 		def smb_connection_factory():
-			return self._create_smb_connection(host, username, password, nthash, lmhash, aesKey, domain, timeout, useCache)
+			return self._create_smb_connection(host, username, password, nthash, lmhash, aesKey, domain, timeout, useCache, ccache=ccache, remote_host=remote_host)
 		
 		try:
 			return self._smb_pool.get_connection(host, smb_connection_factory, show_exceptions=show_exceptions)
@@ -2150,7 +2150,7 @@ class CONNECTION:
 				logging.error(f"Failed to get SMB connection for host {host}: {str(e)}")
 				raise
 
-	def _create_smb_connection(self, host, username=None, password=None, nthash=None, lmhash=None, aesKey=None, domain=None, timeout=10, useCache=True):
+	def _create_smb_connection(self, host, username=None, password=None, nthash=None, lmhash=None, aesKey=None, domain=None, timeout=10, useCache=True, ccache=None, remote_host=None):
 		"""
 		Create a new SMB connection with enhanced error handling and port fallback
 		
@@ -2178,7 +2178,11 @@ class CONNECTION:
 		aesKey = aesKey if aesKey is not None else self.auth_aes_key
 		domain = domain if domain is not None else self.domain
 		
-		if aesKey:
+		if ccache:
+			os.environ['KRB5CCNAME'] = ccache
+			useKerberos = True
+			useCache = True
+		elif aesKey:
 			useKerberos = True
 			useCache = False
 		else:
@@ -2189,8 +2193,8 @@ class CONNECTION:
 		for port in ports:
 			conn = None
 			try:
-				logging.debug(f"[SMB] Attempting connection to {host}:{port}")
-				conn = SMBConnection(host, host, sess_port=port, timeout=timeout)
+				logging.debug(f"[SMB] Attempting connection to {host}:{port} (target {remote_host or host})")
+				conn = SMBConnection(host, remote_host or host, sess_port=port, timeout=timeout)
 
 				if useKerberos:
 					self._handle_kerberos_smb_auth(conn, username, password, domain, lmhash, nthash, aesKey, useCache)

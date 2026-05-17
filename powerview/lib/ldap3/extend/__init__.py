@@ -96,6 +96,26 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 			modified_dn = search_base
 			modified_attributes = attributes
 
+			# Drop requested attributes that aren't in the server schema. ldap3's
+			# check_names otherwise raises LDAPAttributeError and aborts the whole
+			# query (e.g. requesting LAPS attributes on a domain without LAPS).
+			# This mirrors ldap3's own check, so it never drops a usable attribute.
+			if modified_attributes and self.server is not None and getattr(self.server, 'schema', None):
+				schema_attrs = getattr(self.server.schema, 'attribute_types', None)
+				if schema_attrs:
+					_special = ('*', '+', '1.1')
+					_attrs = modified_attributes if isinstance(modified_attributes, (list, tuple)) else [modified_attributes]
+					_kept, _dropped = [], []
+					for _a in _attrs:
+						if _a in _special or str(_a).split(';')[0] in schema_attrs:
+							_kept.append(_a)
+						else:
+							_dropped.append(_a)
+					if _dropped:
+						logging.debug("[CustomStandardExtendedOperations] Ignoring %d attribute(s) not in schema: %s"
+									  % (len(_dropped), ', '.join(map(str, _dropped))))
+						modified_attributes = _kept
+
 			if self.obfuscate:
 				filter_chain = self.obfuscate if isinstance(self.obfuscate, str) else DEFAULT_FILTER_CHAIN
 				basedn_chain = DEFAULT_BASEDN_CHAIN
@@ -107,8 +127,8 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				modified_dn = ldapx.obfuscate_basedn(search_base, basedn_chain)
 				logging.debug("[CustomStandardExtendedOperations] Modified DN: {}".format(modified_dn))
 
-				if attributes:
-					modified_attributes = ldapx.obfuscate_attrlist(attributes, attrlist_chain)
+				if modified_attributes:
+					modified_attributes = ldapx.obfuscate_attrlist(modified_attributes, attrlist_chain)
 					logging.debug("[CustomStandardExtendedOperations] Modified Attributes: {}".format(modified_attributes))
 
 			if generator:

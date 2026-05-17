@@ -1,0 +1,72 @@
+/* =====================================================================
+   PowerView.py — THEME FILE   (modern dark — Linear/Vercel-inspired)
+   ---------------------------------------------------------------------
+   The single file to edit for a reskin. Every color/size/radius/shadow
+   is a variable. The "Tweaks" control (top bar) overrides --accent / row
+   height / font scale / background tone at runtime via these variables.
+   ===================================================================== */
+
+:root {
+  /* --- surfaces ----------------------------------------------------- */
+  --bg:        #0a0a0d;
+  --panel:     #111115;
+  --panel-2:   #16161c;
+  --panel-3:   #1d1d25;
+  --panel-4:   #25252f;
+  --border:    #1f1f27;
+  --border-2:  #2a2a36;
+  --border-3:  #3a3a48;
+
+  --row-hover:    #16161e;
+  --row-selected: #1c1d2a;
+
+  /* --- text --------------------------------------------------------- */
+  --text:   #ECECEE;
+  --text-2: #B4B4BD;
+  --muted:  #777783;
+  --dim:    #4a4a55;
+
+  /* --- accent + signal colors -------------------------------------- */
+  --accent:      #5fd1b3;
+  --accent-2:    #3aa085;
+  --accent-bg:   rgba(95, 209, 179, 0.10);
+  --accent-glow: rgba(95, 209, 179, 0.25);
+
+  --blue:    #8eb1ff;
+  --yellow:  #f0c674;
+  --red:     #ed7878;
+  --orange:  #e6a86c;
+  --magenta: #c790d9;
+  --green:   #a6cf86;
+  --link:    #88d8ff;
+
+  /* --- typography --------------------------------------------------- */
+  --font-ui:   'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
+
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs:    13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 22px;
+
+  /* --- metrics ------------------------------------------------------ */
+  --row-h:    28px;
+  --row-h-sm: 24px;
+  --pad: 14px;
+
+  --rail-w:      208px;
+  --inspector-w: 360px;
+
+  /* --- radii -------------------------------------------------------- */
+  --radius-sm: 4px;
+  --radius:    6px;
+  --radius-lg: 10px;
+
+  /* --- shadows ------------------------------------------------------ */
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.25);
+  --shadow-2: 0 4px 12px rgba(0,0,0,0.32);
+  --shadow-3: 0 16px 48px rgba(0,0,0,0.55);
+  --ring-accent: 0 0 0 1px var(--accent-glow);
+}

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	{% include 'base/header.html' %}
+	{% block head %}{% endblock %}
+</head>
+<body data-page="{% block page %}{% endblock %}">
+<div class="app">
+
+	<div class="topbar">
+		<a class="brand" href="/"><span class="dot"></span>powerview<span style="color:var(--muted)">.py</span></a>
+		<div class="menu">
+			<button data-menu="view">View</button>
+			<button data-menu="help">Help</button>
+		</div>
+		<span class="muted mono xs" id="tb-page" style="margin-left:6px"></span>
+		<div class="grow"></div>
+		<div class="conn" id="tb-conn"></div>
+	</div>
+
+	<div class="rail" id="rail"></div>
+
+	<div class="main" id="main"></div>
+
+	<div class="status" id="status"></div>
+</div>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

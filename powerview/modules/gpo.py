@@ -33,18 +33,19 @@ class GPO:
 					break
 				pos += 2
 
-				# Key name (UTF-16LE, terminated by ;\x00)
+				# Key name (UTF-16LE, terminated by ;\x00) — the decoded string
+				# keeps its own trailing NUL terminator, so strip it.
 				sep = content.find(b';\x00', pos)
 				if sep == -1:
 					break
-				key = content[pos:sep].decode('utf-16-le', errors='replace')
+				key = content[pos:sep].decode('utf-16-le', errors='replace').rstrip('\x00')
 				pos = sep + 2
 
 				# Value name (UTF-16LE, terminated by ;\x00)
 				sep = content.find(b';\x00', pos)
 				if sep == -1:
 					break
-				value_name = content[pos:sep].decode('utf-16-le', errors='replace')
+				value_name = content[pos:sep].decode('utf-16-le', errors='replace').rstrip('\x00')
 				pos = sep + 2
 
 				# Type (4 bytes little-endian DWORD) + ;\x00 separator
@@ -138,8 +139,6 @@ class GPO:
 
 		@staticmethod
 		def _parse_preferences(base_path, conn, share):
-			"""Parse Group Policy Preferences by recursively walking the
-			Preferences directory and parsing all XML files found."""
 			preferences = {}
 
 			def _walk(directory):
@@ -203,3 +202,139 @@ class GPO:
 
 			_walk(base_path)
 			return preferences
+		
+		def _resolve_gpo_findings(self, gpo_entries):
+			for e in gpo_entries:
+				if not isinstance(e, dict) or 'attributes' not in e:
+					continue
+				a = e['attributes']
+				flags = a.get('flags')
+				if isinstance(flags, list):
+					flags = flags[0] if flags else 0
+				try:
+					flags = int(flags)
+				except (TypeError, ValueError):
+					flags = 0
+				links = a.get('links')
+				links = links if isinstance(links, list) else []
+				findings = []
+				if flags == 3:
+					findings.append({
+						'id': 'ALL_CONFIG_DISABLED', 'severity': 'low', 'label': 'disabled',
+						'title': 'Both the Computer and User configuration are disabled — this GPO applies nothing.'
+					})
+				elif not links:
+					findings.append({
+						'id': 'UNLINKED', 'severity': 'medium', 'label': 'unlinked',
+						'title': 'GPO is enabled but linked to no OU, site or the domain — its settings apply nowhere (orphan/leftover).'
+					})
+				a['findings'] = findings
+
+		def _resolve_gpo_links(self, gpo_entries, no_cache=False):
+			gpo_by_dn = {}
+			for e in gpo_entries:
+				if not isinstance(e, dict) or 'attributes' not in e:
+					continue
+				dn = e['attributes'].get('distinguishedName')
+				if isinstance(dn, list):
+					dn = dn[0] if dn else None
+				e['attributes']['links'] = []
+				if dn:
+					gpo_by_dn[str(dn).lower()] = e
+			if not gpo_by_dn:
+				return
+
+			soms = []
+			try:
+				soms += list(self.ldap_session.extend.standard.paged_search(
+					self.root_dn,
+					'(&(|(objectClass=organizationalUnit)(objectClass=domainDNS))(gPLink=*))',
+					attributes=['distinguishedName', 'gPLink', 'objectClass', 'name'],
+					paged_size=1000, generator=True, no_cache=no_cache, no_vuln_check=True))
+			except Exception as e:
+				logging.debug("[Get-DomainGPO] OU/domain gPLink search failed: %s" % str(e))
+			try:
+				soms += list(self.ldap_session.extend.standard.paged_search(
+					'CN=Sites,CN=Configuration,%s' % self.root_dn,
+					'(&(objectClass=site)(gPLink=*))',
+					attributes=['distinguishedName', 'gPLink', 'objectClass', 'name'],
+					paged_size=1000, generator=True, no_cache=no_cache, no_vuln_check=True))
+			except Exception as e:
+				logging.debug("[Get-DomainGPO] site gPLink search failed: %s" % str(e))
+
+			link_re = re.compile(r'\[LDAP://([^;\]]+);(\d+)\]', re.IGNORECASE)
+			for som in soms:
+				if not isinstance(som, dict):
+					continue
+				sa = som.get('attributes', {})
+				gplink = sa.get('gPLink')
+				if isinstance(gplink, list):
+					gplink = gplink[0] if gplink else None
+				if not gplink or not str(gplink).strip():
+					continue
+				som_dn = sa.get('distinguishedName')
+				if isinstance(som_dn, list):
+					som_dn = som_dn[0] if som_dn else ''
+				oc = sa.get('objectClass') or []
+				som_type = 'domain' if 'domainDNS' in oc else 'site' if 'site' in oc else 'ou'
+				order = 0
+				for m in link_re.finditer(str(gplink)):
+					order += 1
+					flag = int(m.group(2))
+					gpo = gpo_by_dn.get(m.group(1).strip().lower())
+					if not gpo:
+						continue
+					gpo['attributes']['links'].append({
+						'som': som_dn,
+						'somType': som_type,
+						'order': order,
+						'enabled': (flag & 1) == 0,
+						'enforced': (flag & 2) == 2,
+					})
+
+		# Apply-Group-Policy control-access right (the GPO "security filtering" right)
+		_APPLY_GPO_GUID = 'edacfd8f-ffb3-11d1-b41d-00a0c968f939'
+
+		def _resolve_gpo_security_filter(self, gpo_entries):
+			DS_CONTROL_ACCESS = 0x00000100
+			for e in gpo_entries:
+				if not isinstance(e, dict) or 'attributes' not in e:
+					continue
+				a = e['attributes']
+				a['securityFilter'] = []
+				sd_data = a.get('nTSecurityDescriptor')
+				if isinstance(sd_data, list):
+					sd_data = sd_data[0] if sd_data else None
+				if not sd_data:
+					continue
+				try:
+					sd = ldaptypes.SR_SECURITY_DESCRIPTOR(data=sd_data)
+				except Exception as ex:
+					logging.debug("[Get-DomainGPO] Security descriptor parse failed: %s" % str(ex))
+					continue
+				if not sd['Dacl']:
+					continue
+				names, seen = [], set()
+				for ace in sd['Dacl']['Data']:
+					# only explicit allow object-ACEs carrying the Apply-Group-Policy GUID
+					if ace['TypeName'] != 'ACCESS_ALLOWED_OBJECT_ACE':
+						continue
+					if ace['Ace']['ObjectTypeLen'] == 0:
+						continue
+					try:
+						obj_guid = bin_to_string(ace['Ace']['ObjectType']).lower()
+					except Exception:
+						continue
+					if obj_guid != self._APPLY_GPO_GUID:
+						continue
+					if not (ace['Ace']['Mask']['Mask'] & DS_CONTROL_ACCESS):
+						continue
+					try:
+						sid = ace['Ace']['Sid'].formatCanonical()
+					except Exception:
+						continue
+					if sid in seen:
+						continue
+					seen.add(sid)
+					names.append(self.convertfrom_sid(sid) or sid)
+				a['securityFilter'] = names

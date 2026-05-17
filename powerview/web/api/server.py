@@ -47,11 +47,8 @@ class APIServer:
 		self.status = False
 		self.smb_session_params = {}
 		
-		components = [self.powerview.flatName.lower(), self.powerview.args.username.lower(), self.powerview.args.ldap_address.lower()]
-		folder_name = '-'.join(filter(None, components)) or "default-log"
-		file_name = "%s.log" % datetime.now().strftime("%Y-%m-%d")
-		self.log_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, file_name)
-		self.history_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, '.powerview_history')
+		self.log_file_path = self._resolve_log_file_path()
+		self.history_file_path = os.path.join(os.path.dirname(self.log_file_path), '.powerview_history')
 
 		self._register_routes()
 
@@ -93,6 +90,7 @@ class APIServer:
 		add_route_with_auth('/gpo', 'gpo', self.render_gpo, methods=['GET'])
 		add_route_with_auth('/smb', 'smb', self.render_smb, methods=['GET'])
 		add_route_with_auth('/utils', 'utils', self.render_utils, methods=['GET'])
+		add_route_with_auth('/settings', 'settings_page', self.render_settings, methods=['GET'])
 		add_route_with_auth('/api/server/info', 'server_info', self.handle_server_info, methods=['GET'])
 		add_route_with_auth('/api/server/schema', 'schema_info', self.handle_schema_info, methods=['GET'])
 		add_route_with_auth('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
@@ -308,6 +306,14 @@ class APIServer:
 		}
 		return render_template('utilspage.html', **context)
 
+	def render_settings(self):
+		context = {
+			'title': 'Powerview.py - Settings',
+			'nav_items': self.nav_items,
+			'version': version,
+		}
+		return render_template('settingspage.html', **context)
+
 	def handle_get_operation(self, method_name):
 		return self.handle_operation(f"get_{method_name}")
 
@@ -473,6 +479,26 @@ class APIServer:
 		except Exception as e:
 			return jsonify({'error': str(e)}), 500
 
+	def _resolve_log_file_path(self):
+		"""Return the file the core logger actually writes to.
+
+		The root logger already has a FileHandler installed by
+		powerview/utils/logging.py — its baseFilename is the authoritative
+		path. Re-deriving it here (folder/filename) drifts out of sync with
+		the core logic, so read it from the handler instead."""
+		for handler in logging.getLogger().handlers:
+			base = getattr(handler, 'baseFilename', None)
+			if isinstance(handler, logging.FileHandler) and base:
+				return base
+		# Fallback: mirror powerview/utils/logging.py LOG.__init__
+		domain = self.powerview.args.domain or ''
+		flat_domain = domain.split('.')[0] if '.' in domain else domain
+		folder_name = flat_domain.lower() or 'default-log'
+		username = (self.powerview.args.username or '').lower()
+		today = datetime.now().strftime('%Y-%m-%d')
+		file_name = '%s-%s.log' % (today, username) if username else '%s.log' % today
+		return os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, file_name)
+
 	def generate_log_stream(self):
 		try:
 			page = int(request.args.get('page', 1))
@@ -481,6 +507,9 @@ class APIServer:
 			max_limit = 100
 			if limit > max_limit:
 				raise ValueError(f"Limit of {limit} exceeds the maximum allowed value of {max_limit}")
+
+			if not os.path.exists(self.log_file_path):
+				return jsonify({'logs': [], 'total': 0, 'page': page, 'limit': limit})
 
 			with open(self.log_file_path, 'r') as log_file:
 				all_logs = log_file.readlines()
@@ -531,11 +560,23 @@ class APIServer:
 			result = method(**params)
 			if isinstance(result, types.GeneratorType):
 				result = list(result)
+
+			# Write operations (set/add/remove) signal logical failure by
+			# returning False/None instead of raising. Without this, such a
+			# failure goes out as HTTP 200 with body `false`/`null` and clients
+			# mistake it for success. Surface it as a 4xx with an error payload.
+			if full_method_name.startswith(('set_', 'add_', 'remove_')) and (result is False or result is None):
+				logging.error(f"Powerview API Error: {full_method_name}: operation reported failure")
+				return jsonify({'error': f'{full_method_name} reported failure - the object may not exist, or the operation was denied. Check the server logs for details.'}), 400
+
 			serializable_result = make_serializable(result)
 			return jsonify(serializable_result)
 		except Exception as e:
+			# stack_trace only controls server-side logging verbosity — the
+			# client must still get a JSON 400 (re-raising here makes Flask
+			# emit an opaque HTML 500 with no error payload).
 			if self.powerview.args.stack_trace:
-				raise e
+				logging.exception(f"Powerview API Error: {full_method_name}")
 			else:
 				logging.error(f"Powerview API Error: {full_method_name}: {str(e)}")
 			return jsonify({'error': str(e)}), 400
@@ -595,10 +636,11 @@ class APIServer:
 			lmhash = data.get('lmhash')
 			aesKey = data.get('aesKey')
 			domain = data.get('domain')
+			ccache = data.get('ccache')
 
 			if username and ('/' in username or '\\' in username):
 				domain, username = username.replace('/', '\\').split('\\')
-			
+
 			resolved_host = self.powerview._resolve_host(computer)
 			if resolved_host is None:
 				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
@@ -606,14 +648,30 @@ class APIServer:
 			host = resolved_host
 			logging.debug(f"[SMB Connect] Using resolved host: {host}")
 
+			# Kerberos auth (ccache / AES key) builds the service-ticket SPN from
+			# the hostname, so it needs the FQDN — not a DNS-resolved IP.
+			if ccache or aesKey:
+				if is_ipaddress(computer):
+					return jsonify({'error': 'Kerberos authentication requires an FQDN target, not an IP'}), 400
+				host = computer if is_valid_fqdn(computer) else f"{computer}.{self.powerview.domain}"
+				logging.debug(f"[SMB Connect] Kerberos auth — using FQDN host: {host}")
+
+			# When explicit credentials are supplied, force a fresh session so a
+			# previously pooled session for this host is not silently reused with
+			# the old identity.
+			force_new = bool(username or nthash or lmhash or aesKey or ccache)
+
 			client = self.powerview.conn.init_smb_session(
 				host,
+				force_new=force_new,
 				username=username,
 				password=password,
 				nthash=nthash,
 				lmhash=lmhash,
 				aesKey=aesKey,
-				domain=domain
+				domain=domain,
+				ccache=ccache,
+				remote_host=resolved_host
 			)
 
 			if not client:
@@ -628,6 +686,7 @@ class APIServer:
 				'lmhash': lmhash,
 				'aesKey': aesKey,
 				'domain': domain,
+				'ccache': ccache,
 			}
 			self.smb_session_params[computer] = params
 			self.smb_session_params[host.lower()] = params
@@ -667,6 +726,7 @@ class APIServer:
 					'lmhash': stored.get('lmhash'),
 					'aesKey': stored.get('aesKey'),
 					'domain': stored.get('domain'),
+					'ccache': stored.get('ccache'),
 				}
 
 			client = self.powerview.conn.init_smb_session(host, force_new=True, **kwargs)
@@ -679,7 +739,7 @@ class APIServer:
 	def handle_smb_disconnect(self):
 		try:
 			data = request.json
-			computer = data.get('computer').lower()
+			computer = (data.get('computer') or '').lower()
 			
 			if not computer:
 				return jsonify({'error': 'Computer name/IP is required'}), 400
@@ -693,7 +753,7 @@ class APIServer:
 	def handle_smb_shares(self):
 		try:
 			data = request.json
-			host = data.get('computer').lower()
+			host = (data.get('computer') or '').lower()
 			
 			if not host:
 				return jsonify({'error': 'Computer name/IP is required'}), 400
@@ -709,11 +769,23 @@ class APIServer:
 			# Format shares similar to get_netshare
 			formatted_shares = []
 			for share in shares:
+				name = share['shi1_netname'][:-1]
 				entry = {
-					"Name": share['shi1_netname'][:-1],
+					"Name": name,
 					"Remark": share['shi1_remark'][:-1],
-					"Address": host
+					"Address": host,
+					"Access": None,
+					"Readable": None,
+					"Writable": None
 				}
+				if name.upper() != "IPC$":
+					try:
+						mask = smb_client.share_access(name)
+						entry["Access"] = SMBClient.decode_access(mask)
+						entry["Readable"] = bool(mask) and bool(mask & SMBClient.FILE_READ_DATA)
+						entry["Writable"] = bool(mask) and bool(mask & (SMBClient.FILE_WRITE_DATA | SMBClient.FILE_APPEND_DATA))
+					except Exception as e:
+						logging.debug(f"[Get-NetShare] Access check failed for {name}: {e}")
 				formatted_shares.append({"attributes": entry})
 
 			return jsonify(formatted_shares)
@@ -787,7 +859,7 @@ class APIServer:
 	def handle_smb_ls(self):
 		try:
 			data = request.json
-			host = data.get('computer').lower()
+			host = (data.get('computer') or '').lower()
 			share = data.get('share')
 			path = data.get('path', '')
 			
@@ -813,7 +885,7 @@ class APIServer:
 				file_info = {
 					"name": name,
 					"size": f.get_filesize(),
-					"is_directory": f.is_directory(),
+					"is_directory": bool(f.is_directory()),
 					"created": str(f.get_ctime()),
 					"modified": str(f.get_mtime()),
 					"accessed": str(f.get_atime())
@@ -829,7 +901,7 @@ class APIServer:
 	def handle_smb_mv(self):
 		try:
 			data = request.json
-			computer = data.get('computer').lower()
+			computer = (data.get('computer') or '').lower()
 			share = data.get('share')
 			source = data.get('source')
 			destination = data.get('destination')
@@ -854,7 +926,7 @@ class APIServer:
 	def handle_smb_get(self):
 		try:
 			data = request.json
-			host = data.get('computer').lower()
+			host = (data.get('computer') or '').lower()
 			share = data.get('share')
 			path = data.get('path')
 			
@@ -896,7 +968,7 @@ class APIServer:
 
 	def handle_smb_put(self):
 		try:
-			computer = request.form.get('computer').lower()
+			computer = (request.form.get('computer') or '').lower()
 			share = request.form.get('share')
 			file = request.files.get('file')
 			current_path = request.form.get('path', '')
@@ -942,7 +1014,7 @@ class APIServer:
 	def handle_smb_cat(self):
 		try:
 			data = request.json
-			computer = data.get('computer').lower()
+			computer = (data.get('computer') or '').lower()
 			share = data.get('share')
 			path = data.get('path')
 
@@ -968,7 +1040,7 @@ class APIServer:
 	def handle_smb_rm(self):
 		try:
 			data = request.json
-			computer = data.get('computer').lower()
+			computer = (data.get('computer') or '').lower()
 			share = data.get('share')
 			path = data.get('path')
 
@@ -996,7 +1068,7 @@ class APIServer:
 	def handle_smb_mkdir(self):
 		try:
 			data = request.json
-			computer = data.get('computer').lower()
+			computer = (data.get('computer') or '').lower()
 			share = data.get('share')
 			path = data.get('path')
 
@@ -1024,7 +1096,7 @@ class APIServer:
 	def handle_smb_rmdir(self):
 		try:
 			data = request.json
-			computer = data.get('computer').lower()
+			computer = (data.get('computer') or '').lower()
 			share = data.get('share')
 			path = data.get('path')
 
@@ -1542,7 +1614,7 @@ class APIServer:
 	def handle_smb_properties(self):
 		try:
 			data = request.json
-			computer = data.get('computer').lower()
+			computer = (data.get('computer') or '').lower()
 			share = data.get('share')
 			path = data.get('path')
 

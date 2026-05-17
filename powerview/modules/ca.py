@@ -556,6 +556,20 @@ class CAEnum:
             return False
 
 
+def _attr_to_int(value, default=0):
+    """Coerce an LDAP attribute value to an int. The value may arrive as a
+    single-element list/tuple (multi-valued ldap3 return), a string, bytes,
+    or None — return ``default`` when it is empty or non-numeric."""
+    if isinstance(value, (list, tuple)):
+        value = value[0] if value else None
+    if value is None or value == '':
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 class PARSE_TEMPLATE:
     def __init__(self, template, current_user_sid=None, linked_group=None, ldap_session=None, user_sids=None):
         self.template = template
@@ -674,7 +688,7 @@ class PARSE_TEMPLATE:
         self.set_certificate_name_flag(self.template.get("msPKI-Certificate-Name-Flag"))
         if self.certificate_name_flag is not None:
                 self.set_certificate_name_flag(MS_PKI_CERTIFICATE_NAME_FLAG(
-                    int(self.certificate_name_flag)
+                    _attr_to_int(self.certificate_name_flag)
                 ))
         else:
             self.set_certificate_name_flag(MS_PKI_CERTIFICATE_NAME_FLAG(0))
@@ -682,14 +696,14 @@ class PARSE_TEMPLATE:
         # resolve enrollment flag
         self.set_enrollment_flag(self.template.get("msPKI-Enrollment-Flag"))
         if self.enrollment_flag is not None:
-            self.set_enrollment_flag(MS_PKI_ENROLLMENT_FLAG(int(self.enrollment_flag)))
+            self.set_enrollment_flag(MS_PKI_ENROLLMENT_FLAG(_attr_to_int(self.enrollment_flag)))
         else:
             self.set_enrollment_flag(MS_PKI_ENROLLMENT_FLAG(0))
 
         # resolve authorized signature
         self.set_authorized_signatures_required(self.template.get("msPKI-RA-Signature"))
         if self.authorized_signatures_required is not None:
-                self.set_authorized_signatures_required(int(self.authorized_signatures_required))
+                self.set_authorized_signatures_required(_attr_to_int(self.authorized_signatures_required))
         else:
             self.set_authorized_signatures_required(0)
 

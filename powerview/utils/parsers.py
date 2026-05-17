@@ -314,7 +314,7 @@ def powerview_arg_parse(cmd):
 	get_domainuser_parser.add_argument('-PassNotRequired', action='store_true', default=False, dest='passnotrequired')
 	get_domainuser_parser.add_argument('-RBCD', action='store_true', default=False, dest='rbcd')
 	get_domainuser_parser.add_argument('-ShadowCred', action='store_true', default=False, dest='shadowcred')
-	get_domainuser_parser.add_argument('-PreAuthNotRequired', action='store_true', default=False, dest='preauthnotrequired')
+	get_domainuser_parser.add_argument('-PreauthNotRequired', action='store_true', default=False, dest='preauthnotrequired')
 	get_domainuser_parser.add_argument('-TrustedToAuth', action='store_true', default=False, dest='trustedtoauth')
 	get_domainuser_parser.add_argument('-AllowDelegation', action='store_true', default=False, dest='allowdelegation')
 	get_domainuser_parser.add_argument('-DisallowDelegation', action='store_true', default=False, dest='disallowdelegation')
@@ -413,6 +413,8 @@ def powerview_arg_parse(cmd):
 	get_domaingpo_parser.add_argument('-NoCache', action='store_true', default=False, dest='no_cache')
 	get_domaingpo_parser.add_argument('-NoVulnCheck', action='store_true', default=False, dest='no_vuln_check')
 	get_domaingpo_parser.add_argument('-Raw', action='store_true', default=False, dest='raw')
+	get_domaingpo_parser.add_argument('-ResolveLinks', action='store_true', default=False, dest='resolve_links', help='Resolve the OUs/sites/domain each GPO is linked to')
+	get_domaingpo_parser.add_argument('-ResolveSecurityFilter', action='store_true', default=False, dest='resolve_security_filter', help="Resolve each GPO's security filtering (Apply Group Policy principals)")
 
 	#gpo local group / restricted groups
 	get_domaingpolocalgroup_parser = subparsers.add_parser('Get-DomainGPOLocalGroup', aliases=['Get-GPOLocalGroup'], exit_on_error=False)

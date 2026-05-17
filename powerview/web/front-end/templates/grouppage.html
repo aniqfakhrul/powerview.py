@@ -1,28 +1,6 @@
-{% extends "base/layouts.html" %}
-
-{% block content %}
-<div class="p-4 h-full flex flex-col gap-4 relative">
-    {% include 'views/spinner.html' %}
-    <div class="flex flex-col rounded-lg border border-neutral-300 bg-neutral-50 text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300">
-        <div class="flex items-center justify-between p-4 border-b border-neutral-300 dark:border-neutral-700">
-            <div class="flex items-center gap-2">
-                <i class="fa-solid fa-users text-neutral-500 dark:text-neutral-400"></i>
-                <h2 class="text-lg font-semibold text-neutral-900 dark:text-white">Domain Groups</h2>
-            </div>
-            <input type="text" id="group-search" 
-                class="w-64 rounded-md border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-900 dark:text-white dark:border-neutral-700 dark:bg-neutral-800 placeholder:text-neutral-500 dark:placeholder:text-neutral-400" 
-                placeholder="Filter groups...">
-        </div>
-
-        <div class="p-4 overflow-hidden">
-            <div class="groups-container h-full overflow-auto scrollbar">
-                <!-- Groups table will be injected here -->
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
-
+{% extends "base/layout.html" %}
+{% block page %}groups{% endblock %}
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/group.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tables.js') }}"></script>
+<script>PV.pages.groups();</script>
 {% endblock %}

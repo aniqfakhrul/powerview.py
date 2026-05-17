@@ -3,6 +3,8 @@ from impacket.dcerpc.v5 import srvs, wkst, scmr, rrp, rprn
 from powerview.lib.dfsnm import NetrDfsRemoveStdRoot, MSRPC_UUID_DFSNM
 from impacket.dcerpc.v5.ndr import NULL
 from impacket.crypto import encryptSecret
+from impacket.ldap import ldaptypes
+from impacket.uuid import bin_to_string
 from typing import List, Optional
 
 from powerview.modules.msa import MSA
@@ -486,6 +488,11 @@ class PowerView:
 			method_signature = inspect.signature(method)
 			method_params = method_signature.parameters
 			method_args = {k: v for k, v in vars(args).items() if k in method_params}
+			# Pass the parsed Namespace through as `args` so methods can read
+			# their flag options (e.g. -SPN, -Unconstrained, -PreauthNotRequired)
+			# off it — without this, flag-based filtering is silently dropped.
+			if 'args' in method_params:
+				method_args['args'] = args
 			result = method(**method_args)
 
 		return result
@@ -2294,7 +2301,7 @@ class PowerView:
 
 		return new_entries
 
-	def get_domaingpo(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domaingpo(self, args=None, properties=[], identity=None, searchbase=None, resolve_links=False, resolve_security_filter=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass',
 			'cn',
@@ -2333,7 +2340,17 @@ class PowerView:
 		no_cache = args.no_cache if hasattr(args, 'no_cache') and args.no_cache else no_cache
 		no_vuln_check = args.no_vuln_check if hasattr(args, 'no_vuln_check') and args.no_vuln_check else no_vuln_check
 		raw = args.raw if hasattr(args, 'raw') and args.raw else raw
-		
+		resolve_links = args.resolve_links if hasattr(args, 'resolve_links') and args.resolve_links else resolve_links
+		resolve_security_filter = args.resolve_security_filter if hasattr(args, 'resolve_security_filter') and args.resolve_security_filter else resolve_security_filter
+		if resolve_links or resolve_security_filter:
+			properties.add('distinguishedName')
+		controls = None
+		if resolve_security_filter:
+			# the DACL holds the Apply-Group-Policy ACEs — request it with the
+			# DACL security-descriptor flag so the whole DACL is returned.
+			properties.add('nTSecurityDescriptor')
+			controls = security_descriptor_control(sdflags=0x04)
+
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
@@ -2344,17 +2361,33 @@ class PowerView:
 
 		ldap_filter = f'(&(objectCategory=groupPolicyContainer){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainGPO] LDAP search filter: {ldap_filter}')
-		return self.ldap_session.extend.standard.paged_search(
+		result = self.ldap_session.extend.standard.paged_search(
 			searchbase,
 			ldap_filter,
 			attributes=list(properties),
 			paged_size = 1000,
 			generator=True,
 			search_scope=search_scope,
+			controls=controls,
 			no_cache=no_cache,
 			no_vuln_check=no_vuln_check,
 			raw=raw
 		)
+		if not resolve_links and not resolve_security_filter:
+			return result
+		entries = list(result)
+		try:
+			if resolve_links:
+				GPO.Helper._resolve_gpo_links(entries, no_cache=no_cache)
+				if not no_vuln_check:
+					GPO.Helper._resolve_gpo_findings(entries)
+			if resolve_security_filter:
+				GPO.Helper._resolve_gpo_security_filter(entries)
+		except Exception as e:
+			if self.args.stack_trace:
+				raise e
+			logging.warning("[Get-DomainGPO] GPO link/finding resolution failed: %s" % str(e))
+		return entries
 
 	def get_domaingpolocalgroup(self, args=None, identity=None):
 		if identity is None and args and hasattr(args, 'identity') and args.identity:
@@ -2499,7 +2532,125 @@ class PowerView:
 			except Exception as e:
 				logging.error(f"[Get-GPOSettings] Error processing GPO: {str(e)}")
 				continue
+
+		if not no_vuln_check:
+			try:
+				self._resolve_gposetting_findings(policy_settings)
+			except Exception as e:
+				if self.args.stack_trace:
+					raise e
+				logging.warning("[Get-GPOSettings] Setting finding resolution failed: %s" % str(e))
 		return policy_settings
+
+	# ── per-setting GPO finding classification ──────────────────────────
+	# Each rule inspects one parsed setting (name + value) and, when it
+	# matches a known-risky configuration, yields a finding. This is the
+	# authoritative classifier — the web UI consumes these findings rather
+	# than re-implementing the heuristics client-side.
+	@staticmethod
+	def _flatten_gpo_obj(obj, prefix, out):
+		"""flatten a nested dict (e.g. a GPP preference entry) into
+		'a / b / c' -> value leaf rows."""
+		for k, v in (obj or {}).items():
+			key = f"{prefix} / {k}" if prefix else str(k)
+			if isinstance(v, dict):
+				PowerView._flatten_gpo_obj(v, key, out)
+			else:
+				out[key] = ', '.join(map(str, v)) if isinstance(v, list) else ('' if v is None else str(v))
+		return out
+
+	@staticmethod
+	def _classify_gpo_setting(name, value, path):
+		"""Return a finding dict for a single risky setting, else None."""
+		blob = f"{name} {value}".lower()
+		path_blob = ' / '.join(path).lower()
+		rule = None
+		if 'cpassword' in blob:
+			rule = ('GPP_CPASSWORD', 'high', 'cpassword',
+				'Group Policy Preferences cpassword found. The AES key is published by '
+				'Microsoft (MS14-025); the credential decrypts in seconds. Extract it with '
+				'Get-GPPPassword and use it directly.')
+		elif ('alwaysinstallelevated' in blob) and any(t in blob for t in ('enabled', '1')):
+			rule = ('ALWAYS_INSTALL_ELEVATED', 'high', 'AlwaysInstallElevated',
+				'AlwaysInstallElevated is enabled — any user can install a crafted MSI as '
+				'SYSTEM, a reliable local privilege-escalation primitive.')
+		elif ('mrxsmb10' in blob or 'smb1' in blob or 'smbv1' in blob) and 'disable' not in blob \
+				and any(t in blob for t in ('enable', 'normal', 'auto', ',1', '=1', ' 1')):
+			rule = ('SMBV1_ENABLED', 'high', 'SMBv1',
+				'SMBv1 is enabled on hosts this GPO applies to — exposed to EternalBlue '
+				'(MS17-010) and NTLM relay; SMBv1 offers no signing or encryption.')
+		elif ('disableantispyware' in blob or 'disablerealtimemonitoring' in blob
+				or 'turn off microsoft defender' in blob) and any(t in blob for t in ('enabled', 'true', ',1', '=1', ' 1')):
+			rule = ('DEFENDER_DISABLED', 'high', 'defender off',
+				'Microsoft Defender / real-time protection is disabled by policy — payload '
+				'execution on applied hosts goes uninspected.')
+		elif 'defaultpassword' in blob and value:
+			rule = ('AUTOLOGON_PASSWORD', 'high', 'autologon pwd',
+				'A cleartext autologon password (DefaultPassword) is configured via policy — '
+				'readable by anyone who can read this GPO.')
+		elif 'enablefirewall' in blob and str(value).strip().lower().endswith(',0'):
+			rule = ('FIREWALL_DISABLED', 'medium', 'firewall off',
+				'Windows Firewall is disabled by policy for one or more network profiles on '
+				'hosts this GPO applies to, widening the network attack surface.')
+		elif 'lmcompatibilitylevel' in blob and any(f'{sep}{d}' in blob for sep in (',', '=', ' ') for d in '012'):
+			rule = ('WEAK_NTLM', 'medium', 'weak NTLM',
+				'A weak LAN Manager authentication level is set — LM / NTLMv1 responses are '
+				'permitted and are crackable and relayable.')
+		elif 'group membership' in path_blob and value \
+				and ('544' in name or 'administrators' in name.lower()):
+			rule = ('RESTRICTED_GROUPS_ADMIN', 'high', 'restricted-groups',
+				'A Restricted Groups / Group Membership policy writes the local '
+				'Administrators group — principals listed here gain local admin on every '
+				'host this GPO applies to.')
+		if not rule:
+			return None
+		return {'id': rule[0], 'severity': rule[1], 'label': rule[2], 'title': rule[3],
+			'path': list(path), 'name': str(name)}
+
+	def _walk_gpo_settings(self, node, path, findings):
+		"""Walk a parsed Machine/User config tree, classifying each leaf.
+		The traversal mirrors the web UI's tree builder so a finding's
+		(path, name) pair lines up with the matching tree leaf."""
+		if isinstance(node, dict):
+			for k, v in node.items():
+				if isinstance(v, (dict, list)):
+					self._walk_gpo_settings(v, path + [str(k)], findings)
+				else:
+					f = self._classify_gpo_setting(str(k), v, path)
+					if f:
+						findings.append(f)
+		elif isinstance(node, list):
+			scalar = all(not isinstance(x, (dict, list)) for x in node)
+			if scalar:
+				for item in node:
+					f = self._classify_gpo_setting(str(item), '', path)
+					if f:
+						findings.append(f)
+			else:
+				for i, item in enumerate(node):
+					if not isinstance(item, dict):
+						continue
+					name = item.get('name') or item.get('uid') or item.get('key') \
+						or item.get('subkey') or item.get('title') or f'item {i + 1}'
+					flat = self._flatten_gpo_obj(item, '', {})
+					blob = ' '.join(flat.keys()) + ' ' + ' '.join(flat.values())
+					f = self._classify_gpo_setting(blob, blob, path)
+					if f:
+						f['name'] = str(name)
+						findings.append(f)
+
+	def _resolve_gposetting_findings(self, policy_settings):
+		"""Attach a 'findings' list (risky settings) to each parsed GPO."""
+		for entry in (policy_settings or []):
+			if not isinstance(entry, dict) or 'attributes' not in entry:
+				continue
+			a = entry['attributes']
+			findings = []
+			for cfg_name, cfg in (('Computer Configuration', a.get('machineConfig')),
+								  ('User Configuration', a.get('userConfig'))):
+				if cfg:
+					self._walk_gpo_settings(cfg, [cfg_name], findings)
+			a['findings'] = findings
 
 	def get_domaintrust(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, sd_flag=None, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
@@ -3660,9 +3811,11 @@ displayName=New Group Policy Object
 
 		self.ldap_session.add(dn, ['top','container','groupPolicyContainer'], gpo_data)
 
-		# adding new gplink
-		if args.linkto is not None:
-			self.add_gplink(guid=name, targetidentity=args.linkto)
+		# adding new gplink — args may be absent (or lack 'linkto') when called
+		# without the CLI parser namespace (e.g. via the web API)
+		linkto = getattr(args, 'linkto', None) if args else None
+		if linkto is not None:
+			self.add_gplink(guid=name, targetidentity=linkto)
 
 		if self.ldap_session.result['result'] == 0:
 			logging.info(f"[Add-DomainGPO] Added new {identity} GPO object")
@@ -5243,7 +5396,10 @@ displayName=New Group Policy Object
 			return False
 
 	def remove_domaincomputer(self, computer_name, args=None):
-		if computer_name[-1] != '$':
+		# a bare sAMAccountName needs the trailing '$'; a distinguished name
+		# (contains '=') must be passed through untouched so get_domaincomputer
+		# can resolve it — appending '$' to a DN corrupts it.
+		if '=' not in computer_name and not computer_name.endswith('$'):
 			computer_name += '$'
 
 		entries = self.get_domaincomputer(identity=computer_name, properties=['distinguishedName', 'sAMAccountName'])
@@ -5350,7 +5506,9 @@ displayName=New Group Policy Object
 			basedn = zones[0]['attributes']['distinguishedName']
 			zonename = zones[0]['attributes']['name']
 
-		if recordname.lower().endswith(zonename.lower()):
+		# only strip a trailing zone suffix when an actual '.' separator
+		# precedes it — otherwise 'fooplayground.local' would lose 'foo'
+		if recordname.lower().endswith('.' + zonename.lower()):
 			recordname = recordname[:-(len(zonename)+1)]
 
 		# addtype is A record = 1
@@ -6500,6 +6658,7 @@ displayName=New Group Policy Object
 					domain=current_domain,
 					lmhash=current_lmhash,
 					nthash=current_nthash,
+					timeout=5,
 					show_exceptions=False
 				)
 
@@ -6507,7 +6666,8 @@ displayName=New Group Policy Object
 					logging.debug(f"[Find-LocalAdminAccess] Failed SMB connection to {ent['hostname']}")
 					return None
 					
-				smbconn.connectTree("C$")
+				if not SMBClient(smbconn).is_local_admin():
+					return None
 				return {
 					'attributes': {
 						'Address': ent['address'],
@@ -6927,22 +7087,29 @@ displayName=New Group Policy Object
 			return
 		
 		smbclient = SMBClient(client)
-		shares = smbclient.shares()
+		shares = smbclient.shares() or []
+
 		entries = []
 		for i in range(len(shares)):
+			name = shares[i]['shi1_netname'][:-1]
 			entry = {
-				"Name": None,
-				"Remark": None,
-				"Address": None,
+				"Name": name,
+				"Remark": shares[i]['shi1_remark'][:-1],
+				"Address": host,
+				"Access": None,
+				"Readable": None,
+				"Writable": None
 			}
-			entry["Name"] = shares[i]['shi1_netname'][:-1]
-			entry["Remark"] = shares[i]['shi1_remark'][:-1]
-			entry["Address"] = host
-			entries.append(
-				{
-					"attributes": dict(entry)
-				}
-			)
+			if name.upper() != "IPC$":
+				try:
+					mask = smbclient.share_access(name)
+					entry["Access"] = SMBClient.decode_access(mask)
+					entry["Readable"] = bool(mask) and bool(mask & SMBClient.FILE_READ_DATA)
+					entry["Writable"] = bool(mask) and bool(mask & (SMBClient.FILE_WRITE_DATA | SMBClient.FILE_APPEND_DATA))
+				except Exception as e:
+					logging.debug(f"[Get-NetShare] Access check failed for {name}: {e}")
+
+			entries.append({"attributes": dict(entry)})
 
 		return entries
 
