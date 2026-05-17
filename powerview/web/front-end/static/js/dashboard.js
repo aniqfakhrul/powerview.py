@@ -234,31 +234,22 @@ window.PV.pages.dashboard = function () {
 
 	(async () => {
 		const users = await safe(() => api.op('get', 'domainuser',
-			{ args: { properties: ['sAMAccountName','adminCount','userAccountControl','servicePrincipalName','pwdLastSet'] } }), bUsers);
-		let spnCt = 0, asrep = 0, adminCt = 0, disabled = 0, stale = 0;
+			{ args: { properties: ['sAMAccountName','adminCount','userAccountControl'] }, raw: true }), bUsers);
 		if (users) {
+			let adminCt = 0, disabled = 0;
 			users.forEach(e => {
 				const a = e.attributes || {};
-				if (a.servicePrincipalName) spnCt++;
-				const fl = uacFlags(a.userAccountControl);
-				if (fl.includes('DONT_REQ_PREAUTH')) asrep++;
-				if (fl.includes('ACCOUNTDISABLE')) disabled++;
+				if (uacFlags(a.userAccountControl).includes('ACCOUNTDISABLE')) disabled++;
 				if (String(attr(a, 'adminCount')) === '1') adminCt++;
-				const t = Date.parse(attr(a, 'pwdLastSet'));
-				if (!isNaN(t) && (Date.now() - t) / 864e5 > 365) stale++;
 			});
 			fill(bUsers, kpi(users.length, null, null, adminCt + ' admins · ' + disabled + ' disabled'));
 		}
 		const comps = await safe(() => api.op('get', 'domaincomputer',
 			{ args: { properties: ['operatingSystem','userAccountControl','dnsHostName'] } }), bComp);
-		let unconstrained = 0;
-		const osMap = {};
 		if (comps) {
+			const osMap = {};
 			comps.forEach(e => {
-				const a = e.attributes || {};
-				const fl = uacFlags(a.userAccountControl);
-				if (fl.includes('TRUSTED_FOR_DELEGATION')) unconstrained++;
-				const os = attr(a, 'operatingSystem') || 'Unknown';
+				const os = attr(e.attributes || {}, 'operatingSystem') || 'Unknown';
 				osMap[os] = (osMap[os] || 0) + 1;
 			});
 			fill(bComp, kpi(comps.length, null, null, Object.keys(osMap).length + ' distinct OS versions'));
@@ -269,42 +260,50 @@ window.PV.pages.dashboard = function () {
 		}
 		const groups = await safe(() => api.get('/api/get/domaingroup'), bGroup);
 		if (groups) fill(bGroup, kpi(groups.length, null, null, 'domain groups'));
+	})();
 
-		let escCt = 0;
-		const tmpls = await safe(() => api.op('get', 'domaincatemplate', { resolve_sids: true }));
-		if (tmpls) tmpls.forEach(e => { const a = e.attributes || {};
-			if (a.Vulnerable || a.vulnerable || a['Enrollee Supplies Subject']) escCt++; });
+	(async () => {
+		let data;
+		try { data = await api.get('/api/findings'); }
+		catch (e) { [bFind, bFindT, bSurf].forEach(b => fill(b, h('div.empty', e.message))); return; }
+		const findings = (data && data.findings) || [];
+		const byId = {};
+		findings.forEach(f => { byId[f.id] = f; });
+		const cnt = id => (byId[id] && byId[id].count) || 0;
 
-		const F = [];
-		if (escCt) F.push(['high', 'ESC', escCt + ' template(s)', 'Vulnerable ADCS certificate templates detected']);
-		if (asrep) F.push(['high', 'ASREP', asrep + ' account(s)', 'DONT_REQ_PREAUTH set — AS-REP roastable']);
-		if (unconstrained) F.push(['high', 'UNCDEL', unconstrained + ' host(s)', 'Trusted for unconstrained delegation']);
-		if (spnCt) F.push(['med', 'KERB', spnCt + ' account(s)', 'servicePrincipalName set — Kerberoastable']);
-		if (stale) F.push(['med', 'STALE', stale + ' account(s)', 'Password not changed in > 365 days']);
-		if (adminCt) F.push(['low', 'ADMIN', adminCt + ' account(s)', 'adminCount=1 — protected / privileged']);
-		const sev = { high: 'red', med: 'yellow', low: 'blue' };
-		fill(bFind, kpi(F.filter(f => f[0] === 'high').length, 'high', 'red',
-			F.filter(f => f[0] === 'med').length + ' medium · ' + F.filter(f => f[0] === 'low').length + ' low'));
-		const findRows = F.length
-			? F.map(f => h('tr',
-				h('td', tag(f[0].toUpperCase(), sev[f[0]])),
-				h('td', { style: { color: 'var(--accent)' } }, f[1]),
-				h('td', f[2]),
-				h('td', { style: { color: 'var(--text-2)', whiteSpace: 'normal', maxWidth: 'none' } }, f[3])))
+		const sevClass = { critical: 'red', high: 'red', medium: 'yellow', low: 'blue' };
+		const sevOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+		const active = findings.filter(f => f.count > 0)
+			.sort((a, b) => (sevOrder[a.severity] - sevOrder[b.severity]));
+		const nBy = s => active.filter(f => f.severity === s).length;
+		fill(bFind, kpi(nBy('critical') + nBy('high'), 'high', 'red',
+			nBy('medium') + ' medium · ' + nBy('low') + ' low'));
+
+		const findRows = active.length
+			? active.map(f => h('tr',
+				h('td', tag(f.severity.toUpperCase(), sevClass[f.severity] || 'blue')),
+				h('td', { style: { color: 'var(--accent)' } }, f.code || f.id),
+				h('td', f.subject || (f.count + ' ' + (f.unit || ''))),
+				h('td', { style: { color: 'var(--text-2)', whiteSpace: 'normal', maxWidth: 'none' } },
+					f.detail || f.title)))
 			: [h('tr', h('td', { colspan: 4 }, h('div.empty', 'no findings')))];
 		fill(bFindT, h('table.grid',
-			h('thead', h('tr', h('th', { style: { width: '60px' } }, 'SEV'),
+			h('thead', h('tr', h('th', { style: { width: '70px' } }, 'SEV'),
 				h('th', { style: { width: '90px' } }, 'ID'),
 				h('th', { style: { width: '200px' } }, 'SOURCE'), h('th', 'DETAIL'))),
 			h('tbody', findRows)));
 
+		const sv = (label, id, kind) => {
+			const n = cnt(id);
+			return stat(label, n, n ? 'var(--' + kind + ')' : null);
+		};
 		fill(bSurf, h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '12px 18px' } },
-			stat('SPN accounts', spnCt, spnCt ? 'var(--yellow)' : null),
-			stat('AS-REP roastable', asrep, asrep ? 'var(--red)' : null),
-			stat('Unconstrained deleg', unconstrained, unconstrained ? 'var(--red)' : null),
-			stat('Pwd > 365d', stale, stale ? 'var(--yellow)' : null),
-			stat('ESC templates', escCt, escCt ? 'var(--red)' : null),
-			stat('Privileged (adminCount)', adminCt, adminCt ? 'var(--yellow)' : null)));
+			sv('SPN accounts', 'kerberoastable', 'yellow'),
+			sv('AS-REP roastable', 'asrep-roastable', 'red'),
+			sv('Unconstrained deleg', 'unconstrained-delegation', 'red'),
+			sv('Pwd > 365d', 'stale-password', 'yellow'),
+			sv('ESC templates', 'esc-vuln-template', 'red'),
+			sv('Privileged (adminCount)', 'privileged-accounts', 'yellow')));
 	})();
 
 	(async () => {

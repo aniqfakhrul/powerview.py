@@ -1275,6 +1275,7 @@ class PowerView:
 		return writable_entries
 
 	def get_domainobjectacl(self, identity=None, security_identifier=None, ldapfilter=None, resolveguids=False, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+		depth = 0
 		if args:
 			security_identifier = args.security_identifier if hasattr(args, 'security_identifier') else security_identifier
 			depth = args.depth if hasattr(args, 'depth') else 0
@@ -2923,6 +2924,12 @@ class PowerView:
 		if output:
 			print("%s" % identity)
 		return identity
+
+	def get_domainfindings(self, args=None, active=False):
+		from powerview.modules.findings import FindingsEngine
+		if args is not None and hasattr(args, 'active') and args.active:
+			active = True
+		return FindingsEngine(self).run(active=active)
 
 	def get_domain(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		properties = args.properties if hasattr(args, 'properties') and args.properties else properties

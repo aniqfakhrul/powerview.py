@@ -94,6 +94,7 @@ class APIServer:
 		add_route_with_auth('/api/server/info', 'server_info', self.handle_server_info, methods=['GET'])
 		add_route_with_auth('/api/server/schema', 'schema_info', self.handle_schema_info, methods=['GET'])
 		add_route_with_auth('/api/server/ldap-enforcement', 'ldap_enforcement', self.handle_ldap_enforcement, methods=['GET'])
+		add_route_with_auth('/api/findings', 'findings', self.handle_findings, methods=['GET'])
 		add_route_with_auth('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
 		add_route_with_auth('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		add_route_with_auth('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
@@ -402,6 +403,15 @@ class APIServer:
 			logging.error(f"LDAP Enforcement Error: {str(e)}")
 			return jsonify({'error': str(e)}), 500
 		
+	def handle_findings(self):
+		active = request.args.get('active', '').lower() in ('1', 'true', 'yes')
+		try:
+			result = self.powerview.get_domainfindings(active=active)
+			return jsonify(make_serializable(result))
+		except Exception as e:
+			logging.error(f"Findings Error: {str(e)}")
+			return jsonify({'error': str(e)}), 500
+
 	def handle_set_settings(self):
 		try:
 			obfuscate = request.json.get('obfuscate', False)
