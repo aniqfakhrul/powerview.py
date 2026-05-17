@@ -287,11 +287,18 @@ window.PV.pages.dashboard = function () {
 				h('td', { style: { color: 'var(--text-2)', whiteSpace: 'normal', maxWidth: 'none' } },
 					f.detail || f.title)))
 			: [h('tr', h('td', { colspan: 4 }, h('div.empty', 'no findings')))];
-		fill(bFindT, h('table.grid',
-			h('thead', h('tr', h('th', { style: { width: '70px' } }, 'SEV'),
-				h('th', { style: { width: '90px' } }, 'ID'),
-				h('th', { style: { width: '200px' } }, 'SOURCE'), h('th', 'DETAIL'))),
-			h('tbody', findRows)));
+		const stickyTh = w => {
+			const s = { position: 'sticky', top: '0', background: 'var(--panel)', zIndex: 1 };
+			if (w) s.width = w;
+			return s;
+		};
+		fill(bFindT, h('div', { style: { maxHeight: '300px', overflowY: 'auto' } },
+			h('table.grid',
+				h('thead', h('tr', h('th', { style: stickyTh('70px') }, 'SEV'),
+					h('th', { style: stickyTh('90px') }, 'ID'),
+					h('th', { style: stickyTh('200px') }, 'SOURCE'),
+					h('th', { style: stickyTh() }, 'DETAIL'))),
+				h('tbody', findRows))));
 
 		const sv = (label, id, kind) => {
 			const n = cnt(id);
@@ -329,8 +336,12 @@ window.PV.pages.dashboard = function () {
 			return FL[String(v)] ? 'Windows Server ' + FL[String(v)] : (v == null ? '—' : String(v));
 		};
 		const rows = [];
-		let rootDn = null;
-		try { rootDn = (await api.get('/api/get/domaininfo')).root_dn; } catch (e) {}
+		let rootDn = null, domainName = '';
+		try {
+			const info = await api.get('/api/get/domaininfo');
+			rootDn = info.root_dn;
+			domainName = info.domain || '';
+		} catch (e) {}
 
 		try {
 			const si = await api.get('/api/server/info');
@@ -402,19 +413,13 @@ window.PV.pages.dashboard = function () {
 			}
 		} catch (e) {}
 		try {
-			if (rootDn) {
-				const dobj = await api.op('get', 'domainobject',
-					{ identity: rootDn, properties: ['ms-DS-MachineAccountQuota'] });
-				const da = Array.isArray(dobj) ? dobj[0] : dobj;
-				const maq = da && da.attributes && attr(da.attributes, 'ms-DS-MachineAccountQuota');
-				if (maq != null && maq !== '')
-					rows.push(['MachineAccountQuota', String(maq), String(maq) === '0' ? 'g' : 'y']);
-			}
-		} catch (e) {}
-		try {
 			const dom = await api.get('/api/get/domain');
 			const de = Array.isArray(dom) ? dom[0] : dom;
-			const lt = de && de.attributes && attr(de.attributes, 'lockoutThreshold');
+			const da = (de && de.attributes) || {};
+			const maq = attr(da, 'ms-DS-MachineAccountQuota');
+			if (maq != null && maq !== '')
+				rows.push(['MachineAccountQuota', String(maq), String(maq) === '0' ? 'g' : 'y']);
+			const lt = attr(da, 'lockoutThreshold');
 			if (lt != null && lt !== '') {
 				const n = parseInt(lt, 10);
 				rows.push(['Account lockout threshold',
@@ -451,10 +456,7 @@ window.PV.pages.dashboard = function () {
 		} catch (e) {}
 
 		const note = bSnap.parentNode && bSnap.parentNode.querySelector('.card-head .mono');
-		if (note) {
-			try { note.textContent = (await api.get('/api/connectioninfo')).domain || ''; }
-			catch (e) { note.textContent = ''; }
-		}
+		if (note) note.textContent = domainName;
 		fill(bSnap, rows.length
 			? h('div.snapshot-grid', rows.map(r => h('div.snapshot-row',
 				h('span.k', r[0]), h('span', { class: 'v ' + (r[2] || '') }, r[1]))))
