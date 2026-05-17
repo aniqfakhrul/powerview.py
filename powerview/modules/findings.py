@@ -19,7 +19,6 @@
 # active checks
 15. LDAP enforcement
 16. Nopac
-17. Petitpotam
 """
 import logging
 from datetime import datetime
@@ -573,94 +572,6 @@ class NoPacCheck(Check):
 		if len(tgt_without_pac) < len(tgt_with_pac):
 			return [self.finding(1, [domain], subject='%s gave out a ticket with no PAC' % domain)]
 		return [self.finding(0, [], subject='%s looks patched' % domain)]
-
-
-@register_check
-class PetitPotamCheck(Check):
-	id = 'petitpotam'
-	code = 'PETIT'
-	title = 'DC exposes the MS-EFSRPC coercion interface (PetitPotam)'
-	severity = 'high'
-	category = 'coercion'
-	mode = 'active'
-	unit = 'host'
-	detail = 'The MS-EFSRPC interface is reachable on the domain controller. It can be used to force the DC to authenticate elsewhere, which is often relayed to ADCS to take over the domain.'
-	remediation = 'Install the CVE-2021-36942 patch, turn on SMB signing and LDAP channel binding, and limit or disable EFS on domain controllers.'
-	references = ['https://github.com/topotam/PetitPotam',
-		'https://msrc.microsoft.com/update-guide/vulnerability/CVE-2021-36942']
-
-	_pipes = (
-		('lsarpc', ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')),
-		('efsrpc', ('df1941c5-fe89-4e79-bf10-463657acf44d', '1.0')),
-		('netlogon', ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')),
-		('samr', ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')),
-		('lsass', ('c681d488-d850-11d0-8c52-00c04fd90f7e', '1.0')),
-	)
-
-	def run(self, powerview):
-		import contextlib
-		from impacket.dcerpc.v5 import transport, epm
-		from impacket.dcerpc.v5.rpcrt import RPC_C_AUTHN_GSS_NEGOTIATE, RPC_C_AUTHN_LEVEL_PKT_PRIVACY
-		from impacket.uuid import uuidtup_to_bin
-
-		conn = getattr(powerview, 'conn', None)
-		if conn is None:
-			raise ValueError('no active connection available')
-		target = getattr(conn, 'targetIp', None) or getattr(conn, 'dc_ip', None) \
-			or getattr(conn, 'ldap_address', None)
-		if not target:
-			raise ValueError('could not determine the target DC address')
-		do_kerberos = bool(getattr(conn, 'use_kerberos', False))
-
-		with contextlib.suppress(Exception):
-			efs_iface = uuidtup_to_bin(('df1941c5-fe89-4e79-bf10-463657acf44d', '0.0'))
-			epm_transport = transport.DCERPCTransportFactory('ncacn_ip_tcp:%s[135]' % target)
-			epm_transport.set_connect_timeout(3)
-			epm_dce = epm_transport.get_dce_rpc()
-			epm_dce.connect()
-			epm.hept_map(target, efs_iface, protocol='ncacn_ip_tcp', dce=epm_dce)
-			epm_dce.disconnect()
-
-		bound_pipe = None
-		last_error = None
-		for pipe, uuid in self._pipes:
-			dce = None
-			try:
-				rpctransport = transport.DCERPCTransportFactory(
-					r'ncacn_np:%s[\PIPE\%s]' % (target, pipe))
-				rpctransport.set_dport(445)
-				if hasattr(rpctransport, 'set_credentials'):
-					rpctransport.set_credentials(
-						username=conn.username, password=conn.password or '',
-						domain=conn.get_domain(), lmhash=conn.lmhash or '',
-						nthash=conn.nthash or '', aesKey=conn.auth_aes_key or '')
-				if do_kerberos:
-					rpctransport.set_kerberos(do_kerberos, kdcHost=conn.kdcHost)
-				rpctransport.setRemoteHost(target)
-				dce = rpctransport.get_dce_rpc()
-				if do_kerberos:
-					dce.set_auth_type(RPC_C_AUTHN_GSS_NEGOTIATE)
-				dce.set_auth_level(RPC_C_AUTHN_LEVEL_PKT_PRIVACY)
-				dce.connect()
-				dce.bind(uuidtup_to_bin(uuid))
-				bound_pipe = pipe
-				break
-			except Exception as e:
-				last_error = str(e)
-			finally:
-				if dce is not None:
-					try:
-						dce.disconnect()
-					except Exception:
-						pass
-
-		if bound_pipe:
-			return [self.finding(1, [r'%s (\PIPE\%s)' % (target, bound_pipe)],
-				subject=r'%s EFSR reachable on \PIPE\%s' % (target, bound_pipe))]
-		subject = '%s EFSR interface not reachable' % target
-		if last_error:
-			subject += ' (last error: %s)' % last_error
-		return [self.finding(0, [], subject=subject)]
 
 
 class FindingsEngine:
