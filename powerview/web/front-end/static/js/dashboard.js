@@ -330,6 +330,9 @@ window.PV.pages.dashboard = function () {
 			return FL[String(v)] ? 'Windows Server ' + FL[String(v)] : (v == null ? '—' : String(v));
 		};
 		const rows = [];
+		let rootDn = null;
+		try { rootDn = (await api.get('/api/get/domaininfo')).root_dn; } catch (e) {}
+
 		try {
 			const si = await api.get('/api/server/info');
 			const raw = (si && si.raw) || {};
@@ -346,11 +349,52 @@ window.PV.pages.dashboard = function () {
 			rows.push(['Domain controllers',
 				names.length + (names.length ? '  (' + names.join(', ') + ')' : ''), '']);
 		} catch (e) {}
+		/* FSMO holders (fSMORoleOwner) + AD Recycle Bin (msDS-EnabledFeature):
+		   3 role objects live in the domain NC, 2 in the Configuration NC. */
 		try {
-			const info = await api.get('/api/get/domaininfo');
-			if (info && info.root_dn) {
+			if (rootDn) {
+				const owners = [];
+				const domR = await api.op('get', 'domainobject',
+					{ searchbase: rootDn, ldapfilter: '(fSMORoleOwner=*)', properties: ['fSMORoleOwner'] });
+				(Array.isArray(domR) ? domR : []).forEach(e => {
+					const o = e.attributes && attr(e.attributes, 'fSMORoleOwner');
+					if (o) owners.push(o);
+				});
+				let cfgR = null;
+				try {
+					cfgR = await api.op('get', 'domainobject', { searchbase: 'CN=Configuration,' + rootDn,
+						ldapfilter: '(fSMORoleOwner=*)', properties: ['fSMORoleOwner', 'msDS-EnabledFeature'] });
+				} catch (e) {}
+				let rbList = [];
+				(Array.isArray(cfgR) ? cfgR : []).forEach(e => {
+					const a = e.attributes || {};
+					const o = attr(a, 'fSMORoleOwner');
+					if (o) owners.push(o);
+					const ef = a['msDS-EnabledFeature'];
+					if (ef) rbList = rbList.concat(Array.isArray(ef) ? ef : [ef]);
+				});
+				if (owners.length) {
+					const counts = {};
+					owners.forEach(dn => {
+						const m = String(dn).match(/CN=NTDS Settings,CN=([^,]+)/i);
+						const d = m ? m[1] : '?';
+						counts[d] = (counts[d] || 0) + 1;
+					});
+					const dcs = Object.keys(counts);
+					rows.push(['FSMO holders', dcs.length === 1
+						? dcs[0] + ' (all ' + owners.length + ' roles)'
+						: dcs.map(d => d + ' (' + counts[d] + ')').join(', '), '']);
+				}
+				if (cfgR != null) {
+					const rbOn = rbList.some(v => /recycle bin/i.test(String(v)));
+					rows.push(['AD Recycle Bin', rbOn ? 'Enabled' : 'Disabled', rbOn ? 'g' : 'y']);
+				}
+			}
+		} catch (e) {}
+		try {
+			if (rootDn) {
 				const dobj = await api.op('get', 'domainobject',
-					{ identity: info.root_dn, properties: ['ms-DS-MachineAccountQuota'] });
+					{ identity: rootDn, properties: ['ms-DS-MachineAccountQuota'] });
 				const da = Array.isArray(dobj) ? dobj[0] : dobj;
 				const maq = da && da.attributes && attr(da.attributes, 'ms-DS-MachineAccountQuota');
 				if (maq != null && maq !== '')
