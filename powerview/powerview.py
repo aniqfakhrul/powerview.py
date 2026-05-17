@@ -273,10 +273,17 @@ class PowerView:
 		return objects
 
 	def _is_cross_trust_user(self):
-		"""Check if the authenticated user belongs to a different domain than the connected DC."""
+		"""Check if the authenticated user belongs to a different domain than the connected DC.
+
+		The whoami domain prefix is the NetBIOS flat name over LDAP but the
+		DNS domain name over ADWS, so a local user is one whose prefix matches
+		either form.
+		"""
 		if "\\" not in self.whoami:
 			return False
-		return self.whoami.split('\\')[0].upper() != self.flatName.upper()
+		user_domain = self.whoami.split('\\')[0].upper()
+		return user_domain != (self.flatName or '').upper() \
+			and user_domain != (self.domain or '').upper()
 
 	def _resolve_current_user(self, properties=None, caller=""):
 		"""Resolve the current authenticated user, handling cross-trust scenarios.
@@ -505,11 +512,9 @@ class PowerView:
 		# Skip admin check for cross-trust users — searching the local domain
 		# would find a different user with the same sAMAccountName (e.g. both
 		# domains have an "Administrator") and produce false results.
-		if "\\" in self.whoami:
-			user_netbios = self.whoami.split('\\')[0].upper()
-			if user_netbios != self.flatName.upper():
-				logging.debug(f"Skipping admin check for cross-trust user {self.whoami}")
-				return False
+		if self._is_cross_trust_user():
+			logging.debug(f"Skipping admin check for cross-trust user {self.whoami}")
+			return False
 
 		try:
 			user_entry = self.ldap_session.extend.standard.paged_search(search_base=self.root_dn, search_filter=f"(&(sAMAccountName={username})(|(objectClass=user)(objectClass=computer)))", attributes=["distinguishedName", "adminCount"], generator=True, no_vuln_check=True)
