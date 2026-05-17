@@ -323,7 +323,8 @@ window.PV.pages.dashboard = function () {
 	/* ─────────────── domain snapshot ─────────────── */
 	(async () => {
 		const FL = { '0': '2000', '1': '2003 interim', '2': '2003', '3': '2008',
-			'4': '2008 R2', '5': '2012', '6': '2012 R2', '7': '2016 / 2019 / 2022' };
+			'4': '2008 R2', '5': '2012', '6': '2012 R2', '7': '2016 / 2019 / 2022',
+			'10': '2025' };
 		const fl = v => {
 			v = Array.isArray(v) ? v[0] : v;
 			return FL[String(v)] ? 'Windows Server ' + FL[String(v)] : (v == null ? '—' : String(v));
@@ -357,7 +358,7 @@ window.PV.pages.dashboard = function () {
 			}
 		} catch (e) {}
 		try {
-			const kt = await api.op('get', 'domainuser', { identity: 'krbtgt', properties: ['pwdLastSet'] });
+			const kt = await api.op('get', 'domainuser', { identity: 'krbtgt', properties: ['pwdLastSet'], raw: true });
 			const ka = Array.isArray(kt) ? kt[0] : kt;
 			const t = Date.parse(ka && ka.attributes && attr(ka.attributes, 'pwdLastSet'));
 			if (!isNaN(t)) {
