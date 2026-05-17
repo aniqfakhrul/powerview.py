@@ -455,6 +455,38 @@ class MachineAccountQuotaCheck(Check):
 
 
 @register_check
+class LockoutPolicyCheck(Check):
+	id = 'no-lockout-policy'
+	code = 'LOCKOUT'
+	title = 'No account lockout policy'
+	severity = 'medium'
+	category = 'config'
+	unit = 'domain'
+	detail = 'The domain lockout threshold is 0, so accounts are never locked out. An attacker can run password spraying and brute force attacks without any limit.'
+	remediation = 'Set an account lockout threshold (for example 5 to 10 failed attempts) in the domain password policy.'
+	references = []
+
+	def run(self, powerview):
+		root_dn = getattr(powerview, 'root_dn', None)
+		if not root_dn:
+			return []
+		entries = _entries(powerview.get_domainobject(identity=root_dn, properties=['lockoutThreshold']))
+		threshold = None
+		for entry in entries:
+			value = _first(_attrs(entry).get('lockoutThreshold'))
+			if value is not None and value != '':
+				threshold = value
+				break
+		try:
+			threshold = int(threshold)
+		except (TypeError, ValueError):
+			return []
+		if threshold > 0:
+			return [self.finding(0, [], subject='lockout threshold = %d' % threshold)]
+		return [self.finding(1, ['lockout threshold = 0'], subject='no lockout threshold set')]
+
+
+@register_check
 class LdapEnforcementCheck(Check):
 	id = 'ldap-enforcement'
 	code = 'LDAP'

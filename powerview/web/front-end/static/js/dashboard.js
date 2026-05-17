@@ -412,6 +412,17 @@ window.PV.pages.dashboard = function () {
 			}
 		} catch (e) {}
 		try {
+			const dom = await api.get('/api/get/domain');
+			const de = Array.isArray(dom) ? dom[0] : dom;
+			const lt = de && de.attributes && attr(de.attributes, 'lockoutThreshold');
+			if (lt != null && lt !== '') {
+				const n = parseInt(lt, 10);
+				rows.push(['Account lockout threshold',
+					n === 0 ? 'Disabled (0)' : n + ' attempts',
+					n === 0 ? 'r' : 'g']);
+			}
+		} catch (e) {}
+		try {
 			const kt = await api.op('get', 'domainuser', { identity: 'krbtgt', properties: ['pwdLastSet'], raw: true });
 			const ka = Array.isArray(kt) ? kt[0] : kt;
 			const t = Date.parse(ka && ka.attributes && attr(ka.attributes, 'pwdLastSet'));
