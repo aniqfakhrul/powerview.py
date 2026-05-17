@@ -86,7 +86,7 @@ window.PV.pages.dashboard = function () {
 	const bGroup = box(3, 'GROUPS', '');
 	const bFind  = box(3, 'FINDINGS', 'action needed');
 	const bSnap  = box(6, 'DOMAIN SNAPSHOT', '…');
-	const bTier  = box(6, 'TIER-0 INVENTORY', 'protected by AdminSDHolder');
+	const bTier  = box(6, 'TIER-0 INVENTORY', '');
 	const bSurf  = box(6, 'ATTACK SURFACE', 'live');
 	const bOs    = box(6, 'OS BREAKDOWN', 'computer accounts');
 	const bFindT = box(6, 'FINDINGS', 'by severity', true);
@@ -248,11 +248,14 @@ window.PV.pages.dashboard = function () {
 			{ args: { properties: ['operatingSystem','userAccountControl','dnsHostName'] } }), bComp);
 		if (comps) {
 			const osMap = {};
+			let servers = 0, workstations = 0;
 			comps.forEach(e => {
 				const os = attr(e.attributes || {}, 'operatingSystem') || 'Unknown';
 				osMap[os] = (osMap[os] || 0) + 1;
+				if (/server/i.test(os)) servers++;
+				else if (os !== 'Unknown') workstations++;
 			});
-			fill(bComp, kpi(comps.length, null, null, Object.keys(osMap).length + ' distinct OS versions'));
+			fill(bComp, kpi(comps.length, null, null, workstations + ' workstations · ' + servers + ' servers'));
 			const total = comps.length || 1;
 			const bars = Object.entries(osMap).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([os, n]) =>
 				bar(os, n / total * 100, n, /7|2008|2012|XP|Vista/.test(os) ? 'yellow' : ''));
