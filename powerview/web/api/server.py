@@ -13,6 +13,7 @@ from argparse import Namespace
 from powerview.web.api.helpers import make_serializable
 from powerview.utils.parsers import powerview_arg_parse
 from powerview.utils.constants import UAC_DICT
+from powerview.utils.completer import COMMANDS
 import types
 from powerview._version import __version__ as version
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
@@ -114,6 +115,7 @@ class APIServer:
 		add_route_with_auth('/api/ldap/close', 'ldap_close', self.handle_ldap_close, methods=['GET'])
 		add_route_with_auth('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
 		add_route_with_auth('/api/constants', 'constants', self.handle_constants, methods=['GET'])
+		add_route_with_auth('/api/commands', 'commands', self.handle_commands, methods=['GET'])
 		add_route_with_auth('/api/clear-cache', 'clear_cache', self.handle_clear_cache, methods=['GET'])
 		add_route_with_auth('/api/settings', 'settings', self.handle_settings, methods=['GET'])
 		add_route_with_auth('/api/smb/connect', 'smb_connect', self.handle_smb_connect, methods=['POST'])
@@ -345,6 +347,9 @@ class APIServer:
 		if get_param.lower() == 'uac':
 			return jsonify(UAC_DICT)
 		return jsonify({})
+
+	def handle_commands(self):
+		return jsonify(COMMANDS)
 
 	def handle_domaininfo(self):
 		domain_info = {

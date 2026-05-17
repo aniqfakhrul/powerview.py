@@ -652,6 +652,47 @@ table.grid tbody tr.selected td { color: var(--text); }
 .log-panel-close:hover { color: var(--text); background: var(--panel-3); }
 .log-panel-body { flex: 1; min-height: 0; }
 .log-panel-body .log-user { color: var(--text-2); }
+.terminal .log-user { color: var(--text-2); }
+.bottom-panel-body { flex: 1; min-height: 0; display: flex; }
+.bottom-panel-body > * { flex: 1 1 auto; min-height: 0; }
+.cli-pane { display: flex; flex-direction: column; background: #08090b; }
+.cli-history {
+  flex: 1; overflow: auto; padding: 8px 12px;
+  font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--text-2);
+}
+.cli-history:empty::before { content: "no commands run yet"; color: var(--dim); }
+.cli-entry { margin-bottom: 12px; }
+.cli-cmd { color: var(--text); margin-bottom: 4px; white-space: pre-wrap; word-break: break-word; }
+.cli-ps { color: var(--accent); }
+.cli-msg { color: var(--muted); }
+.cli-err { color: var(--red); }
+.cli-hint {
+  flex-shrink: 0; padding: 3px 12px; overflow-x: auto; white-space: nowrap;
+  font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--muted);
+  background: var(--panel-2); border-top: 1px solid var(--border);
+}
+.cli-summary { color: var(--muted); font-size: var(--fs-xs); margin-bottom: 4px; }
+.cli-out { overflow-x: auto; }
+.cli-out::-webkit-scrollbar { height: 8px; }
+.cli-out::-webkit-scrollbar-thumb { background: var(--border-3); border-radius: 4px; }
+.cli-out table.grid td {
+  max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cli-actions { display: inline-flex; gap: 1px; margin-left: 8px; opacity: 0; transition: opacity .1s; }
+.cli-entry:hover .cli-actions { opacity: 1; }
+.cli-act {
+  background: transparent; border: 0; cursor: pointer; color: var(--muted);
+  font-size: 12px; line-height: 1; padding: 1px 5px; border-radius: var(--radius-sm);
+}
+.cli-act:hover { color: var(--text); background: var(--panel-3); }
+.cli-prompt {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  padding: 7px 12px; border-top: 1px solid var(--border); background: var(--panel-2);
+}
+.cli-input {
+  flex: 1; background: transparent; border: 0; outline: none;
+  color: var(--text); font-family: var(--font-mono); font-size: var(--fs-sm);
+}
 
 /* ───────── settings / utils ───────── */
 .form-grid {

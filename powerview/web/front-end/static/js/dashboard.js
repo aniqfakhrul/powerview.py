@@ -1,4 +1,4 @@
-/* powerview.py web ui — Dashboard (domain summary + quick-query results drawer) */
+/* powerview.py web ui — Dashboard (domain summary + quick queries) */
 (function () {
 "use strict";
 const { h, $, $$, add, clear, api, attr, fmtVal, uacFlags, tag, btn, toast } = window.PV;
@@ -34,44 +34,14 @@ const QQ = [
 	{ cmd: 'Get-DomainGroup -AdminCount', page: 'groups', pageHint: 'Groups' },
 	{ cmd: 'Get-DomainDNSZone', page: 'dns', pageHint: 'DNS' }
 ];
-const PAGE_HREF = { users: '/users', computers: '/computers', groups: '/groups',
-	dns: '/dns', ca: '/ca', ous: '/ou', gpos: '/gpo' };
-const RISKY = /TRUSTED_FOR_DELEGATION|DONT_REQ_PREAUTH|DONT_REQUIRE_PREAUTH|WriteDacl|GenericAll|WriteOwner|AllExtendedRights|ACCOUNTDISABLE|PASSWD_NOTREQD|cpassword/i;
-
-/* turn an /api/execute result into {cols, rows} for the drawer table */
-function toTable(out) {
-	if (!Array.isArray(out)) return { cols: ['result'], rows: [[fmtVal(out)]] };
-	/* some commands (e.g. Get-DomainObjectAcl) wrap rows in entries whose
-	   `attributes` is itself an array of objects — flatten those to real rows */
-	if (out.length && out.every(e => e && typeof e === 'object' && Array.isArray(e.attributes)))
-		out = out.reduce((acc, e) => acc.concat(e.attributes), []);
-	if (!out.length) return { cols: [], rows: [] };
-	const entryMode = out[0] && typeof out[0] === 'object' && out[0].attributes
-		&& !Array.isArray(out[0].attributes);
-	const objOf = e => entryMode ? (e.attributes || {}) : e;
-	if (out[0] && typeof out[0] === 'object') {
-		const cols = [];
-		out.slice(0, 50).forEach(e => Object.keys(objOf(e) || {}).forEach(k => {
-			if (cols.indexOf(k) < 0) cols.push(k);
-		}));
-		const use = cols.slice(0, 8);
-		return {
-			cols: use,
-			rows: out.map(e => { const o = objOf(e) || {}; return use.map(k => fmtVal(o[k])); })
-		};
-	}
-	return { cols: ['value'], rows: out.map(x => [fmtVal(x)]) };
-}
 
 window.PV.pages.dashboard = function () {
 	const main = $('#main');
 	const dash = h('div.dash');
-	const drawerEl = h('div.results-drawer');
-	drawerEl.hidden = true;
 	main.append(
 		h('div.page-head', h('span.title', 'Dashboard'), h('span.crumbs', '/ domain summary'),
 			h('span.grow'), h('div.toolbar', btn('⟲ Re-scan', null, () => location.reload()))),
-		dash, drawerEl);
+		dash);
 
 	function box(span, title, note, flush) {
 		const body = h('div', { class: 'card-body' + (flush ? ' flush' : '') },
@@ -91,140 +61,16 @@ window.PV.pages.dashboard = function () {
 	const bOs    = box(6, 'OS BREAKDOWN', 'computer accounts');
 	const bFindT = box(6, 'FINDINGS', 'by severity', true);
 	const bAct   = box(6, 'RECENT ACTIVITY', 'session log');
-	const bQuick = box(12, 'QUICK QUERIES', 'click to run · results dock below');
+	const bQuick = box(12, 'QUICK QUERIES', 'click to run in the CLI panel');
 
 	function fill(body, nodes) { clear(body); body.classList.remove('empty'); add(body, [nodes]); }
 
-	/* ─────────────── quick queries + results drawer ─────────────── */
-	let results = [], activeId = null, drawerH = 310, drag = null;
-	let connTarget = '';
-	api.get('/api/connectioninfo').then(c => {
-		connTarget = (c.protocol || 'ldap').toLowerCase() + '://' + (c.ldap_address || '');
-	}).catch(() => {});
-
-	const qqCards = {};
+	/* ─────────────── quick queries (click to run in the CLI tab) ─────────────── */
 	fill(bQuick, h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '8px' } },
-		QQ.map(def => {
-			const card = h('div.qq-card', { onclick: () => openQuery(def), title: def.cmd },
-				h('span.dollar', '$'),
-				h('span.cmd', def.cmd),
-				def.page ? h('span.deep-hint', '↗ ' + (def.pageHint || def.page)) : null);
-			qqCards[def.cmd] = card;
-			return card;
-		})));
-
-	function refreshCards() {
-		QQ.forEach(def => {
-			const open = results.some(r => r.id === def.cmd);
-			qqCards[def.cmd].classList.toggle('open', open);
-		});
-	}
-
-	async function openQuery(def) {
-		const id = def.cmd;
-		if (!results.find(r => r.id === id)) {
-			const rec = { id: id, def: def, running: true, cols: [], rows: [], error: null, tookMs: 0 };
-			results.push(rec);
-			activeId = id;
-			redrawDrawer();
-			const t0 = performance.now();
-			try {
-				const res = await api.execute(def.cmd);
-				const tbl = toTable(res && res.result);
-				rec.cols = tbl.cols; rec.rows = tbl.rows;
-			} catch (e) { rec.error = e.message; }
-			rec.tookMs = Math.round(performance.now() - t0);
-			rec.running = false;
-		} else {
-			activeId = id;
-		}
-		redrawDrawer();
-	}
-	function closeQuery(id) {
-		results = results.filter(r => r.id !== id);
-		if (activeId === id) activeId = results.length ? results[results.length - 1].id : null;
-		redrawDrawer();
-	}
-	function closeAll() { results = []; activeId = null; redrawDrawer(); }
-
-	function copyJson(rec) {
-		const out = rec.rows.map(row => {
-			const o = {}; rec.cols.forEach((c, i) => o[c] = row[i]); return o;
-		});
-		try {
-			navigator.clipboard.writeText(JSON.stringify(out, null, 2));
-			toast('success', 'copied ' + rec.rows.length + ' row(s) as JSON');
-		} catch (e) { toast('error', 'clipboard unavailable'); }
-	}
-
-	function resultTable(rec) {
-		return h('table.grid',
-			h('thead', h('tr', rec.cols.map(c => h('th', c)))),
-			h('tbody', rec.rows.map(row => h('tr', row.map((v, i) =>
-				h('td', { style: { color: RISKY.test(v) ? 'var(--red)' : i === 0 ? 'var(--accent)' : 'var(--text)' } },
-					String(v)))))));
-	}
-	function renderResult(rec) {
-		const q = rec.def;
-		const meta = rec.running
-			? h('span.drawer-meta', h('span.drawer-spinner'), '  executing…')
-			: rec.error
-				? h('span.drawer-meta', { style: { color: 'var(--red)' } }, 'failed')
-				: h('span.drawer-meta', h('span.num', String(rec.rows.length)), ' rows · ',
-					h('span.num', String(rec.tookMs)), 'ms' + (connTarget ? '  ·  ' + connTarget : ''));
-		const cmdbar = h('div.drawer-cmdbar',
-			h('span.drawer-cmd', h('span.prompt', 'PV ›'), q.cmd),
-			meta,
-			h('div.drawer-actions',
-				q.page ? h('button.drawer-action.deep',
-					{ title: 'Open in the ' + (q.pageHint || q.page) + ' page', onclick: () => { location.href = PAGE_HREF[q.page]; } },
-					'↗ Open in ' + (q.pageHint || q.page)) : null,
-				h('button.drawer-action', { title: 'Open the log panel',
-					onclick: () => { if (window.PV.toggleLogPanel) window.PV.toggleLogPanel(true); } }, '>_ Logs'),
-				h('button.drawer-action', { title: 'Copy result as JSON', onclick: () => copyJson(rec) }, '⧉ Copy JSON')));
-		const nodes = [cmdbar];
-		if (q.finding && !rec.running && !rec.error)
-			nodes.push(h('div.drawer-finding', h('span.icn', '⚠'), h('span', q.finding)));
-		let body;
-		if (rec.running)
-			body = h('div.drawer-body', h('div.drawer-running', h('span.drawer-spinner'),
-				h('span', 'executing ' + q.cmd + ' …')));
-		else if (rec.error)
-			body = h('div.drawer-body', h('div.drawer-empty', { style: { color: 'var(--red)' } }, rec.error));
-		else if (!rec.rows.length)
-			body = h('div.drawer-body', h('div.drawer-empty', 'no results'));
-		else
-			body = h('div.drawer-body', resultTable(rec));
-		nodes.push(body);
-		return nodes;
-	}
-	function redrawDrawer() {
-		refreshCards();
-		if (!results.length) { drawerEl.hidden = true; return; }
-		drawerEl.hidden = false;
-		drawerEl.style.height = drawerH + 'px';
-		clear(drawerEl);
-		const resize = h('div.drawer-resize', { title: 'drag to resize' });
-		resize.addEventListener('mousedown', e => { drag = { y: e.clientY, h: drawerH }; e.preventDefault(); });
-		const tabs = h('div.drawer-tabs',
-			results.map(r => h('div', { class: 'drawer-tab' + (r.id === activeId ? ' active' : ''),
-				onclick: () => { activeId = r.id; redrawDrawer(); } },
-				h('span.dollar', { style: { color: 'var(--accent)' } }, '$'),
-				h('span', r.def.cmd),
-				h('span.count', r.running ? '…' : '·' + r.rows.length),
-				h('button.x', { title: 'close tab',
-					onclick: e => { e.stopPropagation(); closeQuery(r.id); } }, '✕'))),
-			h('button.drawer-closeall', { title: 'close all', onclick: closeAll }, 'Close all'));
-		drawerEl.append(resize, tabs);
-		const rec = results.find(r => r.id === activeId);
-		if (rec) add(drawerEl, renderResult(rec));
-	}
-	window.addEventListener('mousemove', e => {
-		if (!drag) return;
-		drawerH = Math.max(120, Math.min(700, drag.h + (drag.y - e.clientY)));
-		drawerEl.style.height = drawerH + 'px';
-	});
-	window.addEventListener('mouseup', () => { drag = null; });
+		QQ.map(def => h('div.qq-card', { onclick: () => window.PV.cli.run(def.cmd), title: def.cmd },
+			h('span.dollar', '$'),
+			h('span.cmd', def.cmd),
+			def.page ? h('span.deep-hint', '↗ ' + (def.pageHint || def.page)) : null))));
 
 	/* ─────────────── domain summary cards ─────────────── */
 	async function safe(fn, body) {
@@ -421,7 +267,7 @@ window.PV.pages.dashboard = function () {
 			const da = (de && de.attributes) || {};
 			const maq = attr(da, 'ms-DS-MachineAccountQuota');
 			if (maq != null && maq !== '')
-				rows.push(['MachineAccountQuota', String(maq), String(maq) === '0' ? 'g' : 'y']);
+				rows.push(['MAQ', String(maq), String(maq) === '0' ? 'g' : 'y']);
 			const lt = attr(da, 'lockoutThreshold');
 			if (lt != null && lt !== '') {
 				const n = parseInt(lt, 10);

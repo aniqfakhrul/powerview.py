@@ -384,33 +384,294 @@ function openTweaks(anchor) {
    status bar; fetches the existing /api/logs JSON endpoint. */
 const LOG_COLOR = { DEBUG: 'var(--muted)', INFO: 'var(--blue)',
 	WARNING: 'var(--yellow)', ERROR: 'var(--red)', CRITICAL: 'var(--red)', SUCCESS: 'var(--accent)' };
-let logPanel = null, logBodyEl = null, logPanelOpen = false;
-let logPanelH = 280, logDrag = null, logPollTimer = null;
+let panelEl = null, panelTabsEl = null, panelBodyEl = null;
+let panelOpen = false, panelH = 280, panelDrag = null;
+let logBodyEl = null, logPollTimer = null;
+const panelTabs = [];           /* {id,label,icon,body,closable,onClose} */
+let activeTabId = null;
 
-function buildLogPanel() {
+function buildBottomPanel() {
 	const appEl = $('.app');
 	if (!appEl) return null;
-	logBodyEl = h('div.terminal.log-panel-body');
-	const resize = h('div.drawer-resize.log-panel-resize', { title: 'drag to resize' });
-	resize.addEventListener('mousedown', e => {
-		logDrag = { y: e.clientY, h: logPanelH }; e.preventDefault();
-	});
-	const refreshBtn = h('button.drawer-action', { title: 'Refresh logs',
-		onclick: () => loadLogPanel() }, '⟲ Refresh');
-	const clearBtn = h('button.drawer-action', { title: 'Clear view',
-		onclick: () => { clear(logBodyEl); } }, 'Clear');
-	const closeBtn = h('button.log-panel-close', { title: 'Close (Esc)',
-		onclick: () => toggleLogPanel(false) }, '✕');
-	const header = h('div.log-panel-head',
-		h('span.log-panel-title', h('span.mono', '>_'), ' Output'),
-		h('span.grow'),
-		h('div.drawer-actions', refreshBtn, clearBtn, closeBtn));
-	logPanel = h('div.log-panel', resize, header, logBodyEl);
-	logPanel.hidden = true;
-	appEl.appendChild(logPanel);
-	return logPanel;
+	const resize = h('div.drawer-resize', { title: 'drag to resize' });
+	resize.addEventListener('mousedown', e => { panelDrag = { y: e.clientY, h: panelH }; e.preventDefault(); });
+	panelTabsEl = h('div.drawer-tabs');
+	panelBodyEl = h('div.bottom-panel-body');
+	panelEl = h('div.log-panel', resize, panelTabsEl, panelBodyEl);
+	panelEl.hidden = true;
+	appEl.appendChild(panelEl);
+	logBodyEl = h('div.terminal');
+	registerTab({ id: 'output', label: 'Output', icon: '>_', body: logBodyEl, closable: false });
+	registerTab({ id: 'cli', label: 'CLI', icon: '$', body: buildCliPane(), closable: false });
+	return panelEl;
 }
+
+function registerTab(tab) {
+	const existing = panelTabs.find(t => t.id === tab.id);
+	if (existing) return existing;
+	tab.body.style.display = 'none';
+	panelTabs.push(tab);
+	if (panelBodyEl) panelBodyEl.appendChild(tab.body);
+	return tab;
+}
+
+function renderTabs() {
+	if (!panelTabsEl) return;
+	clear(panelTabsEl);
+	panelTabs.forEach(t => {
+		panelTabsEl.appendChild(h('div', { class: 'drawer-tab' + (t.id === activeTabId ? ' active' : ''),
+			onclick: () => showTab(t.id) },
+			t.icon ? h('span.dollar', { style: { color: 'var(--accent)' } }, t.icon) : null,
+			h('span', t.label),
+			t.closable ? h('button.x', { title: 'close tab',
+				onclick: e => { e.stopPropagation(); removeTab(t.id); } }, '✕') : null));
+	});
+	const actions = h('div.drawer-actions', { style: { marginLeft: 'auto', paddingRight: '6px' } });
+	if (activeTabId === 'output') {
+		actions.appendChild(h('button.drawer-action', { title: 'Refresh logs', onclick: () => loadLogPanel() }, '⟲ Refresh'));
+		actions.appendChild(h('button.drawer-action', { title: 'Clear view', onclick: () => clear(logBodyEl) }, 'Clear'));
+	}
+	actions.appendChild(h('button.drawer-action', { title: 'Close panel (Esc)', onclick: () => closePanel() }, '✕'));
+	panelTabsEl.appendChild(actions);
+}
+
+function showTab(id) {
+	if (!panelEl) buildBottomPanel();
+	const tab = panelTabs.find(t => t.id === id);
+	if (!tab) return;
+	activeTabId = id;
+	panelTabs.forEach(t => { t.body.style.display = t.id === id ? '' : 'none'; });
+	openPanel();
+	renderTabs();
+	if (id === 'output') startLogPoll(); else stopLogPoll();
+	if (id === 'cli' && cliInputEl) cliInputEl.focus();
+}
+
+function removeTab(id) {
+	const i = panelTabs.findIndex(t => t.id === id);
+	if (i < 0 || !panelTabs[i].closable) return;
+	const tab = panelTabs.splice(i, 1)[0];
+	if (tab.body.parentNode) tab.body.parentNode.removeChild(tab.body);
+	if (tab.onClose) { try { tab.onClose(); } catch (e) {} }
+	if (activeTabId === id) {
+		const next = panelTabs[panelTabs.length - 1];
+		if (next) showTab(next.id); else closePanel();
+	} else if (panelOpen) renderTabs();
+}
+
+function openPanel() {
+	if (!panelEl) buildBottomPanel();
+	panelOpen = true;
+	panelEl.hidden = false;
+	panelEl.style.height = panelH + 'px';
+}
+function closePanel() {
+	if (!panelEl) return;
+	panelOpen = false;
+	panelEl.hidden = true;
+	stopLogPoll();
+}
+
+function startLogPoll() {
+	loadLogPanel();
+	if (logPollTimer) clearInterval(logPollTimer);
+	logPollTimer = setInterval(loadLogPanel, 15000);
+}
+function stopLogPoll() {
+	if (logPollTimer) { clearInterval(logPollTimer); logPollTimer = null; }
+}
+
+/* ───────── CLI tab — interactive PowerView command runner ───────── */
+let cliHistEl = null, cliInputEl = null, cliHintEl = null, cliCommands = null;
+const cliHistory = [];
+let cliHistIdx = 0, cliDraft = '';
+
+const CLI_COL_PRIORITY = ['sAMAccountName', 'name', 'cn', 'displayName', 'dNSHostName',
+	'distinguishedName', 'objectSid', 'description', 'operatingSystem', 'adminCount',
+	'userAccountControl', 'memberOf', 'lastLogon', 'lastLogonTimestamp', 'pwdLastSet',
+	'servicePrincipalName'];
+
+function buildCliPane() {
+	cliHistEl = h('div.cli-history');
+	cliHintEl = h('div.cli-hint');
+	cliHintEl.hidden = true;
+	cliInputEl = h('input.cli-input', { type: 'text', spellcheck: 'false', autocomplete: 'off',
+		placeholder: 'type a PowerView command — Tab completes · ↑/↓ history · Enter runs' });
+	cliInputEl.addEventListener('input', () => cliHint(''));
+	cliInputEl.addEventListener('keydown', e => {
+		if (e.key === 'Enter') {
+			const v = cliInputEl.value.trim();
+			if (!v) return;
+			cliInputEl.value = '';
+			cliHint('');
+			cliExec(v);
+		} else if (e.key === 'Tab') {
+			e.preventDefault();
+			cliComplete();
+		} else if (e.key === 'ArrowUp') {
+			if (!cliHistory.length) return;
+			e.preventDefault();
+			if (cliHistIdx === cliHistory.length) cliDraft = cliInputEl.value;
+			cliHistIdx = Math.max(0, cliHistIdx - 1);
+			cliSetInput(cliHistory[cliHistIdx]);
+		} else if (e.key === 'ArrowDown') {
+			if (cliHistIdx >= cliHistory.length) return;
+			e.preventDefault();
+			cliHistIdx++;
+			cliSetInput(cliHistIdx >= cliHistory.length ? cliDraft : cliHistory[cliHistIdx]);
+		}
+	});
+	api.get('/api/commands').then(c => { cliCommands = c || {}; }).catch(() => { cliCommands = {}; });
+	return h('div.cli-pane', cliHistEl, cliHintEl,
+		h('div.cli-prompt', h('span.cli-ps', 'PV ›'), cliInputEl));
+}
+
+function cliHint(text) {
+	if (!cliHintEl) return;
+	cliHintEl.textContent = text || '';
+	cliHintEl.hidden = !text;
+}
+
+function cliCommonPrefix(arr) {
+	if (!arr.length) return '';
+	let p = arr[0];
+	for (let i = 1; i < arr.length; i++) {
+		const s = arr[i];
+		let j = 0;
+		while (j < p.length && j < s.length && p[j].toLowerCase() === s[j].toLowerCase()) j++;
+		p = p.slice(0, j);
+		if (!p) break;
+	}
+	return p;
+}
+
+function cliComplete() {
+	if (!cliCommands) return;
+	const val = cliInputEl.value;
+	const lead = val.replace(/\S*$/, '');
+	const token = val.slice(lead.length);
+	const before = lead.trim().split(/\s+/).filter(Boolean);
+	let candidates;
+	if (before.length === 0) {
+		candidates = Object.keys(cliCommands)
+			.filter(c => c.toLowerCase().startsWith(token.toLowerCase()));
+	} else {
+		if (token && token[0] !== '-') { cliHint(''); return; }
+		const key = Object.keys(cliCommands)
+			.find(c => c.toLowerCase() === before[0].toLowerCase());
+		const flags = key && Array.isArray(cliCommands[key]) ? cliCommands[key] : [];
+		candidates = flags.filter(f => f.toLowerCase().startsWith(token.toLowerCase()));
+	}
+	if (!candidates.length) { cliHint(''); return; }
+	if (candidates.length === 1) {
+		cliInputEl.value = lead + candidates[0] + ' ';
+		cliHint('');
+	} else {
+		const prefix = cliCommonPrefix(candidates);
+		if (prefix.length > token.length) cliInputEl.value = lead + prefix;
+		cliHint(candidates.join('   '));
+	}
+	const n = cliInputEl.value.length;
+	cliInputEl.setSelectionRange(n, n);
+}
+
+function cliSetInput(v) {
+	cliInputEl.value = v || '';
+	const n = cliInputEl.value.length;
+	cliInputEl.setSelectionRange(n, n);
+}
+
+function cliCopy(text) {
+	try {
+		navigator.clipboard.writeText(text);
+		toast('success', 'copied to clipboard');
+	} catch (e) { toast('error', 'clipboard unavailable'); }
+}
+
+function cliSummary(rows, shown, total, ms) {
+	let s = rows + ' result(s)';
+	if (total > shown) s += ' · ' + shown + ' of ' + total + ' columns';
+	if (ms != null) s += ' · ' + ms + 'ms';
+	return h('div.cli-summary', s);
+}
+
+function cliRenderResult(out, ms) {
+	if (out == null) return h('div.cli-msg', '(no output)');
+	if (!Array.isArray(out)) return h('div.cli-msg', fmtVal(out));
+	if (out.length && out.every(e => e && typeof e === 'object' && Array.isArray(e.attributes)))
+		out = out.reduce((acc, e) => acc.concat(e.attributes), []);
+	if (!out.length) return h('div.cli-msg', '(0 results)');
+	const entryMode = out[0] && typeof out[0] === 'object' && out[0].attributes
+		&& !Array.isArray(out[0].attributes);
+	const objOf = e => entryMode ? (e.attributes || {}) : e;
+	if (typeof out[0] !== 'object')
+		return h('div', cliSummary(out.length, 0, 0, ms),
+			h('div.cli-out', h('table.grid', h('tbody', out.map(x => h('tr', h('td', fmtVal(x))))))));
+	const cols = [];
+	out.slice(0, 50).forEach(e => Object.keys(objOf(e) || {}).forEach(k => {
+		if (cols.indexOf(k) < 0) cols.push(k);
+	}));
+	cols.sort((a, b) => {
+		const ia = CLI_COL_PRIORITY.indexOf(a), ib = CLI_COL_PRIORITY.indexOf(b);
+		if (ia < 0 && ib < 0) return 0;
+		if (ia < 0) return 1;
+		if (ib < 0) return -1;
+		return ia - ib;
+	});
+	const use = cols.slice(0, 8);
+	return h('div', cliSummary(out.length, use.length, cols.length, ms),
+		h('div.cli-out',
+			h('table.grid',
+				h('thead', h('tr', use.map(c => h('th', c)))),
+				h('tbody', out.map(e => {
+					const o = objOf(e) || {};
+					return h('tr', use.map((k, i) => {
+						const v = fmtVal(o[k]);
+						return h('td', { title: v,
+							style: { color: i === 0 ? 'var(--accent)' : 'var(--text)' } }, v);
+					}));
+				})))));
+}
+
+async function cliExec(cmd) {
+	if (!cliHistEl) return;
+	if (cliHistory[cliHistory.length - 1] !== cmd) cliHistory.push(cmd);
+	cliHistIdx = cliHistory.length;
+	cliDraft = '';
+	const body = h('div.cli-body', h('span.cli-msg', 'running…'));
+	const acts = h('span.cli-actions');
+	cliHistEl.appendChild(h('div.cli-entry',
+		h('div.cli-cmd', h('span.cli-ps', 'PV ›'), ' ' + cmd, acts), body));
+	cliHistEl.scrollTop = cliHistEl.scrollHeight;
+	const t0 = performance.now();
+	let resultData = null, ok = false;
+	try {
+		const res = await runCmd(cmd);
+		resultData = res && res.result; ok = true;
+		clear(body); add(body, [cliRenderResult(resultData, Math.round(performance.now() - t0))]);
+	} catch (e) {
+		clear(body);
+		body.appendChild(h('div.cli-msg.cli-err', e.message));
+	}
+	add(acts, [
+		h('button.cli-act', { title: 'Re-run', onclick: () => cliExec(cmd) }, '↻'),
+		h('button.cli-act', { title: 'Edit in prompt',
+			onclick: () => { cliSetInput(cmd); cliInputEl.focus(); } }, '✎'),
+		h('button.cli-act', { title: 'Copy',
+			onclick: () => cliCopy(ok && resultData != null ? JSON.stringify(resultData, null, 2) : cmd) }, '⧉')
+	]);
+	cliHistEl.scrollTop = cliHistEl.scrollHeight;
+}
+
+const cli = {
+	run: function (cmd) {
+		if (!panelEl) buildBottomPanel();
+		showTab('cli');
+		cliExec(cmd);
+	}
+};
 function renderLogLines(logs) {
+	if (!logBodyEl) return;
 	clear(logBodyEl);
 	if (!logs || !logs.length) {
 		logBodyEl.appendChild(h('div.muted.mono.sm', '(no log entries)'));
@@ -439,35 +700,41 @@ async function loadLogPanel() {
 	}
 }
 function toggleLogPanel(force) {
-	if (!logPanel) buildLogPanel();
-	if (!logPanel) return;
-	logPanelOpen = (force == null) ? !logPanelOpen : !!force;
-	logPanel.hidden = !logPanelOpen;
-	logPanel.style.height = logPanelH + 'px';
-	if (logPanelOpen) {
-		loadLogPanel();
-		if (logPollTimer) clearInterval(logPollTimer);
-		logPollTimer = setInterval(loadLogPanel, 15000);
-	} else if (logPollTimer) {
-		clearInterval(logPollTimer); logPollTimer = null;
-	}
+	if (!panelEl) buildBottomPanel();
+	const want = (force == null) ? !panelOpen : !!force;
+	if (want) showTab('output');
+	else closePanel();
 }
+
+const bottomPanel = {
+	addTab: function (t) { const tab = registerTab(t); if (panelOpen) renderTabs(); return tab; },
+	removeTab: removeTab,
+	showTab: showTab,
+	open: openPanel,
+	close: closePanel,
+	has: function (id) { return panelTabs.some(t => t.id === id); },
+	isOpen: function () { return panelOpen; }
+};
+
 window.addEventListener('mousemove', e => {
-	if (!logDrag || !logPanel) return;
-	logPanelH = Math.max(120, Math.min(640, logDrag.h + (logDrag.y - e.clientY)));
-	logPanel.style.height = logPanelH + 'px';
+	if (!panelDrag || !panelEl) return;
+	panelH = Math.max(120, Math.min(640, panelDrag.h + (panelDrag.y - e.clientY)));
+	panelEl.style.height = panelH + 'px';
 });
-window.addEventListener('mouseup', () => { logDrag = null; });
+window.addEventListener('mouseup', () => { panelDrag = null; });
 document.addEventListener('keydown', e => {
-	if (e.key === 'Escape' && logPanelOpen) toggleLogPanel(false);
+	if (e.key === 'Escape' && panelOpen) { closePanel(); return; }
+	if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+		e.preventDefault();
+		if (panelOpen) closePanel(); else showTab('cli');
+	}
 });
-/* clicking anywhere outside the panel closes it — but not the status bar,
-   which toggles the panel through its own handler. */
+/* clicking outside the panel closes it — except the status bar (its own
+   toggle) and quick-query cards (which reopen it via the CLI). */
 document.addEventListener('mousedown', e => {
-	if (!logPanelOpen || !logPanel || logPanel.contains(e.target)) return;
-	const sb = document.getElementById('status');
-	if (sb && sb.contains(e.target)) return;
-	toggleLogPanel(false);
+	if (!panelOpen || !panelEl || panelEl.contains(e.target)) return;
+	if (e.target.closest && (e.target.closest('#status') || e.target.closest('.qq-card'))) return;
+	closePanel();
 });
 
 /* ───────── shell init ───────── */
@@ -476,7 +743,7 @@ function initShell() {
 	buildRail();
 	poll();
 	setInterval(poll, 15000);
-	buildLogPanel();
+	buildBottomPanel();
 	const statusBar = $('#status');
 	if (statusBar) statusBar.addEventListener('click', () => toggleLogPanel());
 
@@ -676,6 +943,6 @@ window.PV = {
 	h, add, $, $$, clear, api, toast, attr, fmtVal, uacFlags, objIcon,
 	grid, tag, pageHead, searchField, btn, propRow, propGroup, propsView,
 	withSpinner, runCmd, contextMenu, modal, showResultModal, inspectorPane,
-	toggleLogPanel, NAV, pages: {}
+	toggleLogPanel, panel: bottomPanel, cli, NAV, pages: {}
 };
 })();
