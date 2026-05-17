@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
+import re
 import struct
 import logging
 from io import BytesIO
 from xml.etree import ElementTree
+from impacket.ldap import ldaptypes
+from impacket.uuid import bin_to_string
 
 
 class GPO:
@@ -325,7 +328,7 @@ class GPO:
 						obj_guid = bin_to_string(ace['Ace']['ObjectType']).lower()
 					except Exception:
 						continue
-					if obj_guid != self._APPLY_GPO_GUID:
+					if obj_guid != GPO.Helper._APPLY_GPO_GUID:
 						continue
 					if not (ace['Ace']['Mask']['Mask'] & DS_CONTROL_ACCESS):
 						continue

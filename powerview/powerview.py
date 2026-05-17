@@ -2378,11 +2378,11 @@ class PowerView:
 		entries = list(result)
 		try:
 			if resolve_links:
-				GPO.Helper._resolve_gpo_links(entries, no_cache=no_cache)
+				GPO.Helper._resolve_gpo_links(self, entries, no_cache=no_cache)
 				if not no_vuln_check:
-					GPO.Helper._resolve_gpo_findings(entries)
+					GPO.Helper._resolve_gpo_findings(self, entries)
 			if resolve_security_filter:
-				GPO.Helper._resolve_gpo_security_filter(entries)
+				GPO.Helper._resolve_gpo_security_filter(self, entries)
 		except Exception as e:
 			if self.args.stack_trace:
 				raise e
