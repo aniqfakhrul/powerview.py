@@ -2918,11 +2918,47 @@ class PowerView:
 			print("%s" % identity)
 		return identity
 
-	def get_domainfindings(self, args=None, active=False):
+	def get_domainfindings(self, args=None, active=False, refresh=False):
 		from powerview.modules.findings import FindingsEngine
-		if args is not None and hasattr(args, 'active') and args.active:
-			active = True
-		return FindingsEngine(self).run(active=active)
+		from powerview.utils import paths
+		import json, tempfile
+		from datetime import datetime
+
+		if args is not None:
+			if hasattr(args, 'active') and args.active:
+				active = True
+			if hasattr(args, 'refresh') and args.refresh:
+				refresh = True
+
+		# active scans touch the network (noPac/PetitPotam) — always run fresh, never cached
+		if active:
+			result = FindingsEngine(self).run(active=True)
+			result['cached'] = False
+			return result
+
+		cache_file = paths.findings_file(self.domain)
+		if not refresh and os.path.exists(cache_file):
+			try:
+				with open(cache_file, 'r') as f:
+					data = json.load(f)
+				data['cached'] = True
+				return data
+			except Exception as e:
+				logging.debug(f"[Get-DomainFindings] could not read cache: {e}")
+
+		result = FindingsEngine(self).run(active=False)
+		result['domain'] = self.domain
+		result['generated_at'] = datetime.now().isoformat()
+		result['cached'] = False
+		try:
+			os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+			fd, tmp = tempfile.mkstemp(dir=os.path.dirname(cache_file), suffix='.tmp')
+			with os.fdopen(fd, 'w') as f:
+				json.dump(result, f, indent=2, default=str)
+			os.replace(tmp, cache_file)
+		except Exception as e:
+			logging.error(f"[Get-DomainFindings] could not write cache: {e}")
+		return result
 
 	def get_domain(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		properties = args.properties if hasattr(args, 'properties') and args.properties else properties

@@ -386,8 +386,9 @@ class APIServer:
 		
 	def handle_findings(self):
 		active = request.args.get('active', '').lower() in ('1', 'true', 'yes')
+		refresh = request.args.get('refresh', '').lower() in ('1', 'true', 'yes')
 		try:
-			result = self.powerview.get_domainfindings(active=active)
+			result = self.powerview.get_domainfindings(active=active, refresh=refresh)
 			return jsonify(make_serializable(result))
 		except Exception as e:
 			logging.error(f"Findings Error: {str(e)}")

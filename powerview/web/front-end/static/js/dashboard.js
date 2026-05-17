@@ -1,7 +1,7 @@
 /* powerview.py web ui — Dashboard (domain summary + quick queries) */
 (function () {
 "use strict";
-const { h, $, $$, add, clear, api, attr, uacFlags, tag, btn } = window.PV;
+const { h, $, $$, add, clear, api, attr, uacFlags, tag, btn, toast } = window.PV;
 
 function kpi(value, delta, deltaCls, sub) {
 	return [h('div.kpi', String(value), delta ? h('span', { class: 'delta ' + (deltaCls || '') }, delta) : null),
@@ -15,6 +15,15 @@ function bar(label, pct, n, cls) {
 	return h('div.bar', h('span.lbl', label),
 		h('span.track', h('span', { class: 'fill ' + (cls || ''), style: { width: pct + '%' } })),
 		h('span.val', n != null ? String(n) : Math.round(pct) + '%'));
+}
+function ago(iso) {
+	const t = Date.parse(iso);
+	if (isNaN(t)) return '';
+	const s = Math.max(0, (Date.now() - t) / 1000);
+	if (s < 60) return 'just now';
+	if (s < 3600) return Math.floor(s / 60) + 'm ago';
+	if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+	return Math.floor(s / 86400) + 'd ago';
 }
 
 /* ── quick-query catalog: real PowerView commands + deep-link target ── */
@@ -40,7 +49,11 @@ window.PV.pages.dashboard = function () {
 	const dash = h('div.dash');
 	main.append(
 		h('div.page-head', h('span.title', 'Dashboard'), h('span.crumbs', '/ domain summary'),
-			h('span.grow'), h('div.toolbar', btn('⟲ Re-scan', null, () => location.reload()))),
+			h('span.grow'), h('div.toolbar', btn('⟲ Re-scan', null, async () => {
+				toast('info', 'rescanning findings…');
+				try { await api.get('/api/findings?refresh=true'); } catch (e) {}
+				location.reload();
+			}))),
 		dash);
 
 	function box(span, title, note, flush) {
@@ -116,6 +129,8 @@ window.PV.pages.dashboard = function () {
 		try { data = await api.get('/api/findings'); }
 		catch (e) { [bFind, bFindT, bSurf].forEach(b => fill(b, h('div.empty', e.message))); return; }
 		const findings = (data && data.findings) || [];
+		const scanNote = bFindT.parentNode && bFindT.parentNode.querySelector('.card-head .mono');
+		if (scanNote && data && data.generated_at) scanNote.textContent = 'scanned ' + ago(data.generated_at);
 		const byId = {};
 		findings.forEach(f => { byId[f.id] = f; });
 		const cnt = id => (byId[id] && byId[id].count) || 0;

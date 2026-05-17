@@ -61,3 +61,7 @@ def logs_dir(folder_name):
 
 def vulns_file():
 	return os.path.join(base_dir(), 'vulns.json')
+
+
+def findings_file(domain):
+	return os.path.join(base_dir(), 'findings', str(domain or 'default').lower() + '.json')
