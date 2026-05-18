@@ -1559,6 +1559,13 @@ def powerview_arg_parse(cmd):
 	subparsers.add_parser('clear', exit_on_error=False)
 	subparsers.add_parser('exit', exit_on_error=False)
 
+	def _canon(a):
+		"""Resolve a command alias (e.g. Get-GPOSettings) to its canonical subparser name."""
+		mod = getattr(a, 'module', None) if a is not None else None
+		if mod and mod in subparsers.choices:
+			a.module = subparsers.choices[mod].prog.split()[-1]
+		return a
+
 	try:
 		args, unknown = parser.parse_known_args(cmd)
 		
@@ -1583,8 +1590,8 @@ def powerview_arg_parse(cmd):
 					else:
 						print(f"Unrecognized argument: {unk}")
 						return None
-					return args
-			return parser.parse_args(cmd)
+					return _canon(args)
+			return _canon(parser.parse_args(cmd))
 
 		if hasattr(args, 'hash') and args.hash:
 			parsed_hash = parse_hashes(args.hash)
@@ -1605,13 +1612,13 @@ def powerview_arg_parse(cmd):
 			elif isinstance(args.identity, str):
 				args.identity = args.identity.strip()
 
-		return args
+		return _canon(args)
 	except argparse.ArgumentError as e:
 		try:
 			for i in list(COMMANDS.keys()):
 				if cmd[0].casefold() == i.casefold():
 					cmd[0] = i
-					return parser.parse_args(cmd)
+					return _canon(parser.parse_args(cmd))
 		except:
 			pass
 		
