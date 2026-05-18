@@ -1,0 +1,6 @@
+{% extends "base/layout.html" %}
+{% block page %}findings{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/findings.js') }}"></script>
+<script>PV.pages.findings();</script>
+{% endblock %}

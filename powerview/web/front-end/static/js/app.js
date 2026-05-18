@@ -244,6 +244,7 @@ async function runCmd(cmd) {
 const NAV = [
 	{ sec: 'ENUM', id: 'explorer',  label: 'Explorer',    href: '/',          icn: '▤' },
 	{ sec: 'ENUM', id: 'dashboard', label: 'Dashboard',   href: '/dashboard', icn: '◧' },
+	{ sec: 'ENUM', id: 'findings',  label: 'Findings',    href: '/findings',  icn: '▲' },
 	{ sec: 'ENUM', id: 'graph',     label: 'Graph',       href: '/graph',     icn: '◌' },
 	{ sec: 'OBJECTS', id: 'users',     label: 'Users',       href: '/users',     icn: 'U' },
 	{ sec: 'OBJECTS', id: 'computers', label: 'Computers',   href: '/computers', icn: 'C' },

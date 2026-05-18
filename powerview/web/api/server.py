@@ -82,6 +82,7 @@ class APIServer:
 
 		add_route_with_auth('/', 'index', self.render_index, methods=['GET'])
 		add_route_with_auth('/dashboard', 'dashboard', self.render_dashboard, methods=['GET'])
+		add_route_with_auth('/findings', 'findings_page', self.render_findings, methods=['GET'])
 		add_route_with_auth('/graph', 'graph', self.render_graph, methods=['GET'])
 		add_route_with_auth('/users', 'users', self.render_users, methods=['GET'])
 		add_route_with_auth('/computers', 'computers', self.render_computers, methods=['GET'])
@@ -167,6 +168,14 @@ class APIServer:
 			'nav_items': self.nav_items
 		}
 		return render_template('dashboardpage.html', **context)
+
+	def render_findings(self):
+		context = {
+			'title': 'Powerview.py - Findings',
+			'version': version,
+			'nav_items': self.nav_items
+		}
+		return render_template('findingspage.html', **context)
 
 	def render_graph(self):
 		context = {

@@ -112,6 +112,9 @@ class Check:
 	mode = 'passive'
 	unit = 'item(s)'
 	detail = ''
+	description = ''
+	evidence = []
+	commands = []
 	remediation = ''
 	references = []
 
@@ -120,6 +123,13 @@ class Check:
 
 	def finding(self, count, affected=None, subject=None):
 		affected = affected or []
+		subject = subject if subject is not None else '%d %s' % (count, self.unit)
+		context = {
+			'target': str(affected[0]) if affected else '<target>',
+			'targets': ', '.join(str(a) for a in affected[:5]) if affected else '<target>',
+			'count': str(count),
+			'subject': subject,
+		}
 		return {
 			'id': self.id,
 			'code': self.code,
@@ -129,12 +139,25 @@ class Check:
 			'mode': self.mode,
 			'count': count,
 			'unit': self.unit,
-			'subject': subject if subject is not None else '%d %s' % (count, self.unit),
+			'subject': subject,
 			'affected': affected[:50],
 			'detail': self.detail,
+			'description': self.description or self.detail,
+			'evidence': self._expand(self.evidence, context),
+			'commands': self._expand(self.commands, context),
 			'remediation': self.remediation,
 			'references': list(self.references),
 		}
+
+	@staticmethod
+	def _expand(items, context):
+		rendered = []
+		for item in items:
+			text = str(item)
+			for key, value in context.items():
+				text = text.replace('{%s}' % key, value)
+			rendered.append(text)
+		return rendered
 
 
 @register_check
@@ -146,6 +169,20 @@ class KerberoastableCheck(Check):
 	category = 'kerberos'
 	unit = 'account(s)'
 	detail = 'These user accounts have a service principal name set. Any domain user can request a ticket for them and crack the password offline.'
+	description = ('These user accounts have a servicePrincipalName set. Any authenticated domain user can '
+		'request a Kerberos service ticket (TGS-REP) for them; the ticket is encrypted with the account\'s '
+		'password-derived key and can be cracked offline. Service accounts often carry weak, rarely-rotated '
+		'passwords, making this a reliable path to credential compromise.')
+	evidence = [
+		'servicePrincipalName is populated on {target}',
+		'sAMAccountType = 805306368 (normal user account, not a computer)',
+		'TGS-REP is encrypted with the account password-derived Kerberos key',
+	]
+	commands = [
+		'Get-DomainUser -SPN',
+		'GetUserSPNs.py <domain>/<user> -request -request-user {target} -outputfile roast.hashes',
+		'hashcat -m 13100 roast.hashes wordlist.txt',
+	]
 	remediation = 'Give service accounts long random passwords or use group managed service accounts. Remove SPNs that are no longer needed.'
 	references = ['https://attack.mitre.org/techniques/T1558/003/']
 
@@ -163,6 +200,17 @@ class KerberoastableAdminCheck(Check):
 	category = 'kerberos'
 	unit = 'account(s)'
 	detail = 'These user accounts with admin privileges have a service principal name set. Any domain user can request a ticket for them and crack the password offline.'
+	description = ('These accounts are kerberoastable (servicePrincipalName set) and privileged '
+		'(adminCount = 1). Cracking one yields a Tier 0 / protected account directly, making them the '
+		'highest-value Kerberoasting targets in the domain.')
+	evidence = [
+		'servicePrincipalName is set on {target}',
+		'adminCount = 1 (current or former member of a protected group)',
+	]
+	commands = [
+		'Get-DomainUser -AdminCount -SPN',
+		'GetUserSPNs.py <domain>/<user> -request -request-user {target} -outputfile roast.hashes',
+	]
 	remediation = 'Give service accounts long random passwords or use group managed service accounts. Remove SPNs that are no longer needed.'
 	references = ['https://attack.mitre.org/techniques/T1558/003/']
 
@@ -180,6 +228,18 @@ class ASREPRoastableCheck(Check):
 	category = 'kerberos'
 	unit = 'account(s)'
 	detail = 'These accounts do not require Kerberos pre-authentication. Anyone can request their login response and crack it offline.'
+	description = ('These accounts have DONT_REQ_PREAUTH set, so the KDC will issue an AS-REP encrypted '
+		'with the account password hash without any pre-authentication. An attacker can request these '
+		'blobs without valid credentials and crack them offline.')
+	evidence = [
+		'{target} has the DONT_REQ_PREAUTH flag (0x400000) in userAccountControl',
+		'an AS-REP can be requested for {target} anonymously',
+	]
+	commands = [
+		'Get-DomainUser -PreauthNotRequired',
+		'GetNPUsers.py <domain>/{target} -no-pass -format hashcat -outputfile asrep.hashes',
+		'hashcat -m 18200 asrep.hashes wordlist.txt',
+	]
 	remediation = 'Turn Kerberos pre-authentication back on for these accounts unless an application really needs it off.'
 	references = ['https://attack.mitre.org/techniques/T1558/004/']
 
@@ -197,6 +257,18 @@ class ConstrainedDelegationCheck(Check):
 	category = 'delegation'
 	unit = 'account(s)'
 	detail = 'These user and computer accounts are trusted to authenticate for delegation (protocol transition). They can request a ticket for any user to their allowed services.'
+	description = ('These user and computer accounts have TRUSTED_TO_AUTH_FOR_DELEGATION set (constrained '
+		'delegation with protocol transition). Compromising one allows S4U2Self to mint a ticket as any '
+		'user that is not marked sensitive, then S4U2Proxy to reach the services in msDS-AllowedToDelegateTo.')
+	evidence = [
+		'{target} has TRUSTED_TO_AUTH_FOR_DELEGATION in userAccountControl',
+		'msDS-AllowedToDelegateTo lists the reachable target SPNs',
+	]
+	commands = [
+		'Get-DomainUser -TrustedToAuth',
+		'Get-DomainComputer -TrustedToAuth',
+		'getST.py -spn <target-spn> -impersonate Administrator <domain>/{target}:<pass>',
+	]
 	remediation = 'Review whether delegation is required, and remove protocol transition where it is not needed.'
 
 	def run(self, powerview):
@@ -220,6 +292,16 @@ class ObsoleteComputerCheck(Check):
 		'Stale computer accounts are often forgotten, unmanaged, and may still '
 		'retain old privileges or delegation settings.'
 	)
+	description = ('These enabled computer accounts run an end-of-life Windows version. Unsupported '
+		'operating systems no longer receive security patches and remain exposed to known, unfixable '
+		'vulnerabilities (for example EternalBlue / MS17-010 on Windows 7 and Server 2008).')
+	evidence = [
+		'operatingSystem indicates an end-of-life Windows release',
+		'the computer account is still enabled',
+	]
+	commands = [
+		'Get-DomainComputer -Obsolete -Enabled',
+	]
 	remediation = (
 		'Review and remove unused computer accounts. '
 		'Disable inactive systems and clean up stale AD objects regularly.'
@@ -264,6 +346,17 @@ class RBCDCheck(Check):
 	category = 'delegation'
 	unit = 'account(s)'
 	detail = 'These accounts let another object impersonate users to them through resource based constrained delegation (RBCD).'
+	description = ('These accounts have msDS-AllowedToActOnBehalfOfOtherIdentity populated. Whatever '
+		'principal is listed there can perform resource-based constrained delegation: S4U2Self plus '
+		'S4U2Proxy to authenticate as any user, including local administrators, to the account.')
+	evidence = [
+		'msDS-AllowedToActOnBehalfOfOtherIdentity is set on {target}',
+		'the principal in that attribute can impersonate users to this host',
+	]
+	commands = [
+		'Get-DomainComputer -RBCD',
+		'getST.py -spn cifs/{target} -impersonate Administrator <domain>/<controlled-account>:<pass>',
+	]
 	remediation = 'Review whether delegation is required.'
 
 	def run(self, powerview):
@@ -288,6 +381,19 @@ class UnconstrainedDelegationCheck(Check):
 	category = 'delegation'
 	unit = 'host(s)'
 	detail = 'These computers are trusted for unconstrained delegation. If one is compromised, an attacker can capture tickets sent to it, including domain controller tickets.'
+	description = ('These computers are trusted for unconstrained delegation (TRUSTED_FOR_DELEGATION). '
+		'Any TGT forwarded to them, including a domain controller\'s, is cached in LSASS and can be '
+		'extracted and replayed. Chained with a coercion primitive (PrinterBug / PetitPotam) this yields '
+		'full domain compromise.')
+	evidence = [
+		'{target} has the TRUSTED_FOR_DELEGATION flag (0x80000) in userAccountControl',
+		'forwarded TGTs are retained in the host LSASS process',
+	]
+	commands = [
+		'Get-DomainComputer -Unconstrained',
+		'Rubeus.exe monitor /interval:5',
+		'printerbug.py <domain>/<user>@<dc> {target}',
+	]
 	remediation = 'Switch them to constrained delegation, and mark sensitive accounts as not allowed to be delegated.'
 	references = ['https://attack.mitre.org/techniques/T1187/']
 
@@ -306,6 +412,20 @@ class VulnerableCertTemplateCheck(Check):
 	category = 'adcs'
 	unit = 'template(s)'
 	detail = 'These certificate templates are misconfigured (ESC1 to ESC16) and can be abused to escalate privileges.'
+	description = ('These ADCS certificate templates are misconfigured in an exploitable way (the ESC1 to '
+		'ESC16 class of issues). A common case: the template allows an enrollee-supplied subject, exposes '
+		'an authentication EKU, and grants enrollment to low-privilege users — letting any user request a '
+		'certificate as an arbitrary principal and authenticate via PKINIT.')
+	evidence = [
+		'{target} has an exploitable msPKI-Certificate-Name-Flag / EKU / enrollment ACL combination',
+		'low-privilege principals hold the Certificate-Enrollment extended right',
+		'manager approval is not required for issuance',
+	]
+	commands = [
+		'Get-DomainCATemplate -Vulnerable',
+		'certipy find -u <user>@<domain> -p <pass> -dc-ip <dc> -vulnerable',
+		'certipy req -u <user>@<domain> -ca <ca> -template {target} -upn administrator@<domain>',
+	]
 	remediation = 'Limit who can enroll, turn off "supply subject in request", and require manager approval.'
 	references = ['https://posts.specterops.io/certified-pre-owned-d95910965cd2']
 
@@ -324,6 +444,18 @@ class PrivilegedAccountCheck(Check):
 	category = 'privilege'
 	unit = 'account(s)'
 	detail = 'These accounts have adminCount set to 1. They are, or used to be, members of a protected admin group.'
+	description = ('These accounts have adminCount = 1 — they are, or were, members of a group protected '
+		'by AdminSDHolder. Accounts that are no longer privileged but still carry adminCount = 1 keep a '
+		'hardened ACL and are worth reviewing; the ones that are still privileged are Tier 0 and must be '
+		'tightly controlled.')
+	evidence = [
+		'adminCount = 1 on {target}',
+		'the object ACL is governed by the AdminSDHolder / SDProp process',
+	]
+	commands = [
+		'Get-DomainUser -AdminCount',
+		'Get-DomainGroupMember -Identity "Domain Admins"',
+	]
 	remediation = 'Check who really needs to be in Tier 0 groups, and clear adminCount on accounts that are no longer privileged.'
 	references = []
 
@@ -342,6 +474,16 @@ class StalePasswordCheck(Check):
 	category = 'hygiene'
 	unit = 'account(s)'
 	detail = 'Enabled accounts whose password has not changed in over 365 days.'
+	description = ('These enabled accounts have not changed their password in over a year. Long-lived '
+		'passwords are more likely to be weak, reused across systems, or already present in a public '
+		'breach corpus.')
+	evidence = [
+		'pwdLastSet on {target} is older than 365 days',
+		'the account is enabled',
+	]
+	commands = [
+		'Get-DomainUser -Raw',
+	]
 	remediation = 'Enforce a maximum password age and rotate or disable dormant accounts.'
 	references = []
 
@@ -372,6 +514,17 @@ class DnsCreateChildCheck(Check):
 	category = 'dns'
 	unit = 'zone(s)'
 	detail = 'Authenticated Users can create child objects on these DNS zones, so any domain user can add DNS records. This opens the door to ADIDNS spoofing.'
+	description = ('Authenticated Users hold the CreateChild right on these AD-integrated DNS zones, so '
+		'any domain user can add DNS records. This enables ADIDNS spoofing — for example adding a '
+		'wildcard record or a WPAD entry to capture or relay authentication across the network.')
+	evidence = [
+		'Authenticated Users (S-1-5-11) has CreateChild on {target}',
+		'no existing record blocks a wildcard or WPAD entry',
+	]
+	commands = [
+		'Get-DomainObjectAcl -Identity {target} -SecurityIdentifier "Authenticated Users"',
+		'dnstool.py -u <domain>\\<user> -p <pass> --record "*" --action add --data <attacker-ip> <dc>',
+	]
 	remediation = 'Remove the CreateChild right for Authenticated Users on the DNS zone unless every user needs to add records.'
 	references = ['https://www.thehacker.recipes/ad/movement/mitm-and-coerced-authentications/adidns-spoofing']
 
@@ -405,6 +558,19 @@ class DCSyncCheck(Check):
 	category = 'privilege'
 	unit = 'principal(s)'
 	detail = 'These principals can replicate directory secrets (DCSync) and dump every account hash in the domain, including krbtgt. Default Tier 0 groups are not listed.'
+	description = ('These non-default principals hold both the DS-Replication-Get-Changes and '
+		'DS-Replication-Get-Changes-All extended rights on the domain object. That combination allows '
+		'DCSync — replicating directory secrets, including every account hash and the krbtgt key, which '
+		'is enough to forge Golden Tickets. Default Tier 0 groups are excluded from this list.')
+	evidence = [
+		'{target} has DS-Replication-Get-Changes on the domain head',
+		'{target} also has DS-Replication-Get-Changes-All',
+		'{target} is not a domain controller or a default Tier 0 group',
+	]
+	commands = [
+		'Get-DomainObjectAcl -Identity <domain-dn> -ResolveGUIDs',
+		'secretsdump.py <domain>/<user>@<dc> -just-dc',
+	]
 	remediation = 'Remove the replication rights from any principal that is not a domain controller or a Tier 0 admin group.'
 	references = ['https://attack.mitre.org/techniques/T1003/006/']
 
@@ -447,6 +613,17 @@ class MachineAccountQuotaCheck(Check):
 	category = 'config'
 	unit = 'domain'
 	detail = 'MachineAccountQuota is above 0, so any domain user can add computer accounts. This helps RBCD and sAMAccountName spoofing attacks.'
+	description = ('ms-DS-MachineAccountQuota is above 0, so any authenticated user can create computer '
+		'accounts. A user-controlled computer account is the foundation for resource-based constrained '
+		'delegation and for Shadow Credentials / sAMAccountName-spoofing (noPac) escalation.')
+	evidence = [
+		'ms-DS-MachineAccountQuota is greater than 0 on the domain object',
+		'creating a computer account does not require elevated rights',
+	]
+	commands = [
+		'Get-Domain -Properties ms-DS-MachineAccountQuota',
+		'addcomputer.py -computer-name "EVIL$" -computer-pass <pass> <domain>/<user>:<pass>',
+	]
 	remediation = 'Set MachineAccountQuota to 0 and give machine join rights only to a specific group.'
 	references = ['https://www.thehacker.recipes/ad/movement/kerberos/samaccountname-spoofing']
 
@@ -480,6 +657,16 @@ class LockoutPolicyCheck(Check):
 	category = 'config'
 	unit = 'domain'
 	detail = 'The domain lockout threshold is 0, so accounts are never locked out. An attacker can run password spraying and brute force attacks without any limit.'
+	description = ('The domain account-lockout threshold is 0, so accounts are never locked out no matter '
+		'how many logons fail. An attacker can password-spray or brute-force every account in the '
+		'directory without any rate limit or risk of lockout.')
+	evidence = [
+		'lockoutThreshold = 0 on the domain object',
+	]
+	commands = [
+		'Get-Domain -Properties lockoutThreshold',
+		'kerbrute passwordspray -d <domain> users.txt <password>',
+	]
 	remediation = 'Set an account lockout threshold (for example 5 to 10 failed attempts) in the domain password policy.'
 	references = []
 
@@ -513,6 +700,17 @@ class LdapEnforcementCheck(Check):
 	unit = 'setting(s)'
 	mode = 'active'
 	detail = 'The domain controller does not require LDAP signing or LDAPS channel binding. An attacker can relay NTLM authentication to LDAP and take over the domain.'
+	description = ('The domain controller does not require LDAP signing and/or LDAPS channel binding. '
+		'Without them, NTLM authentication can be relayed to LDAP or LDAPS to write directory objects — '
+		'a common path to RBCD or Shadow Credentials and, from there, full domain compromise.')
+	evidence = [
+		'LDAP signing is not required by the domain controller',
+		'LDAPS channel binding (EPA) is not enforced',
+	]
+	commands = [
+		'ntlmrelayx.py -t ldap://<dc> --delegate-access',
+		'GET /api/server/ldap-enforcement',
+	]
 	remediation = 'Require LDAP signing and enable LDAPS channel binding on all domain controllers through Group Policy.'
 	references = ['https://attack.mitre.org/techniques/T1557/']
 
@@ -543,6 +741,17 @@ class NoPacCheck(Check):
 	mode = 'active'
 	unit = 'domain'
 	detail = 'The domain controller hands out a ticket without a PAC when asked. A normal user can use this to act as a Domain Admin.'
+	description = ('The domain controller issued a ticket without a PAC on request — the behaviour that '
+		'CVE-2021-42278 / CVE-2021-42287 (noPac / sAMAccountName spoofing) exploits. Combined with a '
+		'non-zero MachineAccountQuota, a standard domain user can escalate straight to Domain Admin.')
+	evidence = [
+		'the KDC returned a PAC-less TGT smaller than the PAC-bearing TGT',
+		'the domain controllers are missing the November 2021 update',
+	]
+	commands = [
+		'noPac.py {target}/<user>:<pass> -dc-ip <dc> -dump',
+		'Patch: install KB5008380 / KB5008382 or later on every DC',
+	]
 	remediation = 'Install the November 2021 update or later on every domain controller.'
 	references = ['https://github.com/Ridter/noPac',
 		'https://www.thehacker.recipes/ad/movement/kerberos/samaccountname-spoofing']
