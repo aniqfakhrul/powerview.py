@@ -149,7 +149,7 @@ window.PV.pages.dashboard = function () {
 				h('td', { style: { color: 'var(--accent)' } }, f.code || f.id),
 				h('td', f.subject || (f.count + ' ' + (f.unit || ''))),
 				h('td', { style: { color: 'var(--text-2)', whiteSpace: 'normal', maxWidth: 'none' } },
-					f.detail || f.title)))
+					f.title || f.detail)))
 			: [h('tr', h('td', { colspan: 4 }, h('div.empty', 'no findings')))];
 		const stickyTh = w => {
 			const s = { position: 'sticky', top: '0', background: 'var(--panel)', zIndex: 1 };

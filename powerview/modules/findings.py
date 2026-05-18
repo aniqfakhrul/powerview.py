@@ -147,6 +147,7 @@ class Check:
 			'commands': self._expand(self.commands, context),
 			'remediation': self.remediation,
 			'references': list(self.references),
+			'scanned_at': None,
 		}
 
 	@staticmethod
@@ -795,7 +796,11 @@ class FindingsEngine:
 			if check.mode == 'active' and not active:
 				continue
 			try:
-				findings.extend(check.run(self.powerview) or [])
+				results = check.run(self.powerview) or []
+				scanned_at = datetime.now().isoformat(timespec='seconds')
+				for finding in results:
+					finding['scanned_at'] = scanned_at
+				findings.extend(results)
 			except Exception as e:
 				logging.error("[FindingsEngine] check '%s' failed: %s" % (check.id, e))
 				errors.append({'check': check.id, 'error': str(e)})

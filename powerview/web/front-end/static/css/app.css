@@ -1514,6 +1514,8 @@ kbd {
 .finding-row .sev-low      { color: var(--blue); }
 .finding-row .id-cell      { color: var(--accent); font-weight: 500; }
 .finding-row .title-cell   { color: var(--text); }
+.finding-row .scanned-cell { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fd-scanned { color: var(--muted); font-family: var(--font-mono); font-size: 10.5px; margin-top: 3px; }
 
 .finding-detail { font-size: var(--fs-sm); overflow-y: auto; flex: 1; }
 .finding-detail-head {

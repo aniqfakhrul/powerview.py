@@ -130,16 +130,19 @@ window.PV.pages.findings = function () {
 			h('td', { style: { color: 'var(--text-2)' } }, f.category || ''),
 			h('td.id-cell', f.code || f.id),
 			h('td.title-cell', { style: { whiteSpace: 'normal', maxWidth: 'none' } }, f.title || ''),
-			h('td', { style: { color: 'var(--muted)' } }, f.subject || '')));
+			h('td', { style: { color: 'var(--muted)' } }, f.subject || ''),
+			h('td.scanned-cell', { title: f.scanned_at || '' },
+				f.scanned_at ? ago(f.scanned_at) : '—')));
 		const table = h('table.grid',
 			h('thead', h('tr',
 				h('th', { style: { width: '110px' } }, 'Severity'),
 				h('th', { style: { width: '110px' } }, 'Category'),
 				h('th', { style: { width: '110px' } }, 'ID'),
 				h('th', 'Title'),
-				h('th', { style: { width: '220px' } }, 'Source'))),
+				h('th', { style: { width: '220px' } }, 'Source'),
+				h('th', { style: { width: '120px' } }, 'Scanned'))),
 			h('tbody', rows.length ? rows
-				: [h('tr', h('td', { colspan: 5, style: { padding: '32px', textAlign: 'center',
+				: [h('tr', h('td', { colspan: 6, style: { padding: '32px', textAlign: 'center',
 					color: 'var(--muted)' } }, 'No findings match the current filters.'))]));
 		clear(tableHost);
 		tableHost.appendChild(h('div.table-wrap', table));
@@ -172,6 +175,8 @@ window.PV.pages.findings = function () {
 		d.appendChild(section('Source / Affected',
 			h('div.body',
 				h('p', h('span.em', f.subject || (f.count + ' ' + (f.unit || '')))),
+				f.scanned_at ? h('p.fd-scanned',
+					'scanned ' + ago(f.scanned_at) + ' · ' + f.scanned_at.replace('T', ' ')) : null,
 				aff.length ? h('div.fd-affected',
 					aff.map(x => h('div.fd-affected-row', h('span.k', '·'), h('span.v', String(x))))) : null)));
 
