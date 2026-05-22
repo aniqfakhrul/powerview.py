@@ -426,6 +426,7 @@ def powerview_arg_parse(cmd):
 	get_domaingposettings_parser = subparsers.add_parser('Get-DomainGPOSettings', aliases=['Get-GPOSettings'], exit_on_error=False)
 	get_domaingposettings_parser.add_argument('-Identity', action='store', dest='identity', type=parse_identity_list)
 	get_domaingposettings_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
+	get_domaingposettings_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domaingposettings_parser.add_argument('-Server', action='store', dest='server')
 	get_domaingposettings_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaingposettings_parser.add_argument('-Where', action='store', dest='where')

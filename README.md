@@ -249,6 +249,7 @@ Find-LocalAdminAccess          Get-EventLog                   Invoke-PrinterBug 
 | ------ | ----- | ---- |
 |Get-DomainGPO|| Query for domain group policy objects |
 |Get-DomainGPOLocalGroup|Get-GPOLocalGroup|Query all GPOs in a domain that modify local group memberships through `Restricted Groups` or `Group Policy preferences`|
+|Get-DomainGPOSettings|Get-GPOSettings|Parse a GPO's machine and user settings from SYSVOL|
 |Add-GPLink||Create new GPO link to an OU|
 |Remove-GPLink||Remove GPO link from an OU|
 

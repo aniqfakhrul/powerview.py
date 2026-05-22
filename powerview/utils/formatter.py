@@ -557,11 +557,38 @@ class FORMATTER:
         temp = []
         for i in range(len(value)):
             if isinstance(value[i], list):
-                temp += value[i]
+                for sub in value[i]:
+                    temp.append(self._stringify_item(sub))
             else:
-                temp.append(value[i])
-        
+                temp.append(self._stringify_item(value[i]))
+
         return temp
+
+    def _stringify_item(self, item):
+        if isinstance(item, str):
+            return item
+        if isinstance(item, bytes):
+            return self.format_binary_data(item)
+        if isinstance(item, dict):
+            if "encoded" in item:
+                return str(item["encoded"])
+            if "som" in item and "somType" in item:
+                som = item.get("som", "")
+                som_type = item.get("somType", "")
+                order = item.get("order", "")
+                enabled = "Y" if item.get("enabled") else "N"
+                enforced = "Y" if item.get("enforced") else "N"
+                return f"{som_type}: {som} (order={order}, enabled={enabled}, enforced={enforced})"
+            if "id" in item and "title" in item:
+                severity = str(item.get("severity", "")).upper()
+                label = item.get("label", "")
+                title = item.get("title", "")
+                ident = item.get("id", "")
+                tag = f"[{severity}] " if severity else ""
+                suffix = f" ({label})" if label else ""
+                return f"{tag}{ident}{suffix}: {title}"
+            return str(item)
+        return str(item)
 
     def beautify(self, strs, lens):
         if isinstance(strs, str) and not self.args.nowrap:
@@ -642,10 +669,8 @@ class FORMATTER:
                 formatted_items.append(item.strftime(self.config['date_format']))
             elif isinstance(item, bytes):
                 formatted_items.append(self.format_binary_data(item))
-            elif isinstance(item, dict) and "encoded" in item:
-                formatted_items.append(str(item["encoded"]))
             else:
-                formatted_items.append(str(item))
+                formatted_items.append(self._stringify_item(item))
                 
         # Join items
         result = "\n".join(formatted_items)

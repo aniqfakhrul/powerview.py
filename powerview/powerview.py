@@ -1240,22 +1240,21 @@ class PowerView:
 					entry["attributes"].pop("nTSecurityDescriptor", None)
 
 			if resolve_gplink:
-				if len(entry['attributes']['gPLink']) == 0:
-					continue
-				gplinks = re.findall(r"(\{{0,1}([0-9a-fA-F]){8}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){12}\}{0,1})",entry["attributes"]["gPLink"],re.M)
-				if gplinks:
+				if len(entry['attributes'].get('gPLink') or '') == 0:
+					entry['attributes']['resolvedGPLink'] = []
+				else:
+					gplinks = re.findall(r"(\{{0,1}([0-9a-fA-F]){8}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){4}-([0-9a-fA-F]){12}\}{0,1})",entry["attributes"]["gPLink"],re.M)
 					gplink_list = []
-					for guid in [guids[0] for guids in gplinks]:
-						gpo = self.get_domaingpo(identity=guid, properties=["displayName"])
-						if len(gpo) == 0:
-							logging.debug("[Get-DomainOU] gPLink not found. Cant resolve %s" % (guid))
-						elif len(gpo) > 1:
-							logging.debug("[Get-DomainOU] More than one gPLink found for %s. Ignoring..." % (guid))
-						else:
-							gplink_list.append("{} ({})".format(guid, gpo[0].get("attributes").get("displayName")))
-					
-					if len(gplink_list) != 0:
-						entry["attributes"]["gPLink"] = gplink_list
+					if gplinks:
+						for guid in [guids[0] for guids in gplinks]:
+							gpo = self.get_domaingpo(identity=guid, properties=["displayName"])
+							if len(gpo) == 0:
+								logging.debug("[Get-DomainOU] gPLink not found. Cant resolve %s" % (guid))
+							elif len(gpo) > 1:
+								logging.debug("[Get-DomainOU] More than one gPLink found for %s. Ignoring..." % (guid))
+							else:
+								gplink_list.append("{} ({})".format(guid, gpo[0].get("attributes").get("displayName")))
+					entry['attributes']['resolvedGPLink'] = gplink_list
 
 			if writable:
 				if is_writable:
@@ -3734,6 +3733,8 @@ displayName=New Group Policy Object
 			'gPCFunctionalityVersion': 2,
 			'gPCFileSysPath': "\\\\%s\\SysVol%s" % (self.domain, policy_path.replace("/","\\"))
 		}
+		if description:
+			gpo_data['description'] = description
 
 		self.ldap_session.add(dn, ['top','container','groupPolicyContainer'], gpo_data)
 
@@ -3850,12 +3851,12 @@ displayName=New Group Policy Object
 
 		logging.debug(f"[Remove-GPLink] Found GPO with GUID {gpidentity}")
 
-		# verify that the target identity exists
 		target_identity = self.get_domainobject(identity=targetidentity, properties=[
 			'*',
 			],
 			searchbase=targetsearchbase,
-			sd_flag=sd_flag
+			sd_flag=sd_flag,
+			no_cache=True
 			)
 		if len(target_identity) > 1:
 			logging.error("[Remove-GPLink] More than one principal identity found")
@@ -3940,7 +3941,8 @@ displayName=New Group Policy Object
 			'*',
 			],
 			searchbase=targetsearchbase,
-			sd_flag=sd_flag
+			sd_flag=sd_flag,
+			no_cache=True
 			)
 		if len(target_identity) > 1:
 			logging.error("[Add-GPLink] More than one principal identity found")
