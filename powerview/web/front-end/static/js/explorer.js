@@ -58,7 +58,7 @@ window.PV.pages.explorer = async function () {
 		const kids = h('div.tnode-children');
 		kids.hidden = true;
 		let loaded = false, expanded = false;
-		const twist = h('span.twist', expandable ? '▸' : '');
+		const twist = h('span.twist', expandable ? { onclick: (e) => { e.stopPropagation(); toggleExpand(); } } : {}, expandable ? '▸' : '');
 		const row = h('div.tree-node', { style: { paddingLeft: (4 + depth * 14) + 'px' } },
 			twist, h('span', { class: 'ic t-' + t, html: objIcon(t) }), h('span.lbl', node.name),
 			!expandable ? h('span.meta', t) : null);
@@ -84,7 +84,6 @@ window.PV.pages.explorer = async function () {
 			$('.tree-node.selected', tree) && $('.tree-node.selected', tree).classList.remove('selected');
 			row.classList.add('selected');
 			selectObject(node);
-			toggleExpand();
 		};
 		if (autoExpand) toggleExpand();
 		return h('div', row, kids);

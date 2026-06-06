@@ -59,8 +59,22 @@ const PRIV_GROUPS = ['domain admins', 'enterprise admins', 'schema admins', 'adm
 	'account operators', 'backup operators', 'server operators', 'print operators',
 	'dnsadmins', 'group policy creator owners'];
 
+let fieldSeq = 0;
+function isFormField(el) {
+	return el instanceof Element && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName);
+}
 function field(label, control, help) {
-	return h('div', h('div.lbl', label), control, help || null);
+	let lbl;
+	if (typeof label === 'string' && isFormField(control)) {
+		const id = control.id || 'pv-field-' + (++fieldSeq);
+		control.id = id;
+		lbl = h('label.lbl', { for: id }, label);
+	} else {
+		if (typeof label === 'string' && control instanceof Element)
+			control.setAttribute('aria-label', label);
+		lbl = h('div.lbl', label);
+	}
+	return h('div', lbl, control, help || null);
 }
 
 /* ============================ ACTION MODALS ============================ */
@@ -101,21 +115,25 @@ function setPasswordModal(u) {
 		h('div.form-help', { html: 'Replaces <span class="em">unicodePwd</span> via LDAP modify over LDAPS.'
 			+ (u.admin ? ' <span style="color:var(--red)">Target is AdminSDHolder-protected</span> — ACLs re-stamp within ~60 min.' : '') }),
 		result);
-	const m = modal({ cmd: 'Set-DomainUserPassword', subject: u.sam, width: 460, body: body });
+	let busy = false;
+	const m = modal({ cmd: 'Set-DomainUserPassword', subject: u.sam, width: 460, body: body, canClose: () => !busy });
+	const cancel = btn('Cancel', null, m.close);
 	const submit = btn('Set password', 'primary', doSubmit);
-	m.setFooter([btn('Cancel', null, m.close), submit]);
+	m.setFooter([cancel, submit]);
 	async function doSubmit() {
 		recalc();
 		if (!pwd.value || pwd.value !== pwd2.value) { toast('error', 'enter and confirm a password'); return; }
-		submit.disabled = true; submit.textContent = 'Setting…';
+		busy = true; cancel.disabled = true; submit.disabled = true; submit.textContent = 'Setting…';
 		try {
 			const r = await api.op('set', 'domainuserpassword', { identity: u.sam, accountpassword: pwd.value });
 			assertWriteOk(r, 'Password reset failed for ' + u.sam + ' (account not found or access denied)');
 			pwd.disabled = pwd2.disabled = true;
 			result.className = 'form-result'; result.hidden = false;
 			result.textContent = '[+] Password reset for ' + u.sam;
+			busy = false;
 			m.setFooter(btn('Done', 'primary', m.close));
 		} catch (e) {
+			busy = false; cancel.disabled = false;
 			result.className = 'form-result err'; result.hidden = false;
 			result.textContent = '[-] ' + e.message;
 			submit.disabled = false; submit.textContent = 'Set password';
@@ -140,13 +158,15 @@ function addToGroupModal(u, onDone) {
 		h('div.form-help', { html: 'Writes the <span class="em">member</span> attribute on the group; '
 			+ 'effective at the DC immediately.' }),
 		result);
-	const m = modal({ cmd: 'Add-DomainGroupMember', subject: u.sam, width: 480, body: body });
+	let busy = false;
+	const m = modal({ cmd: 'Add-DomainGroupMember', subject: u.sam, width: 480, body: body, canClose: () => !busy });
+	const cancel = btn('Cancel', null, m.close);
 	const submit = btn('Add member', 'primary', doSubmit);
-	m.setFooter([btn('Cancel', null, m.close), submit]);
+	m.setFooter([cancel, submit]);
 	async function doSubmit() {
 		const g = grp.value.trim();
 		if (!g) { toast('error', 'enter a target group'); return; }
-		submit.disabled = true; submit.textContent = 'Adding…';
+		busy = true; cancel.disabled = true; submit.disabled = true; submit.textContent = 'Adding…';
 		try {
 			const r = await api.op('add', 'domaingroupmember', { identity: g, members: u.sam });
 			assertWriteOk(r, "Failed to add '" + u.sam + "' to '" + g + "' (group/member not found or access denied)");
@@ -154,8 +174,10 @@ function addToGroupModal(u, onDone) {
 			result.className = 'form-result'; result.hidden = false;
 			result.textContent = "[+] Added '" + u.sam + "' to '" + g + "'";
 			if (onDone) onDone(g);   /* let the inspector refresh its memberOf panel */
+			busy = false;
 			m.setFooter(btn('Done', 'primary', m.close));
 		} catch (e) {
+			busy = false; cancel.disabled = false;
 			result.className = 'form-result err'; result.hidden = false;
 			result.textContent = '[-] ' + e.message;
 			submit.disabled = false; submit.textContent = 'Add member';
@@ -182,13 +204,15 @@ function addGroupMemberModal(g, onDone) {
 		h('div.form-help', 'Writes the ', h('span.em', 'member'), ' attribute on ',
 			h('span.em', g.name || 'the group'), '; effective at the DC immediately.'),
 		result);
-	const m = modal({ cmd: 'Add-DomainGroupMember', subject: g.name, width: 480, body: body });
+	let busy = false;
+	const m = modal({ cmd: 'Add-DomainGroupMember', subject: g.name, width: 480, body: body, canClose: () => !busy });
+	const cancel = btn('Cancel', null, m.close);
 	const submit = btn('Add member', 'primary', doSubmit);
-	m.setFooter([btn('Cancel', null, m.close), submit]);
+	m.setFooter([cancel, submit]);
 	async function doSubmit() {
 		const member = mem.value.trim();
 		if (!member) { toast('error', 'enter a member to add'); return; }
-		submit.disabled = true; submit.textContent = 'Adding…';
+		busy = true; cancel.disabled = true; submit.disabled = true; submit.textContent = 'Adding…';
 		try {
 			const r = await api.op('add', 'domaingroupmember', { identity: g.dn || g.name, members: member });
 			assertWriteOk(r, "Failed to add '" + member + "' to '" + g.name + "' (member/group not found or access denied)");
@@ -196,8 +220,10 @@ function addGroupMemberModal(g, onDone) {
 			result.className = 'form-result'; result.hidden = false;
 			result.textContent = "[+] Added '" + member + "' to '" + g.name + "'";
 			if (onDone) onDone();   /* let the inspector reload its Members panel */
+			busy = false;
 			m.setFooter(btn('Done', 'primary', m.close));
 		} catch (e) {
+			busy = false; cancel.disabled = false;
 			result.className = 'form-result err'; result.hidden = false;
 			result.textContent = '[-] ' + e.message;
 			submit.disabled = false; submit.textContent = 'Add member';
@@ -215,19 +241,23 @@ function removeGroupMemberModal(g, memberLabel, memberId, onDone) {
 		h('div.form-help', { html: "Clears the principal from the group's <span class=\"em\">member</span> "
 			+ 'attribute (DC event 4729). The member object itself is not deleted.' }),
 		result);
-	const m = modal({ cmd: 'Remove-DomainGroupMember', subject: g.name, width: 460, body: body });
+	let busy = false;
+	const m = modal({ cmd: 'Remove-DomainGroupMember', subject: g.name, width: 460, body: body, canClose: () => !busy });
+	const cancel = btn('Cancel', null, m.close);
 	const submit = btn('Remove member', 'danger', doSubmit);
-	m.setFooter([btn('Cancel', null, m.close), submit]);
+	m.setFooter([cancel, submit]);
 	async function doSubmit() {
-		submit.disabled = true; submit.textContent = 'Removing…';
+		busy = true; cancel.disabled = true; submit.disabled = true; submit.textContent = 'Removing…';
 		try {
 			const r = await api.op('remove', 'domaingroupmember', { identity: g.dn || g.name, members: memberId });
 			assertWriteOk(r, "Failed to remove '" + memberLabel + "' from '" + g.name + "' (not found or access denied)");
 			result.className = 'form-result'; result.hidden = false;
 			result.textContent = "[+] Removed '" + memberLabel + "' from '" + g.name + "'";
 			if (onDone) onDone();   /* refresh the inspector's Members panel */
+			busy = false;
 			m.setFooter(btn('Done', 'primary', m.close));
 		} catch (e) {
+			busy = false; cancel.disabled = false;
 			result.className = 'form-result err'; result.hidden = false;
 			result.textContent = '[-] ' + e.message;
 			submit.disabled = false; submit.textContent = 'Remove member';
@@ -246,21 +276,25 @@ function setOwnerModal(obj, kind) {
 		h('div.form-help', { html: 'The owner of an object implicitly holds <span class="em">WriteDacl</span> '
 			+ '— a common persistence primitive (also audit event 5136).' }),
 		result);
-	const m = modal({ cmd: 'Set-DomainObjectOwner', subject: name, width: 480, body: body });
+	let busy = false;
+	const m = modal({ cmd: 'Set-DomainObjectOwner', subject: name, width: 480, body: body, canClose: () => !busy });
+	const cancel = btn('Cancel', null, m.close);
 	const submit = btn('Set owner', 'primary', doSubmit);
-	m.setFooter([btn('Cancel', null, m.close), submit]);
+	m.setFooter([cancel, submit]);
 	async function doSubmit() {
 		const o = owner.value.trim();
 		if (!o) { toast('error', 'enter a new owner'); return; }
-		submit.disabled = true; submit.textContent = 'Setting…';
+		busy = true; cancel.disabled = true; submit.disabled = true; submit.textContent = 'Setting…';
 		try {
 			const r = await api.op('set', 'domainobjectowner', { targetidentity: target, principalidentity: o });
 			assertWriteOk(r, "Failed to set owner of '" + name + "' (target/principal not found or access denied)");
 			owner.disabled = true;
 			result.className = 'form-result'; result.hidden = false;
 			result.textContent = "[+] Owner of '" + name + "' set to '" + o + "'";
+			busy = false;
 			m.setFooter(btn('Done', 'primary', m.close));
 		} catch (e) {
+			busy = false; cancel.disabled = false;
 			result.className = 'form-result err'; result.hidden = false;
 			result.textContent = '[-] ' + e.message;
 			submit.disabled = false; submit.textContent = 'Set owner';
@@ -280,12 +314,14 @@ function deleteObjectModal(obj, kind, onDone) {
 			+ '<span style="color:var(--red);font-weight:600">CN=Deleted Objects</span> and tombstoned.' }),
 		field(h('span', 'Type ', h('span', { style: { color: 'var(--accent)' } }, name), ' to confirm'), confirm),
 		result);
+	let busy = false;
 	const m = modal({ cmd: kind === 'user' ? 'Remove-DomainUser' : 'Remove-DomainComputer',
-		subject: name, width: 460, body: body });
-	m.setFooter([btn('Cancel', null, m.close), submit]);
+		subject: name, width: 460, body: body, canClose: () => !busy });
+	const cancel = btn('Cancel', null, m.close);
+	m.setFooter([cancel, submit]);
 	async function doSubmit() {
 		if (confirm.value !== name) return;
-		submit.disabled = true; submit.textContent = 'Deleting…';
+		busy = true; cancel.disabled = true; submit.disabled = true; submit.textContent = 'Deleting…';
 		try {
 			const r = kind === 'user'
 				? await api.op('remove', 'domainuser', { identity: obj.dn || name })
@@ -295,8 +331,10 @@ function deleteObjectModal(obj, kind, onDone) {
 			result.className = 'form-result'; result.hidden = false;
 			result.textContent = "[+] '" + name + "' removed";
 			if (onDone) onDone();   /* drop the row from the table behind the modal */
+			busy = false;
 			m.setFooter(btn('Done', 'primary', m.close));
 		} catch (e) {
+			busy = false; cancel.disabled = false;
 			result.className = 'form-result err'; result.hidden = false;
 			result.textContent = '[-] ' + e.message;
 			submit.disabled = false; submit.textContent = 'Delete ' + kind;
@@ -709,8 +747,9 @@ function tablePage(cfg) {
 		clear(inspectorBody); cfg.inspector(row, inspectorBody);
 		insp.show();
 	}
+	let firstLoad = true;
 	const g = grid(cfg.columns, {
-		rowKey: cfg.rowKey, empty: 'no results — run a query', sort: cfg.sort,
+		rowKey: cfg.rowKey, empty: 'run a query to load results', sort: cfg.sort,
 		onRow: showInspector,
 		onRowContext: cfg.contextMenu
 			? (row, ev) => { showInspector(row); contextMenu(ev.clientX, ev.clientY, cfg.contextMenu(row)); }
@@ -745,7 +784,8 @@ function tablePage(cfg) {
 		crumb.textContent = '/ ' + rows.length + ' / ' + allRows.length;
 	}
 	async function load() {
-		const done = withSpinner(g.el);
+		const done = firstLoad ? () => {} : withSpinner(g.el);
+		firstLoad = false;
 		try {
 			allRows = await cfg.fetch();
 			done(); buildTabs(); refresh();

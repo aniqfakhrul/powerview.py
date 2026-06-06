@@ -1,7 +1,7 @@
 /* powerview.py web ui — ops pages: SMB, Utils, Logs, Settings */
 (function () {
 "use strict";
-const { h, $, $$, clear, api, objIcon, grid, tag, btn, toast, runCmd, withSpinner, showResultModal } = window.PV;
+const { h, $, $$, clear, api, objIcon, grid, tag, btn, toast, runCmd, withSpinner, showResultModal, modal } = window.PV;
 
 /* ============================ SMB BROWSER ============================ */
 window.PV.pages.smb = function () {
@@ -115,9 +115,16 @@ window.PV.pages.smb = function () {
 		h('div.page-head', h('span.title', 'SMB Browser'), crumb, h('span.grow'),
 			h('div.toolbar', btn('⚡ Spider secrets', 'primary', () => {
 				if (!curHost || !curShare) return toast('info', 'open a share first');
-				showResultModal('Spider secrets', curHost + '\\' + curShare,
-					api.post('/api/smb/search', { computer: curHost, share: curShare, start_path: curPath, cred_hunt: true, depth: 5 })
-						.then(r => (r && r.items) || []));
+				const target = curHost + '\\' + curShare;
+				const m = modal({ title: 'Spider secrets?',
+					body: h('div.form-stack',
+						h('div.form-warn', 'This crawls ' + target + ' recursively, hunting for credentials. It may take a while.')) });
+				m.setFooter([btn('Cancel', null, m.close), btn('Spider', 'danger', () => {
+					m.close();
+					showResultModal('Spider secrets', target,
+						api.post('/api/smb/search', { computer: curHost, share: curShare, start_path: curPath, cred_hunt: true, depth: 5 })
+							.then(r => (r && r.items) || []));
+				})]);
 			}))),
 		credBar,
 		h('div.split',
@@ -353,8 +360,14 @@ window.PV.pages.utils = function () {
 					h('span', { id: 'util-prev' }, sel.cmd))),
 			h('div', { style: { gridColumn: '1 / -1', display: 'flex', gap: '6px',
 				justifyContent: 'flex-end', paddingTop: '8px' } },
-				btn('▷ Run', 'primary', () => runCmd(cmdInput.value)))));
+				btn('▷ Run', 'primary', () => runSel()))));
 		cmdInput.addEventListener('input', () => { const p = $('#util-prev'); if (p) p.textContent = cmdInput.value; });
+		function runSel() {
+			if (sel.risk !== 'high') return runCmd(cmdInput.value);
+			const m = modal({ title: 'Run ' + sel.name + '?',
+				body: h('div.form-stack', h('div.form-help', 'This executes: '), h('code.mono', cmdInput.value)) });
+			m.setFooter([btn('Cancel', null, m.close), btn('Run', 'danger', () => { m.close(); runCmd(cmdInput.value); })]);
+		}
 	}
 	renderGrid(); renderForm();
 };
@@ -384,7 +397,12 @@ window.PV.pages.settings = function () {
 	function toggle(checked, onChange) {
 		const sel = h('select', h('option', { value: 'on' }, 'enabled'), h('option', { value: 'off' }, 'disabled'));
 		sel.value = checked ? 'on' : 'off';
-		sel.onchange = () => onChange(sel.value === 'on');
+		let prev = sel.value;
+		sel.onchange = () => {
+			const restore = prev;
+			prev = sel.value;
+			onChange(sel.value === 'on', sel, () => { sel.value = restore; prev = restore; });
+		};
 		return sel;
 	}
 
@@ -395,9 +413,14 @@ window.PV.pages.settings = function () {
 
 		const fg = h('div.form-grid');
 		const state = { obfuscate: !!settings.obfuscate, no_cache: !!settings.no_cache, no_vuln_check: !!settings.no_vuln_check };
-		async function save() {
+		let saving = false;
+		async function save(el, revert) {
+			if (saving) { if (revert) revert(); return; }
+			saving = true;
+			if (el) el.disabled = true;
 			try { await api.post('/api/set/settings', state); toast('success', 'settings updated'); }
-			catch (e) { toast('error', e.message); }
+			catch (e) { if (revert) revert(); toast('error', e.message); }
+			finally { saving = false; if (el) el.disabled = false; }
 		}
 
 		fg.append(
@@ -411,11 +434,11 @@ window.PV.pages.settings = function () {
 
 			h('div.section-divider', { id: 'sec-1' }, 'QUERY OPTIONS'),
 			h('span.label', 'Obfuscate queries'),
-			toggle(state.obfuscate, v => { state.obfuscate = v; save(); }),
+			toggle(state.obfuscate, (v, el, undo) => { const o = state.obfuscate; state.obfuscate = v; save(el, () => { state.obfuscate = o; undo(); }); }),
 			h('span.label', 'Query cache'),
-			toggle(!state.no_cache, v => { state.no_cache = !v; save(); }),
+			toggle(!state.no_cache, (v, el, undo) => { const o = state.no_cache; state.no_cache = !v; save(el, () => { state.no_cache = o; undo(); }); }),
 			h('span.label', 'Vulnerability checks'),
-			toggle(!state.no_vuln_check, v => { state.no_vuln_check = !v; save(); }),
+			toggle(!state.no_vuln_check, (v, el, undo) => { const o = state.no_vuln_check; state.no_vuln_check = !v; save(el, () => { state.no_vuln_check = o; undo(); }); }),
 			h('span.label', ''), h('div', btn('Clear cache', null,
 				() => api.get('/api/clear-cache').then(() => toast('success', 'cache cleared')).catch(e => toast('error', e.message)))));
 

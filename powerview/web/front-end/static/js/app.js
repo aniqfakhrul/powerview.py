@@ -63,7 +63,7 @@ let toastHost;
 function toast(kind, msg) {
 	if (!toastHost) { toastHost = h('div.toast-stack', { role: 'status', 'aria-live': 'polite' }); document.body.appendChild(toastHost); }
 	const t = h('div.toast.' + kind, h('span.grow', msg),
-		h('span.x', { onclick: () => t.remove() }, '✕'));
+		h('span.x', { 'aria-label': 'Dismiss', onclick: () => t.remove() }, '✕'));
 	toastHost.appendChild(t);
 	while (toastHost.children.length > 5) toastHost.firstChild.remove();
 	setTimeout(() => t.remove(), 5500);
@@ -380,9 +380,10 @@ function openTweaks(anchor) {
 	pop.style.left = r.left + 'px';
 	pop.style.top = (r.bottom + 2) + 'px';
 	document.body.appendChild(pop);
+	anchor.setAttribute('aria-expanded', 'true');
 	setTimeout(() => {
 		document.addEventListener('mousedown', function off(e) {
-			if (!pop.contains(e.target) && e.target !== anchor) { pop.remove(); document.removeEventListener('mousedown', off); }
+			if (!pop.contains(e.target) && e.target !== anchor) { pop.remove(); anchor.setAttribute('aria-expanded', 'false'); document.removeEventListener('mousedown', off); }
 		});
 	}, 0);
 }
@@ -756,6 +757,9 @@ function initShell() {
 	if (statusBar) statusBar.addEventListener('click', () => toggleLogPanel());
 
 	const view = $('.menu button[data-menu="view"]');
+	const helpBtn = $('.menu button[data-menu="help"]');
+	if (view) view.setAttribute('aria-haspopup', 'true');
+	if (helpBtn) helpBtn.setAttribute('aria-haspopup', 'true');
 	if (view) view.onclick = () => openTweaks(view);
 	$$('.menu button').forEach(b => { if (b.dataset.menu !== 'view') b.onclick = () => toast('info', b.textContent + ' menu — not wired'); });
 
@@ -801,7 +805,7 @@ function objIcon(type) {
 /* items: {header,iconType,tag} | {section} | {divider} | {icon,label,onClick,danger,disabled,shortcut} */
 function contextMenu(x, y, items) {
 	$$('.ctx-menu').forEach(m => m.remove());
-	const menu = h('div.ctx-menu', { style: { visibility: 'hidden' },
+	const menu = h('div.ctx-menu', { role: 'menu', style: { visibility: 'hidden' },
 		oncontextmenu: e => e.preventDefault() });
 	items.forEach(it => {
 		if (it.divider) { menu.appendChild(h('div.ctx-div')); return; }
@@ -814,7 +818,8 @@ function contextMenu(x, y, items) {
 			return;
 		}
 		const row = h('div', {
-			class: 'ctx-item' + (it.danger ? ' danger' : '') + (it.disabled ? ' disabled' : '') },
+			class: 'ctx-item' + (it.danger ? ' danger' : '') + (it.disabled ? ' disabled' : ''),
+			role: 'menuitem', tabindex: '-1' },
 			h('span.ctx-icon', it.icon || ''),
 			h('span.ctx-label', it.label),
 			it.shortcut ? h('span.ctx-shortcut', it.shortcut) : null);
@@ -829,6 +834,13 @@ function contextMenu(x, y, items) {
 	menu.style.left = Math.max(4, nx) + 'px';
 	menu.style.top  = Math.max(4, ny) + 'px';
 	menu.style.visibility = 'visible';
+	const menuItems = () => Array.prototype.slice.call(menu.querySelectorAll('.ctx-item:not(.disabled)'));
+	function focusItem(el) {
+		menuItems().forEach(m => { if (m !== el) m.style.background = ''; });
+		if (el) { el.style.background = 'var(--panel-3)'; el.focus(); }
+	}
+	const first = menuItems()[0];
+	if (first) focusItem(first);
 	function close() {
 		menu.remove();
 		document.removeEventListener('mousedown', onAway, true);
@@ -836,7 +848,19 @@ function contextMenu(x, y, items) {
 		document.removeEventListener('keydown', onKey, true);
 	}
 	function onAway(e) { if (!menu.contains(e.target)) close(); }
-	function onKey(e) { if (e.key === 'Escape') close(); }
+	function onKey(e) {
+		if (e.key === 'Escape') { close(); return; }
+		const list = menuItems();
+		if (!list.length) return;
+		let idx = list.indexOf(document.activeElement);
+		if (e.key === 'ArrowDown') { e.preventDefault(); focusItem(list[(idx + 1 + list.length) % list.length]); }
+		else if (e.key === 'ArrowUp') { e.preventDefault(); focusItem(list[(idx - 1 + list.length) % list.length]); }
+		else if (e.key === 'Home') { e.preventDefault(); focusItem(list[0]); }
+		else if (e.key === 'End') { e.preventDefault(); focusItem(list[list.length - 1]); }
+		else if (e.key === 'Enter' || e.key === ' ') {
+			if (idx >= 0) { e.preventDefault(); list[idx].click(); }
+		}
+	}
 	setTimeout(() => {
 		document.addEventListener('mousedown', onAway, true);
 		document.addEventListener('contextmenu', onAway, true);
@@ -850,6 +874,7 @@ function contextMenu(x, y, items) {
    returns { close, body, foot, setFooter } */
 function modal(opts) {
 	opts = opts || {};
+	const prevFocus = document.activeElement;
 	const bodyEl = h('div.modal-body');
 	const footEl = h('div.modal-foot');
 	const head = h('div.modal-head', opts.cmd
@@ -857,12 +882,28 @@ function modal(opts) {
 		   opts.subject ? h('span.muted', '·') : null,
 		   opts.subject ? h('span.title-obj', opts.subject) : null]
 		: h('span', opts.title || ''));
-	const closeBtn = h('button.modal-close', { title: 'close (Esc)' }, '✕');
+	const closeBtn = h('button.modal-close', { 'aria-label': 'Close', title: 'close (Esc)' }, '✕');
 	head.appendChild(closeBtn);
-	const box = h('div.modal', { style: { width: (opts.width || 440) + 'px' } }, head, bodyEl, footEl);
+	const box = h('div.modal', { role: 'dialog', 'aria-modal': 'true',
+		'aria-label': (opts.title || opts.cmd || 'dialog'),
+		style: { width: (opts.width || 440) + 'px' } }, head, bodyEl, footEl);
 	const backdrop = h('div.modal-backdrop', box);
-	function close() { backdrop.remove(); document.removeEventListener('keydown', onKey, true); }
-	function onKey(e) { if (e.key === 'Escape') close(); }
+	function close() {
+		if (opts.canClose && !opts.canClose()) return;
+		backdrop.remove();
+		document.removeEventListener('keydown', onKey, true);
+		if (prevFocus && typeof prevFocus.focus === 'function') prevFocus.focus();
+	}
+	function onKey(e) {
+		if (e.key === 'Escape') { close(); return; }
+		if (e.key === 'Tab') {
+			const els = box.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])');
+			if (!els.length) return;
+			const firstEl = els[0], lastEl = els[els.length - 1];
+			if (e.shiftKey && document.activeElement === firstEl) { e.preventDefault(); lastEl.focus(); }
+			else if (!e.shiftKey && document.activeElement === lastEl) { e.preventDefault(); firstEl.focus(); }
+		}
+	}
 	closeBtn.onclick = close;
 	backdrop.addEventListener('mousedown', e => { if (e.target === backdrop) close(); });
 	document.addEventListener('keydown', onKey, true);
@@ -872,6 +913,7 @@ function modal(opts) {
 	document.body.appendChild(backdrop);
 	const f = bodyEl.querySelector('input,select,textarea');
 	if (f) f.focus();
+	else closeBtn.focus();
 	return { close: close, body: bodyEl, foot: footEl, setFooter: setFooter };
 }
 

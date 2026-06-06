@@ -338,13 +338,13 @@ window.PV.pages.ous = function () {
 		});
 		function render(node, depth) {
 			Object.keys(node.kids).sort().forEach(k => {
-				treeEl.appendChild(h('div.tree-node', { style: { paddingLeft: (4 + depth * 14) + 'px' } },
+				treeEl.appendChild(h('div.tree-node', { style: { paddingLeft: (4 + depth * 14) + 'px', cursor: 'default' } },
 					h('span.twist', '▾'), h('span', { class: 'ic t-ou', html: objIcon('ou') }),
 					h('span.lbl', k)));
 				render(node.kids[k], depth + 1);
 			});
 		}
-		treeEl.appendChild(h('div.tree-node.selected',
+		treeEl.appendChild(h('div.tree-node.selected', { style: { cursor: 'default' } },
 			h('span.twist', '▾'), h('span', { class: 'ic t-domain', html: objIcon('domain') }),
 			h('span.lbl', 'domain root')));
 		render(root, 1);

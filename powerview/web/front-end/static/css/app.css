@@ -589,6 +589,7 @@ table.grid tbody tr.selected td { color: var(--text); }
 .node-group circle { fill: #4a3520; stroke: var(--yellow); }
 .node-domain circle { fill: #4a2a30; stroke: var(--red); }
 .node-ou circle { fill: #2f2a40; stroke: var(--magenta); }
+.node-more circle { fill: var(--panel-3); stroke: var(--muted); }
 .node-label { font-family: var(--font-mono); font-size: 10px; fill: var(--text-2); }
 .node-path circle { stroke-width: 2px; }
 .edge { stroke: var(--border-2); stroke-width: 1; }
@@ -1555,4 +1556,10 @@ kbd {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* ───────── narrow viewport (prevent horizontal overflow / clipping) ───────── */
+@media (max-width: 1000px) {
+  .app { --rail-w: 168px; --inspector-w: 280px; }
+  .pane.left { width: 220px; }
 }

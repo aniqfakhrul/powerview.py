@@ -74,7 +74,8 @@ window.PV.pages.graph = function () {
 			for (const gname of PRIV) {
 				try {
 					const mem = await api.op('get', 'domaingroupmember', { identity: gname });
-					groups.push({ name: gname, members: (mem || []).slice(0, 9) });
+					const all = mem || [];
+					groups.push({ name: gname, members: all.slice(0, 9), total: all.length });
 				} catch (e) { /* group may not exist */ }
 			}
 			done();
@@ -100,6 +101,15 @@ window.PV.pages.graph = function () {
 						attr(a, 'MemberName') || attr(a, 'MemberSID') || '?',
 						() => setPath([domName, grp.name, attr(a, 'MemberName') || '?'])));
 				});
+				const overflow = grp.total - grp.members.length;
+				if (overflow > 0) {
+					const oi = grp.members.length;
+					const oa = ga + (oi - (grp.members.length - 1) / 2) * 0.34;
+					const ox = gx + Math.cos(oa) * 110, oy = gy + Math.sin(oa) * 110;
+					edges.appendChild(s('line', { class: 'edge attack', x1: gx, y1: gy, x2: ox, y2: oy }));
+					nodes.appendChild(nodeGroup('node-more', ox, oy, 9, '+' + overflow + ' more',
+						() => setPath([domName, grp.name, '+' + overflow + ' more'])));
+				}
 				nodes.appendChild(nodeGroup('node-group', gx, gy, 15, grp.name,
 					() => setPath([domName, grp.name])));
 			});

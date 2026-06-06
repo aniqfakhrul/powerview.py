@@ -81,7 +81,7 @@ window.PV.pages.findings = function () {
 		renderStats();
 		renderFilters();
 		renderTable(view);
-		const sel = all.find(f => f.id === selId) || view[0];
+		const sel = view.find(f => f.id === selId) || view[0];
 		renderDetail(sel);
 	}
 
