@@ -66,11 +66,11 @@ a:hover { text-decoration: underline; }
   color: var(--text);
 }
 .topbar .brand:hover { text-decoration: none; }
-.topbar .brand .dot {
+.topbar .brand .brand-icon {
   width: 22px; height: 22px;
   border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
-  box-shadow: 0 0 0 1px var(--accent-glow), 0 2px 8px var(--accent-glow);
+  object-fit: contain;
+  display: block;
 }
 .topbar .menu { display: flex; gap: 2px; }
 .topbar .menu > button {
@@ -786,7 +786,7 @@ kbd {
 .toast-stack {
   position: fixed; bottom: 34px; right: 14px;
   display: flex; flex-direction: column; gap: 8px;
-  z-index: 200;
+  z-index: 400;
 }
 .toast {
   display: flex; align-items: flex-start; gap: 8px;
@@ -1014,6 +1014,7 @@ kbd {
   background: var(--panel); border: 1px solid var(--border-2);
   border-radius: var(--radius-lg); display: flex; flex-direction: column;
   max-height: 80vh; box-shadow: var(--shadow-3); min-width: 360px;
+  max-width: calc(100vw - 32px);
 }
 .modal-head {
   height: 36px; display: flex; align-items: center; gap: 8px;
@@ -1550,3 +1551,8 @@ kbd {
   color: var(--text-2); margin-top: 6px; overflow-x: auto; white-space: nowrap;
 }
 .fd-cmd .prompt { color: var(--accent); margin-right: 6px; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

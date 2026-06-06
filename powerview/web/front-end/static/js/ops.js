@@ -1,7 +1,7 @@
 /* powerview.py web ui — ops pages: SMB, Utils, Logs, Settings */
 (function () {
 "use strict";
-const { h, $, $$, clear, api, objIcon, grid, tag, btn, toast, runCmd, withSpinner } = window.PV;
+const { h, $, $$, clear, api, objIcon, grid, tag, btn, toast, runCmd, withSpinner, showResultModal } = window.PV;
 
 /* ============================ SMB BROWSER ============================ */
 window.PV.pages.smb = function () {
@@ -113,8 +113,12 @@ window.PV.pages.smb = function () {
 
 	main.append(
 		h('div.page-head', h('span.title', 'SMB Browser'), crumb, h('span.grow'),
-			h('div.toolbar', btn('⚡ Spider secrets', 'primary',
-				() => curHost ? runCmd('Find-InterestingFile -Computer ' + curHost) : toast('info', 'connect to a host first')))),
+			h('div.toolbar', btn('⚡ Spider secrets', 'primary', () => {
+				if (!curHost || !curShare) return toast('info', 'open a share first');
+				showResultModal('Spider secrets', curHost + '\\' + curShare,
+					api.post('/api/smb/search', { computer: curHost, share: curShare, start_path: curPath, cred_hunt: true, depth: 5 })
+						.then(r => (r && r.items) || []));
+			}))),
 		credBar,
 		h('div.split',
 			h('div.pane.left', { style: { width: '300px' } },
@@ -293,11 +297,11 @@ const TOOLS = [
 	{ id: 'laps',       name: 'LAPS Reader',     risk: 'medium', desc: 'Read ms-Mcs-AdmPwd where the bound account has access.',      cmd: 'Get-DomainComputer -LAPS' },
 	{ id: 'gmsa',       name: 'gMSA Password',   risk: 'medium', desc: 'Read managed service account password blobs.',                cmd: 'Get-DomainGMSA' },
 	{ id: 'trusts',     name: 'Trust Mapping',   risk: 'low',    desc: 'Recursively enumerate domain and forest trusts.',             cmd: 'Get-DomainTrustMapping' },
-	{ id: 'acl',        name: 'Interesting ACLs',risk: 'medium', desc: 'Find dangerous ACL edges on privileged objects.',             cmd: 'Find-InterestingDomainAcl' },
+	{ id: 'acl',        name: 'Interesting ACLs',risk: 'medium', desc: 'Find dangerous ACL edges on privileged objects.',             cmd: 'Get-DomainObjectAcl -Identity "Domain Admins" -ResolveGUIDs' },
 	{ id: 'unconst',    name: 'Unconstrained',   risk: 'high',   desc: 'List hosts trusted for unconstrained delegation.',            cmd: 'Get-DomainComputer -Unconstrained' },
 	{ id: 'rbcd',       name: 'RBCD',            risk: 'high',   desc: 'Resource-based constrained delegation abuse.',                cmd: 'Get-DomainRBCD' },
 	{ id: 'gpolocal',   name: 'GPO Local Group', risk: 'medium', desc: 'Map GPO-assigned local group membership.',                   cmd: 'Get-DomainGPOLocalGroup' },
-	{ id: 'dcsync',     name: 'DCSync Rights',   risk: 'high',   desc: 'Identify principals with replication (DCSync) rights.',       cmd: 'Get-DomainObjectAcl -Identity "DC=" -ResolveGUIDs' },
+	{ id: 'dcsync',     name: 'DCSync Rights',   risk: 'high',   desc: 'Identify principals with replication (DCSync) rights.',       cmd: 'Get-DomainObjectAcl -ResolveGUIDs' },
 	{ id: 'localadmin', name: 'Local Admin',     risk: 'medium', desc: 'Find machines where the current user has local admin.',       cmd: 'Find-LocalAdminAccess' }
 ];
 window.PV.pages.utils = function () {

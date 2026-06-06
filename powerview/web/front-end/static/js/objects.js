@@ -812,6 +812,8 @@ window.PV.pages.gpos = function () {
 
 	async function load() {
 		selGpo = null; selLeaf = null;
+		Object.keys(settingsCache).forEach(k => delete settingsCache[k]);
+		Object.keys(aclCache).forEach(k => delete aclCache[k]);
 		clear(listHost);
 		const done = withSpinner(listHost);
 		try {

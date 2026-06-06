@@ -61,10 +61,11 @@ const api = {
 /* ───────── toasts ───────── */
 let toastHost;
 function toast(kind, msg) {
-	if (!toastHost) { toastHost = h('div.toast-stack'); document.body.appendChild(toastHost); }
+	if (!toastHost) { toastHost = h('div.toast-stack', { role: 'status', 'aria-live': 'polite' }); document.body.appendChild(toastHost); }
 	const t = h('div.toast.' + kind, h('span.grow', msg),
 		h('span.x', { onclick: () => t.remove() }, '✕'));
 	toastHost.appendChild(t);
+	while (toastHost.children.length > 5) toastHost.firstChild.remove();
 	setTimeout(() => t.remove(), 5500);
 }
 
@@ -119,17 +120,20 @@ function grid(columns, opts) {
 				onclick: () => {
 					if (sortKey === c.key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
 					else { sortKey = c.key; sortDir = 'asc'; }
-					render();
+					render(true);
 				}
 			}, c.label, h('span.sort', active ? (sortDir === 'asc' ? '▲' : '▼') : '↕'));
 		})));
 	}
-	function render() {
+	function render(keepScroll) {
+		const prevScroll = keepScroll ? wrap.scrollTop : 0;
 		headerRow();
 		let view = rows.slice();
 		if (sortKey) {
+			const col = columns.find(c => c.key === sortKey);
+			const getv = (col && col.sortVal) ? (row) => col.sortVal(row[sortKey], row) : (row) => row[sortKey];
 			view.sort((a, b) => {
-				let av = a[sortKey], bv = b[sortKey];
+				let av = getv(a), bv = getv(b);
 				if (typeof av === 'boolean') av = av ? 1 : 0;
 				if (typeof bv === 'boolean') bv = bv ? 1 : 0;
 				if (av == null) av = ''; if (bv == null) bv = '';
@@ -145,6 +149,7 @@ function grid(columns, opts) {
 				h('div.empty', opts.empty || 'no rows'))));
 			return;
 		}
+		const frag = document.createDocumentFragment();
 		view.forEach(row => {
 			const id = opts.rowKey ? opts.rowKey(row) : null;
 			const selectRow = () => {
@@ -166,8 +171,10 @@ function grid(columns, opts) {
 				if (c.title !== false && typeof cell === 'string') td.title = cell;
 				return td;
 			}));
-			tbody.appendChild(tr);
+			frag.appendChild(tr);
 		});
+		tbody.appendChild(frag);
+		if (keepScroll) wrap.scrollTop = prevScroll;
 	}
 	render();
 	return {
@@ -753,12 +760,12 @@ function initShell() {
 	$$('.menu button').forEach(b => { if (b.dataset.menu !== 'view') b.onclick = () => toast('info', b.textContent + ' menu — not wired'); });
 
 	document.addEventListener('keydown', e => {
-		if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
-		const n = parseInt(e.key, 10);
-		if (!isNaN(n)) {
-			const order = ['explorer','dashboard','graph','users','computers','groups','dns','ca','ous','gpos'];
-			const item = NAV.find(x => x.id === order[n === 0 ? 9 : n - 1]);
-			if (item) location.href = item.href;
+		if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+		if (e.ctrlKey || e.metaKey || e.altKey) return;
+		if (document.querySelector('.modal-backdrop, .ctx-menu')) return;
+		if (/^[0-9]$/.test(e.key)) {
+			const idx = e.key === '0' ? 9 : parseInt(e.key, 10) - 1;
+			if (idx >= 0 && idx < NAV.length) location.href = NAV[idx].href;
 		}
 	});
 }

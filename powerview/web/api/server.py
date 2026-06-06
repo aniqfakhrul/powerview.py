@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from flask import Flask, jsonify, request, render_template, Response, stream_with_context
+from werkzeug.utils import secure_filename
 import logging
 from contextlib import redirect_stdout, redirect_stderr
 import io
@@ -375,7 +376,14 @@ class APIServer:
 		return jsonify({'status': 'OK' if success else 'KO'}), 200 if success else 400
 	
 	def handle_settings(self):
-		return jsonify(vars(self.powerview.args))
+		sensitive_keys = {'password', 'lmhash', 'nthash', 'hashes', 'auth_aes_key', 'web_auth', 'pfx_pass', 'tgt', 'tgs'}
+		safe = {}
+		for key, value in vars(self.powerview.args).items():
+			key_lower = key.lower()
+			is_secret = (key in sensitive_keys or 'password' in key_lower or 'passwd' in key_lower
+				or 'secret' in key_lower or key_lower.endswith('hash') or key_lower.endswith('aes_key'))
+			safe[key] = '********' if (is_secret and value) else value
+		return jsonify(make_serializable(safe))
 
 	def handle_server_info(self):
 		server_info = self.powerview.conn.get_server_info()
@@ -986,15 +994,20 @@ class APIServer:
 			if not computer or not share:
 				return jsonify({'error': 'Computer name/IP and share name are required'}), 400
 
+			if file is None or not file.filename:
+				return jsonify({'error': 'No file provided'}), 400
+
+			safe_name = secure_filename(file.filename) or 'upload'
+
 			try:
 				client = self.powerview.conn.init_smb_session(computer)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
 			smb_client = SMBClient(client)
-			
+
 			# Save file temporarily
-			temp_path = os.path.join('/tmp', file.filename)
+			temp_path = os.path.join('/tmp', safe_name)
 			file.save(temp_path)
 			
 			try:
@@ -1002,7 +1015,7 @@ class APIServer:
 				# current_path might be like "/FolderA" or "" for root
 				# file.filename is the original filename
 				clean_dest_dir = current_path.strip('/').replace('/', '\\')
-				remote_target_path = os.path.join(clean_dest_dir, file.filename).replace('/', '\\')
+				remote_target_path = os.path.join(clean_dest_dir, safe_name).replace('/', '\\')
 				
 				logging.debug(f"[SMB PUT] Uploading {temp_path} to share '{share}', path: '{remote_target_path}'")
 				
@@ -1411,8 +1424,9 @@ class APIServer:
 
 	def handle_login_as(self):
 		"""Handles requests to the /api/login_as endpoint."""
+		username = None
 		try:
-			data = request.json
+			data = request.get_json(silent=True) or {}
 			username = data.get('username')
 			password = data.get('password')
 			domain = data.get('domain')
@@ -1440,7 +1454,7 @@ class APIServer:
 						'domain': self.powerview.domain,
 						'username': self.powerview.conn.get_username(),
 						'is_admin': self.powerview.is_admin,
-						'status': 'OK' if self.powerview.is_connection_alive() else 'KO',
+						'status': 'OK' if self.powerview.conn.is_connection_alive() else 'KO',
 						'protocol': self.powerview.conn.get_proto(),
 						'ldap_address': self.powerview.conn.get_ldap_address(),
 						'nameserver': self.powerview.conn.get_nameserver(),

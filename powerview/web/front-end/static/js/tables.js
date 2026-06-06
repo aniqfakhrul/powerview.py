@@ -54,6 +54,7 @@ function daysCell(v) {
 	const color = d > 365 ? 'var(--red)' : d > 180 ? 'var(--yellow)' : 'var(--text-2)';
 	return h('span', { title: String(v), style: { color: color } }, txt);
 }
+function dateSort(v) { const t = Date.parse(v); return isNaN(t) ? 0 : t; }
 const PRIV_GROUPS = ['domain admins', 'enterprise admins', 'schema admins', 'administrators',
 	'account operators', 'backup operators', 'server operators', 'print operators',
 	'dnsadmins', 'group policy creator owners'];
@@ -178,8 +179,8 @@ function addGroupMemberModal(g, onDone) {
 		field('Group', h('input', { value: g.name, readonly: 'readonly', style: { color: 'var(--muted)' } })),
 		field('Member to add', mem, memDl),
 		warn,
-		h('div.form-help', { html: 'Writes the <span class="em">member</span> attribute on '
-			+ '<span class="em">' + (g.name || 'the group') + '</span>; effective at the DC immediately.' }),
+		h('div.form-help', 'Writes the ', h('span.em', 'member'), ' attribute on ',
+			h('span.em', g.name || 'the group'), '; effective at the DC immediately.'),
 		result);
 	const m = modal({ cmd: 'Add-DomainGroupMember', subject: g.name, width: 480, body: body });
 	const submit = btn('Add member', 'primary', doSubmit);
@@ -208,8 +209,9 @@ function addGroupMemberModal(g, onDone) {
 function removeGroupMemberModal(g, memberLabel, memberId, onDone) {
 	const result = h('div.form-result'); result.hidden = true;
 	const body = h('div.form-stack',
-		h('div.form-warn', { html: 'Remove <span style="color:var(--red);font-weight:600">'
-			+ memberLabel + '</span> from <span class="em">' + (g.name || 'the group') + '</span>?' }),
+		h('div.form-warn', 'Remove ',
+			h('span', { style: { color: 'var(--red)', fontWeight: '600' } }, memberLabel),
+			' from ', h('span.em', g.name || 'the group'), '?'),
 		h('div.form-help', { html: "Clears the principal from the group's <span class=\"em\">member</span> "
 			+ 'attribute (DC event 4729). The member object itself is not deleted.' }),
 		result);
@@ -276,7 +278,7 @@ function deleteObjectModal(obj, kind, onDone) {
 	const body = h('div.form-stack',
 		h('div.form-warn', { html: '⚠  Irreversible from the UI. The object is moved to '
 			+ '<span style="color:var(--red);font-weight:600">CN=Deleted Objects</span> and tombstoned.' }),
-		field(h('span', { html: 'Type <span style="color:var(--accent)">' + name + '</span> to confirm' }), confirm),
+		field(h('span', 'Type ', h('span', { style: { color: 'var(--accent)' } }, name), ' to confirm'), confirm),
 		result);
 	const m = modal({ cmd: kind === 'user' ? 'Remove-DomainUser' : 'Remove-DomainComputer',
 		subject: name, width: 460, body: body });
@@ -447,9 +449,9 @@ async function editAttributesModal(obj) {
 			l[3] != null ? h('span', ' = ', h('span.attr-str', '"' + l[3] + '"')) : null)));
 
 		clear(body);
-		body.append(list, preview, h('div.form-help', { html:
-			'Each change commits a separate <span class="em">Set-DomainObject</span> LDAP modify against '
-			+ '<span class="em">' + identity + '</span>. Read-only / system attributes can\'t be edited here.' }));
+		body.append(list, preview, h('div.form-help',
+			'Each change commits a separate ', h('span.em', 'Set-DomainObject'), ' LDAP modify against ',
+			h('span.em', identity), ". Read-only / system attributes can't be edited here."));
 		if (resultEl) body.appendChild(resultEl);
 
 		if (applied) { m.setFooter(btn('Done', 'primary', m.close)); return; }
@@ -678,7 +680,8 @@ function addComputerModal(onDone) {
 
 /* ---- CSV export of the current (client-filtered) result set ---- */
 function csvCell(v) {
-	const s = v == null ? '' : String(v);
+	let s = v == null ? '' : String(v);
+	if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
 	return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 function downloadCsv(name, columns, rows) {
@@ -1153,8 +1156,8 @@ window.PV.pages.users = function () {
 			{ key: 'enabled', label: 'State', w: 80, render: v => v ? tag('enabled', 'green') : tag('disabled', 'gray') },
 			{ key: 'adminCount', label: 'adminCount', w: 95,
 				render: v => String(v) === '1' ? tag('1', 'red') : h('span.muted', '—') },
-			{ key: 'pwdLastSet', label: 'pwdLastSet', w: 115, render: v => daysCell(v) },
-			{ key: 'lastLogonTimestamp', label: 'Last Logon', w: 150, render: v => daysCell(v) },
+			{ key: 'pwdLastSet', label: 'pwdLastSet', w: 115, render: v => daysCell(v), sortVal: dateSort },
+			{ key: 'lastLogonTimestamp', label: 'Last Logon', w: 150, render: v => daysCell(v), sortVal: dateSort },
 			{ key: '_ou', label: 'OU', color: () => 'var(--text-2)' }
 		],
 		inspector: (u, body, ctx) => {
@@ -1253,7 +1256,7 @@ window.PV.pages.computers = function () {
 			{ key: 'sAMAccountName', label: 'sAMAccountName', w: 150, color: () => 'var(--accent)' },
 			{ key: 'role', label: 'Role', w: 64, render: v => tag(v, v === 'DC' ? 'red' : v === 'SRV' ? 'blue' : 'gray') },
 			{ key: 'operatingSystem', label: 'operatingSystem', w: 185 },
-			{ key: 'lastLogonTimestamp', label: 'Last Logon', w: 150, render: v => daysCell(v) },
+			{ key: 'lastLogonTimestamp', label: 'Last Logon', w: 150, render: v => daysCell(v), sortVal: dateSort },
 			{ key: '_ou', label: 'OU', w: 170, color: () => 'var(--text-2)' },
 			{ key: 'dNSHostName', label: 'dnsHostName', w: 200, color: () => 'var(--accent)' },
 			{ key: 'IPAddress', label: 'IP', w: 130, color: () => 'var(--text-2)' }
