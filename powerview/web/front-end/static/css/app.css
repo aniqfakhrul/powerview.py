@@ -592,9 +592,22 @@ table.grid tbody tr.selected td { color: var(--text); }
 .node-more circle { fill: var(--panel-3); stroke: var(--muted); }
 .node-label { font-family: var(--font-mono); font-size: 10px; fill: var(--text-2); }
 .node-path circle { stroke-width: 2px; }
+.node-computer circle { fill: #2a3a30; stroke: var(--accent); }
 .edge { stroke: var(--border-2); stroke-width: 1; }
 .edge.attack { stroke: var(--red); stroke-width: 1.6; }
 .edge.path { stroke: var(--accent); stroke-width: 2; }
+.edge.member { stroke: var(--border-3); stroke-width: 1.1; }
+.edge.deleg { stroke: var(--magenta); stroke-width: 1.4; stroke-dasharray: 5 3; }
+.edge.sel { stroke: var(--accent); stroke-width: 2; }
+.gnode.sel circle { stroke-width: 2.5px; }
+.gnode .deleg-ring { stroke: var(--magenta); stroke-width: 1; stroke-dasharray: 2 2; }
+.graph-overlay .swatch-line { display: inline-block; width: 12px; height: 2px; border-radius: 1px; }
+.graph-overlay .swatch-line.member { background: var(--border-3); }
+.graph-overlay .swatch-line.deleg { height: 0; background: none; border-top: 2px dashed var(--magenta); }
+.path-bar .seg.warn { color: var(--magenta); border-color: var(--magenta); }
+.path-bar .path-open { color: var(--accent); margin-left: 8px; text-decoration: none; font-size: 11px; }
+.path-bar .path-open:hover { text-decoration: underline; }
+.path-bar .path-hint { color: var(--muted); margin-left: 8px; font-size: 10.5px; }
 
 /* ───────── logs / terminal ───────── */
 .terminal {
