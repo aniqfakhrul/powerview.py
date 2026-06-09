@@ -24,6 +24,23 @@ from powerview.lib.tsts import TSHandler
 from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip, is_valid_sid
 import json
 
+class _LockedSMBClient:
+	"""Proxy that holds the per-host SMB lock for the duration of each call,
+	so pooled impacket connections are never used by two threads at once."""
+
+	def __init__(self, client, lock):
+		self._client = client
+		self._lock = lock
+
+	def __getattr__(self, name):
+		attr = getattr(self._client, name)
+		if not callable(attr):
+			return attr
+		def _locked(*args, **kwargs):
+			with self._lock:
+				return attr(*args, **kwargs)
+		return _locked
+
 class APIServer:
 	def __init__(self, powerview, host="127.0.0.1", port=5000):
 		self.app = Flask(__name__, static_folder='../../web/front-end/static', template_folder='../../web/front-end/templates')
@@ -49,6 +66,7 @@ class APIServer:
 		self.port = port
 		self.status = False
 		self.smb_session_params = {}
+		self.pv_lock = threading.RLock()
 		
 		self.log_file_path = self._resolve_log_file_path()
 		self.history_file_path = os.path.join(os.path.dirname(self.log_file_path), '.powerview_history')
@@ -75,10 +93,18 @@ class APIServer:
 		]
 
 	def _register_routes(self):
-		def add_route_with_auth(rule, endpoint, view_func, **options):
+		def with_pv_lock(view_func):
+			def wrapper(*args, **kwargs):
+				with self.pv_lock:
+					return view_func(*args, **kwargs)
+			return wrapper
+
+		def add_route_with_auth(rule, endpoint, view_func, lock=False, **options):
 			decorated_view = view_func
+			if lock:
+				decorated_view = with_pv_lock(decorated_view)
 			if self.basic_auth:
-				decorated_view = self.basic_auth.required(view_func)
+				decorated_view = self.basic_auth.required(decorated_view)
 			self.app.add_url_rule(rule, endpoint, decorated_view, **options)
 
 		add_route_with_auth('/', 'index', self.render_index, methods=['GET'])
@@ -95,32 +121,32 @@ class APIServer:
 		add_route_with_auth('/smb', 'smb', self.render_smb, methods=['GET'])
 		add_route_with_auth('/utils', 'utils', self.render_utils, methods=['GET'])
 		add_route_with_auth('/settings', 'settings_page', self.render_settings, methods=['GET'])
-		add_route_with_auth('/api/server/info', 'server_info', self.handle_server_info, methods=['GET'])
-		add_route_with_auth('/api/server/schema', 'schema_info', self.handle_schema_info, methods=['GET'])
+		add_route_with_auth('/api/server/info', 'server_info', self.handle_server_info, lock=True, methods=['GET'])
+		add_route_with_auth('/api/server/schema', 'schema_info', self.handle_schema_info, lock=True, methods=['GET'])
 		add_route_with_auth('/api/server/ldap-enforcement', 'ldap_enforcement', self.handle_ldap_enforcement, methods=['GET'])
-		add_route_with_auth('/api/findings', 'findings', self.handle_findings, methods=['GET'])
-		add_route_with_auth('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
-		add_route_with_auth('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
-		add_route_with_auth('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
-		add_route_with_auth('/api/add/<method_name>', 'add_operation', self.handle_add_operation, methods=['POST'])
-		add_route_with_auth('/api/invoke/<method_name>', 'invoke_operation', self.handle_invoke_operation, methods=['POST'])
-		add_route_with_auth('/api/remove/<method_name>', 'remove_operation', self.handle_remove_operation, methods=['POST'])
-		add_route_with_auth('/api/start/<method_name>', 'start_operation', self.handle_start_operation, methods=['POST'])
-		add_route_with_auth('/api/stop/<method_name>', 'stop_operation', self.handle_stop_operation, methods=['POST'])
-		add_route_with_auth('/api/convertfrom/<method_name>', 'convert_from_operation', self.handle_convert_from_operation, methods=['POST'])
-		add_route_with_auth('/api/convertto/<method_name>', 'convert_to_operation', self.handle_convert_to_operation, methods=['POST'])
-		add_route_with_auth('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, methods=['GET'])
+		add_route_with_auth('/api/findings', 'findings', self.handle_findings, lock=True, methods=['GET'])
+		add_route_with_auth('/api/set/settings', 'set_settings', self.handle_set_settings, lock=True, methods=['POST'])
+		add_route_with_auth('/api/get/<method_name>', 'get_operation', self.handle_get_operation, lock=True, methods=['GET', 'POST'])
+		add_route_with_auth('/api/set/<method_name>', 'set_operation', self.handle_set_operation, lock=True, methods=['POST'])
+		add_route_with_auth('/api/add/<method_name>', 'add_operation', self.handle_add_operation, lock=True, methods=['POST'])
+		add_route_with_auth('/api/invoke/<method_name>', 'invoke_operation', self.handle_invoke_operation, lock=True, methods=['POST'])
+		add_route_with_auth('/api/remove/<method_name>', 'remove_operation', self.handle_remove_operation, lock=True, methods=['POST'])
+		add_route_with_auth('/api/start/<method_name>', 'start_operation', self.handle_start_operation, lock=True, methods=['POST'])
+		add_route_with_auth('/api/stop/<method_name>', 'stop_operation', self.handle_stop_operation, lock=True, methods=['POST'])
+		add_route_with_auth('/api/convertfrom/<method_name>', 'convert_from_operation', self.handle_convert_from_operation, lock=True, methods=['POST'])
+		add_route_with_auth('/api/convertto/<method_name>', 'convert_to_operation', self.handle_convert_to_operation, lock=True, methods=['POST'])
+		add_route_with_auth('/api/get/domaininfo', 'domaininfo', self.handle_domaininfo, lock=True, methods=['GET'])
 		add_route_with_auth('/health', 'health', self.handle_health, methods=['GET'])
-		add_route_with_auth('/api/connectioninfo', 'connectioninfo', self.handle_connection_info, methods=['GET'])
+		add_route_with_auth('/api/connectioninfo', 'connectioninfo', self.handle_connection_info, lock=True, methods=['GET'])
 		add_route_with_auth('/api/logs', 'logs', self.generate_log_stream, methods=['GET'])
 		add_route_with_auth('/api/history', 'history', self.render_history, methods=['GET'])
-		add_route_with_auth('/api/ldap/rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
-		add_route_with_auth('/api/ldap/close', 'ldap_close', self.handle_ldap_close, methods=['GET'])
-		add_route_with_auth('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
+		add_route_with_auth('/api/ldap/rebind', 'ldap_rebind', self.handle_ldap_rebind, lock=True, methods=['GET'])
+		add_route_with_auth('/api/ldap/close', 'ldap_close', self.handle_ldap_close, lock=True, methods=['GET'])
+		add_route_with_auth('/api/execute', 'execute_command', self.execute_command, lock=True, methods=['POST'])
 		add_route_with_auth('/api/constants', 'constants', self.handle_constants, methods=['GET'])
 		add_route_with_auth('/api/commands', 'commands', self.handle_commands, methods=['GET'])
-		add_route_with_auth('/api/clear-cache', 'clear_cache', self.handle_clear_cache, methods=['GET'])
-		add_route_with_auth('/api/settings', 'settings', self.handle_settings, methods=['GET'])
+		add_route_with_auth('/api/clear-cache', 'clear_cache', self.handle_clear_cache, lock=True, methods=['GET'])
+		add_route_with_auth('/api/settings', 'settings', self.handle_settings, lock=True, methods=['GET'])
 		add_route_with_auth('/api/smb/connect', 'smb_connect', self.handle_smb_connect, methods=['POST'])
 		add_route_with_auth('/api/smb/reconnect', 'smb_reconnect', self.handle_smb_reconnect, methods=['POST'])
 		add_route_with_auth('/api/smb/disconnect', 'smb_disconnect', self.handle_smb_disconnect, methods=['POST'])
@@ -138,7 +164,7 @@ class APIServer:
 		add_route_with_auth('/api/smb/search', 'smb_search', self.handle_smb_search, methods=['POST'])
 		add_route_with_auth('/api/smb/search-stream', 'smb_search_stream', self.handle_smb_search_stream, methods=['GET'])
 		add_route_with_auth('/api/smb/sessions', 'smb_sessions', self.handle_smb_sessions, methods=['GET'])
-		add_route_with_auth('/api/login_as', 'login_as', self.handle_login_as, methods=['POST'])
+		add_route_with_auth('/api/login_as', 'login_as', self.handle_login_as, lock=True, methods=['POST'])
 		add_route_with_auth('/api/smb/properties', 'smb_properties', self.handle_smb_properties, methods=['POST'])
 		add_route_with_auth('/api/smb/set-security', 'smb_set_security', self.handle_smb_set_security, methods=['POST'])
 		add_route_with_auth('/api/smb/remove-security', 'smb_remove_security', self.handle_smb_remove_security, methods=['POST'])
@@ -640,6 +666,22 @@ class APIServer:
 		logging.info(f"Powerview web listening on {self.host}:{self.port}")
 		self.api_server_thread.start()
 
+	def _smb_client(self, host, **kwargs):
+		lock = self.powerview.conn.smb_host_lock(host)
+		with lock:
+			client = self.powerview.conn.init_smb_session(host, **kwargs)
+		if not client:
+			raise ConnectionError(f'No SMB session for {host}')
+		return _LockedSMBClient(SMBClient(client), lock)
+
+	def _sid_to_name(self, sid):
+		with self.pv_lock:
+			return self.powerview.convertfrom_sid(sid)
+
+	def _name_to_sid(self, name):
+		with self.pv_lock:
+			return self.powerview.convertto_sid(name)
+
 	def handle_smb_connect(self):
 		try:
 			data = request.json
@@ -679,18 +721,19 @@ class APIServer:
 			# the old identity.
 			force_new = bool(username or nthash or lmhash or aesKey or ccache)
 
-			client = self.powerview.conn.init_smb_session(
-				host,
-				force_new=force_new,
-				username=username,
-				password=password,
-				nthash=nthash,
-				lmhash=lmhash,
-				aesKey=aesKey,
-				domain=domain,
-				ccache=ccache,
-				remote_host=resolved_host
-			)
+			with self.powerview.conn.smb_host_lock(host):
+				client = self.powerview.conn.init_smb_session(
+					host,
+					force_new=force_new,
+					username=username,
+					password=password,
+					nthash=nthash,
+					lmhash=lmhash,
+					aesKey=aesKey,
+					domain=domain,
+					ccache=ccache,
+					remote_host=resolved_host
+				)
 
 			if not client:
 				return jsonify({'error': f'Failed to connect to {host}'}), 400
@@ -747,7 +790,8 @@ class APIServer:
 					'ccache': stored.get('ccache'),
 				}
 
-			client = self.powerview.conn.init_smb_session(host, force_new=True, **kwargs)
+			with self.powerview.conn.smb_host_lock(host):
+				client = self.powerview.conn.init_smb_session(host, force_new=True, **kwargs)
 			logging.debug(f"SMB Reconnect: Successfully reconnected to {host}")
 			return jsonify({'status': 'reconnected', 'host': host, 'used_stored_creds': bool(stored)})
 		except Exception as e:
@@ -762,7 +806,8 @@ class APIServer:
 			if not computer:
 				return jsonify({'error': 'Computer name/IP is required'}), 400
 
-			self.powerview.conn.remove_smb_connection(computer)
+			with self.powerview.conn.smb_host_lock(computer):
+				self.powerview.conn.remove_smb_connection(computer)
 			return jsonify({'status': 'disconnected'})
 		except Exception as e:
 			logging.error(f"SMB Disconnect Error: {str(e)}")
@@ -777,11 +822,10 @@ class APIServer:
 				return jsonify({'error': 'Computer name/IP is required'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(host)
+				smb_client = self._smb_client(host)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			smb_client = SMBClient(client)
 			shares = smb_client.shares()
 
 			# Format shares similar to get_netshare
@@ -823,11 +867,10 @@ class APIServer:
 				return jsonify({'error': 'Computer name/IP, share name, and share path are required'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(computer)
+				smb_client = self._smb_client(computer)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			smb_client = SMBClient(client)
 			
 			try:
 				result = smb_client.add_share(share_name, share_path)
@@ -855,11 +898,10 @@ class APIServer:
 				return jsonify({'error': 'Computer name/IP and share name are required'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(computer)
+				smb_client = self._smb_client(computer)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			smb_client = SMBClient(client)
 			
 			try:
 				result = smb_client.delete_share(share)
@@ -885,11 +927,10 @@ class APIServer:
 				return jsonify({'error': 'Computer name/IP and share name are required'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(host)
+				smb_client = self._smb_client(host)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 			
-			smb_client = SMBClient(client)
 			
 			files = smb_client.ls(share, path)
 			logging.debug(f"[SMB LS] Listing {path} on {host} with share {share}")
@@ -928,11 +969,10 @@ class APIServer:
 				return jsonify({'error': 'Missing required parameters'}), 400
 				
 			try:
-				client = self.powerview.conn.init_smb_session(computer)
+				smb_client = self._smb_client(computer)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			smb_client = SMBClient(client)
 
 			smb_client.mv(share, source, destination)	
 			return jsonify({'message': 'File moved successfully'})
@@ -952,11 +992,10 @@ class APIServer:
 				return jsonify({'error': 'Computer name/IP, share name, and file path are required'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(host)
+				smb_client = self._smb_client(host)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			smb_client = SMBClient(client)
 			
 			try:
 				file_content = smb_client.get(share, path)
@@ -1000,11 +1039,10 @@ class APIServer:
 			safe_name = secure_filename(file.filename) or 'upload'
 
 			try:
-				client = self.powerview.conn.init_smb_session(computer)
+				smb_client = self._smb_client(computer)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			smb_client = SMBClient(client)
 
 			# Save file temporarily
 			temp_path = os.path.join('/tmp', safe_name)
@@ -1045,11 +1083,10 @@ class APIServer:
 				return jsonify({'error': 'Missing required parameters'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(computer)
+				smb_client = self._smb_client(computer)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			smb_client = SMBClient(client)
 			content = smb_client.cat(share, path)
 			if content is None or len(content) == 0:
 				return jsonify({'error': 'Failed to read file content'}), 500
@@ -1071,11 +1108,10 @@ class APIServer:
 				return jsonify({'error': 'Missing required parameters'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(computer)
+				smb_client = self._smb_client(computer)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			smb_client = SMBClient(client)
 			
 			try:
 				# Delete file over SMB
@@ -1099,11 +1135,10 @@ class APIServer:
 				return jsonify({'error': 'Missing required parameters'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(computer)
+				smb_client = self._smb_client(computer)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			smb_client = SMBClient(client)
 			
 			try:
 				# Create directory over SMB
@@ -1127,11 +1162,10 @@ class APIServer:
 				return jsonify({'error': 'Missing required parameters'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(computer)
+				smb_client = self._smb_client(computer)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			smb_client = SMBClient(client)
 			
 			try:
 				# Delete directory over SMB
@@ -1185,11 +1219,10 @@ class APIServer:
 				return jsonify({'error': 'Query is required or cred_hunt must be enabled'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(host)
+				smb_client = self._smb_client(host)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			smb_client = SMBClient(client)
 			
 			mode = "cred_hunt" if cred_hunt else "content+regex" if content_search and use_regex else "content" if content_search else "regex" if use_regex else "pattern"
 			case_mode = "case-sensitive" if case_sensitive else "case-insensitive"
@@ -1513,11 +1546,10 @@ class APIServer:
 				return jsonify({'error': 'Computer and share are required'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(host)
+				smb_client = self._smb_client(host)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			smb_client = SMBClient(client)
 
 			# Prepare helpers
 			import re, fnmatch, os
@@ -1646,11 +1678,10 @@ class APIServer:
 				return jsonify({'error': 'Missing required parameters'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(computer)
+				smb_client = self._smb_client(computer)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first'}), 400
 
-			smb_client = SMBClient(client)
 
 			if not path:
 				share_info = smb_client.share_info(share)
@@ -1664,20 +1695,20 @@ class APIServer:
 					return obj
 				share_info = convert_bytes(share_info)
 				if share_info.get('sd_info'):
-					share_info['owner'] = self.powerview.convertfrom_sid(share_info['sd_info'].get('OwnerSid'))
-					share_info['group'] = self.powerview.convertfrom_sid(share_info['sd_info'].get('GroupSid'))
+					share_info['owner'] = self._sid_to_name(share_info['sd_info'].get('OwnerSid'))
+					share_info['group'] = self._sid_to_name(share_info['sd_info'].get('GroupSid'))
 					share_info['dacl'] = share_info['sd_info'].get('Dacl')
 					for ace in share_info['dacl'] or []:
-						ace['trustee'] = self.powerview.convertfrom_sid(ace['trustee'])
+						ace['trustee'] = self._sid_to_name(ace['trustee'])
 				return jsonify(share_info)
 
 			try:
 				file_info = smb_client.get_file_info(share, path)
-				file_info['owner'] = self.powerview.convertfrom_sid(file_info['sd_info']['OwnerSid'])
-				file_info['group'] = self.powerview.convertfrom_sid(file_info['sd_info']['GroupSid'])
+				file_info['owner'] = self._sid_to_name(file_info['sd_info']['OwnerSid'])
+				file_info['group'] = self._sid_to_name(file_info['sd_info']['GroupSid'])
 				file_info['dacl'] = file_info['sd_info']['Dacl']
 				for ace in file_info['dacl']:
-					ace['trustee'] = self.powerview.convertfrom_sid(ace['trustee'])
+					ace['trustee'] = self._sid_to_name(ace['trustee'])
 				for ts_field in ['created', 'modified', 'accessed']:
 					if ts_field in file_info:
 						try:
@@ -1720,19 +1751,18 @@ class APIServer:
 				return jsonify({'error': 'Invalid mask. Must be "fullcontrol", "modify", "readandexecute", "readandwrite", "read", or "write".'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(computer)
+				smb_client = self._smb_client(computer)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first.'}), 400
 
 			if is_valid_sid(username):
 				sid = username
 			else:
-				sid = self.powerview.convertto_sid(username)
+				sid = self._name_to_sid(username)
 			
 			if sid is None or not is_valid_sid(sid):
 				return jsonify({'error': f'Username {username} is not found in the domain. Use a SID instead.'}), 400
 
-			smb_client = SMBClient(client)
 			
 			try:
 				result = smb_client.set_file_security(share, path, sid, ace_type, mask)
@@ -1761,19 +1791,18 @@ class APIServer:
 				return jsonify({'error': 'Missing required parameters. Computer, share, path, and username are required.'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(computer)
+				smb_client = self._smb_client(computer)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first.'}), 400
 
 			if is_valid_sid(username):
 				sid = username
 			else:
-				sid = self.powerview.convertto_sid(username)
+				sid = self._name_to_sid(username)
 			
 			if sid is None or not is_valid_sid(sid):
 				return jsonify({'error': f'Username {username} is not found in the domain. Use a SID instead.'}), 400
 
-			smb_client = SMBClient(client)
 			
 			try:
 				result = smb_client.remove_file_security(share, path, sid, mask, ace_type)
@@ -1807,19 +1836,18 @@ class APIServer:
 				return jsonify({'error': 'Invalid mask. Must be "fullcontrol", "modify", "readandexecute", "readandwrite", "read", or "write".'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(computer)
+				smb_client = self._smb_client(computer)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first.'}), 400
 
 			if is_valid_sid(username):
 				sid = username
 			else:
-				sid = self.powerview.convertto_sid(username)
+				sid = self._name_to_sid(username)
 			
 			if sid is None or not is_valid_sid(sid):
 				return jsonify({'error': f'Username {username} is not found in the domain. Use a SID instead.'}), 400
 
-			smb_client = SMBClient(client)
 			
 			try:
 				result = smb_client.set_share_security(share, sid, mask, ace_type)
@@ -1852,19 +1880,18 @@ class APIServer:
 				return jsonify({'error': 'Missing required parameters. Computer, share, and username are required.'}), 400
 
 			try:
-				client = self.powerview.conn.init_smb_session(computer)
+				smb_client = self._smb_client(computer)
 			except Exception as e:
 				return jsonify({'error': 'No active SMB session. Please connect first.'}), 400
 
 			if is_valid_sid(username):
 				sid = username
 			else:
-				sid = self.powerview.convertto_sid(username)
+				sid = self._name_to_sid(username)
 			
 			if sid is None or not is_valid_sid(sid):
 				return jsonify({'error': f'Username {username} is not found in the domain. Use a SID instead.'}), 400
 
-			smb_client = SMBClient(client)
 			
 			try:
 				result = smb_client.remove_share_security(share, sid, mask, ace_type)
@@ -1898,19 +1925,20 @@ class APIServer:
 			if resolved_host is None:
 				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
 			host = resolved_host
-			smbConn = self.powerview.conn.init_smb_session(
-				host,
-				username=username,
-				password=password,
-				domain=domain,
-				lmhash=lmhash,
-				nthash=nthash,
-				show_exceptions=False
-			)
-			if not smbConn:
-				return jsonify({'error': f'Failed to connect to {host}'}), 400
-			ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
-			success = ts.do_shutdown(logoff=True, shutdown=False, reboot=True, poweroff=False)
+			with self.powerview.conn.smb_host_lock(host):
+				smbConn = self.powerview.conn.init_smb_session(
+					host,
+					username=username,
+					password=password,
+					domain=domain,
+					lmhash=lmhash,
+					nthash=nthash,
+					show_exceptions=False
+				)
+				if not smbConn:
+					return jsonify({'error': f'Failed to connect to {host}'}), 400
+				ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
+				success = ts.do_shutdown(logoff=True, shutdown=False, reboot=True, poweroff=False)
 			if success:
 				return jsonify({'status': 'OK', 'message': f'Restart signal sent to {host}'}), 200
 			return jsonify({'error': f'Failed to restart {host}'}), 500
@@ -1937,19 +1965,20 @@ class APIServer:
 			if resolved_host is None:
 				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
 			host = resolved_host
-			smbConn = self.powerview.conn.init_smb_session(
-				host,
-				username=username,
-				password=password,
-				domain=domain,
-				lmhash=lmhash,
-				nthash=nthash,
-				show_exceptions=False
-			)
-			if not smbConn:
-				return jsonify({'error': f'Failed to connect to {host}'}), 400
-			ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
-			success = ts.do_shutdown(logoff=True, shutdown=True, reboot=False, poweroff=False)
+			with self.powerview.conn.smb_host_lock(host):
+				smbConn = self.powerview.conn.init_smb_session(
+					host,
+					username=username,
+					password=password,
+					domain=domain,
+					lmhash=lmhash,
+					nthash=nthash,
+					show_exceptions=False
+				)
+				if not smbConn:
+					return jsonify({'error': f'Failed to connect to {host}'}), 400
+				ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
+				success = ts.do_shutdown(logoff=True, shutdown=True, reboot=False, poweroff=False)
 			if success:
 				return jsonify({'status': 'OK', 'message': f'Shutdown signal sent to {host}'}), 200
 			return jsonify({'error': f'Failed to shutdown {host}'}), 500
@@ -1980,19 +2009,20 @@ class APIServer:
 			if resolved_host is None:
 				return jsonify({'error': 'FQDN must be used for kerberos authentication'}), 400
 			host = resolved_host
-			smbConn = self.powerview.conn.init_smb_session(
-				host,
-				username=username,
-				password=password,
-				domain=domain,
-				lmhash=lmhash,
-				nthash=nthash,
-				show_exceptions=False
-			)
-			if not smbConn:
-				return jsonify({'error': f'Failed to connect to {host}'}), 400
-			ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
-			result = ts.do_tasklist(pid=pid, name=name)
+			with self.powerview.conn.smb_host_lock(host):
+				smbConn = self.powerview.conn.init_smb_session(
+					host,
+					username=username,
+					password=password,
+					domain=domain,
+					lmhash=lmhash,
+					nthash=nthash,
+					show_exceptions=False
+				)
+				if not smbConn:
+					return jsonify({'error': f'Failed to connect to {host}'}), 400
+				ts = TSHandler(smb_connection=smbConn, target_ip=host, doKerberos=self.powerview.use_kerberos, stack_trace=self.powerview.args.stack_trace)
+				result = ts.do_tasklist(pid=pid, name=name)
 			return jsonify(make_serializable(result))
 		except Exception as e:
 			logging.error(f"[TASKLIST COMPUTER] Error: {str(e)}")

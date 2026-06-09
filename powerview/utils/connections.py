@@ -514,7 +514,17 @@ class SMBConnectionPool(ConnectionPool):
 	def __init__(self, max_connections=20, cleanup_interval=400, keepalive_interval=300):
 		super().__init__(max_connections, cleanup_interval, keepalive_interval)
 		self._pool_type = 'SMB'
-	
+		self._host_locks = {}
+
+	def host_lock(self, host):
+		"""Per-host lock serializing use of the pooled SMB connection.
+
+		impacket SMBConnection objects are not safe for concurrent use; every
+		consumer (web handlers, keepalive) must hold this lock while issuing
+		operations on the host's pooled connection."""
+		with self._pool_lock:
+			return self._host_locks.setdefault(host.lower(), threading.RLock())
+
 	def _perform_keepalive(self):
 		"""Send keep-alive to all active SMB connections to maintain them"""
 		keepalive_hosts = []
@@ -526,12 +536,18 @@ class SMBConnectionPool(ConnectionPool):
 		
 		for host, entry in keepalive_hosts:
 			try:
-				if entry.is_alive(force_check=True):
-					entry.mark_used()
-					# logging.debug(f"SMB connection alive for host: {host}")
-				else:
-					dead_hosts.append(host)
-					logging.debug(f"[SMBConnectionPool] {self._pool_type} SMB connection dead during keep-alive for host: {host}")
+				lock = self.host_lock(host)
+				if not lock.acquire(blocking=False):
+					continue
+				try:
+					if entry.is_alive(force_check=True):
+						entry.mark_used()
+						# logging.debug(f"SMB connection alive for host: {host}")
+					else:
+						dead_hosts.append(host)
+						logging.debug(f"[SMBConnectionPool] {self._pool_type} SMB connection dead during keep-alive for host: {host}")
+				finally:
+					lock.release()
 			except Exception as e:
 				dead_hosts.append(host)
 				logging.debug(f"[SMBConnectionPool] {self._pool_type} SMB keep-alive error for host {host}: {str(e)}")
@@ -2182,6 +2198,10 @@ class CONNECTION:
 		logging.debug(f"[LDAP Enforcement] signing_enforced={signing_enforced}, channel_binding_enforced={channel_binding_enforced}")
 		self._ldap_enforcement_cache = (signing_enforced, channel_binding_enforced)
 		return signing_enforced, channel_binding_enforced
+
+	def smb_host_lock(self, host):
+		"""Return the per-host lock guarding the pooled SMB connection for host."""
+		return self._smb_pool.host_lock(host)
 
 	def init_smb_session(self, host, username=None, password=None, nthash=None, lmhash=None, aesKey=None, domain=None, timeout=10, useCache=True, force_new=False, show_exceptions=True, ccache=None, remote_host=None):
 		"""

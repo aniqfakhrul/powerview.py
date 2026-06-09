@@ -8607,6 +8607,10 @@ displayName=New Group Policy Object
 			if auth_aes_key:
 				self.conn.auth_aes_key = auth_aes_key
 
+			self.whoami = self.conn.who_am_i()
+			if not getattr(self.args, 'no_admin_check', False):
+				self.is_admin = self._check_admin_status()
+
 			return True
 		except Exception as e:
 			if self.args.stack_trace:
