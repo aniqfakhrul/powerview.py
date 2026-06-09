@@ -1552,6 +1552,29 @@ kbd {
   color: var(--text-2); margin-top: 6px; overflow-x: auto; white-space: nowrap;
 }
 .fd-cmd .prompt { color: var(--accent); margin-right: 6px; }
+.fd-cmd.clickable { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.fd-cmd.clickable:hover { border-color: var(--border-3); background: var(--panel-2); }
+.fd-cmd .fd-cmd-text { flex: 1; overflow-x: auto; white-space: nowrap; }
+.fd-cmd-btn {
+  flex-shrink: 0; background: transparent; border: 0; color: var(--muted);
+  cursor: pointer; font-size: 12px; padding: 0 2px; line-height: 1;
+}
+.fd-cmd-btn:hover { color: var(--accent); }
+.fd-affected-row.clickable { cursor: pointer; border-radius: var(--radius-sm); }
+.fd-affected-row.clickable:hover { background: var(--panel-3); }
+.fd-affected-row.clickable:hover .k { color: var(--accent); }
+
+.help-grid { display: flex; flex-direction: column; gap: 2px; }
+.help-h {
+  font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase;
+  letter-spacing: 0.07em; margin: 10px 0 4px;
+}
+.help-h:first-child { margin-top: 0; }
+.help-row { display: grid; grid-template-columns: 160px 1fr; align-items: center; padding: 3px 0; }
+.help-keys { display: flex; align-items: center; gap: 3px; color: var(--text-2); font-size: 11px; }
+.help-desc { color: var(--text-2); font-size: 12px; }
+.help-foot { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.help-foot p { margin: 0; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
 
 :focus-visible {
   outline: 2px solid var(--accent);

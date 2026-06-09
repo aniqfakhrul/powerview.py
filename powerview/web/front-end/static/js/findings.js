@@ -3,6 +3,11 @@
 "use strict";
 const { h, $, clear, add, api, tag, btn, toast } = window.PV;
 
+function copyText(t) {
+	try { navigator.clipboard.writeText(t); toast('success', 'copied to clipboard'); }
+	catch (e) { toast('error', 'clipboard unavailable'); }
+}
+
 const SEV_ORDER = { critical: 0, high: 1, medium: 2, low: 3 };
 const SEV_LABEL = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low' };
 const SEV_COLOR = { critical: 'red', high: 'red', medium: 'yellow', low: 'blue' };
@@ -178,7 +183,10 @@ window.PV.pages.findings = function () {
 				f.scanned_at ? h('p.fd-scanned',
 					'scanned ' + ago(f.scanned_at) + ' · ' + f.scanned_at.replace('T', ' ')) : null,
 				aff.length ? h('div.fd-affected',
-					aff.map(x => h('div.fd-affected-row', h('span.k', '·'), h('span.v', String(x))))) : null)));
+					aff.map(x => h('div.fd-affected-row.clickable',
+						{ title: 'Get-DomainObject ' + x + '  (run in CLI)',
+						  onclick: () => window.PV.cli.run('Get-DomainObject -Identity ' + x) },
+						h('span.k', '↳'), h('span.v', String(x))))) : null)));
 
 		d.appendChild(section('Remediation',
 			h('div.body', h('p', f.remediation || '—'))));
@@ -186,7 +194,12 @@ window.PV.pages.findings = function () {
 		if (f.commands && f.commands.length)
 			d.appendChild(section('Commands',
 				h('div', f.commands.map(c =>
-					h('div.fd-cmd', h('span.prompt', '$'), c)))));
+					h('div.fd-cmd.clickable', { title: 'run in CLI',
+						onclick: () => window.PV.cli.run(c) },
+						h('span.prompt', '$'),
+						h('span.fd-cmd-text', c),
+						h('button.fd-cmd-btn', { title: 'Copy',
+							onclick: ev => { ev.stopPropagation(); copyText(c); } }, '⧉'))))));
 
 		if (f.references && f.references.length)
 			d.appendChild(section('References',

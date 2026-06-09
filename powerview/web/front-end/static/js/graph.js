@@ -47,10 +47,16 @@ window.PV.pages.graph = function () {
 	/* pan + wheel zoom */
 	let drag = null;
 	svg.addEventListener('mousedown', e => { drag = { x: e.clientX - view.x, y: e.clientY - view.y }; });
-	window.addEventListener('mousemove', e => {
+	const onMove = e => {
 		if (!drag) return; view.x = e.clientX - drag.x; view.y = e.clientY - drag.y; apply();
+	};
+	const onUp = () => { drag = null; };
+	window.addEventListener('mousemove', onMove);
+	window.addEventListener('mouseup', onUp);
+	window.PV.onLeave(() => {
+		window.removeEventListener('mousemove', onMove);
+		window.removeEventListener('mouseup', onUp);
 	});
-	window.addEventListener('mouseup', () => { drag = null; });
 	svg.addEventListener('wheel', e => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.12 : 0.9); }, { passive: false });
 
 	function nodeGroup(cls, x, y, r, label, onclick) {

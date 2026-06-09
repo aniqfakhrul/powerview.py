@@ -1133,9 +1133,18 @@ function queryTablePage(cfg) {
 		renderResultBar(); renderTable();
 	}
 
+	/* deep-link: /users?identity=foo pre-fills the Identity filter and reveals
+	   the panel so the active filter is visible, then the auto-query runs scoped */
+	const routeIdentity = (window.PV.route && window.PV.route.params && window.PV.route.params.identity) || '';
+	if (routeIdentity) {
+		vals.Identity = routeIdentity;
+		if (inputs.Identity) inputs.Identity.value = routeIdentity;
+		showFlags = true;
+	}
+
 	filterPanel.hidden = !showFlags;   /* filter panel collapsed by default */
 	renderFlagBtn();
-	runQuery();   /* auto-query on page visit with the default (no-filter) args */
+	runQuery();   /* auto-query on page visit (scoped to ?identity= when deep-linked) */
 }
 
 /* ============================ USERS ============================ */
@@ -1147,7 +1156,7 @@ function userMenu(u, ctx) {
 		{ icon: '≡', label: 'Get-Object',    onClick: () => act.getObject(u) },
 		{ icon: '⚿', label: 'Get-Acl',       onClick: () => act.getAcl(u) },
 		{ icon: '▥', label: 'Find Sessions', onClick: () => runCmd('Find-DomainUserLocation -UserIdentity ' + u.sam) },
-		{ icon: '◌', label: 'Find in Graph', onClick: () => { location.href = '/graph'; } },
+		{ icon: '◌', label: 'Find in Graph', onClick: () => window.PV.navigate('/graph?identity=' + encodeURIComponent(u.sam)) },
 		{ divider: true },
 		{ section: 'WRITE' },
 		{ icon: '⚙', label: 'Edit…',            onClick: () => editAttributesModal(u) },
@@ -1253,10 +1262,10 @@ function computerMenu(c, ctx) {
 		{ icon: '☺', label: 'Get-LoggedOn',     onClick: () => act.getLoggedOn(c) },
 		{ icon: '▦', label: 'Get-Shares',       onClick: () => act.getShares(c) },
 		{ icon: '⚿', label: 'Read LAPS',        onClick: () => act.readLaps(c) },
-		{ icon: '◌', label: 'Find in Graph',    onClick: () => { location.href = '/graph'; } },
+		{ icon: '◌', label: 'Find in Graph',    onClick: () => window.PV.navigate('/graph?identity=' + encodeURIComponent(c.name)) },
 		{ divider: true },
 		{ section: 'CONNECT' },
-		{ icon: '▦', label: 'Connect SMB', shortcut: '→ smb', onClick: () => { location.href = '/smb'; } },
+		{ icon: '▦', label: 'Connect SMB', shortcut: '→ smb', onClick: () => window.PV.navigate('/smb?identity=' + encodeURIComponent(c.dns || c.name)) },
 		{ divider: true },
 		{ section: 'WRITE' },
 		{ icon: '⚙', label: 'Edit…',      onClick: () => editAttributesModal(c) },
@@ -1313,7 +1322,7 @@ window.PV.pages.computers = function () {
 					{ label: 'Get-LoggedOn', run: () => act.getLoggedOn(c) },
 					{ label: 'Read LAPS', run: () => act.readLaps(c) },
 					{ label: 'Edit', run: () => editAttributesModal(c) },
-					{ label: 'Connect SMB', run: () => { location.href = '/smb'; } },
+					{ label: 'Connect SMB', run: () => window.PV.navigate('/smb?identity=' + encodeURIComponent(c.dns || c.name)) },
 					{ label: 'Set-Owner', run: () => setOwnerModal(c, 'computer') },
 					{ label: 'Delete', danger: true,
 						run: () => deleteObjectModal(c, 'computer', () => ctx && ctx.removeRow(c)) }
@@ -1344,7 +1353,7 @@ function groupMenu(g) {
 		{ section: 'ENUMERATE' },
 		{ icon: '≡', label: 'Get-Object',   onClick: () => act.getObject(g) },
 		{ icon: '⚿', label: 'Get-Acl',      onClick: () => act.getAcl(g) },
-		{ icon: '◌', label: 'Find in Graph', onClick: () => { location.href = '/graph'; } },
+		{ icon: '◌', label: 'Find in Graph', onClick: () => window.PV.navigate('/graph?identity=' + encodeURIComponent(g.name)) },
 		{ divider: true },
 		{ section: 'WRITE' },
 		{ icon: '⚙', label: 'Edit…',        onClick: () => editAttributesModal(g) },

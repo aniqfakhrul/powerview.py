@@ -133,6 +133,11 @@ window.PV.pages.smb = function () {
 			h('div.pane.fill', filesHead, filesHost)));
 	renderCredBar();
 
+	/* deep-link: /smb?identity=host pre-fills the connect box (no auto-connect —
+	   that needs credentials and is a network side effect) */
+	const smbRouteHost = (window.PV.route && window.PV.route.params && window.PV.route.params.identity) || '';
+	if (smbRouteHost) { cInput.value = smbRouteHost; setTimeout(() => { try { cInput.focus(); } catch (e) {} }, 0); }
+
 	function hostState(hn) {
 		return hostShares[hn] || (hostShares[hn] = { expanded: false, shares: null, loading: false });
 	}

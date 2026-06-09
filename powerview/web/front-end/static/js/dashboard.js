@@ -55,7 +55,7 @@ window.PV.pages.dashboard = function () {
 			h('span.grow'), h('div.toolbar', btn('⟲ Re-scan', null, async () => {
 				toast('info', 'rescanning findings…');
 				try { await api.get('/api/findings?refresh=true'); } catch (e) {}
-				location.reload();
+				window.PV.navigate('/dashboard', { replace: true });
 			}))),
 		dash);
 

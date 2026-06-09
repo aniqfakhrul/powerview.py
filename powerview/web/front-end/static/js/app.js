@@ -270,7 +270,12 @@ function buildRail() {
 	let lastSec = null;
 	NAV.forEach(n => {
 		if (n.sec !== lastSec) { rail.appendChild(h('div.section-title', n.sec)); lastSec = n.sec; }
-		rail.appendChild(h('a', { class: 'nav-item' + (n.id === page ? ' active' : ''), href: n.href },
+		rail.appendChild(h('a', { class: 'nav-item' + (n.id === page ? ' active' : ''), href: n.href,
+			data: { nav: n.id },
+			onclick: e => {
+				if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+				e.preventDefault(); navigate(n.href);
+			} },
 			h('span.icn', n.icn), h('span', n.label)));
 	});
 	const tp = $('#tb-page');
@@ -746,6 +751,123 @@ document.addEventListener('mousedown', e => {
 	closePanel();
 });
 
+/* ───────── help / shortcuts overlay ───────── */
+function helpModal() {
+	if ($('.modal-backdrop')) return;
+	const kbd = k => h('kbd', k);
+	const shortcut = (keys, desc) => h('div.help-row',
+		h('div.help-keys', keys), h('div.help-desc', desc));
+	const m = modal({ title: 'Keyboard shortcuts & help', width: 560 });
+	add(m.body, [
+		h('div.help-grid',
+			h('div.help-h', 'Navigation'),
+			shortcut([kbd('1'), '–', kbd('9'), ' ', kbd('0')], 'Jump to the Nth item in the sidebar'),
+			shortcut([kbd('?')], 'Open this help'),
+			h('div.help-h', 'Command panel'),
+			shortcut([kbd('Ctrl'), '+', kbd('`')], 'Toggle the CLI / Output panel'),
+			shortcut([kbd('Tab')], 'Autocomplete command / flag (in CLI)'),
+			shortcut([kbd('↑'), kbd('↓')], 'Cycle command history (in CLI)'),
+			shortcut([kbd('Enter')], 'Run the typed command (in CLI)'),
+			h('div.help-h', 'General'),
+			shortcut([kbd('Esc')], 'Close the panel, a dialog, or a menu'),
+			shortcut([h('span.mono', 'right-click')], 'Row actions on Users / Computers / Groups')),
+		h('div.help-foot',
+			h('p', 'Tip: most object rows are right-clickable for enumerate/write actions, and findings list runnable commands you can click to execute in the CLI.'))
+	]);
+	m.setFooter(btn('Close', null, m.close));
+}
+
+/* ───────── client router ─────────
+   Swaps only #main between the 14 pages instead of reloading the whole
+   document. Each page's JS file registers PV.pages.<id>; the file for the
+   target id is loaded on demand (loading it registers every id it defines).
+   Pages register cleanup with PV.onLeave so document/window listeners and
+   timers don't accumulate now that reloads no longer tear them down. */
+const PAGE_FILES = {
+	explorer: 'explorer.js', dashboard: 'dashboard.js', findings: 'findings.js', graph: 'graph.js',
+	users: 'tables.js', computers: 'tables.js', groups: 'tables.js',
+	dns: 'objects.js', ca: 'objects.js', ous: 'objects.js', gpos: 'objects.js',
+	smb: 'ops.js', utils: 'ops.js', settings: 'ops.js'
+};
+const loadedFiles = {};
+let leaveHooks = [];
+function onLeave(fn) { if (typeof fn === 'function') leaveHooks.push(fn); }
+function runLeaveHooks() {
+	const hooks = leaveHooks; leaveHooks = [];
+	hooks.forEach(fn => { try { fn(); } catch (e) {} });
+}
+
+let route = { path: '/', id: 'explorer', params: {} };
+
+function idForPath(path) {
+	const n = NAV.find(x => x.href === path);
+	return n ? n.id : null;
+}
+function loadPageFile(id) {
+	if (PV.pages[id]) return Promise.resolve();
+	const file = PAGE_FILES[id];
+	if (!file) return Promise.reject(new Error('no script registered for "' + id + '"'));
+	if (loadedFiles[file]) return loadedFiles[file];
+	loadedFiles[file] = new Promise((res, rej) => {
+		const s = document.createElement('script');
+		s.src = '/static/js/' + file;
+		s.onload = () => res();
+		s.onerror = () => { delete loadedFiles[file]; rej(new Error('failed to load ' + file)); };
+		document.head.appendChild(s);
+	});
+	return loadedFiles[file];
+}
+function parseHref(href) {
+	const u = new URL(href, location.origin);
+	const params = {};
+	u.searchParams.forEach((v, k) => { params[k] = v; });
+	return { path: u.pathname, params };
+}
+function setActiveNav(id) {
+	$$('#rail .nav-item').forEach(a => a.classList.toggle('active', a.dataset.nav === id));
+	document.body.setAttribute('data-page', id);
+	const cur = NAV.find(n => n.id === id);
+	const tp = $('#tb-page');
+	if (tp) tp.textContent = cur ? '› ' + cur.label : '';
+	document.title = cur ? 'powerview.py — ' + cur.label : 'powerview.py — web ui';
+}
+function closeTransientOverlays() {
+	$$('.modal-backdrop, .ctx-menu, .popover').forEach(el => el.remove());
+}
+async function renderRoute() {
+	const main = $('#main'); if (!main) return;
+	const id = route.id;
+	const loading = h('div.empty', h('div.spinner.lg'));
+	clear(main); main.appendChild(loading);
+	setActiveNav(id);
+	try { await loadPageFile(id); }
+	catch (e) { clear(main); main.appendChild(h('div.empty', 'failed to load page — ' + e.message)); return; }
+	if (route.id !== id) return;          /* a newer navigation superseded this one */
+	const fn = PV.pages[id];
+	clear(main);
+	if (typeof fn !== 'function') { main.appendChild(h('div.empty', 'page "' + id + '" not found')); return; }
+	try { fn(); } catch (e) { main.appendChild(h('div.form-result.err', '[-] ' + (e && e.message || e))); }
+}
+function navigate(href, opts) {
+	opts = opts || {};
+	const { path, params } = parseHref(href);
+	const id = idForPath(path);
+	if (!id) { location.href = href; return; }      /* off-app target — let the browser handle it */
+	runLeaveHooks();
+	closeTransientOverlays();
+	route = { path, id, params };
+	history[opts.replace ? 'replaceState' : 'pushState']({}, '', href);
+	renderRoute();
+}
+window.addEventListener('popstate', () => {
+	const { path, params } = parseHref(location.href);
+	const id = idForPath(path) || route.id;
+	runLeaveHooks();
+	closeTransientOverlays();
+	route = { path, id, params };
+	renderRoute();
+});
+
 /* ───────── shell init ───────── */
 function initShell() {
 	applyTweaks(tweaks);
@@ -761,17 +883,23 @@ function initShell() {
 	if (view) view.setAttribute('aria-haspopup', 'true');
 	if (helpBtn) helpBtn.setAttribute('aria-haspopup', 'true');
 	if (view) view.onclick = () => openTweaks(view);
-	$$('.menu button').forEach(b => { if (b.dataset.menu !== 'view') b.onclick = () => toast('info', b.textContent + ' menu — not wired'); });
+	if (helpBtn) helpBtn.onclick = () => helpModal();
+	$$('.menu button').forEach(b => { if (b.dataset.menu !== 'view' && b.dataset.menu !== 'help') b.onclick = () => toast('info', b.textContent + ' menu — not wired'); });
 
 	document.addEventListener('keydown', e => {
 		if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
 		if (e.ctrlKey || e.metaKey || e.altKey) return;
 		if (document.querySelector('.modal-backdrop, .ctx-menu')) return;
+		if (e.key === '?') { helpModal(); return; }
 		if (/^[0-9]$/.test(e.key)) {
 			const idx = e.key === '0' ? 9 : parseInt(e.key, 10) - 1;
-			if (idx >= 0 && idx < NAV.length) location.href = NAV[idx].href;
+			if (idx >= 0 && idx < NAV.length) navigate(NAV[idx].href);
 		}
 	});
+
+	const init = parseHref(location.href);
+	route = { path: init.path, id: idForPath(init.path) || 'explorer', params: init.params };
+	renderRoute();
 }
 document.addEventListener('DOMContentLoaded', initShell);
 
@@ -979,12 +1107,14 @@ function inspectorPane(label, subEl, body, gridGetter) {
 			h('button.pane-close', { title: 'Close', onclick: hide }, '✕')),
 		body);
 	pane.hidden = true;
-	document.addEventListener('mousedown', e => {
+	const onDocDown = e => {
 		if (pane.hidden || pane.contains(e.target)) return;
 		const g = gridGetter && gridGetter();
 		if (g && g.el && g.el.contains(e.target)) return;
 		hide();
-	});
+	};
+	document.addEventListener('mousedown', onDocDown);
+	onLeave(() => document.removeEventListener('mousedown', onDocDown));
 	return { el: pane, show, hide };
 }
 
@@ -993,6 +1123,7 @@ window.PV = {
 	h, add, $, $$, clear, api, toast, attr, fmtVal, uacFlags, objIcon,
 	grid, tag, pageHead, searchField, btn, propRow, propGroup, propsView,
 	withSpinner, runCmd, contextMenu, modal, showResultModal, inspectorPane,
-	toggleLogPanel, panel: bottomPanel, cli, NAV, pages: {}
+	toggleLogPanel, panel: bottomPanel, cli, NAV, pages: {},
+	navigate, onLeave, get route() { return route; }
 };
 })();
