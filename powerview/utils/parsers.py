@@ -122,11 +122,13 @@ class Helper:
 		return value.strip().split(',') if value else []
 
 	def parse_tableview(value):
-		"""Parse the tableview argument into a list or return the digit if value is a digit."""
-		VALID_TABLE_VIEWS = ["md", "csv", "default"]
+		"""Validate the tableview argument and canonicalise it to lower case."""
+		VALID_TABLE_VIEWS = ["default", "simple", "md", "github", "markdown", "csv", "tsv", "latex", "html"]
 		if value and value.lower() not in VALID_TABLE_VIEWS:
 			raise ValueError(f"Invalid tableview: {value}. Valid options are: {', '.join(VALID_TABLE_VIEWS)}")
-		return value
+		# TABLE_FMT_MAP lookups are case-sensitive, so canonicalise here or
+		# "-TableView MD" silently degrades to the default format.
+		return value.lower() if value else value
 
 	def parse_web_auth(web_auth):
 		web_auth_user = None
@@ -204,7 +206,7 @@ def powerview_arg_parse(cmd):
 	get_domainobjectowner_parser.add_argument('-Server', action='store', dest='server')
 	get_domainobjectowner_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domainobjectowner_parser.add_argument('-Where', action='store', dest='where')
-	get_domainobjectowner_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	get_domainobjectowner_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
 	get_domainobjectowner_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domainobjectowner_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainobjectowner_parser.add_argument('-Count', action='store_true', dest='count')
@@ -385,7 +387,7 @@ def powerview_arg_parse(cmd):
 	get_domaincontroller_parser.add_argument('-Properties',action='store', dest='properties', type=Helper.parse_properties)
 	get_domaincontroller_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
 	get_domaincontroller_parser.add_argument('-Server', action='store', dest='server')
-	get_domaincontroller_parser.add_argument('-Select',action='store', dest='select')
+	get_domaincontroller_parser.add_argument('-Select',action='store', dest='select', type=Helper.parse_select)
 	get_domaincontroller_parser.add_argument('-Where', action='store', dest='where')
 	get_domaincontroller_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
 	get_domaincontroller_parser.add_argument('-SortBy', action='store', dest='sort_by')
