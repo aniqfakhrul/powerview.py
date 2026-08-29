@@ -111,9 +111,17 @@ powerview range.net/user:pass@192.168.86.192 -q 'Get-DomainUser -Json' \
 ```
 
 `--json` is also accepted as a global flag, equivalent to putting `-Json` on
-the command itself. Commands that cannot produce JSON (plugin commands, and
-built-ins such as `whoami` or `history`) reject it rather than silently
-falling back to text.
+the command itself.
+
+JSON output is available on the commands that return a result set. Commands
+that only perform an action and report success (`Stop-Computer`,
+`Restart-Computer`, `Logoff-Session`, `Remove-NetTerminalSession`,
+`Stop-NetProcess`, `Invoke-MessageBox`), plugin commands, and built-ins such
+as `whoami` or `history` reject every JSON request -- `-Json`, `--json` and
+`-TableView json` alike -- rather than silently falling back to text output.
+
+When `-Select` is used, keys keep the spelling the server returned, not the
+spelling you typed, so `-Select samaccountname` yields `"sAMAccountName"`.
 
 Each entry is `{"dn": ..., "attributes": ...}`, plus `"from_cache": true` when
 the result came from the query cache. `dn` is `null` for synthesized results

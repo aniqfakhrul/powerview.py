@@ -26,6 +26,7 @@ from ldap3.utils.ciDict import CaseInsensitiveDict
 
 from powerview.utils.formatter import FORMATTER
 from powerview.utils.helpers import convert_to_json_serializable, strip_ansi
+from powerview.utils.constants import JSON_CAPABLE_MODULES
 from powerview.utils.parsers import Helper, powerview_arg_parse
 
 RAW_BYTES = b"\x01\x02\xff\xfe"          # deliberately not UTF-8 decodable
@@ -328,6 +329,121 @@ class HeadersRowsShapeTests(unittest.TestCase):
         rendered = buffer.getvalue()
         self.assertIn("extra", rendered)      # trailing cell not dropped
         self.assertIn("a", rendered)
+
+
+class EntrySelectionTests(unittest.TestCase):
+    """Regressions for projecting an ldap3.Entry and for key casing."""
+
+    def _entry(self):
+        server = ldap3.Server("fake", get_info=ldap3.ALL)
+        conn = ldap3.Connection(server, user="cn=u,dc=e,dc=com", password="p",
+                                client_strategy=ldap3.MOCK_SYNC)
+        conn.strategy.add_entry("cn=alice,dc=e,dc=com", {
+            "objectClass": ["person"], "sn": "alice",
+            "givenName": "Alice", "revision": 1,
+        })
+        conn.bind()
+        conn.search("dc=e,dc=com", "(sn=alice)", attributes=["sn", "givenName"])
+        return conn.entries[0]
+
+    def test_named_select_projects_an_ldap3_entry(self):
+        """Projecting before normalisation silently returned every attribute."""
+        out = render_json("print_json", [self._entry()], select=["sn"])
+        self.assertEqual(list(out[0]["attributes"]), ["sn"])
+
+    def test_int_select_still_limits_entries(self):
+        out = render_json("print_json", [self._entry(), self._entry()], select=1)
+        self.assertEqual(len(out), 1)
+
+    def test_selected_keys_keep_the_server_spelling(self):
+        out = render_json("print_json", [entry("alice")], select=["samaccountname"])
+        self.assertEqual(list(out[0]["attributes"]), ["sAMAccountName"])
+
+    def test_acl_projection_keeps_ace_key_spelling(self):
+        out = render_json("print_json", acl_entries(), select=["activedirectoryrights"])
+        for projected in out[0]["attributes"]:
+            self.assertEqual(list(projected), ["ActiveDirectoryRights"])
+
+
+class JsonCapabilityTests(unittest.TestCase):
+    """Only result-producing commands may request JSON."""
+
+    # command -> the arguments its subparser marks required
+    ACTION_COMMANDS = {
+        "Invoke-MessageBox": ["-Computer", "host", "-Title", "t", "-Message", "m"],
+        "Logoff-Session": ["-Computer", "host"],
+        "Remove-NetTerminalSession": ["-Computer", "host"],
+        "Restart-Computer": ["-Computer", "host"],
+        "Stop-Computer": ["-Computer", "host"],
+        "Stop-NetProcess": ["-Computer", "host", "-Pid", "1"],
+    }
+    ALIAS_ACTIONS = ["Shutdown-Computer", "Reboot-Computer", "Taskkill"]
+    RESULT_COMMANDS = {
+        "Get-DomainUser": [],
+        "Get-DomainObjectAcl": [],
+        "Get-DomainController": [],
+        "Get-NetSession": ["-Computer", "host"],
+        "Get-NetProcess": ["-Computer", "host"],
+        "Invoke-Kerberoast": [],
+    }
+
+    @staticmethod
+    def parse_capturing_stderr(argv):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(io.StringIO()):
+            parsed = powerview_arg_parse(argv)
+        return parsed, stderr.getvalue()
+
+    def test_action_commands_are_not_in_the_allowlist(self):
+        for command in list(self.ACTION_COMMANDS) + self.ALIAS_ACTIONS:
+            self.assertNotIn(command.casefold(), JSON_CAPABLE_MODULES, command)
+
+    def test_action_commands_reject_the_json_flag(self):
+        """-Json must not even parse for commands that assign to `succeed`."""
+        for command, required in self.ACTION_COMMANDS.items():
+            parsed, stderr = self.parse_capturing_stderr([command] + required + ["-Json"])
+            self.assertIsNone(parsed, command)
+            # two rejection paths word this differently
+            self.assertRegex(stderr.lower(), r"unrecognized arguments?:.*-json", command)
+
+    def test_action_commands_have_no_json_attribute(self):
+        """The --json gate also relies on the attribute being absent."""
+        for command, required in self.ACTION_COMMANDS.items():
+            parsed = powerview_arg_parse([command] + required)
+            self.assertIsNotNone(parsed, command)
+            self.assertFalse(hasattr(parsed, "json"), command)
+
+    def test_tableview_json_on_an_action_command_is_gated(self):
+        """The parser still accepts it; the capability gate is what rejects it."""
+        parsed = powerview_arg_parse(["Stop-Computer", "-Computer", "host",
+                                      "-TableView", "json"])
+        self.assertIsNotNone(parsed)
+        self.assertEqual(parsed.tableview, "json")
+        self.assertNotIn(parsed.module.casefold(), JSON_CAPABLE_MODULES)
+
+    def test_result_commands_are_allowed(self):
+        for command, required in self.RESULT_COMMANDS.items():
+            self.assertIn(command.casefold(), JSON_CAPABLE_MODULES, command)
+            parsed = powerview_arg_parse([command] + required + ["-Json"])
+            self.assertIsNotNone(parsed, command)
+            self.assertTrue(parsed.json, command)
+
+    def test_non_result_builtins_are_excluded(self):
+        for command in ("whoami", "history", "Get-Plugin", "Dump-Schema"):
+            self.assertNotIn(command.casefold(), JSON_CAPABLE_MODULES, command)
+
+    def test_allowlist_matches_parsers_that_declare_json(self):
+        """Guards against the allowlist drifting from the parser definitions."""
+        import re
+        with open("powerview/utils/parsers.py", encoding="utf-8") as handle:
+            source = handle.read()
+        var_to_commands = {}
+        for match in re.finditer(r"(\w+)\s*=\s*subparsers\.add_parser\(\s*'([^']+)'", source):
+            var_to_commands.setdefault(match.group(1), []).append(match.group(2))
+        json_vars = {m.group(1) for m in re.finditer(r"(\w+)\.add_argument\('-Json'", source)}
+        declared = {command.casefold()
+                    for var in json_vars for command in var_to_commands.get(var, [])}
+        self.assertEqual(declared, set(JSON_CAPABLE_MODULES))
 
 
 if __name__ == "__main__":

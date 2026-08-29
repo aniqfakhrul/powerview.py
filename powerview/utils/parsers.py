@@ -864,7 +864,6 @@ def powerview_arg_parse(cmd):
 	remove_netterminalsession_parser.add_argument('-Server', action='store', dest='server')
 	remove_netterminalsession_parser.add_argument('-OutFile', action='store', dest='outfile')
 	remove_netterminalsession_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
-	remove_netterminalsession_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	remove_netterminalsession_parser.add_argument('-Count', action='store_true', dest='count')
 
 	# invoke-messagebox
@@ -882,7 +881,6 @@ def powerview_arg_parse(cmd):
 	invoke_messagebox_parser.add_argument('-Server', action='store', dest='server')
 	invoke_messagebox_parser.add_argument('-OutFile', action='store', dest='outfile')
 	invoke_messagebox_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
-	invoke_messagebox_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	invoke_messagebox_parser.add_argument('-Count', action='store_true', dest='count')
 
 	# invoke-badsuccessor
@@ -913,7 +911,6 @@ def powerview_arg_parse(cmd):
 	logoff_session_parser.add_argument('-Server', action='store', dest='server')
 	logoff_session_parser.add_argument('-OutFile', action='store', dest='outfile')
 	logoff_session_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
-	logoff_session_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	logoff_session_parser.add_argument('-Count', action='store_true', dest='count')
 
 	# stop-netprocess
@@ -931,7 +928,6 @@ def powerview_arg_parse(cmd):
 	stop_netprocess_parser.add_argument('-Server', action='store', dest='server')
 	stop_netprocess_parser.add_argument('-OutFile', action='store', dest='outfile')
 	stop_netprocess_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
-	stop_netprocess_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	stop_netprocess_parser.add_argument('-Count', action='store_true', dest='count')
 
 	# stop-computer
@@ -946,7 +942,6 @@ def powerview_arg_parse(cmd):
 	stop_computer_parser.add_argument('-Server', action='store', dest='server')
 	stop_computer_parser.add_argument('-OutFile', action='store', dest='outfile')
 	stop_computer_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
-	stop_computer_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 
 	# restart-computer
 	restart_computer_parser = subparsers.add_parser('Restart-Computer', aliases=['Reboot-Computer'], exit_on_error=False)
@@ -960,7 +955,6 @@ def powerview_arg_parse(cmd):
 	restart_computer_parser.add_argument('-Server', action='store', dest='server')
 	restart_computer_parser.add_argument('-OutFile', action='store', dest='outfile')
 	restart_computer_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
-	restart_computer_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 
 	# get-netsession
 	get_netsession_parser = subparsers.add_parser('Get-NetSession', exit_on_error=False)

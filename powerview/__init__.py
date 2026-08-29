@@ -9,6 +9,7 @@ except ImportError:
     sys.modules['readline'] = readline
 from powerview.powerview import PowerView
 from powerview.utils.helpers import *
+from powerview.utils.constants import JSON_CAPABLE_MODULES
 from powerview.utils.native import *
 from powerview.utils.formatter import FORMATTER
 from powerview.utils.completer import Completer
@@ -123,17 +124,20 @@ def main():
                     pv_args = powerview_arg_parse(cmd)
 
                     if pv_args:
+                        # One gate for every way JSON can be requested. Only
+                        # commands that produce a result set can render it;
+                        # action commands assign to `succeed` and plugins print
+                        # directly, so a JSON request there would silently
+                        # produce nothing. Reject rather than ignore: a command
+                        # must never emit text while the user asked for JSON.
+                        _wants_json = (args.json
+                                       or getattr(pv_args, 'json', False)
+                                       or getattr(pv_args, 'tableview', '') == 'json')
+                        if _wants_json and str(pv_args.module).casefold() not in JSON_CAPABLE_MODULES:
+                            logging.error(f"JSON output is not supported for '{pv_args.module}'")
+                            exit_one_shot_on_error()
+                            continue
                         if args.json:
-                            # Reject rather than silently ignore: a command that
-                            # cannot emit JSON must not print text while the user
-                            # asked for JSON. Plugin commands print directly and
-                            # return None, and built-ins such as whoami/history
-                            # have no -Json on their subparser at all.
-                            _is_plugin = bool(plugin_registry and plugin_registry.find_command(pv_args.module)[1])
-                            if _is_plugin or not hasattr(pv_args, 'json'):
-                                logging.error(f"--json is not supported for '{pv_args.module}'")
-                                exit_one_shot_on_error()
-                                continue
                             pv_args.json = True
 
                         if pv_args.server and pv_args.server.lower() != powerview.domain.lower():
