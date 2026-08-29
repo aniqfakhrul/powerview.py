@@ -86,7 +86,63 @@ Get-DomainUser -OutFile ~/domain_user.txt
 
 ```
 Get-DomainUser -Properties samaccountname,memberof -TableView
-Get-DomainUser -Properties samaccountname,memberof -TableView [csv,md,html,latex]
+Get-DomainUser -Properties samaccountname,memberof -TableView [csv,md,json,html,latex]
+```
+
+* Output as JSON
+
+`-Json` emits structured JSON: one object per entry, with nesting preserved
+(ACL results keep their list of ACEs). `-TableView json` emits the flat
+row/column projection instead, alongside the other table formats.
+
+```
+Get-DomainUser -Json
+Get-DomainUser -Properties samaccountname,memberof -Json
+Get-DomainUser -Json -Select samaccountname -Where 'admincount eq 1'
+Get-DomainUser -Properties samaccountname,description -TableView json
+```
+
+Combined with `-q`, this makes PowerView scriptable. Diagnostics go to
+stderr, so stdout is always a valid JSON document:
+
+```
+powerview range.net/user:pass@192.168.86.192 -q 'Get-DomainUser -Json' \
+  | jq -r '.[].attributes.sAMAccountName'
+```
+
+`--json` is also accepted as a global flag, equivalent to putting `-Json` on
+the command itself. Commands that cannot produce JSON (plugin commands, and
+built-ins such as `whoami` or `history`) reject it rather than silently
+falling back to text.
+
+Each entry is `{"dn": ..., "attributes": ...}`, plus `"from_cache": true` when
+the result came from the query cache. `dn` is `null` for synthesized results
+that have no distinguished name (`Get-NetShare`, `Get-DomainDNSRecord`, ...).
+
+Values are encoded as follows:
+
+| Value | Encoded as |
+|---|---|
+| `bytes` (e.g. `dnsRecord`, `nTSecurityDescriptor`) | base64 string |
+| `datetime` | ISO-8601 string |
+| `timedelta` | string |
+
+Note that PowerView resolves many attributes to friendly values *before* they
+reach the JSON encoder, and that resolution is preserved in the output: SIDs
+and GUIDs appear as strings, `userAccountControl` as its flag names, and the
+well-known timestamps (`whenCreated`, `pwdLastSet`, `lastLogon`,
+`lastLogonTimestamp`, `badPasswordTime`) as human-readable text such as
+`"15/02/2026 20:09:12 (6 months, 13 days ago)"`. Timestamps that are *not*
+specially resolved (`accountExpires`, `dSCorePropagationData`) arrive as real
+datetimes and are therefore rendered as ISO-8601.
+
+Add `-Raw` when you want machine-parseable values throughout: it disables the
+friendly resolution, so timestamps become ISO-8601 and unresolved binary
+attributes become base64.
+
+```
+powerview range.net/user:pass@dc -q 'Get-DomainUser -Json -Raw' \
+  | jq -r '.[] | [.attributes.sAMAccountName, .attributes.pwdLastSet] | @tsv'
 ```
 
 * Set module
