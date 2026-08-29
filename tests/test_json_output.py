@@ -432,18 +432,87 @@ class JsonCapabilityTests(unittest.TestCase):
         for command in ("whoami", "history", "Get-Plugin", "Dump-Schema"):
             self.assertNotIn(command.casefold(), JSON_CAPABLE_MODULES, command)
 
-    def test_allowlist_matches_parsers_that_declare_json(self):
-        """Guards against the allowlist drifting from the parser definitions."""
+    # command -> canonical it aliases, for the result-producing aliases
+    RESULT_ALIASES = {
+        "Get-ADObject": "Get-DomainObject",
+        "Get-ObjectAcl": "Get-DomainObjectAcl",
+        "Get-ObjectOwner": "Get-DomainObjectOwner",
+        "Get-CA": "Get-DomainCA",
+        "Get-CATemplate": "Get-DomainCATemplate",
+        "Get-DMSA": "Get-DomainDMSA",
+        "Get-GMSA": "Get-DomainGMSA",
+        "Get-RBCD": "Get-DomainRBCD",
+        "Get-SCCM": "Get-DomainSCCM",
+        "Get-WDS": "Get-DomainWDS",
+        "Get-TrustKey": "Get-DomainTrustKey",
+        "Get-GPOLocalGroup": "Get-DomainGPOLocalGroup",
+        "Get-GPOSettings": "Get-DomainGPOSettings",
+        "Find-ForeignUser": "Get-DomainForeignUser",
+        "Find-ForeignGroup": "Get-DomainForeignGroupMember",
+        "Invoke-DMSASync": "Invoke-BadSuccessor",
+        "tasklist": "Get-NetProcess",
+        "qwinsta": "Get-NetTerminalSession",
+    }
+
+    @staticmethod
+    def _parser_commands():
+        """Map parser variable -> every name it registers, aliases included."""
         import re
         with open("powerview/utils/parsers.py", encoding="utf-8") as handle:
             source = handle.read()
         var_to_commands = {}
-        for match in re.finditer(r"(\w+)\s*=\s*subparsers\.add_parser\(\s*'([^']+)'", source):
-            var_to_commands.setdefault(match.group(1), []).append(match.group(2))
-        json_vars = {m.group(1) for m in re.finditer(r"(\w+)\.add_argument\('-Json'", source)}
+        pattern = re.compile(r"(\w+)\s*=\s*subparsers\.add_parser\(\s*'([^']+)'([^\n]*)")
+        for match in pattern.finditer(source):
+            names = [match.group(2)]
+            aliases = re.search(r"aliases\s*=\s*\[([^\]]*)\]", match.group(3))
+            if aliases:
+                names += re.findall(r"'([^']+)'", aliases.group(1))
+            var_to_commands.setdefault(match.group(1), []).extend(names)
+        json_vars = {m.group(1)
+                     for m in re.finditer(r"(\w+)\.add_argument\('-Json'", source)}
+        return var_to_commands, json_vars
+
+    def test_allowlist_matches_parsers_that_declare_json(self):
+        """Guards against the allowlist drifting from the parser definitions.
+
+        argparse stores the alias the user typed in pv_args.module, so every
+        alias of a JSON-capable command must be in the set too.
+        """
+        var_to_commands, json_vars = self._parser_commands()
         declared = {command.casefold()
                     for var in json_vars for command in var_to_commands.get(var, [])}
         self.assertEqual(declared, set(JSON_CAPABLE_MODULES))
+
+    def test_result_aliases_are_capable_and_accept_json(self):
+        """Aliases such as Get-ADObject must not be rejected by the gate."""
+        for alias, canonical in self.RESULT_ALIASES.items():
+            self.assertIn(alias.casefold(), JSON_CAPABLE_MODULES, alias)
+            self.assertIn(canonical.casefold(), JSON_CAPABLE_MODULES, canonical)
+
+    def test_alias_parsers_accept_the_json_flag(self):
+        extra = {"tasklist": ["-Computer", "host"], "qwinsta": ["-Computer", "host"]}
+        for alias in self.RESULT_ALIASES:
+            parsed = powerview_arg_parse([alias] + extra.get(alias, []) + ["-Json"])
+            self.assertIsNotNone(parsed, alias)
+            self.assertTrue(parsed.json, alias)
+            self.assertEqual(parsed.module.casefold(), alias.casefold())
+
+    def test_action_aliases_are_rejected(self):
+        for alias in ("Shutdown-Computer", "Reboot-Computer", "taskkill"):
+            self.assertNotIn(alias.casefold(), JSON_CAPABLE_MODULES, alias)
+
+    def test_completer_matches_parser_json_support(self):
+        """Completions must not advertise -Json where the parser rejects it."""
+        from powerview.utils.completer import COMMANDS
+        advertised_but_incapable = sorted(
+            command for command, flags in COMMANDS.items()
+            if "-Json" in flags and command.casefold() not in JSON_CAPABLE_MODULES)
+        self.assertEqual(advertised_but_incapable, [])
+        capable_without_completion = sorted(
+            command for command, flags in COMMANDS.items()
+            if command.casefold() in JSON_CAPABLE_MODULES
+            and "-TableView" in flags and "-Json" not in flags)
+        self.assertEqual(capable_without_completion, [])
 
 
 if __name__ == "__main__":

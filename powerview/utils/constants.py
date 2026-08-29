@@ -4285,11 +4285,21 @@ DESKTOP_STATES = {
 # Commands whose dispatch produces a result set (`entries`) and can therefore be
 # rendered as JSON. Action commands such as Stop-Computer or Invoke-MessageBox
 # assign to `succeed` instead, so a JSON request against them would silently
-# produce nothing -- those are rejected rather than ignored. Keep this in sync
-# when a new result-producing command is added.
+# produce nothing -- those are rejected rather than ignored.
+#
+# Aliases are listed explicitly: argparse stores whichever spelling the user
+# typed in `pv_args.module`, so `Get-ADObject` never matches `get-domainobject`.
+# tests/test_json_output.py asserts this set matches the parsers that declare
+# -Json, aliases included, so the two cannot drift.
 JSON_CAPABLE_MODULES = frozenset({
 	"convertfrom-uacvalue",
+	"find-foreigngroup",
+	"find-foreignuser",
 	"find-localadminaccess",
+	"get-adobject",
+	"get-ca",
+	"get-catemplate",
+	"get-dmsa",
 	"get-domain",
 	"get-domainca",
 	"get-domaincatemplate",
@@ -4323,6 +4333,9 @@ JSON_CAPABLE_MODULES = frozenset({
 	"get-exchangedatabase",
 	"get-exchangemailbox",
 	"get-exchangeserver",
+	"get-gmsa",
+	"get-gpolocalgroup",
+	"get-gposettings",
 	"get-localuser",
 	"get-namedpipes",
 	"get-netcomputerinfo",
@@ -4332,10 +4345,19 @@ JSON_CAPABLE_MODULES = frozenset({
 	"get-netsession",
 	"get-netshare",
 	"get-netterminalsession",
+	"get-objectacl",
+	"get-objectowner",
+	"get-rbcd",
 	"get-regloggedon",
+	"get-sccm",
+	"get-trustkey",
+	"get-wds",
 	"invoke-asreproast",
 	"invoke-badsuccessor",
 	"invoke-dfscoerce",
+	"invoke-dmsasync",
 	"invoke-kerberoast",
 	"invoke-printerbug",
+	"qwinsta",
+	"tasklist",
 })
