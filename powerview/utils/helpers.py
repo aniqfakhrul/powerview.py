@@ -1,5 +1,7 @@
 import datetime
 import sys
+import base64
+from collections import abc
 import traceback
 import ldap3
 import ssl
@@ -282,15 +284,49 @@ def is_admin_sid(sid: str):
 		or sid == "S-1-5-32-544"
 	)
 
+ANSI_ESCAPE_RE = re.compile(r'\033\[[0-9;]*m')
+
+def strip_ansi(value):
+	"""Remove ANSI SGR escape sequences from a string."""
+	if isinstance(value, str):
+		return ANSI_ESCAPE_RE.sub('', value)
+	return value
+
 def convert_to_json_serializable(obj):
-	if isinstance(obj, bytes):
-		# Convert bytes to string
-		return obj.decode('utf-8')
-	elif isinstance(obj, datetime):
-		# Convert datetime to string
+	"""Recursively convert an LDAP result into JSON-safe primitives.
+
+	Contract (see README): bytes -> untagged base64, datetime -> ISO-8601,
+	timedelta -> str. Never mutates the input; new containers are built
+	throughout so callers keep their original entries (and any cached copies).
+	"""
+	if isinstance(obj, abc.Mapping):
+		return {
+			str(key): (
+				# ANSI colours are injected only into the synthetic
+				# "vulnerabilities" attribute; strip there and nowhere else so
+				# legitimate attribute data is never altered.
+				convert_to_json_serializable(_strip_ansi_deep(value))
+				if str(key).casefold() == 'vulnerabilities'
+				else convert_to_json_serializable(value)
+			)
+			for key, value in obj.items()
+		}
+	elif isinstance(obj, (list, tuple, set)):
+		return [convert_to_json_serializable(element) for element in obj]
+	elif isinstance(obj, (bytes, bytearray)):
+		return base64.b64encode(bytes(obj)).decode('utf-8')
+	elif isinstance(obj, datetime.datetime):
 		return obj.isoformat()
+	elif isinstance(obj, datetime.timedelta):
+		return str(obj)
 	else:
 		return obj
+
+def _strip_ansi_deep(value):
+	"""Apply strip_ansi() across a scalar or a (nested) list of strings."""
+	if isinstance(value, (list, tuple, set)):
+		return [_strip_ansi_deep(element) for element in value]
+	return strip_ansi(value)
 
 def strip_entry(entry):
 	for k,v in entry["attributes"].items():
