@@ -123,6 +123,19 @@ def main():
                     pv_args = powerview_arg_parse(cmd)
 
                     if pv_args:
+                        if args.json:
+                            # Reject rather than silently ignore: a command that
+                            # cannot emit JSON must not print text while the user
+                            # asked for JSON. Plugin commands print directly and
+                            # return None, and built-ins such as whoami/history
+                            # have no -Json on their subparser at all.
+                            _is_plugin = bool(plugin_registry and plugin_registry.find_command(pv_args.module)[1])
+                            if _is_plugin or not hasattr(pv_args, 'json'):
+                                logging.error(f"--json is not supported for '{pv_args.module}'")
+                                exit_one_shot_on_error()
+                                continue
+                            pv_args.json = True
+
                         if pv_args.server and pv_args.server.lower() != powerview.domain.lower():
                             try:
                                 temp_powerview = powerview.get_domain_powerview(pv_args.server)
@@ -568,7 +581,19 @@ def main():
                                             import traceback
                                             logging.debug(traceback.format_exc())
 
-                            if entries:
+                            # Normalise the plugin {"headers","rows"} shape into ordinary
+                            # entries so -Count/-Where/-Select/-Json all operate on rows
+                            # rather than on the two dict keys. The original rows are kept
+                            # so the legacy table rendering stays byte-for-byte identical.
+                            _hdr_rows = _orig_rows = None
+                            if isinstance(entries, dict) and "headers" in entries and "rows" in entries:
+                                _hdr_rows, _orig_rows = entries["headers"], entries["rows"]
+                                entries = [{"attributes": dict(zip(_hdr_rows, row))} for row in entries["rows"]]
+
+                            _json_mode = getattr(pv_args, "json", False) or getattr(pv_args, "tableview", "") == "json"
+                            _header_rows_mode = _hdr_rows is not None
+
+                            if entries or _header_rows_mode or (_json_mode and isinstance(entries, list)):
                                 if pv_args.outfile:
                                     if os.path.exists(pv_args.outfile):
                                         logging.error("%s exists "%(pv_args.outfile))
@@ -587,6 +612,8 @@ def main():
                                 else:
                                     if hasattr(pv_args, "count") and pv_args.count:
                                         formatter.count(entries)
+                                    elif getattr(pv_args, "json", False):
+                                        formatter.print_json(entries)
                                     elif hasattr(pv_args, "tableview") and pv_args.tableview:
                                         formatter.table_view(entries)
                                     elif hasattr(pv_args, "select") and pv_args.select is not None:
@@ -595,8 +622,16 @@ def main():
                                         else:
                                             formatter.print_select(entries)
                                     else:
-                                        if isinstance(entries, dict) and entries.get("headers"):
-                                            formatter.print_table(entries["rows"], entries["headers"])
+                                        if _header_rows_mode:
+                                            if len(entries) == len(_orig_rows):
+                                                # Untouched by -Where/-SortBy: reuse the
+                                                # original rows so duplicate headers and
+                                                # ragged rows render exactly as before.
+                                                _rows = _orig_rows
+                                            else:
+                                                _rows = [[IDict(e.get("attributes", {})).get(h) for h in _hdr_rows]
+                                                         for e in entries]
+                                            formatter.print_table(_rows, _hdr_rows)
                                         else:
                                             formatter.print(entries)
 
