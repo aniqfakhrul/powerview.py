@@ -7,7 +7,7 @@ from powerview.lib.resolver import (
 )
 from powerview import PowerView as PV
 from powerview.utils.logging import LOG
-from powerview.utils.helpers import IDict
+from powerview.utils.helpers import IDict, strip_ansi
 from powerview.utils.constants import TABLE_FMT_MAP
 
 import ldap3
@@ -53,14 +53,80 @@ class FORMATTER:
     def count(self, entries):
         print(len(entries))
 
-    def print_table(self, entries: list, headers: list, align: str = None):
-        # Use config value with fallback to args
+    @staticmethod
+    def normalize_select(select):
+        """Normalise -Select into None | int (row limit) | list[str] (names).
+
+        Most subparsers run the value through Helper.parse_select, but callers
+        may still hand us a raw string, so normalise defensively. `is None` is
+        used deliberately rather than truthiness: -Select 0 is a real limit
+        meaning "no rows", not "no selection".
+        """
+        if select is None:
+            return None
+        if isinstance(select, bool):
+            return None
+        if isinstance(select, int):
+            return select
+        if isinstance(select, str):
+            names = [part.strip() for part in select.split(',') if part.strip()]
+            return names or None
+        if isinstance(select, (list, tuple)):
+            names = [str(part).strip() for part in select if str(part).strip()]
+            return names or None
+        return None
+
+    @staticmethod
+    def slice_entries(entries, limit):
+        """Apply an integer -Select as a row limit.
+
+        For ACL results (`attributes` is a list of ACE dicts) the limit applies
+        to each entry's ACE list, matching print_index. Wrappers are copied so
+        the caller's entries -- which may be shared with the query cache -- are
+        never mutated.
+        """
+        if not isinstance(entries, list):
+            return entries
+        sliced = []
+        for entry in entries:
+            if isinstance(entry, dict) and isinstance(entry.get("attributes"), list):
+                trimmed = dict(entry)
+                trimmed["attributes"] = entry["attributes"][:limit]
+                sliced.append(trimmed)
+            else:
+                sliced.append(entry)
+        if sliced and all(isinstance(e, dict) and isinstance(e.get("attributes"), list)
+                          for e in sliced):
+            return sliced
+        return sliced[:limit]
+
+    def resolve_table_format(self):
+        """Resolve -TableView into a tabulate/handled format name."""
         table_format = self.args.tableview if hasattr(self.args, 'tableview') else self.config['table_format']
-        table_format = TABLE_FMT_MAP.get(table_format, "simple")
-        
+        return TABLE_FMT_MAP.get(table_format, "simple")
+
+    def print_table(self, entries: list, headers: list, align: str = None):
+        table_format = self.resolve_table_format()
+
         filtered_entries = [entry for entry in entries if not all(e == '' for e in entry)]
         print()
-        if table_format == "csv":
+        if table_format == "json":
+            # Flat contract: one object per row, all values already stringified
+            # by format_value_by_type(). ANSI is stripped only on the
+            # vulnerabilities column -- format_value_by_type() is shared with
+            # csv/md/html/latex and has no column context, so it must not do it.
+            header_list = list(headers) if headers else []
+            vuln_idx = {i for i, h in enumerate(header_list)
+                        if str(h).casefold() == 'vulnerabilities'}
+            rows = []
+            for row in filtered_entries:
+                rows.append({
+                    header_list[i]: (strip_ansi(cell) if i in vuln_idx else cell)
+                    for i, cell in enumerate(row)
+                    if i < len(header_list)
+                })
+            table_res = json.dumps(rows, indent=2, ensure_ascii=False)
+        elif table_format == "csv":
             output = StringIO()
             csv_writer = csv.writer(output, quoting=csv.QUOTE_ALL if self.config['csv_quote_all'] else csv.QUOTE_MINIMAL)
             if headers:
@@ -198,12 +264,26 @@ class FORMATTER:
         headers = []
         rows = []
         nested_list = False
+
+        # -Select <int> is a row limit, not a set of headers. Apply it here so
+        # an int can never reach the header derivation below, where iterating
+        # it raised "TypeError: 'int' object is not iterable".
+        select = self.normalize_select(getattr(self.args, "select", None))
+        if isinstance(select, int):
+            entries = self.slice_entries(entries, select)
+        named_select = select if isinstance(select, list) else None
+
         if not entries:
-            logging.info("No results found")
+            if self.resolve_table_format() == "json":
+                # Route through print_table so -OutFile still receives the
+                # single [] document instead of an empty file.
+                self.print_table([], [])
+            else:
+                logging.info("No results found")
             return
-        if (hasattr(self.args, "select") and self.args.select) or (hasattr(self.args, "properties") and self.args.properties and not self.args.properties == ldap3.ALL_ATTRIBUTES):
-            if self.args.select:
-                headers = self.args.select
+        if named_select or (hasattr(self.args, "properties") and self.args.properties and not self.args.properties == ldap3.ALL_ATTRIBUTES):
+            if named_select:
+                headers = named_select
             elif self.args.properties:
                 headers = self.args.properties
         else:

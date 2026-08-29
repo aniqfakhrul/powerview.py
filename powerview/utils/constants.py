@@ -4270,6 +4270,7 @@ TABLE_FMT_MAP = {
     "github": "github",
     "markdown": "github",
     "csv": "csv",
+    "json": "json",
     "tsv": "tsv",
     "latex": "latex",
     "html": "html"

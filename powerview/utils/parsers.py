@@ -123,7 +123,7 @@ class Helper:
 
 	def parse_tableview(value):
 		"""Validate the tableview argument and canonicalise it to lower case."""
-		VALID_TABLE_VIEWS = ["default", "simple", "md", "github", "markdown", "csv", "tsv", "latex", "html"]
+		VALID_TABLE_VIEWS = ["default", "simple", "md", "github", "markdown", "csv", "json", "tsv", "latex", "html"]
 		if value and value.lower() not in VALID_TABLE_VIEWS:
 			raise ValueError(f"Invalid tableview: {value}. Valid options are: {', '.join(VALID_TABLE_VIEWS)}")
 		# TABLE_FMT_MAP lookups are case-sensitive, so canonicalise here or
