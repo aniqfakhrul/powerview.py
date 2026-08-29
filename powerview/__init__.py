@@ -90,6 +90,17 @@ def main():
 
         using_cache = False
 
+        def exit_one_shot_on_error():
+            """Terminate a -q invocation that hit an early error.
+
+            One-shot mode re-reads the same args.query on every pass, and a
+            bare `continue` skips the exit at the bottom of the loop, so any
+            early-error path would spin forever instead of returning.
+            """
+            if args.query:
+                conn.close()
+                sys.exit(1)
+
         while True:
             try:
                 temp_powerview = None
@@ -106,6 +117,7 @@ def main():
                             raise e
                         else:
                             logging.error(str(e))
+                            exit_one_shot_on_error()
                             continue
 
                     pv_args = powerview_arg_parse(cmd)
@@ -118,10 +130,12 @@ def main():
                             except ldap3.core.exceptions.LDAPSocketOpenError as e:
                                 logging.error(f'Connection to domain {pv_args.server} failed: {str(e)}')
                                 current_target_domain = None
+                                exit_one_shot_on_error()
                                 continue
                             except ldap3.core.exceptions.LDAPBindError as e:
                                 logging.error(f'Authentication to domain {pv_args.server} failed: {str(e)}')
                                 current_target_domain = None
+                                exit_one_shot_on_error()
                                 continue
                             except Exception as e:
                                 logging.error(f'Domain {pv_args.server} operation failed: {str(e)}')
@@ -129,6 +143,7 @@ def main():
                                 if args.stack_trace:
                                     import traceback
                                     logging.debug(traceback.format_exc())
+                                exit_one_shot_on_error()
                                 continue
                         else:
                             # No server specified or same as current domain
@@ -557,6 +572,7 @@ def main():
                                 if pv_args.outfile:
                                     if os.path.exists(pv_args.outfile):
                                         logging.error("%s exists "%(pv_args.outfile))
+                                        exit_one_shot_on_error()
                                         continue
 
                                 formatter = FORMATTER(pv_args)
