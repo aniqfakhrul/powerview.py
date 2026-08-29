@@ -19,7 +19,7 @@ def set_plugin_registry(registry):
 class PowerViewParser(argparse.ArgumentParser):
 	def error(self, message):
 		if getattr(self, "exit_on_error", True):
-			print(message)
+			print(message, file=sys.stderr)
 			sys.exit(0)
 		raise argparse.ArgumentError(None, message)
 
@@ -1663,7 +1663,7 @@ def powerview_arg_parse(cmd):
 						indexs = [item.lower() for item in COMMANDS[cmd[0]]].index(unk.lower())
 						cmd = [c.replace(unk,COMMANDS[cmd[0]][indexs]) for c in cmd]
 					else:
-						print(f"Unrecognized argument: {unk}")
+						print(f"Unrecognized argument: {unk}", file=sys.stderr)
 						return None
 				else:
 					if hasattr(args, 'identity'):
@@ -1675,7 +1675,7 @@ def powerview_arg_parse(cmd):
 					elif hasattr(args, 'computer') or hasattr(args, 'computername'):
 						args.computer = unk
 					else:
-						print(f"Unrecognized argument: {unk}")
+						print(f"Unrecognized argument: {unk}", file=sys.stderr)
 						return None
 					return args
 			return parser.parse_args(cmd)
@@ -1710,7 +1710,7 @@ def powerview_arg_parse(cmd):
 			pass
 		
 		if "module" in str(e):
-			print("Invalid command")
+			print("Invalid command", file=sys.stderr)
 		else:
 			msg = str(e)
 			module_name = cmd[0] if cmd else "Unknown"
@@ -1727,11 +1727,11 @@ def powerview_arg_parse(cmd):
 				parts = msg.split(":")
 				if len(parts) > 1:
 					flags = parts[-1].strip()
-					print(f"[{module_name}] Missing required argument: {flags}")
+					print(f"[{module_name}] Missing required argument: {flags}", file=sys.stderr)
 				else:
-					print(f"[{module_name}] {msg}")
+					print(f"[{module_name}] {msg}", file=sys.stderr)
 			else:
-				print(f"[{module_name}] {msg}")
+				print(f"[{module_name}] {msg}", file=sys.stderr)
 		
 		return None
 	except SystemExit:

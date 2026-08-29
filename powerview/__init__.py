@@ -658,12 +658,12 @@ def main():
                             logging.error(str(e))
                             conn.reset_connection()
             except KeyboardInterrupt:
-                print()
+                print(file=sys.stderr)
             except EOFError:
                 if args.mcp and hasattr(powerview, 'mcp_server') and powerview.mcp_server.get_status():
                     powerview.mcp_server.stop()
                 log_handler.save_history()
-                print("Exiting...")
+                print("Exiting...", file=sys.stderr)
                 conn.close()
                 sys.exit(0)
             except (ldap3.core.exceptions.LDAPSocketSendError, 
@@ -690,9 +690,9 @@ def main():
                 sys.exit(0)
 
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
-        print(str(e))
+        logging.error(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
-        print(str(e))
+        logging.error(str(e))
     except Exception as e:
         if args.stack_trace:
             log_handler.save_history()
