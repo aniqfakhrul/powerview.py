@@ -171,6 +171,26 @@ class FORMATTER:
             result["from_cache"] = entry["from_cache"]
         return result
 
+    @staticmethod
+    def _project_attributes(attributes, names):
+        """Select `names` from one attribute mapping, case-insensitively.
+
+        Keys keep the spelling the server returned (sAMAccountName), not the
+        spelling typed into -Select, so output is stable regardless of how the
+        flag was written.
+        """
+        lookup = {str(key).casefold(): key for key in attributes.keys()}
+        source = IDict(attributes)
+        projected = {}
+        for name in names:
+            actual = lookup.get(str(name).casefold())
+            if actual is None:
+                continue
+            value = source.get(name)
+            if value is not None:
+                projected[actual] = value
+        return projected
+
     def _project_entry(self, entry, names):
         """Project a single entry onto the named attributes, case-insensitively.
 
@@ -181,15 +201,10 @@ class FORMATTER:
             return entry
         attributes = entry.get("attributes")
         if isinstance(attributes, list):
-            projected = [
-                {key: IDict(ace).get(key) for key in names
-                 if IDict(ace).get(key) is not None}
-                for ace in attributes if isinstance(ace, dict)
-            ]
+            projected = [self._project_attributes(ace, names)
+                         for ace in attributes if isinstance(ace, dict)]
         elif isinstance(attributes, (dict, ldap3.utils.ciDict.CaseInsensitiveDict)):
-            source = IDict(attributes)
-            projected = {key: source.get(key) for key in names
-                         if source.get(key) is not None}
+            projected = self._project_attributes(attributes, names)
         else:
             return entry
         copied = dict(entry)
@@ -209,9 +224,12 @@ class FORMATTER:
 
         payload = []
         for entry in entries:
-            if isinstance(select, list) and not isinstance(entry, str):
-                entry = self._project_entry(entry, select)
-            payload.append(self._entry_to_json(entry))
+            # Normalise first: _project_entry only understands dicts, so an
+            # ldap3 Entry projected before conversion would keep every attribute.
+            normalized = self._entry_to_json(entry)
+            if isinstance(select, list) and isinstance(normalized, dict):
+                normalized = self._project_entry(normalized, select)
+            payload.append(normalized)
 
         # Convert explicitly rather than leaning on json.dumps(default=...):
         # default= is only consulted for types json cannot handle, so a missed
