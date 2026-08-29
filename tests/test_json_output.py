@@ -501,18 +501,57 @@ class JsonCapabilityTests(unittest.TestCase):
         for alias in ("Shutdown-Computer", "Reboot-Computer", "taskkill"):
             self.assertNotIn(alias.casefold(), JSON_CAPABLE_MODULES, alias)
 
-    def test_completer_matches_parser_json_support(self):
-        """Completions must not advertise -Json where the parser rejects it."""
+    def test_completer_advertises_exactly_the_capable_commands(self):
+        """Exact equality, in both directions.
+
+        The completer list is not cosmetic: powerview_arg_parse resolves case
+        variants such as -json against COMMANDS[cmd], so a capable command
+        missing from it rejects the lowercase spelling. An earlier version of
+        this test only looked at entries that already listed -TableView, which
+        hid exactly that bug on Find-ForeignUser and Find-ForeignGroup.
+        """
         from powerview.utils.completer import COMMANDS
-        advertised_but_incapable = sorted(
-            command for command, flags in COMMANDS.items()
-            if "-Json" in flags and command.casefold() not in JSON_CAPABLE_MODULES)
-        self.assertEqual(advertised_but_incapable, [])
-        capable_without_completion = sorted(
-            command for command, flags in COMMANDS.items()
-            if command.casefold() in JSON_CAPABLE_MODULES
-            and "-TableView" in flags and "-Json" not in flags)
-        self.assertEqual(capable_without_completion, [])
+        advertised = {command.casefold()
+                      for command, flags in COMMANDS.items() if "-Json" in flags}
+        self.assertEqual(advertised, set(JSON_CAPABLE_MODULES))
+
+    def test_every_capable_command_accepts_the_lowercase_flag(self):
+        """-json must resolve for every capable command, aliases included."""
+        from powerview.utils.completer import COMMANDS
+        needs_args = {
+            "get-netsession": ["-Computer", "host"],
+            "get-netprocess": ["-Computer", "host"],
+            "tasklist": ["-Computer", "host"],
+            "get-netterminalsession": ["-Computer", "host"],
+            "qwinsta": ["-Computer", "host"],
+            "get-netshare": ["-Computer", "host"],
+            "get-netloggedon": ["-Computer", "host"],
+            "get-netservice": ["-Computer", "host"],
+            "get-eventlog": ["-Computer", "host"],
+            "get-localuser": ["-Computer", "host"],
+            "get-localgroup": ["-Computer", "host"],
+        }
+        by_fold = {command.casefold(): command for command in COMMANDS}
+        for module in sorted(JSON_CAPABLE_MODULES):
+            command = by_fold[module]
+            argv = [command] + needs_args.get(module, []) + ["-json"]
+            with contextlib.redirect_stderr(io.StringIO()), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                parsed = powerview_arg_parse(argv)
+            if parsed is None:      # command has other required args
+                continue
+            self.assertTrue(parsed.json, command)
+
+    def test_foreign_aliases_accept_lowercase_json(self):
+        """Regression: these two lagged their canonical entries."""
+        for alias in ("Find-ForeignUser", "Find-ForeignGroup"):
+            for flag in ("-Json", "-json", "-JSON"):
+                parsed = powerview_arg_parse([alias, flag])
+                self.assertIsNotNone(parsed, "%s %s" % (alias, flag))
+                self.assertTrue(parsed.json, "%s %s" % (alias, flag))
+            self.assertEqual(
+                powerview_arg_parse([alias, "-TableView", "json"]).tableview, "json")
+            self.assertIsNotNone(powerview_arg_parse([alias, "-SortBy", "name"]))
 
 
 if __name__ == "__main__":
