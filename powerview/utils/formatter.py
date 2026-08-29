@@ -7,7 +7,7 @@ from powerview.lib.resolver import (
 )
 from powerview import PowerView as PV
 from powerview.utils.logging import LOG
-from powerview.utils.helpers import IDict, strip_ansi
+from powerview.utils.helpers import IDict, strip_ansi, convert_to_json_serializable
 from powerview.utils.constants import TABLE_FMT_MAP
 
 import ldap3
@@ -145,6 +145,92 @@ class FORMATTER:
             LOG.write_to_file(self.args.outfile, table_res)
         print(table_res)
         print()
+
+    def _entry_to_json(self, entry):
+        """Map one result entry onto its JSON representation.
+
+        Handles every shape the text formatter accepts: ldap3 Entry objects,
+        dict / CaseInsensitiveDict attributes, ACL wrappers whose attributes
+        are a list of ACE dicts, and bare strings.
+        """
+        if isinstance(entry, ldap3.abstract.entry.Entry):
+            # NOT entry_to_json(): ldap3's format_json() pre-serialises values,
+            # rendering datetimes as str() instead of ISO-8601 and wrapping
+            # non-UTF-8 bytes in a tagged {"encoded": ...} object. Both break
+            # the documented encoding contract, so read the raw values instead.
+            return {"dn": entry.entry_dn, "attributes": entry.entry_attributes_as_dict}
+
+        if isinstance(entry, str):
+            return entry
+
+        if not isinstance(entry, dict):
+            return entry
+
+        result = {"dn": entry.get("dn"), "attributes": entry.get("attributes")}
+        if "from_cache" in entry:
+            result["from_cache"] = entry["from_cache"]
+        return result
+
+    def _project_entry(self, entry, names):
+        """Project a single entry onto the named attributes, case-insensitively.
+
+        Copies wrappers and ACE dicts: the caller's entries may be shared with
+        the query cache and must never be mutated.
+        """
+        if not isinstance(entry, dict):
+            return entry
+        attributes = entry.get("attributes")
+        if isinstance(attributes, list):
+            projected = [
+                {key: IDict(ace).get(key) for key in names
+                 if IDict(ace).get(key) is not None}
+                for ace in attributes if isinstance(ace, dict)
+            ]
+        elif isinstance(attributes, (dict, ldap3.utils.ciDict.CaseInsensitiveDict)):
+            source = IDict(attributes)
+            projected = {key: source.get(key) for key in names
+                         if source.get(key) is not None}
+        else:
+            return entry
+        copied = dict(entry)
+        copied["attributes"] = projected
+        return copied
+
+    def print_json(self, entries):
+        """Render results as a single structured JSON document on stdout."""
+        if entries is None:
+            entries = []
+        if not isinstance(entries, list):
+            entries = [entries]
+
+        select = self.normalize_select(getattr(self.args, "select", None))
+        if isinstance(select, int):
+            entries = self.slice_entries(entries, select)
+
+        payload = []
+        for entry in entries:
+            if isinstance(select, list) and not isinstance(entry, str):
+                entry = self._project_entry(entry, select)
+            payload.append(self._entry_to_json(entry))
+
+        # Convert explicitly rather than leaning on json.dumps(default=...):
+        # default= is only consulted for types json cannot handle, so a missed
+        # bytes value would be str()'d into "b'\x01'" instead of base64.
+        payload = convert_to_json_serializable(payload)
+        document = json.dumps(payload, indent=2, ensure_ascii=False,
+                              default=self._json_fallback)
+
+        if getattr(self.args, "outfile", None):
+            # One write for the whole document: LOG.write_to_file appends and
+            # adds a newline per call, so per-line writes would emit invalid JSON.
+            LOG.write_to_file(self.args.outfile, document)
+        print(document)
+
+    @staticmethod
+    def _json_fallback(obj):
+        """Last-resort guard; convert_to_json_serializable should handle everything."""
+        logging.warning("Unserializable value of type %s in JSON output", type(obj).__name__)
+        return str(obj)
 
     def print_index(self, entries):
         i = self.args.select
