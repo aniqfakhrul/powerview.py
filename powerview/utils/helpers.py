@@ -296,21 +296,13 @@ def convert_to_json_serializable(obj):
 	"""Recursively convert an LDAP result into JSON-safe primitives.
 
 	Contract (see README): bytes -> untagged base64, datetime -> ISO-8601,
-	timedelta -> str. Never mutates the input; new containers are built
-	throughout so callers keep their original entries (and any cached copies).
+	timedelta -> str, and strings have presentation-only ANSI SGR sequences
+	removed. Never mutates the input; new containers are built throughout so
+	callers keep their original entries (and any cached copies).
 	"""
 	if isinstance(obj, abc.Mapping):
-		return {
-			str(key): (
-				# ANSI colours are injected only into the synthetic
-				# "vulnerabilities" attribute; strip there and nowhere else so
-				# legitimate attribute data is never altered.
-				convert_to_json_serializable(_strip_ansi_deep(value))
-				if str(key).casefold() == 'vulnerabilities'
-				else convert_to_json_serializable(value)
-			)
-			for key, value in obj.items()
-		}
+		return {str(key): convert_to_json_serializable(value)
+				for key, value in obj.items()}
 	elif isinstance(obj, (list, tuple, set)):
 		return [convert_to_json_serializable(element) for element in obj]
 	elif isinstance(obj, (bytes, bytearray)):
@@ -319,14 +311,10 @@ def convert_to_json_serializable(obj):
 		return obj.isoformat()
 	elif isinstance(obj, datetime.timedelta):
 		return str(obj)
+	elif isinstance(obj, str):
+		return strip_ansi(obj)
 	else:
 		return obj
-
-def _strip_ansi_deep(value):
-	"""Apply strip_ansi() across a scalar or a (nested) list of strings."""
-	if isinstance(value, (list, tuple, set)):
-		return [_strip_ansi_deep(element) for element in value]
-	return strip_ansi(value)
 
 def strip_entry(entry):
 	for k,v in entry["attributes"].items():

@@ -95,10 +95,21 @@ class FORMATTER:
                 sliced.append(trimmed)
             else:
                 sliced.append(entry)
-        if sliced and all(isinstance(e, dict) and isinstance(e.get("attributes"), list)
-                          for e in sliced):
-            return sliced
         return sliced[:limit]
+
+    @staticmethod
+    def normalize_json_result(entries, json_mode):
+        """Return a renderable JSON result and whether the command failed.
+
+        Query methods use an empty list for a successful query with no matches,
+        while ``None`` means the command could not produce a result (for
+        example, because name resolution or an RPC connection failed).  JSON
+        callers still receive a valid empty document, and the command loop uses
+        the failure marker to return a non-zero status in one-shot mode.
+        """
+        if json_mode and entries is None:
+            return [], True
+        return entries, False
 
     def resolve_table_format(self):
         """Resolve -TableView into a tabulate/handled format name."""
@@ -112,16 +123,13 @@ class FORMATTER:
         print()
         if table_format == "json":
             # Flat contract: one object per row, all values already stringified
-            # by format_value_by_type(). ANSI is stripped only on the
-            # vulnerabilities column -- format_value_by_type() is shared with
-            # csv/md/html/latex and has no column context, so it must not do it.
+            # by format_value_by_type(). Strip presentation-only ANSI sequences
+            # at the JSON boundary without changing csv/md/html/latex output.
             header_list = list(headers) if headers else []
-            vuln_idx = {i for i, h in enumerate(header_list)
-                        if str(h).casefold() == 'vulnerabilities'}
             rows = []
             for row in filtered_entries:
                 rows.append({
-                    header_list[i]: (strip_ansi(cell) if i in vuln_idx else cell)
+                    header_list[i]: strip_ansi(cell)
                     for i, cell in enumerate(row)
                     if i < len(header_list)
                 })
@@ -186,9 +194,9 @@ class FORMATTER:
             actual = lookup.get(str(name).casefold())
             if actual is None:
                 continue
-            value = source.get(name)
-            if value is not None:
-                projected[actual] = value
+            # The key lookup above distinguishes a missing attribute from an
+            # explicitly null value. Preserve the latter as JSON null.
+            projected[actual] = source.get(name)
         return projected
 
     def _project_entry(self, entry, names):

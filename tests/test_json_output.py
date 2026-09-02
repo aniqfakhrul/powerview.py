@@ -89,11 +89,14 @@ class SerializerTests(unittest.TestCase):
         self.assertEqual(convert_to_json_serializable(source),
                          {"Key": [base64.b64encode(b"a").decode(), "2020-01-01T00:00:00"]})
 
-    def test_ansi_scoped_to_vulnerabilities(self):
+    def test_ansi_is_removed_from_every_json_string(self):
         out = convert_to_json_serializable(
-            {"vulnerabilities": [ANSI_VULN], "note": "keeps \033[91m escape"})
+            {"vulnerabilities": [ANSI_VULN],
+             "Authenticated": "\033[93mNo\033[0m",
+             "nested": [{"Status": "\033[92mRUNNING\033[0m"}]})
         self.assertEqual(out["vulnerabilities"], ["[V1] weak thing (HIGH)"])
-        self.assertIn("\033[91m", out["note"])
+        self.assertEqual(out["Authenticated"], "No")
+        self.assertEqual(out["nested"][0]["Status"], "RUNNING")
 
     def test_does_not_mutate_input(self):
         source = {"a": [b"x"], "when": datetime.datetime(2020, 1, 1)}
@@ -153,6 +156,17 @@ class StructuredJsonTests(unittest.TestCase):
         self.assertEqual(render_json("print_json", []), [])
         self.assertEqual(render_json("print_json", None), [])
 
+    def test_missing_result_is_renderable_but_marked_failed(self):
+        entries, failed = FORMATTER.normalize_json_result(None, json_mode=True)
+        self.assertEqual(entries, [])
+        self.assertTrue(failed)
+        entries, failed = FORMATTER.normalize_json_result([], json_mode=True)
+        self.assertEqual(entries, [])
+        self.assertFalse(failed)
+        entries, failed = FORMATTER.normalize_json_result(None, json_mode=False)
+        self.assertIsNone(entries)
+        self.assertFalse(failed)
+
     def test_outfile_receives_one_document(self):
         for entries in ([entry("alice")], []):
             with tempfile.TemporaryDirectory() as tmp:
@@ -195,10 +209,38 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(len(out), 1)
         self.assertEqual(len(out[0]["attributes"]), 2)
 
+    def test_int_select_limits_acl_wrappers_and_each_ace_list(self):
+        entries = [
+            {"dn": "CN=one", "attributes": [ace("1A"), ace("1B")]},
+            {"dn": "CN=two", "attributes": [ace("2A"), ace("2B")]},
+        ]
+        for mode, overrides in (("print_json", {}),
+                                ("table_view", {"tableview": "json"})):
+            out = render_json(mode, entries, select=1, **overrides)
+            self.assertEqual(len(out), 1, mode)
+            if mode == "print_json":
+                self.assertEqual(len(out[0]["attributes"]), 1)
+                self.assertEqual(out[0]["dn"], "CN=one")
+            else:
+                self.assertEqual(out[0]["ActiveDirectoryRights"], "1A")
+
     def test_named_select_projects_inside_each_ace(self):
         out = render_json("print_json", acl_entries(), select=["ActiveDirectoryRights"])
         for projected in out[0]["attributes"]:
             self.assertEqual(list(projected), ["ActiveDirectoryRights"])
+
+    def test_named_select_preserves_explicit_null_and_falsey_values(self):
+        source = entry("alice", presentNull=None, presentZero=0,
+                       presentFalse=False)
+        out = render_json(
+            "print_json", [source],
+            select=["presentnull", "presentzero", "presentfalse"]
+        )
+        self.assertEqual(out[0]["attributes"], {
+            "presentNull": None,
+            "presentZero": 0,
+            "presentFalse": False,
+        })
 
     def test_raw_string_select_is_not_iterated_per_character(self):
         for mode, kwargs in (("print_json", {}),
@@ -243,13 +285,15 @@ class TableViewJsonTests(unittest.TestCase):
         # the same int previously raised TypeError on every table format
         render("table_view", entries, tableview="md", select=2)
 
-    def test_ansi_stripped_on_vulnerabilities_column_only(self):
+    def test_ansi_stripped_from_all_flat_json_columns(self):
         out = render_json("table_view",
                           [entry("alice", vulnerabilities=[ANSI_VULN],
-                                 description="keeps \033[91m escape")],
+                                 Authenticated="\033[93mNo\033[0m",
+                                 Status="\033[92mRUNNING\033[0m")],
                           tableview="json")
         self.assertNotIn("\033[91m", out[0]["vulnerabilities"])
-        self.assertIn("\033[91m", out[0]["description"])
+        self.assertEqual(out[0]["Authenticated"], "No")
+        self.assertEqual(out[0]["Status"], "RUNNING")
 
     def test_other_formats_unaffected(self):
         rendered = render("table_view", [entry("alice")], tableview="md")

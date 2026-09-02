@@ -134,6 +134,11 @@ Values are encoded as follows:
 | `bytes` (e.g. `dnsRecord`, `nTSecurityDescriptor`) | base64 string |
 | `datetime` | ISO-8601 string |
 | `timedelta` | string |
+| ANSI terminal styling | removed from string values |
+
+A successful query with no matches emits `[]`. If a command cannot produce a
+result, JSON mode still emits `[]` but one-shot (`-q`) execution exits non-zero,
+so scripts can distinguish an empty result from a failed command.
 
 Note that PowerView resolves many attributes to friendly values *before* they
 reach the JSON encoder, and that resolution is preserved in the output: SIDs

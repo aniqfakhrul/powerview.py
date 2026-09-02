@@ -597,7 +597,13 @@ def main():
                             _json_mode = getattr(pv_args, "json", False) or getattr(pv_args, "tableview", "") == "json"
                             _header_rows_mode = _hdr_rows is not None
 
-                            if entries or _header_rows_mode or (_json_mode and isinstance(entries, list)):
+                            entries, _json_command_failed = FORMATTER.normalize_json_result(
+                                entries, _json_mode
+                            )
+                            if _json_command_failed:
+                                logging.error(f"'{pv_args.module}' did not return a result set")
+
+                            if entries or _header_rows_mode or _json_mode:
                                 if pv_args.outfile:
                                     if os.path.exists(pv_args.outfile):
                                         logging.error("%s exists "%(pv_args.outfile))
@@ -610,6 +616,11 @@ def main():
 
                                 if hasattr(pv_args, 'sort_by') and pv_args.sort_by is not None:
                                     entries = formatter.sort_entries(entries,pv_args.sort_by)
+
+                                entries, _modifier_failed = FORMATTER.normalize_json_result(
+                                    entries, _json_mode
+                                )
+                                _json_command_failed = _json_command_failed or _modifier_failed
 
                                 if entries is None:
                                     logging.error(f'Key not available')
@@ -638,6 +649,9 @@ def main():
                                             formatter.print_table(_rows, _hdr_rows)
                                         else:
                                             formatter.print(entries)
+
+                                if _json_command_failed:
+                                    exit_one_shot_on_error()
 
                             if isinstance(entries, list) and entries:
                                 first_entry = entries[0]
