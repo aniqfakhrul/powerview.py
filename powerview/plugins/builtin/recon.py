@@ -20,7 +20,7 @@ plugin = PowerviewPlugin(
     author="aniqfakhrul",
 )
 
-_ANSI_RE = re.compile(r'\033\[[0-9;]*m')
+from powerview.utils.helpers import strip_ansi
 
 
 _USER_FILTER_KEYS = [
@@ -84,7 +84,7 @@ def _header(title: str, count: Optional[int | str] = None) -> None:
         title = f"{title} ({count})"
     colored = f"{bcolors.BOLD}{title}{bcolors.ENDC}"
     print(f"\n{colored}")
-    print("─" * len(_ANSI_RE.sub('', title)))
+    print("─" * len(strip_ansi(title)))
 
 
 def _color_count(n: int, threshold: int = 0) -> str:

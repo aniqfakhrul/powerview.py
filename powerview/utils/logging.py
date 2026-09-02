@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import logging
+import sys
 from datetime import date, datetime, timedelta
 from sys import platform
 if platform == "linux" or platform == "linux2":
@@ -85,7 +86,9 @@ class LOG:
         else:
             self.file_name = "%s.log" % date.today()
 
-        print("Logging directory is set to %s" % (self.logs_folder))
+        # stderr, not logging.info: LOG.__init__ runs before setup_logger()
+        # and emitting through the root logger here would configure it early.
+        print("Logging directory is set to %s" % (self.logs_folder), file=sys.stderr)
 
         self._cleanup_old_logs()
 

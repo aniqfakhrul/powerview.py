@@ -15,5 +15,9 @@ CLAUDE.md
 uv.lock
 win-libs
 ghidraScripts
-tests
+# tests/ was historically a local scratch area. Track committed test modules
+# so new ones are not silently ignored; keep ignoring scratch/fixture files.
+tests/*
+!tests/__init__.py
+!tests/test_*.py
 docs

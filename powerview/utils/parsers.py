@@ -19,7 +19,7 @@ def set_plugin_registry(registry):
 class PowerViewParser(argparse.ArgumentParser):
 	def error(self, message):
 		if getattr(self, "exit_on_error", True):
-			print(message)
+			print(message, file=sys.stderr)
 			sys.exit(0)
 		raise argparse.ArgumentError(None, message)
 
@@ -35,6 +35,7 @@ def arg_parse():
 	parser.add_argument('--no-cache', dest='no_cache', default=False, action='store_true', help='Disable caching of LDAP queries')
 	parser.add_argument('--no-vuln-check', dest='no_vuln_check', default=False, action='store_true', help='Disable vulnerability detection')
 	parser.add_argument('--raw', dest='raw', default=False, action='store_true', help='Return raw LDAP entries without formatting')
+	parser.add_argument('--json', dest='json', default=False, action='store_true', help='Output results as JSON (equivalent to -Json on the command)')
 
 	ns_group_parser = parser.add_mutually_exclusive_group()
 	ns_group_parser.add_argument('--use-system-nameserver', action='store_true', default=False, dest='use_system_ns', help='Use system nameserver to resolve hostname/domain')
@@ -122,11 +123,13 @@ class Helper:
 		return value.strip().split(',') if value else []
 
 	def parse_tableview(value):
-		"""Parse the tableview argument into a list or return the digit if value is a digit."""
-		VALID_TABLE_VIEWS = ["md", "csv", "default"]
+		"""Validate the tableview argument and canonicalise it to lower case."""
+		VALID_TABLE_VIEWS = ["default", "simple", "md", "github", "markdown", "csv", "json", "tsv", "latex", "html"]
 		if value and value.lower() not in VALID_TABLE_VIEWS:
 			raise ValueError(f"Invalid tableview: {value}. Valid options are: {', '.join(VALID_TABLE_VIEWS)}")
-		return value
+		# TABLE_FMT_MAP lookups are case-sensitive, so canonicalise here or
+		# "-TableView MD" silently degrades to the default format.
+		return value.lower() if value else value
 
 	def parse_web_auth(web_auth):
 		web_auth_user = None
@@ -168,6 +171,7 @@ def powerview_arg_parse(cmd):
 	get_domain_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domain_parser.add_argument('-Where', action='store', dest='where')
 	get_domain_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domain_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domain_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domain_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domain_parser.add_argument('-Count', action='store_true', dest='count')
@@ -188,6 +192,7 @@ def powerview_arg_parse(cmd):
 	get_domainobject_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domainobject_parser.add_argument('-Where', action='store', dest='where')
 	get_domainobject_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domainobject_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domainobject_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domainobject_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainobject_parser.add_argument('-Count', action='store_true', dest='count')
@@ -204,7 +209,8 @@ def powerview_arg_parse(cmd):
 	get_domainobjectowner_parser.add_argument('-Server', action='store', dest='server')
 	get_domainobjectowner_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domainobjectowner_parser.add_argument('-Where', action='store', dest='where')
-	get_domainobjectowner_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.")
+	get_domainobjectowner_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview',help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domainobjectowner_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domainobjectowner_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domainobjectowner_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainobjectowner_parser.add_argument('-Count', action='store_true', dest='count')
@@ -225,6 +231,7 @@ def powerview_arg_parse(cmd):
 	get_domainobjectacl_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domainobjectacl_parser.add_argument('-Where', action='store', dest='where')
 	get_domainobjectacl_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domainobjectacl_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domainobjectacl_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainobjectacl_parser.add_argument('-Count', action='store_true', dest='count')
 	get_domainobjectacl_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
@@ -244,6 +251,7 @@ def powerview_arg_parse(cmd):
 	get_domaingroup_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaingroup_parser.add_argument('-Where', action='store', dest='where')
 	get_domaingroup_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaingroup_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaingroup_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaingroup_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaingroup_parser.add_argument('-Count', action='store_true', dest='count')
@@ -259,6 +267,7 @@ def powerview_arg_parse(cmd):
 	get_domainforeignuser_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domainforeignuser_parser.add_argument('-Where', action='store', dest='where')
 	get_domainforeignuser_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domainforeignuser_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domainforeignuser_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domainforeignuser_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainforeignuser_parser.add_argument('-Count', action='store_true', dest='count')
@@ -271,6 +280,7 @@ def powerview_arg_parse(cmd):
 	get_domainforeigngroupmember_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domainforeigngroupmember_parser.add_argument('-Where', action='store', dest='where')
 	get_domainforeigngroupmember_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domainforeigngroupmember_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domainforeigngroupmember_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domainforeigngroupmember_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainforeigngroupmember_parser.add_argument('-Count', action='store_true', dest='count')
@@ -284,6 +294,7 @@ def powerview_arg_parse(cmd):
 	get_domaingroupmember_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaingroupmember_parser.add_argument('-Where', action='store', dest='where')
 	get_domaingroupmember_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaingroupmember_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaingroupmember_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaingroupmember_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaingroupmember_parser.add_argument('-Count', action='store_true', dest='count')
@@ -301,6 +312,7 @@ def powerview_arg_parse(cmd):
 	get_domainuser_parser.add_argument('-Server', action='store', dest='server')
 	get_domainuser_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domainuser_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domainuser_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domainuser_parser.add_argument('-Where', action='store', dest='where') # type=parser.where
 	get_domainuser_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domainuser_parser.add_argument('-OutFile', action='store', dest='outfile')
@@ -334,6 +346,7 @@ def powerview_arg_parse(cmd):
 	get_localuser_parser.add_argument('-Identity', action='store', dest='identity', type=parse_identity_list)
 	get_localuser_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	get_localuser_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_localuser_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_localuser_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_localuser_parser.add_argument('-Server', action='store', dest='server')
 	get_localuser_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
@@ -351,6 +364,7 @@ def powerview_arg_parse(cmd):
 	get_domaincomputer_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaincomputer_parser.add_argument('-Where', action='store', dest='where')
 	get_domaincomputer_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaincomputer_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaincomputer_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaincomputer_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaincomputer_parser.add_argument('-Count', action='store_true', dest='count')
@@ -385,9 +399,10 @@ def powerview_arg_parse(cmd):
 	get_domaincontroller_parser.add_argument('-Properties',action='store', dest='properties', type=Helper.parse_properties)
 	get_domaincontroller_parser.add_argument('-LDAPFilter', action='store', dest='ldapfilter')
 	get_domaincontroller_parser.add_argument('-Server', action='store', dest='server')
-	get_domaincontroller_parser.add_argument('-Select',action='store', dest='select')
+	get_domaincontroller_parser.add_argument('-Select',action='store', dest='select', type=Helper.parse_select)
 	get_domaincontroller_parser.add_argument('-Where', action='store', dest='where')
 	get_domaincontroller_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaincontroller_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaincontroller_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaincontroller_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaincontroller_parser.add_argument('-Count', action='store_true', dest='count')
@@ -406,6 +421,7 @@ def powerview_arg_parse(cmd):
 	get_domaingpo_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaingpo_parser.add_argument('-Where', action='store', dest='where')
 	get_domaingpo_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaingpo_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaingpo_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaingpo_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaingpo_parser.add_argument('-Count', action='store_true', dest='count')
@@ -422,6 +438,7 @@ def powerview_arg_parse(cmd):
 	get_domaingpolocalgroup_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaingpolocalgroup_parser.add_argument('-Where', action='store', dest='where')
 	get_domaingpolocalgroup_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaingpolocalgroup_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaingpolocalgroup_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaingpolocalgroup_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaingpolocalgroup_parser.add_argument('-Count', action='store_true', dest='count')
@@ -435,6 +452,7 @@ def powerview_arg_parse(cmd):
 	get_domaingposettings_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaingposettings_parser.add_argument('-Where', action='store', dest='where')
 	get_domaingposettings_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaingposettings_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaingposettings_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaingposettings_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaingposettings_parser.add_argument('-Count', action='store_true', dest='count')
@@ -456,6 +474,7 @@ def powerview_arg_parse(cmd):
 	get_domainou_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domainou_parser.add_argument('-Where', action='store', dest='where')
 	get_domainou_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domainou_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domainou_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domainou_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainou_parser.add_argument('-Count', action='store_true', dest='count')
@@ -476,6 +495,7 @@ def powerview_arg_parse(cmd):
 	get_domaindnszone_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaindnszone_parser.add_argument('-Where', action='store', dest='where')
 	get_domaindnszone_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaindnszone_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaindnszone_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaindnszone_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaindnszone_parser.add_argument('-Count', action='store_true', dest='count')
@@ -498,6 +518,7 @@ def powerview_arg_parse(cmd):
 	get_domaindnsrecord_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaindnsrecord_parser.add_argument('-Where', action='store', dest='where')
 	get_domaindnsrecord_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaindnsrecord_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaindnsrecord_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaindnsrecord_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaindnsrecord_parser.add_argument('-Count', action='store_true', dest='count')
@@ -517,6 +538,7 @@ def powerview_arg_parse(cmd):
 	get_domainsccm_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domainsccm_parser.add_argument('-Where', action='store', dest='where')
 	get_domainsccm_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domainsccm_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domainsccm_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domainsccm_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainsccm_parser.add_argument('-Count', action='store_true', dest='count')
@@ -535,6 +557,7 @@ def powerview_arg_parse(cmd):
 	get_domaingmsa_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaingmsa_parser.add_argument('-Where', action='store', dest='where')
 	get_domaingmsa_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaingmsa_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaingmsa_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaingmsa_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaingmsa_parser.add_argument('-Count', action='store_true', dest='count')
@@ -553,6 +576,7 @@ def powerview_arg_parse(cmd):
 	get_domaindmsa_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaindmsa_parser.add_argument('-Where', action='store', dest='where')
 	get_domaindmsa_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaindmsa_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaindmsa_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaindmsa_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaindmsa_parser.add_argument('-Count', action='store_true', dest='count')
@@ -570,6 +594,7 @@ def powerview_arg_parse(cmd):
 	get_domainrbcd_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domainrbcd_parser.add_argument('-Where', action='store', dest='where')
 	get_domainrbcd_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domainrbcd_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domainrbcd_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domainrbcd_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainrbcd_parser.add_argument('-Count', action='store_true', dest='count')
@@ -588,6 +613,7 @@ def powerview_arg_parse(cmd):
 	get_domainwds_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domainwds_parser.add_argument('-Where', action='store', dest='where')
 	get_domainwds_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domainwds_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domainwds_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domainwds_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainwds_parser.add_argument('-Count', action='store_true', dest='count')
@@ -605,6 +631,7 @@ def powerview_arg_parse(cmd):
 	get_domainca_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domainca_parser.add_argument('-Where', action='store', dest='where')
 	get_domainca_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domainca_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domainca_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domainca_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domainca_parser.add_argument('-Count', action='store_true', dest='count')
@@ -626,6 +653,7 @@ def powerview_arg_parse(cmd):
 	get_domaincatemplate_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaincatemplate_parser.add_argument('-Where', action='store', dest='where')
 	get_domaincatemplate_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaincatemplate_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaincatemplate_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaincatemplate_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaincatemplate_parser.add_argument('-Count', action='store_true', dest='count')
@@ -667,6 +695,7 @@ def powerview_arg_parse(cmd):
 	get_namedpipes_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_namedpipes_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_namedpipes_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_namedpipes_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_namedpipes_parser.add_argument('-Server', action='store', dest='server')
 	get_namedpipes_parser.add_argument('-Count', action='store_true', dest='count')
 	get_namedpipes_parser.add_argument('-OutFile', action='store', dest='outfile')
@@ -679,6 +708,7 @@ def powerview_arg_parse(cmd):
 	get_netshare_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netshare_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_netshare_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_netshare_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_netshare_parser.add_argument('-Server', action='store', dest='server')
 	get_netshare_parser.add_argument('-Count', action='store_true', dest='count')
 	get_netshare_parser.add_argument('-OutFile', action='store', dest='outfile')
@@ -689,6 +719,7 @@ def powerview_arg_parse(cmd):
 	get_regloggedon_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_regloggedon_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_regloggedon_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_regloggedon_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_regloggedon_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_regloggedon_parser.add_argument('-Server', action='store', dest='server')
 	get_regloggedon_parser.add_argument('-Count', action='store_true', dest='count')
@@ -705,6 +736,7 @@ def powerview_arg_parse(cmd):
 	get_netcomputerinfo_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
 	get_netcomputerinfo_parser.add_argument('-Server', action='store', dest='server')
 	get_netcomputerinfo_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_netcomputerinfo_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_netcomputerinfo_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_netcomputerinfo_parser.add_argument('-Count', action='store_true', dest='count')
 	get_netcomputerinfo_parser.add_argument('-OutFile', action='store', dest='outfile')
@@ -719,6 +751,7 @@ def powerview_arg_parse(cmd):
 	get_netloggedon_cred_group.add_argument('-Password', action='store', default=None, dest='password')
 	get_netloggedon_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
 	get_netloggedon_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_netloggedon_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_netloggedon_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_netloggedon_parser.add_argument('-Server', action='store', dest='server')
 	get_netloggedon_parser.add_argument('-Count', action='store_true', dest='count')
@@ -742,6 +775,7 @@ def powerview_arg_parse(cmd):
 	get_eventlog_cred_group.add_argument('-Password', action='store', default=None, dest='password')
 	get_eventlog_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
 	get_eventlog_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_eventlog_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_eventlog_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_eventlog_parser.add_argument('-Server', action='store', dest='server')
 	get_eventlog_parser.add_argument('-Count', action='store_true', dest='count')
@@ -758,6 +792,7 @@ def powerview_arg_parse(cmd):
 	get_eventlogchannel_cred_group.add_argument('-Password', action='store', default=None, dest='password')
 	get_eventlogchannel_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
 	get_eventlogchannel_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_eventlogchannel_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_eventlogchannel_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_eventlogchannel_parser.add_argument('-Server', action='store', dest='server')
 	get_eventlogchannel_parser.add_argument('-Count', action='store_true', dest='count')
@@ -774,6 +809,7 @@ def powerview_arg_parse(cmd):
 	get_eventlogpublisher_cred_group.add_argument('-Password', action='store', default=None, dest='password')
 	get_eventlogpublisher_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
 	get_eventlogpublisher_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_eventlogpublisher_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_eventlogpublisher_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_eventlogpublisher_parser.add_argument('-Server', action='store', dest='server')
 	get_eventlogpublisher_parser.add_argument('-Count', action='store_true', dest='count')
@@ -790,6 +826,7 @@ def powerview_arg_parse(cmd):
 	get_netterminalsession_cred_group.add_argument('-Password', action='store', default=None, dest='password')
 	get_netterminalsession_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
 	get_netterminalsession_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_netterminalsession_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_netterminalsession_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_netterminalsession_parser.add_argument('-Server', action='store', dest='server')
 	get_netterminalsession_parser.add_argument('-Count', action='store_true', dest='count')
@@ -808,6 +845,7 @@ def powerview_arg_parse(cmd):
 	get_netprocess_cred_group.add_argument('-Password', action='store', default=None, dest='password')
 	get_netprocess_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
 	get_netprocess_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_netprocess_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_netprocess_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_netprocess_parser.add_argument('-Server', action='store', dest='server')
 	get_netprocess_parser.add_argument('-Count', action='store_true', dest='count')
@@ -855,6 +893,7 @@ def powerview_arg_parse(cmd):
 	invoke_badsuccessor_parser.add_argument('-Server', action='store', dest='server')
 	invoke_badsuccessor_parser.add_argument('-OutFile', action='store', dest='outfile')
 	invoke_badsuccessor_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	invoke_badsuccessor_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	invoke_badsuccessor_parser.add_argument('-Count', action='store_true', dest='count')
 	invoke_badsuccessor_parser.add_argument('-NoCache', default=False, action='store_true', dest='nocache')
 	invoke_badsuccessor_parser.add_argument('-NoDelete', default=False, action='store_true', dest='no_delete')
@@ -927,6 +966,7 @@ def powerview_arg_parse(cmd):
 	get_netsession_cred_group.add_argument('-Password', action='store', default=None, dest='password')
 	get_netsession_cred_group.add_argument('-Hash', action='store', default=None, dest='hash')
 	get_netsession_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_netsession_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_netsession_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_netsession_parser.add_argument('-Server', action='store', dest='server')
 	get_netsession_parser.add_argument('-Count', action='store_true', dest='count')
@@ -954,6 +994,7 @@ def powerview_arg_parse(cmd):
 	get_netservice_status_group.add_argument('-IsRunning', action='store_true', default=False, dest='isrunning')
 	get_netservice_status_group.add_argument('-IsStopped', action='store_true', default=False, dest='isstopped')
 	get_netservice_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_netservice_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_netservice_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_netservice_parser.add_argument('-Count', action='store_true', dest='count')
 	get_netservice_parser.add_argument('-OutFile', action='store', dest='outfile')
@@ -1009,6 +1050,7 @@ def powerview_arg_parse(cmd):
 	find_localadminaccess_parser.add_argument('-Hash', action='store', dest='hash')
 	find_localadminaccess_parser.add_argument('-NoResolve', action='store_true', default=False, dest='no_resolve')
 	find_localadminaccess_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	find_localadminaccess_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	find_localadminaccess_parser.add_argument('-Server', action='store', dest='server')
 	find_localadminaccess_parser.add_argument('-Count', action='store_true', dest='count')
 	find_localadminaccess_parser.add_argument('-OutFile', action='store', dest='outfile')
@@ -1022,6 +1064,7 @@ def powerview_arg_parse(cmd):
 	invoke_asreproast_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	invoke_asreproast_parser.add_argument('-OutFile', action='store', dest='outfile')
 	invoke_asreproast_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	invoke_asreproast_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	invoke_asreproast_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	invoke_asreproast_parser.add_argument('-Count', action='store_true', dest='count')
 	invoke_asreproast_parser.add_argument('-NoWrap', action='store_true', default=False, dest='nowrap')
@@ -1036,6 +1079,7 @@ def powerview_arg_parse(cmd):
 	invoke_kerberoast_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	invoke_kerberoast_parser.add_argument('-Where', action='store', dest='where')
 	invoke_kerberoast_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	invoke_kerberoast_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	invoke_kerberoast_parser.add_argument('-OutFile', action='store', dest='outfile')
 	invoke_kerberoast_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	invoke_kerberoast_parser.add_argument('-Count', action='store_true', dest='count')
@@ -1049,6 +1093,7 @@ def powerview_arg_parse(cmd):
 	invoke_printerbug_parser.add_argument('-Server', action='store', dest='server')
 	invoke_printerbug_parser.add_argument('-OutFile', action='store', dest='outfile')
 	invoke_printerbug_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	invoke_printerbug_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	invoke_printerbug_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	invoke_printerbug_parser.add_argument('-Where', action='store', dest='where')
 	invoke_printerbug_parser.add_argument('-SortBy', action='store', dest='sort_by')
@@ -1062,6 +1107,7 @@ def powerview_arg_parse(cmd):
 	invoke_dfscoerce_parser.add_argument('-Server', action='store', dest='server')
 	invoke_dfscoerce_parser.add_argument('-OutFile', action='store', dest='outfile')
 	invoke_dfscoerce_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	invoke_dfscoerce_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	invoke_dfscoerce_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	invoke_dfscoerce_parser.add_argument('-Where', action='store', dest='where')
 	invoke_dfscoerce_parser.add_argument('-SortBy', action='store', dest='sort_by')
@@ -1078,6 +1124,7 @@ def powerview_arg_parse(cmd):
 	get_exchangeserver_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_exchangeserver_parser.add_argument('-Where', action='store', dest='where')
 	get_exchangeserver_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_exchangeserver_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_exchangeserver_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_exchangeserver_parser.add_argument('-Count', action='store_true', dest='count')
 	get_exchangeserver_parser.add_argument('-OutFile', action='store', dest='outfile')
@@ -1094,6 +1141,7 @@ def powerview_arg_parse(cmd):
 	get_exchangemailbox_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_exchangemailbox_parser.add_argument('-Where', action='store', dest='where')
 	get_exchangemailbox_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_exchangemailbox_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_exchangemailbox_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_exchangemailbox_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_exchangemailbox_parser.add_argument('-Count', action='store_true', dest='count')
@@ -1111,6 +1159,7 @@ def powerview_arg_parse(cmd):
 	get_exchangedatabase_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_exchangedatabase_parser.add_argument('-Where', action='store', dest='where')
 	get_exchangedatabase_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_exchangedatabase_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_exchangedatabase_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_exchangedatabase_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_exchangedatabase_parser.add_argument('-Count', action='store_true', dest='count')
@@ -1177,6 +1226,7 @@ def powerview_arg_parse(cmd):
 	get_domaintrust_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaintrust_parser.add_argument('-Where', action='store', dest='where')
 	get_domaintrust_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaintrust_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaintrust_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaintrust_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaintrust_parser.add_argument('-Count', action='store_true', dest='count')
@@ -1191,6 +1241,7 @@ def powerview_arg_parse(cmd):
 	get_domaintrustmapping_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaintrustmapping_parser.add_argument('-Where', action='store', dest='where')
 	get_domaintrustmapping_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaintrustmapping_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaintrustmapping_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaintrustmapping_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaintrustmapping_parser.add_argument('-Count', action='store_true', dest='count')
@@ -1209,6 +1260,7 @@ def powerview_arg_parse(cmd):
 	get_domaintrustkey_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
 	get_domaintrustkey_parser.add_argument('-Where', action='store', dest='where')
 	get_domaintrustkey_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	get_domaintrustkey_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_domaintrustkey_parser.add_argument('-SortBy', action='store', dest='sort_by')
 	get_domaintrustkey_parser.add_argument('-OutFile', action='store', dest='outfile')
 	get_domaintrustkey_parser.add_argument('-Count', action='store_true', dest='count')
@@ -1221,6 +1273,7 @@ def powerview_arg_parse(cmd):
 	convertfrom_uacvalue_parser = subparsers.add_parser('ConvertFrom-UACValue' ,exit_on_error=False)
 	convertfrom_uacvalue_parser.add_argument('-Value', action='store', required=True, dest='value')
 	convertfrom_uacvalue_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
+	convertfrom_uacvalue_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	convertfrom_uacvalue_parser.add_argument('-OutFile', action='store', dest='outfile')
 	
 	# convert from sid
@@ -1604,7 +1657,7 @@ def powerview_arg_parse(cmd):
 						indexs = [item.lower() for item in COMMANDS[cmd[0]]].index(unk.lower())
 						cmd = [c.replace(unk,COMMANDS[cmd[0]][indexs]) for c in cmd]
 					else:
-						print(f"Unrecognized argument: {unk}")
+						print(f"Unrecognized argument: {unk}", file=sys.stderr)
 						return None
 				else:
 					if hasattr(args, 'identity'):
@@ -1616,7 +1669,7 @@ def powerview_arg_parse(cmd):
 					elif hasattr(args, 'computer') or hasattr(args, 'computername'):
 						args.computer = unk
 					else:
-						print(f"Unrecognized argument: {unk}")
+						print(f"Unrecognized argument: {unk}", file=sys.stderr)
 						return None
 					return args
 			return parser.parse_args(cmd)
@@ -1651,7 +1704,7 @@ def powerview_arg_parse(cmd):
 			pass
 		
 		if "module" in str(e):
-			print("Invalid command")
+			print("Invalid command", file=sys.stderr)
 		else:
 			msg = str(e)
 			module_name = cmd[0] if cmd else "Unknown"
@@ -1668,11 +1721,11 @@ def powerview_arg_parse(cmd):
 				parts = msg.split(":")
 				if len(parts) > 1:
 					flags = parts[-1].strip()
-					print(f"[{module_name}] Missing required argument: {flags}")
+					print(f"[{module_name}] Missing required argument: {flags}", file=sys.stderr)
 				else:
-					print(f"[{module_name}] {msg}")
+					print(f"[{module_name}] {msg}", file=sys.stderr)
 			else:
-				print(f"[{module_name}] {msg}")
+				print(f"[{module_name}] {msg}", file=sys.stderr)
 		
 		return None
 	except SystemExit:

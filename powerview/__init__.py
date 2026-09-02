@@ -9,6 +9,7 @@ except ImportError:
     sys.modules['readline'] = readline
 from powerview.powerview import PowerView
 from powerview.utils.helpers import *
+from powerview.utils.constants import JSON_CAPABLE_MODULES
 from powerview.utils.native import *
 from powerview.utils.formatter import FORMATTER
 from powerview.utils.completer import Completer
@@ -90,6 +91,17 @@ def main():
 
         using_cache = False
 
+        def exit_one_shot_on_error():
+            """Terminate a -q invocation that hit an early error.
+
+            One-shot mode re-reads the same args.query on every pass, and a
+            bare `continue` skips the exit at the bottom of the loop, so any
+            early-error path would spin forever instead of returning.
+            """
+            if args.query:
+                conn.close()
+                sys.exit(1)
+
         while True:
             try:
                 temp_powerview = None
@@ -106,11 +118,28 @@ def main():
                             raise e
                         else:
                             logging.error(str(e))
+                            exit_one_shot_on_error()
                             continue
 
                     pv_args = powerview_arg_parse(cmd)
 
                     if pv_args:
+                        # One gate for every way JSON can be requested. Only
+                        # commands that produce a result set can render it;
+                        # action commands assign to `succeed` and plugins print
+                        # directly, so a JSON request there would silently
+                        # produce nothing. Reject rather than ignore: a command
+                        # must never emit text while the user asked for JSON.
+                        _wants_json = (args.json
+                                       or getattr(pv_args, 'json', False)
+                                       or getattr(pv_args, 'tableview', '') == 'json')
+                        if _wants_json and str(pv_args.module).casefold() not in JSON_CAPABLE_MODULES:
+                            logging.error(f"JSON output is not supported for '{pv_args.module}'")
+                            exit_one_shot_on_error()
+                            continue
+                        if args.json:
+                            pv_args.json = True
+
                         if pv_args.server and pv_args.server.lower() != powerview.domain.lower():
                             try:
                                 temp_powerview = powerview.get_domain_powerview(pv_args.server)
@@ -118,10 +147,12 @@ def main():
                             except ldap3.core.exceptions.LDAPSocketOpenError as e:
                                 logging.error(f'Connection to domain {pv_args.server} failed: {str(e)}')
                                 current_target_domain = None
+                                exit_one_shot_on_error()
                                 continue
                             except ldap3.core.exceptions.LDAPBindError as e:
                                 logging.error(f'Authentication to domain {pv_args.server} failed: {str(e)}')
                                 current_target_domain = None
+                                exit_one_shot_on_error()
                                 continue
                             except Exception as e:
                                 logging.error(f'Domain {pv_args.server} operation failed: {str(e)}')
@@ -129,6 +160,7 @@ def main():
                                 if args.stack_trace:
                                     import traceback
                                     logging.debug(traceback.format_exc())
+                                exit_one_shot_on_error()
                                 continue
                         else:
                             # No server specified or same as current domain
@@ -553,10 +585,23 @@ def main():
                                             import traceback
                                             logging.debug(traceback.format_exc())
 
-                            if entries:
+                            # Normalise the plugin {"headers","rows"} shape into ordinary
+                            # entries so -Count/-Where/-Select/-Json all operate on rows
+                            # rather than on the two dict keys. The original rows are kept
+                            # so the legacy table rendering stays byte-for-byte identical.
+                            _hdr_rows = _orig_rows = None
+                            if isinstance(entries, dict) and "headers" in entries and "rows" in entries:
+                                _hdr_rows, _orig_rows = entries["headers"], entries["rows"]
+                                entries = [{"attributes": dict(zip(_hdr_rows, row))} for row in entries["rows"]]
+
+                            _json_mode = getattr(pv_args, "json", False) or getattr(pv_args, "tableview", "") == "json"
+                            _header_rows_mode = _hdr_rows is not None
+
+                            if entries or _header_rows_mode or (_json_mode and isinstance(entries, list)):
                                 if pv_args.outfile:
                                     if os.path.exists(pv_args.outfile):
                                         logging.error("%s exists "%(pv_args.outfile))
+                                        exit_one_shot_on_error()
                                         continue
 
                                 formatter = FORMATTER(pv_args)
@@ -571,6 +616,8 @@ def main():
                                 else:
                                     if hasattr(pv_args, "count") and pv_args.count:
                                         formatter.count(entries)
+                                    elif getattr(pv_args, "json", False):
+                                        formatter.print_json(entries)
                                     elif hasattr(pv_args, "tableview") and pv_args.tableview:
                                         formatter.table_view(entries)
                                     elif hasattr(pv_args, "select") and pv_args.select is not None:
@@ -579,8 +626,16 @@ def main():
                                         else:
                                             formatter.print_select(entries)
                                     else:
-                                        if isinstance(entries, dict) and entries.get("headers"):
-                                            formatter.print_table(entries["rows"], entries["headers"])
+                                        if _header_rows_mode:
+                                            if len(entries) == len(_orig_rows):
+                                                # Untouched by -Where/-SortBy: reuse the
+                                                # original rows so duplicate headers and
+                                                # ragged rows render exactly as before.
+                                                _rows = _orig_rows
+                                            else:
+                                                _rows = [[IDict(e.get("attributes", {})).get(h) for h in _hdr_rows]
+                                                         for e in entries]
+                                            formatter.print_table(_rows, _hdr_rows)
                                         else:
                                             formatter.print(entries)
 
@@ -607,12 +662,12 @@ def main():
                             logging.error(str(e))
                             conn.reset_connection()
             except KeyboardInterrupt:
-                print()
+                print(file=sys.stderr)
             except EOFError:
                 if args.mcp and hasattr(powerview, 'mcp_server') and powerview.mcp_server.get_status():
                     powerview.mcp_server.stop()
                 log_handler.save_history()
-                print("Exiting...")
+                print("Exiting...", file=sys.stderr)
                 conn.close()
                 sys.exit(0)
             except (ldap3.core.exceptions.LDAPSocketSendError, 
@@ -639,9 +694,9 @@ def main():
                 sys.exit(0)
 
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
-        print(str(e))
+        logging.error(str(e))
     except ldap3.core.exceptions.LDAPBindError as e:
-        print(str(e))
+        logging.error(str(e))
     except Exception as e:
         if args.stack_trace:
             log_handler.save_history()
