@@ -60,6 +60,7 @@ def main():
     else:
         logging = log_handler.setup_logger()
     
+    conn = None
     try:
         conn = CONNECTION(args)
         init_ldap_address = args.ldap_address
@@ -99,7 +100,6 @@ def main():
             early-error path would spin forever instead of returning.
             """
             if args.query:
-                conn.close()
                 sys.exit(1)
 
         while True:
@@ -682,7 +682,6 @@ def main():
                     powerview.mcp_server.stop()
                 log_handler.save_history()
                 print("Exiting...", file=sys.stderr)
-                conn.close()
                 sys.exit(0)
             except (ldap3.core.exceptions.LDAPSocketSendError, 
                     ldap3.core.exceptions.LDAPSocketReceiveError) as e:
@@ -704,7 +703,6 @@ def main():
                     logging.error(str(e))
 
             if args.query:
-                conn.close()
                 sys.exit(0)
 
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
@@ -717,6 +715,12 @@ def main():
             raise
         else:
             logging.error(str(e))
+    finally:
+        # Release worker threads and network resources before interpreter
+        # finalization. This covers every exit path, including `exit`, EOF,
+        # one-shot queries, parser exits, and unexpected exceptions.
+        if conn is not None:
+            conn.close()
 
 if __name__ == '__main__':
     main()
