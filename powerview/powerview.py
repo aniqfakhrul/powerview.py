@@ -30,6 +30,7 @@ from powerview.modules.ldapattack import (
 )
 from powerview.lib.adws.error import ADWSError
 from powerview.utils.colors import bcolors
+from powerview.utils.schema import SchemaAttributeResolver, SchemaFeatureVariant
 from powerview.utils.constants import (
 	WELL_KNOWN_SIDS,
 	KNOWN_SIDS,
@@ -72,6 +73,21 @@ import sys
 import random
 import time
 import contextlib
+
+
+LAPS_SCHEMA_VARIANTS = (
+	SchemaFeatureVariant(
+		name="legacy Microsoft LAPS",
+		marker_attribute="ms-Mcs-AdmPwdExpirationTime",
+		properties=("ms-Mcs-AdmPwd",),
+	),
+	SchemaFeatureVariant(
+		name="Windows LAPS",
+		marker_attribute="msLAPS-PasswordExpirationTime",
+		properties=("msLAPS-Password", "msLAPS-EncryptedPassword"),
+	),
+)
+
 
 class PowerView:
 	def __init__(self, conn, args, target_server=None, target_domain=None):
@@ -209,6 +225,26 @@ class PowerView:
 		if len(filters) == 1:
 			return filters[0]
 		return "(|" + "".join(filters) + ")"
+
+	def _resolve_schema_feature(self, feature_name, variants):
+		"""Resolve an optional directory feature against the active schema."""
+		resolver = SchemaAttributeResolver.from_server(self.ldap_server)
+		resolved = resolver.resolve_feature(variants)
+
+		if not resolver.available:
+			logging.warning(
+				f"[Schema] Cannot determine {feature_name} support because "
+				"the server did not provide schema information"
+			)
+		elif not resolved:
+			logging.warning(
+				f"[Schema] The connected directory does not advertise {feature_name} attributes"
+			)
+		else:
+			variant_names = ", ".join(variant.name for variant in resolved.variants)
+			logging.debug(f"[Schema] Detected {feature_name} variant(s): {variant_names}")
+
+		return resolved
 
 	def add_domain_connection(self, domain):
 		"""Add a domain connection to the pool"""
@@ -1524,10 +1560,11 @@ class PowerView:
 				properties.add('msds-AllowedToDelegateTo')
 			if hasattr(args, 'laps') and args.laps:
 				logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
-				ldap_filter += '(|(ms-Mcs-AdmPwdExpirationTime=*)(msLaps-PasswordExpirationTime=*))'
-				properties.add('ms-Mcs-AdmPwd')
-				properties.add('ms-Mcs-AdmPwdExpirationTime')
-				properties.add('msLaps-PasswordExpirationTime')
+				laps_feature = self._resolve_schema_feature("LAPS", LAPS_SCHEMA_VARIANTS)
+				if not laps_feature:
+					return []
+				ldap_filter += laps_feature.presence_filter
+				properties.update(laps_feature.properties)
 			if hasattr(args, 'rbcd') and args.rbcd:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
 				ldap_filter += '(msDS-AllowedToActOnBehalfOfOtherIdentity=*)'
