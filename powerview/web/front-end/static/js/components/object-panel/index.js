@@ -2,18 +2,16 @@ import { objectType } from '../../core/directory.js';
 import { button, element } from '../../core/dom.js';
 import { createAttributes } from './attributes.js';
 import { membershipCount, renderMembership } from './membership.js';
-import { renderOverview } from './overview.js';
 import { createSecurity } from './security.js';
 
 const TABS = [
-  { key: 'overview', label: 'Overview' },
+  { key: 'attributes', label: 'Attributes' },
   { key: 'members', label: 'Members', attribute: 'member', noun: 'members', types: ['group'] },
   { key: 'memberOf', label: 'Member of', attribute: 'memberOf', noun: 'groups', types: ['group', 'user', 'computer'] },
   { key: 'security', label: 'Security', lazy: true },
-  { key: 'attributes', label: 'Attributes' },
 ];
 
-export function createObjectPanel({ root, defaultTab = 'overview', ...options }) {
+export function createObjectPanel({ root, defaultTab = 'attributes', ...options }) {
   const attributes = createAttributes({ root, ...options, reopen: (dn, openOptions) => open(dn, openOptions) });
   const body = root.querySelector('[data-panel-body]');
   const filterHost = root.querySelector('[data-panel-filter-host]');
@@ -40,7 +38,7 @@ export function createObjectPanel({ root, defaultTab = 'overview', ...options })
     tab.append(label, count);
     let panel = body;
     if (definition.key !== 'attributes') {
-      panel = element('div', definition.key === 'overview' ? 'overview' : definition.key === 'security' ? 'security' : 'membership');
+      panel = element('div', definition.key === 'security' ? 'security' : 'membership');
       panel.id = `${root.id}-${definition.key}`;
       panel.tabIndex = -1;
       body.before(panel);
@@ -110,7 +108,7 @@ export function createObjectPanel({ root, defaultTab = 'overview', ...options })
     const box = element('div', 'panel-message');
     const retry = button('Retry', { iconName: 'refresh' });
     retry.addEventListener('click', () => open(dn, { fresh: true }));
-    box.append(element('h2', '', 'Cannot load this object'), element('p', '', 'The directory did not return this object. Retry, or check the Attributes tab for details.'), retry);
+    box.append(element('h2', '', 'Cannot load this object'), element('p', '', 'The directory did not return this object. Retry to load it again.'), retry);
     panel.replaceChildren(box);
   }
 
@@ -129,7 +127,6 @@ export function createObjectPanel({ root, defaultTab = 'overview', ...options })
     for (const { definition, panel } of views) {
       if (!record) failed(panel, dn);
       else if (definition.lazy) panel.replaceChildren();
-      else if (definition.key === 'overview') renderOverview(panel, record, options);
       else renderMembership(panel, record, definition.attribute, { ...options, noun: definition.noun });
     }
     show(preferred);

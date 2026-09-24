@@ -34,9 +34,22 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
   let editing = null;
   let rows = [];
 
-  function setTitle(name, type) {
+  function setTitle(name, type, record) {
     title.replaceChildren(icon(TYPE_ICONS[type] ?? 'object', type ? `type--${type}` : ''), element('h1', '', name));
     if (type) title.append(element('span', 'object-title__type', TYPE_LABELS[type]));
+    if (!record) return;
+    const control = attribute(record, 'userAccountControl');
+    if (values(control).length) {
+      const disabled = accountDisabled(control);
+      title.append(element('span', disabled ? 'state state--disabled' : 'state', disabled ? 'Disabled' : 'Enabled'));
+    }
+    const copy = button('', { iconName: 'copy', className: 'icon-button object-title__copy', ariaLabel: 'Copy distinguished name' });
+    copy.title = 'Copy distinguished name';
+    copy.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(record.dn); status.success('Distinguished name copied'); }
+      catch { status.error('Clipboard unavailable. Copy the distinguished name from the attributes.'); }
+    });
+    title.append(copy);
   }
 
   function canLeave() {
@@ -196,7 +209,7 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
       const result = await directory.record(dn, { signal, fresh });
       if (signal.aborted) return null;
       current = result;
-      setTitle(recordName(result), objectType(result));
+      setTitle(recordName(result), objectType(result), result);
       filter.disabled = false;
       render();
       status.idle(summary(result));
