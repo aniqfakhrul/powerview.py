@@ -101,6 +101,8 @@ export function createProperties({ directory, scope, status, guard, onNavigate, 
     });
     editing = editor;
     tr.classList.add('is-editing');
+    if (editor.nameField) tr.replaceChildren(cell('th', undefined, 'row'), element('td'), element('td', 'cell-actions'));
+    if (editor.nameField) tr.firstChild.append(editor.nameField);
     tr.querySelector('td').replaceChildren(editor.form);
     editor.focus();
   }

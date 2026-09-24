@@ -29,7 +29,10 @@ export function createValueEditor({ name = '', values = [], onSubmit, onCancel, 
     nameInput.placeholder = 'Attribute name';
     nameInput.setAttribute('aria-label', 'Attribute name');
     nameInput.spellcheck = false;
-    form.append(nameInput);
+    nameInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') { event.preventDefault(); form.requestSubmit(); }
+      if (event.key === 'Escape') { event.preventDefault(); onCancel(); }
+    });
   }
 
   function renumber() {
@@ -101,6 +104,7 @@ export function createValueEditor({ name = '', values = [], onSubmit, onCancel, 
 
   return {
     form,
+    nameField: nameInput,
     focus() { (nameInput ?? list.querySelector('.text-input')).focus(); },
   };
 }

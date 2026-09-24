@@ -84,12 +84,14 @@
 .value-more { margin-top: 2px; padding: 0; border: 0; background: none; color: var(--color-accent); font-size: 12px; }
 .value-more:hover { text-decoration: underline; }
 .property-grid tfoot td { padding: 6px var(--space-4); border-bottom: 0; }
+.property-grid tfoot tr.is-editing th { padding: 3px var(--space-3) 3px var(--space-4); vertical-align: top; }
+.property-grid tfoot tr.is-editing td { padding: 3px var(--space-3); }
 .link-button { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--color-muted); }
 .link-button:hover { color: var(--color-text); }
 .link-button .icon { width: 14px; height: 14px; }
 
 .value-editor { display: grid; gap: 6px; padding: 4px 0; }
-.value-editor__name { max-width: 280px; font-family: var(--font-mono); font-size: 12px; }
+.value-editor__name { margin: 4px 0; font-family: var(--font-mono); font-size: 12px; }
 .value-editor__list { display: grid; gap: 4px; }
 .value-editor__row { display: flex; gap: 4px; }
 .text-input--mono { font-family: var(--font-mono); font-size: 12px; }
