@@ -9,6 +9,7 @@ const user = (index, extra = {}) => ({ dn: `CN=User ${String(index).padStart(3, 
   description: index === 7 ? '<img src=x onerror=alert(1)>' : 'Fixture',
   whenCreated: index === 3 ? '24/09/2026 12:18:10' : index === 4 ? '05/09/2026 00:00:00' : `${String((index % 27) + 1).padStart(2, '0')}/08/2025 15:40:15`, ...extra,
 } });
+const groupDN = `CN=VPN Users,CN=Users,${rootDN}`;
 let users = Array.from({ length: 450 }, (_, index) => user(index));
 
 (async () => {
@@ -21,9 +22,13 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
     const data = route.request().postDataJSON();
     if (path.endsWith('/connectioninfo')) return route.fulfill({ json: { status: 'OK', protocol: 'LDAPS', username: 'tester', domain: 'example.test' } });
     if (path.endsWith('/get/domaininfo')) return route.fulfill({ json: { root_dn: rootDN, domain: 'example.test' } });
+    if (path.endsWith('/get/domainobject') && data.searchbase === groupDN) {
+      return route.fulfill({ json: [{ dn: groupDN, attributes: { name: 'VPN Users', objectClass: ['top', 'group'], groupType: -2147483646,
+        'member;range=0-2': [`CN=User 002,CN=Users,${rootDN}`, `CN=User 001,CN=Users,${rootDN}`, `CN=User 003,CN=Users,${rootDN}`] } }] });
+    }
     if (path.endsWith('/get/domainobject')) {
       const found = users.find((item) => item.dn === data.searchbase) ?? users[0];
-      return route.fulfill({ json: [{ ...found, attributes: { objectClass: ['top', 'person', 'user'], ...found.attributes } }] });
+      return route.fulfill({ json: [{ ...found, attributes: { objectClass: ['top', 'person', 'user'], memberOf: [groupDN, `CN=Staff,CN=Users,${rootDN}`], ...found.attributes } }] });
     }
     if (path.endsWith('/get/domainuser')) {
       userRequests.push(data);
@@ -115,8 +120,23 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   assert.equal(await panel.locator('.overview__fields dt', { hasText: 'Account' }).locator('xpath=following-sibling::dd[1]').textContent(), 'second person');
   assert.equal(await panel.locator('.overview .state').textContent(), 'Enabled');
   assert.equal(await panel.getByRole('searchbox', { name: 'Filter attributes' }).isVisible(), false);
+  assert.equal(await panel.getByRole('tab', { name: /^Members/ }).isVisible(), false);
+  await panel.getByRole('tab', { name: 'Member of 2' }).click();
+  assert.equal(await panel.locator('.membership:not([hidden]) .membership__item').count(), 2);
+  await panel.getByRole('searchbox', { name: 'Filter groups' }).fill('vpn');
+  assert.equal(await panel.locator('.membership:not([hidden]) .membership__item').count(), 1);
+  await panel.locator('.membership:not([hidden]) .membership__item').first().click();
+  await panel.getByRole('tab', { name: 'Members 3' }).waitFor();
+  assert.equal(await panel.locator('[data-panel-title] h1').textContent(), 'VPN Users');
+  assert.equal(await panel.getByRole('tab', { name: 'Member of 2' }).isVisible(), false);
+  await panel.getByRole('tab', { name: 'Members 3' }).click();
+  assert.deepEqual(await panel.locator('.membership:not([hidden]) .membership__name').allTextContents(), ['User 001', 'User 002', 'User 003']);
+  assert.equal(await panel.locator('.membership:not([hidden]) .membership__note').isVisible(), true);
+  await page.locator('#grid-body tr[data-dn]').first().click();
+  await panel.getByRole('tab', { name: 'Member of 2' }).waitFor();
+  assert.equal(await panel.getByRole('tab', { name: 'Overview' }).getAttribute('aria-selected'), 'true');
   await panel.getByRole('tab', { name: 'Overview' }).focus();
-  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('End');
   assert.equal(await panel.getByRole('tab', { name: 'Attributes' }).getAttribute('aria-selected'), 'true');
   await panel.locator('.property-grid').waitFor();
   assert.equal(await rows.first().getAttribute('aria-selected'), 'true');
@@ -140,6 +160,6 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   await rows.first().waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
-  console.log('PASS: End/Home across unrendered rows, sorting disabled while errored, raw user request, flag-name status, chronological day-first date sorting, sort focus retention, failed post-create refresh stays visible, incremental rendering, safe cells, sorting, filtering, empty filter state, new user validation and failed-create preservation, create refresh, side panel (Overview fields and status, tab keyboard switching, open, URL state, Explorer link, Escape layering, deep link, close), mobile overflow, no runtime errors.');
+  console.log('PASS: End/Home across unrendered rows, sorting disabled while errored, raw user request, flag-name status, chronological day-first date sorting, sort focus retention, failed post-create refresh stays visible, incremental rendering, safe cells, sorting, filtering, empty filter state, new user validation and failed-create preservation, create refresh, side panel (Members/Member of tabs by type, counts, filter, partial-range note, membership navigation, Overview fields and status, tab keyboard switching, open, URL state, Explorer link, Escape layering, deep link, close), mobile overflow, no runtime errors.');
   await browser.close();
 })().catch((error) => { console.error(error); process.exit(1); });

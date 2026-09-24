@@ -1,90 +1,126 @@
-import { createAttributes } from './attributes.js';
-import { renderOverview } from './overview.js';
+import { objectType } from '../../core/directory.js';
 import { button, element } from '../../core/dom.js';
+import { createAttributes } from './attributes.js';
+import { membershipCount, renderMembership } from './membership.js';
+import { renderOverview } from './overview.js';
 
-const TABS = [['overview', 'Overview'], ['attributes', 'Attributes']];
+const TABS = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'members', label: 'Members', attribute: 'member', noun: 'members', types: ['group'] },
+  { key: 'memberOf', label: 'Member of', attribute: 'memberOf', noun: 'groups', types: ['group', 'user', 'computer'] },
+  { key: 'attributes', label: 'Attributes' },
+];
 
 export function createObjectPanel({ root, defaultTab = 'overview', ...options }) {
   const attributes = createAttributes({ root, ...options, reopen: (dn, openOptions) => open(dn, openOptions) });
   const body = root.querySelector('[data-panel-body]');
   const filterHost = root.querySelector('[data-panel-filter-host]');
   const tabList = root.querySelector('[data-panel-tabs]');
-  const overview = element('div', 'overview');
-  overview.setAttribute('role', 'tabpanel');
-  overview.tabIndex = -1;
-  body.setAttribute('role', 'tabpanel');
-  body.before(overview);
   const tabs = new Map();
   let active = defaultTab;
+  let preferred = defaultTab;
   let generation = 0;
-
-  function show(name) {
-    active = name;
-    for (const [key, tab] of tabs) {
-      const selected = key === name;
-      tab.setAttribute('aria-selected', String(selected));
-      tab.tabIndex = selected ? 0 : -1;
-    }
-    overview.hidden = name !== 'overview';
-    body.hidden = name !== 'attributes';
-    if (filterHost) filterHost.hidden = name !== 'attributes';
-  }
 
   tabList.setAttribute('role', 'tablist');
   tabList.setAttribute('aria-label', 'Object details');
-  for (const [key, label] of TABS) {
-    const tab = button(label, { className: 'panel-tab' });
-    tab.id = `${root.id}-tab-${key}`;
+  body.id = body.id || `${root.id}-attributes`;
+
+  for (const definition of TABS) {
+    const tab = button('', { className: 'panel-tab' });
+    tab.id = `${root.id}-tab-${definition.key}`;
     tab.setAttribute('role', 'tab');
-    tab.setAttribute('aria-controls', `${root.id}-${key}`);
-    tab.addEventListener('click', () => { if (attributes.canLeave()) show(key); });
-    tabs.set(key, tab);
+    const label = element('span', '', definition.label);
+    const count = element('span', 'panel-tab__count');
+    tab.append(label, count);
+    let panel = body;
+    if (definition.key !== 'attributes') {
+      panel = element('div', definition.key === 'overview' ? 'overview' : 'membership');
+      panel.id = `${root.id}-${definition.key}`;
+      panel.tabIndex = -1;
+      body.before(panel);
+    }
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', tab.id);
+    tab.setAttribute('aria-controls', panel.id);
+    tab.addEventListener('click', () => { if (attributes.canLeave()) choose(definition.key); });
+    tabs.set(definition.key, { definition, tab, panel, count });
     tabList.append(tab);
   }
-  overview.id = `${root.id}-overview`;
-  body.id = body.id || `${root.id}-attributes`;
-  tabs.get('attributes').setAttribute('aria-controls', body.id);
-  overview.setAttribute('aria-labelledby', tabs.get('overview').id);
-  body.setAttribute('aria-labelledby', tabs.get('attributes').id);
+
+  const available = () => [...tabs.values()].filter(({ tab }) => !tab.hidden).map(({ definition }) => definition.key);
+
+  function show(key) {
+    active = available().includes(key) ? key : defaultTab;
+    for (const [name, { tab, panel }] of tabs) {
+      const selected = name === active;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      panel.hidden = !selected;
+    }
+    if (filterHost) filterHost.hidden = active !== 'attributes';
+  }
+
+  function choose(key) {
+    preferred = key;
+    show(key);
+  }
+
+  function applicable(record) {
+    const type = record ? objectType(record) : null;
+    for (const { definition, tab, count } of tabs.values()) {
+      tab.hidden = Boolean(definition.types) && !definition.types.includes(type);
+      count.textContent = definition.attribute && record ? String(membershipCount(record, definition.attribute)) : '';
+      tab.setAttribute('aria-label', count.textContent ? `${definition.label} ${count.textContent}` : definition.label);
+    }
+  }
 
   tabList.addEventListener('keydown', (event) => {
-    const keys = [...tabs.keys()];
+    const keys = available();
     const index = keys.indexOf(active);
     let next;
     if (event.key === 'ArrowRight') next = keys[(index + 1) % keys.length];
     else if (event.key === 'ArrowLeft') next = keys[(index - 1 + keys.length) % keys.length];
+    else if (event.key === 'Home') next = keys[0];
+    else if (event.key === 'End') next = keys.at(-1);
     else return;
     event.preventDefault();
     if (!attributes.canLeave()) return;
-    show(next);
-    tabs.get(next).focus();
+    choose(next);
+    tabs.get(next).tab.focus();
   });
 
-  function loading() {
+  function placeholder(panel) {
     const box = element('div', 'skeleton');
     box.setAttribute('aria-hidden', 'true');
     for (let index = 0; index < 7; index += 1) box.append(element('span'));
-    overview.replaceChildren(box);
+    panel.replaceChildren(box);
   }
 
-  function failed(dn) {
+  function failed(panel, dn) {
     const box = element('div', 'panel-message');
     const retry = button('Retry', { iconName: 'refresh' });
     retry.addEventListener('click', () => open(dn, { fresh: true }));
     box.append(element('h2', '', 'Cannot load this object'), element('p', '', 'The directory did not return this object. Retry, or check the Attributes tab for details.'), retry);
-    overview.replaceChildren(box);
+    panel.replaceChildren(box);
   }
 
   async function open(dn, openOptions = {}) {
     const current = ++generation;
-    loading();
+    const views = [...tabs.values()].filter(({ definition }) => definition.key !== 'attributes');
+    for (const { panel } of views) placeholder(panel);
     const record = await attributes.open(dn, openOptions);
     if (current !== generation) return record;
-    if (record) renderOverview(overview, record, options);
-    else failed(dn);
+    applicable(record);
+    for (const { definition, panel } of views) {
+      if (!record) failed(panel, dn);
+      else if (definition.key === 'overview') renderOverview(panel, record, options);
+      else renderMembership(panel, record, definition.attribute, { ...options, noun: definition.noun });
+    }
+    show(preferred);
     return record;
   }
 
+  applicable(null);
   show(active);
-  return { ...attributes, open, show };
+  return { ...attributes, open, show: choose };
 }
