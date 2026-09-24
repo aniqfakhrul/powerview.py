@@ -63,6 +63,7 @@ import chardet
 from io import BytesIO
 
 import ldap3
+from ldap3.utils.dn import safe_rdn
 from ldap3 import ALL_ATTRIBUTES
 from ldap3.protocol.microsoft import security_descriptor_control, show_deleted_control, extended_dn_control
 from ldap3.extend.microsoft import addMembersToGroups, modifyPassword, removeMembersFromGroups
@@ -6234,7 +6235,7 @@ displayName=New Group Policy Object
 
 		logging.debug(f"[Set-DomainObjectDN] Modifying {targetobject_dn} object dn to {destination_dn}")
 
-		relative_dn = targetobject_dn.split(",")[0]
+		relative_dn = "+".join(safe_rdn(targetobject_dn))
 
 		succeeded = self.ldap_session.modify_dn(targetobject_dn, relative_dn, new_superior=destination_dn)
 		if not succeeded:

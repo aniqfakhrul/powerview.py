@@ -1,8 +1,14 @@
 *, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; color: var(--color-text); background: var(--color-canvas); font: 13px/1.5 var(--font-sans); }
+body { margin: 0; color: var(--color-text); background: var(--color-canvas); font: 13px/1.45 var(--font-sans); -webkit-font-smoothing: antialiased; }
 a { color: inherit; text-decoration: none; }
-button, input, select, textarea { font: inherit; }
-h1, h2, p { margin: 0; }
-:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
-.skip-link { position: fixed; top: -100px; left: 16px; z-index: 10; padding: 12px; background: var(--color-surface); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; }
+h1, h2, h3, p { margin: 0; }
+::selection { background: var(--color-selection-focus); color: var(--color-selection-text); }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+* { scrollbar-width: thin; scrollbar-color: var(--color-border-strong) transparent; }
+.icon { flex: none; width: 16px; height: 16px; }
+.skip-link { position: fixed; top: -100px; left: 16px; z-index: 30; padding: 8px 12px; background: var(--color-raised); }
 .skip-link:focus { top: 8px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

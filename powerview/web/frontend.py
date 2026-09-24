@@ -20,7 +20,7 @@ class Page:
 
 
 PAGES = (
-    Page("index", "/", "Explorer", "Workspace"),
+    Page("index", "/", "Explorer", "Workspace", "pages/explorer.html"),
     Page("dashboard", "/dashboard", "Dashboard", "Workspace"),
     Page("graph", "/graph", "Graph", "Workspace"),
     Page("users", "/users", "Users"),

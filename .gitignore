@@ -1,7 +1,6 @@
 *.swp
 *.ccache
 *.pfx
-.claude
 __pycache__
 powerview.egg-info
 powerview.py.egg-info
@@ -21,3 +20,14 @@ tests/*
 !tests/__init__.py
 !tests/test_*.py
 docs
+
+# AGENTS RELATED
+.mcp.json
+.impeccable
+.pi
+.codex
+.agents
+.claude
+CLAUDE.md
+ref
+.playwright

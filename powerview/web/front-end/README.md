@@ -1,94 +1,122 @@
-# Frontend foundation
+# PowerView frontend
 
-PowerView uses server-rendered Flask/Jinja pages with local CSS and native JavaScript
-modules. No Node build, CDN, external fonts, or frontend framework is required.
-This stage provides the shell only: every page is explicitly a placeholder and
-makes no directory requests. The visual direction is compact, light, and workspace
-oriented, with shared design tokens rather than page-specific styling.
+Server-rendered Flask/Jinja pages with local CSS and native JavaScript modules.
+No production Node build, CDN, external font, or frontend framework is required.
 
 ## Structure
 
 ```text
-web/frontend.py                 Flask creation, page registry, rendering, asset URLs
+web/frontend.py                 App creation, page registry, shared render context, asset URLs
 front-end/
   templates/
-    base.html                   Document head and shared stylesheet/module loading
-    layouts/workspace.html      Shell composition and main content landmark
-    partials/                   Sidebar and header (shared context)
-    components/                 Reusable Jinja macros (explicit arguments)
-    pages/                      Page content; currently a shared placeholder
+    base.html                   Document and shared asset loading
+    layouts/workspace.html      Application shell
+    partials/                   Navigation and header
+    components/                 Explicit-argument Jinja macros
+    pages/explorer.html         Explorer markup and page assets
+    pages/placeholder.html      Other modules, awaiting implementation
   static/
-    css/
-      main.css                  Single stylesheet entry point
-      tokens.css                Color, spacing, type, radius, and width tokens
-      base.css                  Element defaults and keyboard focus
-      layout.css                Shell, navigation, and responsive layout
-      components.css            Reusable visual components
-    js/app.js                   Shared ES-module entry point
-    images/                     Local image assets
+    css/                        Tokens, reset, shared layout/components
+      pages/explorer.css        Two-pane Explorer and responsive rules
+    js/
+      app.js                    Shared module entry point
+      core/api.js               Same-session JSON transport and strict mutation results
+      core/directory.js         Endpoint contracts and object attribute helpers
+      core/dn.js                Escaped-DN parsing and naming-context resolution
+      pages/explorer.js         Explorer orchestration
+      pages/explorer/           Tree, details, dialogs, focus, DOM, request state
+    images/                     Local mark and stroke icon sprite
+  tests/                        Node unit tests and browser contract tests
 ```
 
-Add `static/js/pages/`, `static/js/components/`, `static/js/core/`, and
-`static/css/pages/` when their first real implementations are needed. Avoid empty
-abstraction layers and generic utility files without concrete consumers.
+## Explorer behavior
 
-## Adding a page
+The Explorer is a classic two-pane directory browser: **a fully expandable object
+tree on the left and the selected object's property grid on the right**. There is
+no results table. It uses the CLI's existing authenticated session through the API;
+the frontend never receives connection credentials.
 
-1. Add or update its `Page` entry in `web/frontend.py`. Paths, endpoint names,
-   navigation labels, sections, and template selection live in this registry.
-2. Create `templates/pages/<name>.html` extending `layouts/workspace.html` and
-   override `content`. Use macros for repeated UI and includes for shell fragments.
-3. Load page-specific styles and modules through the `styles` and `scripts` blocks.
-   Use `asset_url('js/pages/<name>.js')` for assets and `url_for('<endpoint>')`
-   for navigation; never hardcode deployment-root URLs.
-4. Keep business logic in page modules and reusable behavior in focused modules.
-   Use native ES imports, no window globals, inline handlers, or inline scripts.
-
-`base.html` owns shared asset loading. `asset_url` adds the application release
-as a cache key; development asset changes can require a hard refresh within the
-same release. Static paths resolve from the installed Python package, independent
-of the launch directory. The existing `MANIFEST.in` graft includes these assets.
+- Naming contexts come from server info, with the connected domain as fallback.
+  Domain roots are labelled with their DNS name.
+- Expanding a branch requests its direct children with only `name` and
+  `objectClass`. Clicking an object selects and expands it; the chevron toggles.
+  A confirmed leaf loses its chevron. Branches render 500 children at a time.
+- The tree pane is resizable (drag, arrow keys, double-click to reset); the width
+  is remembered per browser. Labels never truncate; the pane scrolls horizontally.
+- The toolbar address bar shows the selected DN and navigates to any DN typed
+  into it. DN-valued attributes are links that reveal the target in the tree.
+- Selecting an object loads its attributes with a BASE query. Request
+  cancellation prevents stale responses from replacing a newer selection.
+- Attributes are edited inline, one input per value. Save replaces the values and
+  Clear attribute removes them. Failed writes retain the draft; save or cancel it
+  before navigating elsewhere.
+- New supports user, group, and OU in the selected container (or a leaf's parent).
+  Move requires an existing destination in the same naming context. Delete asks
+  for confirmation. Naming-context roots cannot be moved or deleted.
+- Mutations are never automatically retried, and only JSON `true` confirms success.
+- Known binary/system fields offer no edit control. The API's binary
+  serialization is lossy; this is not a binary attribute editor. Single values
+  beginning with `@` are rejected because PowerView interprets them as server-side
+  files. Creation names containing DN delimiters are rejected because the creation
+  endpoints concatenate names into DNs without escaping.
+- Light/dark themes follow the OS. On phones, the directory opens as a
+  focus-contained overlay. Tree keys: arrows, Home/End, Enter.
 
 ## Backend boundary
 
-`APIServer` owns authentication and all API routes. `register_frontend` uses its
-authenticated registrar, preserving existing page URLs and endpoint names. Static
-assets are public Flask assets and must contain no credentials or session data.
-Rendering the shell does not call the directory connection.
+`APIServer` owns authentication and API routes. `register_frontend` uses its
+existing authentication wrapper. Static assets are public and contain no session
+secrets. `asset_url` resolves deployment prefixes and adds a release cache key.
+Paths resolve relative to the Python package, independent of the launch directory.
+The existing `MANIFEST.in` includes templates and assets in distributions.
 
-Future feature modules should account for the existing API contracts:
+Other modules remain placeholders. Add a `Page` entry in `web/frontend.py`, extend
+`layouts/workspace.html`, and load page-specific files in `styles`/`scripts` blocks.
+Use `url_for` for navigation and `asset_url` for static assets. Keep reusable UI
+in macros and focused modules; directory data enters the DOM through textContent.
 
-- `/api/get/<method>` accepts GET parameters or POST JSON. Other operation prefixes
-  accept POST JSON. Responses are serialized backend values, not one common envelope.
-- `/api/execute` returns `result` and `pv_args`; failures generally contain `error`.
-- `/api/connectioninfo`, `/api/get/domaininfo`, and server info/schema expose context.
-- `/api/logs` is paginated JSON; `/api/smb/search-stream` is server-sent events.
-- SMB endpoints have their own request/response shapes and session requirements.
+## Verification
 
-Introduce a shared request client when implementing the first API-backed feature,
-with explicit error handling and cancellation. Do not automatically retry mutations.
-The old user/computer filter metadata was embedded in page render methods; define
-those contracts alongside the corresponding feature when rebuilding it.
+Python integration tests (all page routes, assets, URL prefixes, Basic Auth, and
+escaped/multi-valued RDN moves):
 
-## UI conventions
+```sh
+.venv/bin/python -m unittest tests.test_explorer_backend
+```
 
-Use the shared tokens; keep compact desktop spacing and readable labels. Navigation
-becomes a horizontally scrollable row below 720px, usable without JavaScript. Keep
-semantic landmarks, a skip link, visible focus, and `aria-current` navigation.
-Use explicit empty, loading, error, and populated states when adding data features.
-Avoid fake data, inert action buttons, and connection indicators without live state.
+Dependency-free JavaScript unit tests (Node 20+):
 
-## Local shell preview
+```sh
+node --test powerview/web/front-end/tests/explorer.test.mjs
+```
 
-With the normal project dependencies installed:
+Browser tests require Playwright and an installed Chrome. Start a local shell
+preview with normal project dependencies:
 
 ```python
 from powerview.web.frontend import create_web_app, register_frontend
 
 app = create_web_app(__name__)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 register_frontend(app.add_url_rule)
-app.run(host="127.0.0.1", port=5001)
+app.run(host='127.0.0.1', port=5011)
 ```
 
-This standalone preview has no API or authentication and needs no directory session.
-Production continues to start through `APIServer`.
+Then run:
+
+```sh
+EXPLORER_URL=http://127.0.0.1:5011 \
+  node powerview/web/front-end/tests/explorer.browser.cjs
+```
+
+Set `PLAYWRIGHT_MODULE` to an installed Playwright module path if it is outside
+Node's lookup path. Tests intercept **all** API requests with explicit fixtures;
+no test writes to Active Directory. Coverage includes large branches, filtering,
+text-safe rendering, draft preservation, CRUD payloads, confirmations, error
+recovery, and mobile focus containment. Live verification should remain read-only
+unless directory changes are explicitly intended.
+
+Production still starts through `powerview ... --web`. Restart an already running
+web session after Python/template changes; normal Flask production mode caches
+Jinja templates. A hard browser refresh may be needed for asset changes within
+the same application release.

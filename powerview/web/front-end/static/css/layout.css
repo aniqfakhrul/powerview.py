@@ -1,28 +1,30 @@
 .workspace { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
 .sidebar { display: flex; flex-direction: column; background: var(--color-sidebar); border-right: 1px solid var(--color-border); }
-.brand { display: flex; align-items: center; gap: var(--space-3); padding: 22px var(--space-4); font-size: 18px; font-weight: 700; letter-spacing: -.5px; }
-.brand__suffix { color: var(--color-muted); font-weight: 400; }
-.navigation { padding: 0 var(--space-3) var(--space-5); }
-.navigation__group + .navigation__group { margin-top: var(--space-5); }
-.navigation__label { padding: var(--space-2); color: var(--color-muted); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
-.navigation__link { display: block; padding: 7px var(--space-3); border-radius: var(--radius-sm); }
-.navigation__link:hover { background: var(--color-border); }
-.navigation__link[aria-current="page"] { color: var(--color-accent); background: var(--color-selected); font-weight: 600; }
-.sidebar__footer { display: flex; justify-content: space-between; gap: var(--space-2); margin-top: auto; padding: var(--space-4); border-top: 1px solid var(--color-border); color: var(--color-muted); font-size: 11px; }
-.workspace__body { min-width: 0; }
-.workspace-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); min-height: 64px; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
-.content { padding: var(--space-5); }
-.page-heading { margin-bottom: var(--space-5); }
-.page-heading h1 { font-size: 23px; font-weight: 650; letter-spacing: -.6px; }
-.page-heading p { margin-top: var(--space-1); color: var(--color-muted); }
+.brand { display: flex; align-items: center; gap: 10px; height: var(--bar-height); padding: 0 14px; font-size: 14px; font-weight: 650; letter-spacing: -.01em; border-bottom: 1px solid var(--color-border); }
+.brand img { width: 20px; height: 20px; }
+.brand__suffix { color: var(--color-faint); font-weight: 400; }
+.navigation { padding: 10px 8px; overflow-y: auto; }
+.navigation__group + .navigation__group { margin-top: 14px; }
+.navigation__label { padding: 0 8px 4px; color: var(--color-faint); font-size: 11px; font-weight: 500; }
+.navigation__link { display: flex; align-items: center; height: 28px; padding: 0 8px; border-radius: var(--radius-sm); color: var(--color-muted); }
+.navigation__link:hover { background: var(--color-hover); color: var(--color-text); }
+.navigation__link[aria-current="page"] { background: var(--color-active); color: var(--color-text); font-weight: 500; }
+.sidebar__footer { margin-top: auto; padding: 10px 14px; border-top: 1px solid var(--color-border); color: var(--color-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.workspace__body { display: flex; flex-direction: column; min-width: 0; }
+.workspace-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); height: var(--bar-height); padding: 0 var(--space-4); border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+.content { flex: 1; padding: var(--space-5); }
+.page-heading { margin-bottom: var(--space-4); }
+.page-heading h1 { font-size: 18px; font-weight: 650; letter-spacing: -.01em; }
+.page-heading p { margin-top: 2px; color: var(--color-muted); }
 @media (max-width: 720px) {
   .workspace { grid-template-columns: minmax(0, 1fr); }
   .sidebar { border-right: 0; border-bottom: 1px solid var(--color-border); }
-  .brand { padding: var(--space-3) var(--space-4); }
-  .navigation { display: flex; gap: var(--space-4); overflow-x: auto; padding: 0 var(--space-3) var(--space-3); }
-  .navigation__group { display: flex; flex: 0 0 auto; }
+  .brand { border-bottom: 0; }
+  .navigation { display: flex; gap: var(--space-2); overflow-x: auto; padding: 0 8px 8px; }
+  .navigation__group { display: flex; flex: 0 0 auto; gap: 2px; }
   .navigation__group + .navigation__group { margin-top: 0; }
   .navigation__label, .sidebar__footer { display: none; }
   .navigation__link { white-space: nowrap; }
-  .content, .workspace-header { padding: var(--space-4); }
+  .content { padding: var(--space-4); }
+  .workspace-header { padding: 0 var(--space-4); }
 }

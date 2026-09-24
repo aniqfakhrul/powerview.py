@@ -1,10 +1,30 @@
-.breadcrumb { display: flex; flex-wrap: wrap; gap: var(--space-3); color: var(--color-muted); }
+.breadcrumb { display: flex; flex-wrap: wrap; gap: var(--space-2); color: var(--color-muted); }
 .breadcrumb__current { color: var(--color-text); font-weight: 500; }
-.badge { padding: 3px var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-muted); font-size: 11px; }
+.badge { padding: 1px 6px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-muted); font-size: 11px; }
 .panel { overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); }
-.panel__header { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border); font-weight: 600; }
+.panel__header { display: flex; justify-content: space-between; gap: var(--space-3); padding: 10px var(--space-4); border-bottom: 1px solid var(--color-border); font-weight: 600; }
 .muted { color: var(--color-muted); font-weight: 400; }
-.empty-state { display: grid; justify-items: center; gap: var(--space-3); padding: 80px var(--space-5); text-align: center; }
-.empty-state__symbol { display: grid; place-items: center; width: 48px; height: 48px; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-accent); background: var(--color-canvas); font-size: 24px; }
-.empty-state h2 { font-size: 16px; font-weight: 600; }
+.empty-state { display: grid; justify-items: center; gap: var(--space-2); padding: 64px var(--space-5); text-align: center; }
+.empty-state__symbol { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-muted); background: var(--color-canvas); }
+.empty-state h2 { font-size: 14px; font-weight: 600; }
 .empty-state p { max-width: 390px; color: var(--color-muted); }
+.button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-text); font-weight: 500; white-space: nowrap; transition: background-color 120ms, border-color 120ms; }
+.button:hover { background: var(--color-hover); }
+.button:disabled { opacity: .45; }
+.button--primary { border-color: var(--color-primary); background: var(--color-primary); color: var(--color-primary-text); }
+.button--primary:hover { border-color: var(--color-primary-hover); background: var(--color-primary-hover); }
+.button--danger { border-color: var(--color-danger); background: var(--color-danger); color: var(--color-danger-text); }
+.button--danger:hover { background: var(--color-danger); filter: brightness(.94); }
+.icon-button { display: inline-grid; place-items: center; width: 28px; height: 28px; flex: none; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-muted); }
+.icon-button:hover { background: var(--color-hover); color: var(--color-text); }
+.icon-button:disabled { opacity: .4; }
+.text-input { width: 100%; min-width: 0; height: 28px; padding: 0 8px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-surface); caret-color: var(--color-accent); }
+textarea.text-input { height: auto; padding: 5px 8px; resize: vertical; }
+.text-input:focus { outline: 2px solid var(--color-accent); outline-offset: -1px; border-color: transparent; }
+.text-input::placeholder { color: var(--color-faint); opacity: 1; }
+.search-field { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-faint); }
+.search-field:focus-within { outline: 2px solid var(--color-accent); outline-offset: -1px; border-color: transparent; }
+.search-field .icon { width: 14px; height: 14px; }
+.search-field input { width: 100%; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--color-text); caret-color: var(--color-accent); }
+.search-field input::placeholder { color: var(--color-faint); opacity: 1; }
+.search-field input::-webkit-search-cancel-button { display: none; }

@@ -1,0 +1,56 @@
+{% extends "layouts/workspace.html" %}
+{% from "components/icon.html" import icon %}
+{% block workspace_class %}workspace--app{% endblock %}
+{% block header %}{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ asset_url('css/pages/explorer.css') }}">{% endblock %}
+{% block content %}
+<section id="explorer" class="explorer" aria-label="Explorer"
+  data-api-root="{{ request.script_root }}/api/" data-sprite="{{ asset_url('images/icons.svg') }}">
+  <header class="toolbar">
+    <button id="tree-toggle" type="button" class="icon-button mobile-only" aria-controls="directory-pane" aria-expanded="false" aria-label="Directory">{{ icon('folder') }}</button>
+    <form id="address-form" class="address-bar" role="search">
+      <label class="search-field">{{ icon('domain') }}<input id="address" type="text" spellcheck="false" autocomplete="off" aria-label="Distinguished name" placeholder="Go to distinguished name"></label>
+    </form>
+    <div class="toolbar__actions">
+      <button id="action-new" class="button" type="button" title="New object" disabled>{{ icon('plus') }}<span>New</span></button>
+      <button id="action-move" class="button" type="button" title="Move object" disabled>{{ icon('move') }}<span>Move</span></button>
+      <button id="action-delete" class="button button--quiet-danger" type="button" title="Delete object" disabled>{{ icon('trash') }}<span>Delete</span></button>
+      <button id="action-refresh" class="icon-button" type="button" aria-label="Refresh" title="Refresh" disabled>{{ icon('refresh') }}</button>
+    </div>
+  </header>
+  <div id="explorer-body" class="explorer__body">
+    <aside id="directory-pane" class="tree-pane" aria-label="Directory">
+      <div class="tree-pane__search">
+        <label class="search-field">{{ icon('search') }}<input id="tree-filter" type="search" placeholder="Filter" aria-label="Filter loaded objects"></label>
+        <button id="tree-close" class="icon-button mobile-only" type="button" aria-label="Close directory">{{ icon('close') }}</button>
+      </div>
+      <ul id="directory-tree" class="tree" role="tree" aria-label="Directory tree"></ul>
+    </aside>
+    <div id="pane-resizer" class="pane-resizer" role="separator" aria-orientation="vertical" aria-controls="directory-pane" aria-label="Resize directory" tabindex="0"></div>
+    <section id="object-pane" class="object-pane" aria-label="Properties">
+      <header class="object-header">
+        <div id="object-title" class="object-title"></div>
+        <label class="search-field object-header__filter">{{ icon('search') }}<input id="attribute-filter" type="search" placeholder="Filter attributes" aria-label="Filter attributes" disabled></label>
+      </header>
+      <div id="properties" class="properties" tabindex="-1"></div>
+    </section>
+  </div>
+  <footer class="statusbar">
+    <span id="status-message" class="statusbar__message" role="status" aria-live="polite"></span>
+    <span id="status-domain" class="statusbar__domain"></span>
+  </footer>
+  <dialog id="object-dialog" class="dialog" aria-labelledby="dialog-title">
+    <form id="dialog-form" method="dialog">
+      <h2 id="dialog-title" class="dialog__title"></h2>
+      <div id="dialog-fields" class="dialog__fields"></div>
+      <p id="dialog-error" class="form-error" role="alert" hidden></p>
+      <footer class="dialog__footer">
+        <button id="dialog-cancel" type="button" class="button">Cancel</button>
+        <button id="dialog-submit" type="submit" class="button button--primary"></button>
+      </footer>
+    </form>
+  </dialog>
+  <noscript><p class="statusbar__message">Explorer needs JavaScript. Enable it and reload this page.</p></noscript>
+</section>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ asset_url('js/pages/explorer.js') }}"></script>{% endblock %}
