@@ -90,7 +90,10 @@
 .link-button:hover { color: var(--color-text); }
 .link-button .icon { width: 14px; height: 14px; }
 
-.value-editor { display: grid; gap: 6px; padding: 4px 0; }
+.value-editor { display: grid; gap: 6px; max-width: 560px; padding: 4px 0; }
+.value-editor__remove { opacity: 0; transition: opacity 120ms; }
+.value-editor__row:hover .value-editor__remove, .value-editor__remove:focus-visible { opacity: 1; }
+.value-editor__list:has(> .value-editor__row:only-child) .value-editor__remove { display: none; }
 .value-editor__name { margin: 4px 0; font-family: var(--font-mono); font-size: 12px; }
 .value-editor__list { display: grid; gap: 4px; }
 .value-editor__row { display: flex; gap: 4px; }
@@ -142,7 +145,7 @@
   .tree-open .tree-pane { display: flex; }
   .object-header__filter { width: 140px; }
   .property-grid col.property-grid__name { width: 38%; }
-  .property-row__edit { position: relative; opacity: 1; }
+  .property-row__edit, .value-editor__remove { position: relative; opacity: 1; }
   .property-row__edit::after { content: ""; position: absolute; inset: -8px; }
   .tree-line, .tree-twisty, .tree-note { height: 40px; }
   .tree-twisty { width: 28px; }

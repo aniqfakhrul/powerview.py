@@ -42,7 +42,7 @@ export function createValueEditor({ name = '', values = [], onSubmit, onCancel, 
   function addRow(value = '') {
     const row = element('div', 'value-editor__row');
     const input = valueInput(value, list.childElementCount);
-    const remove = button('', { iconName: 'close', className: 'icon-button', ariaLabel: 'Remove value' });
+    const remove = button('', { iconName: 'minus', className: 'icon-button value-editor__remove', ariaLabel: 'Remove value' });
     remove.addEventListener('click', () => {
       row.remove();
       if (!list.childElementCount) addRow();
