@@ -70,6 +70,46 @@ class ExplorerBackendTests(unittest.TestCase):
         self.assertEqual(set(keywords['attributes']), {'name', 'mail'})
         self.assertTrue(keywords['raw'])
 
+    def test_computer_presets_reach_ldap(self):
+        filters = {
+            'enabled': '(!(userAccountControl:1.2.840.113556.1.4.803:=2))',
+            'disabled': '(userAccountControl:1.2.840.113556.1.4.803:=2)',
+            'workstation': '(&(operatingSystem=*)(!(operatingSystem=*Server*)))',
+            'notworkstation': '(&(operatingSystem=*)(operatingSystem=*Server*))',
+            'excludedcs': '(!(userAccountControl:1.2.840.113556.1.4.803:=8192))',
+            'obsolete': '(operatingSystem=*Windows XP*)',
+            'spn': '(servicePrincipalName=*)',
+            'unconstrained': '(userAccountControl:1.2.840.113556.1.4.803:=524288)',
+            'trustedtoauth': '(msds-allowedtodelegateto=*)',
+            'rbcd': '(msDS-AllowedToActOnBehalfOfOtherIdentity=*)',
+            'shadowcred': '(msDS-KeyCredentialLink=*)',
+            'laps': '(ms-Mcs-AdmPwd=*)',
+            'pre2k': '(userAccountControl=4128)(logonCount=0)',
+        }
+        pv = PowerView.__new__(PowerView)
+        pv.root_dn = 'DC=example,DC=test'
+        pv.args = Namespace()
+        pv.ldap_session = MagicMock()
+        pv._resolve_schema_feature = MagicMock(return_value=SimpleNamespace(
+            presence_filter='(ms-Mcs-AdmPwd=*)', properties=['ms-Mcs-AdmPwd'],
+        ))
+        search = pv.ldap_session.extend.standard.paged_search
+        search.return_value = []
+        server = self.make_server()
+        server.powerview.get_domaincomputer = pv.get_domaincomputer
+        with server.app.test_client() as client:
+            for option, expected in filters.items():
+                with self.subTest(option=option):
+                    response = client.post('/api/get/domaincomputer', json={
+                        'properties': ['name'], 'raw': True, 'no_vuln_check': True,
+                        'args': {option: True},
+                    })
+                    self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+                    positional, keywords = search.call_args
+                    self.assertIn('(objectClass=computer)', positional[1])
+                    self.assertIn(expected, positional[1])
+                    self.assertTrue(keywords['raw'])
+
     def test_explorer_retains_basic_auth(self):
         import base64
         server = self.make_server({'web_auth_user': 'tester', 'web_auth_password': 'test-only'})

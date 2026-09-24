@@ -24,7 +24,7 @@ PAGES = (
     Page("dashboard", "/dashboard", "Dashboard", "Workspace"),
     Page("graph", "/graph", "Graph", "Workspace"),
     Page("users", "/users", "Users", template="pages/users.html"),
-    Page("computers", "/computers", "Computers"),
+    Page("computers", "/computers", "Computers", template="pages/computers.html"),
     Page("groups", "/groups", "Groups"),
     Page("dns", "/dns", "DNS"),
     Page("ca", "/ca", "Certificate authorities"),

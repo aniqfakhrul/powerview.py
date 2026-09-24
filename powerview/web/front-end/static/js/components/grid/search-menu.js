@@ -11,7 +11,11 @@ const OPTIONS = [
   ['rbcd', 'Resource-based constrained delegation'], ['shadowcred', 'Has key credentials'],
 ];
 const EXCLUSIVE = { enabled: 'disabled', disabled: 'enabled', allowdelegation: 'disallowdelegation', disallowdelegation: 'allowdelegation' };
-const emptySearch = () => ({ options: [], base: '', scope: 'SUBTREE', filter: '', identity: '', memberof: '', department: '' });
+const ADVANCED_FIELDS = [
+  ['identity', 'Identity', 'Name, distinguished name, or SID'],
+  ['memberof', 'Member of', 'Group name or distinguished name'],
+  ['department', 'Department', 'Department name'],
+];
 
 export function validateFilter(filter) {
   if (!filter) return '';
@@ -26,13 +30,15 @@ export function validateFilter(filter) {
   return depth === 0 ? '' : 'The LDAP filter has an unmatched opening parenthesis.';
 }
 
-export function createSearchMenu({ trigger, menu, onApply, defaultBase }) {
+export function createSearchMenu({ trigger, menu, onApply, defaultBase, options = OPTIONS, exclusive = EXCLUSIVE, advancedFields = ADVANCED_FIELDS }) {
+  const textKeys = ['base', 'filter', ...advancedFields.map(([key]) => key)];
+  const emptySearch = () => ({ options: [], scope: 'SUBTREE', ...Object.fromEntries(textKeys.map((key) => [key, ''])) });
   let applied = emptySearch();
   let draft;
   const count = trigger.querySelector('[data-search-count]');
 
   function paint() {
-    const total = applied.options.length + ['base', 'filter', 'identity', 'memberof', 'department'].filter((key) => applied[key]).length + Number(applied.scope !== 'SUBTREE');
+    const total = applied.options.length + textKeys.filter((key) => applied[key]).length + Number(applied.scope !== 'SUBTREE');
     count.textContent = total ? String(total) : '';
     trigger.setAttribute('aria-label', total ? `Filters, ${total} active` : 'Filters');
     trigger.classList.toggle('is-active', total > 0);
@@ -40,18 +46,19 @@ export function createSearchMenu({ trigger, menu, onApply, defaultBase }) {
 
   function render() {
     const form = element('form', 'search-menu__form');
-    form.append(element('p', 'search-menu__hint', 'Match all selected filters. Searches the directory when applied.'));
+    form.append(element('p', 'search-menu__hint', 'Searches the directory when applied.'));
     const list = element('div', 'search-menu__options');
+    list.hidden = !options.length;
     const boxes = new Map();
-    for (const [key, label] of OPTIONS) {
+    for (const [key, label] of options) {
       const row = element('label', 'fields-menu__option');
       const box = element('input');
       box.type = 'checkbox';
       box.checked = draft.options.includes(key);
       box.addEventListener('change', () => {
-        draft.options = draft.options.filter((item) => item !== key && (!box.checked || item !== EXCLUSIVE[key]));
+        draft.options = draft.options.filter((item) => item !== key && (!box.checked || item !== exclusive[key]));
         if (box.checked) draft.options.push(key);
-        if (box.checked && boxes.has(EXCLUSIVE[key])) boxes.get(EXCLUSIVE[key]).checked = false;
+        if (box.checked && boxes.has(exclusive[key])) boxes.get(exclusive[key]).checked = false;
       });
       boxes.set(key, box);
       row.append(box, element('span', '', label));
@@ -59,16 +66,14 @@ export function createSearchMenu({ trigger, menu, onApply, defaultBase }) {
     }
     form.append(list);
     const advanced = element('details', 'search-menu__advanced');
-    advanced.open = ['base', 'filter', 'identity', 'memberof', 'department'].some((key) => draft[key]) || draft.scope !== 'SUBTREE';
+    advanced.open = !options.length || textKeys.some((key) => draft[key]) || draft.scope !== 'SUBTREE';
     advanced.append(element('summary', '', 'Advanced'));
     const fields = element('div', 'search-menu__fields');
     let filterInput;
     for (const [key, label, placeholder] of [
       ['base', 'Search base', defaultBase() || 'Domain root'],
-      ['identity', 'Identity', 'Name, distinguished name, or SID'],
-      ['memberof', 'Member of', 'Group name or distinguished name'],
-      ['department', 'Department', 'Department name'],
-      ['filter', 'LDAP filter', '(mail=*)'],
+      ...advancedFields,
+      ['filter', 'LDAP filter', '(objectClass=*)'],
     ]) {
       const row = element('label', '', label);
       const input = element(key === 'filter' ? 'textarea' : 'input', 'text-input');

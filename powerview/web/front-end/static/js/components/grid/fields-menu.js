@@ -1,7 +1,8 @@
 import { button, element } from '../../core/dom.js';
-import { CATALOG, DEFAULT_KEYS, columnFor, isAttributeName } from './columns.js';
+import { isAttributeName } from './columns.js';
 
-export function createFieldsMenu({ trigger, menu, getKeys, onApply }) {
+export function createFieldsMenu({ trigger, menu, columnSet, getKeys, onApply }) {
+  const { catalog, defaults, columnFor } = columnSet;
   const label = trigger.querySelector('.fields-trigger__count');
   let draft = [];
 
@@ -35,7 +36,7 @@ export function createFieldsMenu({ trigger, menu, getKeys, onApply }) {
     search.setAttribute('aria-label', 'Find a field');
     const list = element('div', 'fields-menu__list');
     const custom = draft.filter((key) => key.startsWith('attr:')).map(columnFor).filter(Boolean);
-    list.append(...[...CATALOG, ...custom].map(option));
+    list.append(...[...catalog, ...custom].map(option));
     search.addEventListener('input', () => {
       const query = search.value.trim().toLowerCase();
       for (const row of list.children) row.hidden = Boolean(query) && !row.dataset.search.includes(query);
@@ -53,7 +54,7 @@ export function createFieldsMenu({ trigger, menu, getKeys, onApply }) {
     add.addEventListener('submit', (event) => {
       event.preventDefault();
       const name = attributeInput.value.trim();
-      const known = CATALOG.find((column) => column.attributes.some((attribute) => attribute.toLowerCase() === name.toLowerCase()));
+      const known = catalog.find((column) => column.attributes.some((attribute) => attribute.toLowerCase() === name.toLowerCase()));
       const key = known ? known.key : `attr:${name}`;
       if (!known && !isAttributeName(name)) { error.textContent = 'Enter an LDAP attribute name, such as telephoneNumber.'; error.hidden = false; return; }
       if (!draft.includes(key)) draft = [...draft, key];
@@ -63,7 +64,7 @@ export function createFieldsMenu({ trigger, menu, getKeys, onApply }) {
 
     const footer = element('div', 'fields-menu__footer');
     const reset = button('Reset to default', { className: 'link-button' });
-    reset.addEventListener('click', () => { draft = [...DEFAULT_KEYS]; render(); menu.querySelector('input[type="search"]').focus(); });
+    reset.addEventListener('click', () => { draft = [...defaults]; render(); menu.querySelector('input[type="search"]').focus(); });
     const done = button('Done', { className: 'button button--primary' });
     done.addEventListener('click', () => menu.hidePopover());
     footer.append(reset, done);

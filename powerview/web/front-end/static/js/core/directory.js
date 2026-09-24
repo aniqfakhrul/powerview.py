@@ -26,7 +26,7 @@ export const TYPE_LABELS = { domain: 'Domain', user: 'User', group: 'Group', com
 export const recordName = (record) => textValue(attribute(record, 'name')) || dnLabel(record.dn);
 export const isContainer = (record) => ['domain', 'ou', 'container'].includes(objectType(record));
 
-export function userFromRecord(record) {
+export function entryFromRecord(record) {
   return { dn: record.dn, name: recordName(record), record };
 }
 
@@ -53,18 +53,18 @@ export function createDirectory(baseURL) {
       const aces = acls.flatMap((entry) => (Array.isArray(entry?.attributes) ? entry.attributes : []));
       return { owner: textValue(owner), aces };
     },
-    async users({ signal, fresh = false, properties = ['name'], search = {} } = {}) {
+    async list(endpoint, { signal, fresh = false, properties = ['name'], search = {} } = {}) {
       const body = { properties, raw: true, no_vuln_check: true, no_cache: fresh };
       if (search.base) body.searchbase = search.base;
       if (search.scope) body.search_scope = search.scope;
       const args = Object.fromEntries((search.options ?? []).map((option) => [option, true]));
       if (search.filter) args.ldapfilter = search.filter;
-      for (const key of ['identity', 'memberof', 'department']) {
-        if (search[key]) args[key] = search[key];
+      for (const [key, value] of Object.entries(search)) {
+        if (!['base', 'scope', 'filter', 'options'].includes(key) && value) args[key] = value;
       }
       if (Object.keys(args).length) body.args = args;
-      const data = await request('get/domainuser', { signal, body });
-      return records(data).map(userFromRecord);
+      const data = await request(endpoint, { signal, body });
+      return records(data).map(entryFromRecord);
     },
     async children(dn, { signal, fresh = false } = {}) {
       return records(await request('get/domainobject', {

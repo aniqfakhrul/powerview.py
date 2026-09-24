@@ -5,7 +5,7 @@ import { createDirectory, objectType } from '../static/js/core/directory.js';
 import { splitDN, parentDN, dnLabel, namingContext } from '../static/js/core/dn.js';
 import { createRequestLane } from '../static/js/core/request-lane.js';
 import { accountDisabled, toTime } from '../static/js/core/ldap-values.js';
-import { validateFilter } from '../static/js/pages/users/search-menu.js';
+import { validateFilter } from '../static/js/components/grid/search-menu.js';
 
 test('DN parsing preserves escaped separators and decodes UTF-8 hex escapes', () => {
   const dn = String.raw`CN=Doe\, Jane,OU=People,DC=example,DC=test`;

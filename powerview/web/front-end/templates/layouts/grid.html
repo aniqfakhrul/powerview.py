@@ -1,0 +1,50 @@
+{% extends "layouts/workspace.html" %}
+{% from "components/icon.html" import icon %}
+{% set grid_icon = grid_icon | default("object") %}
+{% block workspace_class %}workspace--app{% endblock %}
+{% block header %}{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ asset_url('css/pages/grid.css') }}">{% endblock %}
+{% block content %}
+<section id="{{ page.endpoint }}" class="grid-page" aria-label="{{ page.title }}"
+  data-api-root="{{ request.script_root }}/api/" data-explorer="{{ url_for('index') }}" data-sprite="{{ asset_url('images/icons.svg') }}">
+  <header class="toolbar">
+    <h1 class="toolbar__title">{{ icon(grid_icon, 'icon type--' ~ grid_icon) }}<span>{{ page.title }}</span></h1>
+    <label class="search-field toolbar__search">{{ icon('search') }}<input id="grid-filter" type="search" placeholder="Filter results" aria-label="Filter {{ page.title | lower }}" disabled></label>
+    <div class="toolbar__actions">
+      <button id="grid-search" class="button" type="button" title="Search filters" aria-haspopup="dialog" aria-expanded="false" aria-controls="search-menu" popovertarget="search-menu">{{ icon('search') }}<span>Filters</span><span class="fields-trigger__count" data-search-count></span></button>
+      <button id="grid-fields" class="button fields-trigger" type="button" title="Choose fields" aria-haspopup="dialog" aria-expanded="false" aria-controls="fields-menu" popovertarget="fields-menu">{{ icon('field-desc') }}<span>Fields</span><span class="fields-trigger__count"></span></button>
+      {% block grid_actions %}{% endblock %}
+      <button id="grid-refresh" class="icon-button" type="button" aria-label="Refresh" title="Refresh">{{ icon('refresh') }}</button>
+    </div>
+  </header>
+  <div class="grid-page__body">
+    <div class="grid-main">
+      <div id="grid-scroll" class="grid-scroll" tabindex="0" aria-label="{{ page.title }} table">
+        <table id="grid" class="data-grid" aria-rowcount="-1">
+          <thead><tr id="grid-head"></tr></thead>
+          <tbody id="grid-body"></tbody>
+        </table>
+        <div id="grid-message"></div>
+      </div>
+      <footer class="grid-footer"><span id="grid-count"></span></footer>
+    </div>
+    <div id="panel-resizer" class="pane-resizer" role="separator" aria-orientation="vertical" aria-controls="object-panel" aria-label="Resize details" tabindex="0" hidden></div>
+    <aside id="object-panel" class="side-panel" aria-label="Details" hidden>
+      <header class="object-header">
+        <div class="object-title" data-panel-title></div>
+        <a id="panel-explorer" class="icon-button" href="#" title="Open in Explorer" aria-label="Open in Explorer">{{ icon('open') }}</a>
+        <button id="panel-close" class="icon-button" type="button" title="Close" aria-label="Close details">{{ icon('close') }}</button>
+      </header>
+      <div class="panel-tabs" data-panel-tabs></div>
+      <div class="side-panel__filter" data-panel-filter-host>
+        <label class="search-field">{{ icon('search') }}<input type="search" placeholder="Filter attributes" aria-label="Filter attributes" data-panel-filter disabled></label>
+      </div>
+      <div class="properties" tabindex="-1" data-panel-body></div>
+    </aside>
+  </div>
+  <div id="search-menu" class="fields-menu search-menu" popover role="dialog" aria-label="Search filters"></div>
+  <div id="fields-menu" class="fields-menu" popover role="dialog" aria-label="Fields"></div>
+  {% block grid_dialogs %}{% endblock %}
+</section>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ asset_url('js/pages/' ~ page.endpoint ~ '.js') }}"></script>{% endblock %}
