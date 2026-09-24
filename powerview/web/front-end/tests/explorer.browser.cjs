@@ -118,6 +118,10 @@ const connection = { domain: 'example.test', ldap_address: '10.0.0.10', nameserv
   assert.equal(await page.locator('.connection__announcer').textContent(), 'Directory connection lost');
   connection.status = 'OK';
 
+  await page.goto(`${base}/?dn=${encodeURIComponent(`CN=Person 002,${peopleDN}`)}`);
+  await heading('Person 002').waitFor();
+  assert.equal(await page.locator('.tree-item[aria-selected="true"]').getAttribute('aria-label'), 'Person 002');
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'Directory', exact: true }).click();
   assert.equal(await page.locator('#directory-pane').isVisible(), true);

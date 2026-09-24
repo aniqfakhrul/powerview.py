@@ -130,7 +130,8 @@ async function initialize() {
     tree.setRoots(roots);
     if (warning) status.error(warning); else status.clear();
     tree.expand(domain.root_dn);
-    await navigate(domain.root_dn);
+    const requested = new URLSearchParams(window.location.search).get('dn');
+    await navigate(requested && scope(requested) ? requested : domain.root_dn);
   } catch (error) {
     status.error('Not connected');
     properties.fail('Cannot connect to the directory', error, initialize);

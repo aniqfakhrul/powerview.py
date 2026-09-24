@@ -1,0 +1,26 @@
+{% extends "layouts/workspace.html" %}
+{% from "components/icon.html" import icon %}
+{% block workspace_class %}workspace--app{% endblock %}
+{% block header %}{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ asset_url('css/pages/grid.css') }}">{% endblock %}
+{% block content %}
+<section id="users" class="grid-page" aria-label="Users"
+  data-api-root="{{ request.script_root }}/api/" data-explorer="{{ url_for('index') }}" data-sprite="{{ asset_url('images/icons.svg') }}">
+  <header class="toolbar">
+    <h1 class="toolbar__title">{{ icon('user', 'icon type--user') }}<span>Users</span></h1>
+    <label class="search-field toolbar__search">{{ icon('search') }}<input id="grid-filter" type="search" placeholder="Filter users" aria-label="Filter users" disabled></label>
+    <div class="toolbar__actions">
+      <button id="grid-refresh" class="icon-button" type="button" aria-label="Refresh" title="Refresh">{{ icon('refresh') }}</button>
+    </div>
+  </header>
+  <div id="grid-scroll" class="grid-scroll" tabindex="0" aria-label="Users table">
+    <table id="grid" class="data-grid" aria-rowcount="-1">
+      <thead><tr id="grid-head"></tr></thead>
+      <tbody id="grid-body"></tbody>
+    </table>
+    <div id="grid-message"></div>
+  </div>
+  <footer class="grid-footer"><span id="grid-count"></span></footer>
+</section>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ asset_url('js/pages/users.js') }}"></script>{% endblock %}

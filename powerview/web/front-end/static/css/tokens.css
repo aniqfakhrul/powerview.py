@@ -23,6 +23,10 @@
   --color-danger-text: #fff;
   --color-danger-soft: #fcebed;
   --color-success: #1d7a4b;
+  --pill-success-bg: #d9f3e4;
+  --pill-success-fg: #11643a;
+  --pill-neutral-bg: #ececef;
+  --pill-neutral-fg: #4f4f58;
   --color-overlay: rgb(10 10 12 / 28%);
   --shadow-pop: 0 12px 40px rgb(10 10 12 / 16%), 0 2px 6px rgb(10 10 12 / 8%);
   --type-domain: #2f6fed;
@@ -73,6 +77,10 @@
     --color-danger-text: #0a0a0b;
     --color-danger-soft: #2a1516;
     --color-success: #5fcf97;
+    --pill-success-bg: #133524;
+    --pill-success-fg: #8ce0b3;
+    --pill-neutral-bg: #27272b;
+    --pill-neutral-fg: #b4b4bc;
     --color-overlay: rgb(0 0 0 / 55%);
     --shadow-pop: 0 16px 48px rgb(0 0 0 / 60%), 0 0 0 1px var(--color-border-strong);
     --type-domain: #7aa2ff;

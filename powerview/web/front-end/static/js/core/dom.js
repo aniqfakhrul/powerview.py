@@ -1,4 +1,4 @@
-const SPRITE = document.querySelector('#explorer')?.dataset.sprite ?? '';
+const SPRITE = document.querySelector('[data-sprite]')?.dataset.sprite ?? '';
 
 export function element(tag, className = '', text) {
   const node = document.createElement(tag);

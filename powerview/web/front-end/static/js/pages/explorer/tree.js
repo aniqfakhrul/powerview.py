@@ -1,6 +1,6 @@
 import { dnLabel, sameDN, splitDN } from '../../core/dn.js';
 import { objectType, recordName } from '../../core/directory.js';
-import { element, icon } from './dom.js';
+import { element, icon } from '../../core/dom.js';
 
 const PAGE_SIZE = 500;
 const KEY_SELECT_DELAY = 140;

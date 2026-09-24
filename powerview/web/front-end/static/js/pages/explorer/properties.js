@@ -2,7 +2,7 @@ import { dnLabel, isDN } from '../../core/dn.js';
 import { attribute, recordName, values, textValue, objectType, TYPE_LABELS } from '../../core/directory.js';
 import { createRequestLane } from './state.js';
 import { createValueEditor } from './value-editor.js';
-import { button, element, icon, setBusy } from './dom.js';
+import { button, element, icon, setBusy } from '../../core/dom.js';
 
 const TYPE_ICONS = { domain: 'domain', user: 'user', group: 'group', computer: 'computer', ou: 'ou', container: 'folder', other: 'object' };
 const VALUE_PREVIEW = 12;

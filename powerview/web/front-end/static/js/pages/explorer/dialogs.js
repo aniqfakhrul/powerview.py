@@ -1,6 +1,6 @@
 import { namingContext, parentDN, sameDN, splitDN } from '../../core/dn.js';
 import { recordName } from '../../core/directory.js';
-import { element, setBusy } from './dom.js';
+import { element, setBusy } from '../../core/dom.js';
 
 const PLAIN_NAME = /^[^,=+<>;"\\\x00-\x1f]+$/;
 const OBJECT_TYPES = [['user', 'User'], ['group', 'Group'], ['ou', 'Organizational unit']];

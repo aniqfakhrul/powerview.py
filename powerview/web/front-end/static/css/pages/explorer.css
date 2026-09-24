@@ -1,19 +1,10 @@
-.workspace--app { height: 100vh; height: 100dvh; min-height: 0; }
-.workspace--app > .sidebar { min-height: 0; }
-.workspace--app .workspace__body { min-height: 0; }
-.workspace--app .content { display: flex; min-height: 0; padding: 0; }
 
 .explorer { --tree-width: 360px; display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--color-surface); }
 .explorer [hidden] { display: none !important; }
 
-.toolbar { display: flex; flex: none; align-items: center; gap: var(--space-2); height: var(--bar-height); padding: 0 var(--space-2) 0 var(--space-3); border-bottom: 1px solid var(--color-border); }
 .address-bar { flex: 1; min-width: 0; }
 .address-bar .search-field { background: var(--color-canvas); }
 .address-bar input { font-family: var(--font-mono); font-size: 12px; }
-.toolbar__actions { display: flex; flex: none; align-items: center; gap: 4px; }
-.toolbar .button { border-color: transparent; background: transparent; color: var(--color-muted); }
-.toolbar .button:hover { background: var(--color-hover); color: var(--color-text); }
-.toolbar .button .icon { width: 14px; height: 14px; }
 .button--quiet-danger:hover { color: var(--color-danger); }
 
 .explorer__body { display: flex; flex: 1; min-height: 0; }
@@ -40,13 +31,6 @@
 .tree-item[aria-expanded="true"] > .tree-line .tree-twisty .icon { transform: rotate(90deg); }
 .tree-item:not([aria-expanded]) > .tree-line .tree-twisty { visibility: hidden; }
 .tree-line > .icon { width: 15px; height: 15px; }
-.type--domain { color: var(--type-domain); }
-.type--user { color: var(--type-user); }
-.type--group { color: var(--type-group); }
-.type--computer { color: var(--type-computer); }
-.type--ou { color: var(--type-ou); }
-.type--container { color: var(--type-container); }
-.type--other { color: var(--type-other); }
 .tree-item[aria-busy="true"] > .tree-line .tree-twisty .icon { animation: tree-pulse 900ms ease-in-out infinite alternate; }
 @keyframes tree-pulse { from { opacity: 1; } to { opacity: .25; } }
 .tree-note { display: flex; align-items: center; gap: 6px; height: var(--row-height); padding-left: 20px; color: var(--color-faint); white-space: nowrap; }
@@ -136,8 +120,6 @@
   .property-grid col.property-grid__name { width: 180px; }
 }
 @media (max-width: 720px) {
-  .workspace--app { display: flex; flex-direction: column; }
-  .workspace--app .workspace__body { flex: 1; }
   .mobile-only { display: inline-grid; }
   .explorer__body { position: relative; }
   .pane-resizer { display: none; }
@@ -149,5 +131,4 @@
   .property-row__edit::after { content: ""; position: absolute; inset: -8px; }
   .tree-line, .tree-twisty, .tree-note { height: 40px; }
   .tree-twisty { width: 28px; }
-  .workspace--app .navigation { mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); }
 }

@@ -23,7 +23,7 @@ PAGES = (
     Page("index", "/", "Explorer", "Workspace", "pages/explorer.html"),
     Page("dashboard", "/dashboard", "Dashboard", "Workspace"),
     Page("graph", "/graph", "Graph", "Workspace"),
-    Page("users", "/users", "Users"),
+    Page("users", "/users", "Users", template="pages/users.html"),
     Page("computers", "/computers", "Computers"),
     Page("groups", "/groups", "Groups"),
     Page("dns", "/dns", "DNS"),

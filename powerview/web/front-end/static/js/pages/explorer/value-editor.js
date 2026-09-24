@@ -1,5 +1,5 @@
 import { isDN } from '../../core/dn.js';
-import { button, element } from './dom.js';
+import { button, element } from '../../core/dom.js';
 
 const ATTRIBUTE_NAME = /^[a-z][a-z0-9-]*$/i;
 
