@@ -53,8 +53,17 @@ export function createDirectory(baseURL) {
       const aces = acls.flatMap((entry) => (Array.isArray(entry?.attributes) ? entry.attributes : []));
       return { owner: textValue(owner), aces };
     },
-    async users({ signal, fresh = false, properties = ['name'] } = {}) {
-      const data = await request('get/domainuser', { signal, body: { properties, raw: true, no_vuln_check: true, no_cache: fresh } });
+    async users({ signal, fresh = false, properties = ['name'], search = {} } = {}) {
+      const body = { properties, raw: true, no_vuln_check: true, no_cache: fresh };
+      if (search.base) body.searchbase = search.base;
+      if (search.scope) body.search_scope = search.scope;
+      const args = Object.fromEntries((search.options ?? []).map((option) => [option, true]));
+      if (search.filter) args.ldapfilter = search.filter;
+      for (const key of ['identity', 'memberof', 'department']) {
+        if (search[key]) args[key] = search[key];
+      }
+      if (Object.keys(args).length) body.args = args;
+      const data = await request('get/domainuser', { signal, body });
       return records(data).map(userFromRecord);
     },
     async children(dn, { signal, fresh = false } = {}) {

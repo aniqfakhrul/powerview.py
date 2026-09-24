@@ -70,3 +70,17 @@
   .data-grid .col-name { left: 36px; }
   .data-grid td, .data-grid th { height: 40px; }
 }
+
+.search-menu { overflow-y: auto; }
+.search-menu__form { display: grid; gap: 8px; }
+.search-menu__hint { color: var(--color-muted); font-size: 12px; }
+.search-menu__options { display: grid; max-height: 224px; overflow-y: auto; }
+.search-menu__options .fields-menu__option { height: auto; min-height: 28px; padding-block: 4px; }
+.search-menu__advanced { border-top: 1px solid var(--color-border); padding-top: 8px; }
+.search-menu__advanced summary { cursor: pointer; color: var(--color-muted); }
+.search-menu__fields { display: grid; gap: 8px; padding-top: 8px; }
+.search-menu__fields label { display: grid; gap: 4px; color: var(--color-muted); font-size: 12px; }
+.search-menu__fields textarea { height: auto; resize: vertical; min-height: 48px; font-family: var(--font-mono); }
+#grid-search.is-active { background: var(--color-active); color: var(--color-text); }
+[data-search-count]:empty { display: none; }
+.search-menu .fields-menu__footer { position: sticky; bottom: -8px; z-index: 1; margin-bottom: -8px; padding-bottom: 8px; background: var(--color-raised); }

@@ -47,6 +47,29 @@ class ExplorerBackendTests(unittest.TestCase):
             self.assertIn('data-api-root="/pv/api/"', html)
             self.assertIn('/pv/static/js/pages/explorer.js', html)
 
+    def test_user_search_options_reach_ldap_without_replacing_user_constraint(self):
+        pv = PowerView.__new__(PowerView)
+        pv.root_dn = 'DC=example,DC=test'
+        pv.args = Namespace()
+        pv.ldap_session = MagicMock()
+        search = pv.ldap_session.extend.standard.paged_search
+        search.return_value = []
+        server = self.make_server()
+        server.powerview.get_domainuser = pv.get_domainuser
+        with server.app.test_client() as client:
+            response = client.post('/api/get/domainuser', json={
+                'properties': ['name', 'mail'], 'raw': True, 'no_vuln_check': True,
+                'searchbase': 'OU=People,DC=example,DC=test', 'search_scope': 'LEVEL',
+                'args': {'passnotrequired': True, 'admincount': True, 'ldapfilter': '(mail=*)'},
+            })
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        positional, keywords = search.call_args
+        self.assertEqual(positional[0], 'OU=People,DC=example,DC=test')
+        self.assertEqual(positional[1], '(&(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=32)(admincount=1)(mail=*))')
+        self.assertEqual(keywords['search_scope'], 'LEVEL')
+        self.assertEqual(set(keywords['attributes']), {'name', 'mail'})
+        self.assertTrue(keywords['raw'])
+
     def test_explorer_retains_basic_auth(self):
         import base64
         server = self.make_server({'web_auth_user': 'tester', 'web_auth_password': 'test-only'})

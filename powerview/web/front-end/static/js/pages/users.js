@@ -7,6 +7,7 @@ import { createResizer } from '../components/resizer.js';
 import { createStatus } from '../components/status.js';
 import { createNewUser } from './users/new-user.js';
 import { NAME_COLUMN, columnFor, loadKeys, propertiesFor, saveKeys } from './users/columns.js';
+import { createSearchMenu } from './users/search-menu.js';
 import { createFieldsMenu } from './users/fields-menu.js';
 
 const PAGE_SIZE = 200;
@@ -31,6 +32,7 @@ let returnFocus = null;
 const status = createStatus();
 let selectedDN = '';
 let rootDN = '';
+let search = {};
 
 
 let columnKeys = loadKeys();
@@ -170,7 +172,9 @@ async function load(fresh = false) {
   message.replaceChildren();
   count.textContent = 'Loading users…';
   try {
-    users = await directory.users({ signal, fresh, properties: propertiesFor(columns) });
+    const result = await directory.users({ signal, fresh, properties: propertiesFor(columns), search });
+    if (signal.aborted) return false;
+    users = result;
     filter.disabled = false;
     setSortable(true);
     update();
@@ -342,6 +346,13 @@ const fieldsMenu = createFieldsMenu({
     fieldsMenu.refresh();
     load();
   },
+});
+
+createSearchMenu({
+  trigger: document.querySelector('#grid-search'),
+  menu: document.querySelector('#search-menu'),
+  defaultBase: () => rootDN,
+  onApply(value) { search = value; load(true); },
 });
 
 buildHead();

@@ -132,3 +132,20 @@ Production still starts through `powerview ... --web`. Restart an already runnin
 web session after Python/template changes; normal Flask production mode caches
 Jinja templates. A hard browser refresh may be needed for asset changes within
 the same application release.
+
+### Users search options
+
+The Filters popover sends Get-DomainUser options through the shared directory
+adapter. Selected filters are combined by the backend; advanced controls provide
+identity, group membership, department, search base, scope, and an additional LDAP
+filter. Apply runs the query. Clear resets the draft; Apply confirms it. Escape
+and outside clicks discard drafts. Filters are session-local and remain active
+when refreshing or changing Fields. The toolbar text filter only narrows loaded
+results across visible fields.
+
+Search integration checks (all directory requests intercepted):
+
+```sh
+EXPLORER_URL=http://127.0.0.1:5011 \
+  node powerview/web/front-end/tests/users-search.browser.cjs
+```
