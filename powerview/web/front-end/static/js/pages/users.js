@@ -1,4 +1,5 @@
 import { createGridPage } from '../components/grid/grid-page.js';
+import { notify } from '../components/notify.js';
 import { userColumns } from './users/columns.js';
 import { createNewUser } from './users/new-user.js';
 
@@ -14,7 +15,7 @@ const newUser = createNewUser({
   directory: page.directory,
   defaultContainer: () => `CN=Users,${page.rootDN()}`,
   async onCreated(name) {
-    page.status.success(`Created ${name}`);
+    notify.success(`Created ${name}`);
     await page.reloadAndFind(name);
   },
 });

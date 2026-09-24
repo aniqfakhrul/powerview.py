@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="{{ asset_url('css/main.css') }}">
   {% block styles %}{% endblock %}
 </head>
-<body>
+<body data-sprite="{{ asset_url('images/icons.svg') }}">
   <a class="skip-link" href="#main-content">Skip to content</a>
   {% block body %}{% endblock %}
   <script type="module" src="{{ asset_url('js/app.js') }}"></script>

@@ -14,6 +14,9 @@
 .property-grid col.property-grid__actions { width: 36px; }
 .property-grid tbody th { padding-left: var(--space-4); color: var(--color-muted); font-weight: 400; overflow-wrap: anywhere; }
 .property-grid tbody tr:hover { background: var(--color-hover); }
+.property-grid tbody tr.is-updated { animation: row-updated 1400ms var(--ease-out); }
+@keyframes row-updated { from { background: var(--color-selection-focus); } }
+@media (prefers-reduced-motion: reduce) { .property-grid tbody tr.is-updated { animation: none; } }
 .property-grid tbody tr.is-editing { background: var(--color-canvas); }
 .property-grid td { min-width: 0; }
 .property-row__edit { width: 24px; height: 24px; opacity: 0; }

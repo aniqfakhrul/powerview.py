@@ -1,10 +1,11 @@
 import { namingContext, parentDN, sameDN, splitDN } from '../../core/dn.js';
 import { assertPlainName, recordName } from '../../core/directory.js';
 import { element, setBusy } from '../../core/dom.js';
+import { notify } from '../../components/notify.js';
 
 const OBJECT_TYPES = [['user', 'User'], ['group', 'Group'], ['ou', 'Organizational unit']];
 
-export function createDialogs({ directory, roots, scope, guard, status, onChanged }) {
+export function createDialogs({ directory, roots, scope, guard, onChanged }) {
   const dialog = document.querySelector('#object-dialog');
   const form = document.querySelector('#dialog-form');
   const fields = document.querySelector('#dialog-fields');
@@ -59,8 +60,8 @@ export function createDialogs({ directory, roots, scope, guard, status, onChange
       setBusy(form, false);
     }
     dialog.close();
-    status.success(success);
-    try { await after(); } catch (failure) { status.error(`${success}, but refreshing failed: ${failure.message}`); }
+    notify.success(success);
+    try { await after(); } catch (failure) { notify.warn(`${success}, but refreshing failed: ${failure.message}`); }
   });
 
   return {

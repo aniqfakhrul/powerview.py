@@ -4,6 +4,7 @@ import { createTree } from './explorer/tree.js';
 import { createObjectPanel } from '../components/object-panel/index.js';
 import { createDialogs } from './explorer/dialogs.js';
 import { createStatus } from '../components/status.js';
+import { notify } from '../components/notify.js';
 import { createMutationGuard } from '../core/mutation-guard.js';
 import { createResizer } from '../components/resizer.js';
 import { manageTreeOverlay } from './explorer/overlays.js';
@@ -26,7 +27,7 @@ const within = (dn, ancestor) => sameDN(dn, ancestor) || dn.toLowerCase().endsWi
 const scope = (dn) => namingContext(dn, roots);
 const status = createStatus();
 const guard = createMutationGuard({
-  onBlocked: () => status.info('Wait for the current change to finish.'),
+  onBlocked: () => notify.info('Wait for the current change to finish.'),
   onChange: (busy) => { mutating = busy; updateControls(); },
 });
 
@@ -76,7 +77,7 @@ async function navigate(dn, { fresh = false, fromTree = false } = {}) {
 }
 
 function go(dn) {
-  if (!scope(dn)) { status.error('That distinguished name is outside the connected naming contexts.'); return; }
+  if (!scope(dn)) { notify.error('That distinguished name is outside the connected naming contexts.'); return; }
   if (properties.canLeave()) navigate(dn);
 }
 
@@ -118,7 +119,7 @@ controls.refresh.addEventListener('click', async () => {
 });
 
 async function initialize() {
-  status.info('Connecting to the directory…');
+  status.idle('Connecting to the directory…');
   try {
     const domain = await directory.domain();
     if (typeof domain?.root_dn !== 'string' || !domain.root_dn) throw new Error('PowerView did not return a root DN. Check the connected session.');
@@ -132,12 +133,13 @@ async function initialize() {
       warning = `Only the default naming context is shown: ${error.message}`;
     }
     tree.setRoots(roots);
-    if (warning) status.error(warning); else status.clear();
+    status.idle('');
+    if (warning) notify.warn(warning);
     tree.expand(domain.root_dn);
     const requested = new URLSearchParams(window.location.search).get('dn');
     await navigate(requested && scope(requested) ? requested : domain.root_dn);
   } catch (error) {
-    status.error('Not connected');
+    status.idle('Not connected');
     properties.fail('Cannot connect to the directory', error, initialize);
   }
 }

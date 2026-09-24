@@ -2,6 +2,7 @@ import { dnLabel, isDN } from '../../core/dn.js';
 import { attribute, recordName, values, textValue, objectType, TYPE_LABELS } from '../../core/directory.js';
 import { accountDisabled } from '../../core/ldap-values.js';
 import { createRequestLane } from '../../core/request-lane.js';
+import { notify } from '../notify.js';
 import { createValueEditor } from './value-editor.js';
 import { button, dnText, element, icon, setBusy } from '../../core/dom.js';
 
@@ -32,6 +33,7 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
   const lane = createRequestLane();
   let current = null;
   let editing = null;
+  let updatedName = '';
   let rows = [];
 
   function setTitle(name, type, record) {
@@ -46,16 +48,16 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
     const copy = button('', { iconName: 'copy', className: 'icon-button object-title__copy', ariaLabel: 'Copy distinguished name' });
     copy.title = 'Copy distinguished name';
     copy.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(record.dn); status.success('Distinguished name copied'); }
-      catch { status.error('Clipboard unavailable. Copy the distinguished name from the attributes.'); }
+      try { await navigator.clipboard.writeText(record.dn); notify.success('Distinguished name copied'); }
+      catch { notify.error('Clipboard unavailable. Copy the distinguished name from the attributes.'); }
     });
     title.append(copy);
   }
 
   function canLeave() {
-    if (guard.busy()) { status.info('Wait for the current change to finish.'); return false; }
+    if (guard.busy()) { notify.info('Wait for the current change to finish.'); return false; }
     if (editing) {
-      status.info('Save or cancel the attribute edit first.');
+      notify.info('Save or cancel the attribute edit first.');
       editing.focus();
       return false;
     }
@@ -99,7 +101,8 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
       guard.end();
     }
     editing = null;
-    status.success(operation === 'clear' ? `Cleared ${attribute}` : `Saved ${attribute}`);
+    notify.success(operation === 'clear' ? `Cleared ${attribute}` : `Saved ${attribute}`);
+    updatedName = attribute.toLowerCase();
     await onSaved();
   }
 
@@ -129,6 +132,7 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
   function row(name, value) {
     const tr = element('tr');
     tr.dataset.name = name.toLowerCase();
+    if (tr.dataset.name === updatedName) tr.classList.add('is-updated');
     const valueCell = element('td');
     renderValues(valueCell, value);
     const actions = element('td', 'cell-actions');
@@ -158,6 +162,7 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
     const body = element('tbody');
     const names = Object.keys(current.attributes).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
     rows = names.map((name) => row(name, current.attributes[name]));
+    updatedName = '';
     body.append(...rows);
     const foot = element('tfoot');
     const addRow = element('tr');

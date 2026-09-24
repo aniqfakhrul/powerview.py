@@ -5,6 +5,7 @@ import { createMutationGuard } from '../../core/mutation-guard.js';
 import { createObjectPanel } from '../object-panel/index.js';
 import { createResizer } from '../resizer.js';
 import { createStatus } from '../status.js';
+import { notify } from '../notify.js';
 import { createFieldsMenu } from './fields-menu.js';
 import { createSearchMenu } from './search-menu.js';
 
@@ -257,7 +258,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     scroller.scrollTop = scrollTop;
   }
 
-  const guard = createMutationGuard({ onBlocked: () => status.info('Wait for the current change to finish.') });
+  const guard = createMutationGuard({ onBlocked: () => notify.info('Wait for the current change to finish.') });
   const panel = createObjectPanel({
     root: panelRoot,
     directory,
