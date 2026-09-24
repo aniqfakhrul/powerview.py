@@ -1,4 +1,5 @@
-const SPRITE = document.querySelector('[data-sprite]')?.dataset.sprite ?? '';
+let sprite;
+const spriteURL = () => (sprite ??= document.querySelector('[data-sprite]')?.dataset.sprite ?? '');
 
 export function element(tag, className = '', text) {
   const node = document.createElement(tag);
@@ -12,7 +13,7 @@ export function icon(name, className = '') {
   svg.setAttribute('class', `icon ${className}`.trim());
   svg.setAttribute('aria-hidden', 'true');
   const use = document.createElementNS(svg.namespaceURI, 'use');
-  use.setAttribute('href', `${SPRITE}#${name}`);
+  use.setAttribute('href', `${spriteURL()}#${name}`);
   svg.append(use);
   return svg;
 }

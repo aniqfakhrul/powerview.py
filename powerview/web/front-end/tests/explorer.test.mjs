@@ -5,6 +5,7 @@ import { createDirectory, objectType } from '../static/js/core/directory.js';
 import { splitDN, parentDN, dnLabel, namingContext } from '../static/js/core/dn.js';
 import { createRequestLane } from '../static/js/core/request-lane.js';
 import { accountDisabled, toTime } from '../static/js/core/ldap-values.js';
+import { validateFilter } from '../static/js/pages/users/search-menu.js';
 
 test('DN parsing preserves escaped separators and decodes UTF-8 hex escapes', () => {
   const dn = String.raw`CN=Doe\, Jane,OU=People,DC=example,DC=test`;
@@ -89,4 +90,13 @@ test('directory times parse every backend shape chronologically', () => {
   assert.equal(new Date(toTime('05/09/2026 00:00:00')).getMonth(), 8);
   assert.ok(toTime('24/09/2026 12:18:10') > toTime('05/09/2026 00:00:00'));
   for (const never of [0, '0', '', null, 'Fri, 31 Dec 9999 23:59:59 GMT', 'Mon, 01 Jan 1601 00:00:00 GMT']) assert.equal(toTime(never), null);
+});
+
+test('LDAP filter check requires wrapping and balanced parentheses', () => {
+  assert.equal(validateFilter(''), '');
+  assert.equal(validateFilter('(mail=*)'), '');
+  assert.equal(validateFilter('(&(mail=*)(cn=a\\29b))'), '');
+  assert.match(validateFilter('mail=*'), /parentheses/);
+  assert.match(validateFilter('((mail=*)'), /opening/);
+  assert.match(validateFilter('(mail=*))(cn=a)'), /closing/);
 });

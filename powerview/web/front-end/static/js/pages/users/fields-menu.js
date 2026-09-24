@@ -79,17 +79,19 @@ export function createFieldsMenu({ trigger, menu, getKeys, onApply }) {
     menu.style.left = `${Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))}px`;
   }
 
-  trigger.addEventListener('click', () => {
+  menu.addEventListener('beforetoggle', (event) => {
+    if (event.newState !== 'open') return;
     draft = [...getKeys()];
     render();
     place();
-    menu.showPopover();
-    menu.querySelector('input[type="search"]').focus();
   });
 
   menu.addEventListener('toggle', (event) => {
     trigger.setAttribute('aria-expanded', String(event.newState === 'open'));
-    if (event.newState !== 'closed') return;
+    if (event.newState === 'open') {
+      menu.querySelector('input[type="search"]').focus();
+      return;
+    }
     if (!sameKeys(draft, getKeys())) onApply(draft);
     trigger.focus();
   });

@@ -13,6 +13,19 @@ const OPTIONS = [
 const EXCLUSIVE = { enabled: 'disabled', disabled: 'enabled', allowdelegation: 'disallowdelegation', disallowdelegation: 'allowdelegation' };
 const emptySearch = () => ({ options: [], base: '', scope: 'SUBTREE', filter: '', identity: '', memberof: '', department: '' });
 
+export function validateFilter(filter) {
+  if (!filter) return '';
+  if (!filter.startsWith('(') || !filter.endsWith(')')) return 'Wrap the LDAP filter in parentheses, for example (mail=*).';
+  let depth = 0;
+  for (let index = 0; index < filter.length; index += 1) {
+    if (filter[index] === '\\') { index += 1; continue; }
+    if (filter[index] === '(') depth += 1;
+    if (filter[index] === ')') depth -= 1;
+    if (depth < 0) return 'The LDAP filter has an unmatched closing parenthesis.';
+  }
+  return depth === 0 ? '' : 'The LDAP filter has an unmatched opening parenthesis.';
+}
+
 export function createSearchMenu({ trigger, menu, onApply, defaultBase }) {
   let applied = emptySearch();
   let draft;
@@ -33,19 +46,23 @@ export function createSearchMenu({ trigger, menu, onApply, defaultBase }) {
     for (const [key, label] of OPTIONS) {
       const row = element('label', 'fields-menu__option');
       const box = element('input');
-      box.type = 'checkbox'; box.checked = draft.options.includes(key);
+      box.type = 'checkbox';
+      box.checked = draft.options.includes(key);
       box.addEventListener('change', () => {
         draft.options = draft.options.filter((item) => item !== key && (!box.checked || item !== EXCLUSIVE[key]));
         if (box.checked) draft.options.push(key);
         if (box.checked && boxes.has(EXCLUSIVE[key])) boxes.get(EXCLUSIVE[key]).checked = false;
       });
-      boxes.set(key, box); row.append(box, element('span', '', label)); list.append(row);
+      boxes.set(key, box);
+      row.append(box, element('span', '', label));
+      list.append(row);
     }
     form.append(list);
     const advanced = element('details', 'search-menu__advanced');
     advanced.open = ['base', 'filter', 'identity', 'memberof', 'department'].some((key) => draft[key]) || draft.scope !== 'SUBTREE';
     advanced.append(element('summary', '', 'Advanced'));
     const fields = element('div', 'search-menu__fields');
+    let filterInput;
     for (const [key, label, placeholder] of [
       ['base', 'Search base', defaultBase() || 'Domain root'],
       ['identity', 'Identity', 'Name, distinguished name, or SID'],
@@ -55,30 +72,54 @@ export function createSearchMenu({ trigger, menu, onApply, defaultBase }) {
     ]) {
       const row = element('label', '', label);
       const input = element(key === 'filter' ? 'textarea' : 'input', 'text-input');
-      input.value = draft[key]; input.placeholder = placeholder; input.spellcheck = false;
+      input.value = draft[key];
+      input.placeholder = placeholder;
+      input.spellcheck = false;
       if (key === 'filter') input.rows = 2;
       input.addEventListener('input', () => { draft[key] = input.value.trim(); });
-      row.append(input); fields.append(row);
+      if (key === 'filter') filterInput = input;
+      row.append(input);
+      fields.append(row);
     }
     const scopeLabel = element('label', '', 'Scope');
     const scope = element('select', 'text-input');
     scope.setAttribute('aria-label', 'Scope');
     for (const [value, label] of [['SUBTREE', 'Subtree'], ['LEVEL', 'One level'], ['BASE', 'Base object']]) {
-      const option = element('option', '', label); option.value = value; scope.append(option);
+      const option = element('option', '', label);
+      option.value = value;
+      scope.append(option);
     }
     scope.value = draft.scope;
     scope.addEventListener('change', () => { draft.scope = scope.value; });
-    scopeLabel.append(scope); fields.prepend(scopeLabel);
-    advanced.append(fields); form.append(advanced);
+    scopeLabel.append(scope);
+    fields.prepend(scopeLabel);
+    advanced.append(fields);
+    form.append(advanced);
+    const error = element('p', 'form-error');
+    error.setAttribute('role', 'alert');
+    error.hidden = true;
+    form.append(error);
     const footer = element('div', 'fields-menu__footer');
     const clear = button('Clear', { className: 'link-button' });
     clear.addEventListener('click', () => { draft = emptySearch(); render(); menu.querySelector('input').focus(); });
-    const apply = element('button', 'button button--primary', 'Apply'); apply.type = 'submit';
-    footer.append(clear, apply); form.append(footer);
+    const apply = element('button', 'button button--primary', 'Apply');
+    apply.type = 'submit';
+    footer.append(clear, apply);
+    form.append(footer);
     form.addEventListener('submit', (event) => {
       event.preventDefault();
+      const problem = validateFilter(draft.filter);
+      error.textContent = problem;
+      error.hidden = !problem;
+      if (problem) {
+        advanced.open = true;
+        filterInput.focus();
+        return;
+      }
       applied = { ...draft, options: [...draft.options] };
-      paint(); menu.hidePopover(); onApply(applied);
+      paint();
+      menu.hidePopover();
+      onApply(applied);
     });
     menu.replaceChildren(form);
   }
@@ -91,13 +132,17 @@ export function createSearchMenu({ trigger, menu, onApply, defaultBase }) {
     menu.style.top = `${Math.min(rect.bottom + 6, innerHeight - 100)}px`;
     menu.style.maxHeight = `${Math.max(80, innerHeight - rect.bottom - 14)}px`;
   }
-  trigger.addEventListener('click', () => {
-    if (menu.matches(':popover-open')) { menu.hidePopover(); return; }
-    draft = { ...applied, options: [...applied.options] }; render(); place(); menu.showPopover(); menu.querySelector('input').focus();
+  menu.addEventListener('beforetoggle', (event) => {
+    if (event.newState !== 'open') return;
+    draft = { ...applied, options: [...applied.options] };
+    render();
+    place();
   });
+
   menu.addEventListener('toggle', (event) => {
     trigger.setAttribute('aria-expanded', String(event.newState === 'open'));
-    if (event.newState === 'closed' && (menu.contains(document.activeElement) || document.activeElement === document.body)) trigger.focus();
+    if (event.newState === 'open') menu.querySelector('input').focus();
+    else if (menu.contains(document.activeElement) || document.activeElement === document.body) trigger.focus();
   });
   window.addEventListener('resize', () => { if (menu.matches(':popover-open')) place(); });
   paint();

@@ -271,6 +271,23 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   await page.waitForFunction(() => [...document.querySelectorAll('#grid-head .column-sort__label')].map((node) => node.textContent).join() === 'Name,Account,Status,Description,Email,Last logon,Created');
   await rows.first().waitFor();
 
+  for (const [name, id] of [[/^Fields/, '#fields-menu'], [/^Filters/, '#search-menu']]) {
+    await page.getByRole('button', { name }).click();
+    await page.waitForFunction((selector) => document.querySelector(selector).matches(':popover-open'), id);
+    await page.getByRole('button', { name }).click();
+    await page.waitForFunction((selector) => !document.querySelector(selector).matches(':popover-open'), id);
+  }
+  const searchMenu = page.locator('#search-menu');
+  const requestsBeforeSearch = userRequests.length;
+  await page.getByRole('button', { name: /^Filters/ }).click();
+  await searchMenu.locator('summary').click();
+  await searchMenu.getByRole('textbox', { name: 'LDAP filter' }).fill('((mail=*)');
+  await searchMenu.getByRole('button', { name: 'Apply' }).click();
+  assert.match(await searchMenu.getByRole('alert').textContent(), /unmatched opening/);
+  assert.equal(await searchMenu.evaluate((node) => node.matches(':popover-open')), true);
+  assert.equal(userRequests.length, requestsBeforeSearch);
+  await page.keyboard.press('Escape');
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${base}/users`);
   await rows.first().waitFor();
@@ -286,6 +303,6 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   assert.equal(await page.evaluate(() => document.activeElement.dataset.dn), focusedDN);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
-  console.log('PASS: End/Home across unrendered rows, sorting disabled while errored, raw user request, flag-name status, chronological day-first date sorting, sort focus retention, failed post-create refresh stays visible, incremental rendering, safe cells, sorting, filtering, empty filter state, new user validation and failed-create preservation, create refresh, Fields chooser (find, hide, add attribute, validation, refetch with properties, persistence, reset), side panel (save re-applies filter, breakpoint focus transfer, Open in Explorer draft guard, grid row reconciled after save, mobile overlay focus/inert/Escape/restore, unavailable ACL error, inheritance scope and expandable ACE details, lazy Security tab with owner, deny-first ACL, inherited toggle, per-object caching, Members/Member of tabs by type, counts, filter, partial-range note, membership navigation, header type/status/copy-DN, Attributes-first tab order, tab keyboard switching, open, URL state, Explorer link, Escape layering, deep link, close), mobile overflow, no runtime errors.');
+  console.log('PASS: End/Home across unrendered rows, sorting disabled while errored, raw user request, flag-name status, chronological day-first date sorting, sort focus retention, failed post-create refresh stays visible, incremental rendering, safe cells, sorting, filtering, empty filter state, new user validation and failed-create preservation, create refresh, popover triggers toggle closed, inline LDAP filter validation, Fields chooser (find, hide, add attribute, validation, refetch with properties, persistence, reset), side panel (save re-applies filter, breakpoint focus transfer, Open in Explorer draft guard, grid row reconciled after save, mobile overlay focus/inert/Escape/restore, unavailable ACL error, inheritance scope and expandable ACE details, lazy Security tab with owner, deny-first ACL, inherited toggle, per-object caching, Members/Member of tabs by type, counts, filter, partial-range note, membership navigation, header type/status/copy-DN, Attributes-first tab order, tab keyboard switching, open, URL state, Explorer link, Escape layering, deep link, close), mobile overflow, no runtime errors.');
   await browser.close();
 })().catch((error) => { console.error(error); process.exit(1); });
