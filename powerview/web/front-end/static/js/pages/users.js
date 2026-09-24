@@ -6,6 +6,8 @@ import { createObjectPanel } from '../components/object-panel/index.js';
 import { createResizer } from '../components/resizer.js';
 import { createStatus } from '../components/status.js';
 import { createNewUser } from './users/new-user.js';
+import { NAME_COLUMN, columnFor, loadKeys, propertiesFor, saveKeys } from './users/columns.js';
+import { createFieldsMenu } from './users/fields-menu.js';
 
 const PAGE_SIZE = 200;
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
@@ -31,25 +33,10 @@ let selectedDN = '';
 let rootDN = '';
 
 
-function nameCell(user) {
-  const cell = element('div', 'cell-name');
-  cell.append(icon('user', 'type--user'), element('span', '', user.name));
-  return cell;
-}
+let columnKeys = loadKeys();
+let columns = [NAME_COLUMN, ...columnKeys.map(columnFor)];
 
-function stateCell(user) {
-  return element('span', user.disabled ? 'state state--disabled' : 'state', user.disabled ? 'Disabled' : 'Enabled');
-}
-
-const COLUMNS = [
-  { key: 'name', label: 'Name', icon: 'field-text', width: 240, render: nameCell },
-  { key: 'account', label: 'Account', icon: 'field-text', width: 180 },
-  { key: 'status', label: 'Status', icon: 'field-class', width: 110, render: stateCell, sort: (user) => Number(user.disabled) },
-  { key: 'description', label: 'Description', icon: 'field-desc', width: 320 },
-  { key: 'mail', label: 'Email', icon: 'field-text', width: 240 },
-  { key: 'lastLogon', label: 'Last logon', icon: 'field-date', width: 200, text: (user) => user.lastLogon.text, sort: (user) => user.lastLogon.time },
-  { key: 'created', label: 'Created', icon: 'field-date', width: 200, text: (user) => user.created.text, sort: (user) => user.created.time },
-];
+const cellText = (column, user) => column.text(user.record, user) || '';
 
 let users = [];
 let visible = [];
@@ -65,7 +52,8 @@ function buildHead() {
   index.scope = 'col';
   index.append(element('span', 'visually-hidden', 'Row'));
   head.replaceChildren(index);
-  for (const column of COLUMNS) {
+  headers.clear();
+  for (const column of columns) {
     const th = element('th', column.key === 'name' ? 'col-name' : '');
     th.scope = 'col';
     th.style.width = `${column.width}px`;
@@ -101,10 +89,10 @@ function row(user, index) {
   tr.setAttribute('aria-selected', String(sameDN(user.dn, selectedDN)));
   tr.setAttribute('aria-rowindex', String(index + 2));
   tr.append(element('td', 'col-index', String(index + 1)));
-  for (const column of COLUMNS) {
+  for (const column of columns) {
     const td = element('td', column.key === 'name' ? 'col-name' : '');
-    const value = column.text ? column.text(user) : user[column.key];
-    if (column.render) td.append(column.render(user));
+    const value = cellText(column, user);
+    if (column.render) td.append(column.render(user.record, user));
     else if (value) { td.textContent = value; td.title = value; }
     else td.append(element('span', 'cell-muted', '—'));
     tr.append(td);
@@ -113,7 +101,8 @@ function row(user, index) {
 }
 
 const sentinel = element('tr', 'grid-sentinel');
-sentinel.append(Object.assign(element('td'), { colSpan: COLUMNS.length + 1 }));
+const sentinelCell = element('td');
+sentinel.append(sentinelCell);
 const observer = new IntersectionObserver((entries) => {
   if (entries.some((entry) => entry.isIntersecting)) renderMore();
 }, { root: scroller, rootMargin: '400px' });
@@ -128,10 +117,11 @@ function renderMore() {
 
 function update() {
   const query = filter.value.trim().toLocaleLowerCase();
-  const column = COLUMNS.find((item) => item.key === sortKey);
-  const key = column.sort ?? ((user) => user[column.key]);
+  const column = columns.find((item) => item.key === sortKey) ?? NAME_COLUMN;
+  const key = column.sort ? (user) => column.sort(user.record, user) : (user) => cellText(column, user) || null;
+  sentinelCell.colSpan = columns.length + 1;
   visible = users
-    .filter((user) => !query || [user.name, user.account, user.description, user.mail].some((value) => value.toLocaleLowerCase().includes(query)))
+    .filter((user) => !query || columns.some((item) => cellText(item, user).toLocaleLowerCase().includes(query)))
     .sort((a, b) => {
       const left = key(a); const right = key(b);
       if (left == null || right == null) return left == null ? (right == null ? 0 : 1) : -1;
@@ -164,7 +154,7 @@ function skeleton() {
     const tr = element('tr');
     tr.setAttribute('aria-hidden', 'true');
     tr.append(element('td', 'col-index'));
-    for (const column of COLUMNS) tr.append(element('td', column.key === 'name' ? 'col-name' : ''));
+    for (const column of columns) tr.append(element('td', column.key === 'name' ? 'col-name' : ''));
     body.append(tr);
   }
 }
@@ -180,7 +170,7 @@ async function load(fresh = false) {
   message.replaceChildren();
   count.textContent = 'Loading users…';
   try {
-    users = await directory.users({ signal, fresh });
+    users = await directory.users({ signal, fresh, properties: propertiesFor(columns) });
     filter.disabled = false;
     setSortable(true);
     update();
@@ -339,6 +329,21 @@ newButton.addEventListener('click', () => newUser.open());
 directory.domain()
   .then((domain) => { rootDN = domain?.root_dn ?? ''; newButton.disabled = !rootDN; })
   .catch(() => { newButton.title = 'Unavailable until the directory responds'; });
+const fieldsMenu = createFieldsMenu({
+  trigger: document.querySelector('#grid-fields'),
+  menu: document.querySelector('#fields-menu'),
+  getKeys: () => columnKeys,
+  onApply(keys) {
+    columnKeys = keys;
+    saveKeys(keys);
+    columns = [NAME_COLUMN, ...keys.map(columnFor).filter(Boolean)];
+    if (!columns.some((column) => column.key === sortKey)) { sortKey = 'name'; sortDirection = 1; }
+    buildHead();
+    fieldsMenu.refresh();
+    load();
+  },
+});
+
 buildHead();
 load().then((loaded) => {
   const requested = new URLSearchParams(window.location.search).get('dn');

@@ -1,6 +1,5 @@
 import { createAPI, APIError } from './api.js';
 import { dnLabel } from './dn.js';
-import { accountDisabled, formatTime, toTime } from './ldap-values.js';
 
 export const TREE_PROPERTIES = ['name', 'objectClass'];
 export const values = (value) => value == null ? [] : Array.isArray(value) ? value : [value];
@@ -27,24 +26,8 @@ export const TYPE_LABELS = { domain: 'Domain', user: 'User', group: 'Group', com
 export const recordName = (record) => textValue(attribute(record, 'name')) || dnLabel(record.dn);
 export const isContainer = (record) => ['domain', 'ou', 'container'].includes(objectType(record));
 
-const USER_PROPERTIES = ['name', 'sAMAccountName', 'userAccountControl', 'description', 'mail', 'lastLogonTimestamp', 'whenCreated'];
-
-function timeField(record, name) {
-  const time = toTime(attribute(record, name));
-  return { time, text: formatTime(time) };
-}
-
 export function userFromRecord(record) {
-  return {
-    dn: record.dn,
-    name: recordName(record),
-    account: textValue(attribute(record, 'sAMAccountName')),
-    disabled: accountDisabled(attribute(record, 'userAccountControl')),
-    description: textValue(attribute(record, 'description')),
-    mail: textValue(attribute(record, 'mail')),
-    lastLogon: timeField(record, 'lastLogonTimestamp'),
-    created: timeField(record, 'whenCreated'),
-  };
+  return { dn: record.dn, name: recordName(record), record };
 }
 
 function records(data) {
@@ -70,8 +53,8 @@ export function createDirectory(baseURL) {
       const aces = acls.flatMap((entry) => (Array.isArray(entry?.attributes) ? entry.attributes : []));
       return { owner: textValue(owner), aces };
     },
-    async users({ signal, fresh = false } = {}) {
-      const data = await request('get/domainuser', { signal, body: { properties: USER_PROPERTIES, raw: true, no_vuln_check: true, no_cache: fresh } });
+    async users({ signal, fresh = false, properties = ['name'] } = {}) {
+      const data = await request('get/domainuser', { signal, body: { properties, raw: true, no_vuln_check: true, no_cache: fresh } });
       return records(data).map(userFromRecord);
     },
     async children(dn, { signal, fresh = false } = {}) {

@@ -10,6 +10,7 @@
     <h1 class="toolbar__title">{{ icon('user', 'icon type--user') }}<span>Users</span></h1>
     <label class="search-field toolbar__search">{{ icon('search') }}<input id="grid-filter" type="search" placeholder="Filter users" aria-label="Filter users" disabled></label>
     <div class="toolbar__actions">
+      <button id="grid-fields" class="button fields-trigger" type="button" title="Choose fields" aria-haspopup="dialog" aria-expanded="false" aria-controls="fields-menu">{{ icon('field-desc') }}<span>Fields</span><span class="fields-trigger__count"></span></button>
       <button id="user-new" class="button" type="button" title="New user" disabled>{{ icon('plus') }}<span>New user</span></button>
       <button id="grid-refresh" class="icon-button" type="button" aria-label="Refresh" title="Refresh">{{ icon('refresh') }}</button>
     </div>
@@ -39,6 +40,7 @@
       <div class="properties" tabindex="-1" data-panel-body></div>
     </aside>
   </div>
+  <div id="fields-menu" class="fields-menu" popover role="dialog" aria-label="Fields"></div>
   <dialog id="user-dialog" class="dialog" aria-labelledby="user-dialog-title">
     <form id="user-form" method="dialog">
       <h2 id="user-dialog-title" class="dialog__title">New user</h2>

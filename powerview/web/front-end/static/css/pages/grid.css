@@ -3,6 +3,17 @@
 .toolbar__title { display: flex; flex: none; align-items: center; gap: var(--space-2); font-size: 13px; font-weight: 600; }
 .toolbar__search { flex: 0 1 280px; margin-left: auto; }
 
+.fields-trigger__count { min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--color-active); color: var(--color-muted); font-size: 11px; line-height: 16px; text-align: center; }
+.fields-menu { position: fixed; inset: auto; margin: 0; padding: 8px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-raised); color: var(--color-text); box-shadow: var(--shadow-pop); }
+.fields-menu:popover-open { display: grid; gap: 8px; }
+.fields-menu__list { display: grid; max-height: 300px; overflow: auto; margin: 0 -4px; }
+.fields-menu__option { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 6px; border-radius: var(--radius-sm); cursor: pointer; }
+.fields-menu__option:hover { background: var(--color-hover); }
+.fields-menu__option input { margin: 0; accent-color: var(--color-accent); }
+.fields-menu__hint { margin-left: auto; color: var(--color-faint); font-size: 11px; }
+.fields-menu__add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; padding-top: 8px; border-top: 1px solid var(--color-border); }
+.fields-menu__add .form-error { grid-column: 1 / -1; }
+.fields-menu__footer { display: flex; align-items: center; justify-content: space-between; padding-top: 8px; border-top: 1px solid var(--color-border); }
 .grid-page__body { position: relative; display: flex; flex: 1; min-height: 0; }
 .grid-main { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
 .grid-page { --panel-width: 480px; }
@@ -52,6 +63,7 @@
   .side-panel { width: 100%; border-left: 0; }
   .toolbar__title span { display: none; }
   .toolbar .button { width: 28px; padding: 0; }
+  .toolbar .button .fields-trigger__count { display: none; }
   .toolbar .button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .toolbar__search { flex: 1; }
   .data-grid .col-index { width: 36px; }
