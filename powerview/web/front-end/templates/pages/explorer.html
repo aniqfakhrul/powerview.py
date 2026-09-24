@@ -29,10 +29,10 @@
     <div id="pane-resizer" class="pane-resizer" role="separator" aria-orientation="vertical" aria-controls="directory-pane" aria-label="Resize directory" tabindex="0"></div>
     <section id="object-pane" class="object-pane" aria-label="Properties">
       <header class="object-header">
-        <div id="object-title" class="object-title"></div>
-        <label class="search-field object-header__filter">{{ icon('search') }}<input id="attribute-filter" type="search" placeholder="Filter attributes" aria-label="Filter attributes" disabled></label>
+        <div id="object-title" class="object-title" data-panel-title></div>
+        <label class="search-field object-header__filter">{{ icon('search') }}<input id="attribute-filter" type="search" placeholder="Filter attributes" aria-label="Filter attributes" data-panel-filter disabled></label>
       </header>
-      <div id="properties" class="properties" tabindex="-1"></div>
+      <div id="properties" class="properties" tabindex="-1" data-panel-body></div>
     </section>
   </div>
   <dialog id="object-dialog" class="dialog" aria-labelledby="dialog-title">

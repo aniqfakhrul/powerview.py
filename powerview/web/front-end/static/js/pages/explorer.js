@@ -1,7 +1,7 @@
 import { createDirectory, isContainer, values } from '../core/directory.js';
 import { namingContext, parentDN, sameDN } from '../core/dn.js';
 import { createTree } from './explorer/tree.js';
-import { createProperties } from './explorer/properties.js';
+import { createObjectPanel } from '../components/object-panel/index.js';
 import { createDialogs } from './explorer/dialogs.js';
 import { createStatus } from './explorer/status.js';
 import { createResizer } from './explorer/resizer.js';
@@ -43,7 +43,8 @@ const tree = createTree({
     return true;
   },
 });
-const properties = createProperties({
+const properties = createObjectPanel({
+  root: document.querySelector('#object-pane'),
   directory, scope, status, guard,
   onNavigate: (dn) => go(dn),
   onSaved: () => navigate(activeDN, { fresh: true, fromTree: true }),

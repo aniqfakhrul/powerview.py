@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createAPI } from '../static/js/core/api.js';
 import { createDirectory, objectType } from '../static/js/core/directory.js';
 import { splitDN, parentDN, dnLabel, namingContext } from '../static/js/core/dn.js';
-import { createRequestLane } from '../static/js/pages/explorer/state.js';
+import { createRequestLane } from '../static/js/core/request-lane.js';
 import { accountDisabled, toTime } from '../static/js/core/ldap-values.js';
 
 test('DN parsing preserves escaped separators and decodes UTF-8 hex escapes', () => {

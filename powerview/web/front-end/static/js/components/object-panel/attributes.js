@@ -1,7 +1,7 @@
 import { dnLabel, isDN } from '../../core/dn.js';
 import { attribute, recordName, values, textValue, objectType, TYPE_LABELS } from '../../core/directory.js';
 import { accountDisabled } from '../../core/ldap-values.js';
-import { createRequestLane } from './state.js';
+import { createRequestLane } from '../../core/request-lane.js';
 import { createValueEditor } from './value-editor.js';
 import { button, element, icon, setBusy } from '../../core/dom.js';
 
@@ -25,10 +25,10 @@ function editableText(value) {
   return values(value).map((item) => (typeof item === 'boolean' ? String(item).toUpperCase() : String(item)));
 }
 
-export function createProperties({ directory, scope, status, guard, onNavigate, onSaved }) {
-  const title = document.querySelector('#object-title');
-  const panel = document.querySelector('#properties');
-  const filter = document.querySelector('#attribute-filter');
+export function createAttributes({ root, directory, scope, status, guard, onNavigate, onSaved }) {
+  const title = root.querySelector('[data-panel-title]');
+  const panel = root.querySelector('[data-panel-body]');
+  const filter = root.querySelector('[data-panel-filter]');
   const lane = createRequestLane();
   let current = null;
   let editing = null;
