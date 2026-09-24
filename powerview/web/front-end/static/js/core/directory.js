@@ -57,6 +57,16 @@ export function createDirectory(baseURL) {
   return {
     domain: (signal) => request('get/domaininfo', { signal }),
     server: (signal) => request('server/info', { signal }),
+    async security(dn, { signal, fresh = false } = {}) {
+      const body = { identity: dn, searchbase: dn, search_scope: 'BASE', no_cache: fresh };
+      const [owners, acls] = await Promise.all([
+        request('get/domainobjectowner', { signal, body }),
+        request('get/domainobjectacl', { signal, body: { ...body, resolveguids: true } }),
+      ]);
+      const owner = Array.isArray(owners) ? owners[0]?.attributes?.Owner ?? '' : '';
+      const aces = (Array.isArray(acls) ? acls : []).flatMap((entry) => (Array.isArray(entry?.attributes) ? entry.attributes : []));
+      return { owner: textValue(owner), aces };
+    },
     async users({ signal, fresh = false } = {}) {
       const data = await request('get/domainuser', { signal, body: { properties: USER_PROPERTIES, raw: true, no_vuln_check: true, no_cache: fresh } });
       return records(data).map(toUser);

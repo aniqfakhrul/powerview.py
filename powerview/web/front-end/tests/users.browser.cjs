@@ -15,6 +15,7 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
 (async () => {
   const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || 'chrome', headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  const securityRequests = [];
   const errors = []; const writes = []; const userRequests = []; let createResponse = false; let failUsers = false;
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('**/api/**', async (route) => {
@@ -22,6 +23,18 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
     const data = route.request().postDataJSON();
     if (path.endsWith('/connectioninfo')) return route.fulfill({ json: { status: 'OK', protocol: 'LDAPS', username: 'tester', domain: 'example.test' } });
     if (path.endsWith('/get/domaininfo')) return route.fulfill({ json: { root_dn: rootDN, domain: 'example.test' } });
+    if (path.endsWith('/get/domainobjectowner')) {
+      securityRequests.push({ path, data });
+      return route.fulfill({ json: [{ dn: data.identity, attributes: { Owner: 'EXAMPLE\\Domain Admins (S-1-5-21-1-2-3-512)' } }] });
+    }
+    if (path.endsWith('/get/domainobjectacl')) {
+      securityRequests.push({ path, data });
+      return route.fulfill({ json: [{ attributes: [
+        { ACEType: 'ACCESS_ALLOWED_ACE', ACEFlags: 'None', SecurityIdentifier: 'EXAMPLE\\Helpdesk', AccessMask: 'ReadProperty, WriteProperty', ObjectAceType: null },
+        { ACEType: 'ACCESS_DENIED_OBJECT_ACE', ACEFlags: 'None', SecurityIdentifier: 'Everyone', AccessMask: 'ExtendedRight', ObjectAceType: 'User-Change-Password' },
+        { ACEType: 'ACCESS_ALLOWED_ACE', ACEFlags: 'CONTAINER_INHERIT_ACE, INHERITED_ACE', SecurityIdentifier: 'EXAMPLE\\Domain Admins', AccessMask: 'FullControl', ObjectAceType: null },
+      ] }] });
+    }
     if (path.endsWith('/get/domainobject') && data.searchbase === groupDN) {
       return route.fulfill({ json: [{ dn: groupDN, attributes: { name: 'VPN Users', objectClass: ['top', 'group'], groupType: -2147483646,
         'member;range=0-2': [`CN=User 002,CN=Users,${rootDN}`, `CN=User 001,CN=Users,${rootDN}`, `CN=User 003,CN=Users,${rootDN}`] } }] });
@@ -120,6 +133,23 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   assert.equal(await panel.locator('.overview__fields dt', { hasText: 'Account' }).locator('xpath=following-sibling::dd[1]').textContent(), 'second person');
   assert.equal(await panel.locator('.overview .state').textContent(), 'Enabled');
   assert.equal(await panel.getByRole('searchbox', { name: 'Filter attributes' }).isVisible(), false);
+  assert.equal(securityRequests.length, 0);
+  await panel.getByRole('tab', { name: 'Security' }).click();
+  await panel.locator('.security__table tbody tr').first().waitFor();
+  assert.deepEqual(securityRequests.map((item) => [item.path, item.data.identity, item.data.search_scope]), [
+    ['/api/get/domainobjectowner', `CN=Second Person,CN=Users,${rootDN}`, 'BASE'],
+    ['/api/get/domainobjectacl', `CN=Second Person,CN=Users,${rootDN}`, 'BASE'],
+  ]);
+  assert.equal(await panel.locator('.security__owner p').textContent(), 'EXAMPLE\\Domain Admins');
+  assert.equal(await panel.locator('.security__owner code').textContent(), 'S-1-5-21-1-2-3-512');
+  assert.deepEqual(await panel.locator('.security__table tbody tr td:first-child').allTextContents(), ['Deny', 'Allow', 'Allow']);
+  assert.equal(await panel.locator('.security__table tbody tr').nth(0).locator('td').nth(3).textContent(), 'User-Change-Password');
+  await panel.getByLabel('Hide inherited').check();
+  assert.equal(await panel.locator('.security__table tbody tr').count(), 2);
+  await panel.getByRole('tab', { name: 'Overview' }).click();
+  await panel.getByRole('tab', { name: 'Security' }).click();
+  assert.equal(securityRequests.length, 2);
+  await panel.getByRole('tab', { name: 'Overview' }).click();
   assert.equal(await panel.getByRole('tab', { name: /^Members/ }).isVisible(), false);
   await panel.getByRole('tab', { name: 'Member of 2' }).click();
   assert.equal(await panel.locator('.membership:not([hidden]) .membership__item').count(), 2);
@@ -160,6 +190,6 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   await rows.first().waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
-  console.log('PASS: End/Home across unrendered rows, sorting disabled while errored, raw user request, flag-name status, chronological day-first date sorting, sort focus retention, failed post-create refresh stays visible, incremental rendering, safe cells, sorting, filtering, empty filter state, new user validation and failed-create preservation, create refresh, side panel (Members/Member of tabs by type, counts, filter, partial-range note, membership navigation, Overview fields and status, tab keyboard switching, open, URL state, Explorer link, Escape layering, deep link, close), mobile overflow, no runtime errors.');
+  console.log('PASS: End/Home across unrendered rows, sorting disabled while errored, raw user request, flag-name status, chronological day-first date sorting, sort focus retention, failed post-create refresh stays visible, incremental rendering, safe cells, sorting, filtering, empty filter state, new user validation and failed-create preservation, create refresh, side panel (lazy Security tab with owner, deny-first ACL, inherited toggle, per-object caching, Members/Member of tabs by type, counts, filter, partial-range note, membership navigation, Overview fields and status, tab keyboard switching, open, URL state, Explorer link, Escape layering, deep link, close), mobile overflow, no runtime errors.');
   await browser.close();
 })().catch((error) => { console.error(error); process.exit(1); });

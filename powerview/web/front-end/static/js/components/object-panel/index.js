@@ -3,11 +3,13 @@ import { button, element } from '../../core/dom.js';
 import { createAttributes } from './attributes.js';
 import { membershipCount, renderMembership } from './membership.js';
 import { renderOverview } from './overview.js';
+import { createSecurity } from './security.js';
 
 const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'members', label: 'Members', attribute: 'member', noun: 'members', types: ['group'] },
   { key: 'memberOf', label: 'Member of', attribute: 'memberOf', noun: 'groups', types: ['group', 'user', 'computer'] },
+  { key: 'security', label: 'Security', lazy: true },
   { key: 'attributes', label: 'Attributes' },
 ];
 
@@ -20,6 +22,10 @@ export function createObjectPanel({ root, defaultTab = 'overview', ...options })
   let active = defaultTab;
   let preferred = defaultTab;
   let generation = 0;
+  let currentDN = '';
+  let securityDN = '';
+  let securityFresh = false;
+  const security = createSecurity(options);
 
   tabList.setAttribute('role', 'tablist');
   tabList.setAttribute('aria-label', 'Object details');
@@ -34,7 +40,7 @@ export function createObjectPanel({ root, defaultTab = 'overview', ...options })
     tab.append(label, count);
     let panel = body;
     if (definition.key !== 'attributes') {
-      panel = element('div', definition.key === 'overview' ? 'overview' : 'membership');
+      panel = element('div', definition.key === 'overview' ? 'overview' : definition.key === 'security' ? 'security' : 'membership');
       panel.id = `${root.id}-${definition.key}`;
       panel.tabIndex = -1;
       body.before(panel);
@@ -58,6 +64,10 @@ export function createObjectPanel({ root, defaultTab = 'overview', ...options })
       panel.hidden = !selected;
     }
     if (filterHost) filterHost.hidden = active !== 'attributes';
+    if (active === 'security' && currentDN && securityDN !== currentDN) {
+      securityDN = currentDN;
+      security.render(tabs.get('security').panel, currentDN, { fresh: securityFresh });
+    }
   }
 
   function choose(key) {
@@ -106,13 +116,19 @@ export function createObjectPanel({ root, defaultTab = 'overview', ...options })
 
   async function open(dn, openOptions = {}) {
     const current = ++generation;
+    currentDN = '';
+    securityDN = '';
+    securityFresh = Boolean(openOptions.fresh);
+    security.cancel();
     const views = [...tabs.values()].filter(({ definition }) => definition.key !== 'attributes');
     for (const { panel } of views) placeholder(panel);
     const record = await attributes.open(dn, openOptions);
     if (current !== generation) return record;
     applicable(record);
+    currentDN = record ? record.dn : '';
     for (const { definition, panel } of views) {
       if (!record) failed(panel, dn);
+      else if (definition.lazy) panel.replaceChildren();
       else if (definition.key === 'overview') renderOverview(panel, record, options);
       else renderMembership(panel, record, definition.attribute, { ...options, noun: definition.noun });
     }
