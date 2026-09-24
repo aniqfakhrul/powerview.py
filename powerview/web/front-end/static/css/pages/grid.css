@@ -5,8 +5,10 @@
 
 .grid-page__body { position: relative; display: flex; flex: 1; min-height: 0; }
 .grid-main { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
-.side-panel { display: flex; flex: none; flex-direction: column; width: 440px; min-height: 0; border-left: 1px solid var(--color-border); background: var(--color-surface); }
+.grid-page { --panel-width: 480px; }
+.side-panel { display: flex; flex: none; flex-direction: column; width: var(--panel-width); min-height: 0; border-left: 1px solid var(--color-border); background: var(--color-surface); }
 .side-panel .object-header { padding-right: var(--space-2); }
+.side-panel { border-left: 0; }
 .side-panel__filter { flex: none; padding: 8px var(--space-3); border-bottom: 1px solid var(--color-border); }
 .side-panel .property-grid col.property-grid__name { width: 42%; }
 .grid-scroll { position: relative; flex: 1; min-height: 0; overflow: auto; }
@@ -43,6 +45,7 @@
 .grid-sentinel td { height: 1px; padding: 0; border: 0; }
 
 @media (max-width: 1100px) {
+  .grid-page .pane-resizer { display: none; }
   .side-panel { position: absolute; inset: 0 0 0 auto; z-index: 6; width: min(440px, 100%); box-shadow: var(--shadow-pop); }
 }
 @media (max-width: 720px) {

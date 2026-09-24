@@ -5,7 +5,7 @@ import { createObjectPanel } from '../components/object-panel/index.js';
 import { createDialogs } from './explorer/dialogs.js';
 import { createStatus } from '../components/status.js';
 import { createMutationGuard } from '../core/mutation-guard.js';
-import { createResizer } from './explorer/resizer.js';
+import { createResizer } from '../components/resizer.js';
 import { manageTreeOverlay } from './explorer/overlays.js';
 
 const root = document.querySelector('#explorer');
@@ -47,7 +47,15 @@ const properties = createObjectPanel({
 });
 const dialogs = createDialogs({ directory, scope, guard, status, roots: () => roots, onChanged: changed });
 const overlay = manageTreeOverlay(root, { toggle: document.querySelector('#tree-toggle'), closeButton: document.querySelector('#tree-close') });
-createResizer(root, document.querySelector('#pane-resizer'), document.querySelector('#directory-pane'));
+createResizer({
+  root,
+  handle: document.querySelector('#pane-resizer'),
+  pane: document.querySelector('#directory-pane'),
+  property: '--tree-width',
+  storageKey: 'powerview.explorer.treeWidth',
+  min: 220,
+  max: 720,
+});
 
 function updateControls() {
   const record = properties.current();

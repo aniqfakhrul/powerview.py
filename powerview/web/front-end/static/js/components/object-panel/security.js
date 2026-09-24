@@ -3,9 +3,19 @@ import { button, element, icon } from '../../core/dom.js';
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 const OWNER = /^(.*?)\s*\((S-[\d-]+)\)$/;
 
-const inherited = (ace) => /INHERITED_ACE/.test(ace.ACEFlags ?? '');
+const hasFlag = (ace, flag) => new RegExp(`\\b${flag}\\b`).test(ace.ACEFlags ?? '');
 const denied = (ace) => /DENIED/.test(ace.ACEType ?? '');
 const clean = (value) => (value == null || value === 'None' ? '' : String(value));
+
+function scopeOf(ace) {
+  const inheritable = hasFlag(ace, 'CONTAINER_INHERIT_ACE') || hasFlag(ace, 'OBJECT_INHERIT_ACE');
+  const childrenOnly = hasFlag(ace, 'NO_PROPAGATE_INHERIT_ACE');
+  let scope = 'This object';
+  if (hasFlag(ace, 'INHERIT_ONLY_ACE')) scope = childrenOnly ? 'Child objects only' : 'Descendants only';
+  else if (inheritable) scope = childrenOnly ? 'This object and children' : 'This object and descendants';
+  const objectType = clean(ace.InheritanceType);
+  return objectType && scope !== 'This object' ? `${scope} · ${objectType} objects` : scope;
+}
 
 function toEntry(ace) {
   return {
@@ -13,9 +23,25 @@ function toEntry(ace) {
     principal: clean(ace.SecurityIdentifier),
     rights: clean(ace.AccessMask || ace.ActiveDirectoryRights),
     appliesTo: clean(ace.ObjectAceType) || 'All properties',
-    inheritedFrom: inherited(ace),
-    inheritance: clean(ace.InheritanceType),
+    scope: scopeOf(ace),
+    inheritedFrom: hasFlag(ace, 'INHERITED_ACE'),
+    type: clean(ace.ACEType),
+    flags: clean(ace.ACEFlags) || 'None',
   };
+}
+
+function details(entry) {
+  const list = element('dl', 'security__details');
+  for (const [label, value] of [
+    ['Principal', entry.principal],
+    ['Rights', entry.rights],
+    ['Applies to', entry.appliesTo],
+    ['Scope', entry.scope],
+    ['Source', entry.inheritedFrom ? 'Inherited from a parent' : 'Explicit on this object'],
+    ['Entry type', entry.type],
+    ['Flags', entry.flags],
+  ]) list.append(element('dt', '', label), element('dd', '', value));
+  return list;
 }
 
 function ownerBlock(owner) {
@@ -49,7 +75,7 @@ export function createSecurity({ directory }) {
     const grid = element('table', 'security__table');
     const head = element('thead');
     const headRow = element('tr');
-    for (const label of ['Access', 'Principal', 'Rights', 'Applies to', 'Source']) {
+    for (const label of ['Access', 'Principal', 'Rights', 'Applies to', 'Scope']) {
       const th = element('th', '', label);
       th.scope = 'col';
       headRow.append(th);
@@ -65,17 +91,30 @@ export function createSecurity({ directory }) {
       const visible = entries.filter((entry) => (!checkbox.checked || !entry.inheritedFrom)
         && (!query || [entry.principal, entry.rights, entry.appliesTo].some((value) => value.toLocaleLowerCase().includes(query))));
       count.textContent = visible.length === entries.length ? String(entries.length) : `${visible.length} of ${entries.length}`;
-      body.replaceChildren(...visible.map((entry) => {
-        const tr = element('tr');
+      body.replaceChildren(...visible.flatMap((entry) => {
+        const tr = element('tr', 'security__row');
+        tr.tabIndex = 0;
+        tr.setAttribute('aria-expanded', 'false');
         const access = element('td');
         access.append(element('span', entry.denied ? 'state state--danger' : 'state state--neutral', entry.denied ? 'Deny' : 'Allow'));
         const principal = element('td', '', entry.principal);
         const rights = element('td', 'security__rights', entry.rights);
         const applies = element('td', '', entry.appliesTo);
-        const source = element('td', 'cell-muted', entry.inheritedFrom ? 'Inherited' : 'Explicit');
-        for (const cell of [principal, rights, applies]) cell.title = cell.textContent;
-        tr.append(access, principal, rights, applies, source);
-        return tr;
+        const scope = element('td', entry.inheritedFrom ? 'cell-muted' : '', entry.scope);
+        tr.append(access, principal, rights, applies, scope);
+        const detailRow = element('tr', 'security__detail-row');
+        detailRow.hidden = true;
+        const detailCell = element('td');
+        detailCell.colSpan = 5;
+        detailCell.append(details(entry));
+        detailRow.append(detailCell);
+        const toggle = () => {
+          detailRow.hidden = !detailRow.hidden;
+          tr.setAttribute('aria-expanded', String(!detailRow.hidden));
+        };
+        tr.addEventListener('click', toggle);
+        tr.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); } });
+        return [tr, detailRow];
       }));
       if (!visible.length) {
         const tr = element('tr');

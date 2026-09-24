@@ -11,10 +11,6 @@
 .tree-pane { display: flex; flex: none; flex-direction: column; width: var(--tree-width); min-width: 0; background: var(--color-sidebar); }
 .tree-pane__search { display: flex; flex: none; gap: 4px; padding: 8px; }
 .tree-pane__search .search-field { flex: 1; }
-.pane-resizer { position: relative; flex: none; width: 1px; background: var(--color-border); cursor: col-resize; touch-action: none; }
-.pane-resizer::after { content: ""; position: absolute; inset: 0 -4px; z-index: 1; }
-.pane-resizer:hover, .pane-resizer:focus-visible, .pane-resizer.is-dragging { background: var(--color-accent); outline: 0; }
-.explorer.is-resizing { cursor: col-resize; user-select: none; }
 
 .tree { flex: 1; min-height: 0; margin: 0; padding: 0 0 12px 4px; overflow: auto; list-style: none; }
 .tree:focus { outline: none; }

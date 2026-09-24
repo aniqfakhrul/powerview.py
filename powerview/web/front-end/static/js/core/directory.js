@@ -34,7 +34,7 @@ function timeField(record, name) {
   return { time, text: formatTime(time) };
 }
 
-function toUser(record) {
+export function userFromRecord(record) {
   return {
     dn: record.dn,
     name: recordName(record),
@@ -63,13 +63,16 @@ export function createDirectory(baseURL) {
         request('get/domainobjectowner', { signal, body }),
         request('get/domainobjectacl', { signal, body: { ...body, resolveguids: true } }),
       ]);
-      const owner = Array.isArray(owners) ? owners[0]?.attributes?.Owner ?? '' : '';
-      const aces = (Array.isArray(acls) ? acls : []).flatMap((entry) => (Array.isArray(entry?.attributes) ? entry.attributes : []));
+      if (!Array.isArray(acls) || !Array.isArray(owners)) {
+        throw new APIError('PowerView could not read this object\'s security descriptor. The account may lack permission to read it; check the CLI logs.');
+      }
+      const owner = owners[0]?.attributes?.Owner ?? '';
+      const aces = acls.flatMap((entry) => (Array.isArray(entry?.attributes) ? entry.attributes : []));
       return { owner: textValue(owner), aces };
     },
     async users({ signal, fresh = false } = {}) {
       const data = await request('get/domainuser', { signal, body: { properties: USER_PROPERTIES, raw: true, no_vuln_check: true, no_cache: fresh } });
-      return records(data).map(toUser);
+      return records(data).map(userFromRecord);
     },
     async children(dn, { signal, fresh = false } = {}) {
       return records(await request('get/domainobject', {

@@ -1,8 +1,9 @@
-import { createDirectory } from '../core/directory.js';
+import { createDirectory, userFromRecord } from '../core/directory.js';
 import { button, element, icon } from '../core/dom.js';
 import { namingContext, sameDN } from '../core/dn.js';
 import { createMutationGuard } from '../core/mutation-guard.js';
 import { createObjectPanel } from '../components/object-panel/index.js';
+import { createResizer } from '../components/resizer.js';
 import { createStatus } from '../components/status.js';
 import { createNewUser } from './users/new-user.js';
 
@@ -21,6 +22,10 @@ const refresh = document.querySelector('#grid-refresh');
 const newButton = document.querySelector('#user-new');
 const panelRoot = document.querySelector('#object-panel');
 const explorerLink = document.querySelector('#panel-explorer');
+const gridMain = document.querySelector('.grid-main');
+const panelResizer = document.querySelector('#panel-resizer');
+const overlay = matchMedia('(max-width: 1100px)');
+let returnFocus = null;
 const status = createStatus();
 let selectedDN = '';
 let rootDN = '';
@@ -209,13 +214,26 @@ function markSelected() {
   for (const tr of body.querySelectorAll('tr[data-dn]')) tr.setAttribute('aria-selected', String(sameDN(tr.dataset.dn, selectedDN)));
 }
 
+function syncOverlay() {
+  const covering = overlay.matches && !panelRoot.hidden;
+  gridMain.inert = covering;
+  for (const node of [document.querySelector('.grid-page > .toolbar'), document.querySelector('.workspace > .sidebar')]) {
+    if (node) node.inert = covering;
+  }
+}
+
 function select(dn) {
   if (!panel.canLeave()) return;
+  const opening = panelRoot.hidden;
+  if (opening) returnFocus = document.activeElement;
   selectedDN = dn;
   markSelected();
   remember(dn);
   explorerLink.href = explorerURL(dn);
   panelRoot.hidden = false;
+  panelResizer.hidden = false;
+  syncOverlay();
+  if (opening && overlay.matches) panelRoot.querySelector('[role="tab"][aria-selected="true"]')?.focus();
   panel.open(dn);
 }
 
@@ -224,9 +242,28 @@ function closePanel() {
   const previous = selectedDN;
   selectedDN = '';
   panelRoot.hidden = true;
+  panelResizer.hidden = true;
+  syncOverlay();
   markSelected();
   remember('');
-  body.querySelector(`tr[data-dn="${CSS.escape(previous)}"]`)?.focus();
+  const row = body.querySelector(`tr[data-dn="${CSS.escape(previous)}"]`);
+  (row ?? (returnFocus?.isConnected ? returnFocus : null))?.focus();
+  returnFocus = null;
+}
+
+function reconcile(record) {
+  if (!record) return;
+  const updated = userFromRecord(record);
+  const index = users.findIndex((user) => sameDN(user.dn, updated.dn));
+  if (index < 0) return;
+  users[index] = updated;
+  const position = visible.findIndex((user) => sameDN(user.dn, updated.dn));
+  if (position >= 0) visible[position] = updated;
+  const current = body.querySelector(`tr[data-dn="${CSS.escape(updated.dn)}"]`);
+  if (!current) return;
+  const replacement = row(updated, position);
+  replacement.tabIndex = current.tabIndex;
+  current.replaceWith(replacement);
 }
 
 const guard = createMutationGuard({ onBlocked: () => status.info('Wait for the current change to finish.') });
@@ -237,10 +274,22 @@ const panel = createObjectPanel({
   guard,
   scope: (dn) => namingContext(dn, [rootDN]) ?? rootDN,
   onNavigate: select,
-  onSaved: () => panel.open(selectedDN, { fresh: true }),
+  onSaved: async () => reconcile(await panel.open(selectedDN, { fresh: true })),
 });
 
 document.querySelector('#panel-close').addEventListener('click', closePanel);
+explorerLink.addEventListener('click', (event) => { if (!panel.canLeave()) event.preventDefault(); });
+overlay.addEventListener('change', syncOverlay);
+createResizer({
+  root,
+  handle: panelResizer,
+  pane: panelRoot,
+  property: '--panel-width',
+  storageKey: 'powerview.panelWidth',
+  min: 360,
+  max: 960,
+  edge: 'start',
+});
 panelRoot.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); closePanel(); }
 });
