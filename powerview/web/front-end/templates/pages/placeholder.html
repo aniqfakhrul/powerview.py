@@ -1,0 +1,12 @@
+{% extends "layouts/workspace.html" %}
+{% from "components/empty-state.html" import empty_state %}
+{% block content %}
+<div class="page-heading">
+  <h1>{{ page.title }}</h1>
+  <p>Your directory workspace.</p>
+</div>
+<div class="panel">
+  <div class="panel__header"><span>{{ page.title }}</span><span class="muted">Coming next</span></div>
+  {{ empty_state(page.title ~ ' starts here', 'This workspace is ready for the next stage. Directory data and actions will be added as each module is built.') }}
+</div>
+{% endblock %}

@@ -1,0 +1,8 @@
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; color: var(--color-text); background: var(--color-canvas); font: 13px/1.5 var(--font-sans); }
+a { color: inherit; text-decoration: none; }
+button, input, select, textarea { font: inherit; }
+h1, h2, p { margin: 0; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.skip-link { position: fixed; top: -100px; left: 16px; z-index: 10; padding: 12px; background: var(--color-surface); }
+.skip-link:focus { top: 8px; }

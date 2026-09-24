@@ -1,0 +1,28 @@
+.workspace { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
+.sidebar { display: flex; flex-direction: column; background: var(--color-sidebar); border-right: 1px solid var(--color-border); }
+.brand { display: flex; align-items: center; gap: var(--space-3); padding: 22px var(--space-4); font-size: 18px; font-weight: 700; letter-spacing: -.5px; }
+.brand__suffix { color: var(--color-muted); font-weight: 400; }
+.navigation { padding: 0 var(--space-3) var(--space-5); }
+.navigation__group + .navigation__group { margin-top: var(--space-5); }
+.navigation__label { padding: var(--space-2); color: var(--color-muted); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.navigation__link { display: block; padding: 7px var(--space-3); border-radius: var(--radius-sm); }
+.navigation__link:hover { background: var(--color-border); }
+.navigation__link[aria-current="page"] { color: var(--color-accent); background: var(--color-selected); font-weight: 600; }
+.sidebar__footer { display: flex; justify-content: space-between; gap: var(--space-2); margin-top: auto; padding: var(--space-4); border-top: 1px solid var(--color-border); color: var(--color-muted); font-size: 11px; }
+.workspace__body { min-width: 0; }
+.workspace-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3); min-height: 64px; padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
+.content { padding: var(--space-5); }
+.page-heading { margin-bottom: var(--space-5); }
+.page-heading h1 { font-size: 23px; font-weight: 650; letter-spacing: -.6px; }
+.page-heading p { margin-top: var(--space-1); color: var(--color-muted); }
+@media (max-width: 720px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { border-right: 0; border-bottom: 1px solid var(--color-border); }
+  .brand { padding: var(--space-3) var(--space-4); }
+  .navigation { display: flex; gap: var(--space-4); overflow-x: auto; padding: 0 var(--space-3) var(--space-3); }
+  .navigation__group { display: flex; flex: 0 0 auto; }
+  .navigation__group + .navigation__group { margin-top: 0; }
+  .navigation__label, .sidebar__footer { display: none; }
+  .navigation__link { white-space: nowrap; }
+  .content, .workspace-header { padding: var(--space-4); }
+}

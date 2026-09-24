@@ -1,0 +1,17 @@
+<aside class="sidebar" aria-label="Workspace sidebar">
+  <a class="brand" href="{{ url_for('index') }}">
+    <img src="{{ asset_url('images/mark.svg') }}" width="28" height="28" alt="">
+    <span>PowerView<span class="brand__suffix">.py</span></span>
+  </a>
+  <nav class="navigation" aria-label="Main navigation">
+    {% for section in sections %}
+    <div class="navigation__group">
+      <p class="navigation__label">{{ section }}</p>
+      {% for item in pages if item.section == section %}
+      <a class="navigation__link" href="{{ url_for(item.endpoint) }}"{% if item.endpoint == page.endpoint %} aria-current="page"{% endif %}>{{ item.title }}</a>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </nav>
+  <footer class="sidebar__footer"><span>PowerView</span><span>{{ version }}</span></footer>
+</aside>

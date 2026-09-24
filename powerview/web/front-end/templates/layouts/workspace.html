@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="workspace">
+  {% include "partials/sidebar.html" %}
+  <div class="workspace__body">
+    {% include "partials/header.html" %}
+    <main id="main-content" class="content" tabindex="-1">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% endblock %}

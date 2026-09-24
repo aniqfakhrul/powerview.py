@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from flask import Flask, jsonify, request, render_template, Response, stream_with_context
+from flask import jsonify, request, Response, stream_with_context
 import logging
 from contextlib import redirect_stdout, redirect_stderr
 import io
@@ -14,7 +14,7 @@ from powerview.web.api.helpers import make_serializable
 from powerview.utils.parsers import powerview_arg_parse
 from powerview.utils.constants import UAC_DICT
 import types
-from powerview._version import __version__ as version
+from powerview.web.frontend import create_web_app, register_frontend
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.modules.smbclient import SMBClient
 from powerview.lib.tsts import TSHandler
@@ -23,7 +23,7 @@ import json
 
 class APIServer:
 	def __init__(self, powerview, host="127.0.0.1", port=5000):
-		self.app = Flask(__name__, static_folder='../../web/front-end/static', template_folder='../../web/front-end/templates')
+		self.app = create_web_app(__name__)
 		
 		self.basic_auth = None
 		self.web_auth_user = powerview.args.web_auth['web_auth_user'] if powerview.args.web_auth else None
@@ -55,25 +55,6 @@ class APIServer:
 
 		self._register_routes()
 
-		self.nav_items = [
-			{"name": "Explorer", "icon": "fas fa-folder-tree", "link": "/"},
-			{"name": "Dashboard", "icon": "fas fa-chart-line", "link": "/dashboard"},
-			{"name": "Graph", "icon": "fas fa-project-diagram", "link": "/graph"},
-			{"name": "Modules", "icon": "fas fa-cubes", "subitems": [
-				{"name": "Users", "icon": "far fa-user", "link": "/users"},
-				{"name": "Computers", "icon": "fas fa-display", "link": "/computers"},
-				{"name": "Groups", "icon": "fas fa-users", "link": "/groups"},
-				{"name": "DNS", "icon": "fas fa-globe", "link": "/dns"},
-				{"name": "CA", "icon": "fas fa-certificate", "link": "/ca"},
-				{"name": "OUs", "icon": "fas fa-building", "link": "/ou"},
-				{"name": "GPOs", "icon": "fas fa-building", "link": "/gpo"},
-				{"name": "SMB Browser", "icon": "fas fa-building", "link": "/smb"},
-			]},
-			{"name": "Utils", "icon": "fas fa-toolbox", "link": "/utils"},
-			{"name": "Logs", "icon": "far fa-file-alt", "button_id": "toggle-command-history"},
-			{"name": "Settings", "icon": "fas fa-cog", "button_id": "toggle-settings"}
-		]
-
 	def _register_routes(self):
 		def add_route_with_auth(rule, endpoint, view_func, **options):
 			decorated_view = view_func
@@ -81,18 +62,7 @@ class APIServer:
 				decorated_view = self.basic_auth.required(view_func)
 			self.app.add_url_rule(rule, endpoint, decorated_view, **options)
 
-		add_route_with_auth('/', 'index', self.render_index, methods=['GET'])
-		add_route_with_auth('/dashboard', 'dashboard', self.render_dashboard, methods=['GET'])
-		add_route_with_auth('/graph', 'graph', self.render_graph, methods=['GET'])
-		add_route_with_auth('/users', 'users', self.render_users, methods=['GET'])
-		add_route_with_auth('/computers', 'computers', self.render_computers, methods=['GET'])
-		add_route_with_auth('/dns', 'dns', self.render_dns, methods=['GET'])
-		add_route_with_auth('/groups', 'groups', self.render_groups, methods=['GET'])
-		add_route_with_auth('/ca', 'ca', self.render_ca, methods=['GET'])
-		add_route_with_auth('/ou', 'ou', self.render_ou, methods=['GET'])
-		add_route_with_auth('/gpo', 'gpo', self.render_gpo, methods=['GET'])
-		add_route_with_auth('/smb', 'smb', self.render_smb, methods=['GET'])
-		add_route_with_auth('/utils', 'utils', self.render_utils, methods=['GET'])
+		register_frontend(add_route_with_auth)
 		add_route_with_auth('/api/server/info', 'server_info', self.handle_server_info, methods=['GET'])
 		add_route_with_auth('/api/server/schema', 'schema_info', self.handle_schema_info, methods=['GET'])
 		add_route_with_auth('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
@@ -151,162 +121,6 @@ class APIServer:
 
 	def get_status(self):
 		return self.status
-
-	def render_index(self):
-		context = {
-			'title': 'Powerview.py',
-			'version': version,
-			'nav_items': self.nav_items
-		}
-		return render_template('explorerpage.html', **context)
-	
-	def render_dashboard(self):
-		context = {
-			'title': 'Powerview.py - Dashboard',
-			'version': version,
-			'nav_items': self.nav_items
-		}
-		return render_template('dashboardpage.html', **context)
-
-	def render_graph(self):
-		context = {
-			'title': 'Powerview.py - Graph',
-			'version': version,
-			'nav_items': self.nav_items
-		}
-		return render_template('graphpage.html', **context)
-
-	def render_users(self):
-		context = {
-			'title': 'Powerview.py - Users',
-			'nav_items': self.nav_items,
-			'version': version,
-			'ldap_properties': [
-				{'id': 'all-toggle', 'name': 'All', 'active': 'false', 'attribute': '*'},
-				{'id': 'samaccountname-toggle', 'name': 'sAMAccountname', 'active': 'true', 'attribute': 'sAMAccountName'},
-				{'id': 'cn-toggle', 'name': 'cn', 'active': 'true', 'attribute': 'cn'},
-				{'id': 'mail-toggle', 'name': 'mail', 'active': 'true', 'attribute': 'mail'},
-				{'id': 'admincount-toggle', 'name': 'adminCount', 'active': 'true', 'attribute': 'adminCount'},
-				{'id': 'userprincipalname-toggle', 'name': 'userPrincipalName', 'active': 'false', 'attribute': 'userPrincipalName'},
-				{'id': 'useraccountcontrol-toggle', 'name': 'userAccountControl', 'active': 'false', 'attribute': 'userAccountControl'},
-				{'id': 'objectclass-toggle', 'name': 'objectClass', 'active': 'false', 'attribute': 'objectClass'},
-				{'id': 'description-toggle', 'name': 'description', 'active': 'false', 'attribute': 'description'},
-				{'id': 'distinguishedname-toggle', 'name': 'distinguishedName', 'active': 'false', 'attribute': 'distinguishedName'},
-				{'id': 'name-toggle', 'name': 'name', 'active': 'false', 'attribute': 'name'},
-				{'id': 'objectguid-toggle', 'name': 'objectGUID', 'active': 'false', 'attribute': 'objectGUID'},
-				{'id': 'objectsid-toggle', 'name': 'objectSid', 'active': 'false', 'attribute': 'objectSid'},
-				{'id': 'title-toggle', 'name': 'title', 'active': 'false', 'attribute': 'title'},
-				{'id': 'department-toggle', 'name': 'department', 'active': 'false', 'attribute': 'department'},
-				{'id': 'company-toggle', 'name': 'company', 'active': 'false', 'attribute': 'company'},
-				{'id': 'serviceprincipalname-toggle', 'name': 'servicePrincipalName', 'active': 'false', 'attribute': 'servicePrincipalName'},
-				{'id': 'memberof-toggle', 'name': 'memberOf', 'active': 'false', 'attribute': 'memberOf'},
-				{'id': 'accountexpires-toggle', 'name': 'accountExpires', 'active': 'false', 'attribute': 'accountExpires'}
-			],
-			'powerview_flags': [
-				{'id': 'spn-toggle', 'name': 'SPN', 'active': 'false', 'attribute': 'servicePrincipalName'},
-				{'id': 'trusted-to-auth-toggle', 'name': 'TrustedToAuth', 'active': 'false', 'attribute': 'trustedToAuth'},
-				{'id': 'enabled-users-toggle', 'name': 'Enabled', 'active': 'false', 'attribute': 'enabled'},
-				{'id': 'preauth-not-required-toggle', 'name': 'PreauthNotReq', 'active': 'false', 'attribute': 'preauthNotRequired'},
-				{'id': 'pass-not-required-toggle', 'name': 'PasswdNotReq', 'active': 'false', 'attribute': 'passwordNotRequired'},
-				{'id': 'admin-count-toggle', 'name': 'AdminCount', 'active': 'false', 'attribute': 'adminCount'},
-				{'id': 'lockout-toggle', 'name': 'Lockout', 'active': 'false', 'attribute': 'lockout'},
-				{'id': 'rbcd-toggle', 'name': 'RBCD', 'active': 'false', 'attribute': 'rbcd'},
-				{'id': 'shadow-cred-toggle', 'name': 'Shadow Cred', 'active': 'false', 'attribute': 'shadowCred'},
-				{'id': 'unconstrained-delegation-toggle', 'name': 'Unconstrained', 'active': 'false', 'attribute': 'unconstrainedDelegation'},
-				{'id': 'disabled-users-toggle', 'name': 'Disabled', 'active': 'false', 'attribute': 'disabled'},
-				{'id': 'password-expired-toggle', 'name': 'Password Expired', 'active': 'false', 'attribute': 'passwordExpired'}
-			]
-		}
-		return render_template('userspage.html', **context)
-
-	def render_computers(self):
-		context = {
-			'title': 'Powerview.py - Computers',
-			'nav_items': self.nav_items,
-			'version': version,
-			'ldap_properties': [
-				{'id': 'all-toggle', 'name': 'All', 'active': 'false', 'attribute': '*'},
-				{'id': 'samaccountname-toggle', 'name': 'sAMAccountname', 'active': 'true', 'attribute': 'sAMAccountName'},
-				{'id': 'cn-toggle', 'name': 'cn', 'active': 'true', 'attribute': 'cn'},
-				{'id': 'operatingsystem-toggle', 'name': 'operatingSystem', 'active': 'true', 'attribute': 'operatingSystem'},
-				{'id': 'description-toggle', 'name': 'description', 'active': 'false', 'attribute': 'description'},
-				{'id': 'useraccountcontrol-toggle', 'name': 'userAccountControl', 'active': 'false', 'attribute': 'userAccountControl'},
-				{'id': 'serviceprincipalname-toggle', 'name': 'servicePrincipalName', 'active': 'false', 'attribute': 'servicePrincipalName'},
-				{'id': 'memberof-toggle', 'name': 'memberOf', 'active': 'false', 'attribute': 'memberOf'}
-			],
-			'powerview_flags': [
-				{'id': 'spn-toggle', 'name': 'SPN', 'active': 'false', 'attribute': 'servicePrincipalName'},
-				{'id': 'trusted-to-auth-toggle', 'name': 'Trusted To Auth', 'active': 'false', 'attribute': 'trustedToAuth'},
-				{'id': 'enabled-computers-toggle', 'name': 'Enabled', 'active': 'false', 'attribute': 'enabled'},
-				{'id': 'rbcd-toggle', 'name': 'RBCD', 'active': 'false', 'attribute': 'rbcd'},
-				{'id': 'shadow-cred-toggle', 'name': 'Shadow Cred', 'active': 'false', 'attribute': 'shadowCred'},
-				{'id': 'unconstrained-delegation-toggle', 'name': 'Unconstrained', 'active': 'false', 'attribute': 'unconstrainedDelegation'},
-				{'id': 'disabled-computers-toggle', 'name': 'Disabled', 'active': 'false', 'attribute': 'disabled'},
-				{'id': 'laps-toggle', 'name': 'LAPS', 'active': 'false', 'attribute': 'laps'},
-				{'id': 'printers-toggle', 'name': 'Printers', 'active': 'false', 'attribute': 'printers'},
-				{'id': 'bitlocker-toggle', 'name': 'Bitlocker', 'active': 'false', 'attribute': 'bitlocker'},
-				{'id': 'gmsapassword-toggle', 'name': 'GMSA Password', 'active': 'false', 'attribute': 'gmsaPassword'},
-				{'id': 'pre2k-toggle', 'name': 'Pre-2k', 'active': 'false', 'attribute': 'pre2k'},
-				{'id': 'excludedcs-toggle', 'name': 'Exclude DC', 'active': 'false', 'attribute': 'excludeDC'}
-			]
-		}
-		return render_template('computerpage.html', **context)
-
-	def render_dns(self):
-		context = {
-			'title': 'Powerview.py - DNS',
-			'nav_items': self.nav_items,
-			'version': version,
-		}
-		return render_template('dnspage.html', **context)
-
-	def render_groups(self):
-		context = {
-			'title': 'Powerview.py - Groups',
-			'nav_items': self.nav_items,
-			'version': version,
-		}
-		return render_template('grouppage.html', **context)
-
-	def render_ca(self):
-		context = {
-			'title': 'Powerview.py - CA',
-			'nav_items': self.nav_items,
-			'version': version,
-		}
-		return render_template('capage.html', **context)
-
-	def render_ou(self):
-		context = {
-			'title': 'Powerview.py - OUs',
-			'nav_items': self.nav_items,
-			'version': version,
-		}
-		return render_template('oupage.html', **context)
-
-	def render_gpo(self):
-		context = {
-			'title': 'Powerview.py - GPOs',
-			'nav_items': self.nav_items,
-			'version': version,
-		}
-		return render_template('gpopage.html', **context)
-
-	def render_smb(self):
-		context = {
-			'title': 'Powerview.py - SMB',
-			'nav_items': self.nav_items,
-			'version': version,
-		}
-		return render_template('smbpage.html', **context)
-
-	def render_utils(self):
-		context = {
-			'title': 'Powerview.py - Utils',
-			'nav_items': self.nav_items,
-			'version': version,
-		}
-		return render_template('utilspage.html', **context)
 
 	def handle_get_operation(self, method_name):
 		return self.handle_operation(f"get_{method_name}")
