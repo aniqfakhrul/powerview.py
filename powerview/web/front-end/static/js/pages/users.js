@@ -220,6 +220,9 @@ function syncOverlay() {
   for (const node of [document.querySelector('.grid-page > .toolbar'), document.querySelector('.workspace > .sidebar')]) {
     if (node) node.inert = covering;
   }
+  if (covering && !panelRoot.contains(document.activeElement)) {
+    panelRoot.querySelector('[role="tab"][aria-selected="true"]')?.focus();
+  }
 }
 
 function select(dn) {
@@ -257,13 +260,11 @@ function reconcile(record) {
   const index = users.findIndex((user) => sameDN(user.dn, updated.dn));
   if (index < 0) return;
   users[index] = updated;
-  const position = visible.findIndex((user) => sameDN(user.dn, updated.dn));
-  if (position >= 0) visible[position] = updated;
-  const current = body.querySelector(`tr[data-dn="${CSS.escape(updated.dn)}"]`);
-  if (!current) return;
-  const replacement = row(updated, position);
-  replacement.tabIndex = current.tabIndex;
-  current.replaceWith(replacement);
+  const scrollTop = scroller.scrollTop;
+  update();
+  const position = visible.findIndex((user) => sameDN(user.dn, selectedDN));
+  while (position >= rendered && rendered < visible.length) renderMore();
+  scroller.scrollTop = scrollTop;
 }
 
 const guard = createMutationGuard({ onBlocked: () => status.info('Wait for the current change to finish.') });
