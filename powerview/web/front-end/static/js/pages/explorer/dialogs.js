@@ -1,8 +1,7 @@
 import { namingContext, parentDN, sameDN, splitDN } from '../../core/dn.js';
-import { recordName } from '../../core/directory.js';
+import { assertPlainName, recordName } from '../../core/directory.js';
 import { element, setBusy } from '../../core/dom.js';
 
-const PLAIN_NAME = /^[^,=+<>;"\\\x00-\x1f]+$/;
 const OBJECT_TYPES = [['user', 'User'], ['group', 'Group'], ['ou', 'Organizational unit']];
 
 export function createDialogs({ directory, roots, scope, guard, status, onChanged }) {
@@ -69,7 +68,7 @@ export function createDialogs({ directory, roots, scope, guard, status, onChange
       open({ heading: 'New object', confirm: 'Create', context: container, success: 'Object created',
         run: () => {
           const name = nameInput.value;
-          if (!PLAIN_NAME.test(name) || name.trim() !== name) throw new Error('Use a plain name without commas, equals signs, or leading and trailing spaces.');
+          assertPlainName(name);
           return directory.create(type.value, name, password.value, container);
         },
         after: () => onChanged({ container }),

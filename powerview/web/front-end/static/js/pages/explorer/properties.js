@@ -1,5 +1,6 @@
 import { dnLabel, isDN } from '../../core/dn.js';
 import { attribute, recordName, values, textValue, objectType, TYPE_LABELS } from '../../core/directory.js';
+import { accountDisabled } from '../../core/ldap-values.js';
 import { createRequestLane } from './state.js';
 import { createValueEditor } from './value-editor.js';
 import { button, element, icon, setBusy } from '../../core/dom.js';
@@ -11,13 +12,12 @@ const PROTECTED = /^(distinguishedname|name|cn|ou|objectclass|objectcategory|obj
 export const editableField = (name, value) => !PROTECTED.test(name) && !name.includes(';range=')
   && values(value).every((item) => ['string', 'boolean'].includes(typeof item) || (typeof item === 'number' && Number.isSafeInteger(item)));
 
-const ACCOUNT_DISABLED = 0x2;
 
 function summary(record) {
   const count = Object.keys(record.attributes).length;
   const parts = [`${count} ${count === 1 ? 'attribute' : 'attributes'}`];
-  const control = Number(values(attribute(record, 'userAccountControl'))[0]);
-  if (Number.isInteger(control)) parts.push(control & ACCOUNT_DISABLED ? 'Disabled' : 'Enabled');
+  const control = attribute(record, 'userAccountControl');
+  if (values(control).length) parts.push(accountDisabled(control) ? 'Disabled' : 'Enabled');
   return parts.join(' · ');
 }
 

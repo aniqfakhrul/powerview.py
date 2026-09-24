@@ -4,6 +4,7 @@ import { createAPI } from '../static/js/core/api.js';
 import { createDirectory, objectType } from '../static/js/core/directory.js';
 import { splitDN, parentDN, dnLabel, namingContext } from '../static/js/core/dn.js';
 import { createRequestLane } from '../static/js/pages/explorer/state.js';
+import { accountDisabled, toTime } from '../static/js/core/ldap-values.js';
 
 test('DN parsing preserves escaped separators and decodes UTF-8 hex escapes', () => {
   const dn = String.raw`CN=Doe\, Jane,OU=People,DC=example,DC=test`;
@@ -69,4 +70,23 @@ test('directory edits use structured values and OU creation supplies required ar
     assert.throws(() => directory.edit('CN=A', 'DC=test', '_set', 'description', ['@file']), /file/);
     assert.equal(bodies.length, 2);
   } finally { globalThis.fetch = original; }
+});
+
+test('account state reads numeric and flag-name userAccountControl values', () => {
+  assert.equal(accountDisabled(514), true);
+  assert.equal(accountDisabled('512'), false);
+  assert.equal(accountDisabled(['NORMAL_ACCOUNT', 'ACCOUNTDISABLE']), true);
+  assert.equal(accountDisabled('NORMAL_ACCOUNT DONT_EXPIRE_PASSWORD'), false);
+});
+
+test('directory times parse every backend shape chronologically', () => {
+  const expected = Date.UTC(2026, 8, 24, 12, 18, 10);
+  assert.equal(toTime('Thu, 24 Sep 2026 12:18:10 GMT'), expected);
+  assert.equal(toTime('20260924121810.0Z'), expected);
+  assert.equal(toTime('20260924121810'), expected);
+  assert.equal(toTime(expected * 10000 + 116444736000000000), expected);
+  assert.equal(new Date(toTime('24/09/2026 12:18:10')).getDate(), 24);
+  assert.equal(new Date(toTime('05/09/2026 00:00:00')).getMonth(), 8);
+  assert.ok(toTime('24/09/2026 12:18:10') > toTime('05/09/2026 00:00:00'));
+  for (const never of [0, '0', '', null, 'Fri, 31 Dec 9999 23:59:59 GMT', 'Mon, 01 Jan 1601 00:00:00 GMT']) assert.equal(toTime(never), null);
 });

@@ -1,5 +1,6 @@
 import { createAPI, APIError } from './api.js';
 import { dnLabel } from './dn.js';
+import { accountDisabled, formatTime, toTime } from './ldap-values.js';
 
 export const TREE_PROPERTIES = ['name', 'objectClass'];
 export const values = (value) => value == null ? [] : Array.isArray(value) ? value : [value];
@@ -18,9 +19,33 @@ export function objectType(record) {
   if (classes.some((value) => ['container', 'builtindomain', 'configuration', 'dmd', 'dnszone'].includes(value))) return 'container';
   return 'other';
 }
+const PLAIN_NAME = /^[^,=+<>;"\\\x00-\x1f]+$/;
+export function assertPlainName(name) {
+  if (!PLAIN_NAME.test(name) || name.trim() !== name) throw new Error('Use a plain name without commas, equals signs, or leading and trailing spaces.');
+}
 export const TYPE_LABELS = { domain: 'Domain', user: 'User', group: 'Group', computer: 'Computer', ou: 'Organizational unit', container: 'Container', other: 'Object' };
 export const recordName = (record) => textValue(attribute(record, 'name')) || dnLabel(record.dn);
 export const isContainer = (record) => ['domain', 'ou', 'container'].includes(objectType(record));
+
+const USER_PROPERTIES = ['name', 'sAMAccountName', 'userAccountControl', 'description', 'mail', 'lastLogonTimestamp', 'whenCreated'];
+
+function timeField(record, name) {
+  const time = toTime(attribute(record, name));
+  return { time, text: formatTime(time) };
+}
+
+function toUser(record) {
+  return {
+    dn: record.dn,
+    name: recordName(record),
+    account: textValue(attribute(record, 'sAMAccountName')),
+    disabled: accountDisabled(attribute(record, 'userAccountControl')),
+    description: textValue(attribute(record, 'description')),
+    mail: textValue(attribute(record, 'mail')),
+    lastLogon: timeField(record, 'lastLogonTimestamp'),
+    created: timeField(record, 'whenCreated'),
+  };
+}
 
 function records(data) {
   if (!Array.isArray(data)) throw new APIError('The directory returned an unexpected object list. Check the CLI logs.');
@@ -32,6 +57,10 @@ export function createDirectory(baseURL) {
   return {
     domain: (signal) => request('get/domaininfo', { signal }),
     server: (signal) => request('server/info', { signal }),
+    async users({ signal, fresh = false } = {}) {
+      const data = await request('get/domainuser', { signal, body: { properties: USER_PROPERTIES, raw: true, no_vuln_check: true, no_cache: fresh } });
+      return records(data).map(toUser);
+    },
     async children(dn, { signal, fresh = false } = {}) {
       return records(await request('get/domainobject', {
         signal, body: { searchbase: dn, search_scope: 'LEVEL', properties: TREE_PROPERTIES, no_cache: fresh },

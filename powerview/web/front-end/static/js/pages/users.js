@@ -1,15 +1,12 @@
-import { createAPI, APIError } from '../core/api.js';
-import { attribute, textValue, values } from '../core/directory.js';
-import { dnLabel } from '../core/dn.js';
+import { createDirectory } from '../core/directory.js';
 import { button, element, icon } from '../core/dom.js';
+import { createNewUser } from './users/new-user.js';
 
 const PAGE_SIZE = 200;
-const ACCOUNT_DISABLED = 0x2;
-const PROPERTIES = ['name', 'sAMAccountName', 'userAccountControl', 'description', 'mail', 'lastLogonTimestamp', 'whenCreated'];
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
 const root = document.querySelector('#users');
-const request = createAPI(new URL(root.dataset.apiRoot, window.location.origin));
+const directory = createDirectory(new URL(root.dataset.apiRoot, window.location.origin));
 const scroller = document.querySelector('#grid-scroll');
 const head = document.querySelector('#grid-head');
 const body = document.querySelector('#grid-body');
@@ -17,10 +14,10 @@ const message = document.querySelector('#grid-message');
 const count = document.querySelector('#grid-count');
 const filter = document.querySelector('#grid-filter');
 const refresh = document.querySelector('#grid-refresh');
+const newButton = document.querySelector('#user-new');
+const status = document.querySelector('#status-message');
+let rootDN = '';
 
-const text = (record, name) => textValue(attribute(record, name));
-const timestamp = (value) => { const time = Date.parse(value); return Number.isNaN(time) ? 0 : time; };
-const disabled = (record) => (Number(values(attribute(record, 'userAccountControl'))[0]) & ACCOUNT_DISABLED) !== 0;
 
 function nameCell(user) {
   const cell = element('div', 'cell-name');
@@ -38,8 +35,8 @@ const COLUMNS = [
   { key: 'status', label: 'Status', icon: 'field-class', width: 110, render: stateCell, sort: (user) => Number(user.disabled) },
   { key: 'description', label: 'Description', icon: 'field-desc', width: 320 },
   { key: 'mail', label: 'Email', icon: 'field-text', width: 240 },
-  { key: 'lastLogon', label: 'Last logon', icon: 'field-date', width: 200, sort: (user) => timestamp(user.lastLogon) },
-  { key: 'created', label: 'Created', icon: 'field-date', width: 200, sort: (user) => timestamp(user.created) },
+  { key: 'lastLogon', label: 'Last logon', icon: 'field-date', width: 200, text: (user) => user.lastLogon.text, sort: (user) => user.lastLogon.time },
+  { key: 'created', label: 'Created', icon: 'field-date', width: 200, text: (user) => user.created.text, sort: (user) => user.created.time },
 ];
 
 let users = [];
@@ -49,29 +46,20 @@ let sortKey = 'name';
 let sortDirection = 1;
 let controller;
 
-function toUser(record) {
-  return {
-    dn: record.dn,
-    name: text(record, 'name') || dnLabel(record.dn),
-    account: text(record, 'sAMAccountName'),
-    disabled: disabled(record),
-    description: text(record, 'description'),
-    mail: text(record, 'mail'),
-    lastLogon: text(record, 'lastLogonTimestamp'),
-    created: text(record, 'whenCreated'),
-  };
-}
+const headers = new Map();
 
-function renderHead() {
-  head.replaceChildren(Object.assign(element('th', 'col-index'), { scope: 'col' }));
-  head.firstChild.append(element('span', 'visually-hidden', 'Row'));
+function buildHead() {
+  const index = element('th', 'col-index');
+  index.scope = 'col';
+  index.append(element('span', 'visually-hidden', 'Row'));
+  head.replaceChildren(index);
   for (const column of COLUMNS) {
     const th = element('th', column.key === 'name' ? 'col-name' : '');
     th.scope = 'col';
     th.style.width = `${column.width}px`;
-    if (column.key === sortKey) th.setAttribute('aria-sort', sortDirection > 0 ? 'ascending' : 'descending');
     const control = button('', { className: 'column-sort' });
     control.append(icon(column.icon), element('span', 'column-sort__label', column.label), icon('chevron-right', 'column-sort__direction'));
+    control.disabled = true;
     control.addEventListener('click', () => {
       sortDirection = sortKey === column.key ? -sortDirection : 1;
       sortKey = column.key;
@@ -79,6 +67,18 @@ function renderHead() {
     });
     th.append(control);
     head.append(th);
+    headers.set(column.key, th);
+  }
+}
+
+function setSortable(enabled) {
+  for (const th of headers.values()) th.querySelector('button').disabled = !enabled;
+}
+
+function showSort() {
+  for (const [key, th] of headers) {
+    if (key === sortKey) th.setAttribute('aria-sort', sortDirection > 0 ? 'ascending' : 'descending');
+    else th.removeAttribute('aria-sort');
   }
 }
 
@@ -90,7 +90,7 @@ function row(user, index) {
   tr.append(element('td', 'col-index', String(index + 1)));
   for (const column of COLUMNS) {
     const td = element('td', column.key === 'name' ? 'col-name' : '');
-    const value = user[column.key];
+    const value = column.text ? column.text(user) : user[column.key];
     if (column.render) td.append(column.render(user));
     else if (value) { td.textContent = value; td.title = value; }
     else td.append(element('span', 'cell-muted', '—'));
@@ -121,9 +121,10 @@ function update() {
     .filter((user) => !query || [user.name, user.account, user.description, user.mail].some((value) => value.toLocaleLowerCase().includes(query)))
     .sort((a, b) => {
       const left = key(a); const right = key(b);
+      if (left == null || right == null) return left == null ? (right == null ? 0 : 1) : -1;
       return sortDirection * (typeof left === 'number' ? left - right : collator.compare(left, right));
     });
-  renderHead();
+  showSort();
   body.replaceChildren();
   rendered = 0;
   renderMore();
@@ -161,22 +162,24 @@ async function load(fresh = false) {
   const { signal } = controller;
   filter.disabled = true;
   refresh.disabled = true;
-  renderHead();
+  setSortable(false);
   skeleton();
   message.replaceChildren();
   count.textContent = 'Loading users…';
   try {
-    const data = await request('get/domainuser', { signal, body: { properties: PROPERTIES, no_cache: fresh } });
-    if (!Array.isArray(data)) throw new APIError('The directory returned an unexpected user list. Check the CLI logs.');
-    users = data.filter((item) => item && typeof item.dn === 'string' && item.attributes).map(toUser);
+    users = await directory.users({ signal, fresh });
     filter.disabled = false;
+    setSortable(true);
     update();
     if (!users.length) showMessage('No users found', 'The connected directory returned no user objects.');
+    return true;
   } catch (error) {
-    if (signal.aborted) return;
+    if (signal.aborted) return false;
+    users = [];
     body.replaceChildren();
     count.textContent = '';
     showMessage('Cannot load users', error.message, () => load(true));
+    return false;
   } finally {
     if (!signal.aborted) refresh.disabled = false;
   }
@@ -200,7 +203,10 @@ body.addEventListener('keydown', (event) => {
   if (event.key === 'ArrowDown') target = tr.nextElementSibling;
   else if (event.key === 'ArrowUp') target = tr.previousElementSibling;
   else if (event.key === 'Home') target = body.firstElementChild;
-  else if (event.key === 'End') target = body.querySelector('tr[data-dn]:last-of-type');
+  else if (event.key === 'End') {
+    while (rendered < visible.length) renderMore();
+    target = [...body.querySelectorAll('tr[data-dn]')].at(-1);
+  }
   else if (event.key === 'Enter') { open(tr); return; }
   else return;
   event.preventDefault();
@@ -213,4 +219,21 @@ body.addEventListener('keydown', (event) => {
 filter.addEventListener('input', update);
 filter.addEventListener('keydown', (event) => { if (event.key === 'Escape' && filter.value) { filter.value = ''; update(); } });
 refresh.addEventListener('click', () => load(true));
+
+const newUser = createNewUser({
+  directory,
+  defaultContainer: () => `CN=Users,${rootDN}`,
+  async onCreated(name) {
+    status.textContent = `Created ${name}`;
+    if (!(await load(true))) return;
+    filter.value = name;
+    update();
+  },
+});
+newButton.addEventListener('click', () => newUser.open());
+
+directory.domain()
+  .then((domain) => { rootDN = domain?.root_dn ?? ''; newButton.disabled = !rootDN; })
+  .catch(() => { newButton.title = 'Unavailable until the directory responds'; });
+buildHead();
 load();

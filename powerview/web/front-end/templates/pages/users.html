@@ -10,6 +10,7 @@
     <h1 class="toolbar__title">{{ icon('user', 'icon type--user') }}<span>Users</span></h1>
     <label class="search-field toolbar__search">{{ icon('search') }}<input id="grid-filter" type="search" placeholder="Filter users" aria-label="Filter users" disabled></label>
     <div class="toolbar__actions">
+      <button id="user-new" class="button" type="button" title="New user" disabled>{{ icon('plus') }}<span>New user</span></button>
       <button id="grid-refresh" class="icon-button" type="button" aria-label="Refresh" title="Refresh">{{ icon('refresh') }}</button>
     </div>
   </header>
@@ -21,6 +22,21 @@
     <div id="grid-message"></div>
   </div>
   <footer class="grid-footer"><span id="grid-count"></span></footer>
+  <dialog id="user-dialog" class="dialog" aria-labelledby="user-dialog-title">
+    <form id="user-form" method="dialog">
+      <h2 id="user-dialog-title" class="dialog__title">New user</h2>
+      <div class="dialog__fields">
+        <label>Name<input id="user-name" class="text-input" type="text" autocomplete="off" spellcheck="false" required></label>
+        <label>Password<input id="user-password" class="text-input" type="password" autocomplete="new-password" required></label>
+        <label>Container<input id="user-container" class="text-input text-input--mono" type="text" autocomplete="off" spellcheck="false" required></label>
+      </div>
+      <p id="user-error" class="form-error dialog__error" role="alert" hidden></p>
+      <footer class="dialog__footer">
+        <button id="user-cancel" type="button" class="button">Cancel</button>
+        <button type="submit" class="button button--primary">Create</button>
+      </footer>
+    </form>
+  </dialog>
 </section>
 {% endblock %}
 {% block scripts %}<script type="module" src="{{ asset_url('js/pages/users.js') }}"></script>{% endblock %}

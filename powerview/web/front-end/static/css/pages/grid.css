@@ -39,6 +39,8 @@
 
 @media (max-width: 720px) {
   .toolbar__title span { display: none; }
+  .toolbar .button { width: 28px; padding: 0; }
+  .toolbar .button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .toolbar__search { flex: 1; }
   .data-grid .col-index { width: 36px; }
   .data-grid .col-name { left: 36px; }
