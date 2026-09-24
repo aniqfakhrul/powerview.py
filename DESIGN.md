@@ -285,7 +285,7 @@ A neutral graphite and crisp light pair with one blue accent and a small, fixed 
 - **Headline** (600, 14px): dialog titles and the brand wordmark (650). There is no larger display tier inside the explorer.
 - **Title** (600, 13px): the selected object's name in the object header. It sits at body size and is set apart by weight alone.
 - **Body** (400, 13px, 1.45): tree labels, attribute names (in muted), values, buttons and inputs.
-- **Label** (500 or 400, 11px): property-grid column headers, sidebar group labels, the status bar and the version footer. Always sentence case, never tracked uppercase.
+- **Label** (500 or 400, 11px): property-grid column headers, sidebar group labels, the status bar and the version in the brand row. Always sentence case, never tracked uppercase.
 - **Mono** (400, 12px): the address bar, DN values in the grid, the attribute-name and DN inputs in editors, the dialog context line, and the status-bar domain.
 
 ### Named Rules
@@ -361,7 +361,7 @@ Editing expands inside the row, which switches to the canvas tone. The editor is
 24px, sidebar tone, top hairline, 11px faint text. The left side is a live message (danger or success tone when the message reports an outcome). The right side is the connected domain in mono, hidden on mobile.
 
 ### Navigation
-The sidebar opens with a 40px brand row (20px mark, 14px/650 wordmark with a faint ".py"). Groups are separated by 14px, each under an 11px faint sentence-case label. Links are 28px with 4px corners in muted text. Hover shows the hover tone, and the current page gets the active tone, text colour and weight 500. The version sits in the footer in 11px tabular faint text.
+The sidebar opens with a 40px brand row (20px mark, 14px/650 wordmark with a faint ".py", and the version right-aligned in 11px tabular faint text). Groups are separated by 14px, each under an 11px faint sentence-case label. Links are 28px with 4px corners in muted text. Hover shows the hover tone, and the current page gets the active tone, text colour and weight 500.
 
 ### Dialog
 420px wide, raised tone, 6px corners, pop shadow over a dimmed overlay. It enters with a 4px rise and a 0.99 scale over 160ms ease-out. Layout is a 14px title, then 12px-gapped labelled fields with a mono context line, then a hairline-topped footer with right-aligned Cancel and a primary (or danger) submit.
