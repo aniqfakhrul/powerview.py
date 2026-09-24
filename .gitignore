@@ -1,6 +1,7 @@
 *.swp
 *.ccache
 *.pfx
+.DS_Store
 __pycache__
 powerview.egg-info
 powerview.py.egg-info
@@ -31,3 +32,6 @@ docs
 CLAUDE.md
 ref
 .playwright
+.github/agents
+.github/hooks
+.github/skills
