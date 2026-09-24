@@ -13,6 +13,7 @@ objects[0].attributes.description = '<img src=x onerror=alert(1)>';
 objects[1] = row('Person 001', 'computer');
 const container = { dn: peopleDN, attributes: { name: 'People', objectClass: ['organizationalUnit'] } };
 const contextRecord = { dn: rootDN, attributes: { name: 'example', objectClass: ['domainDNS'] } };
+const connection = { domain: 'example.test', ldap_address: '10.0.0.10', nameserver: '10.0.0.10', protocol: 'LDAPS', status: 'OK', username: 'tester' };
 
 (async () => {
   const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || 'chrome', headless: true });
@@ -23,7 +24,8 @@ const contextRecord = { dn: rootDN, attributes: { name: 'example', objectClass: 
     const request = route.request(); const path = new URL(request.url()).pathname;
     const data = request.postDataJSON();
     let response;
-    if (path.endsWith('/get/domaininfo')) response = { root_dn: rootDN, domain: 'example.test' };
+    if (path.endsWith('/connectioninfo')) response = connection;
+    else if (path.endsWith('/get/domaininfo')) response = { root_dn: rootDN, domain: 'example.test' };
     else if (path.endsWith('/server/info')) response = { raw: { namingContexts: [rootDN] } };
     else if (path.endsWith('/get/domainobject')) {
       if (failReads) return route.fulfill({ status: 400, json: { error: 'Read denied (test)' } });
@@ -44,6 +46,10 @@ const contextRecord = { dn: rootDN, attributes: { name: 'example', objectClass: 
 
   await page.goto(base);
   await heading('example').waitFor();
+  const indicator = page.locator('#connection-status');
+  await page.locator('#connection-status[data-state="ok"]').waitFor();
+  assert.match(await indicator.textContent(), /LDAPS\s+tester@example\.test\s+10\.0\.0\.10/);
+  assert.match(await indicator.getAttribute('title'), /Name server: 10\.0\.0\.10/);
   assert.equal(await page.locator('#address').inputValue(), rootDN);
   await select('People');
   await page.waitForFunction(() => document.querySelectorAll('[aria-label="People"] > .tree-group > .tree-item').length === 500);
@@ -104,6 +110,14 @@ const contextRecord = { dn: rootDN, attributes: { name: 'example', objectClass: 
   await page.locator('#properties').getByRole('button', { name: 'Retry' }).click();
   await page.locator('.property-grid').waitFor();
 
+  connection.status = 'KO';
+  await page.waitForFunction(() => {
+    dispatchEvent(new Event('powerview:request-failed'));
+    return document.querySelector('#connection-status').dataset.state === 'down';
+  }, null, { polling: 500, timeout: 10000 });
+  assert.equal(await page.locator('.connection__announcer').textContent(), 'Directory connection lost');
+  connection.status = 'OK';
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'Directory', exact: true }).click();
   assert.equal(await page.locator('#directory-pane').isVisible(), true);
@@ -114,6 +128,6 @@ const contextRecord = { dn: rootDN, attributes: { name: 'example', objectClass: 
   assert.equal(await page.locator('#directory-pane').isVisible(), false);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
-  console.log('PASS: tree paging and filtering, safe rendering, multi-value editing with failed-write preservation, DN links, create/move/delete, read recovery, mobile focus containment, no runtime errors.');
+  console.log('PASS: connection status (live, tooltip, loss announcement), tree paging and filtering, safe rendering, multi-value editing with failed-write preservation, DN links, create/move/delete, read recovery, mobile focus containment, no runtime errors.');
   await browser.close();
 })().catch((error) => { console.error(error); process.exit(1); });

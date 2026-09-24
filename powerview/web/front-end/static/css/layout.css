@@ -13,6 +13,19 @@
 .workspace__body { display: flex; flex-direction: column; min-width: 0; }
 .workspace-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); height: var(--bar-height); padding: 0 var(--space-4); border-bottom: 1px solid var(--color-border); background: var(--color-surface); }
 .content { flex: 1; padding: var(--space-5); }
+.statusbar { position: sticky; bottom: 0; z-index: 5; display: flex; flex: none; align-items: center; justify-content: space-between; gap: var(--space-4); height: 24px; padding: 0 var(--space-3); border-top: 1px solid var(--color-border); background: var(--color-sidebar); color: var(--color-faint); font-size: 11px; }
+.statusbar__message { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statusbar__message[data-tone="error"] { color: var(--color-danger); }
+.statusbar__message[data-tone="success"] { color: var(--color-success); }
+.connection { display: flex; flex: none; align-items: center; gap: var(--space-2); white-space: nowrap; cursor: default; }
+.connection__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-faint); }
+.connection__protocol { color: var(--color-muted); font-weight: 600; }
+.connection__address { font-family: var(--font-mono); }
+.connection__protocol:empty, .connection__address:empty { display: none; }
+.connection[data-state="ok"] .connection__dot { background: var(--color-success); }
+.connection[data-state="down"] .connection__dot, .connection[data-state="unreachable"] .connection__dot { background: var(--color-danger); }
+.connection[data-state="down"] .connection__protocol, .connection[data-state="down"] .connection__identity,
+.connection[data-state="unreachable"] .connection__identity { color: var(--color-danger); }
 .page-heading { margin-bottom: var(--space-4); }
 .page-heading h1 { font-size: 18px; font-weight: 650; letter-spacing: -.01em; }
 .page-heading p { margin-top: 2px; color: var(--color-muted); }
@@ -26,5 +39,6 @@
   .navigation__label { display: none; }
   .navigation__link { white-space: nowrap; }
   .content { padding: var(--space-4); }
+  .connection__protocol, .connection__address { display: none; }
   .workspace-header { padding: 0 var(--space-4); }
 }

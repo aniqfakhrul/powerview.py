@@ -109,11 +109,6 @@
 .skeleton span:nth-child(3n + 2) { width: 48%; }
 .skeleton span:nth-child(3n) { width: 70%; }
 
-.statusbar { display: flex; flex: none; align-items: center; justify-content: space-between; gap: var(--space-4); height: 24px; padding: 0 var(--space-3); border-top: 1px solid var(--color-border); background: var(--color-sidebar); color: var(--color-faint); font-size: 11px; }
-.statusbar__message { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.statusbar__message[data-tone="error"] { color: var(--color-danger); }
-.statusbar__message[data-tone="success"] { color: var(--color-success); }
-.statusbar__domain { flex: none; font-family: var(--font-mono); }
 
 .dialog { width: 420px; max-width: calc(100vw - 32px); padding: 0; border: 0; border-radius: var(--radius-md); background: var(--color-raised); color: var(--color-text); box-shadow: var(--shadow-pop); }
 .dialog[open] { animation: dialog-in 160ms var(--ease-out); }
@@ -150,5 +145,4 @@
   .tree-line, .tree-twisty, .tree-note { height: 40px; }
   .tree-twisty { width: 28px; }
   .workspace--app .navigation { mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); }
-  .statusbar__domain { display: none; }
 }

@@ -1,0 +1,10 @@
+<footer class="statusbar">
+  <span id="status-message" class="statusbar__message" role="status" aria-live="polite"></span>
+  <div id="connection-status" class="connection" data-state="checking" data-api-root="{{ request.script_root }}/api/">
+    <span class="connection__dot" aria-hidden="true"></span>
+    <span class="connection__protocol"></span>
+    <span class="connection__identity">Checking connection…</span>
+    <span class="connection__address"></span>
+    <span class="connection__announcer visually-hidden" aria-live="polite"></span>
+  </div>
+</footer>

@@ -2,7 +2,6 @@ const CLEAR_AFTER = 6000;
 
 export function createStatus() {
   const message = document.querySelector('#status-message');
-  const domain = document.querySelector('#status-domain');
   let baseline = '';
   let active = '';
   let timer;
@@ -28,6 +27,5 @@ export function createStatus() {
       baseline = text;
       if (!active) paint();
     },
-    domain(text) { domain.textContent = text; },
   };
 }

@@ -62,6 +62,18 @@ the frontend never receives connection credentials.
 - Light/dark themes follow the OS. On phones, the directory opens as a
   focus-contained overlay. Tree keys: arrows, Home/End, Enter.
 
+## Status bar and connection
+
+Every page shares the bottom status bar (`partials/statusbar.html`). Page modules
+write messages to `#status-message`. `js/app.js` starts
+`components/connection-status.js`, which reads `/api/connectioninfo` and shows the
+protocol, `user@domain`, LDAP address, and a live dot; the name server and last
+check time are in the tooltip. `connectioninfo` performs a real liveness check, so
+it runs on load, when the tab becomes visible or focused, every 60 seconds while
+visible, and when any API request fails (`powerview:request-failed`, dispatched by
+`core/api.js`). Checks are at least 5 seconds apart. State changes are announced
+to screen readers; routine refreshes are not.
+
 ## Backend boundary
 
 `APIServer` owns authentication and API routes. `register_frontend` uses its

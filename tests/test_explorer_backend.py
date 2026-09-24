@@ -36,6 +36,7 @@ class ExplorerBackendTests(unittest.TestCase):
             for path in ['/', '/dashboard', '/graph', '/users', '/computers', '/groups', '/dns', '/ca', '/ou', '/gpo', '/smb', '/utils']:
                 response = client.get(path)
                 self.assertEqual(response.status_code, 200, path)
+                self.assertIn('id="connection-status"', response.get_data(as_text=True), path)
             html = client.get('/').get_data(as_text=True)
             self.assertIn('id="explorer"', html)
             self.assertNotIn('UI foundation', html)

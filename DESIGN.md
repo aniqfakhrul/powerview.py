@@ -233,7 +233,7 @@ components:
 
 **Creative North Star: "The Directory Browser"**
 
-PowerView.py looks like a classic desktop directory browser rebuilt with modern restraint: a slim navigation sidebar, a 40px toolbar holding a distinguished-name address bar and the object actions, a resizable tree with indent guides on the left, a property grid on the right, and a 24px status bar along the bottom. Every pane sits flush against its neighbour and is divided by a single hairline. Nothing floats at rest, nothing is wrapped in a card, and nothing announces itself with a hero heading.
+PowerView.py looks like a classic desktop directory browser rebuilt with modern restraint: a slim navigation sidebar, a 40px toolbar holding a distinguished-name address bar and the object actions, a resizable tree with indent guides on the left, a property grid on the right, and a 24px status bar along the bottom, shared by every page, that carries live connection state. Every pane sits flush against its neighbour and is divided by a single hairline. Nothing floats at rest, nothing is wrapped in a card, and nothing announces itself with a hero heading.
 
 The palette is neutral graphite in dark mode (near-black grounds from canvas to raised, with no blue cast) and crisp near-white in light mode, following the OS setting. The chrome carries no colour. Colour is reserved for information: object type icons, DN links, the focus ring, selection, and error or success status. Density is high but calm. Rows are 24px, text is 13px, and hierarchy comes from tone (text, muted, faint) rather than size.
 
@@ -358,7 +358,7 @@ The central component. It is a full-width, fixed-layout table with Attribute and
 Editing expands inside the row, which switches to the canvas tone. The editor is a vertical stack with 6px gaps: one text input per value (mono for DNs), each with a remove icon button. Below the inputs sits a control line with "Add value" on the left, then a danger "Clear attribute" link, a default Cancel button and a primary Save button. Errors appear inline in 12px danger text.
 
 ### Status Bar
-24px, sidebar tone, top hairline, 11px faint text. The left side is a live message (danger or success tone when the message reports an outcome). The right side is the connected domain in mono, hidden on mobile.
+Shared by every page and sticky to the bottom of the viewport. 24px, sidebar tone, top hairline, 11px faint text. The left side is a live message (danger or success tone when the message reports an outcome), falling back to the selected object's summary ("23 attributes · Enabled"). The right side is the live connection: a 7px dot (success when connected, danger when disconnected or unreachable), the protocol in 600 muted, `user@domain`, and the LDAP address in mono. Disconnected states turn the protocol and identity danger as well, so colour is never the only signal. The name server and last-checked time live in the tooltip. On mobile only the dot and identity remain.
 
 ### Navigation
 The sidebar opens with a 40px brand row (20px mark, 14px/650 wordmark with a faint ".py", and the version right-aligned in 11px tabular faint text). Groups are separated by 14px, each under an 11px faint sentence-case label. Links are 28px with 4px corners in muted text. Hover shows the hover tone, and the current page gets the active tone, text colour and weight 500.

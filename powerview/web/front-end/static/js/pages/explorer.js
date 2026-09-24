@@ -119,7 +119,6 @@ async function initialize() {
     const domain = await directory.domain();
     if (typeof domain?.root_dn !== 'string' || !domain.root_dn) throw new Error('PowerView did not return a root DN. Check the connected session.');
     roots = [domain.root_dn];
-    status.domain(domain.domain || domain.root_dn);
     let warning = '';
     try {
       const server = await directory.server();

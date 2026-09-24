@@ -41,6 +41,22 @@ test('transport preserves prefixes, never retries, and rejects non-true mutation
   } finally { globalThis.fetch = original; }
 });
 
+test('failed requests ask the shell to recheck the connection', async () => {
+  const original = { fetch: globalThis.fetch, dispatch: globalThis.dispatchEvent };
+  const events = [];
+  try {
+    globalThis.dispatchEvent = (event) => events.push(event.type);
+    globalThis.fetch = async () => new Response(JSON.stringify({ error: 'socket closed' }), { status: 400 });
+    await assert.rejects(createAPI('http://localhost/api/')('get/domainobject'), /socket closed/);
+    globalThis.fetch = async () => { throw new TypeError('network'); };
+    await assert.rejects(createAPI('http://localhost/api/')('get/domainobject'), /Cannot reach/);
+    assert.deepEqual(events, ['powerview:request-failed', 'powerview:request-failed']);
+  } finally {
+    globalThis.fetch = original.fetch;
+    globalThis.dispatchEvent = original.dispatch;
+  }
+});
+
 test('directory edits use structured values and OU creation supplies required args', async () => {
   const original = globalThis.fetch; const bodies = [];
   try {

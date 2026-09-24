@@ -1,4 +1,7 @@
 /** Same-session JSON transport. Reads can be cancelled; changes are never retried. */
+const REQUEST_FAILED_EVENT = 'powerview:request-failed';
+const reportFailure = () => globalThis.dispatchEvent?.(new Event(REQUEST_FAILED_EVENT));
+
 export class APIError extends Error {
   constructor(message, status = 0) {
     super(message);
@@ -22,6 +25,7 @@ export function createAPI(baseURL) {
       });
     } catch (error) {
       if (error.name === 'AbortError') throw error;
+      reportFailure();
       throw new APIError(mutation
         ? 'The connection was lost. Check the directory before trying this change again; it may have completed.'
         : 'Cannot reach PowerView. Check that your web session is running, then retry.');
@@ -35,6 +39,7 @@ export function createAPI(baseURL) {
         : 'The server did not return JSON. Check your session and retry.', response.status);
     }
     if (!response.ok || data?.error) {
+      reportFailure();
       throw new APIError(data?.error || `Request failed (${response.status}). Check your session and permissions.`, response.status);
     }
     if (mutation && data !== true) {

@@ -35,10 +35,6 @@
       <div id="properties" class="properties" tabindex="-1"></div>
     </section>
   </div>
-  <footer class="statusbar">
-    <span id="status-message" class="statusbar__message" role="status" aria-live="polite"></span>
-    <span id="status-domain" class="statusbar__domain"></span>
-  </footer>
   <dialog id="object-dialog" class="dialog" aria-labelledby="dialog-title">
     <form id="dialog-form" method="dialog">
       <h2 id="dialog-title" class="dialog__title"></h2>
@@ -50,7 +46,7 @@
       </footer>
     </form>
   </dialog>
-  <noscript><p class="statusbar__message">Explorer needs JavaScript. Enable it and reload this page.</p></noscript>
+  <noscript><p class="panel-message">Explorer needs JavaScript. Enable it and reload this page.</p></noscript>
 </section>
 {% endblock %}
 {% block scripts %}<script type="module" src="{{ asset_url('js/pages/explorer.js') }}"></script>{% endblock %}
