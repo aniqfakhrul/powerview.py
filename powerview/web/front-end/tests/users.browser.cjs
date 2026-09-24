@@ -21,6 +21,7 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
     const data = route.request().postDataJSON();
     if (path.endsWith('/connectioninfo')) return route.fulfill({ json: { status: 'OK', protocol: 'LDAPS', username: 'tester', domain: 'example.test' } });
     if (path.endsWith('/get/domaininfo')) return route.fulfill({ json: { root_dn: rootDN, domain: 'example.test' } });
+    if (path.endsWith('/get/domainobject')) return route.fulfill({ json: [users.find((item) => item.dn === data.searchbase) ?? users[0]] });
     if (path.endsWith('/get/domainuser')) {
       userRequests.push(data);
       return failUsers ? route.fulfill({ status: 400, json: { error: 'Search failed (test)' } }) : route.fulfill({ json: users });
@@ -104,14 +105,30 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   assert.equal(await page.locator('#status-message').textContent(), 'Created Second Person');
 
   await rows.first().click();
-  await page.waitForURL(/\/\?dn=/);
+  const panel = page.locator('#object-panel');
+  await panel.locator('[data-panel-title]').getByRole('heading', { name: 'Second Person' }).waitFor();
+  await panel.locator('.property-grid').waitFor();
+  assert.equal(await rows.first().getAttribute('aria-selected'), 'true');
   assert.equal(new URL(page.url()).searchParams.get('dn'), `CN=Second Person,CN=Users,${rootDN}`);
+  assert.equal(new URL(await panel.getByRole('link', { name: 'Open in Explorer' }).getAttribute('href'), base).searchParams.get('dn'), `CN=Second Person,CN=Users,${rootDN}`);
+  await panel.getByRole('searchbox', { name: 'Filter attributes' }).fill('name');
+  await page.keyboard.press('Escape');
+  assert.equal(await panel.isVisible(), true);
+  await page.keyboard.press('Escape');
+  assert.equal(await panel.isVisible(), false);
+  assert.equal(new URL(page.url()).searchParams.get('dn'), null);
+
+  await page.goto(`${base}/users?dn=${encodeURIComponent(`CN=User 010,CN=Users,${rootDN}`)}`);
+  await panel.locator('[data-panel-title]').getByRole('heading', { name: 'User 010' }).waitFor();
+  assert.equal(await page.locator('#grid-body tr[aria-selected="true"]').getAttribute('data-dn'), `CN=User 010,CN=Users,${rootDN}`);
+  await panel.getByRole('button', { name: 'Close details' }).click();
+  assert.equal(await panel.isVisible(), false);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${base}/users`);
   await rows.first().waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
-  console.log('PASS: End/Home across unrendered rows, sorting disabled while errored, raw user request, flag-name status, chronological day-first date sorting, sort focus retention, failed post-create refresh stays visible, incremental rendering, safe cells, sorting, filtering, empty filter state, new user validation and failed-create preservation, create refresh, Explorer deep link, mobile overflow, no runtime errors.');
+  console.log('PASS: End/Home across unrendered rows, sorting disabled while errored, raw user request, flag-name status, chronological day-first date sorting, sort focus retention, failed post-create refresh stays visible, incremental rendering, safe cells, sorting, filtering, empty filter state, new user validation and failed-create preservation, create refresh, side panel (open, URL state, Explorer link, Escape layering, deep link, close), mobile overflow, no runtime errors.');
   await browser.close();
 })().catch((error) => { console.error(error); process.exit(1); });

@@ -14,14 +14,29 @@
       <button id="grid-refresh" class="icon-button" type="button" aria-label="Refresh" title="Refresh">{{ icon('refresh') }}</button>
     </div>
   </header>
-  <div id="grid-scroll" class="grid-scroll" tabindex="0" aria-label="Users table">
-    <table id="grid" class="data-grid" aria-rowcount="-1">
-      <thead><tr id="grid-head"></tr></thead>
-      <tbody id="grid-body"></tbody>
-    </table>
-    <div id="grid-message"></div>
+  <div class="grid-page__body">
+    <div class="grid-main">
+      <div id="grid-scroll" class="grid-scroll" tabindex="0" aria-label="Users table">
+        <table id="grid" class="data-grid" aria-rowcount="-1">
+          <thead><tr id="grid-head"></tr></thead>
+          <tbody id="grid-body"></tbody>
+        </table>
+        <div id="grid-message"></div>
+      </div>
+      <footer class="grid-footer"><span id="grid-count"></span></footer>
+    </div>
+    <aside id="object-panel" class="side-panel" aria-label="User details" hidden>
+      <header class="object-header">
+        <div class="object-title" data-panel-title></div>
+        <a id="panel-explorer" class="icon-button" href="#" title="Open in Explorer" aria-label="Open in Explorer">{{ icon('open') }}</a>
+        <button id="panel-close" class="icon-button" type="button" title="Close" aria-label="Close details">{{ icon('close') }}</button>
+      </header>
+      <div class="side-panel__filter">
+        <label class="search-field">{{ icon('search') }}<input type="search" placeholder="Filter attributes" aria-label="Filter attributes" data-panel-filter disabled></label>
+      </div>
+      <div class="properties" tabindex="-1" data-panel-body></div>
+    </aside>
   </div>
-  <footer class="grid-footer"><span id="grid-count"></span></footer>
   <dialog id="user-dialog" class="dialog" aria-labelledby="user-dialog-title">
     <form id="user-form" method="dialog">
       <h2 id="user-dialog-title" class="dialog__title">New user</h2>

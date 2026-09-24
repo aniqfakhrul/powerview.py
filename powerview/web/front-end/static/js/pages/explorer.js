@@ -3,7 +3,8 @@ import { namingContext, parentDN, sameDN } from '../core/dn.js';
 import { createTree } from './explorer/tree.js';
 import { createObjectPanel } from '../components/object-panel/index.js';
 import { createDialogs } from './explorer/dialogs.js';
-import { createStatus } from './explorer/status.js';
+import { createStatus } from '../components/status.js';
+import { createMutationGuard } from '../core/mutation-guard.js';
 import { createResizer } from './explorer/resizer.js';
 import { manageTreeOverlay } from './explorer/overlays.js';
 
@@ -24,16 +25,10 @@ let mutating = false;
 const within = (dn, ancestor) => sameDN(dn, ancestor) || dn.toLowerCase().endsWith(`,${ancestor.toLowerCase()}`);
 const scope = (dn) => namingContext(dn, roots);
 const status = createStatus();
-const guard = {
-  busy: () => mutating,
-  begin() {
-    if (mutating) { status.info('Wait for the current change to finish.'); return false; }
-    mutating = true;
-    updateControls();
-    return true;
-  },
-  end() { mutating = false; updateControls(); },
-};
+const guard = createMutationGuard({
+  onBlocked: () => status.info('Wait for the current change to finish.'),
+  onChange: (busy) => { mutating = busy; updateControls(); },
+});
 
 const tree = createTree({
   directory,

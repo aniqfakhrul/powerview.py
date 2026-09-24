@@ -3,6 +3,12 @@
 .toolbar__title { display: flex; flex: none; align-items: center; gap: var(--space-2); font-size: 13px; font-weight: 600; }
 .toolbar__search { flex: 0 1 280px; margin-left: auto; }
 
+.grid-page__body { position: relative; display: flex; flex: 1; min-height: 0; }
+.grid-main { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.side-panel { display: flex; flex: none; flex-direction: column; width: 440px; min-height: 0; border-left: 1px solid var(--color-border); background: var(--color-surface); }
+.side-panel .object-header { padding-right: var(--space-2); }
+.side-panel__filter { flex: none; padding: 8px var(--space-3); border-bottom: 1px solid var(--color-border); }
+.side-panel .property-grid col.property-grid__name { width: 42%; }
 .grid-scroll { position: relative; flex: 1; min-height: 0; overflow: auto; }
 .grid-scroll:focus-visible { outline-offset: -2px; }
 .data-grid { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-variant-numeric: tabular-nums; }
@@ -15,6 +21,7 @@
 .data-grid tbody tr:hover > * { background: var(--color-row-hover, var(--color-hover)); }
 .data-grid tbody tr:focus-visible { outline: none; }
 .data-grid tbody tr:focus-visible > * { background: var(--color-selection); }
+.data-grid tbody tr[aria-selected="true"] > * { background: var(--color-selection); }
 
 .column-sort { display: flex; align-items: center; gap: 6px; width: 100%; height: 100%; padding: 0; border: 0; background: none; color: inherit; font-weight: inherit; text-align: left; }
 .column-sort .icon { width: 13px; height: 13px; color: var(--color-faint); }
@@ -37,7 +44,11 @@
 #grid-message .button { margin-top: 10px; }
 .grid-sentinel td { height: 1px; padding: 0; border: 0; }
 
+@media (max-width: 1100px) {
+  .side-panel { position: absolute; inset: 0 0 0 auto; z-index: 6; width: min(440px, 100%); box-shadow: var(--shadow-pop); }
+}
 @media (max-width: 720px) {
+  .side-panel { width: 100%; border-left: 0; }
   .toolbar__title span { display: none; }
   .toolbar .button { width: 28px; padding: 0; }
   .toolbar .button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

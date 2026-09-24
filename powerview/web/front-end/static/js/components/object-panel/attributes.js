@@ -180,7 +180,7 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
 
   filter.addEventListener('input', applyFilter);
   filter.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && filter.value) { filter.value = ''; applyFilter(); }
+    if (event.key === 'Escape' && filter.value) { event.preventDefault(); filter.value = ''; applyFilter(); }
   });
 
   async function open(dn, { fresh = false } = {}) {

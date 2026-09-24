@@ -1,5 +1,9 @@
 import { createDirectory } from '../core/directory.js';
 import { button, element, icon } from '../core/dom.js';
+import { namingContext, sameDN } from '../core/dn.js';
+import { createMutationGuard } from '../core/mutation-guard.js';
+import { createObjectPanel } from '../components/object-panel/index.js';
+import { createStatus } from '../components/status.js';
 import { createNewUser } from './users/new-user.js';
 
 const PAGE_SIZE = 200;
@@ -15,7 +19,10 @@ const count = document.querySelector('#grid-count');
 const filter = document.querySelector('#grid-filter');
 const refresh = document.querySelector('#grid-refresh');
 const newButton = document.querySelector('#user-new');
-const status = document.querySelector('#status-message');
+const panelRoot = document.querySelector('#object-panel');
+const explorerLink = document.querySelector('#panel-explorer');
+const status = createStatus();
+let selectedDN = '';
 let rootDN = '';
 
 
@@ -86,6 +93,7 @@ function row(user, index) {
   const tr = element('tr');
   tr.tabIndex = index === 0 ? 0 : -1;
   tr.dataset.dn = user.dn;
+  tr.setAttribute('aria-selected', String(sameDN(user.dn, selectedDN)));
   tr.setAttribute('aria-rowindex', String(index + 2));
   tr.append(element('td', 'col-index', String(index + 1)));
   for (const column of COLUMNS) {
@@ -185,15 +193,61 @@ async function load(fresh = false) {
   }
 }
 
-function open(tr) {
+function explorerURL(dn) {
   const url = new URL(root.dataset.explorer, window.location.origin);
-  url.searchParams.set('dn', tr.dataset.dn);
-  window.location.assign(url);
+  url.searchParams.set('dn', dn);
+  return url;
 }
+
+function remember(dn) {
+  const url = new URL(window.location.href);
+  if (dn) url.searchParams.set('dn', dn); else url.searchParams.delete('dn');
+  history.replaceState(null, '', url);
+}
+
+function markSelected() {
+  for (const tr of body.querySelectorAll('tr[data-dn]')) tr.setAttribute('aria-selected', String(sameDN(tr.dataset.dn, selectedDN)));
+}
+
+function select(dn) {
+  if (!panel.canLeave()) return;
+  selectedDN = dn;
+  markSelected();
+  remember(dn);
+  explorerLink.href = explorerURL(dn);
+  panelRoot.hidden = false;
+  panel.open(dn);
+}
+
+function closePanel() {
+  if (!panel.canLeave()) return;
+  const previous = selectedDN;
+  selectedDN = '';
+  panelRoot.hidden = true;
+  markSelected();
+  remember('');
+  body.querySelector(`tr[data-dn="${CSS.escape(previous)}"]`)?.focus();
+}
+
+const guard = createMutationGuard({ onBlocked: () => status.info('Wait for the current change to finish.') });
+const panel = createObjectPanel({
+  root: panelRoot,
+  directory,
+  status,
+  guard,
+  scope: (dn) => namingContext(dn, [rootDN]) ?? rootDN,
+  onNavigate: select,
+  onSaved: () => panel.open(selectedDN, { fresh: true }),
+});
+
+document.querySelector('#panel-close').addEventListener('click', closePanel);
+panelRoot.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); closePanel(); }
+});
 
 body.addEventListener('click', (event) => {
   const tr = event.target.closest('tr[data-dn]');
-  if (tr) open(tr);
+  if (tr) select(tr.dataset.dn);
 });
 
 body.addEventListener('keydown', (event) => {
@@ -207,7 +261,7 @@ body.addEventListener('keydown', (event) => {
     while (rendered < visible.length) renderMore();
     target = [...body.querySelectorAll('tr[data-dn]')].at(-1);
   }
-  else if (event.key === 'Enter') { open(tr); return; }
+  else if (event.key === 'Enter') { select(tr.dataset.dn); return; }
   else return;
   event.preventDefault();
   if (!target?.dataset.dn) return;
@@ -224,7 +278,7 @@ const newUser = createNewUser({
   directory,
   defaultContainer: () => `CN=Users,${rootDN}`,
   async onCreated(name) {
-    status.textContent = `Created ${name}`;
+    status.success(`Created ${name}`);
     if (!(await load(true))) return;
     filter.value = name;
     update();
@@ -236,4 +290,7 @@ directory.domain()
   .then((domain) => { rootDN = domain?.root_dn ?? ''; newButton.disabled = !rootDN; })
   .catch(() => { newButton.title = 'Unavailable until the directory responds'; });
 buildHead();
-load();
+load().then((loaded) => {
+  const requested = new URLSearchParams(window.location.search).get('dn');
+  if (loaded && requested) select(requested);
+});

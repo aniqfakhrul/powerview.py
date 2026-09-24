@@ -56,7 +56,7 @@
 }
 @media (max-width: 720px) {
   .object-header__filter { width: 140px; }
-  .property-grid col.property-grid__name { width: 38%; }
+  .property-grid col.property-grid__name { width: 42%; }
   .property-row__edit, .value-editor__remove { position: relative; opacity: 1; }
   .property-row__edit::after { content: ""; position: absolute; inset: -8px; }
 }
