@@ -34,8 +34,6 @@
 .cell-name { display: flex; align-items: center; gap: var(--space-2); overflow: hidden; }
 .cell-name span { overflow: hidden; text-overflow: ellipsis; }
 .cell-muted { color: var(--color-faint); }
-.state { display: inline-flex; align-items: center; height: 18px; padding: 0 8px; border-radius: 999px; background: var(--pill-success-bg); color: var(--pill-success-fg); font-size: 12px; line-height: 1; }
-.state--disabled { background: var(--pill-neutral-bg); color: var(--pill-neutral-fg); }
 
 .grid-footer { display: flex; flex: none; align-items: center; height: 28px; padding: 0 var(--space-3); border-top: 1px solid var(--color-border); color: var(--color-faint); font-size: 11px; }
 #grid-message:not(:empty) { position: sticky; left: 0; max-width: 520px; padding: var(--space-5) var(--space-4); }

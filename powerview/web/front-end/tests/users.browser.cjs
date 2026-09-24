@@ -21,7 +21,10 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
     const data = route.request().postDataJSON();
     if (path.endsWith('/connectioninfo')) return route.fulfill({ json: { status: 'OK', protocol: 'LDAPS', username: 'tester', domain: 'example.test' } });
     if (path.endsWith('/get/domaininfo')) return route.fulfill({ json: { root_dn: rootDN, domain: 'example.test' } });
-    if (path.endsWith('/get/domainobject')) return route.fulfill({ json: [users.find((item) => item.dn === data.searchbase) ?? users[0]] });
+    if (path.endsWith('/get/domainobject')) {
+      const found = users.find((item) => item.dn === data.searchbase) ?? users[0];
+      return route.fulfill({ json: [{ ...found, attributes: { objectClass: ['top', 'person', 'user'], ...found.attributes } }] });
+    }
     if (path.endsWith('/get/domainuser')) {
       userRequests.push(data);
       return failUsers ? route.fulfill({ status: 400, json: { error: 'Search failed (test)' } }) : route.fulfill({ json: users });
@@ -107,6 +110,14 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   await rows.first().click();
   const panel = page.locator('#object-panel');
   await panel.locator('[data-panel-title]').getByRole('heading', { name: 'Second Person' }).waitFor();
+  await panel.locator('.overview__fields').waitFor();
+  assert.equal(await panel.getByRole('tab', { name: 'Overview' }).getAttribute('aria-selected'), 'true');
+  assert.equal(await panel.locator('.overview__fields dt', { hasText: 'Account' }).locator('xpath=following-sibling::dd[1]').textContent(), 'second person');
+  assert.equal(await panel.locator('.overview .state').textContent(), 'Enabled');
+  assert.equal(await panel.getByRole('searchbox', { name: 'Filter attributes' }).isVisible(), false);
+  await panel.getByRole('tab', { name: 'Overview' }).focus();
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await panel.getByRole('tab', { name: 'Attributes' }).getAttribute('aria-selected'), 'true');
   await panel.locator('.property-grid').waitFor();
   assert.equal(await rows.first().getAttribute('aria-selected'), 'true');
   assert.equal(new URL(page.url()).searchParams.get('dn'), `CN=Second Person,CN=Users,${rootDN}`);
@@ -129,6 +140,6 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   await rows.first().waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
-  console.log('PASS: End/Home across unrendered rows, sorting disabled while errored, raw user request, flag-name status, chronological day-first date sorting, sort focus retention, failed post-create refresh stays visible, incremental rendering, safe cells, sorting, filtering, empty filter state, new user validation and failed-create preservation, create refresh, side panel (open, URL state, Explorer link, Escape layering, deep link, close), mobile overflow, no runtime errors.');
+  console.log('PASS: End/Home across unrendered rows, sorting disabled while errored, raw user request, flag-name status, chronological day-first date sorting, sort focus retention, failed post-create refresh stays visible, incremental rendering, safe cells, sorting, filtering, empty filter state, new user validation and failed-create preservation, create refresh, side panel (Overview fields and status, tab keyboard switching, open, URL state, Explorer link, Escape layering, deep link, close), mobile overflow, no runtime errors.');
   await browser.close();
 })().catch((error) => { console.error(error); process.exit(1); });

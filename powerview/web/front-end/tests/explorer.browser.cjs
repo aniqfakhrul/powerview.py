@@ -86,7 +86,7 @@ const connection = { domain: 'example.test', ldap_address: '10.0.0.10', nameserv
   assert.equal(writes.at(-1).data.basedn, peopleDN);
 
   await select('Person 000');
-  await page.locator('.value--dn', { hasText: `CN=Person 002,${peopleDN}` }).first().click();
+  await page.locator('#properties .value--dn', { hasText: `CN=Person 002,${peopleDN}` }).first().click();
   await heading('Person 002').waitFor();
   assert.equal(await page.locator('.tree-item[aria-selected="true"]').getAttribute('aria-label'), 'Person 002');
 

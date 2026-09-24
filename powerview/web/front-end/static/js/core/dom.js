@@ -26,6 +26,16 @@ export function button(label, { iconName, className = 'button', ariaLabel } = {}
   return node;
 }
 
+export function dnText(node, dn) {
+  const parts = dn.split(',');
+  parts.forEach((part, index) => {
+    const last = index === parts.length - 1;
+    node.append(last ? part : `${part},`);
+    if (!last) node.append(document.createElement('wbr'));
+  });
+  return node;
+}
+
 export function setBusy(form, busy) {
   for (const control of form.querySelectorAll('button, input, select, textarea')) control.disabled = busy;
   form.setAttribute('aria-busy', String(busy));

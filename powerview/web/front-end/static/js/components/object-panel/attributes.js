@@ -3,7 +3,7 @@ import { attribute, recordName, values, textValue, objectType, TYPE_LABELS } fro
 import { accountDisabled } from '../../core/ldap-values.js';
 import { createRequestLane } from '../../core/request-lane.js';
 import { createValueEditor } from './value-editor.js';
-import { button, element, icon, setBusy } from '../../core/dom.js';
+import { button, dnText, element, icon, setBusy } from '../../core/dom.js';
 
 const TYPE_ICONS = { domain: 'domain', user: 'user', group: 'group', computer: 'computer', ou: 'ou', container: 'folder', other: 'object' };
 const VALUE_PREVIEW = 12;
@@ -25,7 +25,7 @@ function editableText(value) {
   return values(value).map((item) => (typeof item === 'boolean' ? String(item).toUpperCase() : String(item)));
 }
 
-export function createAttributes({ root, directory, scope, status, guard, onNavigate, onSaved }) {
+export function createAttributes({ root, directory, scope, status, guard, onNavigate, onSaved, reopen }) {
   const title = root.querySelector('[data-panel-title]');
   const panel = root.querySelector('[data-panel-body]');
   const filter = root.querySelector('[data-panel-filter]');
@@ -58,7 +58,7 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
         if (typeof item === 'string' && isDN(text)) {
           const link = element('button', 'value value--dn');
           link.type = 'button';
-          text.split(',').forEach((part, index, parts) => link.append(index < parts.length - 1 ? `${part},` : part, ...(index < parts.length - 1 ? [document.createElement('wbr')] : [])));
+          dnText(link, text);
           link.addEventListener('click', () => onNavigate(text));
           cell.append(link);
         } else cell.append(element('span', 'value', text));
@@ -204,7 +204,7 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
     } catch (error) {
       if (signal.aborted) return null;
       setTitle(dnLabel(dn));
-      message('Cannot load this object', error.message, () => open(dn, { fresh: true }));
+      message('Cannot load this object', error.message, () => (reopen ?? open)(dn, { fresh: true }));
       return null;
     } finally {
       if (!signal.aborted) panel.setAttribute('aria-busy', 'false');
