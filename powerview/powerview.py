@@ -1604,25 +1604,8 @@ class PowerView:
 				logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
 				ldap_filter += f"{args.ldapfilter}"
 
-		records = []
-		if include_ip:
-			if not any(prop.lower() == 'dnshostname' for prop in properties):
-				properties.add('dnsHostName')
-			try:
-				dns_identity = None
-				if identity_values and len(identity_values) == 1:
-					val = identity_values[0]
-					dns_identity = val.split('.')[0] if is_valid_fqdn(val) else val
-				records = self.get_domaindnsrecord(
-					zonename=self.conn.get_domain(),
-					identity=dns_identity,
-					record_type="A",
-					no_cache=no_cache
-				) or []
-			except Exception as e:
-				if self.args.stack_trace:
-					raise e
-				records = []
+		if include_ip and not any(prop.lower() == 'dnshostname' for prop in properties):
+			properties.add('dnsHostName')
 
 		ldap_filter = f'(&(objectClass=computer){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainComputer] LDAP search filter: {ldap_filter}')
@@ -1637,23 +1620,9 @@ class PowerView:
 			no_vuln_check=no_vuln_check,
 			raw=raw
 		)
+		if include_ip:
+			self._append_computer_ip_addresses(entries, no_cache=no_cache)
 		for entry in entries:
-			if include_ip and records:
-				ip_list = []
-				computer_dns = entry.get("attributes", {}).get("dnsHostName")
-				if computer_dns:
-					computer_name = computer_dns.split(".")[0]
-					for record in records:
-						r_name = record.get("attributes", {}).get("name")
-						r_address = record.get("attributes", {}).get("Address")
-						if r_name and r_address:
-							if r_name.lower() == computer_name.lower() or computer_dns.lower() == r_name.lower():
-								ip_list.append(r_address)
-					if ip_list:
-						if len(ip_list) == 1:
-							entry["attributes"]["IPAddress"] = ip_list[0]
-						else:
-							entry["attributes"]["IPAddress"] = ip_list
 
 			try:
 				if "msDS-AllowedToActOnBehalfOfOtherIdentity" in list(entry["attributes"].keys()):
@@ -1678,6 +1647,64 @@ class PowerView:
 				pass
 		
 		return entries
+
+	def _append_computer_ip_addresses(self, entries, no_cache=False):
+		def value(record, name):
+			# Cached entries are plain dictionaries, unlike LDAP's case-insensitive maps.
+			attributes = record.get('attributes', {})
+			result = next((val for key, val in attributes.items() if key.lower() == name.lower()), None)
+			return result[0] if isinstance(result, list) and result else result
+
+		def dns_name(name):
+			return name.rstrip('.').lower() if isinstance(name, str) else ''
+
+		computers = {}
+		for entry in entries:
+			hostname = dns_name(value(entry, 'dnsHostName'))
+			if hostname:
+				computers.setdefault(hostname, []).append(entry)
+		if not computers:
+			return
+
+		try:
+			zones = self.get_domaindnszone(no_cache=no_cache) or []
+		except Exception as error:
+			if self.args.stack_trace:
+				raise
+			logging.debug(f'[Get-DomainComputer] Cannot read DNS zones: {error}')
+			return
+
+		zone_names = {dns_name(value(zone, 'name')) for zone in zones}
+		zone_names.discard('')
+		by_zone = {}
+		for hostname in computers:
+			# A delegated child zone takes precedence over its parent zone.
+			matches = [zone for zone in zone_names if hostname == zone or hostname.endswith('.' + zone)]
+			if matches:
+				by_zone.setdefault(max(matches, key=len), set()).add(hostname)
+
+		for zone, hostnames in by_zone.items():
+			try:
+				records = self.get_domaindnsrecord(zonename=zone, record_type='A', no_cache=no_cache) or []
+			except Exception as error:
+				if self.args.stack_trace:
+					raise
+				logging.debug(f'[Get-DomainComputer] Cannot read DNS records for {zone}: {error}')
+				continue
+			addresses = {}
+			for record in records:
+				node = dns_name(value(record, 'name'))
+				address = value(record, 'Address')
+				if not node or not address:
+					continue
+				fqdn = zone if node == '@' else node + '.' + zone
+				if fqdn in hostnames:
+					resolved = addresses.setdefault(fqdn, [])
+					if address not in resolved:
+						resolved.append(address)
+			for hostname, resolved in addresses.items():
+				for entry in computers[hostname]:
+					entry['attributes']['IPAddress'] = resolved[0] if len(resolved) == 1 else list(resolved)
 
 	def get_domaingmsa(self, identity=None, properties=None, searchbase=None, args=None, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
