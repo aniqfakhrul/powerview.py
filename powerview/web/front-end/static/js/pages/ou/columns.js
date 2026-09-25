@@ -1,8 +1,8 @@
 import { attribute, values } from '../../core/directory.js';
 import { parentDN } from '../../core/dn.js';
+import { linkState, parseGpLink } from '../../core/gplink.js';
 import { createColumnSet, dnColumn, nameColumn, textColumn, timeColumn } from '../../components/grid/columns.js';
 
-const LINK = /\[LDAP:\/\/cn=(\{[0-9a-f-]+\})[^;\]]*;(\d+)\]/gi;
 let gpoNames = new Map();
 
 export function setGpoNames(names) {
@@ -10,17 +10,11 @@ export function setGpoNames(names) {
 }
 
 export function gpoLinks(record) {
-  const raw = values(attribute(record, 'gPLink')).join('');
-  return [...raw.matchAll(LINK)].map(([, guid, flags]) => ({
-    guid,
-    name: gpoNames.get(guid.toLowerCase()) || guid,
-    disabled: (Number(flags) & 1) !== 0,
-    enforced: (Number(flags) & 2) !== 0,
-  }));
+  return parseGpLink(attribute(record, 'gPLink')).map((link) => ({ ...link, name: gpoNames.get(link.guid.toLowerCase()) || link.guid }));
 }
 
 const linkText = (link) => {
-  const states = [link.enforced && 'enforced', link.disabled && 'disabled'].filter(Boolean);
+  const states = linkState(link);
   return states.length ? `${link.name} (${states.join(', ')})` : link.name;
 };
 

@@ -15,6 +15,7 @@ export function objectType(record) {
   if (classes.includes('user')) return 'user';
   if (classes.includes('group')) return 'group';
   if (classes.includes('organizationalunit')) return 'ou';
+  if (classes.includes('grouppolicycontainer')) return 'policy';
   if (classes.includes('domaindns')) return 'domain';
   if (classes.some((value) => ['container', 'builtindomain', 'configuration', 'dmd', 'dnszone'].includes(value))) return 'container';
   return 'other';
@@ -23,9 +24,11 @@ const PLAIN_NAME = /^[^,=+<>;"\\\x00-\x1f]+$/;
 export function assertPlainName(name) {
   if (!PLAIN_NAME.test(name) || name.trim() !== name) throw new Error('Use a plain name without commas, equals signs, or leading and trailing spaces.');
 }
-export const TYPE_LABELS = { domain: 'Domain', user: 'User', group: 'Group', computer: 'Computer', ou: 'Organizational unit', container: 'Container', other: 'Object' };
-export const recordName = (record) => textValue(attribute(record, 'name')) || dnLabel(record.dn);
-export const isContainer = (record) => ['domain', 'ou', 'container'].includes(objectType(record));
+export const TYPE_LABELS = { domain: 'Domain', user: 'User', group: 'Group', computer: 'Computer', ou: 'Organizational unit', policy: 'Group policy', container: 'Container', other: 'Object' };
+const isPolicy = (record) => values(attribute(record, 'objectClass')).some((item) => String(item).toLowerCase() === 'grouppolicycontainer');
+export const recordName = (record) => (isPolicy(record) && textValue(attribute(record, 'displayName')))
+  || textValue(attribute(record, 'name')) || dnLabel(record.dn);
+export const isContainer = (record) => ['domain', 'ou', 'policy', 'container'].includes(objectType(record));
 
 export function entryFromRecord(record) {
   return { dn: record.dn, name: recordName(record), record };
@@ -127,6 +130,27 @@ export function createDirectory(baseURL) {
     }),
     protectFromDeletion: (dn) => request('add/domainobjectacl', {
       mutation: true, body: { targetidentity: dn, principalidentity: 'Everyone', rights: 'immutable', ace_type: 'denied' },
+    }),
+    async gpoLinkTargets(rootDN, { signal, fresh = false } = {}) {
+      const [ous, roots] = await Promise.all([
+        request('get/domainou', { signal, body: { properties: ['name', 'gPLink'], raw: true, no_cache: fresh } }),
+        request('get/domainobject', { signal, body: { searchbase: rootDN, search_scope: 'BASE', properties: ['name', 'gPLink'], raw: true, no_cache: fresh } }),
+      ]);
+      return [
+        ...records(roots).map((record) => ({ dn: record.dn, name: `${recordName(record)} (domain)`, gPLink: attribute(record, 'gPLink') })),
+        ...records(ous).map((record) => ({ dn: record.dn, name: recordName(record), gPLink: attribute(record, 'gPLink') })),
+      ];
+    },
+    async gpoSettings(guid, { signal } = {}) {
+      const data = await request('get/domaingposettings', { signal, body: { identity: guid } });
+      return Array.isArray(data) && data[0]?.attributes ? data[0].attributes : null;
+    },
+    linkGpo: ({ guid, target, enabled, enforced }) => request('add/gplink', {
+      mutation: true, body: { guid, targetidentity: target, link_enabled: enabled ? 'Yes' : 'No', enforced: enforced ? 'Yes' : 'No' },
+    }),
+    unlinkGpo: ({ guid, target }) => request('remove/gplink', { mutation: true, body: { guid, targetidentity: target } }),
+    createGpo: ({ name, description }) => request('add/domaingpo', {
+      mutation: true, body: { identity: name, ...(description ? { description } : {}) },
     }),
     async gpoNames({ signal, fresh = false } = {}) {
       const data = await request('get/domaingpo', { signal, body: { properties: ['name', 'displayName'], no_cache: fresh } });

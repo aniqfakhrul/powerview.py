@@ -41,7 +41,7 @@ textarea.text-input { height: auto; padding: 5px 8px; resize: vertical; }
 .type--ou { color: var(--type-ou); }
 .type--container { color: var(--type-container); }
 .type--other { color: var(--type-other); }
-.type--certificate { color: var(--type-ou); }
+.type--certificate, .type--policy { color: var(--type-ou); }
 .form-error { color: var(--color-danger); font-size: 12px; overflow-wrap: anywhere; }
 .dialog { width: 420px; max-width: calc(100vw - 32px); padding: 0; border: 0; border-radius: var(--radius-md); background: var(--color-raised); color: var(--color-text); box-shadow: var(--shadow-pop); }
 .dialog[open] { animation: dialog-in 160ms var(--ease-out); }
@@ -81,3 +81,10 @@ textarea.text-input { height: auto; padding: 5px 8px; resize: vertical; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } }
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
 @media (max-width: 720px) { .toasts { right: 50%; transform: translateX(50%); } }
+.dialog--wide { width: 520px; }
+.links-list { display: grid; gap: 2px; max-height: 240px; margin: 0; padding: 0; overflow: auto; list-style: none; }
+.links-list li { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 4px 0 8px; border-radius: var(--radius-sm); background: var(--color-canvas); }
+.links-list__name { flex: 1; min-width: 0; overflow: hidden; color: var(--color-text); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.links-list__state { color: var(--color-muted); font-size: 12px; }
+.links-list__empty { color: var(--color-muted); font-size: 12px; }
+.links-add { display: grid; gap: 8px; padding-top: 8px; border-top: 1px solid var(--color-border); }

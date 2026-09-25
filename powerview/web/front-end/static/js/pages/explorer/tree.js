@@ -4,7 +4,7 @@ import { element, icon } from '../../core/dom.js';
 
 const PAGE_SIZE = 500;
 const KEY_SELECT_DELAY = 140;
-const TYPE_ICONS = { domain: 'domain', user: 'user', group: 'group', computer: 'computer', ou: 'ou', container: 'folder', other: 'object' };
+const TYPE_ICONS = { domain: 'domain', user: 'user', group: 'group', computer: 'computer', ou: 'ou', policy: 'policy', container: 'folder', other: 'object' };
 
 const key = (dn) => dn.toLowerCase();
 const isWithin = (dn, ancestor) => sameDN(dn, ancestor) || key(dn).endsWith(`,${key(ancestor)}`);

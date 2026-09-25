@@ -1,0 +1,40 @@
+{% extends "layouts/grid.html" %}
+{% from "components/icon.html" import icon %}
+{% set grid_icon = "policy" %}
+{% block grid_actions %}<button id="gpo-new" class="button" type="button" title="New group policy" disabled>{{ icon('plus') }}<span>New GPO</span></button>{% endblock %}
+{% block grid_dialogs %}
+  <dialog id="gpo-dialog" class="dialog" aria-labelledby="gpo-dialog-title">
+    <form id="gpo-form" method="dialog">
+      <h2 id="gpo-dialog-title" class="dialog__title">New group policy</h2>
+      <div class="dialog__fields">
+        <label>Name<input id="gpo-name" class="text-input" type="text" autocomplete="off" spellcheck="false" required></label>
+        <label>Description<input id="gpo-description" class="text-input" type="text" autocomplete="off"></label>
+        <label>Link to<select id="gpo-linkto" class="text-input"></select></label>
+      </div>
+      <p id="gpo-error" class="form-error dialog__error" role="alert" hidden></p>
+      <footer class="dialog__footer">
+        <button id="gpo-cancel" type="button" class="button">Cancel</button>
+        <button type="submit" class="button button--primary">Create</button>
+      </footer>
+    </form>
+  </dialog>
+  <dialog id="links-dialog" class="dialog dialog--wide" aria-labelledby="links-dialog-title">
+    <form id="links-form" method="dialog">
+      <h2 id="links-dialog-title" class="dialog__title">Links</h2>
+      <div class="dialog__fields">
+        <p id="links-context" class="dialog__context"></p>
+        <ul id="links-list" class="links-list"></ul>
+        <div class="links-add">
+          <label>Link to<select id="links-target" class="text-input"></select></label>
+          <label class="dialog__check"><input id="links-enforced" type="checkbox"><span>Enforced</span></label>
+          <label class="dialog__check"><input id="links-disabled" type="checkbox"><span>Link disabled</span></label>
+        </div>
+      </div>
+      <p id="links-error" class="form-error dialog__error" role="alert" hidden></p>
+      <footer class="dialog__footer">
+        <button id="links-close" type="button" class="button">Close</button>
+        <button type="submit" class="button button--primary">Add link</button>
+      </footer>
+    </form>
+  </dialog>
+{% endblock %}
