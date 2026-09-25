@@ -12,6 +12,7 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
       const path = new URL(route.request().url()).pathname;
       if (path.endsWith('/get/domaininfo')) return route.fulfill({ json: { root_dn: 'DC=example,DC=test' } });
       if (path.endsWith('/connectioninfo')) return route.fulfill({ json: { status: 'OK' } });
+      if (path.endsWith('/server/info')) return route.fulfill({ json: { raw: { namingContexts: ['DC=example,DC=test'] } } });
       if (path.endsWith('/schema/attributes')) return route.fulfill({ json: { available: false, class: 'user', attributes: [] } });
       if (path.endsWith('/get/domainuser')) {
         requests.push(route.request().postDataJSON());

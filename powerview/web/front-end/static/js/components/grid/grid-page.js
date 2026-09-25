@@ -38,7 +38,8 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   const cellText = (column, entry) => column.text(entry.record, entry) || '';
 
   let entries = [];
-  let loadedProperties = new Set();
+  let loadedProperties = [];
+  let namingContexts = [];
   let visible = [];
   let rendered = 0;
   let sortKey = 'name';
@@ -176,7 +177,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       const result = await directory.list(endpoint, { signal, fresh, properties, search });
       if (signal.aborted) return false;
       entries = result;
-      loadedProperties = new Set(properties.map((name) => name.toLowerCase()));
+      loadedProperties = properties;
       filter.disabled = false;
       setSortable(true);
       update();
@@ -270,6 +271,18 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     returnFocus = null;
   }
 
+  function searchActive() {
+    return Object.entries(search).some(([key, value]) => (Array.isArray(value) ? value.length : key === 'scope' ? value !== 'SUBTREE' : Boolean(value)));
+  }
+
+  async function reloadKeepingPosition() {
+    const scrollTop = scroller.scrollTop;
+    if (!(await load(true))) return;
+    const position = visible.findIndex((entry) => sameDN(entry.dn, selectedDN));
+    while (position >= rendered && rendered < visible.length) renderMore();
+    scroller.scrollTop = scrollTop;
+  }
+
   function reconcile(record) {
     if (!record) return;
     const updated = entryFromRecord(record);
@@ -291,8 +304,13 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     guard,
     scope: (dn) => namingContext(dn, [rootDN]) ?? rootDN,
     onNavigate: select,
-    onSaved: async () => reconcile(await panel.open(selectedDN, { fresh: true })),
+    onSaved: async () => {
+      const record = await panel.open(selectedDN, { fresh: true });
+      if (searchActive()) await reloadKeepingPosition();
+      else reconcile(record);
+    },
     onDeleted: (record) => removeEntry(record.dn),
+    isRoot: (dn) => !rootDN || [rootDN, ...namingContexts].some((root) => sameDN(root, dn)),
   });
 
   document.querySelector('#panel-close').addEventListener('click', closePanel);
@@ -364,6 +382,13 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     })
     .catch(() => {});
 
+  directory.server()
+    .then((server) => {
+      const contexts = server?.raw?.namingContexts ?? server?.namingContexts;
+      namingContexts = (Array.isArray(contexts) ? contexts : []).filter((dn) => typeof dn === 'string');
+    })
+    .catch(() => {});
+
   const domainReady = directory.domain()
     .then((domain) => { rootDN = domain?.root_dn ?? ''; return rootDN; })
     .catch(() => '');
@@ -379,7 +404,8 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       if (!columns.some((column) => column.key === sortKey)) { sortKey = 'name'; sortDirection = 1; }
       buildHead();
       fieldsMenu.refresh();
-      const needsFetch = columnSet.properties(columns).some((name) => !loadedProperties.has(name.toLowerCase()));
+      const loaded = new Set(loadedProperties.map((name) => name.toLowerCase()));
+      const needsFetch = columnSet.properties(columns).some((name) => !loaded.has(name.toLowerCase()));
       if (needsFetch || filter.disabled) load();
       else { setSortable(true); update(); }
     },
@@ -411,10 +437,10 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       return true;
     },
     async showCreated(dn, text) {
-      const searchActive = Object.entries(search).some(([key, value]) => (Array.isArray(value) ? value.length : key === 'scope' ? value !== 'SUBTREE' : Boolean(value)));
-      if (searchActive || filter.disabled) return this.reloadAndFind(text);
+      if (searchActive() || filter.disabled) return this.reloadAndFind(text);
       try {
-        const [created] = await directory.list(endpoint, { fresh: true, properties: columnSet.properties(columns), search: { base: dn, scope: 'BASE' } });
+        const properties = [...new Set([...loadedProperties, ...columnSet.properties(columns)])];
+        const [created] = await directory.list(endpoint, { fresh: true, properties, search: { base: dn, scope: 'BASE' } });
         if (!created) return this.reloadAndFind(text);
         entries = [...entries.filter((entry) => !sameDN(entry.dn, created.dn)), created];
         filter.value = text;

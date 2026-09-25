@@ -28,10 +28,10 @@ class AccountActionRouteTests(unittest.TestCase):
                     response = client.post(f'/api/account/{action}', json={'identity': f'  {DN} ', 'searchbase': 'DC=example,DC=test'})
                     self.assertEqual(response.status_code, 200)
                     self.assertIs(response.get_json(), True)
-                    method.assert_called_once_with(identity=DN, searchbase='DC=example,DC=test')
+                    method.assert_called_once_with(identity=DN, searchbase='DC=example,DC=test', no_cache=True)
             response = client.post('/api/account/disable', json={'identity': DN})
             self.assertIs(response.get_json(), False)
-            powerview.disable_adaccount.assert_called_once_with(identity=DN)
+            powerview.disable_adaccount.assert_called_once_with(identity=DN, no_cache=True)
 
     def test_other_methods_and_bad_input_are_rejected(self):
         server, powerview = self.make_server()

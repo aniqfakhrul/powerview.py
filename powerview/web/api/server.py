@@ -233,7 +233,7 @@ class APIServer:
 		searchbase = body.get('searchbase')
 		if not isinstance(identity, str) or not identity.strip():
 			return jsonify({'error': 'Provide the account identity, for example its distinguished name.'}), 400
-		arguments = {'identity': identity.strip()}
+		arguments = {'identity': identity.strip(), 'no_cache': True}
 		if isinstance(searchbase, str) and searchbase.strip():
 			arguments['searchbase'] = searchbase.strip()
 		try:
