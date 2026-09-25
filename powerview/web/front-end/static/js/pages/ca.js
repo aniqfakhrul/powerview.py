@@ -2,7 +2,7 @@ import { createGridPage } from '../components/grid/grid-page.js';
 import { renderSummary } from '../components/object-panel/summary.js';
 import { attribute, createDirectory, textValue, values } from '../core/directory.js';
 import { button, element } from '../core/dom.js';
-import { authorityColumns, findings, isEnabled, templateColumns } from './ca/columns.js';
+import { authorityColumns, findings, isEnabled, templateColumns, webEnrollment } from './ca/columns.js';
 
 const root = document.querySelector('#ca');
 const directory = createDirectory(new URL(root.dataset.apiRoot, window.location.origin));
@@ -57,10 +57,11 @@ function templatesView() {
   }
 
   function syncAuthorities() {
-    const names = [...new Set(all.flatMap((entry) => list(entry.record, 'Certificate Authorities')))].sort((a, b) => a.localeCompare(b));
+    const publishing = all.flatMap((entry) => list(entry.record, 'Certificate Authorities'));
+    const selected = authority && authority !== '-' ? [authority] : [];
+    const names = [...new Set([...publishing, ...selected])].sort((a, b) => a.localeCompare(b));
     const options = [new Option('All templates', ''), ...names.map((name) => new Option(name, name)), new Option('Not published', '-')];
     authoritySelect.replaceChildren(...options);
-    if (authority && authority !== '-' && !names.includes(authority)) authority = '';
     authoritySelect.value = authority;
     authoritySelect.disabled = false;
     remember();
@@ -123,7 +124,7 @@ function authoritiesView() {
         renderSummary(panel, [
           { label: 'dNSHostName', values: entry ? list(entry.record, 'dNSHostName') : [] },
           { label: 'certificateTemplates', values: published },
-          ...(entry && attribute(entry.record, 'WebEnrollment') != null ? [{ label: 'WebEnrollment', values: [textValue(attribute(entry.record, 'WebEnrollment'))] }] : []),
+          ...(entry && webEnrollment(entry.record).length ? [{ label: 'WebEnrollment', values: webEnrollment(entry.record) }] : []),
         ]);
         if (entry) {
           const show = button('Show templates');
@@ -140,8 +141,8 @@ function authoritiesView() {
       const entries = await directory.certificateAuthorities({ signal, fresh: fresh || checkWeb, checkWeb });
       for (const entry of entries) {
         const key = entry.dn.toLowerCase();
-        if (checkWeb) webResults.set(key, entry.record.attributes.WebEnrollment);
-        else if (webResults.has(key)) entry.record.attributes.WebEnrollment = webResults.get(key);
+        if (checkWeb) webResults.set(key, entry.record.attributes.WebEnrollment ?? null);
+        if (webResults.has(key)) entry.record.attributes.WebEnrollment = webResults.get(key);
       }
       return entries;
     },

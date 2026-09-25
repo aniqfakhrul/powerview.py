@@ -163,5 +163,9 @@ export function createObjectPanel({ root, defaultTab = 'attributes', summary, ..
 
   applicable(null);
   show(active);
-  return { ...attributes, open, show: choose, refreshActions: () => actions?.render(attributes.current()) };
+  function refreshSummary() {
+    if (summary && currentDN) summary.render(tabs.get('summary').panel, currentDN);
+  }
+
+  return { ...attributes, open, show: choose, refreshSummary, refreshActions: () => actions?.render(attributes.current()) };
 }

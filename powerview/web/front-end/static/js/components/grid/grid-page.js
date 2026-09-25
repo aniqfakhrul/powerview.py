@@ -187,6 +187,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       filter.disabled = false;
       setSortable(true);
       update();
+      panel.refreshSummary();
       if (!entries.length) showMessage(`No ${noun.plural} found`, `The connected directory returned no ${noun.singular} objects.`);
       return true;
     } catch (error) {

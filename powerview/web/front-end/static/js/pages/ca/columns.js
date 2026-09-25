@@ -3,6 +3,14 @@ import { element } from '../../core/dom.js';
 import { countColumn, createColumnSet, nameColumn, textColumn } from '../../components/grid/columns.js';
 
 export const isEnabled = (record) => values(attribute(record, 'Enabled'))[0] === true;
+export function webEnrollment(record) {
+  if (!Object.hasOwn(record.attributes, 'WebEnrollment')) return [];
+  const value = record.attributes.WebEnrollment;
+  if (value == null) return ['Not checked: the CA has no host name'];
+  const endpoints = values(value).filter((item) => typeof item === 'string' && /^https?:\/\//.test(item));
+  return endpoints.length ? endpoints : ['No endpoint found: host unreachable or /certsrv missing'];
+}
+
 export const findings = (record) => values(attribute(record, 'Vulnerable')).map(String).filter(Boolean);
 
 function booleanColumn(key, name, hint) {
@@ -78,7 +86,10 @@ export const authorityColumns = createColumnSet({
     countColumn('templates', 'certificateTemplates', 'Published templates'),
     textColumn('displayName', 'displayName', 'Display name'),
     textColumn('guid', 'objectGUID', 'Object GUID', 280),
-    textColumn('web', 'WebEnrollment', 'Web enrollment endpoints; use Check web enrollment', 240),
+    {
+      key: 'web', label: 'WebEnrollment', hint: 'Web enrollment endpoints; use Check web enrollment', icon: 'field-text', width: 280, attributes: ['WebEnrollment'],
+      text: (record) => webEnrollment(record).join('; '),
+    },
   ],
   defaults: ['host', 'subject', 'templates'],
 });
