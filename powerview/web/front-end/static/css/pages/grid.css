@@ -52,11 +52,11 @@
 .side-panel .property-grid col.property-grid__name { width: 42%; }
 .grid-scroll { position: relative; flex: 1; min-height: 0; overflow: auto; }
 .grid-scroll:focus-visible { outline-offset: -2px; }
-.data-grid { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.data-grid { --index-width: 48px; width: calc(var(--index-width) + var(--columns-width, 0px)); min-width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-variant-numeric: tabular-nums; }
 .data-grid th, .data-grid td { height: var(--row-height); padding: 0 var(--space-3); overflow: hidden; border-right: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); text-align: left; text-overflow: ellipsis; white-space: nowrap; background: var(--color-surface); }
 .data-grid thead th { position: sticky; top: 0; z-index: 2; height: 28px; background: var(--color-sidebar); color: var(--color-muted); font-weight: 500; }
-.data-grid .col-index { position: sticky; left: 0; z-index: 1; width: 48px; padding: 0 var(--space-2); color: var(--color-faint); font-size: 11px; text-align: right; }
-.data-grid .col-name { position: sticky; left: 48px; z-index: 1; box-shadow: 1px 0 var(--color-border-strong); }
+.data-grid .col-index { position: sticky; left: 0; z-index: 1; width: var(--index-width); padding: 0 var(--space-2); color: var(--color-faint); font-size: 11px; text-align: right; }
+.data-grid .col-name { position: sticky; left: var(--index-width); z-index: 1; box-shadow: 1px 0 var(--color-border-strong); }
 .data-grid thead .col-index, .data-grid thead .col-name { z-index: 3; }
 .data-grid tbody tr { cursor: pointer; }
 .data-grid tbody tr:hover > * { background: var(--color-row-hover, var(--color-hover)); }
@@ -71,12 +71,17 @@
 [aria-sort="ascending"] .column-sort__direction { opacity: 1; transform: rotate(-90deg); }
 [aria-sort="descending"] .column-sort__direction { opacity: 1; transform: rotate(90deg); }
 .column-sort:hover { color: var(--color-text); }
-.data-grid thead th:hover .column-sort, .data-grid thead th:has(:focus-visible) .column-sort, .data-grid thead th:has(.column-filter-trigger.is-active, .column-filter-trigger[aria-expanded="true"]) .column-sort { padding-right: 20px; }
-.column-filter-trigger { position: absolute; top: 50%; right: 4px; width: 20px; height: 20px; opacity: 0; transform: translateY(-50%); }
+.column-sort__direction { position: relative; z-index: 2; pointer-events: none; }
+.column-filter-trigger { position: absolute; top: 50%; right: 4px; z-index: 1; width: 20px; height: 20px; background: var(--color-sidebar); opacity: 0; transform: translateY(-50%); }
+.column-filter-trigger::before { content: ""; position: absolute; top: 0; right: 100%; bottom: 0; width: 28px; background: linear-gradient(to right, transparent, var(--color-sidebar) 14px); pointer-events: none; }
 .column-filter-trigger .icon { width: 12px; height: 12px; }
-.data-grid thead th:hover .column-filter-trigger, .data-grid thead th:has(:focus-visible) .column-filter-trigger, .column-filter-trigger[aria-expanded="true"], .column-filter-trigger.is-active { opacity: 1; }
 .column-filter-trigger.is-active { color: var(--color-accent); }
-@media (hover: none) { .column-filter-trigger { opacity: 1; } .data-grid thead th:not(.col-index) .column-sort { padding-right: 20px; } }
+.data-grid thead th:is(:hover, :has(:focus-visible), :has(.column-filter-trigger.is-active), :has(.column-filter-trigger[aria-expanded="true"])) .column-filter-trigger { opacity: 1; }
+.data-grid thead th:is(:hover, :has(:focus-visible), :has(.column-filter-trigger.is-active), :has(.column-filter-trigger[aria-expanded="true"])) .column-sort__direction { translate: -14px 0; }
+@media (hover: none) {
+  .column-filter-trigger { opacity: 1; }
+  .data-grid thead .column-sort__direction { translate: -14px 0; }
+}
 .column-filter:popover-open { display: flex; flex-direction: column; overflow: hidden; }
 .column-filter > * { flex: none; }
 .column-filter > .fields-menu__list { flex: 0 1 auto; min-height: 48px; }
@@ -111,8 +116,7 @@
   .toolbar__search { flex: 1; }
   .toolbar__actions:has(.view-switch) { flex: 0 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .toolbar__actions .ca-select { flex: none; width: 128px; }
-  .data-grid .col-index { width: 36px; }
-  .data-grid .col-name { left: 36px; }
+  .data-grid { --index-width: 36px; }
   .data-grid td, .data-grid th { height: 40px; }
 }
 

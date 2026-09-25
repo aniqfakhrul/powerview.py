@@ -50,6 +50,14 @@ let users = [
     await page.goto(`${base}/users`);
     await rows.first().waitFor();
     assert.equal(await count(), '10 users');
+    const widths = () => page.$$eval('#grid-head th', (cells) => cells.map((cell) => Math.round(cell.getBoundingClientRect().width)));
+    const idle = await widths();
+    assert.deepEqual(idle.slice(1), [240, 180, 110, 180, 200, 130, 190]);
+    for (const key of ['name', 'account', 'status', 'department', 'attr:memberOf', 'groups', 'lastLogon']) {
+      await page.locator(`th[data-key="${key}"]`).hover();
+      assert.deepEqual(await widths(), idle, `hovering ${key} changed column widths`);
+    }
+    await page.mouse.move(5, 5);
     assert.equal(await page.getByRole('button', { name: /^Search options/ }).count(), 1);
     assert.equal(await page.locator('#grid-clear-filters').isHidden(), true);
 
@@ -178,6 +186,6 @@ let users = [
       await close();
     }
     assert.deepEqual(errors, []);
-    console.log('PASS: fixed Enabled/Disabled order with zero counts, Escape closes only the popover over an open panel, new objects clear hiding filters, same button toggles closed, switching columns, status choices without search, value counts, multivalue any-match, (Empty), Select all none/some, search then Select all, date presets/Empty/between, number range, empty state, Clear filter/Clear filters, Refresh keeps filters, hiding a column drops its filter, Escape focus return, mobile themes.');
+    console.log('PASS: hovering headers never changes column widths, fixed Enabled/Disabled order with zero counts, Escape closes only the popover over an open panel, new objects clear hiding filters, same button toggles closed, switching columns, status choices without search, value counts, multivalue any-match, (Empty), Select all none/some, search then Select all, date presets/Empty/between, number range, empty state, Clear filter/Clear filters, Refresh keeps filters, hiding a column drops its filter, Escape focus return, mobile themes.');
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exit(1); });

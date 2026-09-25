@@ -104,6 +104,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   }
 
   function buildHead() {
+    document.querySelector('#grid').style.setProperty('--columns-width', `${columns.reduce((total, column) => total + column.width, 0)}px`);
     const index = element('th', 'col-index');
     index.scope = 'col';
     index.append(element('span', 'visually-hidden', 'Row'));
