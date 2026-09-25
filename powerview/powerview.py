@@ -1219,12 +1219,13 @@ class PowerView:
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 		
-		if args:
-			if args.gplink:
-				ldap_filter += f"(gplink=*{args.gplink}*)"
-			if args.ldapfilter:
-				logging.debug(f'[Get-DomainOU] Using additional LDAP filter: {args.ldapfilter}')
-				ldap_filter += f"{args.ldapfilter}"
+		gplink = getattr(args, 'gplink', None)
+		extra_filter = getattr(args, 'ldapfilter', None)
+		if gplink:
+			ldap_filter += f"(gplink=*{gplink}*)"
+		if extra_filter:
+			logging.debug(f'[Get-DomainOU] Using additional LDAP filter: {extra_filter}')
+			ldap_filter += f"{extra_filter}"
 
 		ldap_filter = f'(&(objectCategory=organizationalUnit){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainOU] LDAP search filter: {ldap_filter}')
@@ -3736,12 +3737,13 @@ displayName=New Group Policy Object
 			logging.error(f"[Add-DomainGPO] Failed to create {identity} GPO ({self.ldap_session.result['description']})")
 			return False
 
-	def add_domainou(self, identity, basedn=None, args=None):
+	def add_domainou(self, identity, basedn=None, protected=False, args=None):
+		protected = getattr(args, 'protectedfromaccidentaldeletion', False) or protected
 		identity_values = self._resolve_identity_values(identity, args)
 		if len(identity_values) > 1:
 			results = []
 			for ident in identity_values:
-				results.append(self.add_domainou(ident, basedn=basedn, args=args))
+				results.append(self.add_domainou(ident, basedn=basedn, protected=protected, args=args))
 			return all(result is True for result in results)
 		identity = identity_values[0] if identity_values else None
 		basedn = self.root_dn if not basedn else basedn
@@ -3760,17 +3762,16 @@ displayName=New Group Policy Object
 		object_class = ['organizationalUnit']
 
 		self.ldap_session.add(dn, object_class, ou_data)
-		
-		if args.protectedfromaccidentaldeletion:
-			logging.info("[Add-DomainOU] Protect accidental deletion enabled")
-			self.add_domainobjectacl(identity, "Everyone", rights="immutable", ace_type="denied")
-		
-		if self.ldap_session.result['result'] == 0:
-			logging.info(f"[Add-DomainOU] Added new {identity} OU")
-			return True
-		else:
+		if self.ldap_session.result['result'] != 0:
 			logging.error(f"[Add-DomainOU] Failed to create {identity} OU ({self.ldap_session.result['description']})")
 			return False
+		logging.info(f"[Add-DomainOU] Added new {identity} OU")
+
+		if protected:
+			logging.info("[Add-DomainOU] Protect accidental deletion enabled")
+			if self.add_domainobjectacl(dn, "Everyone", rights="immutable", ace_type="denied") is not True:
+				logging.warning(f"[Add-DomainOU] {dn} was created but could not be protected from accidental deletion")
+		return True
 
 	def remove_domainou(self, identity, searchbase=None, sd_flag=None, args=None):
 		if not searchbase:
@@ -5166,7 +5167,7 @@ displayName=New Group Policy Object
 
 	def remove_domainobjectacl(self, targetidentity, principalidentity, rights="fullcontrol", rights_guid=None, ace_type="allowed", inheritance=False):
 		# verify if target identity exists
-		target_entries = self.get_domainobject(identity=targetidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName','nTSecurityDescriptor'], sd_flag=0x04)
+		target_entries = self.get_domainobject(identity=targetidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName','nTSecurityDescriptor'], sd_flag=0x04, no_cache=True)
 		
 		target_dn = None
 		target_sAMAccountName = None
@@ -5234,7 +5235,7 @@ displayName=New Group Policy Object
 
 	def add_domainobjectacl(self, targetidentity, principalidentity, rights="fullcontrol", rights_guid=None, ace_type="allowed", inheritance=False):
 		# verify if target identity exists
-		target_entries = self.get_domainobject(identity=targetidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName','nTSecurityDescriptor'], sd_flag=0x04)
+		target_entries = self.get_domainobject(identity=targetidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName','nTSecurityDescriptor'], sd_flag=0x04, no_cache=True)
 		
 		target_dn = None
 		target_sAMAccountName = None
