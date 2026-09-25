@@ -4189,10 +4189,10 @@ displayName=New Group Policy Object
 		return succeed
 
 	def get_domaincatemplate(self, args=None, properties=[], identity=None, vulnerable=False, searchbase=None, resolve_sids=False, no_cache=False, no_vuln_check=False, raw=False):
-		def list_sids(sids: List[str]):
+		def list_sids(sids: List[str], resolve=True):
 			sids_mapping = list(
 				map(
-					lambda sid: repr(self.convertfrom_sid(sid)),
+					lambda sid: "'%s'" % (self.convertfrom_sid(sid) if resolve else sid),
 					sids,
 				)
 			)
@@ -4259,7 +4259,6 @@ displayName=New Group Policy Object
 
 		logging.debug(f"[Get-DomainCATemplate] Found {len(cas)} CA(s)")
 
-		ca_templates = []
 		list_entries = []
 
 		username = self.whoami.split('\\')[1] if "\\" in self.whoami else self.whoami
@@ -4303,140 +4302,139 @@ displayName=New Group Policy Object
 				except Exception as e:
 					logging.debug(f"[Get-DomainCATemplate] Failed to resolve cross-trust SIDs: {str(e)}")
 
-		oids = ca_fetch.get_issuance_policies(no_cache=no_cache, no_vuln_check=no_vuln_check, raw=raw)
+		publishers = {}
 		for ca in cas:
-			object_id = ca.get("attributes").get("objectGUID").lstrip("{").rstrip("}")
-			ca.get("attributes").update({"object_id": object_id})
-			ca_templates = ca.get("attributes").get("certificateTemplates")
-			if ca_templates is None:
-				ca_templates = []
+			ca_name = ca.get("attributes").get("name")
+			published = ca.get("attributes").get("certificateTemplates") or []
+			if not isinstance(published, list):
+				published = [published]
+			for template_name in published:
+				publishers.setdefault(str(template_name).lower(), []).append(ca_name)
 
-			for template in templates:
-				vulnerable = False
-				vulns = {}
-				list_vuln = []
+		oids = ca_fetch.get_issuance_policies(no_cache=no_cache, no_vuln_check=no_vuln_check, raw=raw)
+		for template in templates:
+			vulnerable = False
+			vulns = {}
+			list_vuln = []
 
-				# avoid dupes
-				if template.get("attributes").get("objectGUID") in template_guids:
-					continue
+			# avoid dupes
+			if template.get("attributes").get("objectGUID") in template_guids:
+				continue
+			else:
+				template_guids.append(template.get("attributes").get("objectGUID"))
+
+			# Oid
+			object_id = template.get("attributes").get("objectGUID").lstrip("{").rstrip("}")
+			issuance_policies = template.get("attributes").get("msPKI-Certificate-Policy")
+
+			if not isinstance(issuance_policies, list):
+				if issuance_policies is None:
+					issuance_policies = []
 				else:
-					template_guids.append(template.get("attributes").get("objectGUID"))
+					issuance_policies = [issuance_policies]
 
-				# Oid
-				object_id = template.get("attributes").get("objectGUID").lstrip("{").rstrip("}")
-				issuance_policies = template.get("attributes").get("msPKI-Certificate-Policy")
+			linked_group = None
+			for oid in oids:
+				if oid.get("attributes").get("msPKI-Cert-Template-OID") in issuance_policies:
+					linked_group = oid.get("attributes").get("msDS-OIDToGroupLink")
 
-				if not isinstance(issuance_policies, list):
-					if issuance_policies is None:
-						issuance_policies = []
+
+			template_ops = PARSE_TEMPLATE(template.get("attributes"), current_user_sid=current_user_sid, linked_group=linked_group, ldap_session=self.ldap_session, user_sids=cross_trust_user_sids)
+			parsed_dacl = template_ops.parse_dacl()
+			template_ops.resolve_flags()
+			template_owner = template_ops.get_owner_sid()
+			certificate_name_flag = template_ops.get_certificate_name_flag()
+			enrollment_flag = template_ops.get_enrollment_flag()
+			extended_key_usage = template_ops.get_extended_key_usage()
+			validity_period = template_ops.get_validity_period()
+			renewal_period = template_ops.get_renewal_period()
+			requires_manager_approval = template_ops.get_requires_manager_approval()
+
+			vulns = template_ops.check_vulnerable_template()
+
+			if resolve_sids:
+				template_owner = self.convertfrom_sid(template_ops.get_owner_sid())
+
+				for i in range(len(parsed_dacl['Extended Rights'])):
+					try:
+						parsed_dacl['Extended Rights'][i] = self.convertfrom_sid(parsed_dacl['Extended Rights'][i])
+					except:
+						pass
+
+				for i in range(len(parsed_dacl['Enrollment Rights'])):
+					try:
+						parsed_dacl['Enrollment Rights'][i] = self.convertfrom_sid(parsed_dacl['Enrollment Rights'][i])
+					except:
+						pass
+
+				for k in range(len(parsed_dacl['Write Owner'])):
+					try:
+						parsed_dacl['Write Owner'][k] = self.convertfrom_sid(parsed_dacl['Write Owner'][k])
+					except:
+						pass
+
+				for j in range(len(parsed_dacl['Write Dacl'])):
+					try:
+						parsed_dacl['Write Dacl'][j] = self.convertfrom_sid(parsed_dacl['Write Dacl'][j])
+					except:
+						pass
+
+				for y in range(len(parsed_dacl['Write Property'])):
+					try:
+						parsed_dacl['Write Property'][y] = self.convertfrom_sid(parsed_dacl['Write Property'][y])
+					except:
+						pass
+
+				for y in vulns.keys():
+					try:
+						list_vuln.append(y+" - "+list_sids(vulns[y]))
+					except:
+						list_vuln.append(vulns[y])
+
+			# Resolve Vulnerable (Without resolvesids)
+			if not resolve_sids:
+				for y in vulns.keys():
+					if isinstance(vulns[y], list) and vulns[y]:
+						list_vuln.append(y+" - "+list_sids(vulns[y], resolve=False))
 					else:
-						issuance_policies = [issuance_policies]
+						list_vuln.append(f"{y} - {vulns[y]}" if vulns[y] else y)
 
-				linked_group = None
-				for oid in oids:
-					if oid.get("attributes").get("msPKI-Cert-Template-OID") in issuance_policies:
-						linked_group = oid.get("attributes").get("msDS-OIDToGroupLink")
-
-
-				template_ops = PARSE_TEMPLATE(template.get("attributes"), current_user_sid=current_user_sid, linked_group=linked_group, ldap_session=self.ldap_session, user_sids=cross_trust_user_sids)
-				parsed_dacl = template_ops.parse_dacl()
-				template_ops.resolve_flags()
-				template_owner = template_ops.get_owner_sid()
-				certificate_name_flag = template_ops.get_certificate_name_flag()
-				enrollment_flag = template_ops.get_enrollment_flag()
-				extended_key_usage = template_ops.get_extended_key_usage()
-				validity_period = template_ops.get_validity_period()
-				renewal_period = template_ops.get_renewal_period()
-				requires_manager_approval = template_ops.get_requires_manager_approval()
-
-				vulns = template_ops.check_vulnerable_template()
-
-				if resolve_sids:
-					template_owner = self.convertfrom_sid(template_ops.get_owner_sid())
-
-					for i in range(len(parsed_dacl['Extended Rights'])):
-						try:
-							parsed_dacl['Extended Rights'][i] = self.convertfrom_sid(parsed_dacl['Extended Rights'][i])
-						except:
-							pass
-
-					for i in range(len(parsed_dacl['Enrollment Rights'])):
-						try:
-							parsed_dacl['Enrollment Rights'][i] = self.convertfrom_sid(parsed_dacl['Enrollment Rights'][i])
-						except:
-							pass
-
-					for k in range(len(parsed_dacl['Write Owner'])):
-						try:
-							parsed_dacl['Write Owner'][k] = self.convertfrom_sid(parsed_dacl['Write Owner'][k])
-						except:
-							pass
-
-					for j in range(len(parsed_dacl['Write Dacl'])):
-						try:
-							parsed_dacl['Write Dacl'][j] = self.convertfrom_sid(parsed_dacl['Write Dacl'][j])
-						except:
-							pass
-
-					for y in range(len(parsed_dacl['Write Property'])):
-						try:
-							parsed_dacl['Write Property'][y] = self.convertfrom_sid(parsed_dacl['Write Property'][y])
-						except:
-							pass
-
-					for y in vulns.keys():
-						try:
-							list_vuln.append(y+" - "+list_sids(vulns[y]))
-						except:
-							list_vuln.append(vulns[y])
-
-				# Resolve Vulnerable (Without resolvesids)
-				if not resolve_sids:
-					for y in vulns.keys():
-						try:
-							list_vuln.append(y+" - "+vulns[y])
-						except:
-							list_vuln.append(vulns[y])
-
-				e = modify_entry(template,
-								 new_attributes={
-									'Owner': template_owner,
-									'Certificate Authorities': ca.get('attributes').get('name'),
-									'msPKI-Certificate-Name-Flag': certificate_name_flag,
-									'msPKI-Enrollment-Flag': enrollment_flag,
-									'pKIExtendedKeyUsage': extended_key_usage,
-									'pKIExpirationPeriod': validity_period,
-									'pKIOverlapPeriod': renewal_period,
-									'ManagerApproval': requires_manager_approval,
-									'Enrollment Rights': parsed_dacl['Enrollment Rights'],
-									'Extended Rights': parsed_dacl['Extended Rights'],
-									'Client Authentication': template_ops.get_client_authentication(),
-									'Enrollment Agent': template_ops.get_enrollment_agent(),
-									'Any Purpose': template_ops.get_any_purpose(),
-									**({"Linked Groups": linked_group} if linked_group is not None else {}),
-									'Write Owner': parsed_dacl['Write Owner'],
-									'Write Dacl': parsed_dacl['Write Dacl'],
-									'Write Property': parsed_dacl['Write Property'],
-									'Enabled': False,
-									'Vulnerable': list_vuln
-								},
-								 remove = [
-									 'nTSecurityDescriptor',
-									 'msPKI-Certificate-Name-Flag',
-									 'msPKI-Enrollment-Flag',
-									 'pKIExpirationPeriod',
-									 'pKIOverlapPeriod',
-									 'pKIExtendedKeyUsage'
-								 ]
-								 )
-				new_dict = e["attributes"]
-				list_entries.append(new_dict)
+			e = modify_entry(template,
+							 new_attributes={
+								'Owner': template_owner,
+								'Certificate Authorities': publishers.get(str(template.get('attributes').get('cn')).lower(), []),
+								'msPKI-Certificate-Name-Flag': certificate_name_flag,
+								'msPKI-Enrollment-Flag': enrollment_flag,
+								'pKIExtendedKeyUsage': extended_key_usage,
+								'pKIExpirationPeriod': validity_period,
+								'pKIOverlapPeriod': renewal_period,
+								'ManagerApproval': requires_manager_approval,
+								'Enrollment Rights': parsed_dacl['Enrollment Rights'],
+								'Extended Rights': parsed_dacl['Extended Rights'],
+								'Client Authentication': template_ops.get_client_authentication(),
+								'Enrollment Agent': template_ops.get_enrollment_agent(),
+								'Any Purpose': template_ops.get_any_purpose(),
+								**({"Linked Groups": linked_group} if linked_group is not None else {}),
+								'Write Owner': parsed_dacl['Write Owner'],
+								'Write Dacl': parsed_dacl['Write Dacl'],
+								'Write Property': parsed_dacl['Write Property'],
+								'Enabled': str(template.get('attributes').get('cn')).lower() in publishers,
+								'Vulnerable': list_vuln
+							},
+							 remove = [
+								 'nTSecurityDescriptor',
+								 'msPKI-Certificate-Name-Flag',
+								 'msPKI-Enrollment-Flag',
+								 'pKIExpirationPeriod',
+								 'pKIOverlapPeriod',
+								 'pKIExtendedKeyUsage'
+							 ]
+							 )
+			new_dict = e["attributes"]
+			list_entries.append(new_dict)
 
 		for ent in list_entries:
-			enabled = False
-			if ent.get("cn") in ca_templates:
-				enabled = True
-				ent.update({"Enabled": enabled})
+			enabled = ent.get("Enabled")
 
 			if args_enabled and not enabled:
 				continue
