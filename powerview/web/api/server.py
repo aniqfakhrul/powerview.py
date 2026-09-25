@@ -23,6 +23,7 @@ from powerview.utils.schema import SchemaCatalog
 import re
 
 SCHEMA_NAME = re.compile(r'^[A-Za-z][A-Za-z0-9-]*$')
+ACCOUNT_ACTIONS = {'unlock': 'unlock_adaccount', 'enable': 'enable_adaccount', 'disable': 'disable_adaccount'}
 import json
 
 class APIServer:
@@ -71,6 +72,7 @@ class APIServer:
 		add_route_with_auth('/api/server/info', 'server_info', self.handle_server_info, methods=['GET'])
 		add_route_with_auth('/api/server/schema', 'schema_info', self.handle_schema_info, methods=['GET'])
 		add_route_with_auth('/api/schema/attributes', 'schema_attributes', self.handle_schema_attributes, methods=['GET'])
+		add_route_with_auth('/api/account/<action>', 'account_action', self.handle_account_action, methods=['POST'])
 		add_route_with_auth('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
 		add_route_with_auth('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		add_route_with_auth('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
@@ -221,6 +223,26 @@ class APIServer:
 		if key not in self.schema_attributes:
 			self.schema_attributes[key] = [attribute.to_dict() for attribute in catalog.class_attributes(class_name)]
 		return jsonify({'available': True, 'class': class_name, 'attributes': self.schema_attributes[key]})
+
+	def handle_account_action(self, action):
+		method_name = ACCOUNT_ACTIONS.get(action)
+		if not method_name:
+			return jsonify({'error': f'Unsupported account action: {action}'}), 404
+		body = request.get_json(silent=True) or {}
+		identity = body.get('identity')
+		searchbase = body.get('searchbase')
+		if not isinstance(identity, str) or not identity.strip():
+			return jsonify({'error': 'Provide the account identity, for example its distinguished name.'}), 400
+		arguments = {'identity': identity.strip()}
+		if isinstance(searchbase, str) and searchbase.strip():
+			arguments['searchbase'] = searchbase.strip()
+		try:
+			return jsonify(getattr(self.powerview, method_name)(**arguments) is True)
+		except Exception as e:
+			if self.powerview.args.stack_trace:
+				raise e
+			logging.error(f"Powerview API Error: {method_name}: {str(e)}")
+			return jsonify({'error': str(e)}), 400
 
 	def handle_set_settings(self):
 		try:
