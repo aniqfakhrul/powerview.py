@@ -33,6 +33,10 @@ export function createActions({ host, directory, scope, guard, canLeave, onChang
   async function remove() {
     const record = current;
     if (!canLeave()) return;
+    if (isRoot(record.dn)) {
+      notify.error('Naming-context roots cannot be deleted.');
+      return;
+    }
     const confirmed = await confirmAction({
       title: `Delete ${recordName(record)}?`,
       context: record.dn,
@@ -40,7 +44,7 @@ export function createActions({ host, directory, scope, guard, canLeave, onChang
       confirmLabel: 'Delete',
       danger: true,
     });
-    if (!confirmed) return;
+    if (!confirmed || isRoot(record.dn)) return;
     await run(`Deleted ${recordName(record)}`, () => directory.remove(record.dn, scope(record.dn)), () => onDeleted(record));
   }
 

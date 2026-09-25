@@ -149,5 +149,5 @@ export function createObjectPanel({ root, defaultTab = 'attributes', ...options 
 
   applicable(null);
   show(active);
-  return { ...attributes, open, show: choose };
+  return { ...attributes, open, show: choose, refreshActions: () => actions?.render(attributes.current()) };
 }

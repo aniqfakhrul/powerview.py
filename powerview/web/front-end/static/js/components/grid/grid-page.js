@@ -40,6 +40,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   let entries = [];
   let loadedProperties = [];
   let namingContexts = [];
+  let rootsKnown = false;
   let visible = [];
   let rendered = 0;
   let sortKey = 'name';
@@ -233,6 +234,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     panelRoot.hidden = false;
     panelResizer.hidden = false;
     syncOverlay();
+    discoverRoots();
     if (opening && overlay.matches) panelRoot.querySelector('[role="tab"][aria-selected="true"]')?.focus();
     panel.open(dn);
   }
@@ -310,7 +312,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       else reconcile(record);
     },
     onDeleted: (record) => removeEntry(record.dn),
-    isRoot: (dn) => !rootDN || [rootDN, ...namingContexts].some((root) => sameDN(root, dn)),
+    isRoot: (dn) => !rootsKnown || [rootDN, ...namingContexts].some((root) => sameDN(root, dn)),
   });
 
   document.querySelector('#panel-close').addEventListener('click', closePanel);
@@ -382,16 +384,27 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     })
     .catch(() => {});
 
-  directory.server()
-    .then((server) => {
-      const contexts = server?.raw?.namingContexts ?? server?.namingContexts;
-      namingContexts = (Array.isArray(contexts) ? contexts : []).filter((dn) => typeof dn === 'string');
-    })
-    .catch(() => {});
+  let discovering = null;
+  function discoverRoots() {
+    if (rootsKnown) return Promise.resolve();
+    discovering ??= Promise.all([domainReady, directory.server()])
+      .then(([, server]) => {
+        const contexts = server?.raw?.namingContexts ?? server?.namingContexts;
+        if (!rootDN || !Array.isArray(contexts)) return;
+        namingContexts = contexts.filter((dn) => typeof dn === 'string');
+        rootsKnown = true;
+        panel.refreshActions();
+      })
+      .catch(() => {})
+      .finally(() => { discovering = null; });
+    return discovering;
+  }
 
   const domainReady = directory.domain()
     .then((domain) => { rootDN = domain?.root_dn ?? ''; return rootDN; })
     .catch(() => '');
+
+  discoverRoots();
   const fieldsMenu = createFieldsMenu({
     trigger: document.querySelector('#grid-fields'),
     menu: document.querySelector('#fields-menu'),
