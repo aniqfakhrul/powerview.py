@@ -12,6 +12,7 @@ const TONES = {
 let region;
 const active = new Map();
 let politeAnnouncer;
+let returnTarget = null;
 let assertiveAnnouncer;
 
 function mount() {
@@ -23,6 +24,9 @@ function mount() {
     region.setAttribute('aria-label', 'Notifications');
     document.body.append(region);
   }
+  region.addEventListener('focusin', (event) => {
+    if (event.relatedTarget && !region.contains(event.relatedTarget)) returnTarget = event.relatedTarget;
+  });
   politeAnnouncer = announcer('polite');
   assertiveAnnouncer = announcer('assertive');
 }
@@ -39,6 +43,21 @@ function announce(tone, text) {
   const target = tone === 'error' ? assertiveAnnouncer : politeAnnouncer;
   target.textContent = '';
   requestAnimationFrame(() => { target.textContent = text; });
+}
+
+function focusAfterRemoving(toast) {
+  if (!toast.contains(document.activeElement)) return;
+  const neighbour = toast.nextElementSibling ?? toast.previousElementSibling;
+  const target = neighbour?.querySelector('.toast__close')
+    ?? (returnTarget?.isConnected ? returnTarget : null)
+    ?? document.querySelector('#main-content');
+  target?.focus();
+}
+
+function removeToast(toast) {
+  focusAfterRemoving(toast);
+  toast.remove();
+  for (const [key, entry] of active) if (entry.element === toast) active.delete(key);
 }
 
 function show(tone, text, { action } = {}) {
@@ -64,36 +83,38 @@ function show(tone, text, { action } = {}) {
   toast.append(close);
 
   let timer;
-  const start = () => { if (!TONES[tone].persistent) timer = setTimeout(dismiss, DISMISS_AFTER); };
-  const pause = () => clearTimeout(timer);
+  let hovered = false;
+  let focused = false;
+  function schedule() {
+    clearTimeout(timer);
+    if (!TONES[tone].persistent && !hovered && !focused) timer = setTimeout(dismiss, DISMISS_AFTER);
+  }
   function dismiss() {
-    pause();
-    toast.remove();
-    if (active.get(key) === handle) active.delete(key);
+    clearTimeout(timer);
+    removeToast(toast);
   }
   function refresh() {
-    pause();
     region.append(toast);
     toast.classList.remove('toast--repeat');
     void toast.offsetWidth;
     toast.classList.add('toast--repeat');
-    start();
+    schedule();
   }
   const handle = { dismiss, refresh, element: toast };
-  toast.addEventListener('pointerenter', pause);
-  toast.addEventListener('pointerleave', start);
-  toast.addEventListener('focusin', pause);
-  toast.addEventListener('focusout', (event) => { if (!toast.contains(event.relatedTarget)) start(); });
+  toast.addEventListener('pointerenter', () => { hovered = true; schedule(); });
+  toast.addEventListener('pointerleave', () => { hovered = false; schedule(); });
+  toast.addEventListener('focusin', () => { focused = true; schedule(); });
+  toast.addEventListener('focusout', (event) => {
+    if (toast.contains(event.relatedTarget)) return;
+    focused = false;
+    schedule();
+  });
 
   region.append(toast);
   active.set(key, handle);
-  while (region.childElementCount > MAX_VISIBLE) {
-    const oldest = region.firstElementChild;
-    for (const [entryKey, entry] of active) if (entry.element === oldest) active.delete(entryKey);
-    oldest.remove();
-  }
+  while (region.childElementCount > MAX_VISIBLE) removeToast(region.firstElementChild);
   announce(tone, text);
-  start();
+  schedule();
   return handle;
 }
 
