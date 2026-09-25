@@ -63,7 +63,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 					 strip_entries=True,
 					 raw=False):
 		
-		no_cache = no_cache or self.no_cache
+		skip_cache_read = no_cache or self.no_cache
 		no_vuln_check = no_vuln_check or self.no_vuln_check
 		raw = raw or self.raw
 
@@ -74,7 +74,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 			self.server.custom_formatter = None
 
 		try:
-			if not no_cache:
+			if not skip_cache_read:
 				cached_results = self.storage.get_cached_results(search_base, search_filter, search_scope, attributes, host=self.server.host, raw=raw)
 				if cached_results is not None:
 					logging.debug("[CustomStandardExtendedOperations] Returning cached results for query")
@@ -178,7 +178,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 						if vulnerabilities:
 							entry['attributes']['vulnerabilities'] = [self._format_vulnerability(v) for v in vulnerabilities]
 
-			if not no_cache:
+			if not self.no_cache:
 				for entry in filtered_results:
 					if 'attributes' in entry and 'from_cache' in entry['attributes']:
 						del entry['attributes']['from_cache']

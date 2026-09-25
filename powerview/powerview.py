@@ -5390,6 +5390,16 @@ displayName=New Group Policy Object
 			logging.info('[Set-DomainDNSRecord] Success! modified attribute for target record %s' % entry[0]['attributes']['distinguishedName'])
 			return True
 
+	@staticmethod
+	def _relative_dns_name(recordname, zonename):
+		name = (recordname or '').strip().rstrip('.')
+		zone = zonename.rstrip('.').lower()
+		if name.lower() == zone:
+			return ''
+		if name.lower().endswith('.' + zone):
+			name = name[:-(len(zone) + 1)]
+		return name
+
 	def add_domaindnsrecord(self, recordname=None, recordaddress=None, zonename=None, basedn=None, no_cache=False, legacy=False, forest=False, args=None, timeout=15):
 		recordname = args.recordname if args and hasattr(args, 'recordname') else recordname
 		recordaddress = args.recordaddress if args and hasattr(args, 'recordaddress') else recordaddress
@@ -5415,8 +5425,10 @@ displayName=New Group Policy Object
 			basedn = zones[0]['attributes']['distinguishedName']
 			zonename = zones[0]['attributes']['name']
 
-		if recordname.lower().endswith(zonename.lower()):
-			recordname = recordname[:-(len(zonename)+1)]
+		recordname = self._relative_dns_name(recordname, zonename)
+		if not recordname:
+			logging.error("[Add-DomainDNSRecord] Record name must not be empty or the zone itself")
+			return False
 
 		# addtype is A record = 1
 		addtype = 1

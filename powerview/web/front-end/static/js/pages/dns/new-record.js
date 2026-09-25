@@ -3,6 +3,13 @@ import { setBusy } from '../../core/dom.js';
 const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 const NODE_NAME = /^(?!\.)[A-Za-z0-9_.*-]+(?<!\.)$/;
 
+function relativeName(value, zone) {
+  const name = value.trim().replace(/\.$/, '');
+  const suffix = `.${zone.toLowerCase()}`;
+  if (name.toLowerCase() === zone.toLowerCase()) return '';
+  return name.toLowerCase().endsWith(suffix) ? name.slice(0, -suffix.length) : name;
+}
+
 export function createNewRecord({ directory, zone, onCreated }) {
   const dialog = document.querySelector('#dns-dialog');
   const form = document.querySelector('#dns-form');
@@ -24,9 +31,9 @@ export function createNewRecord({ directory, zone, onCreated }) {
     event.preventDefault();
     if (busy) return;
     const target = zone();
-    const recordName = name.value.trim();
+    const recordName = relativeName(name.value, target);
     const recordAddress = address.value.trim();
-    if (!NODE_NAME.test(recordName) || recordName === '@') { fail('Enter a host name such as web01, without the zone.'); name.focus(); return; }
+    if (!NODE_NAME.test(recordName) || recordName === '@') { fail(`Enter a host name such as web01; it is created in ${target}.`); name.focus(); return; }
     if (!IPV4.test(recordAddress)) { fail('Enter an IPv4 address such as 10.0.0.25.'); address.focus(); return; }
     busy = true;
     setBusy(form, true);

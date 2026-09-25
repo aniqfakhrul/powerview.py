@@ -66,6 +66,7 @@ const page = createGridPage({
   columnSet: dnsColumns,
   search: false,
   isProtected: isApex,
+  afterDelete: () => page.reload(true),
   describeRemoval(record, siblings) {
     const listed = siblings.map(describeRecord).filter(Boolean);
     return {
