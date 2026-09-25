@@ -1,0 +1,20 @@
+{% extends "layouts/grid.html" %}
+{% from "components/icon.html" import icon %}
+{% set grid_icon = "group" %}
+{% block grid_actions %}<button id="group-new" class="button" type="button" title="New group" disabled>{{ icon('plus') }}<span>New group</span></button>{% endblock %}
+{% block grid_dialogs %}
+  <dialog id="group-dialog" class="dialog" aria-labelledby="group-dialog-title">
+    <form id="group-form" method="dialog">
+      <h2 id="group-dialog-title" class="dialog__title">New group</h2>
+      <div class="dialog__fields">
+        <label>Name<input id="group-name" class="text-input" type="text" autocomplete="off" spellcheck="false" required></label>
+        <label>Container<input id="group-container" class="text-input text-input--mono" type="text" autocomplete="off" spellcheck="false" required></label>
+      </div>
+      <p id="group-error" class="form-error dialog__error" role="alert" hidden></p>
+      <footer class="dialog__footer">
+        <button id="group-cancel" type="button" class="button">Cancel</button>
+        <button type="submit" class="button button--primary">Create</button>
+      </footer>
+    </form>
+  </dialog>
+{% endblock %}

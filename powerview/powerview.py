@@ -2056,12 +2056,12 @@ class PowerView:
 			identity_filter = self._build_identity_filter(identity_values, build_identity_filter)
 
 		if args:
-			if args.admincount:
+			if getattr(args, 'admincount', False):
 				ldap_filter += f"(admincount=1)"
-			if args.ldapfilter:
+			if getattr(args, 'ldapfilter', None):
 				ldap_filter += f"{args.ldapfilter}"
 				logging.debug(f'[Get-DomainGroup] Using additional LDAP filter: {args.ldapfilter}')
-			if args.memberidentity:
+			if getattr(args, 'memberidentity', None):
 				entries = self.get_domainobject(identity=args.memberidentity)
 				if len(entries) == 0:
 					logging.info("Member identity not found. Try to use DN")

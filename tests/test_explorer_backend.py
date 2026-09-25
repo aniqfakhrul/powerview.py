@@ -134,6 +134,20 @@ class ExplorerBackendTests(unittest.TestCase):
         self.assertEqual(attributes['dnsHostName'], 'WS-NEW.example.test')
         self.assertEqual(attributes['unicodePwd'], '"Test-only-password!"'.encode('utf-16-le'))
 
+    def test_group_search_accepts_partial_args(self):
+        pv = PowerView.__new__(PowerView)
+        pv.root_dn = 'DC=example,DC=test'
+        pv.args = Namespace()
+        pv.ldap_session = MagicMock()
+        search = pv.ldap_session.extend.standard.paged_search
+        search.return_value = []
+        server = self.make_server()
+        server.powerview.get_domaingroup = pv.get_domaingroup
+        with server.app.test_client() as client:
+            response = client.post('/api/get/domaingroup', json={'properties': ['name'], 'raw': True, 'args': {'ldapfilter': '(name=Domain*)'}})
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(search.call_args.args[1], '(&(objectCategory=group)(name=Domain*))')
+
     def test_explorer_retains_basic_auth(self):
         import base64
         server = self.make_server({'web_auth_user': 'tester', 'web_auth_password': 'test-only'})
