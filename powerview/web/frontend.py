@@ -26,7 +26,7 @@ PAGES = (
     Page("users", "/users", "Users", template="pages/users.html"),
     Page("computers", "/computers", "Computers", template="pages/computers.html"),
     Page("groups", "/groups", "Groups", template="pages/groups.html"),
-    Page("dns", "/dns", "DNS"),
+    Page("dns", "/dns", "DNS", template="pages/dns.html"),
     Page("ca", "/ca", "Certificate authorities"),
     Page("ou", "/ou", "Organizational units"),
     Page("gpo", "/gpo", "Group policies"),

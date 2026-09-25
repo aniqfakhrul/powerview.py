@@ -12,7 +12,7 @@ import { createSearchMenu } from './search-menu.js';
 const PAGE_SIZE = 200;
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
-export function createGridPage({ root, endpoint, noun, columnSet, search: searchConfig = {} }) {
+export function createGridPage({ root, endpoint, noun, columnSet, search: searchConfig = {}, fetch: fetchEntries, deletable = true }) {
   const directory = createDirectory(new URL(root.dataset.apiRoot, window.location.origin));
   const scroller = document.querySelector('#grid-scroll');
   const head = document.querySelector('#grid-head');
@@ -175,7 +175,9 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     count.textContent = `Loading ${noun.plural}…`;
     try {
       const properties = columnSet.properties(columns);
-      const result = await directory.list(endpoint, { signal, fresh, properties, search });
+      const result = fetchEntries
+        ? await fetchEntries({ signal, fresh })
+        : await directory.list(endpoint, { signal, fresh, properties, search });
       if (signal.aborted) return false;
       entries = result;
       loadedProperties = properties;
@@ -308,10 +310,10 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     onNavigate: select,
     onSaved: async () => {
       const record = await panel.open(selectedDN, { fresh: true });
-      if (searchActive()) await reloadKeepingPosition();
+      if (fetchEntries || searchActive()) await reloadKeepingPosition();
       else reconcile(record);
     },
-    onDeleted: (record) => removeEntry(record.dn),
+    onDeleted: deletable ? (record) => removeEntry(record.dn) : null,
     isRoot: (dn) => !rootsKnown || [rootDN, ...namingContexts].some((root) => sameDN(root, dn)),
   });
 
@@ -364,7 +366,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   filter.addEventListener('keydown', (event) => { if (event.key === 'Escape' && filter.value) { filter.value = ''; update(); } });
   refresh.addEventListener('click', () => load(true));
 
-  directory.schemaAttributes(columnSet.objectClass)
+  (columnSet.objectClass ? directory.schemaAttributes(columnSet.objectClass) : Promise.resolve(null))
     .then((attributes) => {
       if (!attributes) return;
       columnSet.setSchema(attributes);
@@ -418,13 +420,14 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       buildHead();
       fieldsMenu.refresh();
       const loaded = new Set(loadedProperties.map((name) => name.toLowerCase()));
-      const needsFetch = columnSet.properties(columns).some((name) => !loaded.has(name.toLowerCase()));
+      const needsFetch = !fetchEntries && columnSet.properties(columns).some((name) => !loaded.has(name.toLowerCase()));
       if (needsFetch || filter.disabled) load();
       else { setSortable(true); update(); }
     },
   });
 
-  createSearchMenu({
+  if (searchConfig === false) document.querySelector('#grid-search').hidden = true;
+  else createSearchMenu({
     trigger: document.querySelector('#grid-search'),
     menu: document.querySelector('#search-menu'),
     defaultBase: () => rootDN,
@@ -443,6 +446,12 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     status,
     domainReady,
     rootDN: () => rootDN,
+    reload: (fresh = false) => load(fresh),
+    closeDetails() {
+      if (!panel.canLeave()) return false;
+      closePanel();
+      return true;
+    },
     async reloadAndFind(text) {
       if (!(await load(true))) return false;
       filter.value = text;

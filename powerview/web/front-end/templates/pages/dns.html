@@ -1,0 +1,5 @@
+{% extends "layouts/grid.html" %}
+{% set grid_icon = "domain" %}
+{% block grid_actions %}
+  <select id="dns-zone" class="text-input dns-zone" aria-label="DNS zone" title="DNS zone" disabled><option>Loading zones…</option></select>
+{% endblock %}

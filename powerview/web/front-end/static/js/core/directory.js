@@ -5,6 +5,7 @@ export const TREE_PROPERTIES = ['name', 'objectClass'];
 export const values = (value) => value == null ? [] : Array.isArray(value) ? value : [value];
 export const textValue = (value) => values(value).map((item) => typeof item === 'object' ? JSON.stringify(item) : String(item)).join('; ');
 export function attribute(record, name) {
+  if (Object.hasOwn(record.attributes, name)) return record.attributes[name];
   const key = Object.keys(record.attributes).find((item) => item.toLowerCase() === name.toLowerCase());
   return key ? record.attributes[key] : undefined;
 }
@@ -101,6 +102,16 @@ export function createDirectory(baseURL) {
     }),
     remove: (identity, searchbase) => request('remove/domainobject', { mutation: true, body: { identity, searchbase } }),
     groupMember: (action, group, member) => request(`${action}/domaingroupmember`, { mutation: true, body: { identity: group, members: member } }),
+    async dnsZones({ signal, fresh = false } = {}) {
+      return records(await request('get/domaindnszone', { signal, body: { no_cache: fresh } }));
+    },
+    async dnsRecords(zone, { signal, fresh = false } = {}) {
+      const data = await request('get/domaindnsrecord', { signal, body: { zonename: zone, no_cache: fresh } });
+      if (!Array.isArray(data)) throw new APIError('The directory returned an unexpected DNS record list. Check the CLI logs.');
+      return records(data.map((item) => ({ ...item, dn: item?.dn ?? textValue(item?.attributes?.distinguishedName) })))
+        .filter((record) => record.dn)
+        .map((record) => ({ dn: record.dn, name: dnLabel(record.dn), record }));
+    },
     async findObjects(text, { groupsOnly = false, signal } = {}) {
       const escaped = text.replace(/[\\*()\0]/g, (character) => `\\${character.charCodeAt(0).toString(16).padStart(2, '0')}`);
       const match = `(|(name=${escaped}*)(sAMAccountName=${escaped}*))`;
