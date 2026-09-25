@@ -45,7 +45,7 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
     const query = requests.at(-1);
     assert.equal(query.searchbase, 'OU=People,DC=example,DC=test'); assert.equal(query.search_scope, 'LEVEL');
     assert.deepEqual(query.args, { passnotrequired: true, admincount: true, disabled: true, ldapfilter: '(mail=*)', identity: 'a*', memberof: 'Domain Admins', department: 'IT' });
-    assert.equal(await trigger.getAttribute('aria-label'), 'Filters, 9 active');
+    assert.equal(await trigger.getAttribute('aria-label'), 'Search options, 9 active');
     await page.locator('#grid-refresh').click(); await page.locator('#grid-body tr[data-dn]').waitFor();
     assert.deepEqual(requests.at(-1).args, query.args);
     await page.locator('#grid-fields').click(); await page.locator('#fields-menu').getByLabel('department, Department', { exact: true }).check();

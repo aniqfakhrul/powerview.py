@@ -2,15 +2,16 @@ import { textValue, values } from '../../core/directory.js';
 import { createColumnSet, nameColumn, pill } from '../../components/grid/columns.js';
 
 // Parsed DNS fields are case-sensitive: Name is an SRV target, name is the node.
-function field(key, label, hint, width = 180, numeric = false) {
+function field(key, label, hint, width = 180, isNumeric = false) {
   const value = (record) => record.attributes[label];
+  const numeric = isNumeric && ((record) => {
+    const raw = values(value(record))[0];
+    return raw == null || raw === '' || !Number.isFinite(Number(raw)) ? null : Number(raw);
+  });
   return {
     key, label, hint, width, icon: 'field-text', attributes: [label],
     text: (record) => textValue(value(record)),
-    ...(numeric ? { sort: (record) => {
-      const raw = values(value(record))[0];
-      return raw == null || raw === '' || !Number.isFinite(Number(raw)) ? null : Number(raw);
-    } } : {}),
+    ...(numeric ? { sort: numeric, filter: { type: 'number', value: numeric } } : {}),
   };
 }
 
@@ -38,6 +39,11 @@ export const dnsColumns = createColumnSet({
     {
       ...field('timestamp', 'TimeStamp', 'Dynamic record aging time; Static records have none', 190, true),
       text: (record) => agingText(values(record.attributes.TimeStamp)[0]),
+      filter: { type: 'values', values: (record) => {
+        const raw = values(record.attributes.TimeStamp)[0];
+        if (raw == null || raw === '') return [];
+        return [Number(raw) === 0 ? 'Static' : 'Dynamic'];
+      } },
     },
     field('priority', 'Priority', 'SRV priority', 110, true),
     field('weight', 'Weight', 'SRV weight', 110, true),

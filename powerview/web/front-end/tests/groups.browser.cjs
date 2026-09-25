@@ -54,20 +54,20 @@ groups[2].attributes['member;range=0-1499'] = Array.from({ length: 1500 }, (_, i
   await page.getByRole('button', { name: 'member (count)', exact: true }).click();
   assert.equal(await rows.first().getAttribute('data-dn'), `CN=Newsletter,CN=Users,${rootDN}`);
 
-  await page.getByRole('button', { name: /^Filters/ }).click();
+  await page.getByRole('button', { name: /^Search options/ }).click();
   await page.locator('#search-menu').getByLabel('Has member', { exact: true }).fill('Alpha');
   const searched = page.waitForResponse((response) => response.url().endsWith('/get/domaingroup'));
   await page.locator('#search-menu').getByRole('button', { name: 'Apply' }).click();
   await searched;
   assert.deepEqual(listRequests.at(-1).args, { memberidentity: 'Alpha' });
-  await page.getByRole('button', { name: /^Filters/ }).click();
+  await page.getByRole('button', { name: /^Search options/ }).click();
   await page.locator('#search-menu').getByLabel('Has member', { exact: true }).fill('nobody');
   const none = page.waitForResponse((response) => response.url().endsWith('/get/domaingroup'));
   await page.locator('#search-menu').getByRole('button', { name: 'Apply' }).click();
   await none;
   await page.getByRole('heading', { name: 'No groups found' }).waitFor();
   assert.equal(await page.getByRole('heading', { name: /Cannot load/ }).count(), 0);
-  await page.getByRole('button', { name: /^Filters/ }).click();
+  await page.getByRole('button', { name: /^Search options/ }).click();
   assert.equal(await page.locator('#search-menu').getByLabel('Identity', { exact: true }).getAttribute('placeholder'), 'Name or distinguished name');
   await page.locator('#search-menu').getByRole('button', { name: 'Clear' }).click();
   const cleared = page.waitForResponse((response) => response.url().endsWith('/get/domaingroup'));

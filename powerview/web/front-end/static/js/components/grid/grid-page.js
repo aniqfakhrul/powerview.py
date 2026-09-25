@@ -6,6 +6,7 @@ import { createObjectPanel } from '../object-panel/index.js';
 import { createResizer } from '../resizer.js';
 import { createStatus } from '../status.js';
 import { notify } from '../notify.js';
+import { createColumnFilter, filterSpec, isActive, matchesFilter } from './column-filter.js';
 import { createFieldsMenu } from './fields-menu.js';
 import { createSearchMenu } from './search-menu.js';
 
@@ -49,6 +50,44 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   let controller;
 
   const headers = new Map();
+  const columnFilters = new Map();
+  const clearFilters = document.querySelector('#grid-clear-filters');
+  const columnFilter = createColumnFilter({
+    menu: document.querySelector('#column-filter'),
+    onChange(key, state) {
+      if (state) columnFilters.set(key, state); else columnFilters.delete(key);
+      paintFilters();
+      update();
+    },
+  });
+
+  function filteredBy(entry, except) {
+    return columns.every((column) => column.key === except || !columnFilters.has(column.key)
+      || matchesFilter(filterSpec(column), columnFilters.get(column.key), entry));
+  }
+
+  function paintFilters() {
+    for (const [key, th] of headers) {
+      const trigger = th.querySelector('.column-filter-trigger');
+      const active = isActive(columnFilters.get(key));
+      trigger.classList.toggle('is-active', active);
+      trigger.setAttribute('aria-label', `Filter ${th.dataset.label}${active ? ', filter active' : ''}`);
+    }
+    clearFilters.hidden = !columnFilters.size;
+  }
+
+  function resetFilters() {
+    columnFilters.clear();
+    paintFilters();
+    update();
+  }
+
+  function revealFilteredOut() {
+    if (!columnFilters.size) return;
+    columnFilters.clear();
+    paintFilters();
+    notify.info(`Column filters cleared to show the new ${noun.singular}`);
+  }
 
   function buildHead() {
     const index = element('th', 'col-index');
@@ -70,14 +109,26 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
         sortKey = column.key;
         update();
       });
-      th.append(control);
+      const filterButton = button('', { iconName: 'filter', className: 'icon-button column-filter-trigger' });
+      filterButton.setAttribute('aria-haspopup', 'dialog');
+      filterButton.setAttribute('aria-controls', 'column-filter');
+      filterButton.setAttribute('aria-expanded', 'false');
+      filterButton.disabled = true;
+      filterButton.addEventListener('pointerdown', (event) => columnFilter.pressed(filterButton, event));
+      filterButton.addEventListener('click', () => columnFilter.open(filterButton, {
+        column,
+        entries: entries.filter((entry) => filteredBy(entry, column.key)),
+        state: columnFilters.get(column.key),
+      }));
+      th.dataset.label = column.label;
+      th.append(control, filterButton);
       head.append(th);
       headers.set(column.key, th);
     }
   }
 
   function setSortable(enabled) {
-    for (const th of headers.values()) th.querySelector('button').disabled = !enabled;
+    for (const th of headers.values()) for (const control of th.querySelectorAll('button')) control.disabled = !enabled;
   }
 
   function showSort() {
@@ -126,7 +177,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     const key = column.sort ? (entry) => column.sort(entry.record, entry) : (entry) => cellText(column, entry) || null;
     sentinelCell.colSpan = columns.length + 1;
     visible = entries
-      .filter((entry) => !query || columns.some((item) => cellText(item, entry).toLocaleLowerCase().includes(query)))
+      .filter((entry) => (!query || columns.some((item) => cellText(item, entry).toLocaleLowerCase().includes(query))) && filteredBy(entry))
       .sort((a, b) => {
         const left = key(a); const right = key(b);
         if (left == null || right == null) return left == null ? (right == null ? 0 : 1) : -1;
@@ -137,16 +188,20 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     rendered = 0;
     renderMore();
     document.querySelector('#grid').setAttribute('aria-rowcount', String(visible.length + 1));
-    count.textContent = query ? `${visible.length} of ${entries.length} ${noun.plural}` : `${entries.length} ${entries.length === 1 ? noun.singular : noun.plural}`;
+    const narrowed = query || columnFilters.size;
+    count.textContent = narrowed ? `${visible.length} of ${entries.length} ${noun.plural}` : `${entries.length} ${entries.length === 1 ? noun.singular : noun.plural}`;
     message.replaceChildren();
-    if (entries.length && !visible.length) showMessage(`No ${noun.plural} match`, 'Try a different filter.');
+    if (entries.length && !visible.length) {
+      if (columnFilters.size) showMessage(`No ${noun.plural} match`, 'No rows match the column filters.', resetFilters, 'Clear filters');
+      else showMessage(`No ${noun.plural} match`, 'Try a different filter.');
+    }
   }
 
-  function showMessage(title, description, retry) {
+  function showMessage(title, description, retry, actionLabel = 'Retry') {
     const box = element('div');
     box.append(element('h2', '', title), element('p', '', description));
     if (retry) {
-      const action = button('Retry', { iconName: 'refresh' });
+      const action = button(actionLabel, { iconName: actionLabel === 'Retry' ? 'refresh' : 'close' });
       action.addEventListener('click', retry);
       box.append(action);
     }
@@ -436,7 +491,9 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       columnSet.save(keys);
       columns = columnSet.columns(keys);
       if (!columns.some((column) => column.key === sortKey)) { sortKey = 'name'; sortDirection = 1; }
+      for (const key of columnFilters.keys()) if (!columns.some((column) => column.key === key)) columnFilters.delete(key);
       buildHead();
+      paintFilters();
       fieldsMenu.refresh();
       const loaded = new Set(loadedProperties.map((name) => name.toLowerCase()));
       const missingOptions = Object.entries(columnSet.requestOptions(columns)).some(([key, value]) => loadedOptions[key] !== value);
@@ -455,7 +512,9 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     onApply(value) { search = value; load(true); },
   });
 
+  clearFilters.addEventListener('click', resetFilters);
   buildHead();
+  paintFilters();
   load().then((loaded) => {
     const requested = new URLSearchParams(window.location.search).get('dn');
     if (loaded && requested) select(requested);
@@ -474,6 +533,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     },
     async reloadAndFind(text) {
       if (!(await load(true))) return false;
+      revealFilteredOut();
       filter.value = text;
       update();
       return true;
@@ -486,6 +546,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
         const [created] = await directory.list(endpoint, { fresh: true, properties, options, search: { base: dn, scope: 'BASE' } });
         if (!created) return this.reloadAndFind(text);
         entries = [...entries.filter((entry) => !sameDN(entry.dn, created.dn)), created];
+        revealFilteredOut();
         filter.value = text;
         update();
         return true;

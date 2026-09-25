@@ -59,7 +59,7 @@ computers[5].attributes.managedBy = ownerDN;
   await page.keyboard.press('Escape');
 
   const searchMenu = page.locator('#search-menu');
-  await page.getByRole('button', { name: /^Filters/ }).click();
+  await page.getByRole('button', { name: /^Search options/ }).click();
   assert.equal(await searchMenu.getByRole('checkbox').count(), 13);
   await searchMenu.getByRole('checkbox', { name: 'Enabled computers', exact: true }).check();
   await searchMenu.getByRole('checkbox', { name: 'Disabled computers', exact: true }).check();
@@ -71,7 +71,7 @@ computers[5].attributes.managedBy = ownerDN;
   const beforeCancel = listRequests.length;
   await page.keyboard.press('Escape');
   assert.equal(listRequests.length, beforeCancel);
-  await page.getByRole('button', { name: /^Filters/ }).click();
+  await page.getByRole('button', { name: /^Search options/ }).click();
   assert.equal(await searchMenu.getByRole('checkbox', { name: 'Disabled computers', exact: true }).isChecked(), false);
   for (const label of ['Enabled computers', 'Servers', 'Exclude domain controllers', 'Obsolete operating systems',
     'Has a service principal name', 'Unconstrained delegation', 'Constrained delegation',
@@ -119,11 +119,11 @@ computers[5].attributes.managedBy = ownerDN;
   await page.goto(`${base}/computers`);
   await rows.first().waitFor();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-  await page.getByRole('button', { name: /^Filters/ }).click();
+  await page.getByRole('button', { name: /^Search options/ }).click();
   await searchMenu.getByRole('checkbox', { name: 'LAPS', exact: true }).check();
   await searchMenu.getByRole('button', { name: 'Apply', exact: true }).click();
-  await page.waitForFunction(() => document.querySelector('#grid-search').getAttribute('aria-label') === 'Filters, 1 active');
-  await page.getByRole('button', { name: /^Filters/ }).click();
+  await page.waitForFunction(() => document.querySelector('#grid-search').getAttribute('aria-label') === 'Search options, 1 active');
+  await page.getByRole('button', { name: /^Search options/ }).click();
   await searchMenu.getByRole('button', { name: 'Clear', exact: true }).click();
   const cleared = page.waitForResponse((response) => response.url().endsWith('/get/domaincomputer'));
   await searchMenu.getByRole('button', { name: 'Apply', exact: true }).click(); await cleared;

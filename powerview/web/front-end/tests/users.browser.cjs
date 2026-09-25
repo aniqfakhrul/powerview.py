@@ -287,7 +287,7 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   await page.waitForFunction(() => [...document.querySelectorAll('#grid-head .column-sort__label')].map((node) => node.textContent).join() === 'name,sAMAccountName,Status,description,mail,lastLogonTimestamp,whenCreated');
   await rows.first().waitFor();
 
-  for (const [name, id] of [[/^Fields/, '#fields-menu'], [/^Filters/, '#search-menu']]) {
+  for (const [name, id] of [[/^Fields/, '#fields-menu'], [/^Search options/, '#search-menu']]) {
     await page.getByRole('button', { name }).click();
     await page.waitForFunction((selector) => document.querySelector(selector).matches(':popover-open'), id);
     await page.getByRole('button', { name }).click();
@@ -295,7 +295,7 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   }
   const searchMenu = page.locator('#search-menu');
   const requestsBeforeSearch = userRequests.length;
-  await page.getByRole('button', { name: /^Filters/ }).click();
+  await page.getByRole('button', { name: /^Search options/ }).click();
   await searchMenu.locator('summary').click();
   await searchMenu.getByRole('textbox', { name: 'LDAP filter' }).fill('((mail=*)');
   await searchMenu.getByRole('button', { name: 'Apply' }).click();

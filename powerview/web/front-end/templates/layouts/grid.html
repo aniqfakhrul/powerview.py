@@ -11,7 +11,7 @@
     <h1 class="toolbar__title">{{ icon(grid_icon, 'icon type--' ~ grid_icon) }}<span>{{ page.title }}</span></h1>
     <label class="search-field toolbar__search">{{ icon('search') }}<input id="grid-filter" type="search" placeholder="Filter results" aria-label="Filter {{ page.title | lower }}" disabled></label>
     <div class="toolbar__actions">
-      <button id="grid-search" class="button" type="button" title="Search filters" aria-haspopup="dialog" aria-expanded="false" aria-controls="search-menu" popovertarget="search-menu">{{ icon('search') }}<span>Filters</span><span class="fields-trigger__count" data-search-count></span></button>
+      <button id="grid-search" class="button" type="button" title="Search options" aria-haspopup="dialog" aria-expanded="false" aria-controls="search-menu" popovertarget="search-menu">{{ icon('search') }}<span>Search options</span><span class="fields-trigger__count" data-search-count></span></button>
       <button id="grid-fields" class="button fields-trigger" type="button" title="Choose fields" aria-haspopup="dialog" aria-expanded="false" aria-controls="fields-menu" popovertarget="fields-menu">{{ icon('field-desc') }}<span>Fields</span><span class="fields-trigger__count"></span></button>
       {% block grid_actions %}{% endblock %}
       <button id="grid-refresh" class="icon-button" type="button" aria-label="Refresh" title="Refresh">{{ icon('refresh') }}</button>
@@ -26,7 +26,7 @@
         </table>
         <div id="grid-message"></div>
       </div>
-      <footer class="grid-footer"><span id="grid-count"></span></footer>
+      <footer class="grid-footer"><span id="grid-count"></span><button id="grid-clear-filters" class="link-button grid-footer__clear" type="button" hidden>Clear filters</button></footer>
     </div>
     <div id="panel-resizer" class="pane-resizer" role="separator" aria-orientation="vertical" aria-controls="object-panel" aria-label="Resize details" tabindex="0" hidden></div>
     <aside id="object-panel" class="side-panel" aria-label="Details" hidden>
@@ -43,7 +43,8 @@
       <div class="properties" tabindex="-1" data-panel-body></div>
     </aside>
   </div>
-  <div id="search-menu" class="fields-menu search-menu" popover role="dialog" aria-label="Search filters"></div>
+  <div id="search-menu" class="fields-menu search-menu" popover role="dialog" aria-label="Search options"></div>
+  <div id="column-filter" class="fields-menu column-filter" popover role="dialog" aria-label="Column filter"></div>
   <div id="fields-menu" class="fields-menu" popover role="dialog" aria-label="Fields"></div>
   {% block grid_dialogs %}{% endblock %}
 </section>

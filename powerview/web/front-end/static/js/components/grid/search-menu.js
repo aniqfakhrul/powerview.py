@@ -40,7 +40,7 @@ export function createSearchMenu({ trigger, menu, onApply, defaultBase, options 
   function paint() {
     const total = applied.options.length + textKeys.filter((key) => applied[key]).length + Number(applied.scope !== 'SUBTREE');
     count.textContent = total ? String(total) : '';
-    trigger.setAttribute('aria-label', total ? `Filters, ${total} active` : 'Filters');
+    trigger.setAttribute('aria-label', total ? `Search options, ${total} active` : 'Search options');
     trigger.classList.toggle('is-active', total > 0);
   }
 

@@ -18,6 +18,7 @@ const enabledColumn = {
   render: (record) => element('span', isEnabled(record) ? 'state' : 'state state--disabled', isEnabled(record) ? 'Enabled' : 'Disabled'),
   text: (record) => (isEnabled(record) ? 'Enabled' : 'Disabled'),
   sort: (record) => Number(!isEnabled(record)),
+  filter: { type: 'values', choices: ['Enabled', 'Disabled'] },
 };
 
 const findingsColumn = {
@@ -31,6 +32,7 @@ const findingsColumn = {
   },
   text: (record) => findings(record).join('; '),
   sort: (record) => findings(record).length,
+  filter: { type: 'values', values: findings },
 };
 
 export const templateColumns = createColumnSet({

@@ -6,14 +6,18 @@ const ATTRIBUTE_NAME = /^[a-z][a-z0-9-]*$/i;
 
 export const isAttributeName = (name) => ATTRIBUTE_NAME.test(name);
 
+const listed = (name) => (record) => values(attribute(record, name)).map((item) => (typeof item === 'object' ? JSON.stringify(item) : String(item))).filter(Boolean);
+
 export const textColumn = (key, name, hint, width = 200, iconName = 'field-text') => ({
   key, label: name, hint, icon: iconName, width, attributes: [name],
   text: (record) => textValue(attribute(record, name)),
+  filter: { type: 'values', values: listed(name) },
 });
 
 export const dnColumn = (key, name, hint, width = 260) => ({
   key, label: name, hint, icon: 'field-text', width, attributes: [name],
   text: (record) => textValue(attribute(record, name)),
+  filter: { type: 'values', values: listed(name) },
   render: (record) => {
     const dn = values(attribute(record, name)).find((item) => typeof item === 'string');
     if (!dn) return element('span', 'cell-muted', '—');
@@ -29,6 +33,7 @@ export const timeColumn = (key, name, hint) => ({
   key, label: name, hint, icon: 'field-date', width: 190, attributes: [name],
   text: (record) => formatTime(toTime(attribute(record, name))),
   sort: (record) => toTime(attribute(record, name)),
+  filter: { type: 'date', value: (record) => toTime(attribute(record, name)) },
 });
 
 function rangedValues(record, name) {
@@ -56,6 +61,7 @@ export const countColumn = (key, name, hint) => ({
     return cell;
   },
   sort: (record) => rangedValues(record, name).items.length,
+  filter: { type: 'number', value: (record) => rangedValues(record, name).items.length },
 });
 
 export const pill = (text, tone = 'neutral') => (text ? element('span', `state state--${tone}`, text) : element('span', 'cell-muted', '—'));
@@ -65,6 +71,7 @@ export function booleanColumn(key, name, hint) {
   return {
     key, label: name, hint, icon: 'field-class', width: 150, attributes: [name],
     text: (record) => (flag(record) === true ? 'Yes' : flag(record) === false ? 'No' : ''),
+    filter: { type: 'values', choices: ['Yes', 'No'] },
     sort: (record) => (typeof flag(record) === 'boolean' ? Number(flag(record)) : null),
   };
 }
@@ -76,6 +83,7 @@ export const statusColumn = {
   render: (record) => element('span', disabled(record) ? 'state state--disabled' : 'state', disabled(record) ? 'Disabled' : 'Enabled'),
   text: (record) => (disabled(record) ? 'Disabled' : 'Enabled'),
   sort: (record) => Number(disabled(record)),
+  filter: { type: 'values', choices: ['Enabled', 'Disabled'] },
 };
 
 export function nameColumn(iconName) {
@@ -90,12 +98,16 @@ export function nameColumn(iconName) {
   };
 }
 
+function numberValue(record, name) {
+  const raw = values(attribute(record, name))[0];
+  const value = raw == null || raw === '' ? NaN : Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
 const numberColumn = (key, name, hint) => ({
   ...textColumn(key, name, hint),
-  sort: (record) => {
-    const value = Number(values(attribute(record, name))[0]);
-    return Number.isFinite(value) ? value : null;
-  },
+  sort: (record) => numberValue(record, name),
+  filter: { type: 'number', value: (record) => numberValue(record, name) },
 });
 
 const KIND_COLUMNS = { time: timeColumn, dn: dnColumn, integer: numberColumn };
