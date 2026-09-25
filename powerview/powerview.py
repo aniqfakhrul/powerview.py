@@ -2403,10 +2403,10 @@ class PowerView:
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 
-		if args:
-			if args.ldapfilter:
-				logging.debug(f'[Get-DomainGPO] Using additional LDAP filter: {args.ldapfilter}')
-				ldap_filter += f"{args.ldapfilter}"
+		extra_filter = getattr(args, 'ldapfilter', None)
+		if extra_filter:
+			logging.debug(f'[Get-DomainGPO] Using additional LDAP filter: {extra_filter}')
+			ldap_filter += f"{extra_filter}"
 
 		ldap_filter = f'(&(objectCategory=groupPolicyContainer){identity_filter}{ldap_filter})'
 		logging.debug(f'[Get-DomainGPO] LDAP search filter: {ldap_filter}')
@@ -2458,7 +2458,7 @@ class PowerView:
 							new_entries.append(new_dict.copy())
 						else:
 							for i in range(0,len(infobject),2):
-								new_dict['attributes'] = {'GPODisplayName': entry['attributes']['displayName'], 'GPOName': entry['attributes']['name'], 'GPOPath': entry['attributes']['gPCFileSysPath'], 'GroupName':self.convertfrom_sid(infobject[0]['sids']) ,'GroupSID':infobject[i]['sids'],'GroupMemberOf': f"{infobject[i]['memberof']}" if infobject[i]['memberof'] else "{}", 'GroupMembers': f"{infobject[i+1]['members']}" if infobject[i+1]['members'] else "{}"}
+								new_dict['attributes'] = {'GPODisplayName': entry['attributes']['displayName'], 'GPOName': entry['attributes']['name'], 'GPOPath': entry['attributes']['gPCFileSysPath'], 'GroupName':self.convertfrom_sid(infobject[i]['sids']) ,'GroupSID':infobject[i]['sids'],'GroupMemberOf': f"{infobject[i]['memberof']}" if infobject[i]['memberof'] else "{}", 'GroupMembers': f"{infobject[i+1]['members']}" if infobject[i+1]['members'] else "{}"}
 								new_entries.append(new_dict.copy())
 					fh.close()
 				else:
@@ -3640,12 +3640,13 @@ class PowerView:
 		return True
 		
 
-	def add_domaingpo(self, identity, description=None, basedn=None, args=None):
+	def add_domaingpo(self, identity, description=None, basedn=None, linkto=None, args=None):
+		linkto = getattr(args, 'linkto', None) or linkto
 		identity_values = self._resolve_identity_values(identity, args)
 		if len(identity_values) > 1:
 			results = []
 			for ident in identity_values:
-				results.append(self.add_domaingpo(ident, description=description, basedn=basedn, args=args))
+				results.append(self.add_domaingpo(ident, description=description, basedn=basedn, linkto=linkto, args=args))
 			return all(result is True for result in results)
 		identity = identity_values[0] if identity_values else None
 		name = '{%s}' % get_uuid(upper=True)
@@ -3695,11 +3696,7 @@ class PowerView:
 			return False
 
 		logging.debug("[Add-DomainGPO] Writing default GPT.INI file")
-		gpt_ini_content = """[General]
-Version=0
-displayName=New Group Policy Object
-
-"""
+		gpt_ini_content = "[General]\r\nVersion=0\r\ndisplayName=%s\r\n" % identity
 		try:
 			fid = smbconn.createFile(tid, policy_path + "/GPT.ini")
 		except Exception as e:
@@ -3725,17 +3722,26 @@ displayName=New Group Policy Object
 		}
 
 		self.ldap_session.add(dn, ['top','container','groupPolicyContainer'], gpo_data)
-
-		# adding new gplink
-		if args.linkto is not None:
-			self.add_gplink(guid=name, targetidentity=args.linkto)
-
-		if self.ldap_session.result['result'] == 0:
-			logging.info(f"[Add-DomainGPO] Added new {identity} GPO object")
-			return True
-		else:
+		if self.ldap_session.result['result'] != 0:
 			logging.error(f"[Add-DomainGPO] Failed to create {identity} GPO ({self.ldap_session.result['description']})")
+			try:
+				smbconn.deleteFile(share, policy_path + "/GPT.ini")
+				for folder in ("/Machine", "/User", ""):
+					smbconn.deleteDirectory(share, policy_path + folder)
+				logging.debug("[Add-DomainGPO] Removed the SYSVOL folder of the failed GPO")
+			except Exception as e:
+				logging.warning(f"[Add-DomainGPO] Could not remove SYSVOL folder {policy_path}: {e}")
 			return False
+		logging.info(f"[Add-DomainGPO] Added new {identity} GPO object")
+
+		if description:
+			if not self.set_domainobject(dn, _set={'attribute': 'description', 'value': [description]}, searchbase=basedn):
+				logging.warning(f"[Add-DomainGPO] {identity} was created but its description could not be set")
+
+		if linkto:
+			if self.add_gplink(guid=name, targetidentity=linkto) is not True:
+				logging.warning(f"[Add-DomainGPO] {identity} was created but could not be linked to {linkto}")
+		return True
 
 	def add_domainou(self, identity, basedn=None, protected=False, args=None):
 		protected = getattr(args, 'protectedfromaccidentaldeletion', False) or protected
@@ -3825,10 +3831,10 @@ displayName=New Group Policy Object
 		)
 		if len(gpo) > 1:
 			logging.error("[Remove-GPLink] More than one GPO found")
-			return
+			return False
 		elif len(gpo) == 0:
 			logging.error("[Remove-GPLink] GPO not found in domain")
-			return
+			return False
 
 		if isinstance(gpo, list):
 			gpidentity = gpo[0]["attributes"]["distinguishedName"]
@@ -3839,17 +3845,19 @@ displayName=New Group Policy Object
 
 		# verify that the target identity exists
 		target_identity = self.get_domainobject(identity=targetidentity, properties=[
-			'*',
+			'distinguishedName',
+			'gPLink',
 			],
 			searchbase=targetsearchbase,
-			sd_flag=sd_flag
+			sd_flag=sd_flag,
+			no_cache=True
 			)
 		if len(target_identity) > 1:
 			logging.error("[Remove-GPLink] More than one principal identity found")
-			return
+			return False
 		elif len(target_identity) == 0:
 			logging.error("[Remove-GPLink] Principal identity not found in domain")
-			return
+			return False
 
 		if isinstance(target_identity, list):
 			targetidentity_dn = target_identity[0]["attributes"]["distinguishedName"]
@@ -3862,7 +3870,7 @@ displayName=New Group Policy Object
 
 		if not targetidentity_gplink:
 			logging.error("[Remove-GPLink] Principal identity doesn't have any linked GPO")
-			return
+			return False
 
 		# parsing gPLink attribute and remove selected gpo
 		pattern = r"(?<=\[).*?(?=\])"
@@ -3910,10 +3918,10 @@ displayName=New Group Policy Object
 		)
 		if len(gpo) > 1:
 			logging.error("[Add-GPLink] More than one GPO found")
-			return
+			return False
 		elif len(gpo) == 0:
 			logging.error("[Add-GPLink] GPO not found in domain")
-			return
+			return False
 
 		if isinstance(gpo, list):
 			gpidentity_dn = gpo[0]["attributes"]["distinguishedName"]
@@ -3924,17 +3932,19 @@ displayName=New Group Policy Object
 
 		# verify that the target identity exists
 		target_identity = self.get_domainobject(identity=targetidentity, properties=[
-			'*',
+			'distinguishedName',
+			'gPLink',
 			],
 			searchbase=targetsearchbase,
-			sd_flag=sd_flag
+			sd_flag=sd_flag,
+			no_cache=True
 			)
 		if len(target_identity) > 1:
 			logging.error("[Add-GPLink] More than one principal identity found")
-			return
+			return False
 		elif len(target_identity) == 0:
 			logging.error("[Add-GPLink] Principal identity not found in domain")
-			return
+			return False
 
 		if isinstance(target_identity, list):
 			targetidentity_dn = target_identity[0]["attributes"]["distinguishedName"]
@@ -3962,9 +3972,9 @@ displayName=New Group Policy Object
 		gpidentity = "[LDAP://%s;%s]" % (gpidentity_dn, attr)
 
 		if targetidentity_gplink:
-			if gpidentity_dn in targetidentity_gplink:
+			if gpidentity_dn.lower() in targetidentity_gplink.lower():
 				logging.error("[Add-GPLink] gPLink attribute already exists")
-				return
+				return False
 
 			logging.debug("[Add-GPLink] gPLink attribute already populated. Appending new gPLink...")
 			targetidentity_gplink += gpidentity
