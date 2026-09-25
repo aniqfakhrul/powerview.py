@@ -25,7 +25,7 @@ let records = [
       if (path.endsWith('/server/info')) return route.fulfill({ json: { raw: { namingContexts: [root, `DC=DomainDnsZones,${root}`] } } });
       if (path.endsWith('/get/domaindnszone')) return failZones
         ? route.fulfill({ status: 500, json: { error: 'Zone lookup failed' } })
-        : route.fulfill({ json: ['example.test', 'other.test'].map((name) => ({ dn: zoneDN(name), attributes: { name } })) });
+        : route.fulfill({ json: ['_msdcs.example.test', 'example.test', 'other.test'].map((name) => ({ dn: zoneDN(name), attributes: { name } })) });
       if (path.endsWith('/get/domaindnsrecord')) return failRecords
         ? route.fulfill({ status: 500, json: { error: 'Record lookup failed' } })
         : route.fulfill({ json: data.zonename === 'example.test' ? records : [] });
@@ -45,6 +45,8 @@ let records = [
     const rows = page.locator('#grid-body tr[data-dn]');
     await rows.first().waitFor();
     assert.equal(await rows.count(), 3);
+    assert.equal(await page.locator('#dns-zone').inputValue(), 'example.test');
+    assert.equal(new URL(page.url()).searchParams.get('zone'), 'example.test');
     assert.equal(await page.locator('#grid-search').isVisible(), false);
     assert.equal(requests.some(({ path }) => path.includes('/schema/')), false);
     assert.deepEqual((await rows.locator('.cell-name span').allTextContents()).sort(), ['@', '@', '_ldap._tcp'].sort());
@@ -124,6 +126,6 @@ let records = [
       await page.screenshot({ path: `/tmp/dns-${colorScheme}.png` });
     }
     assert.deepEqual(errors, []);
-    console.log('PASS: parsed DNS rows, New record validation and fresh reload, apex protected, node delete lists every record, duplicate node records, apex/SRV names, numeric sorting, filtering, Fields, zone selection, panel closure, failures/retry, fresh reads, no schema lookup, mobile themes.');
+    console.log('PASS: defaults to the domain zone, parsed DNS rows, New record validation and fresh reload, apex protected, node delete lists every record, duplicate node records, apex/SRV names, numeric sorting, filtering, Fields, zone selection, panel closure, failures/retry, fresh reads, no schema lookup, mobile themes.');
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exit(1); });

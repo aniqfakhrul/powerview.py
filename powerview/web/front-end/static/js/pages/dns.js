@@ -24,12 +24,19 @@ function rememberZone() {
 }
 let zonesReady = null;
 
+function domainZone(rootDN) {
+  return splitDN(rootDN ?? '').filter((part) => /^DC=/i.test(part)).map((part) => part.slice(3)).join('.').toLowerCase();
+}
+
 function loadZones(fresh) {
   if (!zonesReady || fresh) {
     select.disabled = true;
-    zonesReady = directory.dnsZones({ fresh }).then((records) => {
+    zonesReady = directory.dnsZones({ fresh }).then(async (records) => {
       const names = [...new Set(records.map(recordName))].sort((a, b) => a.localeCompare(b));
-      if (!names.includes(zone)) zone = names[0] ?? '';
+      if (!names.includes(zone)) {
+        const domain = domainZone(await page.domainReady);
+        zone = names.find((name) => name.toLowerCase() === domain) ?? names[0] ?? '';
+      }
       select.replaceChildren(...names.map((name) => new Option(name, name)));
       if (!names.length) select.append(new Option('No DNS zones', ''));
       select.value = zone;
