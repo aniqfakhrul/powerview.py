@@ -1,10 +1,13 @@
 import { button, element } from '../../core/dom.js';
 import { isAttributeName } from './columns.js';
+import { matchSchema, renderSuggestions } from './schema-suggestions.js';
 
 export function createFieldsMenu({ trigger, menu, columnSet, getKeys, onApply }) {
   const { catalog, defaults, columnFor } = columnSet;
   const label = trigger.querySelector('.fields-trigger__count');
   let draft = [];
+  const catalogAttributes = new Set([columnSet.name, ...catalog].flatMap((column) => column.attributes.map((name) => name.toLowerCase())));
+  let refreshSearch = () => {};
 
   function sameKeys(a, b) {
     return a.length === b.length && a.every((key, index) => key === b[index]);
@@ -31,36 +34,81 @@ export function createFieldsMenu({ trigger, menu, columnSet, getKeys, onApply })
     return row;
   }
 
-  function render() {
+  function excludedFromSuggestions() {
+    const chosen = draft.filter((key) => key.startsWith('attr:')).map((key) => key.slice(5).toLowerCase());
+    return new Set([...catalogAttributes, ...chosen]);
+  }
+
+  function render(query = '') {
     const search = element('input', 'text-input');
-    Object.assign(search, { type: 'search', placeholder: 'Find a field' });
+    Object.assign(search, { type: 'search', placeholder: 'Find a field', value: query });
     search.setAttribute('aria-label', 'Find a field');
     const list = element('div', 'fields-menu__list');
     const custom = draft.filter((key) => key.startsWith('attr:')).map(columnFor).filter(Boolean);
     list.append(...[...catalog, ...custom].map(option));
-    search.addEventListener('input', () => {
-      const query = search.value.trim().toLowerCase();
-      for (const row of list.children) row.hidden = Boolean(query) && !row.dataset.search.includes(query);
-    });
+    const suggestions = element('div', 'fields-menu__suggestions');
+    const applySearch = () => {
+      const text = search.value.trim().toLowerCase();
+      for (const row of list.children) row.hidden = Boolean(text) && !row.dataset.search.includes(text);
+      renderSuggestions(suggestions, {
+        matches: matchSchema(columnSet.schemaAttributes(), text, excludedFromSuggestions()),
+        objectClass: columnSet.objectClass,
+        onPick(attribute) {
+          draft = [...draft, `attr:${attribute.name}`];
+          render(search.value);
+          menu.querySelector('input[type="search"]').focus();
+        },
+      });
+    };
+    search.addEventListener('input', applySearch);
+    refreshSearch = applySearch;
 
+    const manual = element('details', 'fields-menu__manual');
+    manual.append(element('summary', '', 'Add by exact name'));
     const add = element('form', 'fields-menu__add');
     const attributeInput = element('input', 'text-input text-input--mono');
     Object.assign(attributeInput, { placeholder: 'LDAP attribute', spellcheck: false });
     attributeInput.setAttribute('aria-label', 'Add attribute column');
     const addButton = element('button', 'button', 'Add');
     addButton.type = 'submit';
-    const error = element('p', 'form-error');
-    error.hidden = true;
-    add.append(attributeInput, addButton, error);
+    const note = element('p', 'fields-menu__note');
+    note.hidden = true;
+    add.append(attributeInput, addButton, note);
+    manual.append(add);
+    let pendingOverride = '';
+    attributeInput.addEventListener('input', () => {
+      pendingOverride = '';
+      addButton.textContent = 'Add';
+      note.hidden = true;
+    });
+    const explain = (text, override) => {
+      note.textContent = text;
+      note.hidden = false;
+      note.classList.toggle('form-error', !override);
+      if (override) { pendingOverride = override; addButton.textContent = 'Add anyway'; }
+    };
     add.addEventListener('submit', (event) => {
       event.preventDefault();
       const name = attributeInput.value.trim();
-      const known = catalog.find((column) => column.attributes.some((attribute) => attribute.toLowerCase() === name.toLowerCase()));
-      const key = known ? known.key : `attr:${name}`;
-      if (!known && !isAttributeName(name)) { error.textContent = 'Enter an LDAP attribute name, such as telephoneNumber.'; error.hidden = false; return; }
+      const known = [columnSet.name, ...catalog].find((column) => column.attributes.some((attribute) => attribute.toLowerCase() === name.toLowerCase()));
+      if (known === columnSet.name) { explain(`${name} is already shown as the name column.`); return; }
+      if (!known && !isAttributeName(name)) { explain('Enter an LDAP attribute name, for example description.'); return; }
+      const schemaEntry = known ? null : columnSet.schemaAttribute(name);
+      const confirmed = pendingOverride === name.toLowerCase();
+      if (!known && !confirmed && columnSet.schemaAttributes() && !schemaEntry) {
+        explain(`${name} isn't listed for ${columnSet.objectClass} in the schema. Constructed attributes are never listed and usually appear empty in grid searches.`, name.toLowerCase());
+        return;
+      }
+      if (!confirmed && schemaEntry?.kind === 'binary') {
+        explain(`${schemaEntry.name} is returned as raw bytes and may not be readable.`, name.toLowerCase());
+        return;
+      }
+      const key = known ? known.key : `attr:${schemaEntry?.name ?? name}`;
       if (!draft.includes(key)) draft = [...draft, key];
       render();
-      menu.querySelector('.fields-menu__add input')?.focus();
+      const input = menu.querySelector('.fields-menu__add input');
+      input.closest('details').open = true;
+      input.focus();
     });
 
     const footer = element('div', 'fields-menu__footer');
@@ -70,7 +118,8 @@ export function createFieldsMenu({ trigger, menu, columnSet, getKeys, onApply })
     done.addEventListener('click', () => menu.hidePopover());
     footer.append(reset, done);
 
-    menu.replaceChildren(search, list, add, footer);
+    menu.replaceChildren(search, list, suggestions, manual, footer);
+    applySearch();
   }
 
   function place() {
@@ -99,5 +148,8 @@ export function createFieldsMenu({ trigger, menu, columnSet, getKeys, onApply })
   });
 
   paintTrigger();
-  return { refresh: paintTrigger };
+  return {
+    refresh: paintTrigger,
+    schemaChanged() { if (menu.matches(':popover-open')) refreshSearch(); },
+  };
 }

@@ -16,8 +16,8 @@ OCTET_STRING = '1.3.6.1.4.1.1466.115.121.1.40'
 STRING = '1.3.6.1.4.1.1466.115.121.1.15'
 
 
-def attribute(name, syntax=STRING, single=True):
-    return AttributeTypeInfo(name=[name], syntax=syntax, single_value=single)
+def attribute(name, syntax=STRING, single=True, oid=None):
+    return AttributeTypeInfo(oid=oid, name=[name], syntax=syntax, single_value=single)
 
 
 def object_class(name, superior=None, must=(), may=()):
@@ -30,7 +30,7 @@ def fake_schema():
         attribute('objectClass', single=False), attribute('cn'), attribute('description'),
         attribute('whenCreated', GENERALIZED_TIME), attribute('manager', DN),
         attribute('userAccountControl', INTEGER), attribute('pwdLastSet', LARGE_INTEGER),
-        attribute('objectSid', OCTET_STRING), attribute('memberOf', DN, single=False),
+        attribute('objectSid', OCTET_STRING, oid='1.2.840.113556.1.4.146'), attribute('objectGUID', OCTET_STRING, oid='1.2.840.113556.1.4.2'), attribute('userCertificate', OCTET_STRING, single=False), attribute('memberOf', DN, single=False),
         attribute('sAMAccountName'), attribute('mail'), attribute('msLAPS-PasswordExpirationTime', LARGE_INTEGER), attribute('tokenGroups', OCTET_STRING, single=False),
     ):
         attributes[info.name[0]] = info
@@ -38,7 +38,7 @@ def fake_schema():
     for info in (
         object_class('top', must=['objectClass'], may=['description', 'whenCreated']),
         object_class('person', ['top'], must=['cn']),
-        object_class('user', ['person'], may=['manager', 'userAccountControl', 'pwdLastSet', 'objectSid', 'memberOf', 'tokenGroups', 'msLAPS-PasswordExpirationTime']),
+        object_class('user', ['person'], may=['manager', 'userAccountControl', 'pwdLastSet', 'objectSid', 'objectGUID', 'userCertificate', 'memberOf', 'tokenGroups', 'msLAPS-PasswordExpirationTime']),
         object_class('securityPrincipal', may=['sAMAccountName']),
         object_class('mailRecipient', may=['mail']),
     ):
@@ -53,7 +53,7 @@ class SchemaCatalogTests(unittest.TestCase):
         attributes = {item.name: item for item in SchemaCatalog(fake_schema()).class_attributes('USER')}
         self.assertEqual(list(attributes), sorted(attributes, key=str.casefold))
         self.assertEqual(set(attributes), {
-            'cn', 'description', 'mail', 'manager', 'memberOf', 'objectClass', 'objectSid',
+            'cn', 'description', 'mail', 'manager', 'memberOf', 'objectClass', 'objectGUID', 'objectSid', 'userCertificate',
             'pwdLastSet', 'sAMAccountName', 'userAccountControl', 'whenCreated', 'msLAPS-PasswordExpirationTime',
         })
         self.assertEqual(attributes['whenCreated'].kind, 'time')
@@ -61,7 +61,9 @@ class SchemaCatalogTests(unittest.TestCase):
         self.assertEqual(attributes['msLAPS-PasswordExpirationTime'].kind, 'time')
         self.assertEqual(attributes['manager'].kind, 'dn')
         self.assertEqual(attributes['userAccountControl'].kind, 'integer')
-        self.assertEqual(attributes['objectSid'].kind, 'binary')
+        self.assertEqual(attributes['objectSid'].kind, 'sid')
+        self.assertEqual(attributes['objectGUID'].kind, 'guid')
+        self.assertEqual(attributes['userCertificate'].kind, 'binary')
         self.assertEqual(attributes['mail'].kind, 'text')
         self.assertFalse(attributes['memberOf'].single_valued)
         self.assertTrue(attributes['cn'].single_valued)

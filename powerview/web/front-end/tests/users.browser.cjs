@@ -260,6 +260,7 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   await fieldsMenu.getByRole('searchbox', { name: 'Find a field' }).fill('mail');
   assert.equal(await fieldsMenu.locator('.fields-menu__option:not([hidden])').count(), 1);
   await fieldsMenu.getByRole('checkbox', { name: 'mail, Email', exact: true }).uncheck();
+  await fieldsMenu.getByText('Add by exact name').click();
   await fieldsMenu.getByRole('textbox', { name: 'Add attribute column' }).fill('bad name');
   await fieldsMenu.getByRole('button', { name: 'Add', exact: true }).click();
   assert.equal(await fieldsMenu.locator('.form-error').isVisible(), true);

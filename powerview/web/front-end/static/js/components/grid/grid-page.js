@@ -324,6 +324,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     .then((attributes) => {
       if (!attributes) return;
       columnSet.setSchema(attributes);
+      fieldsMenu.schemaChanged();
       if (!columnKeys.some((key) => key.startsWith('attr:'))) return;
       const focusedHeader = document.activeElement?.closest('#grid-head th')?.dataset.key;
       const focusedRow = document.activeElement?.closest('#grid-body tr[data-dn]')?.dataset.dn;

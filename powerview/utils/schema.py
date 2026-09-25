@@ -137,6 +137,20 @@ _CONSTRUCTED_ATTRIBUTES = frozenset(
 )
 
 
+def _readable_binary_kind(oid: str):
+    """Name the text form ldap3 produces for a binary attribute, if any."""
+
+    from ldap3.protocol.formatters import formatters
+    from ldap3.protocol.formatters.standard import standard_formatter
+
+    formatter = (standard_formatter.get(oid) or (None,))[0]
+    if formatter is formatters.format_sid:
+        return "sid"
+    if formatter in (formatters.format_uuid, formatters.format_uuid_le):
+        return "guid"
+    return None
+
+
 @dataclass(frozen=True)
 class SchemaAttribute:
     """An attribute that instances of an object class may carry."""
@@ -202,6 +216,8 @@ class SchemaCatalog:
         kind = _SYNTAX_KINDS.get(syntax, "text")
         if kind == "integer" and canonical.casefold() in _FILETIME_ATTRIBUTES:
             kind = "time"
+        elif kind == "binary" and info is not None and info.oid:
+            kind = _readable_binary_kind(str(info.oid)) or kind
         single = bool(info.single_value) if info is not None else False
         return SchemaAttribute(canonical, kind, single)
 

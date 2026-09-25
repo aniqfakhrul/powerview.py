@@ -14,6 +14,16 @@
 .fields-menu__option input { margin: 0; accent-color: var(--color-accent); }
 .fields-menu__label { font-family: var(--font-mono); font-size: 12px; }
 .fields-menu__hint { margin-left: auto; overflow: hidden; color: var(--color-faint); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.fields-menu__suggestions { display: grid; max-height: 220px; margin: 0 -4px; overflow: auto; }
+.fields-menu__suggestions:empty { display: none; }
+.fields-menu__section { padding: 6px 6px 2px; color: var(--color-faint); font-size: 11px; font-weight: 500; }
+.fields-menu__more { padding: 4px 6px; color: var(--color-faint); font-size: 11px; }
+.fields-menu__option:has(input:disabled) { cursor: default; opacity: .55; }
+.fields-menu__manual { padding-top: 8px; border-top: 1px solid var(--color-border); }
+.fields-menu__manual summary { color: var(--color-muted); font-size: 12px; cursor: pointer; }
+.fields-menu__manual[open] summary { margin-bottom: 6px; }
+.fields-menu__note { grid-column: 1 / -1; color: var(--color-muted); font-size: 12px; overflow-wrap: anywhere; }
+.fields-menu__manual .fields-menu__add { padding-top: 0; border-top: 0; }
 .fields-menu__add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; padding-top: 8px; border-top: 1px solid var(--color-border); }
 .fields-menu__add .form-error { grid-column: 1 / -1; }
 .fields-menu__footer { display: flex; align-items: center; justify-content: space-between; padding-top: 8px; border-top: 1px solid var(--color-border); }
