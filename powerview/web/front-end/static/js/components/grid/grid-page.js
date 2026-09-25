@@ -247,6 +247,26 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     returnFocus = null;
   }
 
+  function removeEntry(dn) {
+    const position = visible.findIndex((entry) => sameDN(entry.dn, dn));
+    const scrollTop = scroller.scrollTop;
+    entries = entries.filter((entry) => !sameDN(entry.dn, dn));
+    selectedDN = '';
+    panelRoot.hidden = true;
+    panelResizer.hidden = true;
+    syncOverlay();
+    remember('');
+    update();
+    scroller.scrollTop = scrollTop;
+    const rows = body.querySelectorAll('tr[data-dn]');
+    const next = rows[Math.min(Math.max(position, 0), rows.length - 1)];
+    if (next) {
+      for (const row of rows) row.tabIndex = row === next ? 0 : -1;
+      next.focus({ preventScroll: true });
+    } else scroller.focus({ preventScroll: true });
+    returnFocus = null;
+  }
+
   function reconcile(record) {
     if (!record) return;
     const updated = entryFromRecord(record);
@@ -269,6 +289,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     scope: (dn) => namingContext(dn, [rootDN]) ?? rootDN,
     onNavigate: select,
     onSaved: async () => reconcile(await panel.open(selectedDN, { fresh: true })),
+    onDeleted: (record) => removeEntry(record.dn),
   });
 
   document.querySelector('#panel-close').addEventListener('click', closePanel);

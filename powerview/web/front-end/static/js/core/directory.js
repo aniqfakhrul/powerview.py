@@ -100,6 +100,7 @@ export function createDirectory(baseURL) {
       mutation: true, body: { identity, destination_dn, searchbase },
     }),
     remove: (identity, searchbase) => request('remove/domainobject', { mutation: true, body: { identity, searchbase } }),
+    account: (action, identity, searchbase) => request(`account/${action}`, { mutation: true, body: { identity, searchbase } }),
     create(type, name, password, basedn) {
       const bodies = {
         user: { username: name, password, basedn },

@@ -3,6 +3,7 @@ import { button, element } from '../../core/dom.js';
 import { createAttributes } from './attributes.js';
 import { membershipCount, renderMembership } from './membership.js';
 import { createSecurity } from './security.js';
+import { createActions } from './actions.js';
 
 const TABS = [
   { key: 'attributes', label: 'Attributes' },
@@ -13,6 +14,17 @@ const TABS = [
 
 export function createObjectPanel({ root, defaultTab = 'attributes', ...options }) {
   const attributes = createAttributes({ root, ...options, reopen: (dn, openOptions) => open(dn, openOptions) });
+  const actionsHost = root.querySelector('[data-panel-actions]');
+  const actions = actionsHost ? createActions({
+    host: actionsHost,
+    directory: options.directory,
+    scope: options.scope,
+    guard: options.guard,
+    canLeave: () => attributes.canLeave(),
+    onChanged: () => options.onSaved(),
+    onDeleted: options.onDeleted,
+    isRoot: options.isRoot,
+  }) : null;
   const body = root.querySelector('[data-panel-body]');
   const filterHost = root.querySelector('[data-panel-filter-host]');
   const tabList = root.querySelector('[data-panel-tabs]');
@@ -116,6 +128,7 @@ export function createObjectPanel({ root, defaultTab = 'attributes', ...options 
     const current = ++generation;
     currentDN = '';
     securityDN = '';
+    actions?.render(null);
     securityFresh = Boolean(openOptions.fresh);
     security.cancel();
     const views = [...tabs.values()].filter(({ definition }) => definition.key !== 'attributes');
@@ -123,6 +136,7 @@ export function createObjectPanel({ root, defaultTab = 'attributes', ...options 
     const record = await attributes.open(dn, openOptions);
     if (current !== generation) return record;
     applicable(record);
+    actions?.render(record);
     currentDN = record ? record.dn : '';
     for (const { definition, panel } of views) {
       if (!record) failed(panel, dn);

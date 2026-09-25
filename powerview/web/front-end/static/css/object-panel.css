@@ -3,6 +3,9 @@
 .object-title h1 { overflow: hidden; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .object-title__type { flex: none; color: var(--color-faint); }
 .object-title .state { flex: none; }
+.panel-actions { display: flex; flex: none; align-items: center; gap: 2px; }
+.panel-actions:empty { display: none; }
+.panel-action--danger:hover { color: var(--color-danger); }
 .object-title__copy { width: 24px; height: 24px; }
 .object-header__filter { flex: none; width: 220px; }
 .properties { flex: 1; min-height: 0; overflow: auto; }
