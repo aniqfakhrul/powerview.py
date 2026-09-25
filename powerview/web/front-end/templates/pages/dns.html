@@ -1,5 +1,24 @@
 {% extends "layouts/grid.html" %}
+{% from "components/icon.html" import icon %}
 {% set grid_icon = "domain" %}
 {% block grid_actions %}
   <select id="dns-zone" class="text-input dns-zone" aria-label="DNS zone" title="DNS zone" disabled><option>Loading zones…</option></select>
+  <button id="dns-new" class="button" type="button" title="New A record" disabled>{{ icon('plus') }}<span>New record</span></button>
+{% endblock %}
+{% block grid_dialogs %}
+  <dialog id="dns-dialog" class="dialog" aria-labelledby="dns-dialog-title" aria-describedby="dns-dialog-zone">
+    <form id="dns-form" method="dialog" novalidate>
+      <h2 id="dns-dialog-title" class="dialog__title">New A record</h2>
+      <div class="dialog__fields">
+        <p id="dns-dialog-zone" class="dialog__context"></p>
+        <label>Name<input id="dns-name" class="text-input" type="text" autocomplete="off" spellcheck="false" placeholder="web01" required></label>
+        <label>IPv4 address<input id="dns-address" class="text-input text-input--mono" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="10.0.0.25" required></label>
+      </div>
+      <p id="dns-error" class="form-error dialog__error" role="alert" hidden></p>
+      <footer class="dialog__footer">
+        <button id="dns-cancel" type="button" class="button">Cancel</button>
+        <button type="submit" class="button button--primary">Create</button>
+      </footer>
+    </form>
+  </dialog>
 {% endblock %}

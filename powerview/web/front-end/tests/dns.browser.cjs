@@ -5,7 +5,7 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
 const root = 'DC=example,DC=test';
 const zoneDN = (zone) => `DC=${zone},CN=MicrosoftDNS,DC=DomainDnsZones,${root}`;
 const record = (node, attributes) => ({ attributes: Object.fromEntries(Object.entries({ distinguishedName: `DC=${node},${zoneDN('example.test')}`, name: node, ...attributes }).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) });
-const records = [
+let records = [
   record('@', { RecordType: 'A', Address: '192.0.2.1', TTL: 600, TimeStamp: 0 }),
   record('@', { RecordType: 'NS', Address: 'ns.example.test.', TTL: 3600 }),
   record('_ldap._tcp', { RecordType: 'SRV', Name: 'dc.example.test.', Port: 389, TTL: 60, Priority: 0, Weight: 100 }),
@@ -22,13 +22,22 @@ const records = [
       requests.push({ path, data });
       if (path.endsWith('/connectioninfo')) return route.fulfill({ json: { status: 'OK', protocol: 'LDAPS' } });
       if (path.endsWith('/get/domaininfo')) return route.fulfill({ json: { root_dn: root } });
-      if (path.endsWith('/server/info')) return route.fulfill({ json: { raw: { namingContexts: [root] } } });
+      if (path.endsWith('/server/info')) return route.fulfill({ json: { raw: { namingContexts: [root, `DC=DomainDnsZones,${root}`] } } });
       if (path.endsWith('/get/domaindnszone')) return failZones
         ? route.fulfill({ status: 500, json: { error: 'Zone lookup failed' } })
         : route.fulfill({ json: ['example.test', 'other.test'].map((name) => ({ dn: zoneDN(name), attributes: { name } })) });
       if (path.endsWith('/get/domaindnsrecord')) return failRecords
         ? route.fulfill({ status: 500, json: { error: 'Record lookup failed' } })
         : route.fulfill({ json: data.zonename === 'example.test' ? records : [] });
+      if (path.endsWith('/add/domaindnsrecord')) {
+        if (records.some((item) => item.attributes.name === data.recordname)) return route.fulfill({ status: 400, json: { error: 'LDAPEntryAlreadyExistsResult - 68 - entryAlreadyExists' } });
+        records = [...records, ...['10.0.0.25', '10.0.0.26'].map((Address) => record(data.recordname, { RecordType: 'A', Address, TTL: 600 }))];
+        return route.fulfill({ json: true });
+      }
+      if (path.endsWith('/remove/domainobject')) {
+        records = records.filter((item) => item.attributes.distinguishedName !== data.identity);
+        return route.fulfill({ json: true });
+      }
       if (path.endsWith('/get/domainobject')) return route.fulfill({ json: [{ dn: data.searchbase, attributes: { name: '@', objectClass: ['dnsNode'] } }] });
       throw new Error(`Unexpected API request: ${path}`);
     });
@@ -55,6 +64,41 @@ const records = [
     assert.equal(new URL(page.url()).searchParams.has('dn'), false);
     await page.locator('#dns-zone').selectOption('example.test');
     await rows.first().waitFor();
+    const mutations = () => requests.filter(({ path }) => /\/(add\/domaindnsrecord|remove\/domainobject)$/.test(path));
+    await page.getByRole('button', { name: 'New record', exact: true }).click();
+    const dialog = page.locator('#dns-dialog');
+    assert.equal(await dialog.locator('#dns-dialog-zone').textContent(), 'example.test');
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('web01');
+    await dialog.getByRole('textbox', { name: 'IPv4 address' }).fill('10.0.0.256');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+    await dialog.getByText(/Enter an IPv4 address/).waitFor();
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('@');
+    await dialog.getByRole('textbox', { name: 'IPv4 address' }).fill('10.0.0.25');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+    await dialog.getByText(/Enter a host name/).waitFor();
+    assert.equal(mutations().length, 0);
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('web01');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+    await page.locator('.toast--success', { hasText: 'Created web01.example.test' }).waitFor();
+    assert.deepEqual(mutations()[0].data, { recordname: 'web01', recordaddress: '10.0.0.25', zonename: 'example.test', no_cache: true });
+    await page.waitForFunction(() => document.querySelectorAll('#grid-body tr[data-dn]').length === 5);
+    await page.getByRole('button', { name: 'New record', exact: true }).click();
+    await dialog.getByRole('textbox', { name: 'Name' }).fill('web01');
+    await dialog.getByRole('textbox', { name: 'IPv4 address' }).fill('10.0.0.27');
+    await dialog.getByRole('button', { name: 'Create' }).click();
+    await dialog.getByText('web01.example.test already exists. Delete it first or choose another name.').waitFor();
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await rows.filter({ hasText: '192.0.2.1' }).click();
+    await page.getByRole('tab', { name: 'Attributes', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Delete object' }).count(), 0);
+    await rows.filter({ hasText: '10.0.0.26' }).click();
+    await page.getByRole('button', { name: 'Delete object' }).click();
+    const confirm = page.getByRole('dialog', { name: 'Delete web01.example.test?' });
+    await confirm.getByText('This removes all 2 records at this name: A 10.0.0.25, A 10.0.0.26.').waitFor();
+    await confirm.getByRole('button', { name: 'Delete', exact: true }).click();
+    await page.locator('.toast--success', { hasText: 'Deleted' }).waitFor();
+    assert.deepEqual(mutations().at(-1).data, { identity: `DC=web01,${zoneDN('example.test')}`, searchbase: `DC=DomainDnsZones,${root}` });
+    assert.equal(await rows.count(), 3);
     await page.locator('#grid-fields').click();
     await page.getByRole('checkbox', { name: /Priority/ }).check();
     await page.getByRole('button', { name: 'Done', exact: true }).click();
@@ -80,6 +124,6 @@ const records = [
       await page.screenshot({ path: `/tmp/dns-${colorScheme}.png` });
     }
     assert.deepEqual(errors, []);
-    console.log('PASS: parsed DNS rows, duplicate node records, apex/SRV names, numeric sorting, filtering, Fields, zone selection, panel closure, failures/retry, fresh reads, no schema lookup, mobile themes.');
+    console.log('PASS: parsed DNS rows, New record validation and fresh reload, apex protected, node delete lists every record, duplicate node records, apex/SRV names, numeric sorting, filtering, Fields, zone selection, panel closure, failures/retry, fresh reads, no schema lookup, mobile themes.');
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exit(1); });

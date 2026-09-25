@@ -105,6 +105,9 @@ export function createDirectory(baseURL) {
     async dnsZones({ signal, fresh = false } = {}) {
       return records(await request('get/domaindnszone', { signal, body: { no_cache: fresh } }));
     },
+    dnsAddRecord: ({ zone, name, address }) => request('add/domaindnsrecord', {
+      mutation: true, body: { recordname: name, recordaddress: address, zonename: zone, no_cache: true },
+    }),
     async dnsRecords(zone, { signal, fresh = false } = {}) {
       const data = await request('get/domaindnsrecord', { signal, body: { zonename: zone, no_cache: fresh } });
       if (!Array.isArray(data)) throw new APIError('The directory returned an unexpected DNS record list. Check the CLI logs.');

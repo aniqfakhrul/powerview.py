@@ -12,7 +12,7 @@ import { createSearchMenu } from './search-menu.js';
 const PAGE_SIZE = 200;
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
-export function createGridPage({ root, endpoint, noun, columnSet, search: searchConfig = {}, fetch: fetchEntries, deletable = true }) {
+export function createGridPage({ root, endpoint, noun, columnSet, search: searchConfig = {}, fetch: fetchEntries, deletable = true, describeRemoval, isProtected = () => false }) {
   const directory = createDirectory(new URL(root.dataset.apiRoot, window.location.origin));
   const scroller = document.querySelector('#grid-scroll');
   const head = document.querySelector('#grid-head');
@@ -321,7 +321,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     directory,
     status,
     guard,
-    scope: (dn) => namingContext(dn, [rootDN]) ?? rootDN,
+    scope: (dn) => namingContext(dn, [rootDN, ...namingContexts]) ?? rootDN,
     onNavigate: select,
     onSaved: async () => {
       const record = await panel.open(selectedDN, { fresh: true });
@@ -329,7 +329,8 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       else reconcile((await readEntry(selectedDN)) ?? record);
     },
     onDeleted: deletable ? (record) => removeEntry(record.dn) : null,
-    isRoot: (dn) => !rootsKnown || [rootDN, ...namingContexts].some((root) => sameDN(root, dn)),
+    isRoot: (dn) => !rootsKnown || isProtected(dn) || [rootDN, ...namingContexts].some((root) => sameDN(root, dn)),
+    describeRemoval: describeRemoval && ((record) => describeRemoval(record, entries.filter((entry) => sameDN(entry.dn, record.dn)))),
   });
 
   document.querySelector('#panel-close').addEventListener('click', closePanel);

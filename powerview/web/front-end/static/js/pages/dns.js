@@ -1,7 +1,9 @@
 import { createGridPage } from '../components/grid/grid-page.js';
-import { createDirectory, recordName } from '../core/directory.js';
-import { splitDN } from '../core/dn.js';
+import { notify } from '../components/notify.js';
+import { createDirectory, recordName, textValue } from '../core/directory.js';
+import { dnLabel, splitDN } from '../core/dn.js';
 import { dnsColumns } from './dns/columns.js';
+import { createNewRecord } from './dns/new-record.js';
 
 const root = document.querySelector('#dns');
 const directory = createDirectory(new URL(root.dataset.apiRoot, window.location.origin));
@@ -33,6 +35,7 @@ function loadZones(fresh) {
       select.value = zone;
       select.disabled = !names.length;
       rememberZone();
+      syncNewButton();
     }).catch((error) => {
       zonesReady = null;
       select.replaceChildren(new Option('Zones unavailable', ''));
@@ -42,12 +45,29 @@ function loadZones(fresh) {
   return zonesReady;
 }
 
+const isApex = (dn) => dnLabel(dn) === '@';
+
+function describeRecord(item) {
+  const type = textValue(item.record.attributes.RecordType);
+  const value = textValue(item.record.attributes.Address) || textValue(item.record.attributes.Name);
+  return [type, value].filter(Boolean).join(' ');
+}
+
 const page = createGridPage({
   root,
   noun: { singular: 'record', plural: 'records' },
   columnSet: dnsColumns,
   search: false,
-  deletable: false,
+  isProtected: isApex,
+  describeRemoval(record, siblings) {
+    const listed = siblings.map(describeRecord).filter(Boolean);
+    return {
+      title: `Delete ${dnLabel(record.dn)}.${zone}?`,
+      message: listed.length > 1
+        ? `This removes all ${listed.length} records at this name: ${listed.join(', ')}.`
+        : `This removes the DNS record${listed.length ? ` ${listed[0]}` : ''} from ${zone}.`,
+    };
+  },
   async fetch({ signal, fresh }) {
     await loadZones(fresh);
     if (signal.aborted) return [];
@@ -55,9 +75,27 @@ const page = createGridPage({
   },
 });
 
+const newButton = document.querySelector('#dns-new');
+const newRecord = createNewRecord({
+  directory,
+  zone: () => zone,
+  async onCreated(name, target) {
+    notify.success(`Created ${name}.${target}`);
+    if (target === zone) await page.reload(true);
+  },
+});
+
+function syncNewButton() {
+  newButton.disabled = !zone;
+  newButton.title = zone ? `New A record in ${zone}` : 'Unavailable until a DNS zone loads';
+}
+
+newButton.addEventListener('click', () => { if (zone) newRecord.open(); });
+
 select.addEventListener('change', () => {
   if (!page.closeDetails()) { select.value = zone; return; }
   zone = select.value;
   rememberZone();
+  syncNewButton();
   page.reload();
 });

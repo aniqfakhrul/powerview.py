@@ -6,7 +6,7 @@ import { notify } from '../notify.js';
 
 const ACCOUNT_TYPES = new Set(['user', 'computer']);
 
-export function createActions({ host, directory, scope, guard, canLeave, onChanged, onDeleted, isRoot = () => false }) {
+export function createActions({ host, directory, scope, guard, canLeave, onChanged, onDeleted, isRoot = () => false, describeRemoval }) {
   let current = null;
 
   async function run(label, perform, after) {
@@ -43,6 +43,7 @@ export function createActions({ host, directory, scope, guard, canLeave, onChang
       message: 'This permanently removes the object from the directory.',
       confirmLabel: 'Delete',
       danger: true,
+      ...(describeRemoval?.(record) ?? {}),
     });
     if (!confirmed || isRoot(record.dn)) return;
     await run(`Deleted ${recordName(record)}`, () => directory.remove(record.dn, scope(record.dn)), () => onDeleted(record));
