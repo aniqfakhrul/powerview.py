@@ -30,6 +30,13 @@ export function createMemberPicker({ directory, groupsOnly, submitLabel, onSubmi
   let chosen = null;
   let timer;
   let controller;
+  let submitting = false;
+
+  function stopSearch() {
+    clearTimeout(timer);
+    controller?.abort();
+    controller = null;
+  }
 
   function fail(message) {
     error.textContent = message;
@@ -51,6 +58,7 @@ export function createMemberPicker({ directory, groupsOnly, submitLabel, onSubmi
   }
 
   function choose(record) {
+    stopSearch();
     chosen = { dn: record.dn, label: recordName(record) };
     input.value = record.dn;
     showSuggestions([]);
@@ -60,16 +68,18 @@ export function createMemberPicker({ directory, groupsOnly, submitLabel, onSubmi
   input.addEventListener('input', () => {
     chosen = null;
     fail('');
-    clearTimeout(timer);
-    controller?.abort();
+    stopSearch();
+    showSuggestions([]);
     const text = input.value.trim();
-    if (text.length < MIN_QUERY || isDN(text)) { showSuggestions([]); return; }
+    if (text.length < MIN_QUERY || isDN(text)) return;
     timer = setTimeout(async () => {
-      controller = new AbortController();
+      const search = new AbortController();
+      controller = search;
       try {
-        showSuggestions(await directory.findObjects(text, { groupsOnly, signal: controller.signal }));
+        const results = await directory.findObjects(text, { groupsOnly, signal: search.signal });
+        if (controller === search) showSuggestions(results);
       } catch (failure) {
-        if (failure.name !== 'AbortError') showSuggestions([]);
+        if (failure.name !== 'AbortError' && controller === search) fail(`Search failed: ${failure.message}`);
       }
     }, SEARCH_DELAY);
   });
@@ -83,9 +93,12 @@ export function createMemberPicker({ directory, groupsOnly, submitLabel, onSubmi
     if (event.key === 'ArrowUp') { event.preventDefault(); (current?.previousElementSibling ?? input).focus(); }
   });
   form.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onCancel(); }
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!submitting) onCancel();
   });
-  cancel.addEventListener('click', onCancel);
+  cancel.addEventListener('click', () => { if (!submitting) onCancel(); });
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -93,13 +106,22 @@ export function createMemberPicker({ directory, groupsOnly, submitLabel, onSubmi
     const target = chosen ?? (isDN(text) ? { dn: text, label: text } : null);
     if (!target) { fail('Choose a suggestion or enter a full distinguished name.'); return; }
     fail('');
+    stopSearch();
+    submitting = true;
+    form.setAttribute('aria-busy', 'true');
     for (const control of form.querySelectorAll('button, input')) control.disabled = true;
     const ok = await onSubmit(target, fail);
-    if (!ok) for (const control of form.querySelectorAll('button, input')) control.disabled = false;
+    submitting = false;
+    form.setAttribute('aria-busy', 'false');
+    if (!ok) {
+      for (const control of form.querySelectorAll('button, input')) control.disabled = false;
+      input.focus();
+    }
   });
 
   return {
     element: form,
+    busy: () => submitting,
     focus: () => input.focus(),
   };
 }

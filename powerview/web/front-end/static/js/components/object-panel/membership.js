@@ -25,12 +25,17 @@ export function renderMembership(container, record, name, { onNavigate, noun, ed
 
   const pickerHost = element('div', 'membership__picker');
   let addButton;
+  let picker = null;
   function openPicker() {
-    const picker = createMemberPicker({
+    if (picker?.element.isConnected) {
+      if (!picker.busy()) picker.focus();
+      return;
+    }
+    picker = createMemberPicker({
       directory,
       groupsOnly: editor.groupsOnly,
       submitLabel: editor.addLabel,
-      onCancel: () => { pickerHost.replaceChildren(); addButton?.focus(); },
+      onCancel: () => { pickerHost.replaceChildren(); picker = null; addButton?.focus(); },
       onSubmit: (target, fail) => editor.add(target, fail),
     });
     pickerHost.replaceChildren(picker.element);
