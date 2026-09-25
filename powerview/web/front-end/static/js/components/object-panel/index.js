@@ -2,6 +2,7 @@ import { objectType } from '../../core/directory.js';
 import { button, element } from '../../core/dom.js';
 import { createAttributes } from './attributes.js';
 import { membershipCount, renderMembership } from './membership.js';
+import { createMembershipEditor } from './membership-actions.js';
 import { createSecurity } from './security.js';
 import { createActions } from './actions.js';
 
@@ -141,7 +142,17 @@ export function createObjectPanel({ root, defaultTab = 'attributes', ...options 
     for (const { definition, panel } of views) {
       if (!record) failed(panel, dn);
       else if (definition.lazy) panel.replaceChildren();
-      else renderMembership(panel, record, definition.attribute, { ...options, noun: definition.noun });
+      else {
+        const editor = createMembershipEditor({
+          tab: definition.key,
+          record,
+          directory: options.directory,
+          guard: options.guard,
+          canLeave: () => attributes.canLeave(),
+          onChanged: () => options.onSaved(),
+        });
+        renderMembership(panel, record, definition.attribute, { ...options, noun: definition.noun, editor });
+      }
     }
     show(preferred);
     return record;

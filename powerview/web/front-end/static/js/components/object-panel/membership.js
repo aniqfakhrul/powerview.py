@@ -1,6 +1,7 @@
 import { dnLabel, parentDN } from '../../core/dn.js';
 import { values } from '../../core/directory.js';
-import { element, icon } from '../../core/dom.js';
+import { button, element, icon } from '../../core/dom.js';
+import { createMemberPicker } from './member-picker.js';
 
 const PAGE_SIZE = 200;
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
@@ -17,15 +18,34 @@ export function membershipCount(record, name) {
   return entries(record, name).dns.length;
 }
 
-export function renderMembership(container, record, name, { onNavigate, noun }) {
+export function renderMembership(container, record, name, { onNavigate, noun, editor, directory }) {
   const { dns, partial } = entries(record, name);
   const items = dns.map((dn) => ({ dn, label: dnLabel(dn), path: parentDN(dn) }))
     .sort((a, b) => collator.compare(a.label, b.label));
 
+  const pickerHost = element('div', 'membership__picker');
+  let addButton;
+  function openPicker() {
+    const picker = createMemberPicker({
+      directory,
+      groupsOnly: editor.groupsOnly,
+      submitLabel: editor.addLabel,
+      onCancel: () => { pickerHost.replaceChildren(); addButton?.focus(); },
+      onSubmit: (target, fail) => editor.add(target, fail),
+    });
+    pickerHost.replaceChildren(picker.element);
+    picker.focus();
+  }
+  if (editor) {
+    addButton = button(editor.addLabel, { iconName: 'plus', className: 'button membership__add' });
+    addButton.addEventListener('click', openPicker);
+  }
+
   if (!items.length) {
     const empty = element('div', 'panel-message');
     empty.append(element('h2', '', `No ${noun}`), element('p', '', 'The directory returned no values for this object.'));
-    container.replaceChildren(empty);
+    if (addButton) empty.append(addButton);
+    container.replaceChildren(pickerHost, empty);
     return;
   }
 
@@ -37,6 +57,7 @@ export function renderMembership(container, record, name, { onNavigate, noun }) 
   search.append(icon('search'), input);
   const count = element('span', 'membership__count');
   toolbar.append(search, count);
+  if (addButton) toolbar.append(addButton);
 
   const notes = [];
   if (partial) notes.push(element('p', 'membership__note', 'The directory returned a partial list; large groups may have more members than shown.'));
@@ -55,6 +76,12 @@ export function renderMembership(container, record, name, { onNavigate, noun }) 
     link.append(icon('object'), element('span', 'membership__name', item.label), element('span', 'membership__path', item.path));
     link.addEventListener('click', () => onNavigate(item.dn));
     li.append(link);
+    if (editor) {
+      const remove = button('', { iconName: 'minus', className: 'icon-button membership__remove', ariaLabel: `${editor.removeLabel} ${item.label}` });
+      remove.title = `${editor.removeLabel} ${item.label}`;
+      remove.addEventListener('click', () => editor.remove(item));
+      li.append(remove);
+    }
     return li;
   }
 
@@ -80,6 +107,6 @@ export function renderMembership(container, record, name, { onNavigate, noun }) 
   input.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && input.value) { event.preventDefault(); input.value = ''; update(); }
   });
-  container.replaceChildren(toolbar, ...notes, list, more);
+  container.replaceChildren(toolbar, pickerHost, ...notes, list, more);
   update();
 }

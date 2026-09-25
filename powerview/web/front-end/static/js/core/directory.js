@@ -100,6 +100,17 @@ export function createDirectory(baseURL) {
       mutation: true, body: { identity, destination_dn, searchbase },
     }),
     remove: (identity, searchbase) => request('remove/domainobject', { mutation: true, body: { identity, searchbase } }),
+    groupMember: (action, group, member) => request(`${action}/domaingroupmember`, { mutation: true, body: { identity: group, members: member } }),
+    async findObjects(text, { groupsOnly = false, signal } = {}) {
+      const escaped = text.replace(/[\\*()\0]/g, (character) => `\\${character.charCodeAt(0).toString(16).padStart(2, '0')}`);
+      const match = `(|(name=${escaped}*)(sAMAccountName=${escaped}*))`;
+      const data = await request('get/domainobject', { signal, body: {
+        properties: ['name', 'objectClass', 'sAMAccountName'],
+        ldap_filter: groupsOnly ? `(&(objectCategory=group)${match})` : `(&(|(objectCategory=person)(objectCategory=group)(objectCategory=computer))${match})`,
+        raw: true, no_vuln_check: true,
+      } });
+      return records(data);
+    },
     account: (action, identity, searchbase) => request(`account/${action}`, { mutation: true, body: { identity, searchbase } }),
     create(type, name, password, basedn) {
       const bodies = {
