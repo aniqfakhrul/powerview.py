@@ -52,6 +52,7 @@ textarea.text-input { height: auto; padding: 5px 8px; resize: vertical; }
 .dialog__context { color: var(--color-muted); font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
 .dialog__fields label { display: grid; gap: 4px; color: var(--color-muted); font-size: 12px; }
 .dialog__fields label .text-input { color: var(--color-text); font-size: 13px; }
+.dialog__fields label.dialog__check { display: flex; align-items: center; gap: 8px; color: var(--color-text); font-size: 13px; }
 #dialog-error, .dialog__error { padding: 0 16px 12px; }
 .dialog__footer { display: flex; justify-content: flex-end; gap: 6px; padding: 10px 16px; border-top: 1px solid var(--color-border); }
 @media (prefers-reduced-motion: reduce) { .dialog[open] { animation: none; } }

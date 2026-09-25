@@ -67,7 +67,7 @@ test('directory edits use structured values and OU creation supplies required ar
     await directory.edit('CN=A,DC=test', 'DC=test', '_set', 'description', ['a,b=c', 'line\nbreak']);
     assert.deepEqual(bodies[0]._set, { attribute: 'description', value: ['a,b=c', 'line\nbreak'] });
     await directory.create('ou', 'People', '', 'DC=test');
-    assert.deepEqual(bodies[1].args, { protectedfromaccidentaldeletion: false });
+    assert.deepEqual(bodies[1], { identity: 'People', basedn: 'DC=test', protected: false });
     assert.throws(() => directory.edit('CN=A', 'DC=test', '_set', 'description', ['@file']), /file/);
     assert.equal(bodies.length, 2);
   } finally { globalThis.fetch = original; }

@@ -1,0 +1,21 @@
+{% extends "layouts/grid.html" %}
+{% from "components/icon.html" import icon %}
+{% set grid_icon = "ou" %}
+{% block grid_actions %}<button id="ou-new" class="button" type="button" title="New organizational unit" disabled>{{ icon('plus') }}<span>New OU</span></button>{% endblock %}
+{% block grid_dialogs %}
+  <dialog id="ou-dialog" class="dialog" aria-labelledby="ou-dialog-title">
+    <form id="ou-form" method="dialog">
+      <h2 id="ou-dialog-title" class="dialog__title">New organizational unit</h2>
+      <div class="dialog__fields">
+        <label>Name<input id="ou-name" class="text-input" type="text" autocomplete="off" spellcheck="false" required></label>
+        <label>Container<input id="ou-container" class="text-input text-input--mono" type="text" autocomplete="off" spellcheck="false" required></label>
+        <label class="dialog__check"><input id="ou-protect" type="checkbox"><span>Protect from accidental deletion</span></label>
+      </div>
+      <p id="ou-error" class="form-error dialog__error" role="alert" hidden></p>
+      <footer class="dialog__footer">
+        <button id="ou-cancel" type="button" class="button">Cancel</button>
+        <button type="submit" class="button button--primary">Create</button>
+      </footer>
+    </form>
+  </dialog>
+{% endblock %}

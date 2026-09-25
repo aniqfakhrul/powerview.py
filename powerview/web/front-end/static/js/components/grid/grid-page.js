@@ -543,6 +543,10 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     domainReady,
     rootDN: () => rootDN,
     reload: (fresh = false) => load(fresh),
+    rerender() {
+      if (!filter.disabled) update();
+      panel.refreshSummary();
+    },
     closeDetails() {
       if (!panel.canLeave()) return false;
       closePanel();

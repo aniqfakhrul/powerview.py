@@ -125,6 +125,10 @@ export function createDirectory(baseURL) {
     dnsSetRecord: ({ zone, dn, oldAddress, address }) => request('set/domaindnsrecord', {
       mutation: true, body: { recordname: dn, recordaddress: address, oldaddress: oldAddress, zonename: zone },
     }),
+    async gpoNames({ signal, fresh = false } = {}) {
+      const data = await request('get/domaingpo', { signal, body: { properties: ['name', 'displayName'], no_cache: fresh } });
+      return new Map(records(data).map((record) => [textValue(attribute(record, 'name')).toLowerCase(), textValue(attribute(record, 'displayName'))]));
+    },
     async dnsRecords(zone, { signal, fresh = false } = {}) {
       const data = await request('get/domaindnsrecord', { signal, body: { zonename: zone, no_cache: fresh } });
       return withDN(data, 'DNS record list').map((record) => ({ dn: record.dn, name: dnLabel(record.dn), record }));
@@ -140,11 +144,11 @@ export function createDirectory(baseURL) {
       return records(data);
     },
     account: (action, identity, searchbase) => request(`account/${action}`, { mutation: true, body: { identity, searchbase } }),
-    create(type, name, password, basedn) {
+    create(type, name, password, basedn, { protected: protect = false } = {}) {
       const bodies = {
         user: { username: name, password, basedn },
         group: { groupname: name, basedn },
-        ou: { identity: name, basedn, args: { protectedfromaccidentaldeletion: false } },
+        ou: { identity: name, basedn, protected: protect },
       };
       if (!bodies[type]) throw new Error('Unsupported object type.');
       return request(`add/domain${type}`, { mutation: true, body: bodies[type] });
