@@ -16,10 +16,11 @@ const gpos = [
   { dn: `CN=${guid('2')},${root}`, attributes: { name: guid('2'), displayName: 'Policy Two' } },
 ];
 
-async function open(browser, { gpoFails = false } = {}) {
+async function open(browser, { gpoFails = false, gpoGate = null, protectFails = false, columns = null } = {}) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 800 } });
   const state = { errors: [], lists: [], writes: [] };
   page.on('pageerror', (error) => state.errors.push(error.message));
+  if (columns) await page.addInitScript((keys) => localStorage.setItem('powerview.ou.columns', JSON.stringify(keys)), columns);
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     const data = route.request().postDataJSON();
@@ -27,6 +28,11 @@ async function open(browser, { gpoFails = false } = {}) {
     if (path.endsWith('/connectioninfo')) return route.fulfill({ json: { status: 'OK' } });
     if (path.endsWith('/server/info')) return route.fulfill({ json: { raw: { namingContexts: [root] } } });
     if (path.endsWith('/schema/attributes')) return route.fulfill({ json: { available: false } });
+    if (path.endsWith('/get/domaingpo') && gpoGate) await gpoGate;
+    if (path.endsWith('/add/domainobjectacl')) {
+      state.writes.push({ acl: data });
+      return protectFails ? route.fulfill({ status: 400, json: { error: 'Insufficient access rights' } }) : route.fulfill({ json: true });
+    }
     if (path.endsWith('/get/domaingpo')) return gpoFails ? route.fulfill({ status: 500, json: { error: 'GPO lookup failed' } }) : route.fulfill({ json: gpos });
     if (path.endsWith('/get/domainou')) {
       state.lists.push(data);
@@ -81,7 +87,7 @@ async function open(browser, { gpoFails = false } = {}) {
     await page.locator('#panel-close').click();
 
     await page.getByRole('button', { name: /^Search options/ }).click();
-    await page.locator('#search-menu').getByLabel('Writable by me').check();
+    await page.locator('#search-menu').getByLabel('Has delegated write access').check();
     const searched = page.waitForResponse((response) => response.url().endsWith('/get/domainou'));
     await page.locator('#search-menu').getByRole('button', { name: 'Apply' }).click();
     await searched;
@@ -103,7 +109,10 @@ async function open(browser, { gpoFails = false } = {}) {
     await dialog.locator('#ou-protect').check();
     await dialog.getByRole('button', { name: 'Create' }).click();
     await page.locator('.toast--success', { hasText: 'Created Delta' }).waitFor();
-    assert.deepEqual(state.writes, [{ identity: 'Delta', basedn: root, protected: true }]);
+    assert.deepEqual(state.writes, [
+      { identity: 'Delta', basedn: root },
+      { acl: { targetidentity: `OU=Delta,${root}`, principalidentity: 'Everyone', rights: 'immutable', ace_type: 'denied' } },
+    ]);
     await rows.filter({ hasText: 'Delta' }).waitFor();
 
     await page.setViewportSize({ width: 390, height: 844 });
@@ -116,6 +125,48 @@ async function open(browser, { gpoFails = false } = {}) {
     assert.match(await fallback.page.locator('#grid-body tr', { hasText: 'Alpha' }).innerText(), new RegExp(guid('1').replace(/[{}]/g, '\\$&')));
     assert.deepEqual(fallback.state.errors, []);
 
-    console.log('PASS: OU columns and properties, GPO names with enforced/disabled links and unresolved GUIDs, inheritance, parent path, GPO filter by name, Policy tab, delete guidance, Writable by me search, New OU validation and protection flag, GUID fallback when GPOs fail, mobile overflow.');
+    const gated = {};
+    gated.wait = new Promise((resolve) => { gated.release = resolve; });
+    const early = await open(browser, { gpoGate: gated.wait, protectFails: true, columns: ['parent'] });
+    const earlyRows = early.page.locator('#grid-body tr[data-dn]');
+    await early.page.locator('#grid-fields').click();
+    await early.page.getByRole('checkbox', { name: /^Linked GPOs/ }).check();
+    await early.page.getByRole('button', { name: 'Done', exact: true }).click();
+    await early.page.locator('th[data-key="gpos"] .column-filter-trigger').click();
+    const earlyMenu = early.page.locator('#column-filter');
+    assert.equal(await earlyMenu.getByText('Policy One', { exact: true }).count(), 0);
+    await earlyMenu.locator('.column-filter__all input').uncheck();
+    await earlyMenu.getByText(guid('1'), { exact: true }).click();
+    await early.page.keyboard.press('Escape');
+    assert.deepEqual(await earlyRows.locator('.cell-name span').allTextContents(), ['Alpha']);
+    gated.release();
+    await early.page.waitForFunction(() => document.querySelector('#grid-body').innerText.includes('Policy One'));
+    assert.deepEqual(await earlyRows.locator('.cell-name span').allTextContents(), ['Alpha']);
+    await early.page.locator('th[data-key="gpos"] .column-filter-trigger').click();
+    assert.equal(await earlyMenu.locator('label', { hasText: 'Policy One' }).locator('input').isChecked(), true);
+    await early.page.keyboard.press('Escape');
+    await early.page.locator('#grid-clear-filters').click();
+
+    await early.page.locator('#grid-fields').click();
+    await early.page.getByRole('checkbox', { name: /^Linked GPOs/ }).uncheck();
+    await early.page.getByRole('button', { name: 'Done', exact: true }).click();
+    await early.page.locator('th[data-key="gpos"]').waitFor({ state: 'detached' });
+    await early.page.locator(`#grid-body tr[data-dn="OU=Bravo,${root}"]`).click();
+    await early.page.getByRole('tab', { name: 'Policy', exact: true }).click();
+    const earlyPolicy = early.page.locator('#object-panel .properties:visible');
+    await earlyPolicy.getByText('Policy Two', { exact: true }).waitFor();
+    assert.match(await earlyPolicy.innerText(), /Inheritance\s+Blocked/);
+    await early.page.locator('#panel-close').click();
+
+    await early.page.getByRole('button', { name: 'New OU', exact: true }).click();
+    await early.page.locator('#ou-name').fill('Echo');
+    await early.page.locator('#ou-protect').check();
+    await early.page.locator('#ou-form button[type="submit"]').click();
+    await early.page.locator('.toast--warn', { hasText: 'Created Echo, but it could not be protected from accidental deletion.' }).waitFor();
+    assert.equal(await early.page.locator('#ou-dialog').evaluate((node) => node.open), false);
+    await earlyRows.filter({ hasText: 'Echo' }).waitFor();
+    assert.deepEqual(early.state.errors, []);
+
+    console.log('PASS: GPO filter selections keep matching after names load, Policy tab reads the full object with columns hidden, partial success when protection fails, OU columns and properties, GPO names with enforced/disabled links and unresolved GUIDs, inheritance, parent path, GPO filter by name, Policy tab, delete guidance, Writable by me search, New OU validation and protection flag, GUID fallback when GPOs fail, mobile overflow.');
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exit(1); });

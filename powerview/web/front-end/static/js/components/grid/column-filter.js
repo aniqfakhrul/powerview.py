@@ -17,7 +17,7 @@ export function filterSpec(column) {
     const text = column.text(record, entry);
     return text ? [text] : [];
   });
-  return { type: 'values', values, choices: column.filter?.choices ?? [] };
+  return { type: 'values', values, choices: column.filter?.choices ?? [], label: column.filter?.label ?? ((token) => token) };
 }
 
 function tokens(spec, entry) {
@@ -96,7 +96,8 @@ export function createColumnFilter({ menu, onChange }) {
     if (state?.type === 'values') for (const token of state.set) if (!counts.has(token)) counts.set(token, 0);
     for (const choice of spec.choices) if (!counts.has(choice)) counts.set(choice, 0);
     const rank = (token) => (spec.choices.includes(token) ? spec.choices.indexOf(token) : token === EMPTY ? Infinity : spec.choices.length);
-    const all = [...counts.keys()].sort((a, b) => rank(a) - rank(b) || collator.compare(a, b));
+    const label = (token) => (token === EMPTY ? '(Empty)' : spec.label(token));
+    const all = [...counts.keys()].sort((a, b) => rank(a) - rank(b) || collator.compare(label(a), label(b)));
     let draft = state?.type === 'values' ? { type: 'values', mode: state.mode, set: new Set(state.set) } : { type: 'values', mode: 'exclude', set: new Set() };
     const checked = (token) => (draft.mode === 'include' ? draft.set.has(token) : !draft.set.has(token));
     const setChecked = (token, on) => {
@@ -122,7 +123,7 @@ export function createColumnFilter({ menu, onChange }) {
 
     const matching = () => {
       const text = search.value.trim().toLocaleLowerCase();
-      return text ? all.filter((token) => (token === EMPTY ? '(empty)' : token.toLocaleLowerCase()).includes(text)) : all;
+      return text ? all.filter((token) => label(token).toLocaleLowerCase().includes(text)) : all;
     };
     const paintAll = (shown) => {
       const on = shown.filter(checked).length;
@@ -137,7 +138,7 @@ export function createColumnFilter({ menu, onChange }) {
         box.type = 'checkbox';
         box.checked = checked(token);
         box.addEventListener('change', () => { setChecked(token, box.checked); paintAll(matching()); commit(); });
-        row.append(box, element('span', token === EMPTY ? 'fields-menu__label cell-muted' : 'fields-menu__label', token === EMPTY ? '(Empty)' : token), element('span', 'fields-menu__hint', String(counts.get(token))));
+        row.append(box, element('span', token === EMPTY ? 'fields-menu__label cell-muted' : 'fields-menu__label', label(token)), element('span', 'fields-menu__hint', String(counts.get(token))));
         return row;
       }));
       note.hidden = shown.length <= LIST_LIMIT;

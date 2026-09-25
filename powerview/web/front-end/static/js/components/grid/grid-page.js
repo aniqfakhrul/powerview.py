@@ -389,7 +389,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   const guard = createMutationGuard({ onBlocked: () => notify.info('Wait for the current change to finish.') });
   const panel = createObjectPanel({
     root: panelRoot,
-    summary: summary && { label: summary.label, render: (panel, dn) => summary.render(panel, entries.find((entry) => sameDN(entry.dn, dn))) },
+    summary: summary && { label: summary.label, render: (panel, record) => summary.render(panel, entries.find((entry) => sameDN(entry.dn, record.dn)), record) },
     directory,
     status,
     guard,

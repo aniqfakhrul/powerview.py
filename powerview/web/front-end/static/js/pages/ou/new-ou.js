@@ -29,7 +29,7 @@ export function createNewOU({ directory, defaultContainer, onCreated }) {
     try {
       assertPlainName(ouName);
       if (!basedn) throw new Error('Enter the container distinguished name.');
-      const created = await directory.create('ou', ouName, '', basedn, { protected: protect.checked });
+      const created = await directory.create('ou', ouName, '', basedn);
       if (created !== true) throw new Error('The directory did not create the OU. It may already exist; check the CLI logs.');
     } catch (failure) {
       fail(failure.message);
@@ -39,7 +39,16 @@ export function createNewOU({ directory, defaultContainer, onCreated }) {
       setBusy(form, false);
     }
     dialog.close();
-    await onCreated(ouName, basedn);
+    let unprotected = '';
+    if (protect.checked) {
+      try {
+        const protectedResult = await directory.protectFromDeletion(`OU=${ouName},${basedn}`);
+        if (protectedResult !== true) unprotected = 'The directory did not confirm the change.';
+      } catch (failure) {
+        unprotected = failure.message;
+      }
+    }
+    await onCreated(ouName, basedn, unprotected);
   });
 
   return {

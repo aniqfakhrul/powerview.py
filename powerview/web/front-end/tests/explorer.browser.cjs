@@ -82,7 +82,7 @@ const connection = { domain: 'example.test', ldap_address: '10.0.0.10', nameserv
   await dialog.getByRole('textbox', { name: 'Name', exact: true }).fill('Test OU');
   await dialog.getByRole('button', { name: 'Create', exact: true }).click();
   await page.waitForFunction(() => !document.querySelector('#object-dialog').open);
-  assert.equal(writes.at(-1).data.protected, false);
+  assert.equal('protected' in writes.at(-1).data, false);
   assert.equal(writes.at(-1).data.basedn, peopleDN);
 
   await select('Person 000');

@@ -125,6 +125,9 @@ export function createDirectory(baseURL) {
     dnsSetRecord: ({ zone, dn, oldAddress, address }) => request('set/domaindnsrecord', {
       mutation: true, body: { recordname: dn, recordaddress: address, oldaddress: oldAddress, zonename: zone },
     }),
+    protectFromDeletion: (dn) => request('add/domainobjectacl', {
+      mutation: true, body: { targetidentity: dn, principalidentity: 'Everyone', rights: 'immutable', ace_type: 'denied' },
+    }),
     async gpoNames({ signal, fresh = false } = {}) {
       const data = await request('get/domaingpo', { signal, body: { properties: ['name', 'displayName'], no_cache: fresh } });
       return new Map(records(data).map((record) => [textValue(attribute(record, 'name')).toLowerCase(), textValue(attribute(record, 'displayName'))]));
@@ -144,11 +147,11 @@ export function createDirectory(baseURL) {
       return records(data);
     },
     account: (action, identity, searchbase) => request(`account/${action}`, { mutation: true, body: { identity, searchbase } }),
-    create(type, name, password, basedn, { protected: protect = false } = {}) {
+    create(type, name, password, basedn) {
       const bodies = {
         user: { username: name, password, basedn },
         group: { groupname: name, basedn },
-        ou: { identity: name, basedn, protected: protect },
+        ou: { identity: name, basedn },
       };
       if (!bodies[type]) throw new Error('Unsupported object type.');
       return request(`add/domain${type}`, { mutation: true, body: bodies[type] });

@@ -30,7 +30,11 @@ const gpoColumn = {
   key: 'gpos', label: 'Linked GPOs', hint: 'From gPLink, with enforced and disabled links marked', icon: 'policy', width: 320, attributes: ['gPLink'],
   text: (record) => gpoLinks(record).map(linkText).join('; '),
   sort: (record) => gpoLinks(record).length,
-  filter: { type: 'values', values: (record) => gpoLinks(record).map((link) => link.name) },
+  filter: {
+    type: 'values',
+    values: (record) => gpoLinks(record).map((link) => link.guid.toLowerCase()),
+    label: (guid) => gpoNames.get(guid) || guid.toUpperCase(),
+  },
 };
 
 const inheritanceColumn = {

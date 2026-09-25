@@ -144,7 +144,7 @@ export function createObjectPanel({ root, defaultTab = 'attributes', summary, ..
     currentDN = record ? record.dn : '';
     for (const { definition, panel } of views) {
       if (!record) failed(panel, dn);
-      else if (definition.key === 'summary') summary.render(panel, record.dn);
+      else if (definition.key === 'summary') summary.render(panel, record);
       else if (definition.lazy) panel.replaceChildren();
       else {
         const editor = createMembershipEditor({
@@ -165,7 +165,8 @@ export function createObjectPanel({ root, defaultTab = 'attributes', summary, ..
   applicable(null);
   show(active);
   function refreshSummary() {
-    if (summary && currentDN) summary.render(tabs.get('summary').panel, currentDN);
+    const record = attributes.current();
+    if (summary && currentDN && record) summary.render(tabs.get('summary').panel, record);
   }
 
   return { ...attributes, open, show: choose, refreshSummary, refreshActions: () => actions?.render(attributes.current()) };
