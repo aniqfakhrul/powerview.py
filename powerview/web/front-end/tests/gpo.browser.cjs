@@ -126,7 +126,49 @@ async function open(browser, { linkFails = false } = {}) {
     assert.deepEqual(state.errors, []);
     await page.close();
 
+    // A response from the previous selection must not replace the current panel.
+    for (const status of [200, 500]) {
+      const switching = await open(browser);
+      const current = switching.page;
+      let release;
+      const held = new Promise((resolve) => { release = resolve; });
+      let started;
+      const requested = new Promise((resolve) => { started = resolve; });
+      await current.route('**/api/get/domaingposettings', async (route) => {
+        const first = route.request().postDataJSON().identity === id('1');
+        if (first) { started(); await held; }
+        await route.fulfill(first && status === 500
+          ? { status: 500, json: { error: 'Old policy failed' } }
+          : { json: [{ attributes: { machineConfig: { Marker: first ? 'OLD SETTINGS' : 'CURRENT SETTINGS' } } }] });
+      });
+      await current.locator('#grid-body tr[data-dn]').filter({ hasText: 'Workstation Baseline' }).click();
+      await requested;
+      await current.getByRole('tab', { name: 'Policy', exact: true }).click();
+      await current.locator('#grid-body tr[data-dn]').filter({ hasText: 'Legacy Settings' }).click();
+      await current.getByText('CURRENT SETTINGS', { exact: true }).waitFor();
+      const completed = current.waitForResponse((response) => response.url().endsWith('/get/domaingposettings') && response.request().postDataJSON().identity === id('1'));
+      release();
+      await (await completed).finished();
+      await current.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      assert.match(await current.locator('#object-panel .properties:visible').innerText(), /CURRENT SETTINGS/);
+      assert.deepEqual(switching.state.errors, []);
+      await current.close();
+    }
+
     const failing = await open(browser, { linkFails: true });
+    await failing.page.locator('#grid-body tr[data-dn]').filter({ hasText: 'Legacy Settings' }).click();
+    await failing.page.getByRole('button', { name: 'Manage links' }).click();
+    const failedDialog = failing.page.locator('#links-dialog');
+    await failedDialog.locator('#links-target').selectOption(`OU=Lab,${root}`);
+    await failedDialog.getByRole('button', { name: 'Add link', exact: true }).click();
+    await failedDialog.locator('#links-error').waitFor();
+    assert.equal(await failedDialog.locator('#links-target').inputValue(), `OU=Lab,${root}`);
+    await failedDialog.getByRole('button', { name: 'Add link', exact: true }).click();
+    await failing.page.waitForFunction(() => !document.querySelector('#links-form button[type="submit"]').disabled);
+    assert.equal(failing.state.writes.at(-1).data.targetidentity, `OU=Lab,${root}`);
+    await failedDialog.getByRole('button', { name: 'Close' }).click();
+    await failing.page.locator('#panel-close').click();
+
     await failing.page.getByRole('button', { name: 'New GPO', exact: true }).click();
     await failing.page.locator('#gpo-name').fill('Printer Rollout');
     await failing.page.locator('#gpo-linkto').selectOption(`OU=Lab,${root}`);
@@ -134,6 +176,6 @@ async function open(browser, { linkFails = false } = {}) {
     await failing.page.locator('.toast--warn', { hasText: 'Created Printer Rollout, but it could not be linked. Insufficient access rights' }).waitFor();
     assert.deepEqual(failing.state.errors, []);
 
-    console.log('PASS: GPO columns (status, links with enforced state, user/computer versions), display-name titles, Policy tab with cached SYSVOL settings and boilerplate hidden, no delete, Manage links add/remove with fresh targets, New GPO with description and verified link, link failure reported as partial success.');
+    console.log('PASS: late SYSVOL success/error cannot overwrite the selected policy, failed link retries preserve target, GPO columns (status, links with enforced state, user/computer versions), display-name titles, Policy tab with cached SYSVOL settings and boilerplate hidden, no delete, Manage links add/remove with fresh targets, New GPO with description and verified link, link failure reported as partial success.');
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exit(1); });

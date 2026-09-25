@@ -37,7 +37,7 @@ class AddDomainGPOTests(unittest.TestCase):
 		self.assertTrue(dn.startswith('CN={') and dn.endswith(POLICIES))
 		self.assertEqual(data['displayName'], 'Staff Policy')
 		written = powerview.smb.writeFile.call_args.args[2]
-		self.assertIn('displayName=Staff Policy', written)
+		self.assertEqual(written, b'[General]\r\nVersion=0\r\n')
 		powerview.add_gplink.assert_not_called()
 		powerview.set_domainobject.assert_not_called()
 
@@ -45,9 +45,24 @@ class AddDomainGPOTests(unittest.TestCase):
 		powerview = make_powerview()
 		self.assertIs(powerview.add_domaingpo('Staff Policy', description='For staff', linkto=OU_DN), True)
 		dn = powerview.ldap_session.add.call_args.args[0]
-		powerview.set_domainobject.assert_called_once_with(dn, _set={'attribute': 'description', 'value': ['For staff']}, searchbase=POLICIES)
+		self.assertEqual(powerview.ldap_session.add.call_args.args[2]['description'], 'For staff')
+		powerview.set_domainobject.assert_not_called()
 		powerview.add_gplink.assert_called_once()
 		self.assertEqual(powerview.add_gplink.call_args.kwargs['targetidentity'], OU_DN)
+
+	def test_unicode_name_and_literal_description_are_created_together(self):
+		powerview = make_powerview()
+		self.assertIs(powerview.add_domaingpo('日本語 Policy', description='@Helpdesk'), True)
+		data = powerview.ldap_session.add.call_args.args[2]
+		self.assertEqual(data['displayName'], '日本語 Policy')
+		self.assertEqual(data['description'], '@Helpdesk')
+		powerview.set_domainobject.assert_not_called()
+		# Exercise the SMB serializer rather than letting MagicMock accept any text.
+		from impacket.smb3structs import SMB2Write
+		packet = SMB2Write()
+		packet['FileID'] = b'\0' * 16
+		packet['Buffer'] = powerview.smb.writeFile.call_args.args[2]
+		self.assertIn(b'[General]\r\nVersion=0', packet.getData())
 
 	def test_cli_link_option_is_still_honoured(self):
 		powerview = make_powerview()

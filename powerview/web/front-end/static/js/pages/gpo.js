@@ -29,12 +29,14 @@ function renderPolicy(panel, record) {
     ...policyLinks(record).map((link, index) => ({ label: `Link ${index + 1}`, values: [link.name, link.dn, linkState(link).join(', ') || 'enabled'] })),
   ];
   renderSummary(panel, [...head, { label: 'Settings', values: ['Reading SYSVOL…'] }]);
+  const content = panel.firstElementChild;
+  const isCurrent = () => panel.isConnected && panel.firstElementChild === content;
   settingsFor(guid).then((settings) => {
-    if (!panel.isConnected || policyGuid(record) !== guid) return;
+    if (!isCurrent()) return;
     const rows = settingRows(settings);
     renderSummary(panel, [...head, ...(rows.length ? rows : [{ label: 'Settings', values: ['No configured settings found in SYSVOL'] }])]);
   }).catch((failure) => {
-    if (panel.isConnected) renderSummary(panel, [...head, { label: 'Settings', values: [`Could not read SYSVOL: ${failure.message}`] }]);
+    if (isCurrent()) renderSummary(panel, [...head, { label: 'Settings', values: [`Could not read SYSVOL: ${failure.message}`] }]);
   });
 }
 

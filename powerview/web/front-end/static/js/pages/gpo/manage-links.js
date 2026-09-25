@@ -39,6 +39,7 @@ export function createLinksDialog({ directory, targets, linksFor, onChanged, ref
   }
 
   function render() {
+    const selectedTarget = target.value;
     const links = linksFor(policy.guid);
     list.replaceChildren(...links.map((link) => {
       const item = element('li');
@@ -52,6 +53,7 @@ export function createLinksDialog({ directory, targets, linksFor, onChanged, ref
     const linked = new Set(links.map((link) => link.dn.toLowerCase()));
     const available = targets().filter((item) => !linked.has(item.dn.toLowerCase()));
     target.replaceChildren(...available.map((item) => new Option(`${item.name} — ${item.dn}`, item.dn)));
+    if (available.some((item) => item.dn === selectedTarget)) target.value = selectedTarget;
     target.disabled = !available.length;
     form.querySelector('button[type="submit"]').disabled = !available.length;
   }

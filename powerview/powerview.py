@@ -3696,7 +3696,7 @@ class PowerView:
 			return False
 
 		logging.debug("[Add-DomainGPO] Writing default GPT.INI file")
-		gpt_ini_content = "[General]\r\nVersion=0\r\ndisplayName=%s\r\n" % identity
+		gpt_ini_content = b"[General]\r\nVersion=0\r\n"
 		try:
 			fid = smbconn.createFile(tid, policy_path + "/GPT.ini")
 		except Exception as e:
@@ -3721,6 +3721,9 @@ class PowerView:
 			'gPCFileSysPath': "\\\\%s\\SysVol%s" % (self.domain, policy_path.replace("/","\\"))
 		}
 
+		if description:
+			gpo_data['description'] = description
+
 		self.ldap_session.add(dn, ['top','container','groupPolicyContainer'], gpo_data)
 		if self.ldap_session.result['result'] != 0:
 			logging.error(f"[Add-DomainGPO] Failed to create {identity} GPO ({self.ldap_session.result['description']})")
@@ -3733,10 +3736,6 @@ class PowerView:
 				logging.warning(f"[Add-DomainGPO] Could not remove SYSVOL folder {policy_path}: {e}")
 			return False
 		logging.info(f"[Add-DomainGPO] Added new {identity} GPO object")
-
-		if description:
-			if not self.set_domainobject(dn, _set={'attribute': 'description', 'value': [description]}, searchbase=basedn):
-				logging.warning(f"[Add-DomainGPO] {identity} was created but its description could not be set")
 
 		if linkto:
 			if self.add_gplink(guid=name, targetidentity=linkto) is not True:
