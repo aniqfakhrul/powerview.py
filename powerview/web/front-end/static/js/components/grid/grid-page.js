@@ -56,6 +56,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       const th = element('th', column.key === 'name' ? 'col-name' : '');
       th.scope = 'col';
       th.style.width = `${column.width}px`;
+      if (column.hint) th.title = column.hint;
       const control = button('', { className: 'column-sort' });
       control.append(icon(column.icon), element('span', 'column-sort__label', column.label), icon('chevron-right', 'column-sort__direction'));
       control.disabled = true;
@@ -317,6 +318,17 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   filter.addEventListener('input', update);
   filter.addEventListener('keydown', (event) => { if (event.key === 'Escape' && filter.value) { filter.value = ''; update(); } });
   refresh.addEventListener('click', () => load(true));
+
+  directory.schemaAttributes(columnSet.objectClass)
+    .then((attributes) => {
+      if (!attributes) return;
+      columnSet.setSchema(attributes);
+      if (!columnKeys.some((key) => key.startsWith('attr:'))) return;
+      columns = columnSet.columns(columnKeys);
+      buildHead();
+      if (!filter.disabled) { setSortable(true); update(); }
+    })
+    .catch(() => {});
 
   const domainReady = directory.domain()
     .then((domain) => { rootDN = domain?.root_dn ?? ''; return rootDN; })

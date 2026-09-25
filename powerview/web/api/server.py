@@ -19,6 +19,10 @@ from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.modules.smbclient import SMBClient
 from powerview.lib.tsts import TSHandler
 from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip, is_valid_sid
+from powerview.utils.schema import SchemaCatalog
+import re
+
+SCHEMA_NAME = re.compile(r'^[A-Za-z][A-Za-z0-9-]*$')
 import json
 
 class APIServer:
@@ -46,6 +50,7 @@ class APIServer:
 		self.port = port
 		self.status = False
 		self.smb_session_params = {}
+		self.schema_attributes = {}
 		
 		components = [self.powerview.flatName.lower(), self.powerview.args.username.lower(), self.powerview.args.ldap_address.lower()]
 		folder_name = '-'.join(filter(None, components)) or "default-log"
@@ -65,6 +70,7 @@ class APIServer:
 		register_frontend(add_route_with_auth)
 		add_route_with_auth('/api/server/info', 'server_info', self.handle_server_info, methods=['GET'])
 		add_route_with_auth('/api/server/schema', 'schema_info', self.handle_schema_info, methods=['GET'])
+		add_route_with_auth('/api/schema/attributes', 'schema_attributes', self.handle_schema_attributes, methods=['GET'])
 		add_route_with_auth('/api/set/settings', 'set_settings', self.handle_set_settings, methods=['POST'])
 		add_route_with_auth('/api/get/<method_name>', 'get_operation', self.handle_get_operation, methods=['GET', 'POST'])
 		add_route_with_auth('/api/set/<method_name>', 'set_operation', self.handle_set_operation, methods=['POST'])
@@ -201,6 +207,21 @@ class APIServer:
 		schema_info = self.powerview.conn.get_schema_info()
 		return jsonify(schema_info)
 		
+	def handle_schema_attributes(self):
+		class_name = request.args.get('class', '').strip()
+		if not SCHEMA_NAME.match(class_name):
+			return jsonify({'error': 'Provide an object class name, for example ?class=user.'}), 400
+		catalog = SchemaCatalog.from_server(getattr(self.powerview, 'ldap_server', None))
+		if not catalog.available:
+			return jsonify({'available': False, 'class': class_name, 'attributes': []})
+		if not catalog.has_class(class_name):
+			return jsonify({'error': f'Object class {class_name} is not defined in the schema.'}), 404
+		class_name = catalog.canonical_class(class_name)
+		key = class_name.casefold()
+		if key not in self.schema_attributes:
+			self.schema_attributes[key] = [attribute.to_dict() for attribute in catalog.class_attributes(class_name)]
+		return jsonify({'available': True, 'class': class_name, 'attributes': self.schema_attributes[key]})
+
 	def handle_set_settings(self):
 		try:
 			obfuscate = request.json.get('obfuscate', False)

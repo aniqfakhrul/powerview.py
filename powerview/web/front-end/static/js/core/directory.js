@@ -40,6 +40,10 @@ export function createDirectory(baseURL) {
   return {
     domain: (signal) => request('get/domaininfo', { signal }),
     server: (signal) => request('server/info', { signal }),
+    async schemaAttributes(className, { signal } = {}) {
+      const data = await request(`schema/attributes?class=${encodeURIComponent(className)}`, { signal });
+      return data?.available && Array.isArray(data.attributes) ? data.attributes : null;
+    },
     async security(dn, { signal, fresh = false } = {}) {
       const body = { identity: dn, searchbase: dn, search_scope: 'BASE', no_cache: fresh };
       const [owners, acls] = await Promise.all([

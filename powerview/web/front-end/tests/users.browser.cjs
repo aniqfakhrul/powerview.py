@@ -77,16 +77,16 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   assert.equal(await rows.first().locator('.state').textContent(), 'Disabled');
   await page.locator('#grid-filter').fill('');
 
-  const created = page.getByRole('button', { name: 'Created', exact: true });
+  const created = page.getByRole('button', { name: 'whenCreated', exact: true });
   await created.focus();
   await page.keyboard.press('Enter');
   await page.keyboard.press('Enter');
-  assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Created');
+  assert.equal(await page.evaluate(() => document.activeElement.textContent), 'whenCreated');
   assert.deepEqual(await rows.evaluateAll((items) => items.slice(0, 2).map((item) => item.dataset.dn)),
     [`CN=User 003,CN=Users,${rootDN}`, `CN=User 004,CN=Users,${rootDN}`]);
 
-  await page.getByRole('button', { name: 'Name', exact: true }).click();
-  await page.getByRole('button', { name: 'Name', exact: true }).click();
+  await page.getByRole('button', { name: 'name', exact: true }).click();
+  await page.getByRole('button', { name: 'name', exact: true }).click();
   assert.equal(await page.locator('th[aria-sort]').getAttribute('aria-sort'), 'descending');
   assert.equal(await rows.first().getAttribute('data-dn'), `CN=User 449,CN=Users,${rootDN}`);
   await page.getByRole('button', { name: 'Status', exact: true }).click();
@@ -135,7 +135,7 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   await page.getByRole('heading', { name: 'Cannot load users' }).waitFor();
   assert.equal(await page.getByRole('heading', { name: 'No users match' }).count(), 0);
   assert.equal(await page.locator('#grid-filter').inputValue(), '');
-  assert.equal(await page.getByRole('button', { name: 'Name', exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: 'name', exact: true }).isDisabled(), true);
   await page.getByRole('heading', { name: 'Cannot load users' }).isVisible();
   failUsers = false;
   await page.locator('#grid-message').getByRole('button', { name: 'Retry' }).click();
@@ -255,11 +255,11 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
 
   const fieldsMenu = page.locator('#fields-menu');
   const headerLabels = () => page.locator('#grid-head .column-sort__label').allTextContents();
-  assert.deepEqual(await headerLabels(), ['Name', 'Account', 'Status', 'Description', 'Email', 'Last logon', 'Created']);
+  assert.deepEqual(await headerLabels(), ['name', 'sAMAccountName', 'Status', 'description', 'mail', 'lastLogonTimestamp', 'whenCreated']);
   await page.getByRole('button', { name: /^Fields/ }).click();
   await fieldsMenu.getByRole('searchbox', { name: 'Find a field' }).fill('mail');
   assert.equal(await fieldsMenu.locator('.fields-menu__option:not([hidden])').count(), 1);
-  await fieldsMenu.getByRole('checkbox', { name: 'Email' }).uncheck();
+  await fieldsMenu.getByRole('checkbox', { name: 'mail, Email', exact: true }).uncheck();
   await fieldsMenu.getByRole('textbox', { name: 'Add attribute column' }).fill('bad name');
   await fieldsMenu.getByRole('button', { name: 'Add', exact: true }).click();
   assert.equal(await fieldsMenu.locator('.form-error').isVisible(), true);
@@ -274,15 +274,15 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   assert.equal(userRequests.length, requestsBefore + 1);
   assert.equal(userRequests.at(-1).properties.includes('telephoneNumber'), true);
   assert.equal(userRequests.at(-1).properties.includes('mail'), false);
-  assert.deepEqual(await headerLabels(), ['Name', 'Account', 'Status', 'Description', 'Last logon', 'Created', 'telephoneNumber']);
+  assert.deepEqual(await headerLabels(), ['name', 'sAMAccountName', 'Status', 'description', 'lastLogonTimestamp', 'whenCreated', 'telephoneNumber']);
   await page.reload();
   await rows.first().waitFor();
-  assert.deepEqual(await headerLabels(), ['Name', 'Account', 'Status', 'Description', 'Last logon', 'Created', 'telephoneNumber']);
+  assert.deepEqual(await headerLabels(), ['name', 'sAMAccountName', 'Status', 'description', 'lastLogonTimestamp', 'whenCreated', 'telephoneNumber']);
   await page.getByRole('button', { name: /^Fields/ }).click();
   await fieldsMenu.getByRole('button', { name: 'Reset to default' }).click();
   assert.equal(await fieldsMenu.evaluate((node) => node.contains(document.activeElement)), true);
   await page.keyboard.press('Escape');
-  await page.waitForFunction(() => [...document.querySelectorAll('#grid-head .column-sort__label')].map((node) => node.textContent).join() === 'Name,Account,Status,Description,Email,Last logon,Created');
+  await page.waitForFunction(() => [...document.querySelectorAll('#grid-head .column-sort__label')].map((node) => node.textContent).join() === 'name,sAMAccountName,Status,description,mail,lastLogonTimestamp,whenCreated');
   await rows.first().waitFor();
 
   for (const [name, id] of [[/^Fields/, '#fields-menu'], [/^Filters/, '#search-menu']]) {

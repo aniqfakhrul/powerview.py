@@ -21,12 +21,13 @@ export function createFieldsMenu({ trigger, menu, columnSet, getKeys, onApply })
     const box = element('input');
     box.type = 'checkbox';
     box.checked = draft.includes(column.key);
+    box.setAttribute('aria-label', column.hint ? `${column.label}, ${column.hint}` : column.label);
     box.addEventListener('change', () => {
       draft = box.checked ? [...draft, column.key] : draft.filter((key) => key !== column.key);
     });
-    row.append(box, element('span', '', column.label));
-    if (column.custom) row.append(element('span', 'fields-menu__hint', 'attribute'));
-    row.dataset.search = `${column.label} ${column.attributes.join(' ')}`.toLowerCase();
+    row.append(box, element('span', 'fields-menu__label', column.label));
+    if (column.hint) row.append(element('span', 'fields-menu__hint', column.hint));
+    row.dataset.search = `${column.label} ${column.hint ?? ''} ${column.attributes.join(' ')}`.toLowerCase();
     return row;
   }
 
