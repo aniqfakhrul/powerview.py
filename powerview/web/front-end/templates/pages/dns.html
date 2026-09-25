@@ -21,4 +21,19 @@
       </footer>
     </form>
   </dialog>
+  <dialog id="dns-edit-dialog" class="dialog" aria-labelledby="dns-edit-title" aria-describedby="dns-edit-context">
+    <form id="dns-edit-form" method="dialog" novalidate>
+      <h2 id="dns-edit-title" class="dialog__title">Edit A record</h2>
+      <div class="dialog__fields">
+        <p id="dns-edit-context" class="dialog__context"></p>
+        <label>Current address<select id="dns-edit-current" class="text-input text-input--mono"></select></label>
+        <label>New address<input id="dns-edit-address" class="text-input text-input--mono" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="10.0.0.25" required></label>
+      </div>
+      <p id="dns-edit-error" class="form-error dialog__error" role="alert" hidden></p>
+      <footer class="dialog__footer">
+        <button id="dns-edit-cancel" type="button" class="button">Cancel</button>
+        <button type="submit" class="button button--primary">Save</button>
+      </footer>
+    </form>
+  </dialog>
 {% endblock %}

@@ -34,6 +34,12 @@ let records = [
         records = [...records, ...['10.0.0.25', '10.0.0.26'].map((Address) => record(data.recordname, { RecordType: 'A', Address, TTL: 600 }))];
         return route.fulfill({ json: true });
       }
+      if (path.endsWith('/set/domaindnsrecord')) {
+        records = records.map((item) => (item.attributes.distinguishedName === data.recordname && item.attributes.Address === data.oldaddress
+          ? record(item.attributes.name, { ...item.attributes, Address: data.recordaddress })
+          : item));
+        return route.fulfill({ json: true });
+      }
       if (path.endsWith('/remove/domainobject')) {
         records = records.filter((item) => item.attributes.distinguishedName !== data.identity);
         return route.fulfill({ json: true });
@@ -97,11 +103,35 @@ let records = [
     await rows.filter({ hasText: '192.0.2.1' }).click();
     await page.getByRole('tab', { name: 'Attributes', exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: 'Delete object' }).count(), 0);
+    await rows.filter({ hasText: '_ldap._tcp' }).click();
+    await page.getByRole('button', { name: 'Delete object' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Edit address' }).count(), 0);
     await rows.filter({ hasText: '10.0.0.26' }).click();
+    await page.getByRole('button', { name: 'Edit address' }).click();
+    const edit = page.locator('#dns-edit-dialog');
+    assert.equal(await edit.locator('#dns-edit-context').textContent(), 'web01.example.test');
+    assert.deepEqual(await edit.locator('#dns-edit-current option').allTextContents(), ['10.0.0.25', '10.0.0.26']);
+    await edit.locator('#dns-edit-current').selectOption('10.0.0.26');
+    await edit.getByRole('textbox', { name: 'New address' }).fill('10.0.0.300');
+    await edit.getByRole('button', { name: 'Save' }).click();
+    await edit.getByText(/Enter an IPv4 address/).waitFor();
+    await edit.getByRole('textbox', { name: 'New address' }).fill('10.0.0.26');
+    await edit.getByRole('button', { name: 'Save' }).click();
+    await edit.getByText('The new address is the same as the current one.').waitFor();
+    assert.equal(requests.some(({ path }) => path.endsWith('/set/domaindnsrecord')), false);
+    await edit.getByRole('textbox', { name: 'New address' }).fill('10.0.0.30');
+    await edit.getByRole('button', { name: 'Save' }).click();
+    await page.locator('.toast--success', { hasText: 'Updated web01.example.test: 10.0.0.26 → 10.0.0.30' }).waitFor();
+    assert.deepEqual(requests.filter(({ path }) => path.endsWith('/set/domaindnsrecord')).at(-1).data,
+      { recordname: `DC=web01,${zoneDN('example.test')}`, recordaddress: '10.0.0.30', oldaddress: '10.0.0.26', zonename: 'example.test' });
+    await rows.filter({ hasText: '10.0.0.30' }).waitFor();
+    assert.equal(await rows.filter({ hasText: '10.0.0.26' }).count(), 0);
+    assert.equal(await rows.filter({ hasText: '10.0.0.25' }).count(), 1);
+    await rows.filter({ hasText: '10.0.0.30' }).click();
     await page.getByRole('button', { name: 'Delete object' }).click();
     const readsBeforeDelete = requests.length;
     const confirm = page.getByRole('dialog', { name: 'Delete web01.example.test?' });
-    await confirm.getByText('This removes all 2 records at this name: A 10.0.0.25, A 10.0.0.26.').waitFor();
+    await confirm.getByText('This removes all 2 records at this name: A 10.0.0.25, A 10.0.0.30.').waitFor();
     await confirm.getByRole('button', { name: 'Delete', exact: true }).click();
     await page.locator('.toast--success', { hasText: 'Deleted' }).waitFor();
     assert.deepEqual(mutations().at(-1).data, { identity: `DC=web01,${zoneDN('example.test')}`, searchbase: `DC=DomainDnsZones,${root}` });
@@ -135,6 +165,6 @@ let records = [
       await page.screenshot({ path: `/tmp/dns-${colorScheme}.png` });
     }
     assert.deepEqual(errors, []);
-    console.log('PASS: defaults to the domain zone, parsed DNS rows, New record validation and fresh reload, apex protected, node delete lists every record, duplicate node records, apex/SRV names, numeric sorting, filtering, Fields, zone selection, panel closure, failures/retry, fresh reads, no schema lookup, mobile themes.');
+    console.log('PASS: Edit address changes only the chosen A record and is hidden without A records, defaults to the domain zone, parsed DNS rows, New record validation and fresh reload, apex protected, node delete lists every record, duplicate node records, apex/SRV names, numeric sorting, filtering, Fields, zone selection, panel closure, failures/retry, fresh reads, no schema lookup, mobile themes.');
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exit(1); });

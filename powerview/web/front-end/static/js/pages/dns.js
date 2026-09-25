@@ -3,6 +3,7 @@ import { notify } from '../components/notify.js';
 import { createDirectory, recordName, textValue } from '../core/directory.js';
 import { dnLabel, splitDN } from '../core/dn.js';
 import { dnsColumns } from './dns/columns.js';
+import { createEditRecord } from './dns/edit-record.js';
 import { createNewRecord } from './dns/new-record.js';
 
 const root = document.querySelector('#dns');
@@ -67,6 +68,15 @@ const page = createGridPage({
   search: false,
   isProtected: isApex,
   afterDelete: () => page.reload(true),
+  panelActions(record, siblings) {
+    const addresses = siblings.filter((item) => textValue(item.record.attributes.RecordType) === 'A').map((item) => textValue(item.record.attributes.Address)).filter(Boolean);
+    if (!addresses.length) return [];
+    return [{
+      label: 'Edit address',
+      iconName: 'edit',
+      run: (_, refresh) => editRecord.open({ dn: record.dn, name: dnLabel(record.dn), zone, addresses, refresh }),
+    }];
+  },
   describeRemoval(record, siblings) {
     const listed = siblings.map(describeRecord).filter(Boolean);
     return {
@@ -80,6 +90,14 @@ const page = createGridPage({
     await loadZones(fresh);
     if (signal.aborted) return [];
     return zone ? directory.dnsRecords(zone, { signal, fresh }) : [];
+  },
+});
+
+const editRecord = createEditRecord({
+  directory,
+  async onUpdated(target, oldAddress, newAddress) {
+    notify.success(`Updated ${target.name}.${target.zone}: ${oldAddress} → ${newAddress}`);
+    try { await target.refresh(); } catch (failure) { notify.warn(`Updated, but refreshing failed: ${failure.message}`); }
   },
 });
 

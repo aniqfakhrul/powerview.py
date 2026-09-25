@@ -122,6 +122,9 @@ export function createDirectory(baseURL) {
       const data = await request('get/domainca', { signal, body: { no_cache: fresh, ...(checkWeb ? { check_all: true } : {}) } });
       return withDN(data, 'certificate authority list').map(entryFromRecord);
     },
+    dnsSetRecord: ({ zone, dn, oldAddress, address }) => request('set/domaindnsrecord', {
+      mutation: true, body: { recordname: dn, recordaddress: address, oldaddress: oldAddress, zonename: zone },
+    }),
     async dnsRecords(zone, { signal, fresh = false } = {}) {
       const data = await request('get/domaindnsrecord', { signal, body: { zonename: zone, no_cache: fresh } });
       return withDN(data, 'DNS record list').map((record) => ({ dn: record.dn, name: dnLabel(record.dn), record }));

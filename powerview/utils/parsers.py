@@ -1463,6 +1463,7 @@ def powerview_arg_parse(cmd):
 	set_domaindnsrecord_parser.add_argument('-ZoneName', action='store', dest='zonename')
 	set_domaindnsrecord_parser.add_argument('-RecordName', action='store', required=True, dest='recordname')
 	set_domaindnsrecord_parser.add_argument('-RecordAddress', action='store', required=True, dest='recordaddress')
+	set_domaindnsrecord_parser.add_argument('-OldAddress', action='store', dest='oldaddress', help='A record address to replace when the name has several')
 	set_domaindnsrecord_parser.add_argument('-Server', action='store', dest='server')
 	set_domaindnsrecord_parser.add_argument('-OutFile', action='store', dest='outfile')
 

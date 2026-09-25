@@ -443,7 +443,7 @@ def main():
                             elif pv_args.module.casefold() == 'set-domainobjectdn' or pv_args.module.casefold() == 'set-adobjectdn':
                                 succeed = pv.set_domainobjectdn(pv_args.identity, destination_dn=pv_args.destination_dn, args=pv_args)
                             elif pv_args.module.casefold() == 'set-domaindnsrecord':
-                                pv.set_domaindnsrecord(recordname=pv_args.recordname, recordaddress=pv_args.recordaddress, zonename=pv_args.zonename)
+                                pv.set_domaindnsrecord(recordname=pv_args.recordname, recordaddress=pv_args.recordaddress, zonename=pv_args.zonename, oldaddress=pv_args.oldaddress)
                             elif pv_args.module.casefold() == 'set-domaincatemplate' or pv_args.module.casefold() == 'set-catemplate':
                                 pv.set_domaincatemplate(pv_args.identity, pv_args)
                             elif pv_args.module.casefold() == 'set-domainuserpassword':

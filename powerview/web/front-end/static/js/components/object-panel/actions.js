@@ -6,7 +6,7 @@ import { notify } from '../notify.js';
 
 const ACCOUNT_TYPES = new Set(['user', 'computer']);
 
-export function createActions({ host, directory, scope, guard, canLeave, onChanged, onDeleted, isRoot = () => false, describeRemoval }) {
+export function createActions({ host, directory, scope, guard, canLeave, onChanged, onDeleted, isRoot = () => false, describeRemoval, extraActions }) {
   let current = null;
 
   async function run(label, perform, after) {
@@ -73,6 +73,9 @@ export function createActions({ host, directory, scope, guard, canLeave, onChang
         if (toTime(attribute(record, 'lockoutTime')) !== null) {
           host.append(action('Unlock account', 'unlock', () => accountAction('unlock', 'Unlocked')));
         }
+      }
+      for (const extra of extraActions?.(record) ?? []) {
+        host.append(action(extra.label, extra.iconName, () => { if (canLeave()) extra.run(record, () => onChanged(record)); }));
       }
       if (onDeleted && !isRoot(record.dn)) host.append(action('Delete object', 'trash', remove, 'icon-button panel-action--danger'));
     },

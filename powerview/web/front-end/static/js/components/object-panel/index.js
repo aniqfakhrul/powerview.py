@@ -27,6 +27,7 @@ export function createObjectPanel({ root, defaultTab = 'attributes', summary, ..
     onDeleted: options.onDeleted,
     isRoot: options.isRoot,
     describeRemoval: options.describeRemoval,
+    extraActions: options.extraActions,
   }) : null;
   const body = root.querySelector('[data-panel-body]');
   const filterHost = root.querySelector('[data-panel-filter-host]');

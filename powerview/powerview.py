@@ -5340,53 +5340,65 @@ displayName=New Group Policy Object
 		logging.info("[Remove-DomainComputer] Successfully deleted %s." % computer_name)
 		return True
 
-	def set_domaindnsrecord(self, recordname, recordaddress, zonename=None, timeout=15):
+	def set_domaindnsrecord(self, recordname, recordaddress, zonename=None, oldaddress=None, timeout=15):
 		if zonename:
 			zonename = zonename.lower()
 		else:
 			zonename = self.domain.lower()
 			logging.debug("[Set-DomainDNSRecord] Using current domain %s as zone name" % zonename)
 
-		entry = self.get_domaindnsrecord(identity=recordname, zonename=zonename, properties=['dnsRecord', 'distinguishedName', 'name'])
+		if recordname.lower().startswith('dc=') and ',cn=microsoftdns,' in recordname.lower():
+			node_dns = [recordname]
+		else:
+			entries = self.get_domaindnsrecord(identity=recordname, zonename=zonename, properties=['distinguishedName', 'name'], no_cache=True)
+			node_dns = list(dict.fromkeys(entry['attributes']['distinguishedName'] for entry in entries or [] if entry.get('attributes', {}).get('distinguishedName')))
+		if not node_dns:
+			logging.error("[Set-DomainDNSRecord] No record found")
+			return False
+		if len(node_dns) > 1:
+			logging.error("[Set-DomainDNSRecord] More than one DNS node matches %s. Use the distinguished name instead" % recordname)
+			return False
+		node_dn = node_dns[0]
 
-		if not entry:
-			return
-		elif len(entry) == 0:
-			logging.info("[Set-DomainDNSRecord] No record found")
-			return
-		elif len(entry) > 1:
-			logging.info("[Set-DomainDNSRecord] More than one record found")
-			return
+		node = self.get_domainobject(identity=node_dn, searchbase=node_dn, search_scope=ldap3.BASE, properties=['distinguishedName', 'dnsRecord'], no_cache=True, raw=True)
+		if len(node) != 1:
+			logging.error("[Set-DomainDNSRecord] Could not read %s" % node_dn)
+			return False
+		stored = node[0].get('raw_attributes', {}).get('dnsRecord') or []
 
-		if self.args.debug:
-			logging.debug(f"[Set-DomainDNSRecord] Updating dns record {recordname} to {recordaddress}")
-
-		targetrecord = None
-		records = []
-		for record in entry[0]["attributes"]["dnsRecord"]:
+		a_records = []
+		for index, record in enumerate(stored):
 			dr = DNS_RECORD(record)
-			if dr["Type"] == 1:
-				targetrecord = dr
-			else:
-				records.append(record)
+			if dr['Type'] == 1:
+				a_records.append((index, dr, DNS_RPC_RECORD_A(dr['Data']).formatCanonical()))
 
-		if not targetrecord:
+		if not a_records:
 			logging.error("[Set-DomainDNSRecord] No A record exists yet. Nothing to modify")
-			return
+			return False
+		if oldaddress:
+			matching = [item for item in a_records if item[2] == oldaddress]
+			if not matching:
+				logging.error("[Set-DomainDNSRecord] No A record with address %s at %s" % (oldaddress, node_dn))
+				return False
+			target_index, target, _ = matching[0]
+		elif len(a_records) > 1:
+			logging.error("[Set-DomainDNSRecord] %s has %d A records. Specify the address to replace with -OldAddress" % (node_dn, len(a_records)))
+			return False
+		else:
+			target_index, target, _ = a_records[0]
 
-		targetrecord["Serial"] = DNS_UTIL.get_next_serial(self.nameserver, self.dc_ip, zonename, True, timeout)
-		targetrecord['Data'] = DNS_RPC_RECORD_A()
-		targetrecord['Data'].fromCanonical(recordaddress)
-		records.append(targetrecord.getData())
+		logging.debug(f"[Set-DomainDNSRecord] Updating dns record {node_dn} to {recordaddress}")
+		target['Serial'] = DNS_UTIL.get_next_serial(self.nameserver, self.dc_ip, zonename, True, timeout)
+		target['Data'] = DNS_RPC_RECORD_A()
+		target['Data'].fromCanonical(recordaddress)
+		records = [target.getData() if index == target_index else record for index, record in enumerate(stored)]
 
-		succeeded = self.ldap_session.modify(entry[0]['attributes']['distinguishedName'], {'dnsRecord': [(ldap3.MODIFY_REPLACE, records)]})
-
+		succeeded = self.ldap_session.modify(node_dn, {'dnsRecord': [(ldap3.MODIFY_REPLACE, records)]})
 		if not succeeded:
 			logging.error(self.ldap_session.result['message'])
 			return False
-		else:
-			logging.info('[Set-DomainDNSRecord] Success! modified attribute for target record %s' % entry[0]['attributes']['distinguishedName'])
-			return True
+		logging.info('[Set-DomainDNSRecord] Success! modified attribute for target record %s' % node_dn)
+		return True
 
 	@staticmethod
 	def _relative_dns_name(recordname, zonename):

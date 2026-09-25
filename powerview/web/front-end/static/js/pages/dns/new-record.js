@@ -1,6 +1,6 @@
 import { setBusy } from '../../core/dom.js';
 
-const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+export const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 const NODE_NAME = /^(?!\.)[A-Za-z0-9_.*-]+(?<!\.)$/;
 
 function relativeName(value, zone) {
