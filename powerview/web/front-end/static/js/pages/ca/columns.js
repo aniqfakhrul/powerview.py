@@ -1,6 +1,6 @@
 import { attribute, values } from '../../core/directory.js';
 import { element } from '../../core/dom.js';
-import { countColumn, createColumnSet, nameColumn, textColumn } from '../../components/grid/columns.js';
+import { booleanColumn, countColumn, createColumnSet, nameColumn, textColumn } from '../../components/grid/columns.js';
 
 export const isEnabled = (record) => values(attribute(record, 'Enabled'))[0] === true;
 export function webEnrollment(record) {
@@ -12,16 +12,6 @@ export function webEnrollment(record) {
 }
 
 export const findings = (record) => values(attribute(record, 'Vulnerable')).map(String).filter(Boolean);
-
-function booleanColumn(key, name, hint) {
-  const flag = (record) => values(attribute(record, name))[0];
-  const text = (record) => (flag(record) === true ? 'Yes' : flag(record) === false ? 'No' : '');
-  return {
-    key, label: name, hint, icon: 'field-class', width: 150, attributes: [name],
-    text,
-    sort: (record) => (typeof flag(record) === 'boolean' ? Number(flag(record)) : null),
-  };
-}
 
 const enabledColumn = {
   key: 'enabled', label: 'Enabled', hint: 'Published by at least one certificate authority', icon: 'field-class', width: 110, attributes: ['Enabled'],

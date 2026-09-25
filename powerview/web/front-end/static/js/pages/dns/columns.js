@@ -1,5 +1,5 @@
 import { textValue, values } from '../../core/directory.js';
-import { createColumnSet, nameColumn } from '../../components/grid/columns.js';
+import { createColumnSet, nameColumn, pill } from '../../components/grid/columns.js';
 
 // Parsed DNS fields are case-sensitive: Name is an SRV target, name is the node.
 function field(key, label, hint, width = 180, numeric = false) {
@@ -30,7 +30,7 @@ export const dnsColumns = createColumnSet({
   objectClass: null,
   name: nameColumn('domain'),
   catalog: [
-    field('type', 'RecordType', 'Record type', 110),
+    { ...field('type', 'RecordType', 'Record type', 110), render: (record) => pill(textValue(record.attributes.RecordType)) },
     field('address', 'Address', 'Address or alias', 240),
     field('target', 'Name', 'SRV target', 240),
     field('port', 'Port', 'SRV port', 90, true),

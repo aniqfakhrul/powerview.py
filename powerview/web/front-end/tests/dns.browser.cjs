@@ -52,6 +52,7 @@ let records = [
     assert.deepEqual((await rows.locator('.cell-name span').allTextContents()).sort(), ['@', '@', '_ldap._tcp'].sort());
     assert.match(await rows.filter({ hasText: '_ldap._tcp' }).innerText(), /dc.example.test\./);
     assert.match(await rows.filter({ hasText: '_ldap._tcp' }).innerText(), /389/);
+    assert.equal(await rows.filter({ hasText: '_ldap._tcp' }).locator('.state--neutral').textContent(), 'SRV');
     await page.locator('th[data-key="ttl"] button').click();
     assert.deepEqual(await rows.locator('.cell-name span').allTextContents(), ['_ldap._tcp', '@', '@']);
     await page.locator('#grid-filter').fill('192.0.2.1');

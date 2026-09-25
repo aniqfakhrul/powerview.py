@@ -1,5 +1,5 @@
 import { attribute, textValue, values } from '../../core/directory.js';
-import { countColumn, createColumnSet, dnColumn, nameColumn, textColumn, timeColumn } from '../../components/grid/columns.js';
+import { countColumn, createColumnSet, dnColumn, nameColumn, pill, textColumn, timeColumn } from '../../components/grid/columns.js';
 
 const SCOPES = [[0x2, 'Global'], [0x4, 'Domain local'], [0x8, 'Universal']];
 const SECURITY = 0x80000000;
@@ -15,6 +15,7 @@ function groupKind(record) {
 const typeColumn = {
   key: 'type', label: 'Type', hint: 'From groupType', icon: 'field-class', width: 190, attributes: ['groupType'],
   text: groupKind,
+  render: (record) => pill(groupKind(record), /distribution$/.test(groupKind(record)) ? 'outline' : 'neutral'),
 };
 
 export const groupColumns = createColumnSet({

@@ -13,7 +13,7 @@ const template = (cn, attributes) => ({ attributes: {
 let templates = [
   template('WebServer', { Enabled: true, 'Certificate Authorities': ['CA-One'] }),
   template('User', { Enabled: true, 'Certificate Authorities': ['CA-One', 'CA-Two'], 'Client Authentication': true, Vulnerable: ["Finding-A - 'EXAMPLE\\Domain Users'"] }),
-  template('Unused'),
+  template('Unused', { ManagerApproval: undefined }),
 ];
 const authority = (name, published) => ({ dn: `CN=${name},CN=Enrollment Services,${services}`, attributes: {
   name, cn: name, dNSHostName: `${name.toLowerCase()}.example.test`, cACertificateDN: `CN=${name}, DC=example, DC=test`, certificateTemplates: published,
@@ -53,6 +53,11 @@ const webResults = { 'CA-One': ['http://ca-one.example.test/certsrv'], 'CA-Two':
     const user = rows.filter({ hasText: 'User' });
     assert.match(await user.innerText(), /Enabled\s+CA-One; CA-Two/);
     assert.equal(await user.locator('.state--danger').textContent(), '1');
+    const approval = async (name) => rows.filter({ hasText: name }).locator('td').nth(6).innerText();
+    assert.equal(await user.locator('td').nth(5).innerText(), 'Yes');
+    assert.equal(await rows.filter({ hasText: 'WebServer' }).locator('td').nth(5).innerText(), 'No');
+    assert.equal(await approval('WebServer'), 'No');
+    assert.equal(await approval('Unused'), '—');
     assert.match(await rows.filter({ hasText: 'Unused' }).innerText(), /Disabled/);
     assert.deepEqual(await page.locator('#ca-authority option').allTextContents(), ['All templates', 'CA-One', 'CA-Two', 'Not published']);
 

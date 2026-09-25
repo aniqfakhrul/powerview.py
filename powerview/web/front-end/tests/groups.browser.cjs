@@ -48,6 +48,8 @@ groups[2].attributes['member;range=0-1499'] = Array.from({ length: 1500 }, (_, i
   assert.deepEqual(await cells('Local Ops'), ['Domain local security', 'Local Ops group', '1']);
   assert.deepEqual(await cells('Newsletter'), ['Universal distribution', 'Newsletter group', '1500+']);
   assert.match(await rows.filter({ hasText: 'Newsletter' }).locator('.cell-partial').getAttribute('title'), /first 1500 values/);
+  assert.equal(await rows.filter({ hasText: 'Admins' }).locator('.state--neutral').textContent(), 'Global security');
+  assert.equal(await rows.filter({ hasText: 'Newsletter' }).locator('.state--outline').textContent(), 'Universal distribution');
   await page.getByRole('button', { name: 'member (count)', exact: true }).click();
   await page.getByRole('button', { name: 'member (count)', exact: true }).click();
   assert.equal(await rows.first().getAttribute('data-dn'), `CN=Newsletter,CN=Users,${rootDN}`);

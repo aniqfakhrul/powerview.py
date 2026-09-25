@@ -58,6 +58,17 @@ export const countColumn = (key, name, hint) => ({
   sort: (record) => rangedValues(record, name).items.length,
 });
 
+export const pill = (text, tone = 'neutral') => (text ? element('span', `state state--${tone}`, text) : element('span', 'cell-muted', '—'));
+
+export function booleanColumn(key, name, hint) {
+  const flag = (record) => values(attribute(record, name))[0];
+  return {
+    key, label: name, hint, icon: 'field-class', width: 150, attributes: [name],
+    text: (record) => (flag(record) === true ? 'Yes' : flag(record) === false ? 'No' : ''),
+    sort: (record) => (typeof flag(record) === 'boolean' ? Number(flag(record)) : null),
+  };
+}
+
 const disabled = (record) => accountDisabled(attribute(record, 'userAccountControl'));
 
 export const statusColumn = {
