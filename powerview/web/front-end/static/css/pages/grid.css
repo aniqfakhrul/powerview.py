@@ -77,6 +77,9 @@
 .data-grid thead th:hover .column-filter-trigger, .data-grid thead th:has(:focus-visible) .column-filter-trigger, .column-filter-trigger[aria-expanded="true"], .column-filter-trigger.is-active { opacity: 1; }
 .column-filter-trigger.is-active { color: var(--color-accent); }
 @media (hover: none) { .column-filter-trigger { opacity: 1; } .data-grid thead th:not(.col-index) .column-sort { padding-right: 20px; } }
+.column-filter:popover-open { display: flex; flex-direction: column; overflow: hidden; }
+.column-filter > * { flex: none; }
+.column-filter > .fields-menu__list { flex: 0 1 auto; min-height: 48px; }
 .column-filter__all { border-bottom: 1px solid var(--color-border); border-radius: 0; }
 .column-filter__range { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px; }
 .column-filter__range[hidden] { display: none; }

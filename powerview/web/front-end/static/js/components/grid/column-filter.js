@@ -70,9 +70,14 @@ export function createColumnFilter({ menu, onChange }) {
   function place(trigger) {
     const rect = trigger.getBoundingClientRect();
     const width = Math.min(280, window.innerWidth - 16);
+    const below = window.innerHeight - rect.bottom - 12;
+    const above = rect.top - 12;
+    const upward = below < 240 && above > below;
     menu.style.width = `${width}px`;
-    menu.style.top = `${rect.bottom + 4}px`;
     menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
+    menu.style.top = upward ? 'auto' : `${rect.bottom + 4}px`;
+    menu.style.bottom = upward ? `${window.innerHeight - rect.top + 4}px` : 'auto';
+    menu.style.maxHeight = `${Math.max(140, upward ? above : below)}px`;
   }
 
   function footer() {
@@ -229,6 +234,8 @@ export function createColumnFilter({ menu, onChange }) {
       const justClosed = lastClosed.trigger === trigger && lastClosed.at >= event.timeStamp;
       if (current?.trigger === trigger || justClosed) dismissing.add(trigger); else dismissing.delete(trigger);
     },
+    openKey: () => (menu.matches(':popover-open') ? current?.column.key : null),
+    close() { if (menu.matches(':popover-open')) menu.hidePopover(); },
     isOpenFor: (key) => current?.column.key === key && menu.matches(':popover-open'),
   };
 }

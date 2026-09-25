@@ -1,13 +1,14 @@
 import { attribute, values } from '../../core/directory.js';
 import { countColumn, createColumnSet, dnColumn, nameColumn, statusColumn, textColumn, timeColumn } from '../../components/grid/columns.js';
 
-const addresses = (record) => values(attribute(record, 'IPAddress')).map(String).join(', ');
+const ipAddresses = (record) => values(attribute(record, 'IPAddress')).map(String).filter(Boolean);
 
 const ipAddressColumn = {
   key: 'ipAddress', label: 'IPAddress', hint: 'Resolved from AD DNS', icon: 'field-text', width: 200,
   attributes: ['dNSHostName'],
   request: { include_ip: true },
-  text: addresses,
+  text: (record) => ipAddresses(record).join(', '),
+  filter: { type: 'values', values: ipAddresses },
 };
 
 export const computerColumns = createColumnSet({

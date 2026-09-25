@@ -76,6 +76,20 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     clearFilters.hidden = !columnFilters.size;
   }
 
+  const filterKind = (list, key) => {
+    const column = list.find((item) => item.key === key);
+    return column ? filterSpec(column).type : null;
+  };
+
+  function reconcileFilters(previous) {
+    for (const [key, state] of columnFilters) {
+      if (filterKind(columns, key) !== state.type) columnFilters.delete(key);
+    }
+    const open = columnFilter.openKey();
+    if (open && filterKind(columns, open) !== filterKind(previous, open)) columnFilter.close();
+    paintFilters();
+  }
+
   function resetFilters() {
     columnFilters.clear();
     paintFilters();
@@ -450,8 +464,10 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       const focusedRow = document.activeElement?.closest('#grid-body tr[data-dn]')?.dataset.dn;
       const scrollTop = scroller.scrollTop;
       const scrollLeft = scroller.scrollLeft;
+      const previous = columns;
       columns = columnSet.columns(columnKeys);
       buildHead();
+      reconcileFilters(previous);
       if (!filter.disabled) { setSortable(true); update(); }
       scroller.scrollTop = scrollTop;
       scroller.scrollLeft = scrollLeft;
@@ -489,11 +505,11 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     onApply(keys) {
       columnKeys = keys;
       columnSet.save(keys);
+      const previous = columns;
       columns = columnSet.columns(keys);
       if (!columns.some((column) => column.key === sortKey)) { sortKey = 'name'; sortDirection = 1; }
-      for (const key of columnFilters.keys()) if (!columns.some((column) => column.key === key)) columnFilters.delete(key);
       buildHead();
-      paintFilters();
+      reconcileFilters(previous);
       fieldsMenu.refresh();
       const loaded = new Set(loadedProperties.map((name) => name.toLowerCase()));
       const missingOptions = Object.entries(columnSet.requestOptions(columns)).some(([key, value]) => loadedOptions[key] !== value);
