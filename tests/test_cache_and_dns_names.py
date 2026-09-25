@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from powerview.lib.ldap3.extend import CustomStandardExtendedOperations
-from powerview.powerview import PowerView
+from powerview.lib.dns import DNS_UTIL
 
 BASE = 'DC=example.test,CN=MicrosoftDNS,DC=DomainDnsZones,DC=example,DC=test'
 FRESH = [{'type': 'searchResEntry', 'dn': f'DC=web01,{BASE}', 'attributes': {'name': 'web01'}}]
@@ -62,7 +62,20 @@ class RelativeDnsNameTests(unittest.TestCase):
 		]
 		for name, expected in cases:
 			with self.subTest(name=name):
-				self.assertEqual(PowerView._relative_dns_name(name, 'example.test'), expected)
+				self.assertEqual(DNS_UTIL.relative_name(name, 'example.test'), expected)
+
+
+	def test_recognises_dns_node_distinguished_names(self):
+		self.assertTrue(DNS_UTIL.is_node_dn('DC=web01,DC=example.test,CN=MicrosoftDNS,DC=DomainDnsZones,DC=example,DC=test'))
+		self.assertTrue(DNS_UTIL.is_node_dn('dc=@,dc=example.test,cn=MicrosoftDNS,CN=System,DC=example,DC=test'))
+		for value in ['web01', 'CN=Users,DC=example,DC=test', 'DC=example,DC=test', '', None]:
+			with self.subTest(value=value):
+				self.assertFalse(DNS_UTIL.is_node_dn(value))
+
+	def test_lists_a_records_with_their_index_and_address(self):
+		stored = [DNS_UTIL.new_record(1, 1, '10.0.0.1').getData(), DNS_UTIL.new_record(1, 1, '10.0.0.2').getData()]
+		stored[0] = stored[0][:2] + (28).to_bytes(2, 'little') + stored[0][4:]
+		self.assertEqual([(index, address) for index, _, address in DNS_UTIL.a_records(stored)], [(1, '10.0.0.2')])
 
 
 if __name__ == '__main__':

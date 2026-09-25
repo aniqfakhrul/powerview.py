@@ -5347,7 +5347,7 @@ displayName=New Group Policy Object
 			zonename = self.domain.lower()
 			logging.debug("[Set-DomainDNSRecord] Using current domain %s as zone name" % zonename)
 
-		if recordname.lower().startswith('dc=') and ',cn=microsoftdns,' in recordname.lower():
+		if DNS_UTIL.is_node_dn(recordname):
 			node_dns = [recordname]
 		else:
 			entries = self.get_domaindnsrecord(identity=recordname, zonename=zonename, properties=['distinguishedName', 'name'], no_cache=True)
@@ -5366,12 +5366,7 @@ displayName=New Group Policy Object
 			return False
 		stored = node[0].get('raw_attributes', {}).get('dnsRecord') or []
 
-		a_records = []
-		for index, record in enumerate(stored):
-			dr = DNS_RECORD(record)
-			if dr['Type'] == 1:
-				a_records.append((index, dr, DNS_RPC_RECORD_A(dr['Data']).formatCanonical()))
-
+		a_records = DNS_UTIL.a_records(stored)
 		if not a_records:
 			logging.error("[Set-DomainDNSRecord] No A record exists yet. Nothing to modify")
 			return False
@@ -5400,16 +5395,6 @@ displayName=New Group Policy Object
 		logging.info('[Set-DomainDNSRecord] Success! modified attribute for target record %s' % node_dn)
 		return True
 
-	@staticmethod
-	def _relative_dns_name(recordname, zonename):
-		name = (recordname or '').strip().rstrip('.')
-		zone = zonename.rstrip('.').lower()
-		if name.lower() == zone:
-			return ''
-		if name.lower().endswith('.' + zone):
-			name = name[:-(len(zone) + 1)]
-		return name
-
 	def add_domaindnsrecord(self, recordname=None, recordaddress=None, zonename=None, basedn=None, no_cache=False, legacy=False, forest=False, args=None, timeout=15):
 		recordname = args.recordname if args and hasattr(args, 'recordname') else recordname
 		recordaddress = args.recordaddress if args and hasattr(args, 'recordaddress') else recordaddress
@@ -5435,7 +5420,7 @@ displayName=New Group Policy Object
 			basedn = zones[0]['attributes']['distinguishedName']
 			zonename = zones[0]['attributes']['name']
 
-		recordname = self._relative_dns_name(recordname, zonename)
+		recordname = DNS_UTIL.relative_name(recordname, zonename)
 		if not recordname:
 			logging.error("[Add-DomainDNSRecord] Record name must not be empty or the zone itself")
 			return False

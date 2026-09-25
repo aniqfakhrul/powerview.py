@@ -47,6 +47,27 @@ class DNS_UTIL:
         nr['Data'].fromCanonical(recordaddress)
         return nr
 
+    def relative_name(recordname, zonename):
+        name = (recordname or '').strip().rstrip('.')
+        zone = zonename.rstrip('.').lower()
+        if name.lower() == zone:
+            return ''
+        if name.lower().endswith('.' + zone):
+            name = name[:-(len(zone) + 1)]
+        return name
+
+    def is_node_dn(value):
+        lowered = (value or '').lower()
+        return lowered.startswith('dc=') and ',cn=microsoftdns,' in lowered
+
+    def a_records(stored):
+        records = []
+        for index, raw in enumerate(stored):
+            record = DNS_RECORD(raw)
+            if record['Type'] == 1:
+                records.append((index, record, DNS_RPC_RECORD_A(record['Data']).formatCanonical()))
+        return records
+
     def parse_record_data(record):
         rd = {}
         rtype = None
