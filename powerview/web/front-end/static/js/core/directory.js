@@ -36,6 +36,12 @@ function records(data) {
   return data.filter((item) => item && typeof item.dn === 'string' && item.attributes && typeof item.attributes === 'object');
 }
 
+function withDN(data, noun) {
+  if (data == null) return [];
+  if (!Array.isArray(data)) throw new APIError(`The directory returned an unexpected ${noun}. Check the CLI logs.`);
+  return records(data.map((item) => ({ ...item, dn: item?.dn ?? textValue(item?.attributes?.distinguishedName) }))).filter((record) => record.dn);
+}
+
 export function createDirectory(baseURL) {
   const request = createAPI(baseURL);
   return {
@@ -108,12 +114,17 @@ export function createDirectory(baseURL) {
     dnsAddRecord: ({ zone, name, address }) => request('add/domaindnsrecord', {
       mutation: true, body: { recordname: name, recordaddress: address, zonename: zone, no_cache: true },
     }),
+    async certificateTemplates({ signal, fresh = false } = {}) {
+      const data = await request('get/domaincatemplate', { signal, body: { resolve_sids: true, no_cache: fresh } });
+      return withDN(data, 'certificate template list').map(entryFromRecord);
+    },
+    async certificateAuthorities({ signal, fresh = false, checkWeb = false } = {}) {
+      const data = await request('get/domainca', { signal, body: { no_cache: fresh, ...(checkWeb ? { check_all: true } : {}) } });
+      return withDN(data, 'certificate authority list').map(entryFromRecord);
+    },
     async dnsRecords(zone, { signal, fresh = false } = {}) {
       const data = await request('get/domaindnsrecord', { signal, body: { zonename: zone, no_cache: fresh } });
-      if (!Array.isArray(data)) throw new APIError('The directory returned an unexpected DNS record list. Check the CLI logs.');
-      return records(data.map((item) => ({ ...item, dn: item?.dn ?? textValue(item?.attributes?.distinguishedName) })))
-        .filter((record) => record.dn)
-        .map((record) => ({ dn: record.dn, name: dnLabel(record.dn), record }));
+      return withDN(data, 'DNS record list').map((record) => ({ dn: record.dn, name: dnLabel(record.dn), record }));
     },
     async findObjects(text, { groupsOnly = false, signal } = {}) {
       const escaped = text.replace(/[\\*()\0]/g, (character) => `\\${character.charCodeAt(0).toString(16).padStart(2, '0')}`);

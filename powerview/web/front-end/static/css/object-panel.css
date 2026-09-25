@@ -130,3 +130,5 @@
   .membership__remove { opacity: 1; }
   .property-row__edit::after { content: ""; position: absolute; inset: -8px; }
 }
+.summary-actions { padding: var(--space-3) var(--space-4); }
+.property-grid .state { height: auto; min-height: 18px; padding-block: 2px; white-space: normal; line-height: 1.3; }

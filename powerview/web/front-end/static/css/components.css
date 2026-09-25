@@ -41,6 +41,7 @@ textarea.text-input { height: auto; padding: 5px 8px; resize: vertical; }
 .type--ou { color: var(--type-ou); }
 .type--container { color: var(--type-container); }
 .type--other { color: var(--type-other); }
+.type--certificate { color: var(--type-ou); }
 .form-error { color: var(--color-danger); font-size: 12px; overflow-wrap: anywhere; }
 .dialog { width: 420px; max-width: calc(100vw - 32px); padding: 0; border: 0; border-radius: var(--radius-md); background: var(--color-raised); color: var(--color-text); box-shadow: var(--shadow-pop); }
 .dialog[open] { animation: dialog-in 160ms var(--ease-out); }

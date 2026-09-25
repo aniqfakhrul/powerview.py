@@ -12,7 +12,7 @@ import { createSearchMenu } from './search-menu.js';
 const PAGE_SIZE = 200;
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
-export function createGridPage({ root, endpoint, noun, columnSet, search: searchConfig = {}, fetch: fetchEntries, deletable = true, describeRemoval, isProtected = () => false, afterDelete }) {
+export function createGridPage({ root, endpoint, noun, columnSet, search: searchConfig = {}, fetch: fetchEntries, deletable = true, describeRemoval, isProtected = () => false, afterDelete, summary }) {
   const directory = createDirectory(new URL(root.dataset.apiRoot, window.location.origin));
   const scroller = document.querySelector('#grid-scroll');
   const head = document.querySelector('#grid-head');
@@ -318,6 +318,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   const guard = createMutationGuard({ onBlocked: () => notify.info('Wait for the current change to finish.') });
   const panel = createObjectPanel({
     root: panelRoot,
+    summary: summary && { label: summary.label, render: (panel, dn) => summary.render(panel, entries.find((entry) => sameDN(entry.dn, dn))) },
     directory,
     status,
     guard,

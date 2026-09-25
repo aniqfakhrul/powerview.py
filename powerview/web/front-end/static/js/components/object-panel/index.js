@@ -13,7 +13,8 @@ const TABS = [
   { key: 'security', label: 'Security', lazy: true },
 ];
 
-export function createObjectPanel({ root, defaultTab = 'attributes', ...options }) {
+export function createObjectPanel({ root, defaultTab = 'attributes', summary, ...options }) {
+  const definitions = summary ? [TABS[0], { key: 'summary', label: summary.label }, ...TABS.slice(1)] : TABS;
   const attributes = createAttributes({ root, ...options, reopen: (dn, openOptions) => open(dn, openOptions) });
   const actionsHost = root.querySelector('[data-panel-actions]');
   const actions = actionsHost ? createActions({
@@ -43,7 +44,7 @@ export function createObjectPanel({ root, defaultTab = 'attributes', ...options 
   tabList.setAttribute('aria-label', 'Object details');
   body.id = body.id || `${root.id}-attributes`;
 
-  for (const definition of TABS) {
+  for (const definition of definitions) {
     const tab = button('', { className: 'panel-tab' });
     tab.id = `${root.id}-tab-${definition.key}`;
     tab.setAttribute('role', 'tab');
@@ -52,7 +53,7 @@ export function createObjectPanel({ root, defaultTab = 'attributes', ...options 
     tab.append(label, count);
     let panel = body;
     if (definition.key !== 'attributes') {
-      panel = element('div', definition.key === 'security' ? 'security' : 'membership');
+      panel = element('div', { security: 'security', summary: 'properties' }[definition.key] ?? 'membership');
       panel.id = `${root.id}-${definition.key}`;
       panel.tabIndex = -1;
       body.before(panel);
@@ -142,6 +143,7 @@ export function createObjectPanel({ root, defaultTab = 'attributes', ...options 
     currentDN = record ? record.dn : '';
     for (const { definition, panel } of views) {
       if (!record) failed(panel, dn);
+      else if (definition.key === 'summary') summary.render(panel, record.dn);
       else if (definition.lazy) panel.replaceChildren();
       else {
         const editor = createMembershipEditor({

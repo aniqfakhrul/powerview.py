@@ -1,0 +1,20 @@
+{% extends "layouts/grid.html" %}
+{% from "components/icon.html" import icon %}
+{% set grid_icon = "certificate" %}
+{% set view = "authorities" if request.args.get("view") == "authorities" else "templates" %}
+{% block grid_actions %}
+  <nav class="view-switch" aria-label="View">
+    <a href="{{ url_for('ca', view='templates') }}"{% if view == "templates" %} aria-current="page"{% endif %}>Templates</a>
+    <a href="{{ url_for('ca', view='authorities') }}"{% if view == "authorities" %} aria-current="page"{% endif %}>Authorities</a>
+  </nav>
+  {% if view == "templates" %}
+  <select id="ca-authority" class="text-input ca-select" aria-label="Certificate authority" title="Certificate authority" disabled><option value="">All templates</option></select>
+  <select id="ca-state" class="text-input ca-select" aria-label="Show" title="Show">
+    <option value="">Any state</option>
+    <option value="enabled">Enabled only</option>
+    <option value="findings">With findings only</option>
+  </select>
+  {% else %}
+  <button id="ca-web" class="button" type="button" title="Connects to each CA host over HTTP and HTTPS">{{ icon('check') }}<span>Check web enrollment</span></button>
+  {% endif %}
+{% endblock %}
