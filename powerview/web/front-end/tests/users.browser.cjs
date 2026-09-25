@@ -47,7 +47,8 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
     }
     if (path.endsWith('/get/domainuser')) {
       userRequests.push(data);
-      return failUsers ? route.fulfill({ status: 400, json: { error: 'Search failed (test)' } }) : route.fulfill({ json: users });
+      if (failUsers) return route.fulfill({ status: 400, json: { error: 'Search failed (test)' } });
+      return route.fulfill({ json: data.search_scope === 'BASE' ? users.filter((item) => item.dn === data.searchbase) : users });
     }
     writes.push({ path, data });
     if (path.endsWith('/set/domainobject') && data._set) {

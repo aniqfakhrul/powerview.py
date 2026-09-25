@@ -14,9 +14,9 @@ const newButton = document.querySelector('#user-new');
 const newUser = createNewUser({
   directory: page.directory,
   defaultContainer: () => `CN=Users,${page.rootDN()}`,
-  async onCreated(name) {
+  async onCreated(name, container) {
     notify.success(`Created ${name}`);
-    await page.reloadAndFind(name);
+    await page.showCreated(`CN=${name},${container}`, name);
   },
 });
 

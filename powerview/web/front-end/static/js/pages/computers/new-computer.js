@@ -48,7 +48,7 @@ export function createNewComputer({ directory, defaultContainer, onCreated }) {
       setBusy(form, false);
     }
     dialog.close();
-    await onCreated(computerName);
+    await onCreated(computerName, basedn);
   });
 
   return {

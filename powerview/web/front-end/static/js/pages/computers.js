@@ -36,9 +36,9 @@ const addButton = document.querySelector('#computer-new');
 const newComputer = createNewComputer({
   directory: page.directory,
   defaultContainer: () => `CN=Computers,${page.rootDN()}`,
-  async onCreated(name) {
+  async onCreated(name, container) {
     notify.success(`Created ${name}`);
-    await page.reloadAndFind(name);
+    await page.showCreated(`CN=${name},${container}`, name);
   },
 });
 addButton.addEventListener('click', () => newComputer.open());

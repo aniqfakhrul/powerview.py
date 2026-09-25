@@ -38,6 +38,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   const cellText = (column, entry) => column.text(entry.record, entry) || '';
 
   let entries = [];
+  let loadedProperties = new Set();
   let visible = [];
   let rendered = 0;
   let sortKey = 'name';
@@ -171,9 +172,11 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     message.replaceChildren();
     count.textContent = `Loading ${noun.plural}…`;
     try {
-      const result = await directory.list(endpoint, { signal, fresh, properties: columnSet.properties(columns), search });
+      const properties = columnSet.properties(columns);
+      const result = await directory.list(endpoint, { signal, fresh, properties, search });
       if (signal.aborted) return false;
       entries = result;
+      loadedProperties = new Set(properties.map((name) => name.toLowerCase()));
       filter.disabled = false;
       setSortable(true);
       update();
@@ -376,7 +379,9 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       if (!columns.some((column) => column.key === sortKey)) { sortKey = 'name'; sortDirection = 1; }
       buildHead();
       fieldsMenu.refresh();
-      load();
+      const needsFetch = columnSet.properties(columns).some((name) => !loadedProperties.has(name.toLowerCase()));
+      if (needsFetch || filter.disabled) load();
+      else { setSortable(true); update(); }
     },
   });
 
@@ -404,6 +409,20 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       filter.value = text;
       update();
       return true;
+    },
+    async showCreated(dn, text) {
+      const searchActive = Object.entries(search).some(([key, value]) => (Array.isArray(value) ? value.length : key === 'scope' ? value !== 'SUBTREE' : Boolean(value)));
+      if (searchActive || filter.disabled) return this.reloadAndFind(text);
+      try {
+        const [created] = await directory.list(endpoint, { fresh: true, properties: columnSet.properties(columns), search: { base: dn, scope: 'BASE' } });
+        if (!created) return this.reloadAndFind(text);
+        entries = [...entries.filter((entry) => !sameDN(entry.dn, created.dn)), created];
+        filter.value = text;
+        update();
+        return true;
+      } catch {
+        return this.reloadAndFind(text);
+      }
     },
   };
 }

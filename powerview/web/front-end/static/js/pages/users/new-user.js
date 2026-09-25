@@ -39,7 +39,7 @@ export function createNewUser({ directory, defaultContainer, onCreated }) {
       setBusy(form, false);
     }
     dialog.close();
-    await onCreated(username);
+    await onCreated(username, basedn);
   });
 
   return {
