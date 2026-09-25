@@ -1,7 +1,9 @@
 import { createGridPage } from '../components/grid/grid-page.js';
+import { notify } from '../components/notify.js';
+import { createNewComputer } from './computers/new-computer.js';
 import { computerColumns } from './computers/columns.js';
 
-createGridPage({
+const page = createGridPage({
   root: document.querySelector('#computers'),
   endpoint: 'get/domaincomputer',
   noun: { singular: 'computer', plural: 'computers' },
@@ -28,4 +30,19 @@ createGridPage({
     },
     advancedFields: [['identity', 'Identity', 'Name, DNS host name, or SID']],
   },
+});
+
+const addButton = document.querySelector('#computer-new');
+const newComputer = createNewComputer({
+  directory: page.directory,
+  defaultContainer: () => `CN=Computers,${page.rootDN()}`,
+  async onCreated(name) {
+    notify.success(`Created ${name}`);
+    await page.reloadAndFind(name);
+  },
+});
+addButton.addEventListener('click', () => newComputer.open());
+page.domainReady.then((rootDN) => {
+  addButton.disabled = !rootDN;
+  if (!rootDN) addButton.title = 'Unavailable until the directory responds';
 });

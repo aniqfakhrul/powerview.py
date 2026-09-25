@@ -110,6 +110,30 @@ class ExplorerBackendTests(unittest.TestCase):
                     self.assertIn(expected, positional[1])
                     self.assertTrue(keywords['raw'])
 
+    def test_add_computer_api_maps_name_password_and_container(self):
+        pv = PowerView.__new__(PowerView)
+        pv.root_dn = 'DC=example,DC=test'
+        pv.domain = 'example.test'
+        pv.args = Namespace(debug=False)
+        pv.conn = SimpleNamespace(use_ldaps=True, use_adws=False)
+        pv.ldap_session = MagicMock()
+        pv.ldap_session.add.return_value = True
+        server = self.make_server()
+        server.powerview.add_domaincomputer = pv.add_domaincomputer
+        with server.app.test_client() as client:
+            response = client.post('/api/add/domaincomputer', json={
+                'computer_name': 'WS-NEW', 'computer_pass': 'Test-only-password!',
+                'basedn': 'OU=Servers,DC=example,DC=test',
+            })
+        self.assertEqual(response.status_code, 200)
+        self.assertIs(response.get_json(), True)
+        dn, classes, attributes = pv.ldap_session.add.call_args.args
+        self.assertEqual(dn, 'CN=WS-NEW,OU=Servers,DC=example,DC=test')
+        self.assertEqual(classes, ['computer'])
+        self.assertEqual(attributes['sAMAccountName'], 'WS-NEW$')
+        self.assertEqual(attributes['dnsHostName'], 'WS-NEW.example.test')
+        self.assertEqual(attributes['unicodePwd'], '"Test-only-password!"'.encode('utf-16-le'))
+
     def test_explorer_retains_basic_auth(self):
         import base64
         server = self.make_server({'web_auth_user': 'tester', 'web_auth_password': 'test-only'})

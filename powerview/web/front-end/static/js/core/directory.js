@@ -40,6 +40,10 @@ export function createDirectory(baseURL) {
   return {
     domain: (signal) => request('get/domaininfo', { signal }),
     server: (signal) => request('server/info', { signal }),
+    connection: (signal) => request('connectioninfo', { signal }),
+    createComputer: (computer_name, computer_pass, basedn) => request('add/domaincomputer', {
+      mutation: true, body: { computer_name, computer_pass, basedn },
+    }),
     async schemaAttributes(className, { signal } = {}) {
       const data = await request(`schema/attributes?class=${encodeURIComponent(className)}`, { signal });
       return data?.available && Array.isArray(data.attributes) ? data.attributes : null;

@@ -1,2 +1,22 @@
 {% extends "layouts/grid.html" %}
 {% set grid_icon = "computer" %}
+
+{% from "components/icon.html" import icon %}
+{% block grid_actions %}<button id="computer-new" class="button" type="button" title="Add computer" disabled>{{ icon('plus') }}<span>Add computer</span></button>{% endblock %}
+{% block grid_dialogs %}
+  <dialog id="computer-dialog" class="dialog" aria-labelledby="computer-dialog-title">
+    <form id="computer-form" method="dialog">
+      <h2 id="computer-dialog-title" class="dialog__title">Add computer</h2>
+      <div class="dialog__fields">
+        <label>Name<input id="computer-name" class="text-input" type="text" autocomplete="off" spellcheck="false" required></label>
+        <label>Password<input id="computer-password" class="text-input" type="password" autocomplete="new-password" required></label>
+        <label>Container<input id="computer-container" class="text-input text-input--mono" type="text" autocomplete="off" spellcheck="false" required></label>
+      </div>
+      <p id="computer-error" class="form-error dialog__error" role="alert" hidden></p>
+      <footer class="dialog__footer">
+        <button id="computer-cancel" type="button" class="button">Cancel</button>
+        <button type="submit" class="button button--primary">Create</button>
+      </footer>
+    </form>
+  </dialog>
+{% endblock %}
