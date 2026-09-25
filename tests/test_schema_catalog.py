@@ -31,14 +31,14 @@ def fake_schema():
         attribute('whenCreated', GENERALIZED_TIME), attribute('manager', DN),
         attribute('userAccountControl', INTEGER), attribute('pwdLastSet', LARGE_INTEGER),
         attribute('objectSid', OCTET_STRING), attribute('memberOf', DN, single=False),
-        attribute('sAMAccountName'), attribute('mail'), attribute('tokenGroups', OCTET_STRING, single=False),
+        attribute('sAMAccountName'), attribute('mail'), attribute('msLAPS-PasswordExpirationTime', LARGE_INTEGER), attribute('tokenGroups', OCTET_STRING, single=False),
     ):
         attributes[info.name[0]] = info
     classes = CaseInsensitiveDict()
     for info in (
         object_class('top', must=['objectClass'], may=['description', 'whenCreated']),
         object_class('person', ['top'], must=['cn']),
-        object_class('user', ['person'], may=['manager', 'userAccountControl', 'pwdLastSet', 'objectSid', 'memberOf', 'tokenGroups']),
+        object_class('user', ['person'], may=['manager', 'userAccountControl', 'pwdLastSet', 'objectSid', 'memberOf', 'tokenGroups', 'msLAPS-PasswordExpirationTime']),
         object_class('securityPrincipal', may=['sAMAccountName']),
         object_class('mailRecipient', may=['mail']),
     ):
@@ -54,10 +54,11 @@ class SchemaCatalogTests(unittest.TestCase):
         self.assertEqual(list(attributes), sorted(attributes, key=str.casefold))
         self.assertEqual(set(attributes), {
             'cn', 'description', 'mail', 'manager', 'memberOf', 'objectClass', 'objectSid',
-            'pwdLastSet', 'sAMAccountName', 'userAccountControl', 'whenCreated',
+            'pwdLastSet', 'sAMAccountName', 'userAccountControl', 'whenCreated', 'msLAPS-PasswordExpirationTime',
         })
         self.assertEqual(attributes['whenCreated'].kind, 'time')
         self.assertEqual(attributes['pwdLastSet'].kind, 'time')
+        self.assertEqual(attributes['msLAPS-PasswordExpirationTime'].kind, 'time')
         self.assertEqual(attributes['manager'].kind, 'dn')
         self.assertEqual(attributes['userAccountControl'].kind, 'integer')
         self.assertEqual(attributes['objectSid'].kind, 'binary')

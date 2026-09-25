@@ -116,6 +116,9 @@ _FILETIME_ATTRIBUTES = frozenset(
     for name in (
         "accountExpires", "badPasswordTime", "lastLogoff", "lastLogon",
         "lastLogonTimestamp", "lockoutTime", "pwdLastSet",
+        "msDS-LastFailedInteractiveLogonTime", "msDS-LastSuccessfulInteractiveLogonTime",
+        "msDS-UserPasswordExpiryTimeComputed", "msLAPS-PasswordExpirationTime",
+        "ms-Mcs-AdmPwdExpirationTime",
     )
 )
 

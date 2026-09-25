@@ -68,9 +68,9 @@ const numberColumn = (key, name, hint) => ({
 
 const KIND_COLUMNS = { time: timeColumn, dn: dnColumn, integer: numberColumn };
 
-export function customColumn(name, kind = 'text') {
+export function customColumn(name, kind = 'text', key = `attr:${name}`) {
   const hint = kind === 'text' ? 'Custom attribute' : `Custom ${kind} attribute`;
-  return { ...(KIND_COLUMNS[kind] ?? textColumn)(`attr:${name}`, name, hint), custom: true };
+  return { ...(KIND_COLUMNS[kind] ?? textColumn)(key, name, hint), custom: true };
 }
 
 export function createColumnSet({ storageKey, objectClass, name, catalog, defaults }) {
@@ -81,7 +81,7 @@ export function createColumnSet({ storageKey, objectClass, name, catalog, defaul
     const attributeName = key.slice(5);
     if (!isAttributeName(attributeName)) return null;
     const known = schema?.get(attributeName.toLowerCase());
-    return customColumn(known?.name ?? attributeName, known?.kind);
+    return customColumn(known?.name ?? attributeName, known?.kind, key);
   }
 
   return {

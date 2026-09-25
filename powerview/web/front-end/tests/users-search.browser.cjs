@@ -12,6 +12,7 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
       const path = new URL(route.request().url()).pathname;
       if (path.endsWith('/get/domaininfo')) return route.fulfill({ json: { root_dn: 'DC=example,DC=test' } });
       if (path.endsWith('/connectioninfo')) return route.fulfill({ json: { status: 'OK' } });
+      if (path.endsWith('/schema/attributes')) return route.fulfill({ json: { available: false, class: 'user', attributes: [] } });
       if (path.endsWith('/get/domainuser')) {
         requests.push(route.request().postDataJSON());
         return fail ? route.fulfill({ status: 400, json: { error: 'Invalid LDAP filter' } }) : route.fulfill({ json: [{ dn: 'CN=A,DC=example,DC=test', attributes: { name: 'A', sAMAccountName: 'a', userAccountControl: 512 } }] });

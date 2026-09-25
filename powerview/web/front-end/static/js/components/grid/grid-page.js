@@ -56,6 +56,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       const th = element('th', column.key === 'name' ? 'col-name' : '');
       th.scope = 'col';
       th.style.width = `${column.width}px`;
+      th.dataset.key = column.key;
       if (column.hint) th.title = column.hint;
       const control = button('', { className: 'column-sort' });
       control.append(icon(column.icon), element('span', 'column-sort__label', column.label), icon('chevron-right', 'column-sort__direction'));
@@ -324,9 +325,17 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       if (!attributes) return;
       columnSet.setSchema(attributes);
       if (!columnKeys.some((key) => key.startsWith('attr:'))) return;
+      const focusedHeader = document.activeElement?.closest('#grid-head th')?.dataset.key;
+      const focusedRow = document.activeElement?.closest('#grid-body tr[data-dn]')?.dataset.dn;
+      const scrollTop = scroller.scrollTop;
+      const scrollLeft = scroller.scrollLeft;
       columns = columnSet.columns(columnKeys);
       buildHead();
       if (!filter.disabled) { setSortable(true); update(); }
+      scroller.scrollTop = scrollTop;
+      scroller.scrollLeft = scrollLeft;
+      if (focusedHeader) head.querySelector(`th[data-key="${CSS.escape(focusedHeader)}"] button`)?.focus({ preventScroll: true });
+      else if (focusedRow) body.querySelector(`tr[data-dn="${CSS.escape(focusedRow)}"]`)?.focus({ preventScroll: true });
     })
     .catch(() => {});
 
