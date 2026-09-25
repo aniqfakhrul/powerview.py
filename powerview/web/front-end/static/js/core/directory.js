@@ -62,8 +62,8 @@ export function createDirectory(baseURL) {
       const aces = acls.flatMap((entry) => (Array.isArray(entry?.attributes) ? entry.attributes : []));
       return { owner: textValue(owner), aces };
     },
-    async list(endpoint, { signal, fresh = false, properties = ['name'], search = {} } = {}) {
-      const body = { properties, raw: true, no_vuln_check: true, no_cache: fresh };
+    async list(endpoint, { signal, fresh = false, properties = ['name'], search = {}, options = {} } = {}) {
+      const body = { ...options, properties, raw: true, no_vuln_check: true, no_cache: fresh };
       if (search.base) body.searchbase = search.base;
       if (search.scope) body.search_scope = search.scope;
       const args = Object.fromEntries((search.options ?? []).map((option) => [option, true]));

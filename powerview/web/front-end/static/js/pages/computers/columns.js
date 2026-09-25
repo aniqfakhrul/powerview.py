@@ -1,4 +1,14 @@
+import { attribute, values } from '../../core/directory.js';
 import { countColumn, createColumnSet, dnColumn, nameColumn, statusColumn, textColumn, timeColumn } from '../../components/grid/columns.js';
+
+const addresses = (record) => values(attribute(record, 'IPAddress')).map(String).join(', ');
+
+const ipAddressColumn = {
+  key: 'ipAddress', label: 'IPAddress', hint: 'Resolved from AD DNS', icon: 'field-text', width: 200,
+  attributes: ['dNSHostName'],
+  request: { include_ip: true },
+  text: addresses,
+};
 
 export const computerColumns = createColumnSet({
   storageKey: 'powerview.computers.columns',
@@ -8,6 +18,7 @@ export const computerColumns = createColumnSet({
     textColumn('dnsHostName', 'dNSHostName', 'DNS host name', 240),
     statusColumn,
     textColumn('os', 'operatingSystem', 'Operating system', 240),
+    ipAddressColumn,
     textColumn('osVersion', 'operatingSystemVersion', 'OS version', 160),
     textColumn('description', 'description', 'Description', 280, 'field-desc'),
     textColumn('account', 'sAMAccountName', 'Account', 180),

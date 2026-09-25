@@ -129,5 +129,6 @@ export function createColumnSet({ storageKey, objectClass, name, catalog, defaul
     },
     columns: (keys) => [name, ...keys.map(columnFor).filter(Boolean)],
     properties: (columns) => [...new Set(['name', ...columns.flatMap((column) => column.attributes)])],
+    requestOptions: (columns) => Object.assign({}, ...columns.map((column) => column.request ?? {})),
   };
 }

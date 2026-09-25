@@ -90,7 +90,10 @@ export function createFieldsMenu({ trigger, menu, columnSet, getKeys, onApply })
     add.addEventListener('submit', (event) => {
       event.preventDefault();
       const name = attributeInput.value.trim();
-      const known = [columnSet.name, ...catalog].find((column) => column.attributes.some((attribute) => attribute.toLowerCase() === name.toLowerCase()));
+      const lower = name.toLowerCase();
+      const columnsByLabel = [columnSet.name, ...catalog];
+      const known = columnsByLabel.find((column) => column.label.toLowerCase() === lower)
+        ?? columnsByLabel.find((column) => !column.request && column.attributes.some((attribute) => attribute.toLowerCase() === lower));
       if (known === columnSet.name) { explain(`${name} is already shown as the name column.`); return; }
       if (!known && !isAttributeName(name)) { explain('Enter an LDAP attribute name, for example description.'); return; }
       const schemaEntry = known ? null : columnSet.schemaAttribute(name);

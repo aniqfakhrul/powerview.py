@@ -39,6 +39,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
 
   let entries = [];
   let loadedProperties = [];
+  let loadedOptions = {};
   let namingContexts = [];
   let rootsKnown = false;
   let visible = [];
@@ -175,12 +176,14 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     count.textContent = `Loading ${noun.plural}…`;
     try {
       const properties = columnSet.properties(columns);
+      const options = columnSet.requestOptions(columns);
       const result = fetchEntries
         ? await fetchEntries({ signal, fresh })
-        : await directory.list(endpoint, { signal, fresh, properties, search });
+        : await directory.list(endpoint, { signal, fresh, properties, search, options });
       if (signal.aborted) return false;
       entries = result;
       loadedProperties = properties;
+      loadedOptions = options;
       filter.disabled = false;
       setSortable(true);
       update();
@@ -287,9 +290,21 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     scroller.scrollTop = scrollTop;
   }
 
-  function reconcile(record) {
-    if (!record) return;
-    const updated = entryFromRecord(record);
+  async function readEntry(dn) {
+    if (!dn) return null;
+    try {
+      const properties = [...new Set([...loadedProperties, ...columnSet.properties(columns)])];
+      const options = { ...loadedOptions, ...columnSet.requestOptions(columns) };
+      const [entry] = await directory.list(endpoint, { fresh: true, properties, options, search: { base: dn, scope: 'BASE' } });
+      return entry ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  function reconcile(item) {
+    if (!item) return;
+    const updated = item.record ? item : entryFromRecord(item);
     const index = entries.findIndex((entry) => sameDN(entry.dn, updated.dn));
     if (index < 0) return;
     entries[index] = updated;
@@ -311,7 +326,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     onSaved: async () => {
       const record = await panel.open(selectedDN, { fresh: true });
       if (fetchEntries || searchActive()) await reloadKeepingPosition();
-      else reconcile(record);
+      else reconcile((await readEntry(selectedDN)) ?? record);
     },
     onDeleted: deletable ? (record) => removeEntry(record.dn) : null,
     isRoot: (dn) => !rootsKnown || [rootDN, ...namingContexts].some((root) => sameDN(root, dn)),
@@ -420,7 +435,8 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       buildHead();
       fieldsMenu.refresh();
       const loaded = new Set(loadedProperties.map((name) => name.toLowerCase()));
-      const needsFetch = !fetchEntries && columnSet.properties(columns).some((name) => !loaded.has(name.toLowerCase()));
+      const missingOptions = Object.entries(columnSet.requestOptions(columns)).some(([key, value]) => loadedOptions[key] !== value);
+      const needsFetch = !fetchEntries && (missingOptions || columnSet.properties(columns).some((name) => !loaded.has(name.toLowerCase())));
       if (needsFetch || filter.disabled) load();
       else { setSortable(true); update(); }
     },
@@ -462,7 +478,8 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       if (searchActive() || filter.disabled) return this.reloadAndFind(text);
       try {
         const properties = [...new Set([...loadedProperties, ...columnSet.properties(columns)])];
-        const [created] = await directory.list(endpoint, { fresh: true, properties, search: { base: dn, scope: 'BASE' } });
+        const options = { ...loadedOptions, ...columnSet.requestOptions(columns) };
+        const [created] = await directory.list(endpoint, { fresh: true, properties, options, search: { base: dn, scope: 'BASE' } });
         if (!created) return this.reloadAndFind(text);
         entries = [...entries.filter((entry) => !sameDN(entry.dn, created.dn)), created];
         filter.value = text;
