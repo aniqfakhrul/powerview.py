@@ -11,6 +11,7 @@ let groups = [
   group('Local Ops', -2147483644, `CN=Alpha,CN=Users,${rootDN}`),
   group('Newsletter', 8),
 ];
+groups[2].attributes['member;range=0-1499'] = Array.from({ length: 1500 }, (_, index) => `CN=Member ${index},CN=Users,${rootDN}`);
 
 (async () => {
   const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || 'chrome', headless: true });
@@ -25,6 +26,7 @@ let groups = [
     if (path.endsWith('/schema/attributes')) return route.fulfill({ json: { available: false, class: 'group', attributes: [] } });
     if (path.endsWith('/get/domaingroup')) {
       listRequests.push(data);
+      if (data.args?.memberidentity === 'nobody') return route.fulfill({ json: [] });
       return route.fulfill({ json: data.search_scope === 'BASE' ? groups.filter((item) => item.dn === data.searchbase) : groups });
     }
     if (path.endsWith('/add/domaingroup')) {
@@ -44,7 +46,11 @@ let groups = [
   const cells = async (name) => (await rows.filter({ hasText: name }).locator('td').allTextContents()).slice(3, 6);
   assert.deepEqual(await cells('Admins'), ['Global security', 'Admins group', '2']);
   assert.deepEqual(await cells('Local Ops'), ['Domain local security', 'Local Ops group', '1']);
-  assert.deepEqual(await cells('Newsletter'), ['Universal distribution', 'Newsletter group', '0']);
+  assert.deepEqual(await cells('Newsletter'), ['Universal distribution', 'Newsletter group', '1500+']);
+  assert.match(await rows.filter({ hasText: 'Newsletter' }).locator('.cell-partial').getAttribute('title'), /first 1500 values/);
+  await page.getByRole('button', { name: 'member (count)', exact: true }).click();
+  await page.getByRole('button', { name: 'member (count)', exact: true }).click();
+  assert.equal(await rows.first().getAttribute('data-dn'), `CN=Newsletter,CN=Users,${rootDN}`);
 
   await page.getByRole('button', { name: /^Filters/ }).click();
   await page.locator('#search-menu').getByLabel('Has member', { exact: true }).fill('Alpha');
@@ -53,6 +59,14 @@ let groups = [
   await searched;
   assert.deepEqual(listRequests.at(-1).args, { memberidentity: 'Alpha' });
   await page.getByRole('button', { name: /^Filters/ }).click();
+  await page.locator('#search-menu').getByLabel('Has member', { exact: true }).fill('nobody');
+  const none = page.waitForResponse((response) => response.url().endsWith('/get/domaingroup'));
+  await page.locator('#search-menu').getByRole('button', { name: 'Apply' }).click();
+  await none;
+  await page.getByRole('heading', { name: 'No groups found' }).waitFor();
+  assert.equal(await page.getByRole('heading', { name: /Cannot load/ }).count(), 0);
+  await page.getByRole('button', { name: /^Filters/ }).click();
+  assert.equal(await page.locator('#search-menu').getByLabel('Identity', { exact: true }).getAttribute('placeholder'), 'Name or distinguished name');
   await page.locator('#search-menu').getByRole('button', { name: 'Clear' }).click();
   const cleared = page.waitForResponse((response) => response.url().endsWith('/get/domaingroup'));
   await page.locator('#search-menu').getByRole('button', { name: 'Apply' }).click();
@@ -78,6 +92,6 @@ let groups = [
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
-  console.log('PASS: group endpoint and columns, groupType scope/security decoding, member counts, Has member search, New group validation and single-object read, mobile overflow.');
+  console.log('PASS: group endpoint and columns, groupType scope/security decoding, member counts incl. ranged partial counts, unknown member shows empty results, Identity hint, Has member search, New group validation and single-object read, mobile overflow.');
   await browser.close();
 })().catch((error) => { console.error(error); process.exit(1); });

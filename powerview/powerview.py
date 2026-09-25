@@ -2065,7 +2065,7 @@ class PowerView:
 				entries = self.get_domainobject(identity=args.memberidentity)
 				if len(entries) == 0:
 					logging.info("Member identity not found. Try to use DN")
-					return
+					return []
 				memberidentity_dn = entries[0]['attributes']['distinguishedName']
 				ldap_filter += f"(member={memberidentity_dn})"
 				logging.debug(f'[Get-DomainGroup] Filter is based on member property {ldap_filter}')

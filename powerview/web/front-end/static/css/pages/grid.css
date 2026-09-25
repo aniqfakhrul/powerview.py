@@ -98,3 +98,4 @@
 [data-search-count]:empty { display: none; }
 .search-menu .fields-menu__footer { position: sticky; bottom: -8px; z-index: 1; margin-bottom: -8px; padding-bottom: 8px; background: var(--color-raised); }
 .data-grid .cell-link { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cell-partial { color: var(--color-muted); text-decoration: underline dotted; text-underline-offset: 2px; cursor: help; }

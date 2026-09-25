@@ -11,7 +11,7 @@ const page = createGridPage({
   search: {
     options: [],
     advancedFields: [
-      ['identity', 'Identity', 'Name, distinguished name, or SID'],
+      ['identity', 'Identity', 'Name or distinguished name'],
       ['memberidentity', 'Has member', 'Member name or distinguished name'],
     ],
   },

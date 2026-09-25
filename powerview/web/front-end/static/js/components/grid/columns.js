@@ -31,10 +31,31 @@ export const timeColumn = (key, name, hint) => ({
   sort: (record) => toTime(attribute(record, name)),
 });
 
+function rangedValues(record, name) {
+  const lower = name.toLowerCase();
+  const keys = Object.keys(record.attributes).filter((key) => {
+    const candidate = key.toLowerCase();
+    return candidate === lower || candidate.startsWith(`${lower};range=`);
+  });
+  return {
+    items: keys.flatMap((key) => values(record.attributes[key])),
+    partial: keys.some((key) => /;range=\d+-\d+$/i.test(key)),
+  };
+}
+
 export const countColumn = (key, name, hint) => ({
   key, label: `${name} (count)`, hint, icon: 'field-class', width: 130, attributes: [name],
-  text: (record) => String(values(attribute(record, name)).length),
-  sort: (record) => values(attribute(record, name)).length,
+  text: (record) => {
+    const { items, partial } = rangedValues(record, name);
+    return partial ? `${items.length}+` : String(items.length);
+  },
+  render: (record) => {
+    const { items, partial } = rangedValues(record, name);
+    const cell = element('span', partial ? 'cell-partial' : '', partial ? `${items.length}+` : String(items.length));
+    if (partial) cell.title = `The directory returned the first ${items.length} values; the full count is larger.`;
+    return cell;
+  },
+  sort: (record) => rangedValues(record, name).items.length,
 });
 
 const disabled = (record) => accountDisabled(attribute(record, 'userAccountControl'));
