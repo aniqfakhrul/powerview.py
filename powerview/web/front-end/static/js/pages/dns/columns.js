@@ -33,7 +33,7 @@ export const dnsColumns = createColumnSet({
   catalog: [
     { ...field('type', 'RecordType', 'Record type', 110), render: (record) => pill(textValue(record.attributes.RecordType)) },
     field('address', 'Address', 'Address or alias', 240),
-    field('target', 'Name', 'SRV target', 240),
+    { ...field('target', 'Name', 'SRV target, returned as Name', 240), label: 'Target' },
     field('port', 'Port', 'SRV port', 90, true),
     field('ttl', 'TTL', 'Time to live (seconds)', 110, true),
     {

@@ -1,11 +1,12 @@
 import { button, element } from '../../core/dom.js';
-import { isAttributeName } from './columns.js';
+import { isAttributeName, literalLabel } from './columns.js';
 import { matchSchema, renderSuggestions } from './schema-suggestions.js';
 
 export function createFieldsMenu({ trigger, menu, columnSet, getKeys, onApply }) {
   const { catalog, defaults, columnFor } = columnSet;
   const label = trigger.querySelector('.fields-trigger__count');
   let draft = [];
+  let widthsReset = false;
   const catalogAttributes = new Set([columnSet.name, ...catalog].flatMap((column) => column.attributes.map((name) => name.toLowerCase())));
   let refreshSearch = () => {};
 
@@ -28,7 +29,7 @@ export function createFieldsMenu({ trigger, menu, columnSet, getKeys, onApply })
     box.addEventListener('change', () => {
       draft = box.checked ? [...draft, column.key] : draft.filter((key) => key !== column.key);
     });
-    row.append(box, element('span', 'fields-menu__label', column.label));
+    row.append(box, element('span', literalLabel(column) ? 'fields-menu__label' : 'fields-menu__label fields-menu__label--computed', column.label));
     if (column.hint) row.append(element('span', 'fields-menu__hint', column.hint));
     row.dataset.search = `${column.label} ${column.hint ?? ''} ${column.attributes.join(' ')}`.toLowerCase();
     return row;
@@ -116,7 +117,7 @@ export function createFieldsMenu({ trigger, menu, columnSet, getKeys, onApply })
 
     const footer = element('div', 'fields-menu__footer');
     const reset = button('Reset to default', { className: 'link-button' });
-    reset.addEventListener('click', () => { draft = [...defaults]; render(); menu.querySelector('input[type="search"]').focus(); });
+    reset.addEventListener('click', () => { draft = [...defaults]; widthsReset = true; render(); menu.querySelector('input[type="search"]').focus(); });
     const done = button('Done', { className: 'button button--primary' });
     done.addEventListener('click', () => menu.hidePopover());
     footer.append(reset, done);
@@ -136,6 +137,7 @@ export function createFieldsMenu({ trigger, menu, columnSet, getKeys, onApply })
   menu.addEventListener('beforetoggle', (event) => {
     if (event.newState !== 'open') return;
     draft = [...getKeys()];
+    widthsReset = false;
     render();
     place();
   });
@@ -146,7 +148,7 @@ export function createFieldsMenu({ trigger, menu, columnSet, getKeys, onApply })
       menu.querySelector('input[type="search"]').focus();
       return;
     }
-    if (!sameKeys(draft, getKeys())) onApply(draft);
+    if (widthsReset || !sameKeys(draft, getKeys())) onApply(draft, { widthsReset });
     trigger.focus();
   });
 

@@ -11,6 +11,8 @@ import { createFieldsMenu } from './fields-menu.js';
 import { createSearchMenu } from './search-menu.js';
 
 const PAGE_SIZE = 200;
+const MIN_COLUMN_WIDTH = 64;
+const MAX_COLUMN_WIDTH = 800;
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
 export function createGridPage({ root, endpoint, noun, columnSet, search: searchConfig = {}, fetch: fetchEntries, deletable = true, describeRemoval, isProtected = () => false, afterDelete, summary, panelActions }) {
@@ -35,6 +37,9 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
 
   let columnKeys = columnSet.load();
   let columns = columnSet.columns(columnKeys);
+  let widths = columnSet.loadWidths();
+  const fitted = new Map();
+  const widthOf = (column) => widths[column.key] ?? fitted.get(column.key) ?? column.width;
 
   const cellText = (column, entry) => column.text(entry.record, entry) || '';
 
@@ -103,8 +108,79 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     notify.info(`Column filters cleared to show the new ${noun.singular}`);
   }
 
+  function sizeColumns() {
+    document.querySelector('#grid').style.setProperty('--columns-width', `${columns.reduce((total, column) => total + widthOf(column), 0)}px`);
+  }
+
+  function setWidth(column, width) {
+    widths[column.key] = Math.round(Math.min(MAX_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, width)));
+    headers.get(column.key).style.width = `${widths[column.key]}px`;
+    sizeColumns();
+  }
+
+  function textRight(node, range) {
+    range.selectNodeContents(node);
+    return range.getBoundingClientRect().right;
+  }
+
+  function labelWidth(th) {
+    const label = th.querySelector('.column-sort__label');
+    const box = label.getBoundingClientRect();
+    return Math.ceil(textRight(label, document.createRange()) - box.left + th.getBoundingClientRect().width - box.width);
+  }
+
+  function contentWidth(cell) {
+    const box = cell.getBoundingClientRect();
+    const style = getComputedStyle(cell);
+    const range = document.createRange();
+    const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    let right = box.left;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node.nodeType === Node.TEXT_NODE) right = Math.max(right, textRight(node, range));
+      else if (getComputedStyle(node).display.startsWith('inline')) right = Math.max(right, node.getBoundingClientRect().right);
+    }
+    return Math.ceil(right - box.left + parseFloat(style.paddingRight) + parseFloat(style.borderRightWidth));
+  }
+
+  function fitLabels() {
+    for (const column of columns) {
+      if (widths[column.key]) continue;
+      const th = headers.get(column.key);
+      const required = labelWidth(th);
+      if (required <= widthOf(column)) continue;
+      fitted.set(column.key, required);
+      th.style.width = `${required}px`;
+    }
+  }
+
+  function fitColumn(column) {
+    const th = headers.get(column.key);
+    const cells = body.querySelectorAll(`tr[data-dn] > :nth-child(${columns.indexOf(column) + 2})`);
+    setWidth(column, Math.max(labelWidth(th), ...[...cells].map(contentWidth)));
+    columnSet.saveWidths(widths);
+  }
+
+  function resizeColumn(event, column, grip) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startWidth = headers.get(column.key).getBoundingClientRect().width;
+    grip.setPointerCapture(event.pointerId);
+    grip.classList.add('is-dragging');
+    root.classList.add('is-resizing');
+    const move = (moveEvent) => setWidth(column, startWidth + moveEvent.clientX - startX);
+    const stop = () => {
+      grip.classList.remove('is-dragging');
+      root.classList.remove('is-resizing');
+      grip.removeEventListener('pointermove', move);
+      columnSet.saveWidths(widths);
+    };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', stop, { once: true });
+    grip.addEventListener('pointercancel', stop, { once: true });
+  }
+
   function buildHead() {
-    document.querySelector('#grid').style.setProperty('--columns-width', `${columns.reduce((total, column) => total + column.width, 0)}px`);
     const index = element('th', 'col-index');
     index.scope = 'col';
     index.append(element('span', 'visually-hidden', 'Row'));
@@ -113,7 +189,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     for (const column of columns) {
       const th = element('th', column.key === 'name' ? 'col-name' : '');
       th.scope = 'col';
-      th.style.width = `${column.width}px`;
+      th.style.width = `${widthOf(column)}px`;
       th.dataset.key = column.key;
       if (column.hint) th.title = column.hint;
       const control = button('', { className: 'column-sort' });
@@ -135,11 +211,17 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
         entries: entries.filter((entry) => filteredBy(entry, column.key)),
         state: columnFilters.get(column.key),
       }));
+      const grip = element('span', 'column-resizer');
+      grip.setAttribute('aria-hidden', 'true');
+      grip.addEventListener('pointerdown', (event) => resizeColumn(event, column, grip));
+      grip.addEventListener('dblclick', () => fitColumn(column));
       th.dataset.label = column.label;
-      th.append(control, filterButton);
+      th.append(control, filterButton, grip);
       head.append(th);
       headers.set(column.key, th);
     }
+    fitLabels();
+    sizeColumns();
   }
 
   function setSortable(enabled) {
@@ -503,7 +585,11 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     menu: document.querySelector('#fields-menu'),
     columnSet,
     getKeys: () => columnKeys,
-    onApply(keys) {
+    onApply(keys, { widthsReset = false } = {}) {
+      if (widthsReset) {
+        widths = {};
+        columnSet.saveWidths(widths);
+      }
       columnKeys = keys;
       columnSet.save(keys);
       const previous = columns;

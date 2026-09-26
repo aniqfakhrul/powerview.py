@@ -13,6 +13,8 @@ colors:
   faint: "#6e6e78"
   border: "#e6e6e9"
   border-strong: "#d2d2d7"
+  divider: "#f0f0f2"
+  input-border: "#8c8c95"
   guide: "#e3e3e7"
   accent: "#2f6fed"
   selection: "#e3eafb"
@@ -25,6 +27,10 @@ colors:
   danger-soft: "#fcebed"
   danger-text: "#fff"
   success: "#1d7a4b"
+  pill-success-bg: "#d9f3e4"
+  pill-success-fg: "#11643a"
+  pill-neutral-bg: "#ececef"
+  pill-neutral-fg: "#4f4f58"
   overlay: "rgb(10 10 12 / 28%)"
   type-domain: "#2f6fed"
   type-user: "#2f6fed"
@@ -44,10 +50,12 @@ colors:
   dark-faint: "#85858e"
   dark-border: "#222225"
   dark-border-strong: "#313135"
+  dark-divider: "#1a1a1c"
+  dark-input-border: "#66666e"
   dark-guide: "#28282c"
   dark-accent: "#7aa2ff"
-  dark-selection: "#27272b"
-  dark-selection-focus: "#323237"
+  dark-selection: "#333339"
+  dark-selection-focus: "#3a3a40"
   dark-selection-text: "#fff"
   dark-primary: "#ededef"
   dark-primary-hover: "#d4d4d8"
@@ -56,6 +64,10 @@ colors:
   dark-danger-soft: "#2a1516"
   dark-danger-text: "#0a0a0b"
   dark-success: "#5fcf97"
+  dark-pill-success-bg: "#133524"
+  dark-pill-success-fg: "#8ce0b3"
+  dark-pill-neutral-bg: "#27272b"
+  dark-pill-neutral-fg: "#b4b4bc"
   dark-overlay: "rgb(0 0 0 / 55%)"
   dark-type-domain: "#7aa2ff"
   dark-type-user: "#7aa7ff"
@@ -93,6 +105,7 @@ typography:
 rounded:
   sm: "4px"
   md: "6px"
+  full: "999px"
 spacing:
   space-1: "4px"
   space-2: "8px"
@@ -181,6 +194,23 @@ components:
     textColor: "{colors.selection-text}"
   tree-row-selected-focus:
     backgroundColor: "{colors.selection-focus}"
+  grid-row-selected:
+    backgroundColor: "{colors.selection}"
+    textColor: "{colors.selection-text}"
+  grid-row-selected-focus:
+    backgroundColor: "{colors.selection-focus}"
+  state-tag:
+    backgroundColor: "{colors.pill-success-bg}"
+    textColor: "{colors.pill-success-fg}"
+    rounded: "{rounded.full}"
+    padding: "0 8px"
+    height: "18px"
+  state-tag-neutral:
+    backgroundColor: "{colors.pill-neutral-bg}"
+    textColor: "{colors.pill-neutral-fg}"
+  state-tag-danger:
+    backgroundColor: "{colors.danger-soft}"
+    textColor: "{colors.danger}"
   property-grid-header:
     backgroundColor: "{colors.sidebar}"
     textColor: "{colors.faint}"
@@ -237,12 +267,12 @@ PowerView.py looks like a classic desktop directory browser rebuilt with modern 
 
 The palette is neutral graphite in dark mode (near-black grounds from canvas to raised, with no blue cast) and crisp near-white in light mode, following the OS setting. The chrome carries no colour. Colour is reserved for information: object type icons, DN links, the focus ring, selection, and error or success status. Density is high but calm. Rows are 24px, text is 13px, and hierarchy comes from tone (text, muted, faint) rather than size.
 
-The world rejects card layouts, pills, hero headings, hint paragraphs and badges. It is an instrument for reading and editing live directory state, not a dashboard.
+The world rejects card layouts, hero headings and hint paragraphs. Pills appear only as state tags and count chips, which carry data and never decorate. It is an instrument for reading and editing live directory state, not a dashboard.
 
 **Key Characteristics:**
 - Two fixed heights: 40px bars and 24px rows, plus 28px controls inside the bars.
 - Hairline 1px dividers and tonal steps for all structure; shadow only on layers that float.
-- Tight corners: 4px on controls and rows, 6px on containers and dialogs.
+- Tight corners: 4px on controls and rows, 6px on containers and dialogs, fully round only on state tags and count chips.
 - Chrome without colour; colour only on type icons, DN links, focus, selection and status.
 - Primary buttons invert: the text colour becomes the ground.
 - System sans for everything, with mono reserved for distinguished names and machine identifiers.
@@ -257,7 +287,8 @@ A neutral graphite and crisp light pair with one blue accent and a small, fixed 
 
 ### Tertiary
 - **Type icon hues** (`type-domain`, `type-user`, `type-group`, `type-computer`, `type-ou`, `type-container`, `type-other` and their `dark-` pairs): stroke colour for the 15-16px object icons in the tree and the object header. Domains and users are blue, groups green, computers violet, OUs amber, containers neutral grey, anything else magenta. Only the icon takes the hue; the label beside it stays in text colour.
-- **Status** (`danger`, `success`, `danger-soft`): danger colours destructive hover states, the Clear attribute link, form errors, tree load errors and error status messages. It also fills the destructive dialog submit. Success colours only the status-bar confirmation message.
+- **Status** (`danger`, `success`, `danger-soft`): danger colours destructive hover states, the Clear attribute link, form errors, tree load errors and error status messages. It also fills the destructive dialog submit. Success colours the status-bar confirmation message, the connection dot and success toasts.
+- **State tag tones** (`pill-success-bg`, `pill-success-fg`, `pill-neutral-bg`, `pill-neutral-fg` and their `dark-` pairs): the fill and text of state tags. Success marks an active or positive state, neutral an inactive or categorical one. The danger tone reuses `danger-soft` and `danger`. Every pair keeps 4.5:1 text contrast.
 
 ### Neutral
 - **Canvas** (`canvas`): the page ground, the address-bar field, and the row being edited.
@@ -266,8 +297,9 @@ A neutral graphite and crisp light pair with one blue accent and a small, fixed 
 - **Raised** (`raised`): dialogs, the only elevated surface.
 - **Hover / Active** (`hover`, `active`): row and control hover, and the current navigation item.
 - **Text / Muted / Faint** (`text`, `muted`, `faint`): three tonal tiers. Values are in text, attribute names and toolbar labels are muted, and column headers, placeholders, twisties, the type label and the status bar are faint.
-- **Border / Border Strong / Guide** (`border`, `border-strong`, `guide`): hairline dividers, input and button strokes, and tree indent guides.
-- **Selection** (`selection`, `selection-focus`): the selected tree row, one step stronger while the tree holds focus. In light mode it is a pale blue tint. In dark mode it is a neutral graphite step with white text.
+- **Border / Divider / Border Strong / Guide** (`border`, `divider`, `border-strong`, `guide`): hairlines between panes and bars, the lighter rule between property-grid rows, button strokes, and tree indent guides.
+- **Input Border** (`input-border`): the resting stroke of text inputs, selects and search fields. It holds 3:1 against every ground a field sits on (surface, canvas and raised), so the edge of a field is always visible. Focus replaces it with the accent outline.
+- **Selection** (`selection`, `selection-focus`): the selected tree row and grid row, one step stronger while the tree or grid holds focus, with `selection-text`. In light mode it is a pale blue tint. In dark mode it is a neutral graphite step, at least 1.5:1 against the surface so it reads without hue, with white text. Keyboard focus never borrows the selection tone.
 
 ### Named Rules
 **The Graphite Rule.** Dark neutrals stay achromatic. Canvas through raised (`dark-canvas` to `dark-raised`) never lean more than a few units toward blue, and a new dark surface is picked from this ramp, not tinted.
@@ -286,7 +318,7 @@ A neutral graphite and crisp light pair with one blue accent and a small, fixed 
 - **Title** (600, 13px): the selected object's name in the object header. It sits at body size and is set apart by weight alone.
 - **Body** (400, 13px, 1.45): tree labels, attribute names (in muted), values, buttons and inputs.
 - **Label** (500 or 400, 11px): property-grid column headers, sidebar group labels, the status bar and the version in the brand row. Always sentence case, never tracked uppercase.
-- **Mono** (400, 12px): the address bar, DN values in the grid, the attribute-name and DN inputs in editors, the dialog context line, and the status-bar domain.
+- **Mono** (400, 12px): the address bar, DN values in the grid, the attribute-name and DN inputs in editors, the dialog context line, the status-bar domain, and literal field names in the Fields menu.
 
 ### Named Rules
 **The Mono Is for Machines Rule.** Monospace is used only for distinguished names and other literal directory identifiers. Labels, headings and ordinary values stay in sans.
@@ -318,7 +350,7 @@ The system is flat. Depth comes from tone (the sidebar-toned frames recede behin
 
 ## Shapes
 
-Corners are tight and functional. Buttons, inputs, search fields, tree rows, nav links and skeleton bars use 4px. Containers and dialogs use 6px. Panes, bars and the property grid are square and run edge to edge, divided by hairlines. Icons are 16px outline strokes (1.4-1.5px) from a single SVG sprite and drop to 14px inside search fields and toolbar buttons and 12px for tree twisties. Nothing is fully rounded.
+Corners are tight and functional. Buttons, inputs, search fields, tree rows, nav links and skeleton bars use 4px. Containers and dialogs use 6px. Panes, bars and the property grid are square and run edge to edge, divided by hairlines. Icons are 16px outline strokes (1.4-1.5px) from a single SVG sprite and drop to 14px inside search fields and toolbar buttons and 12px for tree twisties. State tags and count chips are the only fully rounded shapes.
 
 ## Components
 
@@ -334,8 +366,8 @@ Quiet, compact, desktop-native.
 - **Disabled:** 40-45% opacity.
 
 ### Inputs / Fields
-- **Text input:** 28px, 4px corners, strong-border stroke on surface, blue caret. Focus replaces the border with a 2px accent outline inset by 1px. Mono variant at 12px for DN and attribute-name entry.
-- **Search field:** the same box with a faint 14px leading icon and a lighter border. The outline is drawn on the wrapper through `:focus-within`, and the native cancel control is hidden.
+- **Text input:** 28px, 4px corners, `input-border` stroke on surface, blue caret. Focus replaces the border with a 2px accent outline inset by 1px. Mono variant at 12px for DN and attribute-name entry. Selects use the same box.
+- **Search field:** the same box and stroke with a faint 14px leading icon. The outline is drawn on the wrapper through `:focus-within`, and the native cancel control is hidden.
 
 ### Toolbar and Address Bar
 The 40px toolbar holds the address bar as a canvas-toned search field that stretches to fill the row. It contains a domain icon and a mono DN input with the placeholder "Go to distinguished name". The action cluster (New, Move, Delete, Refresh) sits on the right with 4px gaps. Actions stay disabled until an object is selected.
@@ -351,7 +383,8 @@ The central component. It is a full-width, fixed-layout table with Attribute and
 - **Header:** sticky, 26px, sidebar tone, faint 11px label text, with an inset hairline below.
 - **Rows:** 3px by 12px cells, a hairline below each row, top-aligned. Names are muted and values are text. Multi-valued attributes stack one value per line with a 2px gap and a "Show more" accent link.
 - **DN values:** accent-coloured mono buttons that underline on hover and navigate to that object.
-- **Row actions:** a 24px edit icon button that shows only on row hover or focus (always visible on touch layouts).
+- **Times:** directory timestamps use the grid's locale date format, with seconds, followed by the server's relative age in faint text ("Sep 24, 2026, 12:18:10 PM 2 days ago"). The raw value stays in the tooltip and in the editor.
+- **Row actions:** a 24px edit icon button that shows only on row hover or focus (always visible on touch layouts). The column header is named "Actions" for assistive tech only.
 - **Footer:** an "Add attribute" link button with 16px leading padding.
 
 ### Value Editor
@@ -359,6 +392,16 @@ Editing expands inside the row, which switches to the canvas tone. The editor is
 
 ### Status Bar
 Shared by every page and sticky to the bottom of the viewport. 24px, sidebar tone, top hairline, 11px faint text. The left side is a live message (danger or success tone when the message reports an outcome), falling back to the selected object's summary ("23 attributes · Enabled"). The right side is the live connection: a 7px dot (success when connected, danger when disconnected or unreachable), the protocol in 600 muted, `user@domain`, and the LDAP address in mono. Disconnected states turn the protocol and identity danger as well, so colour is never the only signal. The name server and last-checked time live in the tooltip. On mobile only the dot and identity remain.
+
+### Data Grid
+Every list page (Users, Computers, Groups, DNS, Certificate authorities, Organizational units, Group policies) shares one grid: a 48px sticky index column, a sticky name column with a strong-border edge, 24px rows (40px on touch layouts) and a sticky 28px sidebar-toned header in muted 500 text.
+- **Headers:** a column backed by one field the directory returns shows that field's literal name (`sAMAccountName`, `pKIExtendedKeyUsage`, `ManagerApproval`), because the UI mirrors PowerView's output. Computed columns (Status, Type, Parent, Linked GPOs) use a sentence-case label. When two literal names differ only by case, the rarer one takes a sentence-case label, so DNS `Name` shows as Target. The Fields menu lists literal names in mono and computed labels in sans.
+- **Widths:** a header never truncates at its default width; the default grows to fit the label. Dragging a column's right edge resizes it, and the header edge turns accent while hovered or dragged. Double-clicking the edge fits the column to its rendered content, which is the single-pointer alternative to dragging. Widths are remembered per page, and Fields > Reset to default clears them along with the column choice.
+- **Selection and focus:** clicking a row selects it and opens the details panel. The selected row takes the selection tone and selection text, one step stronger while the grid holds focus. Arrow keys move a 1px inset accent ring without changing the selection.
+- **Filter triggers:** a 20px funnel shows on header hover or focus, and stays while a filter is active. It is hidden while the grid loads or after a load fails.
+
+### State Tag
+An 18px fully rounded tag with 8px padding and 12px text that reports an object's state: account Enabled or Disabled, template Enabled, group type, DNS record type and ACE access (Allow or Deny). Success is for an active or positive state, neutral for an inactive or categorical value, danger for findings and Deny, and outline (transparent with a strong-border ring) for a secondary category. A tag holds one short word or phrase and is never a button. The count chip inside toolbar buttons (Fields, Search options) is the same shape in the active tone, with 11px muted numerals.
 
 ### Navigation
 The sidebar opens with a 40px brand row (20px mark, 14px/650 wordmark with a faint ".py", and the version right-aligned in 11px tabular faint text). Groups are separated by 14px, each under an 11px faint sentence-case label. Links are 28px with 4px corners in muted text. Hover shows the hover tone, and the current page gets the active tone, text colour and weight 500.
@@ -378,11 +421,13 @@ Loading placeholders are 10px bars with 4px corners in the hover tone, at stagge
 - **Do** colour object icons by type using the `type-*` tokens, and leave their labels in text colour.
 - **Do** render every distinguished name in 12px mono, and as an accent link when it points to another object.
 - **Do** use the 2px accent outline for keyboard focus on every interactive element.
+- **Do** give every input, select and search field the `input-border` stroke. Hairline tones are for dividers, not field edges.
+- **Do** size grid columns so their headers fit at the default width.
 - **Do** respect `prefers-reduced-motion` by turning off dialog entry and twisty rotation.
 
 ### Don't:
 - **Don't** wrap records or panes in cards. Panes sit flush and edge to edge.
-- **Don't** use pills, badges or fully rounded shapes. Corners stop at 6px.
+- **Don't** use pills or fully rounded shapes for anything except state tags and count chips, and never make a tag clickable. Other corners stop at 6px.
 - **Don't** add hero headings, hint paragraphs or tracked uppercase labels to the workspace.
 - **Don't** fill buttons or surfaces with the accent blue. Accent is for links, focus and the resizer.
 - **Don't** use mono for labels, headings or ordinary values.

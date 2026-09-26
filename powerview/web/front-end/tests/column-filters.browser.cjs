@@ -52,7 +52,8 @@ let users = [
     assert.equal(await count(), '10 users');
     const widths = () => page.$$eval('#grid-head th', (cells) => cells.map((cell) => Math.round(cell.getBoundingClientRect().width)));
     const idle = await widths();
-    assert.deepEqual(idle.slice(1), [240, 180, 110, 180, 200, 130, 190]);
+    assert.deepEqual(idle.slice(1, 6), [240, 180, 110, 180, 200]);
+    assert.ok(await page.$$eval('#grid-head .column-sort__label', (labels) => labels.every((label) => label.scrollWidth <= label.clientWidth)), 'default column widths truncate a header');
     for (const key of ['name', 'account', 'status', 'department', 'attr:memberOf', 'groups', 'lastLogon']) {
       await page.locator(`th[data-key="${key}"]`).hover();
       assert.deepEqual(await widths(), idle, `hovering ${key} changed column widths`);

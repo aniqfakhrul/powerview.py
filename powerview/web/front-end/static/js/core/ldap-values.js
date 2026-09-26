@@ -2,6 +2,7 @@ const ACCOUNT_DISABLED = 0x2;
 const FILETIME_EPOCH_OFFSET = 11644473600000;
 const GENERALIZED_TIME = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\.\d+)?(?:Z|[+-]\d{4})?$/;
 const DAY_FIRST = /^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/;
+const SERVER_TIME = /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}(?: \(([^)]+)\))?$/;
 const MIN_YEAR = 1602;
 const MAX_YEAR = 9998;
 
@@ -39,10 +40,18 @@ export function toTime(value) {
   match = text.match(DAY_FIRST);
   if (match) {
     const [, day, month, year, hour = 0, minute = 0, second = 0] = match.map((part) => Number(part ?? 0));
-    return valid(new Date(year, month - 1, day, hour, minute, second).getTime());
+    return valid(Date.UTC(year, month - 1, day, hour, minute, second));
   }
   return valid(Date.parse(text));
 }
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+const detailFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
 export const formatTime = (time) => (time == null ? '' : dateFormat.format(time));
+
+export function readableTime(text) {
+  const match = text.match(SERVER_TIME);
+  if (!match && !(GENERALIZED_TIME.test(text) && text.endsWith('Z'))) return null;
+  const time = toTime(text);
+  return time == null ? null : { text: detailFormat.format(time), relative: match?.[1] ?? '' };
+}

@@ -18,12 +18,12 @@
 .icon-button { display: inline-grid; place-items: center; width: 28px; height: 28px; flex: none; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-muted); }
 .icon-button:hover { background: var(--color-hover); color: var(--color-text); }
 .icon-button:disabled { opacity: .4; }
-.text-input { width: 100%; min-width: 0; height: 28px; padding: 0 8px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-surface); caret-color: var(--color-accent); }
+.text-input { width: 100%; min-width: 0; height: 28px; padding: 0 8px; border: 1px solid var(--color-input-border); border-radius: var(--radius-sm); background: var(--color-surface); caret-color: var(--color-accent); }
 textarea.text-input { height: auto; padding: 5px 8px; resize: vertical; }
 .text-input:focus { outline: 2px solid var(--color-accent); outline-offset: -1px; border-color: transparent; }
 .text-input--mono { font-family: var(--font-mono); font-size: 12px; }
 .text-input::placeholder { color: var(--color-faint); opacity: 1; }
-.search-field { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-faint); }
+.search-field { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 1px solid var(--color-input-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-faint); }
 .search-field:focus-within { outline: 2px solid var(--color-accent); outline-offset: -1px; border-color: transparent; }
 .search-field .icon { width: 14px; height: 14px; }
 .search-field input { width: 100%; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--color-text); caret-color: var(--color-accent); }

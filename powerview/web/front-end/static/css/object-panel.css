@@ -31,6 +31,7 @@
 .value--dn { padding: 0; border: 0; background: none; color: var(--color-accent); font-family: var(--font-mono); font-size: 12px; text-align: left; overflow-wrap: break-word; }
 .value--dn:hover { text-decoration: underline; }
 .value--empty { color: var(--color-faint); }
+.value__note { margin-left: 6px; color: var(--color-faint); }
 .value-more { margin-top: 2px; padding: 0; border: 0; background: none; color: var(--color-accent); font-size: 12px; }
 .value-more:hover { text-decoration: underline; }
 .property-grid tfoot td { padding: 6px var(--space-4); border-bottom: 0; }

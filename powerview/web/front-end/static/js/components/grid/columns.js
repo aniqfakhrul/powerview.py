@@ -5,6 +5,7 @@ import { element, icon } from '../../core/dom.js';
 const ATTRIBUTE_NAME = /^[a-z][a-z0-9-]*$/i;
 
 export const isAttributeName = (name) => ATTRIBUTE_NAME.test(name);
+export const literalLabel = (column) => column.attributes.some((name) => column.label === name || column.label === `${name} (count)`);
 
 const listed = (name) => (record) => values(attribute(record, name)).map((item) => (typeof item === 'object' ? JSON.stringify(item) : String(item))).filter(Boolean);
 
@@ -149,6 +150,16 @@ export function createColumnSet({ storageKey, objectClass, name, catalog, defaul
     },
     save(keys) {
       try { localStorage.setItem(storageKey, JSON.stringify(keys)); } catch { /* per-viewer convenience only */ }
+    },
+    loadWidths() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(`${storageKey}.widths`));
+        if (saved && typeof saved === 'object') return Object.fromEntries(Object.entries(saved).filter(([, width]) => Number.isFinite(width)));
+      } catch { /* per-viewer convenience only */ }
+      return {};
+    },
+    saveWidths(widths) {
+      try { localStorage.setItem(`${storageKey}.widths`, JSON.stringify(widths)); } catch { /* per-viewer convenience only */ }
     },
     columns: (keys) => [name, ...keys.map(columnFor).filter(Boolean)],
     properties: (columns) => [...new Set(['name', ...columns.flatMap((column) => column.attributes)])],

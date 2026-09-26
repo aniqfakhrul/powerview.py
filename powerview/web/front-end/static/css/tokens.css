@@ -12,6 +12,7 @@
   --color-border: #e6e6e9;
   --color-divider: #f0f0f2;
   --color-border-strong: #d2d2d7;
+  --color-input-border: #8c8c95;
   --color-guide: #e3e3e7;
   --color-accent: #2f6fed;
   --color-selection: #e3eafb;
@@ -67,10 +68,11 @@
     --color-border: #222225;
     --color-divider: #1a1a1c;
     --color-border-strong: #313135;
+    --color-input-border: #66666e;
     --color-guide: #28282c;
     --color-accent: #7aa2ff;
-    --color-selection: #27272b;
-    --color-selection-focus: #323237;
+    --color-selection: #333339;
+    --color-selection-focus: #3a3a40;
     --color-selection-text: #fff;
     --color-primary: #ededef;
     --color-primary-hover: #d4d4d8;

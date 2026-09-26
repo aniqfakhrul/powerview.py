@@ -4,7 +4,7 @@ import { createAPI } from '../static/js/core/api.js';
 import { createDirectory, objectType } from '../static/js/core/directory.js';
 import { splitDN, parentDN, dnLabel, namingContext } from '../static/js/core/dn.js';
 import { createRequestLane } from '../static/js/core/request-lane.js';
-import { accountDisabled, toTime } from '../static/js/core/ldap-values.js';
+import { accountDisabled, readableTime, toTime } from '../static/js/core/ldap-values.js';
 import { validateFilter } from '../static/js/components/grid/search-menu.js';
 
 test('DN parsing preserves escaped separators and decodes UTF-8 hex escapes', () => {
@@ -86,9 +86,13 @@ test('directory times parse every backend shape chronologically', () => {
   assert.equal(toTime('20260924121810.0Z'), expected);
   assert.equal(toTime('20260924121810'), expected);
   assert.equal(toTime(expected * 10000 + 116444736000000000), expected);
-  assert.equal(new Date(toTime('24/09/2026 12:18:10')).getDate(), 24);
-  assert.equal(new Date(toTime('05/09/2026 00:00:00')).getMonth(), 8);
+  assert.equal(toTime('24/09/2026 12:18:10'), expected);
+  assert.equal(toTime('24/09/2026 12:18:10 (2 days ago)'), expected);
+  assert.equal(new Date(toTime('05/09/2026 00:00:00')).getUTCMonth(), 8);
   assert.ok(toTime('24/09/2026 12:18:10') > toTime('05/09/2026 00:00:00'));
+  assert.deepEqual(readableTime('24/09/2026 12:18:10 (2 days ago)'), { text: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' }).format(expected), relative: '2 days ago' });
+  assert.equal(readableTime('20260924121810.0Z')?.relative, '');
+  for (const text of ['24/09/2026 notes', '20260924121810', 'Finance analyst']) assert.equal(readableTime(text), null);
   for (const never of [0, '0', '', null, 'Fri, 31 Dec 9999 23:59:59 GMT', 'Mon, 01 Jan 1601 00:00:00 GMT']) assert.equal(toTime(never), null);
 });
 

@@ -28,6 +28,7 @@
 .fields-menu__option:hover { background: var(--color-hover); }
 .fields-menu__option input { margin: 0; accent-color: var(--color-accent); }
 .fields-menu__label { font-family: var(--font-mono); font-size: 12px; }
+.fields-menu__label--computed { font-family: inherit; font-size: 13px; }
 .fields-menu__hint { margin-left: auto; overflow: hidden; color: var(--color-faint); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .fields-menu__suggestions { display: grid; max-height: 220px; margin: 0 -4px; overflow: auto; }
 .fields-menu__suggestions:empty { display: none; }
@@ -60,9 +61,13 @@
 .data-grid thead .col-index, .data-grid thead .col-name { z-index: 3; }
 .data-grid tbody tr { cursor: pointer; }
 .data-grid tbody tr:hover > * { background: var(--color-row-hover, var(--color-hover)); }
+.data-grid tbody tr[aria-selected="true"] > * { background: var(--color-selection); color: var(--color-selection-text); }
+.grid-scroll:focus-within .data-grid tbody tr[aria-selected="true"] > * { background: var(--color-selection-focus); }
 .data-grid tbody tr:focus-visible { outline: none; }
-.data-grid tbody tr:focus-visible > * { background: var(--color-selection); }
-.data-grid tbody tr[aria-selected="true"] > * { background: var(--color-selection); }
+.data-grid tbody tr:focus-visible > * { --ring: inset 0 1px var(--color-accent), inset 0 -1px var(--color-accent); box-shadow: var(--ring); }
+.data-grid tbody tr:focus-visible > .col-index { box-shadow: inset 1px 0 var(--color-accent), var(--ring); }
+.data-grid tbody tr:focus-visible > .col-name { box-shadow: 1px 0 var(--color-border-strong), var(--ring); }
+.data-grid tbody tr:focus-visible > :last-child { box-shadow: inset -1px 0 var(--color-accent), var(--ring); }
 
 .column-sort { display: flex; align-items: center; gap: 6px; width: 100%; height: 100%; padding: 0; border: 0; background: none; color: inherit; font-weight: inherit; text-align: left; }
 .column-sort .icon { width: 13px; height: 13px; color: var(--color-faint); }
@@ -72,16 +77,19 @@
 [aria-sort="descending"] .column-sort__direction { opacity: 1; transform: rotate(90deg); }
 .column-sort:hover { color: var(--color-text); }
 .column-sort__direction { position: relative; z-index: 2; pointer-events: none; }
-.column-filter-trigger { position: absolute; top: 50%; right: 4px; z-index: 1; width: 20px; height: 20px; background: var(--color-sidebar); opacity: 0; transform: translateY(-50%); }
+.column-filter-trigger { position: absolute; top: 50%; right: 6px; z-index: 1; width: 20px; height: 20px; background: var(--color-sidebar); opacity: 0; transform: translateY(-50%); }
 .column-filter-trigger::before { content: ""; position: absolute; top: 0; right: 100%; bottom: 0; width: 28px; background: linear-gradient(to right, transparent, var(--color-sidebar) 14px); pointer-events: none; }
 .column-filter-trigger .icon { width: 12px; height: 12px; }
 .column-filter-trigger.is-active { color: var(--color-accent); }
 .data-grid thead th:is(:hover, :has(:focus-visible), :has(.column-filter-trigger.is-active), :has(.column-filter-trigger[aria-expanded="true"])) .column-filter-trigger { opacity: 1; }
-.data-grid thead th:is(:hover, :has(:focus-visible), :has(.column-filter-trigger.is-active), :has(.column-filter-trigger[aria-expanded="true"])) .column-sort__direction { translate: -14px 0; }
+.data-grid thead th:is(:hover, :has(:focus-visible), :has(.column-filter-trigger.is-active), :has(.column-filter-trigger[aria-expanded="true"])):has(.column-filter-trigger:enabled) .column-sort__direction { translate: -14px 0; }
 @media (hover: none) {
   .column-filter-trigger { opacity: 1; }
-  .data-grid thead .column-sort__direction { translate: -14px 0; }
+  .data-grid thead th:has(.column-filter-trigger:enabled) .column-sort__direction { translate: -14px 0; }
 }
+.column-filter-trigger:disabled { visibility: hidden; }
+.column-resizer { position: absolute; top: 0; right: 0; bottom: 0; z-index: 2; width: 5px; cursor: col-resize; touch-action: none; }
+.data-grid thead th:has(> .column-resizer:is(:hover, .is-dragging)) { border-right-color: var(--color-accent); }
 .column-filter:popover-open { display: flex; flex-direction: column; overflow: hidden; }
 .column-filter > * { flex: none; }
 .column-filter > .fields-menu__list { flex: 0 1 auto; min-height: 48px; }

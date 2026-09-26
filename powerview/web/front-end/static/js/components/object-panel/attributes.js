@@ -1,6 +1,6 @@
 import { dnLabel, isDN } from '../../core/dn.js';
 import { attribute, recordName, values, textValue, objectType, TYPE_LABELS } from '../../core/directory.js';
-import { accountDisabled } from '../../core/ldap-values.js';
+import { accountDisabled, readableTime } from '../../core/ldap-values.js';
 import { createRequestLane } from '../../core/request-lane.js';
 import { notify } from '../notify.js';
 import { createValueEditor } from './value-editor.js';
@@ -20,6 +20,13 @@ function summary(record) {
   const control = attribute(record, 'userAccountControl');
   if (values(control).length) parts.push(accountDisabled(control) ? 'Disabled' : 'Enabled');
   return parts.join(' · ');
+}
+
+function timeValue(raw, time) {
+  const node = element('span', 'value', time.text);
+  node.title = raw;
+  if (time.relative) node.append(element('span', 'value__note', time.relative));
+  return node;
 }
 
 function editableText(value) {
@@ -76,7 +83,10 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
           dnText(link, text);
           link.addEventListener('click', () => onNavigate(text));
           cell.append(link);
-        } else cell.append(element('span', 'value', text));
+        } else {
+          const time = typeof item === 'string' ? readableTime(text) : null;
+          cell.append(time ? timeValue(text, time) : element('span', 'value', text));
+        }
       }
     };
     draw(list.slice(0, VALUE_PREVIEW));
@@ -157,7 +167,9 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
     columns.append(element('col', 'property-grid__name'), element('col'), element('col', 'property-grid__actions'));
     const head = element('thead');
     const headRow = element('tr');
-    headRow.append(cell('th', 'Attribute', 'col'), cell('th', 'Value', 'col'), cell('th', undefined, 'col'));
+    const actionsHeader = cell('th', undefined, 'col');
+    actionsHeader.append(element('span', 'visually-hidden', 'Actions'));
+    headRow.append(cell('th', 'Attribute', 'col'), cell('th', 'Value', 'col'), actionsHeader);
     head.append(headRow);
     const body = element('tbody');
     const names = Object.keys(current.attributes).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
