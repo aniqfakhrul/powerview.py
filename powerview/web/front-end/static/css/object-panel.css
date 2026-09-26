@@ -11,7 +11,7 @@
 .properties { flex: 1; min-height: 0; overflow: auto; }
 .properties:focus { outline: none; }
 .property-grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.property-grid th, .property-grid td { padding: 3px var(--space-3); border-bottom: 1px solid var(--color-border); text-align: left; vertical-align: top; }
+.property-grid th, .property-grid td { padding: 3px var(--space-3); border-bottom: 1px solid var(--color-divider); text-align: left; vertical-align: top; }
 .property-grid thead th { position: sticky; top: 0; z-index: 1; height: 26px; background: var(--color-sidebar); box-shadow: inset 0 -1px var(--color-border); border-bottom: 0; color: var(--color-faint); font-size: 11px; font-weight: 500; }
 .property-grid col.property-grid__name { width: 240px; }
 .property-grid col.property-grid__actions { width: 36px; }
@@ -74,7 +74,7 @@
 .membership__count { flex: none; color: var(--color-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
 .membership__note { padding: 8px var(--space-4); border-bottom: 1px solid var(--color-border); color: var(--color-muted); font-size: 12px; }
 .membership__list { margin: 0; padding: 0; list-style: none; }
-.membership__item { display: grid; grid-template-columns: 16px minmax(0, auto) minmax(0, 1fr); align-items: center; gap: var(--space-2); width: 100%; min-height: var(--row-height); padding: 3px var(--space-4); border: 0; border-bottom: 1px solid var(--color-border); background: none; text-align: left; }
+.membership__item { display: grid; grid-template-columns: 16px minmax(0, auto) minmax(0, 1fr); align-items: center; gap: var(--space-2); width: 100%; min-height: var(--row-height); padding: 3px var(--space-4); border: 0; border-bottom: 1px solid var(--color-divider); background: none; text-align: left; }
 .membership__item:hover { background: var(--color-hover); }
 .membership__item .icon { color: var(--color-faint); }
 .membership__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -103,7 +103,7 @@
 .security__toggle input { margin: 0; accent-color: var(--color-accent); }
 .security__scroll { overflow-x: auto; }
 .security__table { width: 100%; min-width: 520px; border-collapse: collapse; table-layout: fixed; }
-.security__table th, .security__table td { height: var(--row-height); padding: 3px var(--space-3); overflow: hidden; border-bottom: 1px solid var(--color-border); text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.security__table th, .security__table td { height: var(--row-height); padding: 3px var(--space-3); overflow: hidden; border-bottom: 1px solid var(--color-divider); text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .security__table th { background: var(--color-sidebar); color: var(--color-faint); font-size: 11px; font-weight: 500; }
 .security__table th:nth-child(1) { width: 84px; }
 .security__table td:first-child { text-overflow: clip; }

@@ -10,6 +10,7 @@
   --color-muted: #5c5c66;
   --color-faint: #6e6e78;
   --color-border: #e6e6e9;
+  --color-divider: #f0f0f2;
   --color-border-strong: #d2d2d7;
   --color-guide: #e3e3e7;
   --color-accent: #2f6fed;
@@ -64,6 +65,7 @@
     --color-muted: #a1a1aa;
     --color-faint: #85858e;
     --color-border: #222225;
+    --color-divider: #1a1a1c;
     --color-border-strong: #313135;
     --color-guide: #28282c;
     --color-accent: #7aa2ff;
