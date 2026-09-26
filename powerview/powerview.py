@@ -641,7 +641,7 @@ class PowerView:
 				ldap_filter += f'(admincount=1)'
 			if hasattr(args, 'lockedout') and args.lockedout:
 				logging.debug('[Get-DomainUser] Searching for locked out user')
-				ldap_filter += f'(userAccountControl:1.2.840.113556.1.4.803:=16)'
+				ldap_filter += '(lockoutTime>=1)'
 			if hasattr(args, 'allowdelegation') and args.allowdelegation:
 				logging.debug('[Get-DomainUser] Searching for users who can be delegated')
 				ldap_filter += f'(!(userAccountControl:1.2.840.113556.1.4.803:=1048574))'
@@ -695,8 +695,13 @@ class PowerView:
 
 		logging.debug(f'[Get-DomainUser] LDAP search filter: {ldap_filter}')
 
+		locked_only = bool(getattr(args, 'lockedout', False))
+		requested = set(properties)
+		if locked_only:
+			properties = requested | {'msDS-User-Account-Control-Computed'}
+
 		# in case need more then 1000 entries
-		return self.ldap_session.extend.standard.paged_search(
+		entries = self.ldap_session.extend.standard.paged_search(
 			searchbase,
 			ldap_filter,
 			attributes=list(properties),
@@ -708,6 +713,22 @@ class PowerView:
 			raw=raw,
 			controls=controls
 		)
+		if not locked_only:
+			return entries
+		# The lockout flag is only reported in this constructed attribute, which cannot be used in a search filter
+		locked = []
+		for entry in entries:
+			computed = entry.get('attributes', {}).get('msDS-User-Account-Control-Computed')
+			computed = computed[0] if isinstance(computed, list) and computed else computed
+			try:
+				flags = int(computed or 0)
+			except (TypeError, ValueError):
+				flags = 0
+			if flags & 0x10:
+				if 'msDS-User-Account-Control-Computed' not in requested and '*' not in requested:
+					entry['attributes'].pop('msDS-User-Account-Control-Computed', None)
+				locked.append(entry)
+		return locked
 
 	def get_localuser(self, computer_name, identity=None, properties=[], port=445, args=None):
 		entries = list()
