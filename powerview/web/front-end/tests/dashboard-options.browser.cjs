@@ -43,7 +43,7 @@ function fixture(source, days) {
     assert.equal(await page.locator('.dashboard__scope').count(), 0);
     assert.match(await page.locator('#dashboard-export').getAttribute('title'), /account names/);
 
-    await page.locator('.dashboard__signal', { hasText: 'User service principals' }).click();
+    await page.locator('.dashboard__signal', { hasText: 'Kerberoastable users' }).click();
     assert.equal(await page.locator('#evidence-total').textContent(), '1 match');
     assert.equal(await relative(page.locator('#evidence-rows a.dashboard__object').first()), `/users CN=svc.web,OU=Service,${rootDN}`);
     assert.match(await relative(page.locator('#evidence-rows a.icon-button').first()), /^\/ CN=svc\.web/);

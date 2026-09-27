@@ -2,7 +2,7 @@ export const sources = { domain: 'Domain policy', inventory: 'Directory inventor
 
 export const signals = [
   { key: 'users_preauth', source: 'users', label: 'No Kerberos pre-auth', description: 'Enabled users with DONT_REQ_PREAUTH. Review exposure to offline password guessing; this flag alone does not establish that an account can be compromised.' },
-  { key: 'users_spn', source: 'users', label: 'User service principals', description: 'Enabled users with service principal names, excluding krbtgt. Review service-account password strength and ownership. An SPN is normal configuration, not a vulnerability by itself.' },
+  { key: 'users_spn', source: 'users', label: 'Kerberoastable users', description: 'Enabled users with service principal names, excluding krbtgt. Review service-account password strength and ownership. An SPN is normal configuration, not a vulnerability by itself.' },
   { key: 'users_password_not_required', source: 'users', label: 'Password not required', description: 'Enabled users with PASSWD_NOTREQD. Review why the flag is set. It does not mean that the current password is blank.' },
   { key: 'users_never_expires', source: 'users', label: 'Password never expires', description: 'Enabled users with DONT_EXPIRE_PASSWORD. Confirm that each exception has an owner and a suitable credential-management process.' },
   { key: 'users_admin', source: 'users', label: 'Protected-account marker', description: 'Enabled users with adminCount = 1. This marker may persist after privileged group membership is removed; inspect current memberships and permissions.' },
