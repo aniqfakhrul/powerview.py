@@ -119,7 +119,7 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(result['counts'], {'groups': 1, 'ous': 1, 'gpos': 1, 'trusts': 1})
         self.assertEqual(result['trusts'][0]['direction'], 3)
 
-    def test_reads_are_fresh_and_do_not_request_secrets(self):
+    def test_reads_use_the_cache_by_default(self):
         pv = powerview()
         for section in ['domain', 'inventory', 'users', 'computers']:
             result = dashboard_section(pv, section)
@@ -128,10 +128,41 @@ class DashboardTests(unittest.TestCase):
             self.assertIn('collected_at', result)
         for method in [pv.get_domain, pv.get_domainobject, pv.get_domainuser, pv.get_domaincomputer]:
             kwargs = method.call_args.kwargs
-            for option in ['raw', 'no_cache', 'no_vuln_check']:
+            self.assertIs(kwargs['no_cache'], False)
+            for option in ['raw', 'no_vuln_check']:
                 self.assertIs(kwargs[option], True)
             self.assertNotIn('*', kwargs['properties'])
             self.assertFalse(set(prop.lower() for prop in kwargs['properties']) & {'unicodepwd', 'ms-mcs-admpwd', 'mslaps-password', 'msds-managedpassword'})
+
+    def test_refresh_bypasses_the_cache(self):
+        pv = powerview()
+        dashboard_section(pv, 'users', fresh=True)
+        self.assertIs(pv.get_domainuser.call_args.kwargs['no_cache'], True)
+
+    def test_inactivity_threshold_is_configurable_and_validated(self):
+        pv = powerview()
+        pv.get_domainuser.return_value = [entry('idle', userAccountControl=512, lastLogonTimestamp=NOW - timedelta(days=45))]
+        self.assertEqual(account_summary(pv, 'users', NOW, days=30)['findings']['users_stale']['count'], 1)
+        self.assertEqual(account_summary(pv, 'users', NOW, days=60)['findings']['users_stale']['count'], 0)
+        self.assertEqual(account_summary(pv, 'users', NOW, days=60)['inactive_days'], 60)
+        with self.assertRaises(ValueError):
+            dashboard_section(pv, 'users', days=45)
+
+    def test_route_passes_refresh_and_threshold(self):
+        pv = powerview()
+        with APIServer(pv).app.test_client() as client:
+            self.assertEqual(client.get('/api/dashboard/users?fresh=1&days=180').get_json()['inactive_days'], 180)
+            self.assertIs(pv.get_domainuser.call_args.kwargs['no_cache'], True)
+            self.assertEqual(client.get('/api/dashboard/users?days=45').status_code, 400)
+            self.assertEqual(client.get('/api/dashboard/users?days=soon').status_code, 400)
+
+    def test_never_intervals_are_reported_explicitly(self):
+        pv = powerview()
+        pv.get_domain.return_value = [entry('domain', maxPwdAge=timedelta.max, lockoutDuration=-9223372036854775808, minPwdAge=timedelta(days=1))]
+        policy = domain_summary(pv)['policy']
+        self.assertEqual(policy['maxPwdAge'], 'never')
+        self.assertEqual(policy['lockoutDuration'], 'never')
+        self.assertEqual(policy['minPwdAge'], 86400)
 
     def test_api_failures_are_not_reported_as_zero_and_routes_are_restricted(self):
         pv = powerview()
@@ -143,10 +174,8 @@ class DashboardTests(unittest.TestCase):
             pv.get_domainuser.return_value = None
             self.assertEqual(client.get('/api/dashboard/users').status_code, 400)
             pv.get_domainuser.return_value = []
-            pv.ldap_session.result = {'result': 4, 'description': 'sizeLimitExceeded'}
-            response = client.get('/api/dashboard/users')
-            self.assertEqual(response.status_code, 400)
-            self.assertEqual(response.get_json()['error'], 'sizeLimitExceeded')
+            pv.ldap_session.result = {'result': 4, 'description': 'left over from another request'}
+            self.assertEqual(client.get('/api/dashboard/users').status_code, 200)
             pv.get_domainuser.side_effect = RuntimeError('Access denied')
             self.assertEqual(client.get('/api/dashboard/users').get_json()['error'], 'Access denied')
 

@@ -4,12 +4,11 @@
 {% block header %}{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/pages/dashboard.css') }}">{% endblock %}
 {% block content %}
-<section id="dashboard" class="dashboard" aria-label="Dashboard" data-api-root="{{ request.script_root }}/api/" data-explorer="{{ url_for('index') }}">
+<section id="dashboard" class="dashboard" aria-label="Dashboard" data-api-root="{{ request.script_root }}/api/" data-explorer="{{ url_for('index') }}" data-users="{{ url_for('users') }}" data-computers="{{ url_for('computers') }}">
   <header class="toolbar dashboard__toolbar">
     <h1>{{ icon('domain', 'icon type--domain') }}Dashboard</h1>
-    <span class="dashboard__scope">Current domain</span>
     <div class="toolbar__actions">
-      <button id="dashboard-export" class="button" type="button" disabled>{{ icon('download') }}<span>Export snapshot</span></button>
+      <button id="dashboard-export" class="button" type="button" title="Downloads a JSON file that includes account names and distinguished names" disabled>{{ icon('download') }}<span>Export snapshot</span></button>
       <button id="dashboard-refresh" class="button" type="button">{{ icon('refresh') }}<span>Refresh</span></button>
     </div>
   </header>
@@ -27,7 +26,7 @@
     <div id="dashboard-errors" class="dashboard__errors" aria-live="polite" hidden></div>
     <div class="dashboard__assessment">
       <section class="dashboard__review" aria-labelledby="review-title">
-        <header class="dashboard__section-heading"><h2 id="review-title">Review queue</h2><span>Enabled accounts · configuration signals</span></header>
+        <header class="dashboard__section-heading"><h2 id="review-title">Review queue</h2><label class="dashboard__threshold"><span>Inactive after</span><select id="dashboard-days" class="text-input dashboard__days"><option value="30">30 days</option><option value="60">60 days</option><option value="90" selected>90 days</option><option value="180">180 days</option></select></label></header>
         <div class="dashboard__review-body">
           <nav id="dashboard-signals" class="dashboard__signals" aria-label="Review signals"></nav>
           <section class="dashboard__evidence" aria-labelledby="evidence-title">
@@ -37,7 +36,7 @@
               <table class="dashboard__table"><caption class="visually-hidden">Objects matching the selected review signal</caption><thead><tr><th scope="col">Account</th><th scope="col">Evidence</th><th scope="col"><span class="visually-hidden">Inspect</span></th></tr></thead><tbody id="evidence-rows"></tbody></table>
               <p id="evidence-empty" class="dashboard__empty" role="status"></p>
             </div>
-            <footer class="dashboard__evidence-footer"><span id="evidence-page"></span><div><button id="evidence-prev" class="icon-button" aria-label="Previous objects" type="button">{{ icon('chevron-left') }}</button><button id="evidence-next" class="icon-button" aria-label="Next objects" type="button">{{ icon('chevron-right') }}</button></div></footer>
+            <footer class="dashboard__evidence-footer"><span id="evidence-count"></span></footer>
           </section>
         </div>
       </section>
@@ -52,7 +51,7 @@
       <section aria-labelledby="controllers-title"><header class="dashboard__section-heading"><h2 id="controllers-title">Domain controllers</h2><span id="controllers-total"></span></header><div id="dashboard-controllers"><p class="dashboard__empty">Reading controllers…</p></div></section>
       <section id="dashboard-trusts" aria-labelledby="trusts-title"><header class="dashboard__section-heading"><h2 id="trusts-title">Domain trusts</h2><span id="trusts-total"></span></header><div id="dashboard-trust-list"><p class="dashboard__empty">Reading trust objects…</p></div></section>
     </div>
-    <details class="dashboard__coverage"><summary>Collection scope &amp; interpretation <span id="dashboard-coverage-count">0 of 4 sources loaded</span></summary><div><p>This snapshot covers objects visible to the connected session in the current domain. It is a configuration review, not proof of exploitability or a complete security assessment. Zero matches does not establish that a domain is secure.</p><p>Counts include all returned objects; evidence is limited to the first 100 matches per signal. Signals can overlap. Only accounts with a readable, enabled account-control value enter the review queue. Missing attributes may reflect permissions. Last-logon signals use replicated lastLogonTimestamp and are approximate; missing timestamps are not treated as inactivity.</p><p>Collection uses fresh, read-only directory queries. It does not request tickets, retrieve password secrets, test credentials, or make directory changes. Refresh is manual.</p><dl id="dashboard-sources"></dl></div></details>
+    <details class="dashboard__coverage"><summary>Collection scope &amp; interpretation <span id="dashboard-coverage-count">0 of 4 sources loaded</span></summary><div><p>This snapshot covers objects visible to the connected session in the current domain. It is a configuration review, not proof of exploitability or a complete security assessment. Zero matches does not establish that a domain is secure.</p><p>Counts include all returned objects; evidence is limited to the first 100 matches per signal. Signals can overlap. Only accounts with a readable, enabled account-control value enter the review queue. Missing attributes may reflect permissions. Last-logon signals use replicated lastLogonTimestamp and are approximate; missing timestamps are not treated as inactivity.</p><p>Collection uses read-only directory queries. Opening the page may reuse cached results; Refresh reads fresh values from the directory. It does not request tickets, retrieve password secrets, test credentials, or make directory changes. Refresh is manual.</p><dl id="dashboard-sources"></dl></div></details>
   </div>
 </section>
 {% endblock %}

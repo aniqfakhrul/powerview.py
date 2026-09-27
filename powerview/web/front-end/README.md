@@ -168,21 +168,25 @@ EXPLORER_URL=http://127.0.0.1:5011 \
 
 ### Dashboard
 
-The dashboard collects fresh, read-only summaries from
+The dashboard collects read-only summaries from
 `GET /api/dashboard/{domain,inventory,users,computers}` using the current session.
+Opening the page may reuse cached results; Refresh adds `fresh=1` to read the directory
+again. `days` (30, 60, 90 or 180; default 90) sets the inactivity threshold.
 Sources load sequentially and fail independently. Refresh starts a new collection;
 the dashboard does not poll or retry directory reads automatically. A domain change
 during collection discards the mixed snapshot.
 
 Inventory counts cover returned objects. Review signals include enabled-account
 password flags, user SPNs, adminCount, computer delegation, and replicated logons
-older than 90 days. Unknown account state is reported separately; missing logon
+older than the selected threshold. Unknown account state is reported separately; missing logon
 timestamps are excluded from inactivity signals. These are configuration signals,
 not vulnerability verdicts. Domain policy excludes fine-grained overrides, and
 controller inventory does not test reachability or replication.
 
 Each signal keeps its total count and up to 100 object samples. The evidence table
-filters and pages those samples, with links into Explorer. Controller and trust
+filters those samples in a scrollable list, with links into Explorer. The desktop
+review area stays at a fixed height; its signals and evidence scroll independently.
+On mobile, signals form a horizontal strip and the evidence list has a maximum height. Controller and trust
 lists also retain only the first 100 objects; their counts cover all returned
 objects. These limits bound response samples, not the underlying directory reads.
 Snapshot export contains

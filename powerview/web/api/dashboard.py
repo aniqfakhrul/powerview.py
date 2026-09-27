@@ -4,7 +4,8 @@ from datetime import datetime, timedelta, timezone
 
 
 SAMPLE_LIMIT = 100
-READ_OPTIONS = {'raw': True, 'no_cache': True, 'no_vuln_check': True}
+INACTIVE_DAYS = (30, 60, 90, 180)
+NEVER = 'never'
 ACCOUNT_PROPERTIES = [
     'name', 'sAMAccountName', 'distinguishedName', 'userAccountControl',
     'lastLogonTimestamp',
@@ -60,9 +61,13 @@ def timestamp(value):
 
 def interval_seconds(value):
     value = first(value)
+    if value == timedelta.max:
+        return NEVER
     if isinstance(value, timedelta):
         return abs(value.total_seconds())
     ticks = number(value)
+    if ticks == -9223372036854775808:
+        return NEVER
     return abs(ticks) / 10000000 if ticks is not None else None
 
 
@@ -73,21 +78,18 @@ def object_row(entry, attrs):
     }
 
 
-def read(powerview, method, **kwargs):
-    entries = getattr(powerview, method)(**READ_OPTIONS, **kwargs)
+def read(powerview, method, fresh=False, **kwargs):
+    entries = getattr(powerview, method)(raw=True, no_cache=fresh, no_vuln_check=True, **kwargs)
     if entries is None or entries is False:
         raise ValueError('The directory did not return a result. Check the session and permissions.')
     entries = list(entries)
-    result = getattr(getattr(powerview, 'ldap_session', None), 'result', None)
-    if isinstance(result, Mapping) and result.get('result', 0) != 0:
-        raise ValueError(result.get('message') or result.get('description') or 'The directory returned an incomplete result.')
     if any(not isinstance(entry, Mapping) or not isinstance(entry.get('attributes'), Mapping) for entry in entries):
         raise ValueError('The directory returned an unexpected result.')
     return entries
 
 
-def domain_summary(powerview):
-    entries = read(powerview, 'get_domain', properties=DOMAIN_PROPERTIES, search_scope='BASE')
+def domain_summary(powerview, fresh=False, **_):
+    entries = read(powerview, 'get_domain', fresh, properties=DOMAIN_PROPERTIES, search_scope='BASE')
     if not entries:
         raise ValueError('The domain object is not readable in this session.')
     attrs = attributes(entries[0])
@@ -97,12 +99,12 @@ def domain_summary(powerview):
     return {'policy': policy}
 
 
-def account_summary(powerview, kind, now=None):
+def account_summary(powerview, kind, now=None, fresh=False, days=90):
     now = now or datetime.now(timezone.utc)
     properties = ACCOUNT_PROPERTIES + (['adminCount', 'servicePrincipalName'] if kind == 'users' else [
         'dNSHostName', 'operatingSystem', 'msDS-AllowedToDelegateTo',
     ])
-    entries = read(powerview, 'get_domainuser' if kind == 'users' else 'get_domaincomputer', properties=properties)
+    entries = read(powerview, 'get_domainuser' if kind == 'users' else 'get_domaincomputer', fresh, properties=properties)
     keys = ['preauth', 'spn', 'password_not_required', 'never_expires', 'admin', 'stale'] if kind == 'users' else ['unconstrained', 'constrained', 'password_not_required', 'stale']
     findings = {f'{kind}_{key}': {'count': 0, 'objects': []} for key in keys}
     counts = Counter(total=len(entries), enabled=0, disabled=0, unknown=0, missing_logon=0, controllers=0)
@@ -134,7 +136,7 @@ def account_summary(powerview, kind, now=None):
                     controllers.append({**row, 'host': text(attrs.get('dnshostname')), 'os': os_name, 'enabled': enabled})
         if not enabled:
             continue
-        if last_logon and last_logon < now - timedelta(days=90):
+        if last_logon and last_logon < now - timedelta(days=days):
             add('stale', row, f'Last replicated logon: {last_logon.date().isoformat()}')
         if uac & 32:
             add('password_not_required', row, 'PASSWD_NOTREQD is set')
@@ -154,15 +156,15 @@ def account_summary(powerview, kind, now=None):
             if attrs.get('msds-allowedtodelegateto'):
                 add('constrained', row, text(attrs['msds-allowedtodelegateto']))
     return {
-        'counts': dict(counts), 'findings': findings,
+        'counts': dict(counts), 'findings': findings, 'inactive_days': days,
         'systems': [{'name': name, 'count': count} for name, count in sorted(systems.items(), key=lambda item: (-item[1], item[0]))],
         'controllers': controllers,
     }
 
 
-def inventory_summary(powerview):
+def inventory_summary(powerview, fresh=False, **_):
     entries = read(
-        powerview, 'get_domainobject',
+        powerview, 'get_domainobject', fresh,
         ldap_filter='(|(objectClass=group)(objectClass=organizationalUnit)(objectClass=groupPolicyContainer)(objectClass=trustedDomain))',
         properties=['objectClass', 'name', 'distinguishedName', 'trustPartner', 'trustDirection', 'trustType', 'trustAttributes'],
     )
@@ -188,15 +190,17 @@ def inventory_summary(powerview):
 
 SECTIONS = {
     'domain': domain_summary,
-    'users': lambda powerview: account_summary(powerview, 'users'),
-    'computers': lambda powerview: account_summary(powerview, 'computers'),
+    'users': lambda powerview, **options: account_summary(powerview, 'users', **options),
+    'computers': lambda powerview, **options: account_summary(powerview, 'computers', **options),
     'inventory': inventory_summary,
 }
 
 
-def dashboard_section(powerview, section):
+def dashboard_section(powerview, section, fresh=False, days=90):
+    if days not in INACTIVE_DAYS:
+        raise ValueError(f'Inactivity threshold must be one of {", ".join(map(str, INACTIVE_DAYS))} days.')
     context = {'domain': powerview.domain, 'root_dn': powerview.root_dn, 'dc': powerview.dc_dnshostname}
-    result = SECTIONS[section](powerview)
+    result = SECTIONS[section](powerview, fresh=fresh, days=days)
     if context['root_dn'] != powerview.root_dn:
         raise ValueError('The connected domain changed during collection. Refresh to retry.')
     return {

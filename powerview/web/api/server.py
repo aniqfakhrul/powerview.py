@@ -178,7 +178,12 @@ class APIServer:
 		if section not in DASHBOARD_SECTIONS:
 			return jsonify({'error': 'Unknown dashboard section.'}), 404
 		try:
-			return jsonify(dashboard_section(self.powerview, section))
+			days = int(request.args.get('days', 90))
+		except ValueError:
+			return jsonify({'error': 'The inactivity threshold must be a number of days.'}), 400
+		fresh = request.args.get('fresh') in ('1', 'true')
+		try:
+			return jsonify(dashboard_section(self.powerview, section, fresh=fresh, days=days))
 		except Exception as e:
 			logging.error(f'Powerview dashboard: {section}: {e}')
 			return jsonify({'error': str(e)}), 400

@@ -66,20 +66,41 @@ const fixtures = {
     assert.equal(await page.locator('[data-count="users"]').textContent(), '1,428');
     assert.equal(await page.locator('#dashboard-domain').textContent(), 'example.test');
     assert.equal(await page.locator('#dashboard-state').textContent(), 'Snapshot complete');
-    assert.equal(await page.locator('#evidence-rows tr').count(), 20);
-    assert.match(await page.locator('#evidence-page').textContent(), /first 100 of 125/);
+    assert.equal(await page.locator('#evidence-rows tr').count(), 100);
+    assert.equal(await page.locator('#evidence-count').textContent(), '100 sampled objects · 125 total matches');
+    assert.equal(await page.getByRole('button', { name: 'Next objects' }).count(), 0);
+    const layout = () => page.evaluate(() => {
+      const review = document.querySelector('.dashboard__review').getBoundingClientRect();
+      return {
+        height: review.height,
+        signals: document.querySelector('#dashboard-signals').getBoundingClientRect().height,
+        infrastructure: document.querySelector('.dashboard__infrastructure').getBoundingClientRect().top - review.top,
+      };
+    });
+    const initialLayout = await layout();
+    assert.equal(initialLayout.height, 440);
+    const scroller = page.locator('.dashboard__table-scroll');
+    assert.equal(await scroller.evaluate((node) => node.scrollHeight > node.clientHeight), true);
+    await scroller.evaluate((node) => { node.scrollTop = node.scrollHeight; });
+    const scrollBounds = await scroller.boundingBox();
+    const lastBounds = await page.locator('#evidence-rows tr').last().boundingBox();
+    assert.ok(lastBounds.y >= scrollBounds.y && lastBounds.y + lastBounds.height <= scrollBounds.y + scrollBounds.height + 1);
+    assert.ok(Math.abs((await page.locator('.dashboard__table th').first().boundingBox()).y - scrollBounds.y) < 2);
     assert.equal(await page.locator('#evidence-rows img').count(), 0);
     const link = page.locator('#evidence-rows tr').nth(1).locator('a').first();
     assert.equal(new URL(await link.getAttribute('href')).searchParams.get('dn'), users.users_preauth.objects[1].dn);
-    await page.getByRole('button', { name: 'Next objects' }).click();
-    assert.match(await page.locator('#evidence-page').textContent(), /^21–40/);
     await page.getByLabel('Filter sampled objects').fill('svc.backup');
     assert.equal(await page.locator('#evidence-rows tr').count(), 1);
+    assert.equal(await page.locator('#evidence-count').textContent(), '1 of 100 sampled objects · 125 total matches');
+    assert.deepEqual(await layout(), initialLayout);
+    assert.equal(await scroller.evaluate((node) => node.scrollTop), 0);
     await page.getByLabel('Filter sampled objects').fill('no such object');
     assert.match(await page.locator('#evidence-empty').textContent(), /No sampled objects/);
+    assert.deepEqual(await layout(), initialLayout);
     await page.getByLabel('Filter sampled objects').fill('');
     await page.getByRole('button', { name: 'Constrained delegation 8', exact: true }).click();
     assert.equal(await page.locator('#evidence-title').textContent(), 'Constrained delegation');
+    assert.deepEqual(await layout(), initialLayout);
     assert.match(page.url(), /signal=computers_constrained/);
     await page.getByRole('button', { name: 'No Kerberos pre-auth 125', exact: true }).click();
     const downloadEvent = page.waitForEvent('download');
@@ -100,6 +121,11 @@ const fixtures = {
         await page.emulateMedia({ colorScheme: theme });
         await page.screenshot({ path: `${process.env.DASHBOARD_SCREENSHOT_DIR}/${name}.png`, animations: 'disabled', fullPage: true });
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        if (name.startsWith('mobile')) {
+          assert.ok((await page.locator('#dashboard-signals').boundingBox()).height < 60);
+          assert.ok((await scroller.boundingBox()).height <= 288);
+          assert.equal(await scroller.evaluate((node) => node.scrollHeight > node.clientHeight), true);
+        }
         if (name === 'mobile-dark') {
           await page.locator('.dashboard__scroll').evaluate((node) => { node.scrollTop = node.scrollHeight; });
           await page.screenshot({ path: `${process.env.DASHBOARD_SCREENSHOT_DIR}/mobile-infrastructure.png`, animations: 'disabled' });
@@ -115,7 +141,7 @@ const fixtures = {
     assert.equal(await page.locator('[data-count="users"]').textContent(), '—');
     assert.equal(await page.locator('[data-count="computers"]').textContent(), '386');
     assert.match(await page.locator('#evidence-empty').textContent(), /not been evaluated/);
-    assert.match(await page.locator('#evidence-page').textContent(), /Source unavailable/);
+    assert.match(await page.locator('#evidence-count').textContent(), /Source unavailable/);
     assert.equal(await page.locator('#evidence-filter').isDisabled(), true);
     assert.match(await page.locator('#dashboard-errors').textContent(), /Access denied/);
     if (process.env.DASHBOARD_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.DASHBOARD_SCREENSHOT_DIR}/partial.png`, animations: 'disabled' });
@@ -149,7 +175,7 @@ const fixtures = {
     await page.keyboard.press('Enter');
     assert.equal(await page.locator('#evidence-title').textContent(), 'Computer logon > 90 days');
     assert.deepEqual(errors, []);
-    console.log('Dashboard browser checks passed: read-only serial collection, evidence, navigation, export, partial/empty/error states, refresh, session changes, responsive layout, keyboard, and safe rendering.');
+    console.log('Dashboard browser checks passed: read-only serial collection, evidence, navigation, bounded scrolling, export, partial/empty/error states, refresh, session changes, responsive layout, keyboard, and safe rendering.');
   } finally {
     await browser.close();
   }

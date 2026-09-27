@@ -14,19 +14,26 @@ const refresh = find('dashboard-refresh');
 const exportButton = find('dashboard-export');
 const filter = find('evidence-filter');
 const signalButtons = new Map();
-const pageSize = 20;
+const daysSelect = find('dashboard-days');
+const DAYS_KEY = 'powerview.dashboard.inactiveDays';
+let days = 90;
+try {
+  const saved = localStorage.getItem(DAYS_KEY);
+  if ([...daysSelect.options].some((option) => option.value === saved)) days = Number(saved);
+} catch { /* per-viewer convenience only */ }
+daysSelect.value = String(days);
+const fill = (value) => value.replaceAll('{days}', String(days));
 let data = {};
 let failures = {};
 let active = signals.find((signal) => signal.key === new URL(location.href).searchParams.get('signal')) ?? signals[0];
 let selected = new URL(location.href).searchParams.has('signal');
-let page = 0;
 let loading = false;
 let domainDN = '';
 
-function objectLink(record, label = record.name) {
+function objectLink(record, label = record.name, page = 'explorer') {
   if (!record.dn) return element('span', '', label);
   const link = element('a', 'dashboard__object', label);
-  const url = new URL(root.dataset.explorer, location.origin);
+  const url = new URL(root.dataset[page] ?? root.dataset.explorer, location.origin);
   url.searchParams.set('dn', record.dn);
   link.href = url;
   link.title = record.dn;
@@ -38,48 +45,47 @@ for (const [source, label] of [['users', 'Users'], ['computers', 'Computers']]) 
   for (const signal of signals.filter((item) => item.source === source)) {
     const control = button('', { className: 'dashboard__signal' });
     const count = element('span', 'dashboard__signal-count', '—');
-    control.append(element('span', '', signal.label), count);
+    const label = element('span', '', fill(signal.label));
+    control.append(label, count);
     control.setAttribute('aria-controls', 'evidence-rows');
     control.addEventListener('click', () => {
       active = signal;
       selected = true;
-      page = 0;
       filter.value = '';
       const url = new URL(location.href);
       url.searchParams.set('signal', signal.key);
       history.replaceState(null, '', url);
-      renderEvidence();
+      renderEvidence(true);
     });
-    signalButtons.set(signal.key, { control, count });
+    signalButtons.set(signal.key, { control, count, label });
     find('dashboard-signals').append(control);
   }
 }
 
-function renderEvidence() {
+function renderEvidence(resetScroll = false) {
   for (const signal of signals) {
     const result = data[signal.source]?.findings[signal.key];
-    const { control, count } = signalButtons.get(signal.key);
+    const { control, count, label } = signalButtons.get(signal.key);
+    label.textContent = fill(signal.label);
     control.setAttribute('aria-pressed', String(signal.key === active.key));
     control.dataset.matches = String(Boolean(result?.count));
     count.textContent = result ? format.format(result.count) : '—';
     control.title = result ? `${format.format(result.count)} matching accounts` : failures[signal.source] ? 'Source unavailable' : 'Waiting for source';
   }
-  find('evidence-title').textContent = active.label;
-  find('evidence-description').textContent = active.description;
+  find('evidence-title').textContent = fill(active.label);
+  find('evidence-description').textContent = fill(active.description);
   const result = data[active.source]?.findings[active.key];
   filter.disabled = !result;
   const query = filter.value.trim().toLowerCase();
   const objects = (result?.objects ?? []).filter((record) => `${record.name} ${record.dn} ${record.evidence}`.toLowerCase().includes(query));
-  const totalPages = Math.max(1, Math.ceil(objects.length / pageSize));
-  page = Math.min(page, totalPages - 1);
-  find('evidence-total').textContent = result ? `${format.format(result.count)} matches` : 'Not evaluated';
-  find('evidence-page').textContent = result
-    ? `${objects.length ? `${page * pageSize + 1}–${Math.min((page + 1) * pageSize, objects.length)}` : '0'} of ${format.format(objects.length)} sampled${result.count > result.objects.length ? ` · first ${result.objects.length} of ${format.format(result.count)} matches` : ''}`
+  find('evidence-total').textContent = result ? `${format.format(result.count)} ${result.count === 1 ? 'match' : 'matches'}` : 'Not evaluated';
+  find('evidence-count').textContent = result
+    ? `${query ? `${format.format(objects.length)} of ` : ''}${format.format(result.objects.length)} sampled ${result.objects.length === 1 ? 'object' : 'objects'} · ${format.format(result.count)} total ${result.count === 1 ? 'match' : 'matches'}`
     : failures[active.source] ? 'Source unavailable · Refresh to retry' : 'Waiting for readable directory data';
-  const rows = objects.slice(page * pageSize, (page + 1) * pageSize).map((record) => {
+  const rows = objects.map((record) => {
     const row = element('tr');
     const name = element('td');
-    name.append(objectLink(record));
+    name.append(objectLink(record, record.name, active.source));
     const inspect = element('td');
     if (record.dn) {
       const link = objectLink(record, '');
@@ -92,13 +98,12 @@ function renderEvidence() {
     return row;
   });
   find('evidence-rows').replaceChildren(...rows);
+  if (resetScroll) root.querySelector('.dashboard__table-scroll').scrollTop = 0;
   const empty = find('evidence-empty');
   empty.hidden = rows.length > 0;
   empty.textContent = !result
     ? failures[active.source] ? `${sources[active.source]} could not be read. Refresh to retry; this signal has not been evaluated.` : `Waiting for ${sources[active.source].toLowerCase()}…`
     : result.count === 0 ? 'No matches in the returned directory data.' : 'No sampled objects match this filter.';
-  find('evidence-prev').disabled = page === 0;
-  find('evidence-next').disabled = page >= totalPages - 1;
 }
 
 function renderInventory() {
@@ -115,7 +120,7 @@ function renderInventory() {
 const known = (value, suffix = '') => value == null ? 'Not readable' : `${format.format(value)}${suffix}`;
 const duration = (value, unit) => {
   if (value == null) return 'Not readable';
-  if (value === 0 || value >= 922337203685) return 'No expiry';
+  if (value === 'never' || value === 0 || value >= 922337203685) return 'No expiry';
   const amount = value / unit;
   return `${format.format(amount)} ${unit === 86400 ? amount === 1 ? 'day' : 'days' : amount === 1 ? 'minute' : 'minutes'}`;
 };
@@ -135,7 +140,7 @@ function renderPolicy() {
     ['Maximum password age', duration(policy.maxPwdAge, 86400)],
     ['Minimum password age', policy.minPwdAge === 0 ? '0 days' : duration(policy.minPwdAge, 86400)],
     ['Lockout threshold', policy.lockoutThreshold === 0 ? 'No lockout' : known(policy.lockoutThreshold, ' attempts')],
-    ['Lockout duration', policy.lockoutThreshold === 0 ? 'Not applicable' : policy.lockoutDuration === 0 ? 'Until unlocked' : duration(policy.lockoutDuration, 60)],
+    ['Lockout duration', policy.lockoutThreshold === 0 ? 'Not applicable' : policy.lockoutDuration === 0 || policy.lockoutDuration === 'never' ? 'Until an administrator unlocks' : duration(policy.lockoutDuration, 60)],
     ['Password complexity', flags == null ? 'Not readable' : flags & 1 ? 'Required' : 'Not required'],
     ['Reversible encryption', flags == null ? 'Not readable' : flags & 16 ? 'Enabled' : 'Disabled'],
     ['Machine-account quota', known(policy['ms-DS-MachineAccountQuota'])],
@@ -184,7 +189,7 @@ function renderSystems() {
   const list = element('div', 'dashboard__object-list');
   for (const record of result.controllers) {
     const row = element('div');
-    row.append(objectLink(record, record.host || record.name), element('p', '', `${record.os} · ${record.enabled ? 'Enabled' : 'Disabled'}`));
+    row.append(objectLink(record, record.host || record.name, 'computers'), element('p', '', `${record.os} · ${record.enabled ? 'Enabled' : 'Disabled'}`));
     list.append(row);
   }
   controllers.replaceChildren(result.controllers.length ? list : element('p', 'dashboard__empty', 'No domain controllers identified in returned account-control values.'));
@@ -229,6 +234,7 @@ function renderCollection() {
   }
   exportButton.disabled = loading || !loaded;
   refresh.disabled = loading;
+  daysSelect.disabled = loading;
 }
 
 function render() {
@@ -240,13 +246,12 @@ function render() {
   renderCollection();
 }
 
-async function load() {
+async function load(fresh = false) {
   if (loading) return;
   loading = true;
   data = {};
   failures = {};
   domainDN = '';
-  page = 0;
   filter.value = '';
   find('dashboard-time').textContent = '';
   find('dashboard-domain').textContent = 'Directory assessment';
@@ -255,7 +260,7 @@ async function load() {
   render();
   for (const source of Object.keys(sources)) {
     try {
-      const result = await request(`dashboard/${source}`);
+      const result = await request(`dashboard/${source}?days=${days}${fresh ? '&fresh=1' : ''}`);
       if (!result?.root_dn || !result.collected_at) throw new Error('The server returned an incomplete dashboard response.');
       if (domainDN && domainDN !== result.root_dn.toLowerCase()) {
         data = {};
@@ -299,15 +304,20 @@ async function load() {
   render();
 }
 
-filter.addEventListener('input', () => { page = 0; renderEvidence(); });
-find('evidence-prev').addEventListener('click', () => { page -= 1; renderEvidence(); });
-find('evidence-next').addEventListener('click', () => { page += 1; renderEvidence(); });
-refresh.addEventListener('click', load);
+filter.addEventListener('input', () => renderEvidence(true));
+refresh.addEventListener('click', () => load(true));
+daysSelect.addEventListener('change', () => {
+  days = Number(daysSelect.value);
+  try { localStorage.setItem(DAYS_KEY, String(days)); } catch { /* per-viewer convenience only */ }
+  load();
+});
 exportButton.addEventListener('click', () => {
   const snapshot = {
     exported_at: new Date().toISOString(), scope: 'Current domain; objects visible to the connected session',
     limitations: 'Configuration signals are not proof of exploitability. Counts cover returned objects; evidence is capped at 100 objects per signal. Signals overlap. Missing attributes may reflect permissions.',
-    signals, sources: data, errors: failures,
+    inactive_days: days,
+    signals: signals.map((signal) => ({ ...signal, label: fill(signal.label), description: fill(signal.description) })),
+    sources: data, errors: failures,
   };
   const url = URL.createObjectURL(new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' }));
   const link = element('a');

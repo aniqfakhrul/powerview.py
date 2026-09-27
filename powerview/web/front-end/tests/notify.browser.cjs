@@ -35,7 +35,7 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
   await page.waitForTimeout(4600);
   assert.equal(await closeButton('Stays while hovered').count(), 0);
 
-  const origin = page.getByRole('link', { name: 'Users' });
+  const origin = page.getByRole('link', { name: 'Users', exact: true });
   await origin.focus();
   await show('Only toast', 'error');
   await closeButton('Only toast').focus();
