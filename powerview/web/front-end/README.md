@@ -149,3 +149,19 @@ Search integration checks (all directory requests intercepted):
 EXPLORER_URL=http://127.0.0.1:5011 \
   node powerview/web/front-end/tests/users-search.browser.cjs
 ```
+
+### Password resets
+
+User and computer detail panels expose a key action for resetting the selected
+account's password. The shared dialog confirms the new password and calls
+`set/domainuserpassword` or `set/domaincomputerpassword` with the object's DN.
+Computer resets include a domain-trust warning. Failed requests stay in the
+dialog; successful resets refresh the object. Closing the dialog clears its
+password fields.
+
+Browser checks intercept all directory requests:
+
+```sh
+EXPLORER_URL=http://127.0.0.1:5011 \
+  node powerview/web/front-end/tests/reset-password.browser.cjs
+```

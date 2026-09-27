@@ -171,6 +171,10 @@ export function createDirectory(baseURL) {
       return records(data);
     },
     account: (action, identity, searchbase) => request(`account/${action}`, { mutation: true, body: { identity, searchbase } }),
+    resetPassword(type, identity, accountpassword) {
+      if (!['user', 'computer'].includes(type)) throw new Error('Unsupported account type.');
+      return request(`set/domain${type}password`, { mutation: true, body: { identity, accountpassword } });
+    },
     create(type, name, password, basedn) {
       const bodies = {
         user: { username: name, password, basedn },
