@@ -327,4 +327,10 @@ exportButton.addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 
+for (const tip of root.querySelectorAll('.dashboard__tip')) {
+  tip.addEventListener('keydown', (event) => { if (event.key === 'Escape') tip.classList.add('is-dismissed'); });
+  tip.addEventListener('mouseleave', () => tip.classList.remove('is-dismissed'));
+  tip.addEventListener('focusout', () => tip.classList.remove('is-dismissed'));
+}
+
 load();

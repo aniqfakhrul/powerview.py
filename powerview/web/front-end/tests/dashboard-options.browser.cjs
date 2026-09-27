@@ -54,6 +54,19 @@ function fixture(source, days) {
     const zero = page.locator('.dashboard__signal', { hasText: 'No Kerberos pre-auth' }).locator('.dashboard__signal-count');
     assert.notEqual(await zero.evaluate((node) => getComputedStyle(node).color), await page.evaluate(() => getComputedStyle(document.body).getPropertyValue('--color-danger')));
 
+    const tip = page.locator('#evidence-description');
+    assert.equal(await tip.isVisible(), false);
+    await page.getByRole('button', { name: 'About this signal' }).focus();
+    await tip.waitFor();
+    assert.match(await tip.textContent(), /not a vulnerability by itself/);
+    await page.keyboard.press('Escape');
+    await tip.waitFor({ state: 'hidden' });
+    await page.getByRole('button', { name: /Default policy/ }).hover();
+    await page.locator('#policy-note').waitFor();
+    assert.match(await page.locator('#policy-note').textContent(), /Fine-grained password policies/);
+    assert.equal(await page.locator('.dashboard__policy .dashboard__note').count(), 0);
+    await page.mouse.move(0, 0);
+
     requests.length = 0;
     await page.getByRole('button', { name: 'Refresh' }).click();
     await page.waitForFunction(() => !document.querySelector('#dashboard-refresh').disabled);

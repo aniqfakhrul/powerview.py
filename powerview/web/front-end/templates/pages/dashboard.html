@@ -30,7 +30,7 @@
         <div class="dashboard__review-body">
           <nav id="dashboard-signals" class="dashboard__signals" aria-label="Review signals"></nav>
           <section class="dashboard__evidence" aria-labelledby="evidence-title">
-            <header class="dashboard__evidence-heading"><h3 id="evidence-title"></h3><p id="evidence-description"></p></header>
+            <header class="dashboard__evidence-heading"><h3 id="evidence-title"></h3><span class="dashboard__tip"><button type="button" class="icon-button dashboard__info" aria-label="About this signal" aria-describedby="evidence-description">{{ icon('info') }}</button><span id="evidence-description" class="dashboard__tooltip" role="tooltip"></span></span></header>
             <div class="dashboard__evidence-tools"><label class="search-field">{{ icon('search') }}<input id="evidence-filter" type="search" placeholder="Filter sampled objects" aria-label="Filter sampled objects" disabled></label><span id="evidence-total"></span></div>
             <div class="dashboard__table-scroll" tabindex="0" role="region" aria-label="Matching objects">
               <table class="dashboard__table"><caption class="visually-hidden">Objects matching the selected review signal</caption><thead><tr><th scope="col">Account</th><th scope="col">Evidence</th><th scope="col"><span class="visually-hidden">Inspect</span></th></tr></thead><tbody id="evidence-rows"></tbody></table>
@@ -41,9 +41,8 @@
         </div>
       </section>
       <section class="dashboard__policy" aria-labelledby="policy-title">
-        <header class="dashboard__section-heading"><h2 id="policy-title">Domain baseline</h2><a id="dashboard-domain-link" class="icon-button" aria-label="Inspect domain in Explorer" title="Inspect domain in Explorer" hidden>{{ icon('open') }}</a></header>
+        <header class="dashboard__section-heading"><h2 id="policy-title">Domain baseline</h2><span class="dashboard__tip dashboard__tip--end"><button type="button" class="dashboard__hint" aria-describedby="policy-note">Default policy{{ icon('info') }}</button><span id="policy-note" class="dashboard__tooltip" role="tooltip">Fine-grained password policies may override these values for individual accounts.</span></span><a id="dashboard-domain-link" class="icon-button" aria-label="Inspect domain in Explorer" title="Inspect domain in Explorer" hidden>{{ icon('open') }}</a></header>
         <div id="dashboard-policy"><p class="dashboard__empty">Reading domain policy…</p></div>
-        <p class="dashboard__note">Default domain policy. Fine-grained password policies may override these values for individual accounts.</p>
       </section>
     </div>
     <div class="dashboard__infrastructure">

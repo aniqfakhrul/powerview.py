@@ -36,9 +36,8 @@
 .dashboard__signal[aria-pressed="true"] .dashboard__signal-count { color: inherit; }
 .dashboard__evidence { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .dashboard__evidence > header, .dashboard__evidence-tools, .dashboard__evidence-footer { flex: none; }
-.dashboard__evidence-heading { padding: 14px 16px 12px; min-height: 105px; }
+.dashboard__evidence-heading { display: flex; align-items: center; gap: 4px; padding: 12px 16px; }
 .dashboard__evidence-heading h3 { font-size: 13px; font-weight: 600; }
-.dashboard__evidence-heading p { margin-top: 6px; color: var(--color-muted); font-size: 12px; max-width: 65ch; }
 .dashboard__evidence-tools { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 0 16px 12px; }
 .dashboard__evidence-tools .search-field { max-width: 260px; min-width: 0; }
 .dashboard__evidence-tools input { min-width: 0; }
@@ -122,3 +121,13 @@
 }
 .dashboard__threshold { display: inline-flex; flex: none; align-items: center; gap: 6px; color: var(--color-faint); font-size: 11px; white-space: nowrap; }
 .dashboard__threshold .dashboard__days { width: auto; }
+.dashboard__tip { position: relative; display: inline-flex; }
+.dashboard__tip--end { margin-left: auto; }
+.dashboard__info { width: 22px; height: 22px; color: var(--color-faint); }
+.dashboard__info .icon, .dashboard__hint .icon { width: 13px; height: 13px; }
+.dashboard__hint { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--color-faint); font-size: 11px; }
+.dashboard__hint:hover, .dashboard__info:hover { color: var(--color-text); }
+.dashboard__tooltip { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; width: max-content; max-width: min(360px, 80vw); padding: 8px 10px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); background: var(--color-raised); box-shadow: var(--shadow-pop); color: var(--color-text); font-size: 12px; font-weight: 400; line-height: 1.45; white-space: normal; visibility: hidden; opacity: 0; }
+.dashboard__tip--end .dashboard__tooltip { right: 0; left: auto; }
+.dashboard__tip:hover .dashboard__tooltip, .dashboard__tip:focus-within .dashboard__tooltip { visibility: visible; opacity: 1; }
+.dashboard__tip.is-dismissed .dashboard__tooltip { visibility: hidden; opacity: 0; }
