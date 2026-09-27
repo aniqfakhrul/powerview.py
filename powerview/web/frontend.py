@@ -21,7 +21,7 @@ class Page:
 
 PAGES = (
     Page("index", "/", "Explorer", "Workspace", "pages/explorer.html"),
-    Page("dashboard", "/dashboard", "Dashboard", "Workspace"),
+    Page("dashboard", "/dashboard", "Dashboard", "Workspace", "pages/dashboard.html"),
     Page("graph", "/graph", "Graph", "Workspace"),
     Page("users", "/users", "Users", template="pages/users.html"),
     Page("computers", "/computers", "Computers", template="pages/computers.html"),

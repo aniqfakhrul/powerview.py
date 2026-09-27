@@ -165,3 +165,35 @@ Browser checks intercept all directory requests:
 EXPLORER_URL=http://127.0.0.1:5011 \
   node powerview/web/front-end/tests/reset-password.browser.cjs
 ```
+
+### Dashboard
+
+The dashboard collects fresh, read-only summaries from
+`GET /api/dashboard/{domain,inventory,users,computers}` using the current session.
+Sources load sequentially and fail independently. Refresh starts a new collection;
+the dashboard does not poll or retry directory reads automatically. A domain change
+during collection discards the mixed snapshot.
+
+Inventory counts cover returned objects. Review signals include enabled-account
+password flags, user SPNs, adminCount, computer delegation, and replicated logons
+older than 90 days. Unknown account state is reported separately; missing logon
+timestamps are excluded from inactivity signals. These are configuration signals,
+not vulnerability verdicts. Domain policy excludes fine-grained overrides, and
+controller inventory does not test reachability or replication.
+
+Each signal keeps its total count and up to 100 object samples. The evidence table
+filters and pages those samples, with links into Explorer. Controller and trust
+lists also retain only the first 100 objects; their counts cover all returned
+objects. These limits bound response samples, not the underlying directory reads.
+Snapshot export contains
+the summaries, sample evidence, source timestamps, interpretation notes, and errors.
+No password secrets are requested. LDAP errors and incomplete results are shown as
+unavailable sources rather than zero counts.
+
+Checks use synthetic data and intercept all browser API requests:
+
+```sh
+python -m unittest tests.test_dashboard
+EXPLORER_URL=http://127.0.0.1:5011 \
+  node powerview/web/front-end/tests/dashboard.browser.cjs
+```

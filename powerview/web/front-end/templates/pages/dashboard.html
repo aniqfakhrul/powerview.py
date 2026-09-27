@@ -1,0 +1,59 @@
+{% extends "layouts/workspace.html" %}
+{% from "components/icon.html" import icon %}
+{% block workspace_class %}workspace--app{% endblock %}
+{% block header %}{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ asset_url('css/pages/dashboard.css') }}">{% endblock %}
+{% block content %}
+<section id="dashboard" class="dashboard" aria-label="Dashboard" data-api-root="{{ request.script_root }}/api/" data-explorer="{{ url_for('index') }}">
+  <header class="toolbar dashboard__toolbar">
+    <h1>{{ icon('domain', 'icon type--domain') }}Dashboard</h1>
+    <span class="dashboard__scope">Current domain</span>
+    <div class="toolbar__actions">
+      <button id="dashboard-export" class="button" type="button" disabled>{{ icon('download') }}<span>Export snapshot</span></button>
+      <button id="dashboard-refresh" class="button" type="button">{{ icon('refresh') }}<span>Refresh</span></button>
+    </div>
+  </header>
+  <div class="dashboard__scroll">
+    <div class="dashboard__identity">
+      <div><h2 id="dashboard-domain">Directory assessment</h2><p id="dashboard-context">Reading the connected domain…</p></div>
+      <div class="dashboard__freshness"><span id="dashboard-state" role="status">Loading snapshot…</span><time id="dashboard-time"></time></div>
+    </div>
+    <nav id="dashboard-inventory" class="dashboard__inventory" aria-label="Directory inventory">
+      {% for key, label, target in [('users', 'Users', 'users'), ('computers', 'Computers', 'computers'), ('groups', 'Groups', 'groups'), ('ous', 'Organizational units', 'ou'), ('gpos', 'Group policies', 'gpo')] %}
+      <a href="{{ url_for(target) }}"><span>{{ label }}</span><strong data-count="{{ key }}">—</strong><small data-detail="{{ key }}">Loading…</small></a>
+      {% endfor %}
+      <a href="#dashboard-trusts"><span>Trusts</span><strong data-count="trusts">—</strong><small data-detail="trusts">Loading…</small></a>
+    </nav>
+    <div id="dashboard-errors" class="dashboard__errors" aria-live="polite" hidden></div>
+    <div class="dashboard__assessment">
+      <section class="dashboard__review" aria-labelledby="review-title">
+        <header class="dashboard__section-heading"><h2 id="review-title">Review queue</h2><span>Enabled accounts · configuration signals</span></header>
+        <div class="dashboard__review-body">
+          <nav id="dashboard-signals" class="dashboard__signals" aria-label="Review signals"></nav>
+          <section class="dashboard__evidence" aria-labelledby="evidence-title">
+            <header class="dashboard__evidence-heading"><h3 id="evidence-title"></h3><p id="evidence-description"></p></header>
+            <div class="dashboard__evidence-tools"><label class="search-field">{{ icon('search') }}<input id="evidence-filter" type="search" placeholder="Filter sampled objects" aria-label="Filter sampled objects" disabled></label><span id="evidence-total"></span></div>
+            <div class="dashboard__table-scroll" tabindex="0" role="region" aria-label="Matching objects">
+              <table class="dashboard__table"><caption class="visually-hidden">Objects matching the selected review signal</caption><thead><tr><th scope="col">Account</th><th scope="col">Evidence</th><th scope="col"><span class="visually-hidden">Inspect</span></th></tr></thead><tbody id="evidence-rows"></tbody></table>
+              <p id="evidence-empty" class="dashboard__empty" role="status"></p>
+            </div>
+            <footer class="dashboard__evidence-footer"><span id="evidence-page"></span><div><button id="evidence-prev" class="icon-button" aria-label="Previous objects" type="button">{{ icon('chevron-left') }}</button><button id="evidence-next" class="icon-button" aria-label="Next objects" type="button">{{ icon('chevron-right') }}</button></div></footer>
+          </section>
+        </div>
+      </section>
+      <section class="dashboard__policy" aria-labelledby="policy-title">
+        <header class="dashboard__section-heading"><h2 id="policy-title">Domain baseline</h2><a id="dashboard-domain-link" class="icon-button" aria-label="Inspect domain in Explorer" title="Inspect domain in Explorer" hidden>{{ icon('open') }}</a></header>
+        <div id="dashboard-policy"><p class="dashboard__empty">Reading domain policy…</p></div>
+        <p class="dashboard__note">Default domain policy. Fine-grained password policies may override these values for individual accounts.</p>
+      </section>
+    </div>
+    <div class="dashboard__infrastructure">
+      <section aria-labelledby="systems-title"><header class="dashboard__section-heading"><h2 id="systems-title">Operating systems</h2><span id="systems-total"></span></header><div id="dashboard-systems"><p class="dashboard__empty">Reading computer inventory…</p></div></section>
+      <section aria-labelledby="controllers-title"><header class="dashboard__section-heading"><h2 id="controllers-title">Domain controllers</h2><span id="controllers-total"></span></header><div id="dashboard-controllers"><p class="dashboard__empty">Reading controllers…</p></div></section>
+      <section id="dashboard-trusts" aria-labelledby="trusts-title"><header class="dashboard__section-heading"><h2 id="trusts-title">Domain trusts</h2><span id="trusts-total"></span></header><div id="dashboard-trust-list"><p class="dashboard__empty">Reading trust objects…</p></div></section>
+    </div>
+    <details class="dashboard__coverage"><summary>Collection scope &amp; interpretation <span id="dashboard-coverage-count">0 of 4 sources loaded</span></summary><div><p>This snapshot covers objects visible to the connected session in the current domain. It is a configuration review, not proof of exploitability or a complete security assessment. Zero matches does not establish that a domain is secure.</p><p>Counts include all returned objects; evidence is limited to the first 100 matches per signal. Signals can overlap. Only accounts with a readable, enabled account-control value enter the review queue. Missing attributes may reflect permissions. Last-logon signals use replicated lastLogonTimestamp and are approximate; missing timestamps are not treated as inactivity.</p><p>Collection uses fresh, read-only directory queries. It does not request tickets, retrieve password secrets, test credentials, or make directory changes. Refresh is manual.</p><dl id="dashboard-sources"></dl></div></details>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ asset_url('js/pages/dashboard.js') }}"></script>{% endblock %}

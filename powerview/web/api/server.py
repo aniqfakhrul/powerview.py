@@ -11,6 +11,7 @@ import shlex
 import fnmatch
 from argparse import Namespace
 from powerview.web.api.helpers import make_serializable
+from powerview.web.api.dashboard import SECTIONS as DASHBOARD_SECTIONS, dashboard_section
 from powerview.utils.parsers import powerview_arg_parse
 from powerview.utils.constants import UAC_DICT
 import types
@@ -70,6 +71,7 @@ class APIServer:
 
 		register_frontend(add_route_with_auth)
 		add_route_with_auth('/api/server/info', 'server_info', self.handle_server_info, methods=['GET'])
+		add_route_with_auth('/api/dashboard/<section>', 'dashboard_section', self.handle_dashboard_section, methods=['GET'])
 		add_route_with_auth('/api/server/schema', 'schema_info', self.handle_schema_info, methods=['GET'])
 		add_route_with_auth('/api/schema/attributes', 'schema_attributes', self.handle_schema_attributes, methods=['GET'])
 		add_route_with_auth('/api/account/<action>', 'account_action', self.handle_account_action, methods=['POST'])
@@ -171,6 +173,15 @@ class APIServer:
 			'flatName': self.powerview.flatName,
 		}
 		return jsonify(domain_info)
+
+	def handle_dashboard_section(self, section):
+		if section not in DASHBOARD_SECTIONS:
+			return jsonify({'error': 'Unknown dashboard section.'}), 404
+		try:
+			return jsonify(dashboard_section(self.powerview, section))
+		except Exception as e:
+			logging.error(f'Powerview dashboard: {section}: {e}')
+			return jsonify({'error': str(e)}), 400
 	
 	def handle_clear_cache(self):
 		success = self.powerview.clear_cache()
