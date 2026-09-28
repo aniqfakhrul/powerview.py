@@ -6,10 +6,11 @@ from ldap3 import SUBTREE, DEREF_ALWAYS
 import ldapx
 
 import logging
+from functools import wraps
 from uuid import uuid4
 from ldap3.protocol.convert import build_controls_list
 from pyasn1.codec.ber.encoder import encode
-from powerview.utils.storage import Storage
+from powerview.utils.query_cache import QueryCache
 from powerview.modules.vulnerabilities import VulnerabilityDetector
 from powerview.utils.helpers import strip_entry
 from powerview.utils.hints import patch_ldap3_exceptions
@@ -21,6 +22,24 @@ DEFAULT_ATTRLIST_CHAIN = "CR"
 # Patch ldap3's LDAPOperationResult to include error hints
 patch_ldap3_exceptions()
 
+def invalidate_on_success(operation):
+	@wraps(operation)
+	def wrapped(*args, **kwargs):
+		result = operation(*args, **kwargs)
+		if result is True or (isinstance(result, tuple) and result and result[0] is True):
+			QueryCache.invalidate_all()
+		return result
+	wrapped._powerview_cache_invalidation = True
+	return wrapped
+
+
+def install_cache_invalidation(connection):
+	for name in ('add', 'modify', 'delete', 'modify_dn', 'set_password', 'change_password'):
+		operation = getattr(connection, name, None)
+		if callable(operation) and not getattr(operation, '_powerview_cache_invalidation', False):
+			setattr(connection, name, invalidate_on_success(operation))
+
+
 class CustomStandardExtendedOperations(StandardExtendedOperations):
 	def __init__(self, connection, server=None, obfuscate=False, no_cache=False, no_vuln_check=False, use_adws=False, raw=False):
 		super().__init__(connection)
@@ -31,8 +50,9 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		self.use_adws = use_adws
 		self.raw = raw
 		self.cache_namespace = uuid4().hex
-		self.storage = Storage()
-		self.vulnerability_detector = VulnerabilityDetector(self.storage)
+		self.cache = QueryCache()
+		install_cache_invalidation(connection)
+		self.vulnerability_detector = VulnerabilityDetector()
 	
 	def _format_vulnerability(self, vuln_dict):
 		"""Format a vulnerability dictionary as a string"""
@@ -71,11 +91,12 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		no_vuln_check = no_vuln_check or self.no_vuln_check
 		raw = raw or self.raw
 
+		generation = QueryCache.generation()
 		cache_context = {
 			'session': self.cache_namespace,
 			'user': str(getattr(self._connection, 'user', '')),
 			'controls': encode(build_controls_list(controls)).hex() if controls else None,
-			'options': [dereference_aliases, size_limit, time_limit, types_only, get_operational_attributes, strip_entries],
+			'options': [dereference_aliases, size_limit, time_limit, types_only, get_operational_attributes, strip_entries, paged_size, paged_criticality],
 		}
 
 		original_formatter = None
@@ -86,7 +107,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 
 		try:
 			if not skip_cache_read:
-				cached_results = self.storage.get_cached_results(search_base, search_filter, search_scope, attributes, host=self.server.host, raw=raw, cache_context=cache_context)
+				cached_results = self.cache.get(search_base, search_filter, search_scope, attributes, host=self.server.host, raw=raw, cache_context=cache_context, generation=generation)
 				if cached_results is not None:
 					logging.debug("[CustomStandardExtendedOperations] Returning cached results for query")
 					
@@ -182,19 +203,19 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 
 				filtered_results.append(entry)
 
+			if not self.no_cache:
+				for entry in filtered_results:
+					if 'attributes' in entry and 'from_cache' in entry['attributes']:
+						del entry['attributes']['from_cache']
+
+				self.cache.put(search_base, search_filter, search_scope, attributes, host=self.server.host, results=filtered_results, raw=raw, cache_context=cache_context, generation=generation)
+
 			if not no_vuln_check:
 				for entry in filtered_results:
 					if 'attributes' in entry:
 						vulnerabilities = self.vulnerability_detector.detect_vulnerabilities(entry['attributes'])
 						if vulnerabilities:
 							entry['attributes']['vulnerabilities'] = [self._format_vulnerability(v) for v in vulnerabilities]
-
-			if not self.no_cache:
-				for entry in filtered_results:
-					if 'attributes' in entry and 'from_cache' in entry['attributes']:
-						del entry['attributes']['from_cache']
-
-				self.storage.cache_results(search_base, search_filter, search_scope, attributes, host=self.server.host, results=filtered_results, raw=raw, cache_context=cache_context)
 			return filtered_results
 		finally:
 			if raw and original_formatter is not None and self.server:

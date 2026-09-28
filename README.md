@@ -127,6 +127,16 @@ Each entry is `{"dn": ..., "attributes": ...}`, plus `"from_cache": true` when
 the result came from the query cache. `dn` is `null` for synthesized results
 that have no distinguished name (`Get-NetShare`, `Get-DomainDNSRecord`, ...).
 
+Directory queries use a session-scoped, in-memory LRU cache with a 30-minute
+TTL and limits of 256 entries and approximately 64 MiB per cache. Oversized
+results are returned without being cached. Per-command `-NoCache` refreshes
+the entry; global `--no-cache` disables cache reads and writes. Successful
+LDAP, ADWS, and SAMR directory writes invalidate all query caches in the
+process, including SID lookups. `Clear-Cache` does the same explicitly.
+Changes made by other tools require a fresh read or expire through the TTL.
+Query results are held only in memory. The cache has no disk storage backend.
+Vulnerability rules remain a separate configuration file in `~/.powerview/vulns.json`.
+
 Values are encoded as follows:
 
 | Value | Encoded as |

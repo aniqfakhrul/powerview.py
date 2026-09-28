@@ -18,7 +18,7 @@ from powerview.modules.exchange import ExchangeEnum
 from powerview.modules.shadowcred import ShadowCredential
 from powerview.utils.helpers import *
 from powerview.utils.connections import CONNECTION
-from powerview.utils.storage import Storage
+from powerview.utils.query_cache import QueryCache
 from powerview.utils.accesscontrol import AccessControl
 from powerview.modules.ldapattack import (
 	LDAPAttack,
@@ -589,7 +589,7 @@ class PowerView:
 
 	def clear_cache(self) -> bool:
 		logging.info("[Clear-Cache] Clearing cache")
-		return self.custom_paged_search.standard.storage.clear_cache()
+		return QueryCache.invalidate_all()
 
 
 	def get_domainuser(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
@@ -2814,17 +2814,7 @@ class PowerView:
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
 		no_cache = no_cache or getattr(getattr(self, 'args', None), 'no_cache', False)
-		cache_context = (self.ldap_session, getattr(self.ldap_session, 'user', None), searchbase)
-		if getattr(self, '_sid_cache_context', None) != cache_context:
-			self._sid_cache_context = cache_context
-			self._sid_cache = {}
-		known_sid = self._sid_cache.get(objectsid) if not no_cache else None
-		if identity:
-			identity = identity
-		elif known_sid:
-			logging.debug(f"[ConvertFrom-SID] Using previously stored SID: {known_sid}")
-			identity = known_sid
-		else:
+		if not identity:
 			ldap_filter = f"(|(|(objectSid={objectsid})))"
 			logging.debug(f"[ConvertFrom-SID] LDAP search filter: {ldap_filter}")
 
@@ -2858,8 +2848,6 @@ class PowerView:
 					identity = f"{self.flatName}\\{name}"
 				except (IndexError, KeyError):
 					return objectsid
-
-			self._sid_cache[objectsid] = identity
 
 		if output:
 			print("%s" % identity)

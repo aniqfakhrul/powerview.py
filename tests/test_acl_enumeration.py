@@ -1,4 +1,3 @@
-import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -6,7 +5,7 @@ from ldap3.protocol.microsoft import security_descriptor_control
 
 from powerview.modules.ldapattack import ACLEnum, ACCESS_MASK, SIMPLE_PERMISSIONS
 from powerview.powerview import PowerView
-from powerview.utils.storage import Storage
+from powerview.utils.query_cache import QueryCache
 from tests import test_cache_and_dns_names
 
 
@@ -44,41 +43,21 @@ class ACLEnumerationTests(unittest.TestCase):
 		self.assertEqual(enum.resolve_sid('sid'), 'TEST\\alice')
 		view.convertfrom_sid.assert_called_once_with('sid', no_cache=True)
 
-	def test_sid_refresh_bypasses_memory_and_updates_name(self):
-		view = PowerView.__new__(PowerView)
-		view.root_dn = 'DC=test'
-		view.flatName = 'TEST'
-		view.ldap_session = MagicMock()
-		search = view.ldap_session.extend.standard.paged_search
-		search.return_value = [{'attributes': {'sAMAccountName': 'alice'}}]
-		sid = 'S-1-5-21-1-2-3-1000'
-		self.assertEqual(view.convertfrom_sid(sid), 'TEST\\alice')
-		search.return_value = [{'attributes': {'sAMAccountName': 'renamed'}}]
-		self.assertEqual(view.convertfrom_sid(sid), 'TEST\\alice')
-		self.assertEqual(view.convertfrom_sid(sid, no_cache=True), 'TEST\\renamed')
-		self.assertTrue(search.call_args.kwargs['no_cache'])
-		self.assertEqual(search.call_count, 2)
-		view.ldap_session.user = 'another-user'
-		view.convertfrom_sid(sid)
-		self.assertEqual(search.call_count, 3)
 
 
 class ACLCacheTests(unittest.TestCase):
 	def test_control_and_session_changes_use_separate_cache_entries(self):
 		helper = test_cache_and_dns_names.PagedSearchCacheTests()
 		operations = helper.make_operations()
-		with tempfile.TemporaryDirectory() as directory:
-			storage = Storage.__new__(Storage)
-			storage.cache_path = directory
-			operations.storage = storage
-			operations._connection.user = 'alice'
-			with patch('powerview.lib.ldap3.extend.paged_search_generator', return_value=[]) as query:
-				for flags in (5, 5, 4):
-					operations.paged_search('DC=test', '(objectClass=*)', attributes=['nTSecurityDescriptor'], controls=security_descriptor_control(sdflags=flags))
-				self.assertEqual(query.call_count, 2)
-				operations.cache_namespace = 'another-session'
-				operations.paged_search('DC=test', '(objectClass=*)', attributes=['nTSecurityDescriptor'], controls=security_descriptor_control(sdflags=4))
-				self.assertEqual(query.call_count, 3)
+		operations.cache = QueryCache()
+		operations._connection.user = 'alice'
+		with patch('powerview.lib.ldap3.extend.paged_search_generator', return_value=[]) as query:
+			for flags in (5, 5, 4):
+				operations.paged_search('DC=test', '(objectClass=*)', attributes=['nTSecurityDescriptor'], controls=security_descriptor_control(sdflags=flags))
+			self.assertEqual(query.call_count, 2)
+			operations.cache_namespace = 'another-session'
+			operations.paged_search('DC=test', '(objectClass=*)', attributes=['nTSecurityDescriptor'], controls=security_descriptor_control(sdflags=4))
+			self.assertEqual(query.call_count, 3)
 
 
 if __name__ == '__main__':

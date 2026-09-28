@@ -2,6 +2,7 @@
 import logging
 
 from impacket.dcerpc.v5 import transport, samr
+from powerview.utils.query_cache import QueryCache
 
 class SamrObject:
 	KNOWN_PROTOCOLS = {
@@ -110,6 +111,7 @@ class SamrObject:
 					dce, domain_handle, computer_name,
 					samr.USER_FORCE_PASSWORD_CHANGE
 				)
+				QueryCache.invalidate_all()
 			except samr.DCERPCSessionError as e:
 				if e.error_code == 0xc0000022:
 					raise Exception("Insufficient rights to create a machine account!")
@@ -122,6 +124,7 @@ class SamrObject:
 			# Step 2: Set password before UAC change
 			if not no_password:
 				samr.hSamrSetPasswordInternal4New(dce, user_handle, computer_password)
+				QueryCache.invalidate_all()
 
 			# Step 3: Re-open with MAXIMUM_ALLOWED for UAC change
 			user_rid = samr.hSamrLookupNamesInDomain(dce, domain_handle, [computer_name])['RelativeIds']['Element'][0]
@@ -133,6 +136,7 @@ class SamrObject:
 			req['tag'] = samr.USER_INFORMATION_CLASS.UserControlInformation
 			req['Control']['UserAccountControl'] = samr.USER_WORKSTATION_TRUST_ACCOUNT | (0x20 if no_password else 0)
 			samr.hSamrSetInformationUser2(dce, user_handle, req)
+			QueryCache.invalidate_all()
 			return True
 		finally:
 			if user_handle is not None:
@@ -149,6 +153,7 @@ class SamrObject:
 					samr.USER_WORKSTATION_TRUST_ACCOUNT,
 					samr.USER_FORCE_PASSWORD_CHANGE
 				)
+				QueryCache.invalidate_all()
 			except samr.DCERPCSessionError as e:
 				if e.error_code == 0xc0000022:
 					raise Exception("Insufficient rights to create a machine account!")
@@ -161,6 +166,7 @@ class SamrObject:
 			# Set password
 			if not no_password:
 				samr.hSamrSetPasswordInternal4New(dce, user_handle, computer_password)
+				QueryCache.invalidate_all()
 
 			# Set UAC flags
 			user_rid = samr.hSamrLookupNamesInDomain(dce, domain_handle, [computer_name])['RelativeIds']['Element'][0]
@@ -171,6 +177,7 @@ class SamrObject:
 			req['tag'] = samr.USER_INFORMATION_CLASS.UserControlInformation
 			req['Control']['UserAccountControl'] = samr.USER_WORKSTATION_TRUST_ACCOUNT | (0x20 if no_password else 0)
 			samr.hSamrSetInformationUser2(dce, user_handle, req)
+			QueryCache.invalidate_all()
 			return True
 		finally:
 			if user_handle is not None:
@@ -185,6 +192,7 @@ class SamrObject:
 		user_handle = samr.hSamrOpenUser(dce, domain_handle, userId=user_rid)['UserHandle']
 		try:
 			samr.hSamrSetPasswordInternal4New(dce, user_handle, new_password)
+			QueryCache.invalidate_all()
 			return True
 		finally:
 			self.close_handle(dce, user_handle)
@@ -193,6 +201,7 @@ class SamrObject:
 		"""Create a domain global group via SamrCreateGroupInDomain (Opnum 10)."""
 		try:
 			resp = samr.hSamrCreateGroupInDomain(dce, domain_handle, group_name, samr.GROUP_ALL_ACCESS)
+			QueryCache.invalidate_all()
 		except samr.DCERPCSessionError as e:
 			if e.error_code == 0xc0000022:
 				raise Exception("Insufficient rights to create group!")
@@ -206,6 +215,7 @@ class SamrObject:
 	def change_password(self, dce, account_name, old_password, new_password, old_pwd_hash_nt='', old_pwd_hash_lm=''):
 		try:
 			samr.hSamrUnicodeChangePasswordUser2(dce=dce, serverName='\x00', userName=account_name, oldPassword=old_password, newPassword=new_password, oldPwdHashLM=old_pwd_hash_lm, oldPwdHashNT=old_pwd_hash_nt)
+			QueryCache.invalidate_all()
 			return True
 		except samr.DCERPCSessionError as e:
 			if e.error_code == 0xc0000073:
@@ -231,6 +241,7 @@ class SamrObject:
 				raise
 
 			samr.hSamrDeleteUser(dce, user_handle)
+			QueryCache.invalidate_all()
 			user_handle = None
 			return True
 		finally:

@@ -2,20 +2,23 @@
 import os
 import json
 import logging
+import tempfile
 from datetime import datetime
 from powerview.utils.colors import bcolors
 
 class VulnerabilityDetector:
-    def __init__(self, storage):
-        self.storage = storage
+    def __init__(self, rules_path=None):
+        home = os.path.expanduser('~')
+        root = os.path.join(home if os.access(home, os.W_OK) else tempfile.gettempdir(), '.powerview')
+        self.rules_path = rules_path or os.path.join(root, 'vulns.json')
         self.rules = self._load_vulnerability_rules()
         
     def _load_vulnerability_rules(self):
-        vulns_file = os.path.join(self.storage.root_folder, "vulns.json")
+        vulns_file = self.rules_path
         
         if not os.path.exists(vulns_file):
             default_rules = self._get_default_rules()
-            os.makedirs(os.path.dirname(vulns_file), exist_ok=True)
+            os.makedirs(os.path.dirname(os.path.abspath(vulns_file)), exist_ok=True)
             
             with open(vulns_file, 'w') as f:
                 json.dump(default_rules, f, indent=4)

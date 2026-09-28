@@ -21,8 +21,8 @@ class PagedSearchCacheTests(unittest.TestCase):
 		operations.no_vuln_check = True
 		operations.use_adws = False
 		operations.raw = False
-		operations.storage = MagicMock()
-		operations.storage.get_cached_results.return_value = [dict(entry) for entry in STALE]
+		operations.cache = MagicMock()
+		operations.cache.get.return_value = [dict(entry) for entry in STALE]
 		return operations
 
 	def search(self, operations, **kwargs):
@@ -32,21 +32,21 @@ class PagedSearchCacheTests(unittest.TestCase):
 	def test_cached_read_returns_cache_without_querying(self):
 		operations = self.make_operations()
 		self.assertEqual(self.search(operations)[0]['dn'], STALE[0]['dn'])
-		operations.storage.cache_results.assert_not_called()
+		operations.cache.put.assert_not_called()
 
 	def test_per_request_no_cache_skips_read_and_refreshes_cache(self):
 		operations = self.make_operations()
 		results = self.search(operations, no_cache=True)
 		self.assertEqual([entry['dn'] for entry in results], [FRESH[0]['dn']])
-		operations.storage.get_cached_results.assert_not_called()
-		operations.storage.cache_results.assert_called_once()
-		self.assertEqual(operations.storage.cache_results.call_args.kwargs['results'], results)
+		operations.cache.get.assert_not_called()
+		operations.cache.put.assert_called_once()
+		self.assertEqual(operations.cache.put.call_args.kwargs['results'], results)
 
 	def test_global_no_cache_never_touches_cache(self):
 		operations = self.make_operations(global_no_cache=True)
 		self.search(operations)
-		operations.storage.get_cached_results.assert_not_called()
-		operations.storage.cache_results.assert_not_called()
+		operations.cache.get.assert_not_called()
+		operations.cache.put.assert_not_called()
 
 
 class RelativeDnsNameTests(unittest.TestCase):
