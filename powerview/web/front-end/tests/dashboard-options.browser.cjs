@@ -58,7 +58,7 @@ function fixture(source, days) {
     assert.equal(await tip.isVisible(), false);
     await page.getByRole('button', { name: 'About this signal' }).focus();
     await tip.waitFor();
-    assert.match(await tip.textContent(), /not a vulnerability by itself/);
+    assert.match(await tip.textContent(), /crack them offline, so weak passwords are the risk/);
     await page.keyboard.press('Escape');
     await tip.waitFor({ state: 'hidden' });
     await page.getByRole('button', { name: /Default policy/ }).hover();
