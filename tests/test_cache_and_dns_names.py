@@ -14,6 +14,7 @@ class PagedSearchCacheTests(unittest.TestCase):
 	def make_operations(self, global_no_cache=False):
 		operations = CustomStandardExtendedOperations.__new__(CustomStandardExtendedOperations)
 		operations._connection = MagicMock()
+		operations.cache_namespace = 'test-session'
 		operations.server = SimpleNamespace(host='dc.example.test')
 		operations.obfuscate = False
 		operations.no_cache = global_no_cache

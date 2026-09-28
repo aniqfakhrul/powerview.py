@@ -33,7 +33,6 @@ from powerview.utils.colors import bcolors
 from powerview.utils.schema import SchemaAttributeResolver, SchemaFeatureVariant
 from powerview.utils.constants import (
 	WELL_KNOWN_SIDS,
-	KNOWN_SIDS,
 	resolve_WellKnownSID,
 	SERVICE_TYPE,
 	SERVICE_START_TYPE,
@@ -1326,10 +1325,10 @@ class PowerView:
 
 		return writable_entries
 
-	def get_domainobjectacl(self, identity=None, security_identifier=None, ldapfilter=None, resolveguids=False, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domainobjectacl(self, identity=None, security_identifier=None, ldapfilter=None, resolveguids=False, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False, depth=0):
 		if args:
 			security_identifier = args.security_identifier if hasattr(args, 'security_identifier') else security_identifier
-			depth = args.depth if hasattr(args, 'depth') else 0
+			depth = args.depth if hasattr(args, 'depth') else depth
 			searchbase = args.searchbase if hasattr(args, 'searchbase') else searchbase
 			ldapfilter = args.ldapfilter if hasattr(args, 'ldapfilter') else ldapfilter
 			no_cache = args.no_cache if hasattr(args, 'no_cache') else no_cache
@@ -1399,7 +1398,7 @@ class PowerView:
 		principalidentity_map = None
 		if security_identifier and depth > 0:
 			principalidentity_map = {}
-			start_display = self.convertfrom_sid(security_identifier)
+			start_display = self.convertfrom_sid(security_identifier, no_cache=no_cache)
 			start_entry = self.get_domainobject(
 				identity=security_identifier,
 				properties=['objectSid', 'memberOf', 'sAMAccountName', 'cn'],
@@ -1486,6 +1485,7 @@ class PowerView:
 			searchbase=searchbase, 
 			ldap_filter=ldapfilter,
 			sd_flag=0x05,
+			search_scope=search_scope,
 			no_cache=no_cache, 
 			no_vuln_check=no_vuln_check,
 			raw=raw
@@ -1495,7 +1495,7 @@ class PowerView:
 			logging.error('[Get-DomainObjectAcl] Identity not found in domain')
 			return None
 
-		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=(principalidentity_map if principalidentity_map else security_identifier), guids_map_dict=guids_dict)
+		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=(principalidentity_map if principalidentity_map else security_identifier), guids_map_dict=guids_dict, no_cache=no_cache)
 		return enum.read_dacl()
 
 	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolvesids=False, ldapfilter=None, include_ip=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
@@ -2813,7 +2813,12 @@ class PowerView:
 		identity = WELL_KNOWN_SIDS.get(objectsid)
 		if not searchbase:
 			searchbase = args.searchbase if hasattr(args, 'searchbase') and args.searchbase else self.root_dn
-		known_sid = KNOWN_SIDS.get(objectsid)
+		no_cache = no_cache or getattr(getattr(self, 'args', None), 'no_cache', False)
+		cache_context = (self.ldap_session, getattr(self.ldap_session, 'user', None), searchbase)
+		if getattr(self, '_sid_cache_context', None) != cache_context:
+			self._sid_cache_context = cache_context
+			self._sid_cache = {}
+		known_sid = self._sid_cache.get(objectsid) if not no_cache else None
 		if identity:
 			identity = identity
 		elif known_sid:
@@ -2854,7 +2859,7 @@ class PowerView:
 				except (IndexError, KeyError):
 					return objectsid
 
-			KNOWN_SIDS[objectsid] = identity
+			self._sid_cache[objectsid] = identity
 
 		if output:
 			print("%s" % identity)

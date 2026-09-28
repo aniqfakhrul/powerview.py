@@ -6,6 +6,9 @@ from ldap3 import SUBTREE, DEREF_ALWAYS
 import ldapx
 
 import logging
+from uuid import uuid4
+from ldap3.protocol.convert import build_controls_list
+from pyasn1.codec.ber.encoder import encode
 from powerview.utils.storage import Storage
 from powerview.modules.vulnerabilities import VulnerabilityDetector
 from powerview.utils.helpers import strip_entry
@@ -27,6 +30,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		self.no_vuln_check = no_vuln_check
 		self.use_adws = use_adws
 		self.raw = raw
+		self.cache_namespace = uuid4().hex
 		self.storage = Storage()
 		self.vulnerability_detector = VulnerabilityDetector(self.storage)
 	
@@ -67,6 +71,13 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		no_vuln_check = no_vuln_check or self.no_vuln_check
 		raw = raw or self.raw
 
+		cache_context = {
+			'session': self.cache_namespace,
+			'user': str(getattr(self._connection, 'user', '')),
+			'controls': encode(build_controls_list(controls)).hex() if controls else None,
+			'options': [dereference_aliases, size_limit, time_limit, types_only, get_operational_attributes, strip_entries],
+		}
+
 		original_formatter = None
 		if raw and self.server and hasattr(self.server, 'custom_formatter'):
 			logging.debug("[CustomStandardExtendedOperations] Unsetting custom formatter")
@@ -75,7 +86,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 
 		try:
 			if not skip_cache_read:
-				cached_results = self.storage.get_cached_results(search_base, search_filter, search_scope, attributes, host=self.server.host, raw=raw)
+				cached_results = self.storage.get_cached_results(search_base, search_filter, search_scope, attributes, host=self.server.host, raw=raw, cache_context=cache_context)
 				if cached_results is not None:
 					logging.debug("[CustomStandardExtendedOperations] Returning cached results for query")
 					
@@ -183,7 +194,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 					if 'attributes' in entry and 'from_cache' in entry['attributes']:
 						del entry['attributes']['from_cache']
 
-				self.storage.cache_results(search_base, search_filter, search_scope, attributes, host=self.server.host, results=filtered_results, raw=raw)
+				self.storage.cache_results(search_base, search_filter, search_scope, attributes, host=self.server.host, results=filtered_results, raw=raw, cache_context=cache_context)
 			return filtered_results
 		finally:
 			if raw and original_formatter is not None and self.server:

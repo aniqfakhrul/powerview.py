@@ -1171,12 +1171,14 @@ class ALLOWED_OBJECT_ACE_MASK_FLAGS(Enum):
 	Self = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_SELF
 
 class ACLEnum:
-	def __init__(self, powerview, entries, root_dn, resolveguids=None, targetidentity=None, principalidentity=None, guids_map_dict=None):
+	def __init__(self, powerview, entries, root_dn, resolveguids=None, targetidentity=None, principalidentity=None, guids_map_dict=None, no_cache=False):
 		self.entries = entries
 		self.powerview = powerview
 		self.root_dn = root_dn
 		self.objectdn = ''
 		self.objectsid = ''
+		self.no_cache = no_cache
+		self.resolved_sids = {}
 
 		self.__resolveguids = resolveguids
 		self.__targetidentity = targetidentity
@@ -1239,6 +1241,11 @@ class ACLEnum:
 				parsed_dacl.append(parsed_ace)
 		return parsed_dacl
 
+	def resolve_sid(self, sid):
+		if sid not in self.resolved_sids:
+			self.resolved_sids[sid] = self.powerview.convertfrom_sid(sid, no_cache=self.no_cache)
+		return self.resolved_sids[sid]
+
 	def parseACE(self, ace):
 		sid = ace["Ace"]["Sid"].formatCanonical()
 		if self.__principalidentity:
@@ -1249,13 +1256,13 @@ class ACLEnum:
 				if self.__principalidentity != sid:
 					return
 		
+		_ace_flags = [FLAG.name for FLAG in ACE_FLAGS if ace.hasFlag(FLAG.value)]
 		if ace['TypeName'] in ["ACCESS_ALLOWED_ACE", "ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_ACE", "ACCESS_DENIED_OBJECT_ACE"]:
 			parsed_ace = {}
 			parsed_ace['ObjectDN'] = self.objectdn
 			parsed_ace['ObjectSID'] = format_sid(self.objectsid)
 			parsed_ace['ACEType'] = ace['TypeName']
 			
-			_ace_flags = [FLAG.name for FLAG in ACE_FLAGS if ace.hasFlag(FLAG.value)]
 			parsed_ace['ACEFlags'] = ", ".join(_ace_flags) or "None"
 			
 			if ace['TypeName'] in ["ACCESS_ALLOWED_ACE", "ACCESS_DENIED_ACE"]:
@@ -1265,7 +1272,7 @@ class ACLEnum:
 				if isinstance(self.__principalidentity, dict) and sid in self.__principalidentity:
 					parsed_ace['SecurityIdentifier'] = self.__principalidentity[sid]
 				else:
-					parsed_ace['SecurityIdentifier'] = self.powerview.convertfrom_sid(sid)
+					parsed_ace['SecurityIdentifier'] = self.resolve_sid(sid)
 			
 			elif ace['TypeName'] in ["ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_OBJECT_ACE"]:
 				_access_mask_flags = [FLAG.name for FLAG in ALLOWED_OBJECT_ACE_MASK_FLAGS if ace['Ace']['Mask'].hasPriv(FLAG.value)]
@@ -1287,7 +1294,7 @@ class ACLEnum:
 				if isinstance(self.__principalidentity, dict) and sid in self.__principalidentity:
 					parsed_ace['SecurityIdentifier'] = self.__principalidentity[sid]
 				else:
-					parsed_ace['SecurityIdentifier'] = self.powerview.convertfrom_sid(sid)
+					parsed_ace['SecurityIdentifier'] = self.resolve_sid(sid)
 		else:
 			LOG.debug("ACE Type (%s) unsupported for parsing yet, feel free to contribute" % ace['TypeName'])
 			parsed_ace = {'ACEType': ace['TypeName'], 'ACEFlags': ", ".join(_ace_flags) or "None", 'DEBUG': "ACE type not supported for parsing by dacleditor.py, feel free to contribute"}
@@ -1299,7 +1306,7 @@ class ACLEnum:
 		for PERM in SIMPLE_PERMISSIONS:
 			if (fsr & PERM.value) == PERM.value:
 				_perms.append(PERM.name)
-				fsr = fsr & (not PERM.value)
+				fsr = fsr & ~PERM.value
 		for PERM in ACCESS_MASK:
 			if fsr & PERM.value:
 				_perms.append(PERM.name)

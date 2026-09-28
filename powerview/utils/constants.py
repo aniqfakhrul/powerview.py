@@ -665,9 +665,6 @@ class DMSA_DELEGATED_MSA_STATE(IntFlag):
 	COMPLETE_MIGRATION = 2
 	UNDO = 3
 
-# store discovered sids
-KNOWN_SIDS = {}
-
 # store known hostname
 KNOWN_HOSTNAME = {}
 
