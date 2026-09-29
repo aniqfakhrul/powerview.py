@@ -37,7 +37,7 @@ export const timeColumn = (key, name, hint) => ({
   filter: { type: 'date', value: (record) => toTime(attribute(record, name)) },
 });
 
-function rangedValues(record, name) {
+export function rangedValues(record, name) {
   const lower = name.toLowerCase();
   const keys = Object.keys(record.attributes).filter((key) => {
     const candidate = key.toLowerCase();

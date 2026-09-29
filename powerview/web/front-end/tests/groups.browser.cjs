@@ -94,6 +94,33 @@ groups[2].attributes['member;range=0-1499'] = Array.from({ length: 1500 }, (_, i
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
-  console.log('PASS: group endpoint and columns, groupType scope/security decoding, member counts incl. ranged partial counts, unknown member shows empty results, Identity hint, Has member search, New group validation and single-object read, mobile overflow.');
+
+  const named = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  named.on('pageerror', (error) => errors.push(error.message));
+  await named.addInitScript(() => localStorage.setItem('powerview.groups.columns', JSON.stringify(['memberNames'])));
+  await named.route('**/api/**', (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/get/domaininfo')) return route.fulfill({ json: { root_dn: rootDN } });
+    if (path.endsWith('/server/info')) return route.fulfill({ json: { raw: { namingContexts: [rootDN] } } });
+    if (path.endsWith('/get/domaingroup')) return route.fulfill({ json: groups });
+    return route.fulfill({ json: { available: false, attributes: [] } });
+  });
+  await named.goto(`${base}/groups`);
+  const admins = named.locator('#grid-body tr[data-dn]').filter({ hasText: 'Admins' }).locator('.cell-chips');
+  await admins.waitFor();
+  assert.deepEqual(await admins.locator('.cell-chips__link').allTextContents(), ['Alpha', 'Bravo']);
+  assert.equal(await admins.locator('.cell-chips__link').first().getAttribute('title'), `CN=Alpha,CN=Users,${rootDN}`);
+  assert.equal(await admins.getAttribute('title'), 'Alpha, Bravo');
+  const newsletter = named.locator('#grid-body tr[data-dn]').filter({ hasText: 'Newsletter' }).locator('.cell-chips');
+  assert.match(await newsletter.getAttribute('title'), /first 1500 values; more exist/);
+  assert.match(await newsletter.locator('.cell-chips__more').textContent(), /^\+\d+\+$/);
+  await named.locator('#grid-filter').fill('CN=Bravo');
+  assert.equal(await named.locator('#grid-body tr[data-dn]').count(), 1);
+  await named.locator('#grid-filter').fill('');
+  await admins.locator('.cell-chips__link', { hasText: 'Bravo' }).click();
+  await named.waitForFunction(() => !document.querySelector('#object-panel').hidden);
+  assert.match(await named.locator('#panel-explorer').getAttribute('href'), /CN%3DBravo/);
+  assert.deepEqual(errors, []);
+  console.log('PASS: group endpoint and columns, groupType scope/security decoding, member counts incl. ranged partial counts, unknown member shows empty results, member name chips with DN titles, partial note, DN search and navigation, Identity hint, Has member search, New group validation and single-object read, mobile overflow.');
   await browser.close();
 })().catch((error) => { console.error(error); process.exit(1); });

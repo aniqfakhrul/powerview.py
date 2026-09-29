@@ -1,3 +1,4 @@
+import { dnChipColumn } from '../../components/grid/chips.js';
 import { countColumn, createColumnSet, nameColumn, statusColumn, textColumn, timeColumn } from '../../components/grid/columns.js';
 
 export const userColumns = createColumnSet({
@@ -14,6 +15,7 @@ export const userColumns = createColumnSet({
     textColumn('title', 'title', 'Title'),
     textColumn('department', 'department', 'Department', 180),
     countColumn('groups', 'memberOf', 'Groups'),
+    dnChipColumn('groupNames', 'memberOf', 'Group names; hover a chip for its DN'),
     timeColumn('lastLogon', 'lastLogonTimestamp', 'Last logon'),
     timeColumn('pwdLastSet', 'pwdLastSet', 'Password last set'),
     timeColumn('created', 'whenCreated', 'Created'),

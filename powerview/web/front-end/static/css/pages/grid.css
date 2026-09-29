@@ -103,6 +103,9 @@
 .cell-name span { overflow: hidden; text-overflow: ellipsis; }
 .cell-chips { display: flex; align-items: center; gap: 4px; overflow: hidden; }
 .cell-chips > .state { flex: none; }
+.cell-chips__link { border: 0; font-family: inherit; cursor: pointer; }
+.cell-chips__link:hover { box-shadow: inset 0 0 0 1px var(--color-border-strong); }
+.cell-chips__link:focus-visible { outline: 0; box-shadow: var(--ring); }
 .cell-muted { color: var(--color-faint); }
 
 .grid-footer__clear { margin-left: var(--space-3); font-size: 11px; }

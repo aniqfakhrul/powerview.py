@@ -1,20 +1,51 @@
 import { attribute, values } from '../../core/directory.js';
+import { dnLabel } from '../../core/dn.js';
 import { element } from '../../core/dom.js';
-import { pill, textColumn } from './columns.js';
+import { pill, rangedValues, textColumn } from './columns.js';
 
 const MORE = 'cell-chips__more';
 const itemsOf = (cell) => [...cell.children].filter((child) => !child.classList.contains(MORE));
 
-export function chips(value) {
-  const items = values(value).map(String).filter(Boolean);
-  if (!items.length) return element('span', 'cell-muted', '—');
+function chipCell(nodes, title) {
+  if (!nodes.length) return element('span', 'cell-muted', '—');
   const cell = element('span', 'cell-chips');
-  cell.title = items.join(', ');
-  cell.append(...items.map((item) => pill(item)));
+  cell.title = title;
+  cell.append(...nodes);
   return cell;
 }
 
+export function chips(value) {
+  const items = values(value).map(String).filter(Boolean);
+  return chipCell(items.map((item) => pill(item)), items.join(', '));
+}
+
+function dnChip(dn) {
+  const chip = element('button', 'state state--neutral cell-chips__link', dnLabel(dn));
+  chip.type = 'button';
+  chip.title = dn;
+  chip.dataset.dnLink = dn;
+  return chip;
+}
+
 export const chipColumn = (key, name, hint, width) => ({ ...textColumn(key, name, hint, width), render: (record) => chips(attribute(record, name)) });
+
+export function dnChipColumn(key, name, hint, width = 260) {
+  const dns = (record) => rangedValues(record, name).items.filter((item) => typeof item === 'string' && item);
+  const labels = (record) => dns(record).map(dnLabel);
+  return {
+    key, label: name, hint, icon: 'field-text', width, attributes: [name],
+    text: (record) => [...labels(record), ...dns(record)].join('; '),
+    sort: (record) => labels(record)[0]?.toLocaleLowerCase() ?? null,
+    filter: { type: 'values', values: labels },
+    render: (record) => {
+      const { partial } = rangedValues(record, name);
+      const note = partial ? `\nThe directory returned the first ${dns(record).length} values; more exist.` : '';
+      const cell = chipCell(dns(record).map(dnChip), `${labels(record).join(', ')}${note}`);
+      if (partial) cell.dataset.partial = '';
+      return cell;
+    },
+  };
+}
 
 export function expandChips(cells) {
   for (const cell of cells) {
@@ -44,6 +75,6 @@ export function fitChips(cells) {
     const shown = ends.at(-1) <= width ? ends.length : ends.filter((end) => end + reserve <= width).length;
     items.forEach((item, position) => { item.hidden = position >= shown; });
     if (shown === items.length) more.remove();
-    else more.textContent = `+${items.length - shown}`;
+    else more.textContent = `+${items.length - shown}${more.parentElement.dataset.partial === undefined ? '' : '+'}`;
   });
 }
