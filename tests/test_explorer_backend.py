@@ -34,11 +34,15 @@ class ExplorerBackendTests(unittest.TestCase):
     def test_pages_assets_and_prefix(self):
         server = self.make_server()
         with server.app.test_client() as client:
-            for path in ['/', '/dashboard', '/pathfinder', '/users', '/computers', '/groups', '/dns', '/ca', '/ou', '/gpo', '/smb', '/utils']:
+            for path in ['/', '/dashboard', '/pathfinder', '/users', '/computers', '/groups', '/dns', '/ca', '/ou', '/gpo']:
                 response = client.get(path)
                 self.assertEqual(response.status_code, 200, path)
                 self.assertIn('id="connection-status"', response.get_data(as_text=True), path)
+            for path in ['/smb', '/utils']:
+                self.assertEqual(client.get(path).status_code, 404, path)
             html = client.get('/').get_data(as_text=True)
+            self.assertNotIn('SMB browser', html)
+            self.assertNotIn('Utilities', html)
             self.assertIn('id="explorer"', html)
             self.assertNotIn('UI foundation', html)
             for path in ['css/pages/explorer.css', 'js/pages/explorer.js', 'images/icons.svg']:

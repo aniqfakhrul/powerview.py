@@ -14,7 +14,7 @@ front-end/
     partials/                   Navigation and header
     components/                 Explicit-argument Jinja macros
     pages/explorer.html         Explorer markup and page assets
-    pages/placeholder.html      Other modules, awaiting implementation
+    pages/placeholder.html      Starting point for new modules
   static/
     css/                        Tokens, reset, shared layout/components
       pages/explorer.css        Two-pane Explorer and responsive rules
@@ -82,7 +82,7 @@ secrets. `asset_url` resolves deployment prefixes and adds a release cache key.
 Paths resolve relative to the Python package, independent of the launch directory.
 The existing `MANIFEST.in` includes templates and assets in distributions.
 
-Other modules remain placeholders. Add a `Page` entry in `web/frontend.py`, extend
+New modules start from `pages/placeholder.html`. Add a `Page` entry in `web/frontend.py`, extend
 `layouts/workspace.html`, and load page-specific files in `styles`/`scripts` blocks.
 Use `url_for` for navigation and `asset_url` for static assets. Keep reusable UI
 in macros and focused modules; directory data enters the DOM through textContent.

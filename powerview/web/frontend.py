@@ -30,8 +30,6 @@ PAGES = (
     Page("ca", "/ca", "Certificate authorities", template="pages/ca.html"),
     Page("ou", "/ou", "Organizational units", template="pages/ou.html"),
     Page("gpo", "/gpo", "Group policies", template="pages/gpo.html"),
-    Page("smb", "/smb", "SMB browser"),
-    Page("utils", "/utils", "Utilities", "Tools"),
 )
 
 
