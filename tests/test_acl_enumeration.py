@@ -24,7 +24,7 @@ class ACLEnumerationTests(unittest.TestCase):
 		ace.hasFlag.return_value = False
 		result = ACLEnum(None, [], "DC=test").parseACE(ace)
 		self.assertEqual(result["ACEType"], "ACCESS_ALLOWED_CALLBACK_ACE")
-		self.assertEqual(result["ACEFlags"], "None")
+		self.assertEqual(result["ACEFlags"], [])
 
 	def test_direct_principal_call_without_cli_args(self):
 		view = PowerView.__new__(PowerView)

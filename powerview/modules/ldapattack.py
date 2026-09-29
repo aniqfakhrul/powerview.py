@@ -1269,11 +1269,11 @@ class ACLEnum:
 			parsed_ace['ObjectSID'] = format_sid(self.objectsid)
 			parsed_ace['ACEType'] = ace['TypeName']
 			
-			parsed_ace['ACEFlags'] = ", ".join(_ace_flags) or "None"
+			parsed_ace['ACEFlags'] = _ace_flags
 			
 			if ace['TypeName'] in ["ACCESS_ALLOWED_ACE", "ACCESS_DENIED_ACE"]:
-				parsed_ace['ActiveDirectoryRights'] = ",".join(self.parsePerms(ace["Ace"]["Mask"]["Mask"]))
-				parsed_ace['AccessMask'] = ",".join(self.parsePerms(ace['Ace']['Mask']['Mask']))
+				parsed_ace['ActiveDirectoryRights'] = self.parsePerms(ace["Ace"]["Mask"]["Mask"])
+				parsed_ace['AccessMask'] = self.parsePerms(ace['Ace']['Mask']['Mask'])
 				parsed_ace['InheritanceType'] = "None"
 				parsed_ace['SecurityIdentifier'], granted_via = self.resolve_trustee(sid)
 				if granted_via:
@@ -1281,10 +1281,10 @@ class ACLEnum:
 			
 			elif ace['TypeName'] in ["ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_OBJECT_ACE"]:
 				_access_mask_flags = [FLAG.name for FLAG in ALLOWED_OBJECT_ACE_MASK_FLAGS if ace['Ace']['Mask'].hasPriv(FLAG.value)]
-				parsed_ace['AccessMask'] = ", ".join(_access_mask_flags)
+				parsed_ace['AccessMask'] = _access_mask_flags
 				
 				_object_flags = [FLAG.name for FLAG in OBJECT_ACE_FLAGS if ace['Ace'].hasFlag(FLAG.value)]
-				parsed_ace['ObjectAceFlags'] = ", ".join(_object_flags) or None
+				parsed_ace['ObjectAceFlags'] = _object_flags
 				
 				if ace['Ace']['ObjectTypeLen'] != 0:
 					obj_type = bin_to_string(ace['Ace']['ObjectType']).lower()
@@ -1301,7 +1301,7 @@ class ACLEnum:
 					parsed_ace['GrantedVia'] = granted_via
 		else:
 			LOG.debug("ACE Type (%s) unsupported for parsing yet, feel free to contribute" % ace['TypeName'])
-			parsed_ace = {'ACEType': ace['TypeName'], 'ACEFlags': ", ".join(_ace_flags) or "None", 'DEBUG': "ACE type not supported for parsing by dacleditor.py, feel free to contribute"}
+			parsed_ace = {'ACEType': ace['TypeName'], 'ACEFlags': _ace_flags, 'DEBUG': "ACE type not supported for parsing by dacleditor.py, feel free to contribute"}
 		
 		return parsed_ace
 

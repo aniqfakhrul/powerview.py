@@ -19,6 +19,7 @@ import datetime
 from tabulate import tabulate as table
 from io import StringIO
 import csv
+from collections.abc import Mapping
 
 class FORMATTER:
     def __init__(self, pv_args, config=None):
@@ -258,309 +259,129 @@ class FORMATTER:
         logging.warning("Unserializable value of type %s in JSON output", type(obj).__name__)
         return str(obj)
 
-    def print_index(self, entries):
-        i = self.args.select
-        for entry in entries[0:i]:
-            if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
-                if isinstance(entry, ldap3.abstract.entry.Entry):
-                    entry = json.loads(entry.entry_to_json())
-                entry = self.resolve_values(entry)
-                for attr,value in entry['attributes'].items():
-                    # Check dictionary in a list
-                    if isinstance(value, list):
-                        for i in value:
-                            if (isinstance(i,dict)) and ("encoded" in i.keys()):
-                                value = str(i["encoded"])
-                            if isinstance(i,int):
-                                value = str(i)
+    WHERE_PATTERN = ' con | cont | conta | contai | contain | contains | eq | equ | equa | equal | match | mat | matc | not | != |!=| = |=C|=D'
 
-                    value = self.beautify(value, self.get_max_len(list(entry['attributes'].keys())) + 2)
-                    if isinstance(value,list):
-                        if len(value) != 0:
-                            value = self.clean_value(value)
+    def _emit(self, line=""):
+        if getattr(self.args, "outfile", None):
+            LOG.write_to_file(self.args.outfile, line)
+        print(line)
 
-                            _stdout = f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}"
-                            if self.args.outfile:
-                                LOG.write_to_file(self.args.outfile, _stdout)
-                            print(_stdout)
-                    else:
-                        _stdout = f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {value}"
-                        if self.args.outfile:
-                            LOG.write_to_file(self.args.outfile, _stdout)
-                        print(_stdout)
-                if self.args.outfile:
-                    LOG.write_to_file(self.args.outfile, "")
-                print()
-            elif isinstance(entry['attributes'],list):
-                entry = self.resolve_values(entry)
-                for ace in entry['attributes'][0:i]:
-                    for attr, value in ace.items():
-                        _stdout = f"{attr.ljust(self.config['attr_spacing'])}: {value}"
-                        if self.args.outfile:
-                            LOG.write_to_file(self.args.outfile, _stdout)
-                        print(_stdout)
-                    if self.args.outfile:
-                        LOG.write_to_file(self.args.outfile, "")
-                    print()
-
-    def print_select(self,entries):
-        select_attributes = self.args.select
-        for entry in entries:
-            if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
-                if isinstance(entry, ldap3.abstract.entry.Entry):
-                    entry = json.loads(entry.entry_to_json())
-                entry = self.resolve_values(entry)
-                for key in list(entry["attributes"].keys()):
-                    for attr in select_attributes:
-                        if (str(attr).casefold() == str(key).casefold()):
-                            value = ""
-                            # Check dictionary in a list
-                            if isinstance(entry['attributes'][key], list):
-                                entry['attributes'][key] = self.clean_value(entry['attributes'][key])
-                                for i in entry['attributes'][key]:
-                                    if (isinstance(i,dict)) and ("encoded" in i.keys()):
-                                        value = str(i["encoded"])
-                                    else:
-                                        if len(select_attributes) == 1:
-                                            value += str(i)+"\n"
-                                        else:
-                                            value += str(i)+"\n"+''.ljust(self.get_max_len(select_attributes)+2)
-                            else:
-                                value = str(entry['attributes'][key])
-                            value = value.strip()
-                            if len(value) != 0 or self.config['show_empty_values']:
-                                if len(select_attributes) == 1:
-                                    if self.args.outfile:
-                                        LOG.write_to_file(self.args.outfile, value)
-                                    print(value)
-                                else:
-                                    _stdout = f"{key.ljust(self.get_max_len(select_attributes))}: {value}"
-                                    if self.args.outfile:
-                                        LOG.write_to_file(self.args.outfile, _stdout)
-                                    print(_stdout)
-                if len(select_attributes) != 1:
-                    if self.args.outfile:
-                        LOG.write_to_file(self.args.outfile, "")
-                    print()
-            elif isinstance(entry['attributes'], list):
-                entry = self.resolve_values(entry)
-                for ace in entry['attributes']:
-                    for key in list(ace.keys()):
-                        for attr in select_attributes:
-                            if str(attr).casefold() == str(key).casefold():
-                                if len(select_attributes) == 1:
-                                    if self.args.outfile:
-                                        LOG.write_to_file(self.args.outfile, ace[key])
-                                    print(ace[key])
-                                else:
-                                    _stdout = f"{key.ljust(self.config['attr_spacing'])}: {ace[key]}"
-                                    if self.args.outfile:
-                                        LOG.write_to_file(self.args.outfile, _stdout)
-                                    print(_stdout)
-                    if len(select_attributes) != 1:
-                        if self.args.outfile:
-                            LOG.write_to_file(self.args.outfile, "")
-                        print()
-
-    def table_view(self, entries):
-        self.last_results_from_cache = False
-        if entries and len(entries) > 0:
-            first_entry = entries[0]
-            if isinstance(first_entry, dict) and first_entry.get('from_cache', False):
-                self.last_results_from_cache = True
-            
+    def _warn_if_cached(self, entries):
+        first = entries[0] if entries else None
+        self.last_results_from_cache = isinstance(first, dict) and bool(first.get('from_cache', False))
         if self.last_results_from_cache:
-            cache_msg = "[Formatter] Results from cache. Use 'Clear-Cache' or '-NoCache' to refresh."
-            logging.warning(cache_msg)
-        
-        headers = []
-        rows = []
-        nested_list = False
+            logging.warning("[Formatter] Results from cache. Use 'Clear-Cache' or '-NoCache' to refresh.")
 
-        # -Select <int> is a row limit, not a set of headers. Apply it here so
-        # an int can never reach the header derivation below, where iterating
-        # it raised "TypeError: 'int' object is not iterable".
-        select = self.normalize_select(getattr(self.args, "select", None))
-        if isinstance(select, int):
-            entries = self.slice_entries(entries, select)
-        named_select = select if isinstance(select, list) else None
+    @staticmethod
+    def _normalize_entry(entry):
+        if isinstance(entry, ldap3.abstract.entry.Entry):
+            return json.loads(entry.entry_to_json())
+        return entry
 
-        if not entries:
-            if self.resolve_table_format() == "json":
-                # Route through print_table so -OutFile still receives the
-                # single [] document instead of an empty file.
-                self.print_table([], [])
-            else:
-                logging.info("No results found")
-            return
-        if named_select or (hasattr(self.args, "properties") and self.args.properties and not self.args.properties == ldap3.ALL_ATTRIBUTES):
-            if named_select:
-                headers = named_select
-            elif self.args.properties:
-                headers = self.args.properties
-        else:
-            attrs0 = entries[0].get("attributes")
-            if isinstance(attrs0, dict) or isinstance(attrs0, ldap3.utils.ciDict.CaseInsensitiveDict):
-                headers = attrs0.keys()
-            elif isinstance(attrs0, list):
-                nested_list = True
-                for e in entries:
-                    attrs = e.get("attributes", [])
-                    if isinstance(attrs, list) and len(attrs) > 0 and isinstance(attrs[0], dict) and len(attrs[0]) > 0:
-                        headers = attrs[0].keys()
-                        break
+    @staticmethod
+    def _records(entry):
+        """Return the attribute mappings of an entry: one per ACE, or the object's own."""
+        attributes = entry.get("attributes") if isinstance(entry, dict) else None
+        if isinstance(attributes, list):
+            return [ace for ace in attributes if isinstance(ace, Mapping)]
+        if isinstance(attributes, Mapping):
+            return [attributes]
+        return []
 
-        if isinstance(entries[0].get("attributes"), list):
-            for entry in entries:
-                attrs = entry.get("attributes", [])
-                for ent in attrs:
-                    row = []
-                    for head in headers:
-                        val = IDict(ent).get(head)
-                        val = self.format_value_by_type(val)
-                        row.append(val)
-                    rows.append(row)
-        else:
-            for entry in entries:
-                row = []
-                for head in headers:
-                    val = IDict(entry.get("attributes", {})).get(head)
-                    val = self.format_value_by_type(val)
-                    row.append(val)
-                rows.append(row)
+    @staticmethod
+    def _lookup(record, name):
+        wanted = str(name).casefold()
+        for key in record.keys():
+            if str(key).casefold() == wanted:
+                return True, record[key]
+        return False, None
 
-        self.print_table(entries=rows, headers=headers)
+    def _width(self, keys):
+        return max((len(str(key)) for key in keys), default=0) + self.config['padding']
+
+    def _format_item(self, item):
+        if isinstance(item, datetime.datetime):
+            return item.strftime(self.config['date_format'])
+        if isinstance(item, bytes):
+            return self.format_binary_data(item)
+        if isinstance(item, Mapping) and "encoded" in item:
+            return str(item["encoded"])
+        return str(item)
+
+    def _text_items(self, value):
+        if isinstance(value, (list, tuple, set)):
+            flattened = []
+            for item in value:
+                flattened.extend(item if isinstance(item, (list, tuple)) else [item])
+            return [self._format_item(item) for item in flattened]
+        return [self._format_item(value)]
+
+    def _wrap(self, text):
+        length = self.config['wrap_length']
+        if getattr(self.args, "nowrap", False) or len(text) <= length:
+            return [text]
+        return [text[index:index + length] for index in range(0, len(text), length)]
+
+    def _lines(self, value):
+        return [line for item in self._text_items(value) for line in self._wrap(item)]
+
+    def _visible(self, lines):
+        return self.config['show_empty_values'] or any(line.strip() for line in lines)
+
+    def _print_record(self, record, width, keys):
+        printed = False
+        for key in keys:
+            lines = self._lines(record[key])
+            if not self._visible(lines):
+                continue
+            self._emit(f"{str(key).ljust(width)}: " + f"\n{''.ljust(width + 2)}".join(lines))
+            printed = True
+        return printed
+
+    def _print_entries(self, entries, names=None):
+        wanted = {str(name).casefold() for name in names} if names else None
+        for entry in entries:
+            entry = self._normalize_entry(entry)
+            if isinstance(entry, str):
+                self._emit(entry)
+                continue
+            records = self._records(entry)
+            width = self._width(names or [key for record in records for key in record.keys()])
+            for record in records:
+                keys = [key for key in record.keys() if not wanted or str(key).casefold() in wanted]
+                if wanted and len(names) == 1:
+                    for key in keys:
+                        for line in self._lines(record[key]):
+                            if self._visible([line]):
+                                self._emit(line)
+                elif self._print_record(record, width, keys):
+                    self._emit()
 
     def print(self, entries):
-        total_entries = len(entries)
-        if hasattr(self.args, 'paginate') and self.args.paginate and total_entries > self.config['max_entries']:
+        if getattr(self.args, 'paginate', False) and len(entries) > self.config['max_entries']:
             self._print_paginated(entries)
             return
-        
-        # Check if results are from cache
-        self.last_results_from_cache = False
-        if entries and len(entries) > 0:
-            first_entry = entries[0]
-            if isinstance(first_entry, dict) and first_entry.get('from_cache', False):
-                self.last_results_from_cache = True
-            
-        # Display cache notification if results are from cache
-        if self.last_results_from_cache:
-            cache_msg = "[Formatter] Results from cache. Use 'Clear-Cache' or '-NoCache' to refresh."
-            logging.warning(cache_msg)
-        
-        for entry in entries:
-            have_entry = False
-            if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
-                if isinstance(entry, ldap3.abstract.entry.Entry):
-                    entry = json.loads(entry.entry_to_json())
-                entry = self.resolve_values(entry)
-                for attr,value in entry['attributes'].items():
-                    # Check dictionary in a list
-                    if isinstance(value, list):
-                        for i in value:
-                            if (isinstance(i,dict)) and ("encoded" in i.keys()):
-                                value = str(i["encoded"])
-                            if isinstance(i,int):
-                                value = str(i)
+        self._warn_if_cached(entries)
+        self._print_entries(entries)
 
-                    value = self.beautify(value, self.get_max_len(list(entry['attributes'].keys()))+2)
+    def print_index(self, entries):
+        self._print_entries(self.slice_entries(entries, self.args.select))
 
-                    if isinstance(value,list):
-                        if len(value) != 0 or self.config['show_empty_values']:
-                            value = self.clean_value(value)
-
-                            have_entry = True
-                            _stdout = f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}"
-                            if self.args.outfile:
-                                LOG.write_to_file(self.args.outfile, _stdout)
-                            print(_stdout)
-                    else:
-                        if str(value).strip() != "" or self.config['show_empty_values']:
-                            have_entry = True
-                            _stdout = f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {str(value)}"
-                            if self.args.outfile:
-                                LOG.write_to_file(self.args.outfile, _stdout)
-                            print(_stdout)
-                if have_entry:
-                    if self.args.outfile:
-                        LOG.write_to_file(self.args.outfile, "")
-                    print()
-            elif isinstance(entry['attributes'],list):
-                entry = self.resolve_values(entry)
-                for ace in entry['attributes']:
-                    for k, v in ace.items():
-                        if str(v).strip() != "" or self.config['show_empty_values']:
-                            _stdout = f'{k.ljust(self.config["attr_spacing"])}: {v}'
-                            if self.args.outfile:
-                                LOG.write_to_file(self.args.outfile, _stdout)
-                            print(_stdout)
-                    if self.args.outfile:
-                        LOG.write_to_file(self.args.outfile, "")
-                    print()
-            elif isinstance(entry, str):
-                entry = self.resolve_values(entry)
-                if self.args.outfile:
-                    LOG.write_to_file(self.args.outfile, entry)
-                print(entry)
+    def print_select(self, entries):
+        self._print_entries(entries, self.normalize_select(self.args.select))
 
     def _print_paginated(self, entries):
-        """Print entries with pagination support."""
-        # Check if results are from cache
-        self.last_results_from_cache = False
-        if entries and len(entries) > 0:
-            # Check first entry for cache status
-            first_entry = entries[0]
-            if isinstance(first_entry, dict) and first_entry.get('from_cache', False):
-                self.last_results_from_cache = True
-            
-        # Display cache notification if results are from cache
-        if self.last_results_from_cache:
-            cache_msg = "[Formatter] Results from cache. Use 'Clear-Cache' or '-NoCache' to refresh."
-            logging.warning(cache_msg)
-        
+        self._warn_if_cached(entries)
         page_size = self.config['max_entries']
         total_pages = (len(entries) + page_size - 1) // page_size
-        
         current_page = 1
         while True:
-            start_idx = (current_page - 1) * page_size
-            end_idx = min(start_idx + page_size, len(entries))
-            
-            print(f"\n--- Page {current_page}/{total_pages} (Entries {start_idx+1}-{end_idx} of {len(entries)}) ---\n")
-            
-            # Print current page's entries
-            page_entries = entries[start_idx:end_idx]
-            for entry in page_entries:
-                # Use same logic as print method but for a subset
-                have_entry = False
-                if isinstance(entry, ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict):
-                    if isinstance(entry, ldap3.abstract.entry.Entry):
-                        entry = json.loads(entry.entry_to_json())
-                    entry = self.resolve_values(entry)
-                    for attr, value in entry['attributes'].items():
-                        value = self.beautify(value, self.get_max_len(list(entry['attributes'].keys()))+2)
-                        if isinstance(value, list):
-                            if len(value) != 0:
-                                value = self.clean_value(value)
-                                have_entry = True
-                                print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {f'''{self.__newline.ljust(self.get_max_len(list(entry['attributes'].keys()))+3)}'''.join(value)}")
-                        else:
-                            have_entry = True
-                            print(f"{attr.ljust(self.get_max_len(list(entry['attributes'].keys())))}: {str(value)}")
-                    if have_entry:
-                        print()
-                elif isinstance(entry['attributes'], list):
-                    entry = self.resolve_values(entry)
-                    for ace in entry['attributes']:
-                        for k, v in ace.items():
-                            print(f'{k.ljust(self.config["attr_spacing"])}: {v}')
-                        print()
-            
+            start = (current_page - 1) * page_size
+            end = min(start + page_size, len(entries))
+            print(f"\n--- Page {current_page}/{total_pages} (Entries {start + 1}-{end} of {len(entries)}) ---\n")
+            self._print_entries(entries[start:end])
             if total_pages <= 1:
                 break
-                
-            # Prompt for next action
             action = input("\nEnter 'n' for next page, 'p' for previous page, 'q' to quit pagination: ").lower()
             if action == 'n' and current_page < total_pages:
                 current_page += 1
@@ -571,281 +392,124 @@ class FORMATTER:
             else:
                 print("Invalid command or page limit reached.")
 
+    def _cell(self, record, head):
+        found, value = self._lookup(record, head)
+        return self.format_value_by_type(value) if found else ""
+
+    def table_view(self, entries):
+        self._warn_if_cached(entries)
+        select = self.normalize_select(getattr(self.args, "select", None))
+        if isinstance(select, int):
+            entries = self.slice_entries(entries, select)
+        if not entries:
+            if self.resolve_table_format() == "json":
+                # Route through print_table so -OutFile still receives the
+                # single [] document instead of an empty file.
+                self.print_table([], [])
+            else:
+                logging.info("No results found")
+            return
+
+        records = [record for entry in entries for record in self._records(self._normalize_entry(entry))]
+        properties = getattr(self.args, "properties", None)
+        if isinstance(select, list):
+            headers = select
+        elif properties and properties != ldap3.ALL_ATTRIBUTES:
+            headers = properties
+        else:
+            headers = list(dict.fromkeys(key for record in records for key in record.keys()))
+        rows = [[self._cell(record, head) for head in headers] for record in records]
+        self.print_table(entries=rows, headers=headers)
+
+    def _sort_key(self, record, name):
+        found, value = self._lookup(record, name)
+        items = list(value) if isinstance(value, (list, tuple)) else [value]
+        first = items[0] if found and items else None
+        if first is None or first == "":
+            return (1, 0, "")
+        if isinstance(first, (int, float)) and not isinstance(first, bool):
+            return (0, first, "")
+        if isinstance(first, datetime.datetime):
+            return (0, 0, first.isoformat())
+        return (0, 0, self._format_item(first).casefold())
+
     def sort_entries(self, entries, sort_option):
-        try:
-            def sort_key(entry):
-                if sort_option.lower() not in [v.lower() for v in entry["attributes"].keys()]:
-                    raise Exception("%s key not found" % (sort_option))
-
-                if not isinstance(entry["attributes"], ldap3.utils.ciDict.CaseInsensitiveDict):
-                    entry["attributes"] = IDict(entry["attributes"])
-
-                value = entry['attributes'].get(sort_option)
-                if isinstance(value, str):
-                    return value.lower()
-                elif isinstance(value, list):
-                    if sort_option.lower() in ["badpasswordtime", "lastlogoff", "lastlogon", "pwdlastset", "lastlogontimestamp"]:
-                        return datetime.datetime.min
-                    else:
-                        return value
-                else:
-                    logging.warning("Value not compatible for sorting. Skipping...")
-                    return value
-
-            sorted_users = sorted(entries, key=sort_key)
-            return sorted_users
-        except AttributeError:
-            logging.warning("Failed to sort. Probably value is not a string. Skipping...")
+        normalized = [self._normalize_entry(entry) for entry in entries]
+        if not any(self._lookup(record, sort_option)[0] for entry in normalized for record in self._records(entry)):
+            logging.warning(f"[Formatter] Sort key {sort_option} not found. Skipping...")
             return entries
-        except KeyError as e:
-            raise KeyError("%s key not found" % str(e))
-        finally:
-            logging.warning("Failed sort to with unknown error")
-            return entries
+        if any(isinstance(entry, dict) and isinstance(entry.get("attributes"), list) for entry in normalized):
+            sorted_entries = []
+            for entry in normalized:
+                copied = dict(entry)
+                copied["attributes"] = sorted(self._records(entry), key=lambda ace: self._sort_key(ace, sort_option))
+                sorted_entries.append(copied)
+            return sorted_entries
+        order = sorted(range(len(entries)), key=lambda index: self._sort_key((self._records(normalized[index]) or [{}])[0], sort_option))
+        return [entries[index] for index in order]
 
-    def alter_entries(self,entries,cond):
-        temp_alter_entries = []
+    def _where_test(self, operator, right):
+        operator = operator.strip().strip("'\"").strip().lower()
+        right = right.casefold()
+        if operator in ("not", "!="):
+            if right == "null":
+                return lambda items: any(item.strip() for item in items)
+            return lambda items: right not in items
+        if operator == "=" or operator in "equal":
+            return lambda items: right in items
+        if operator in "contains" or operator in "match":
+            return lambda items: any(right in item for item in items)
+        return None
+
+    def _where_matches(self, record, name, test):
+        found, value = self._lookup(record, name)
+        return found and test([item.casefold() for item in self._text_items(value)])
+
+    def alter_entries(self, entries, cond):
         try:
-            left,right = re.split(' con | cont | conta | contai | contain | contains | eq | equ | equa | equal | match | mat | matc | not | != |!=| = |=C|=D', cond, flags=re.IGNORECASE)
-            operator = re.search(' con | cont | conta | contai | contain | contains | eq | equ | equa | equal | match | mat | matc | not | != |!=| = |=C|=D', cond, re.IGNORECASE).group(0)
-            left = left.strip("'").strip('"').strip()
-            operator = operator.strip("'").strip('"').strip()
-            right = right.strip("'").strip('"').strip()
-        except:
+            left, right = re.split(self.WHERE_PATTERN, cond, maxsplit=1, flags=re.IGNORECASE)
+            operator = re.search(self.WHERE_PATTERN, cond, re.IGNORECASE).group(0)
+        except (ValueError, AttributeError):
             logging.error('Where argument format error. (e.g. "samaccountname contains admin")')
             return
-        if (operator in "contains") or (operator in "match"):
-            for entry in entries:
-                if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
-                    if isinstance(entry, ldap3.abstract.entry.Entry):
-                        temp_entry = json.loads(entry.entry_to_json())
-                    else:
-                        temp_entry = entry
-                    for c in list(temp_entry['attributes'].keys()):
-                        if str(c).casefold() == str(left).casefold():
-                            left = c
-                            break
-                    try:
-                        if str(right).casefold() in str(temp_entry['attributes'][left]).casefold():
-                            temp_alter_entries.append(entry)
-                    except KeyError:
-                        continue
-                elif isinstance(entry['attributes'],list):
-                    temp_aces = []
-                    for ace in entry['attributes']:
-                        for c in list(ace.keys()):
-                            if str(c).casefold() == str(left).casefold():
-                                left = c
-                                break
-                        try:
-                            if str(right).casefold() in str(ace[left]).casefold():
-                                temp_aces.append(ace)
-                        except KeyError:
-                            pass
-                    entry['attributes'] = temp_aces
-                    temp_alter_entries.append(entry)
+        left = left.strip("'").strip('"').strip()
+        right = right.strip("'").strip('"').strip()
+        test = self._where_test(operator, right)
+        if not test:
+            logging.error('Invalid operator')
+            return []
 
-        elif (operator in "equal") or (operator == "="):
-            for entry in entries:
-                if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
-                    if isinstance(entry, ldap3.abstract.entry.Entry):
-                        temp_entry = json.loads(entry.entry_to_json())
-                    else:
-                        temp_entry = entry
-                    for c in list(temp_entry['attributes'].keys()):
-                        if str(c).casefold() == str(left).casefold():
-                            left = c
-                            break
-                    try:
-                        if str(right).casefold() == str(temp_entry['attributes'][left]).casefold():
-                            temp_alter_entries.append(entry)
-                    except KeyError:
-                        pass
-                elif isinstance(entry['attributes'],list):
-                    temp_aces = []
-                    for ace in entry['attributes']:
-                        for c in list(ace.keys()):
-                            if str(c).casefold() == str(left).casefold():
-                                left = c
-                                break
-                        try:
-                            if str(right).casefold() == str(ace[left]).casefold():
-                                temp_aces.append(ace)
-                        except KeyError:
-                            pass
-                    entry['attributes'] = temp_aces
-                    temp_alter_entries.append(entry)
-        elif (operator.lower() == "not") or (operator.lower() == "!="):
-            for entry in entries:
-                if isinstance(entry,ldap3.abstract.entry.Entry) or isinstance(entry['attributes'], dict) or isinstance(entry['attributes'], ldap3.utils.ciDict.CaseInsensitiveDict):
-                    if isinstance(entry, ldap3.abstract.entry.Entry):
-                        temp_entry = json.loads(entry.entry_to_json())
-                    else:
-                        temp_entry = entry
-                    for c in list(temp_entry['attributes'].keys()):
-                        if str(c).casefold() == str(left).casefold():
-                            left = c
-                            break
-                    try:
-                        if not (len(str(''.join(temp_entry['attributes'][left])).casefold()) == 0) and (str(right).casefold() == "null"):
-                            temp_alter_entries.append(entry)
-                        elif str(''.join(temp_entry['attributes'][left])).casefold() != str(right).casefold():
-                            temp_alter_entries.append(entry)
-                    except KeyError:
-                        pass
-                elif isinstance(entry['attributes'],list):
-                    temp_aces = []
-                    for ace in entry['attributes']:
-                        for c in list(ace.keys()):
-                            if str(c).casefold() == str(left).casefold():
-                                left = c
-                                break
-                        try:
-                            if str(right).casefold() != str(ace[left]).casefold():
-                                temp_aces.append(ace)
-                        except KeyError:
-                            pass
-                    entry['attributes'] = temp_aces
-                    temp_alter_entries.append(entry)
-        else:
-            logging.error(f'Invalid operator')
-
-        return temp_alter_entries
-
-    def resolve_values(self,entry):
-        # resolve msDS-SupportedEncryptionTypes
-        #try:
-        #    if "msDS-SupportedEncryptionTypes" in list(entry["attributes"].keys()):
-        #        if isinstance(entry['attributes']['msDS-SupportedEncryptionTypes'], list):
-        #            entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"][0])
-        #        else:
-        #            entry["attributes"]["msDS-SupportedEncryptionTypes"] = ENCRYPTION_TYPE.parse_value(entry["attributes"]["msDS-SupportedEncryptionTypes"])
-        #except:
-        #    pass
-
-        #        # resolve userAccountControl
-        #        try:
-        #            if "userAccountControl" in list(entry["attributes"].keys()):
-        #                if isinstance(entry['attributes']['userAccountcontrol'], list):
-        #                    entry["attributes"]["userAccountControl"] = UAC.parse_value(entry['attributes']['userAccountControl'][0])
-        #                else:
-        #                    entry["attributes"]["userAccountControl"] = UAC.parse_value(entry["attributes"]["userAccountControl"])
-        #        except:
-        #            pass
-
-        return entry
-
-    def get_max_len(self, lst):
-        # Cache the result based on list content hash
-        cache_key = hash(tuple(sorted(lst)))
-        if cache_key in self._format_cache:
-            return self._format_cache[cache_key]
-        
-        result = len(max(lst, key=len)) + self.config['padding']
-        self._format_cache[cache_key] = result
-        return result
-
-    def clean_value(self, value):
-        temp = []
-        for i in range(len(value)):
-            if isinstance(value[i], list):
-                temp += value[i]
-            else:
-                temp.append(value[i])
-        
-        return temp
-
-    def beautify(self, strs, lens):
-        if isinstance(strs, str) and not self.args.nowrap:
-            temp = ""
-            if len(strs) > self.config['wrap_length']:
-                index = self.config['wrap_length']
-                for i in range(0, len(strs), self.config['wrap_length']):
-                    temp += f"{str(strs[i:index])}\n"
-                    temp += ''.ljust(lens)
-                    index += self.config['wrap_length']
-            else:
-                temp = f"{str(strs).ljust(lens)}"
-
-            return temp.strip()
-        elif isinstance(strs, list) and not self.args.nowrap:
-            for i in range(len(strs)):
-                if isinstance(strs[i], datetime.datetime):
-                    strs[i] = strs[i].strftime(self.config['date_format'])
-                elif isinstance(strs[i], bytes):
-                    strs[i] = self.format_binary_data(strs[i])
-                    temp = ""
-                    if len(strs[i]) > self.config['wrap_length']:
-                        index = self.config['wrap_length']
-                        for j in range(0, len(strs[i]), self.config['wrap_length']):
-                            temp += f"{str(strs[i][j:index])}\n"
-                            temp += ''.ljust(lens)
-                            index += self.config['wrap_length']
-                    else:
-                        temp = f"{str(strs[i]).ljust(lens)}"
-
-                    strs[i] = temp.strip()
-            return strs
-        elif isinstance(strs, bytes):
-            strs = self.format_binary_data(strs)
-            return strs
-        else:
-            return str(strs)
+        filtered = []
+        for entry in entries:
+            normalized = self._normalize_entry(entry)
+            if isinstance(normalized, dict) and isinstance(normalized.get("attributes"), list):
+                copied = dict(normalized)
+                copied["attributes"] = [ace for ace in self._records(normalized) if self._where_matches(ace, left, test)]
+                filtered.append(copied)
+            elif any(self._where_matches(record, left, test) for record in self._records(normalized)):
+                filtered.append(entry)
+        return filtered
 
     def format_value_by_type(self, value):
-        """Format a value based on its data type."""
-        if isinstance(value, datetime.datetime):
-            return value.strftime(self.config['date_format'])
-        elif isinstance(value, bytes):
-            return self.format_binary_data(value)
-        elif isinstance(value, list):
+        """Format a value for a table cell; lists become one item per line."""
+        if isinstance(value, list):
             return self.format_list_value(value)
-        elif isinstance(value, int):
-            return str(value)
-        else:
-            return str(value)
-            
+        return self._format_item(value)
+
     def format_binary_data(self, data):
         """Format binary data according to configuration."""
-        if self.config['binary_format'] == 'base64':
-            return base64.b64encode(data).decode('utf-8')
-        elif self.config['binary_format'] == 'hex':
+        if self.config['binary_format'] == 'hex':
             return data.hex()
-        else:
-            return base64.b64encode(data).decode('utf-8')
-            
+        return base64.b64encode(data).decode('utf-8')
+
     def format_list_value(self, value_list):
         """Format a list of values consistently."""
         if not value_list:
             return ""
-            
-        # Limit list size if needed
-        original_count = len(value_list)
-        if original_count > self.config['max_list_items']:
-            value_list = value_list[:self.config['max_list_items']]
-            was_truncated = True
-        else:
-            was_truncated = False
-            
-        # Format each element
-        formatted_items = []
-        for item in value_list:
-            if isinstance(item, datetime.datetime):
-                formatted_items.append(item.strftime(self.config['date_format']))
-            elif isinstance(item, bytes):
-                formatted_items.append(self.format_binary_data(item))
-            elif isinstance(item, dict) and "encoded" in item:
-                formatted_items.append(str(item["encoded"]))
-            else:
-                formatted_items.append(str(item))
-                
-        # Join items
-        result = "\n".join(formatted_items)
-        
-        # Add truncation indicator if needed
-        if was_truncated:
-            result += f"\n... (truncated, {len(value_list)} of {original_count} items shown)"
-            
+        shown = value_list[:self.config['max_list_items']]
+        result = "\n".join(self._text_items(shown))
+        if len(value_list) > len(shown):
+            result += f"\n... (truncated, {len(shown)} of {len(value_list)} items shown)"
         return result
 
     @staticmethod

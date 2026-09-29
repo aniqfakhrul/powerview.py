@@ -6818,7 +6818,7 @@ class PowerView:
 				attrs = {"Channel": ch}
 				hits = edr.classify(ch)
 				if hits:
-					attrs["Product"] = ", ".join(hits.values())
+					attrs["Product"] = list(hits.values())
 				entries.append({"attributes": attrs})
 			return entries
 		finally:
@@ -6847,7 +6847,7 @@ class PowerView:
 				attrs = {"Publisher": pub}
 				hits = edr.classify(pub)
 				if hits:
-					attrs["Product"] = ", ".join(hits.values())
+					attrs["Product"] = list(hits.values())
 				entries.append({"attributes": attrs})
 			return entries
 		finally:
