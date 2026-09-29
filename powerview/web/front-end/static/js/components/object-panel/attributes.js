@@ -1,6 +1,6 @@
 import { beginLoading } from '../loading.js';
 import { dnLabel, isDN } from '../../core/dn.js';
-import { attribute, recordName, values, textValue, objectType, TYPE_LABELS } from '../../core/directory.js';
+import { attribute, recordName, values, textValue, objectType } from '../../core/directory.js';
 import { accountDisabled, readableTime } from '../../core/ldap-values.js';
 import { createRequestLane } from '../../core/request-lane.js';
 import { notify } from '../notify.js';
@@ -46,13 +46,7 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
 
   function setTitle(name, type, record) {
     title.replaceChildren(icon(TYPE_ICONS[type] ?? 'object', type ? `type--${type}` : ''), element('h1', '', name));
-    if (type) title.append(element('span', 'object-title__type', TYPE_LABELS[type]));
     if (!record) return;
-    const control = attribute(record, 'userAccountControl');
-    if (values(control).length) {
-      const disabled = accountDisabled(control);
-      title.append(element('span', disabled ? 'state state--disabled' : 'state', disabled ? 'Disabled' : 'Enabled'));
-    }
     const copy = button('', { iconName: 'copy', className: 'icon-button object-title__copy', ariaLabel: 'Copy distinguished name' });
     copy.title = 'Copy distinguished name';
     copy.addEventListener('click', async () => {
@@ -60,6 +54,11 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
       catch { notify.error('Clipboard unavailable. Copy the distinguished name from the attributes.'); }
     });
     title.append(copy);
+    const control = attribute(record, 'userAccountControl');
+    if (values(control).length) {
+      const disabled = accountDisabled(control);
+      title.append(element('span', disabled ? 'state state--disabled' : 'state', disabled ? 'Disabled' : 'Enabled'));
+    }
   }
 
   function canLeave() {

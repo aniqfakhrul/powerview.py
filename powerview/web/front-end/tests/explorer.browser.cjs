@@ -63,7 +63,7 @@ const connection = { domain: 'example.test', ldap_address: '10.0.0.10', nameserv
   assert.equal(await visibleChildren.count(), 1);
   await page.locator('#tree-filter').fill('');
   await select('Person 001');
-  assert.equal(await page.locator('.object-title__type').textContent({ timeout: 5000 }), 'Computer');
+  await page.locator('[data-panel-title] > .type--computer').waitFor();
   await select('Person 000');
   assert.equal(await page.locator('#properties img').count(), 0);
   assert.equal(await page.getByText('Read only').count(), 0);

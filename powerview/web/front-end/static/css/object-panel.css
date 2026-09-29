@@ -1,7 +1,6 @@
 .object-header { display: flex; flex: none; align-items: center; gap: var(--space-3); height: var(--bar-height); padding: 0 var(--space-2) 0 var(--space-4); border-bottom: 1px solid var(--color-border); }
 .object-title { display: flex; flex: 1; align-items: center; gap: var(--space-2); min-width: 0; }
 .object-title h1 { overflow: hidden; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.object-title__type { flex: none; color: var(--color-faint); }
 .object-title .state { flex: none; }
 .panel-actions { display: flex; flex: none; align-items: center; gap: 2px; }
 .panel-actions:empty { display: none; }
