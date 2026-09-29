@@ -144,13 +144,13 @@ async function drag(page, key, distance) {
         const cell = (row) => getComputedStyle(row.cells[2]);
         return {
           selected: cell(selected).backgroundColor, selectedText: cell(selected).color, focused: cell(focused).backgroundColor, ring: cell(focused).boxShadow,
-          selectionFocus: resolve('var(--color-selection-focus)'), selectionText: getComputedStyle(document.body).getPropertyValue('--color-selection-text').trim(),
+          selectionFocus: resolve('var(--color-selection-focus)'), selectionText: resolve('var(--color-selection-text)'),
           surface: resolve('var(--color-surface)'), accent: resolve('var(--color-accent)'),
         };
       });
       assert.equal(paint.selected, paint.selectionFocus);
       assert.equal(paint.selectedText, 'rgb(255, 255, 255)');
-      assert.equal(paint.selectionText, '#fff');
+      assert.equal(paint.selectionText, 'rgb(255, 255, 255)');
       assert.notEqual(paint.focused, paint.selectionFocus, 'keyboard focus looks like selection');
       assert.ok(paint.ring.includes(paint.accent), 'focused row has no accent ring');
 

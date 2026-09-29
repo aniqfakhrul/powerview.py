@@ -87,7 +87,10 @@ async function open(browser, { linkFails = false } = {}) {
     await panel.getByText('14', { exact: true }).waitFor();
     assert.match(await panel.innerText(), /Computer › Security › System Access › MinimumPasswordLength\s+14/);
     assert.doesNotMatch(await panel.innerText(), /Unicode/);
-    assert.match(await page.locator('[data-panel-title]').innerText(), /Workstation Baseline\s+Group policy/);
+    const title = page.locator('[data-panel-title]');
+    assert.equal(await title.locator('h1').textContent(), 'Workstation Baseline');
+    assert.equal(await title.locator('svg.type--policy').count(), 1);
+    assert.equal(await title.locator('h1 + .object-title__copy').count(), 1);
     assert.equal(await page.getByRole('button', { name: 'Delete object' }).count(), 0);
     await row('2').click();
     await row('1').click();
