@@ -87,11 +87,6 @@
 .membership__add { flex: none; }
 .membership__picker:empty { display: none; }
 .member-picker { display: grid; gap: 6px; padding: 8px var(--space-3); border-bottom: 1px solid var(--color-border); background: var(--color-canvas); }
-.member-picker__suggestions { display: grid; max-height: 200px; margin: 0; padding: 0; overflow: auto; list-style: none; }
-.member-picker__suggestions:empty { display: none; }
-.member-picker__option { display: grid; grid-template-columns: 16px auto minmax(0, 1fr); align-items: center; gap: var(--space-2); min-height: var(--row-height); padding: 2px 6px; border-radius: var(--radius-sm); cursor: pointer; }
-.member-picker__option:hover, .member-picker__option:focus { background: var(--color-hover); outline: none; }
-.member-picker__dn { overflow: hidden; color: var(--color-faint); font-family: var(--font-mono); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .member-picker__controls { display: flex; justify-content: flex-end; gap: 6px; }
 .membership .value-more { margin: 8px var(--space-4); }
 .membership .panel-message { padding: var(--space-4); }

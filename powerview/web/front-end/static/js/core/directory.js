@@ -2,6 +2,13 @@ import { createAPI, APIError } from './api.js';
 import { dnLabel } from './dn.js';
 
 export const TREE_PROPERTIES = ['name', 'objectClass'];
+const SUGGESTION_LIMIT = 20;
+const OBJECT_KINDS = {
+  member: '(|(objectCategory=person)(objectCategory=group)(objectCategory=computer))',
+  group: '(objectCategory=group)',
+  principal: '(objectSid=*)',
+  any: '',
+};
 export const values = (value) => value == null ? [] : Array.isArray(value) ? value : [value];
 export const textValue = (value) => values(value).map((item) => typeof item === 'object' ? JSON.stringify(item) : String(item)).join('; ');
 export function attribute(record, name) {
@@ -160,15 +167,14 @@ export function createDirectory(baseURL) {
       const data = await request('get/domaindnsrecord', { signal, body: { zonename: zone, no_cache: fresh } });
       return withDN(data, 'DNS record list').map((record) => ({ dn: record.dn, name: dnLabel(record.dn), record }));
     },
-    async findObjects(text, { groupsOnly = false, signal } = {}) {
+    async findObjects(text, { kind = 'member', limit = SUGGESTION_LIMIT, signal } = {}) {
       const escaped = text.replace(/[\\*()\0]/g, (character) => `\\${character.charCodeAt(0).toString(16).padStart(2, '0')}`);
-      const match = `(|(name=${escaped}*)(sAMAccountName=${escaped}*))`;
-      const data = await request('get/domainobject', { signal, body: {
+      const found = records(await request('get/domainobject', { signal, body: {
         properties: ['name', 'objectClass', 'sAMAccountName'],
-        ldap_filter: groupsOnly ? `(&(objectCategory=group)${match})` : `(&(|(objectCategory=person)(objectCategory=group)(objectCategory=computer))${match})`,
-        raw: true, no_vuln_check: true,
-      } });
-      return records(data);
+        ldap_filter: `(&${OBJECT_KINDS[kind]}(|(name=${escaped}*)(sAMAccountName=${escaped}*)))`,
+        size_limit: limit + 1, raw: true, no_vuln_check: true,
+      } }));
+      return { records: found.slice(0, limit), more: found.length > limit };
     },
     account: (action, identity, searchbase) => request(`account/${action}`, { mutation: true, body: { identity, searchbase } }),
     resetPassword(type, identity, accountpassword) {

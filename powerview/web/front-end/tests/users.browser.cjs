@@ -15,7 +15,7 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
 (async () => {
   const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || 'chrome', headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  const securityRequests = [];
+  const securityRequests = []; const lookups = [];
   const errors = []; const writes = []; const userRequests = []; let createResponse = false; let failUsers = false;
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('**/api/**', async (route) => {
@@ -36,6 +36,10 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
         { ACEType: 'ACCESS_DENIED_OBJECT_ACE', ACEFlags: [], SecurityIdentifier: 'Everyone', AccessMask: ['ExtendedRight'], ObjectAceType: 'User-Change-Password' },
         { ACEType: 'ACCESS_ALLOWED_ACE', ACEFlags: ['CONTAINER_INHERIT_ACE', 'INHERITED_ACE'], SecurityIdentifier: 'EXAMPLE\\Domain Admins', AccessMask: ['FullControl'], ObjectAceType: null },
       ] }] });
+    }
+    if (path.endsWith('/get/domainobject') && data.size_limit) {
+      lookups.push(data);
+      return route.fulfill({ json: [{ dn: `CN=Carol Diaz,CN=Users,${rootDN}`, attributes: { name: 'Carol Diaz', objectClass: ['top', 'person', 'user'] } }] });
     }
     if (path.endsWith('/get/domainobject') && data.searchbase === groupDN) {
       return route.fulfill({ json: [{ dn: groupDN, attributes: { name: 'VPN Users', objectClass: ['top', 'group'], groupType: -2147483646,
@@ -207,6 +211,15 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   await panel.getByRole('tab', { name: 'Members 3' }).click();
   assert.deepEqual(await panel.locator('.membership:not([hidden]) .membership__name').allTextContents(), ['User 001', 'User 002', 'User 003']);
   assert.equal(await panel.locator('.membership:not([hidden]) .membership__note').isVisible(), true);
+  await panel.getByRole('button', { name: 'Add member' }).click();
+  const memberInput = panel.getByRole('combobox', { name: 'Member to add' });
+  await memberInput.fill('car');
+  await panel.getByRole('listbox').getByRole('option', { name: /Carol Diaz/ }).click();
+  assert.equal(await memberInput.inputValue(), `CN=Carol Diaz,CN=Users,${rootDN}`);
+  assert.equal(lookups.at(-1).ldap_filter, '(&(|(objectCategory=person)(objectCategory=group)(objectCategory=computer))(|(name=car*)(sAMAccountName=car*)))');
+  await panel.getByRole('button', { name: 'Add member', exact: true }).last().click();
+  await page.locator('.toast--success', { hasText: 'Added Carol Diaz' }).waitFor();
+  assert.deepEqual(writes.at(-1), { path: '/api/add/domaingroupmember', data: { identity: groupDN, members: `CN=Carol Diaz,CN=Users,${rootDN}` } });
   await page.locator('#grid-body tr[data-dn]').first().click();
   await panel.getByRole('tab', { name: 'Member of 2' }).waitFor();
   assert.equal(await panel.getByRole('tab', { name: 'Attributes' }).getAttribute('aria-selected'), 'true');
@@ -319,6 +332,6 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   assert.equal(await page.evaluate(() => document.activeElement.dataset.dn), focusedDN);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
-  console.log('PASS: End/Home across unrendered rows, sorting disabled while errored, raw user request, flag-name status, chronological day-first date sorting, sort focus retention, failed post-create refresh stays visible, incremental rendering, safe cells, sorting, filtering, empty filter state, new user validation and failed-create preservation, create refresh, toasts (success, info, dismiss, max three), saved-row highlight, popover triggers toggle closed, inline LDAP filter validation, Fields chooser (find, hide, add attribute, validation, refetch with properties, persistence, reset), side panel (save re-applies filter, breakpoint focus transfer, Open in Explorer draft guard, grid row reconciled after save, mobile overlay focus/inert/Escape/restore, unavailable ACL error, inheritance scope and expandable ACE details, lazy Security tab with owner, deny-first ACL, inherited toggle, per-object caching, Members/Member of tabs by type, counts, filter, partial-range note, membership navigation, header type/status/copy-DN, Attributes-first tab order, tab keyboard switching, open, URL state, Explorer link, Escape layering, deep link, close), mobile overflow, no runtime errors.');
+  console.log('PASS: End/Home across unrendered rows, sorting disabled while errored, raw user request, flag-name status, chronological day-first date sorting, sort focus retention, failed post-create refresh stays visible, incremental rendering, safe cells, sorting, filtering, empty filter state, new user validation and failed-create preservation, create refresh, toasts (success, info, dismiss, max three), saved-row highlight, popover triggers toggle closed, inline LDAP filter validation, Fields chooser (find, hide, add attribute, validation, refetch with properties, persistence, reset), side panel (save re-applies filter, breakpoint focus transfer, Open in Explorer draft guard, grid row reconciled after save, mobile overlay focus/inert/Escape/restore, unavailable ACL error, inheritance scope and expandable ACE details, lazy Security tab with owner, deny-first ACL, inherited toggle, per-object caching, Members/Member of tabs by type, counts, filter, partial-range note, membership navigation, member picker suggestions and add, header type/status/copy-DN, Attributes-first tab order, tab keyboard switching, open, URL state, Explorer link, Escape layering, deep link, close), mobile overflow, no runtime errors.');
   await browser.close();
 })().catch((error) => { console.error(error); process.exit(1); });

@@ -1,23 +1,13 @@
+import { recordName } from '../../core/directory.js';
 import { isDN } from '../../core/dn.js';
-import { objectType, recordName } from '../../core/directory.js';
-import { button, element, icon } from '../../core/dom.js';
-
-const SEARCH_DELAY = 250;
-const MIN_QUERY = 2;
-const TYPE_ICONS = { user: 'user', group: 'group', computer: 'computer' };
+import { button, element } from '../../core/dom.js';
+import { attachObjectSearch } from '../object-search.js';
 
 export function createMemberPicker({ directory, groupsOnly, submitLabel, onSubmit, onCancel }) {
   const form = element('form', 'member-picker');
   const input = element('input', 'text-input');
-  Object.assign(input, { placeholder: groupsOnly ? 'Group name or distinguished name' : 'Name or distinguished name', spellcheck: false, autocomplete: 'off' });
+  Object.assign(input, { placeholder: groupsOnly ? 'Group name or distinguished name' : 'Name or distinguished name', spellcheck: false });
   input.setAttribute('aria-label', groupsOnly ? 'Group to add' : 'Member to add');
-  input.setAttribute('role', 'combobox');
-  input.setAttribute('aria-autocomplete', 'list');
-  input.setAttribute('aria-expanded', 'false');
-  const suggestions = element('ul', 'member-picker__suggestions');
-  suggestions.id = `member-picker-${Math.random().toString(36).slice(2)}`;
-  suggestions.setAttribute('role', 'listbox');
-  input.setAttribute('aria-controls', suggestions.id);
   const submit = element('button', 'button button--primary', submitLabel);
   submit.type = 'submit';
   const cancel = button('Cancel');
@@ -25,72 +15,29 @@ export function createMemberPicker({ directory, groupsOnly, submitLabel, onSubmi
   error.hidden = true;
   const controls = element('div', 'member-picker__controls');
   controls.append(cancel, submit);
-  form.append(input, suggestions, error, controls);
+  form.append(input, error, controls);
 
   let chosen = null;
-  let timer;
-  let controller;
   let submitting = false;
-
-  function stopSearch() {
-    clearTimeout(timer);
-    controller?.abort();
-    controller = null;
-  }
 
   function fail(message) {
     error.textContent = message;
     error.hidden = !message;
   }
 
-  function showSuggestions(records) {
-    suggestions.replaceChildren(...records.map((record) => {
-      const option = element('li', 'member-picker__option');
-      option.setAttribute('role', 'option');
-      option.tabIndex = -1;
-      const type = objectType(record);
-      option.append(icon(TYPE_ICONS[type] ?? 'object', `type--${type}`), element('span', '', recordName(record)), element('span', 'member-picker__dn', record.dn));
-      option.addEventListener('click', () => choose(record));
-      option.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); choose(record); } });
-      return option;
-    }));
-    input.setAttribute('aria-expanded', String(records.length > 0));
-  }
-
-  function choose(record) {
-    stopSearch();
-    chosen = { dn: record.dn, label: recordName(record) };
-    input.value = record.dn;
-    showSuggestions([]);
-    submit.focus();
-  }
+  const search = attachObjectSearch({
+    input,
+    directory,
+    kind: groupsOnly ? 'group' : 'member',
+    onChoose(record) {
+      chosen = { dn: record.dn, label: recordName(record) };
+      submit.focus();
+    },
+  });
 
   input.addEventListener('input', () => {
     chosen = null;
     fail('');
-    stopSearch();
-    showSuggestions([]);
-    const text = input.value.trim();
-    if (text.length < MIN_QUERY || isDN(text)) return;
-    timer = setTimeout(async () => {
-      const search = new AbortController();
-      controller = search;
-      try {
-        const results = await directory.findObjects(text, { groupsOnly, signal: search.signal });
-        if (controller === search) showSuggestions(results);
-      } catch (failure) {
-        if (failure.name !== 'AbortError' && controller === search) fail(`Search failed: ${failure.message}`);
-      }
-    }, SEARCH_DELAY);
-  });
-
-  input.addEventListener('keydown', (event) => {
-    if (event.key === 'ArrowDown' && suggestions.firstElementChild) { event.preventDefault(); suggestions.firstElementChild.focus(); }
-  });
-  suggestions.addEventListener('keydown', (event) => {
-    const current = event.target.closest('[role="option"]');
-    if (event.key === 'ArrowDown') { event.preventDefault(); current?.nextElementSibling?.focus(); }
-    if (event.key === 'ArrowUp') { event.preventDefault(); (current?.previousElementSibling ?? input).focus(); }
   });
   form.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') return;
@@ -106,7 +53,7 @@ export function createMemberPicker({ directory, groupsOnly, submitLabel, onSubmi
     const target = chosen ?? (isDN(text) ? { dn: text, label: text } : null);
     if (!target) { fail('Choose a suggestion or enter a full distinguished name.'); return; }
     fail('');
-    stopSearch();
+    search.close();
     submitting = true;
     form.setAttribute('aria-busy', 'true');
     for (const control of form.querySelectorAll('button, input')) control.disabled = true;

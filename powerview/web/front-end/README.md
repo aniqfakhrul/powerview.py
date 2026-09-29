@@ -207,7 +207,10 @@ EXPLORER_URL=http://127.0.0.1:5011 \
 `/pathfinder` uses the shared list-page layout: a compact query form above a
 scrollable ACE table, with a separate evidence panel for the selected row.
 The form has optional Target and Principal fields and Group depth (0–5,
-default 2). There are no tips or result summaries underneath the form.
+default 2). Typing two or more characters in Principal suggests security
+principals (`objectSid` present); Target suggests any object. Suggestions
+prefix-match `name` or `sAMAccountName`, return at most 20 objects through
+`size_limit`, and choosing one fills the field with its distinguished name. There are no tips or result summaries underneath the form.
 
 Opening the page performs no ACL search. Submitted queries are written to the
 URL as `target`, `principal` and `depth`, and a page opened from that URL

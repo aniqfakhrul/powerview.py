@@ -15,9 +15,18 @@ const fixture = [{ attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, ind
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     let mode = 'success';
-    const calls = [], errors = [];
+    const calls = [], lookups = [], errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.route('**/api/**', async (route) => {
+      if (route.request().url().endsWith('/get/domainobject')) {
+        const body = route.request().postDataJSON();
+        lookups.push(body);
+        if (body.ldap_filter.includes('zz')) return route.fulfill({ json: [] });
+        const count = body.ldap_filter.includes('many') ? body.size_limit : 2;
+        return route.fulfill({ json: Array.from({ length: count }, (_, index) => ({
+          dn: `CN=alex.${index},CN=Users,DC=example,DC=test`, attributes: { name: `alex.${index}`, objectClass: ['top', 'person', 'user'] },
+        })) });
+      }
       if (!route.request().url().includes('get/domainobjectacl')) return route.fulfill({ json: { status: 'OK', available: false } });
       calls.push(route.request().postDataJSON());
       if (mode === 'error') return route.fulfill({ status: 400, json: { error: 'Target was not found.' } });
@@ -30,6 +39,33 @@ const fixture = [{ attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, ind
     assert.equal(await page.locator('#pathfinder-depth').isDisabled(), true);
     await page.locator('#pathfinder-target').press('Enter');
     assert.equal(calls.length, 0);
+    const principal = page.locator('#pathfinder-principal');
+    const options = page.getByRole('listbox').getByRole('option');
+    await principal.fill('al');
+    await options.first().waitFor();
+    assert.equal(await principal.getAttribute('aria-expanded'), 'true');
+    assert.deepEqual(await options.locator('span:not(.object-search__dn)').allTextContents(), ['alex.0', 'alex.1']);
+    assert.equal(lookups.at(-1).ldap_filter, '(&(objectSid=*)(|(name=al*)(sAMAccountName=al*)))');
+    assert.equal(lookups.at(-1).size_limit, 21);
+    await principal.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    assert.equal(await principal.inputValue(), 'CN=alex.1,CN=Users,DC=example,DC=test');
+    assert.equal(await options.count(), 0);
+    assert.equal(await page.locator('#pathfinder-find').isDisabled(), false);
+    await principal.fill('zzz');
+    await page.getByText('No matching objects', { exact: true }).waitFor();
+    await principal.fill('many');
+    await page.getByText('Showing the first 20 matches; keep typing to narrow the list', { exact: true }).waitFor();
+    assert.equal(await options.count(), 20);
+    await principal.press('Escape');
+    assert.equal(await page.locator('.object-search').first().isHidden(), true);
+    await page.locator('#pathfinder-target').fill('svc');
+    await options.first().waitFor();
+    assert.equal(lookups.at(-1).ldap_filter, '(&(|(name=svc*)(sAMAccountName=svc*)))');
+    await page.locator('#pathfinder-depth').focus();
+    assert.equal(await options.count(), 0);
+    await principal.fill('');
     assert.equal(await page.getByRole('link', { name: 'Graph', exact: true }).count(), 0);
     await page.locator('#pathfinder-target').fill('svc.backup');
     await page.locator('#pathfinder-principal').fill('alex.morgan');

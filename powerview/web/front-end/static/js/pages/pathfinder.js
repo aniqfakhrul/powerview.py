@@ -1,4 +1,5 @@
 import { createGridPage } from '../components/grid/grid-page.js';
+import { attachObjectSearch } from '../components/object-search.js';
 import { renderSummary } from '../components/object-panel/summary.js';
 import { createAPI } from '../core/api.js';
 import { values } from '../core/directory.js';
@@ -128,8 +129,12 @@ const page = createGridPage({
   },
 });
 
+const suggestions = [['principal', 'principal'], ['target', 'any']]
+  .map(([name, kind]) => attachObjectSearch({ input: find(name), directory: page.directory, kind, onChoose: syncControls }));
+
 form.addEventListener('submit', (event) => {
   event.preventDefault();
+  for (const suggestion of suggestions) suggestion.close();
   const { identity, principal } = formValues();
   if (!identity && !principal) return;
   query = { depth: principal ? Number(find('depth').value) : 0, ...(identity ? { identity } : {}), ...(principal ? { security_identifier: principal } : {}) };
