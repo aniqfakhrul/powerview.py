@@ -36,7 +36,7 @@ powerview range.net/lowpriv:Password123@192.168.86.192 [-k] [--use-ldap | --use-
 
 * Maintain persistent connection
 > [!TIP]
-> Connection persistence is disabled by default. LDAP sessions timeout after inactivity. Use `--keepalive-interval` to send periodic queries maintaining session state.
+> Interactive sessions send a keep-alive query every 300 seconds so idle LDAP connections are not dropped. Use `--keepalive-interval` to change the interval, or `--keepalive-interval 0` to disable it. One-shot queries (`-q`) do not start keep-alive.
 
 * Start web interface
 ```

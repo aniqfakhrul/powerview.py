@@ -733,7 +733,7 @@ class CONNECTION:
 		self._connection_pool = ConnectionPool(
 			max_connections=getattr(args, 'max_connections', 10),
 			cleanup_interval=getattr(args, 'pool_cleanup_interval', 0),
-			keepalive_interval=getattr(args, 'keepalive_interval', 0)
+			keepalive_interval=0 if _is_child or getattr(args, 'query', None) else getattr(args, 'keepalive_interval', 0)
 		)
 		# Child connections (cross-domain) don't need SMB pool maintenance threads
 		self._smb_pool = SMBConnectionPool(

@@ -16,13 +16,6 @@ def _safe(callable_obj, default=None):
     except Exception:
         return default
 
-def _get_keepalive_indicator(conn):
-    pool = getattr(conn, '_connection_pool', None)
-    interval = getattr(pool, 'keepalive_interval', 0) if pool else 0
-    if isinstance(interval, int) and interval > 0:
-        return f" {_rl(bcolors.OKGREEN)}[💓:{interval}s]{_rl(bcolors.ENDC)}"
-    return ""
-
 def _gradient_text(text, rgb_start, rgb_end):
     colors = Gradient.generate_gradient_colors(rgb_start, rgb_end, len(text))
     out = ""
@@ -56,7 +49,6 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
 
     channel_binding_active = getattr(powerview.conn, 'use_channel_binding', False)
     ldap_signing_active = getattr(powerview.conn, 'use_sign_and_seal', False)
-    keepalive_indicator = _get_keepalive_indicator(powerview.conn)
 
     domain_indicator = f" {_rl(bcolors.BOLD + bcolors.FAIL)}[→ {current_target_domain}]{_rl(bcolors.ENDC)}" if current_target_domain else ""
     cache_indicator = f" {_rl(bcolors.WARNING)}[CACHED]{_rl(bcolors.ENDC)}" if using_cache else ""
@@ -90,7 +82,6 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
             f"[{_rl(bcolors.OKCYAN)}{server_dns}{_rl(bcolors.ENDC)}] "
             f"[{cur_user}] "
             f"NS:{nameserver if nameserver else '<auto>'}"
-            f"{keepalive_indicator}"
             f"{mcp_indicator}{web_indicator}{domain_indicator}{cache_indicator} "
             f"{_rl(bcolors.OKGREEN)}❯{_rl(bcolors.ENDC)} "
         )
@@ -102,7 +93,6 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
         f"{_rl(bcolors.OKBLUE)}─[{_rl(bcolors.ENDC)}{_rl(bcolors.OKCYAN)}{server_dns}{_rl(bcolors.ENDC)}{_rl(bcolors.OKBLUE)}]{_rl(bcolors.ENDC)}"
         f"{_rl(bcolors.OKBLUE)}─[{_rl(bcolors.ENDC)}{cur_user}{_rl(bcolors.OKBLUE)}]{_rl(bcolors.ENDC)}"
         f"{_rl(bcolors.OKBLUE)}-[NS:{nameserver if nameserver else '<auto>'}]{_rl(bcolors.ENDC)}"
-        f"{keepalive_indicator}"
         f"{mcp_indicator}"
         f"{web_indicator}"
         f"{domain_indicator}"
