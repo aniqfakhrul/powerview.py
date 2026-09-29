@@ -1246,6 +1246,12 @@ class ACLEnum:
 			self.resolved_sids[sid] = self.powerview.convertfrom_sid(sid, no_cache=self.no_cache)
 		return self.resolved_sids[sid]
 
+	def resolve_trustee(self, sid):
+		if isinstance(self.__principalidentity, dict) and sid in self.__principalidentity:
+			trustee = self.__principalidentity[sid]
+			return trustee['display'], trustee['via'] or 'Direct'
+		return self.resolve_sid(sid), ('Direct' if self.__principalidentity else None)
+
 	def parseACE(self, ace):
 		sid = ace["Ace"]["Sid"].formatCanonical()
 		if self.__principalidentity:
@@ -1269,10 +1275,9 @@ class ACLEnum:
 				parsed_ace['ActiveDirectoryRights'] = ",".join(self.parsePerms(ace["Ace"]["Mask"]["Mask"]))
 				parsed_ace['AccessMask'] = ",".join(self.parsePerms(ace['Ace']['Mask']['Mask']))
 				parsed_ace['InheritanceType'] = "None"
-				if isinstance(self.__principalidentity, dict) and sid in self.__principalidentity:
-					parsed_ace['SecurityIdentifier'] = self.__principalidentity[sid]
-				else:
-					parsed_ace['SecurityIdentifier'] = self.resolve_sid(sid)
+				parsed_ace['SecurityIdentifier'], granted_via = self.resolve_trustee(sid)
+				if granted_via:
+					parsed_ace['GrantedVia'] = granted_via
 			
 			elif ace['TypeName'] in ["ACCESS_ALLOWED_OBJECT_ACE", "ACCESS_DENIED_OBJECT_ACE"]:
 				_access_mask_flags = [FLAG.name for FLAG in ALLOWED_OBJECT_ACE_MASK_FLAGS if ace['Ace']['Mask'].hasPriv(FLAG.value)]
@@ -1291,10 +1296,9 @@ class ACLEnum:
 				else:
 					parsed_ace['InheritanceType'] = None
 				
-				if isinstance(self.__principalidentity, dict) and sid in self.__principalidentity:
-					parsed_ace['SecurityIdentifier'] = self.__principalidentity[sid]
-				else:
-					parsed_ace['SecurityIdentifier'] = self.resolve_sid(sid)
+				parsed_ace['SecurityIdentifier'], granted_via = self.resolve_trustee(sid)
+				if granted_via:
+					parsed_ace['GrantedVia'] = granted_via
 		else:
 			LOG.debug("ACE Type (%s) unsupported for parsing yet, feel free to contribute" % ace['TypeName'])
 			parsed_ace = {'ACEType': ace['TypeName'], 'ACEFlags': ", ".join(_ace_flags) or "None", 'DEBUG': "ACE type not supported for parsing by dacleditor.py, feel free to contribute"}

@@ -1387,11 +1387,9 @@ class PowerView:
 					principal_SID = principal_SID.get("objectSid")
 					logging.debug(f"[Get-DomainObjectAcl] Found in well known SID: {principal_SID}")
 				else:
-					logging.error(f'[Get-DomainObjectAcl] Principal {security_identifier} not found. Try to use DN')
-					return None
+					raise ValueError(f'[Get-DomainObjectAcl] Principal {security_identifier} not found. Try to use DN')
 			elif len(principalsid_entry) > 1:
-				logging.error('[Get-DomainObjectAcl] Multiple identities found. Use exact match')
-				return None
+				raise ValueError(f'[Get-DomainObjectAcl] Principal {security_identifier} matches multiple objects. Use exact match')
 
 			security_identifier = principalsid_entry[0].get('attributes', {}).get('objectSid') if not principal_SID else principal_SID
 		
@@ -1410,7 +1408,7 @@ class PowerView:
 			start_sid = start_attrs.get('objectSid') or security_identifier
 			if isinstance(start_sid, list) and start_sid:
 				start_sid = start_sid[0]
-			principalidentity_map[start_sid] = start_display
+			principalidentity_map[start_sid] = {'display': start_display, 'via': None}
 			memberof_queue = []
 			mo = start_attrs.get('memberOf') or []
 			if isinstance(mo, str):
@@ -1443,7 +1441,7 @@ class PowerView:
 						gname = gname[0]
 					if gsid and gname:
 						new_chain = f"({gname}) -> {chain}"
-						principalidentity_map[gsid] = new_chain
+						principalidentity_map[gsid] = {'display': new_chain, 'via': gname}
 						mo2 = gattrs.get('memberOf') or []
 						if isinstance(mo2, str):
 							mo2 = [mo2]
@@ -1463,11 +1461,9 @@ class PowerView:
 			)
 			
 			if len(identity_entries) == 0:
-				logging.error(f'[Get-DomainObjectAcl] Identity {identity} not found. Try to use DN')
-				return None
+				raise ValueError(f'[Get-DomainObjectAcl] Identity {identity} not found. Try to use DN')
 			elif len(identity_entries) > 1:
-				logging.error('[Get-DomainObjectAcl] Multiple identities found. Use exact match')
-				return None
+				raise ValueError(f'[Get-DomainObjectAcl] Identity {identity} matches multiple objects. Use exact match')
 			
 			target_dn = identity_entries[0].get("attributes", {}).get("distinguishedName")
 			if isinstance(target_dn, list):
@@ -1492,8 +1488,7 @@ class PowerView:
 		)
 
 		if not entries:
-			logging.error('[Get-DomainObjectAcl] Identity not found in domain')
-			return None
+			raise ValueError('[Get-DomainObjectAcl] No readable security descriptors found in scope')
 
 		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=(principalidentity_map if principalidentity_map else security_identifier), guids_map_dict=guids_dict, no_cache=no_cache)
 		return enum.read_dacl()

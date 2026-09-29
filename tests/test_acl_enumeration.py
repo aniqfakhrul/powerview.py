@@ -43,6 +43,27 @@ class ACLEnumerationTests(unittest.TestCase):
 		self.assertEqual(enum.resolve_sid('sid'), 'TEST\\alice')
 		view.convertfrom_sid.assert_called_once_with('sid', no_cache=True)
 
+	def test_trustee_reports_the_granting_group_for_expanded_principals(self):
+		view = MagicMock()
+		view.convertfrom_sid.return_value = 'TEST\\carol'
+		chain = {'user': {'display': 'TEST\\alice', 'via': None}, 'group': {'display': '(Helpdesk) -> TEST\\alice', 'via': 'Helpdesk'}}
+		expanded = ACLEnum(view, [], 'DC=test', principalidentity=chain)
+		self.assertEqual(expanded.resolve_trustee('user'), ('TEST\\alice', 'Direct'))
+		self.assertEqual(expanded.resolve_trustee('group'), ('(Helpdesk) -> TEST\\alice', 'Helpdesk'))
+		self.assertEqual(ACLEnum(view, [], 'DC=test', principalidentity='sid').resolve_trustee('sid'), ('TEST\\carol', 'Direct'))
+		self.assertEqual(ACLEnum(view, [], 'DC=test').resolve_trustee('sid'), ('TEST\\carol', None))
+
+	def test_unresolved_identities_raise_instead_of_returning_none(self):
+		view = PowerView.__new__(PowerView)
+		view.root_dn = 'DC=test'
+		for found, message in (([], 'not found'), ([{'attributes': {}}, {'attributes': {}}], 'matches multiple objects')):
+			view.get_domainobject = MagicMock(return_value=found)
+			with self.assertRaisesRegex(ValueError, message):
+				view.get_domainobjectacl(identity='svc', guids_map_dict={'guid': 'right'})
+		view.get_domainobject = MagicMock(return_value=[])
+		with self.assertRaisesRegex(ValueError, 'No readable security descriptors'):
+			view.get_domainobjectacl(guids_map_dict={'guid': 'right'})
+
 
 
 class ACLCacheTests(unittest.TestCase):
