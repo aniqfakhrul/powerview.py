@@ -43,6 +43,8 @@ const tree = createTree({
 const properties = createObjectPanel({
   root: document.querySelector('#object-pane'),
   directory, scope, status, guard,
+  getRoots: () => roots,
+  onMoved: changed,
   onNavigate: (dn) => go(dn),
   onSaved: () => navigate(activeDN, { fresh: true, fromTree: true }),
 });

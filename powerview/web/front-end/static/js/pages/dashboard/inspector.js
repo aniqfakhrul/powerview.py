@@ -3,6 +3,7 @@ import { createMutationGuard } from '../../core/mutation-guard.js';
 import { createObjectPanel } from '../../components/object-panel/index.js';
 
 export function createDashboardInspector({ root, status, getRootDN, onSaved }) {
+  const directory = createDirectory(new URL(root.dataset.apiRoot, location.origin));
   const panelRoot = root.querySelector('#object-panel');
   const explorer = panelRoot.querySelector('#panel-explorer');
   const close = panelRoot.querySelector('#panel-close');
@@ -11,11 +12,24 @@ export function createDashboardInspector({ root, status, getRootDN, onSaved }) {
   let returnFocus = null;
   const panel = createObjectPanel({
     root: panelRoot,
-    directory: createDirectory(new URL(root.dataset.apiRoot, location.origin)),
+    directory,
     status,
     guard: createMutationGuard(),
     scope: (dn) => getRootDN() || dn,
     onNavigate: open,
+    getRoots: async () => {
+      const server = await directory.server();
+      const roots = server?.raw?.namingContexts ?? server?.namingContexts;
+      return Array.isArray(roots) ? roots : [];
+    },
+    onMoved: async ({ movedTo }) => {
+      selectedDN = movedTo;
+      const url = new URL(root.dataset.explorer, location.origin);
+      url.searchParams.set('dn', movedTo);
+      explorer.href = url;
+      await panel.open(movedTo, { fresh: true });
+      await onSaved();
+    },
     onSaved: async () => {
       await panel.open(selectedDN, { fresh: true });
       await onSaved();

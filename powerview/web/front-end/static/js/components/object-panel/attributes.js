@@ -1,5 +1,6 @@
+import { moveObject } from './move-object.js';
 import { beginLoading } from '../loading.js';
-import { dnLabel, isDN } from '../../core/dn.js';
+import { dnLabel, isDN, sameDN } from '../../core/dn.js';
 import { attribute, recordName, values, textValue, objectType, TYPE_ICONS } from '../../core/directory.js';
 import { accountDisabled, readableTime } from '../../core/ldap-values.js';
 import { createRequestLane } from '../../core/request-lane.js';
@@ -33,7 +34,7 @@ function editableText(value) {
   return values(value).map((item) => (typeof item === 'boolean' ? String(item).toUpperCase() : String(item)));
 }
 
-export function createAttributes({ root, directory, scope, status, guard, onNavigate, onSaved, reopen }) {
+export function createAttributes({ root, directory, scope, status, guard, onNavigate, onSaved, onMoved, getRoots, reopen }) {
   const title = root.querySelector('[data-panel-title]');
   const panel = root.querySelector('[data-panel-body]');
   const filter = root.querySelector('[data-panel-filter]');
@@ -145,7 +146,14 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
     const valueCell = element('td');
     renderValues(valueCell, value);
     const actions = element('td', 'cell-actions');
-    if (editableField(name, value)) {
+    if (name.toLowerCase() === 'distinguishedname' && onMoved && !sameDN(current.dn, scope(current.dn) ?? '')) {
+      const control = button('', { iconName: 'move', className: 'icon-button property-row__edit', ariaLabel: 'Move object' });
+      control.title = 'Move object to another container';
+      control.addEventListener('click', () => {
+        if (canLeave()) moveObject({ record: current, directory, guard, getRoots, onMoved });
+      });
+      actions.append(control);
+    } else if (editableField(name, value)) {
       const control = button('', { iconName: 'edit', className: 'icon-button property-row__edit', ariaLabel: `Edit ${name}` });
       control.addEventListener('click', () => edit(tr, name, value));
       tr.addEventListener('dblclick', (event) => { if (!event.target.closest('button, form')) edit(tr, name, value); });

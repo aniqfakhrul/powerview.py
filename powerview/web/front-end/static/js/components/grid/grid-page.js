@@ -496,6 +496,17 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     guard,
     scope: (dn) => namingContext(dn, [rootDN, ...namingContexts]) ?? rootDN,
     onNavigate: select,
+    getRoots: async () => {
+      await discoverRoots();
+      return rootsKnown ? [rootDN, ...namingContexts] : [];
+    },
+    onMoved: async ({ movedTo }) => {
+      selectedDN = movedTo;
+      remember(movedTo);
+      explorerLink.href = explorerURL(movedTo);
+      await panel.open(movedTo, { fresh: true });
+      await reloadKeepingPosition();
+    },
     onSaved: async () => {
       const record = await panel.open(selectedDN, { fresh: true });
       if (fetchEntries || searchActive()) await reloadKeepingPosition();

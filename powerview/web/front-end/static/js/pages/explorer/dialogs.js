@@ -1,4 +1,4 @@
-import { namingContext, parentDN, sameDN, splitDN } from '../../core/dn.js';
+import { moveObject } from '../../components/object-panel/move-object.js';
 import { assertPlainName, recordName } from '../../core/directory.js';
 import { element, setBusy } from '../../core/dom.js';
 import { notify } from '../../components/notify.js';
@@ -89,23 +89,7 @@ export function createDialogs({ directory, roots, scope, guard, onChanged }) {
     },
 
     move(record) {
-      const origin = parentDN(record.dn);
-      open({ heading: `Move ${recordName(record)}`, confirm: 'Move', context: record.dn, success: `Moved ${recordName(record)}`,
-        run: async () => {
-          const target = destination.value.trim();
-          if (sameDN(target, origin)) throw new Error('Choose a different container.');
-          if (sameDN(target, record.dn) || target.toLowerCase().endsWith(`,${record.dn.toLowerCase()}`)) throw new Error('An object cannot be moved into itself.');
-          if (!sameDN(namingContext(target, roots()) ?? '', scope(record.dn) ?? '')) throw new Error('Choose a container in the same naming context.');
-          await directory.record(target, { fresh: true });
-          await directory.move(record.dn, target, scope(record.dn));
-        },
-        after: () => {
-          const target = destination.value.trim();
-          return onChanged({ removed: record.dn, container: target, movedTo: `${splitDN(record.dn)[0]},${target}` });
-        },
-      });
-      const destination = input('Destination container', { value: origin });
-      destination.select();
+      moveObject({ record, directory, guard, getRoots: roots, onMoved: onChanged });
     },
 
     remove(record) {

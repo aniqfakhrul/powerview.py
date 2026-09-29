@@ -96,9 +96,10 @@ const connection = { domain: 'example.test', ldap_address: '10.0.0.10', nameserv
 
   await select('Person 000');
   await page.getByRole('button', { name: 'Move', exact: true }).click();
-  await dialog.getByRole('textbox', { name: 'Destination container', exact: true }).fill(rootDN);
-  await dialog.getByRole('button', { name: 'Move', exact: true }).click();
-  await page.waitForFunction(() => !document.querySelector('#object-dialog').open);
+  const moveDialog = page.getByRole('dialog', { name: 'Move Person 000', exact: true });
+  await moveDialog.getByRole('textbox', { name: 'Destination container', exact: true }).fill(rootDN);
+  await moveDialog.getByRole('button', { name: 'Move', exact: true }).click();
+  await moveDialog.waitFor({ state: 'hidden' });
   assert.equal(writes.at(-1).data.destination_dn, rootDN);
 
   await select('Person 003');

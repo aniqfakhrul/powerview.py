@@ -178,6 +178,24 @@ EXPLORER_URL=http://127.0.0.1:5011 \
   node powerview/web/front-end/tests/users-search.browser.cjs
 ```
 
+### Moving objects
+
+The `distinguishedName` attribute has a Move object action in the shared object
+panel. It uses the same dialog as Explorer's Move button and sends the destination
+container DN to `/api/set/domainobjectdn`. The endpoint preserves the object's RDN;
+this action moves the object and does not rename it. Naming-context roots, moves
+into the object's own subtree, and moves across naming contexts are rejected.
+
+Failed writes preserve the destination input. On success, the panel follows the
+new DN, Explorer refreshes both parents, directory grids reload their results, and
+the Dashboard refreshes its snapshot. The DN remains protected from ordinary
+attribute writes.
+
+```sh
+EXPLORER_URL=http://127.0.0.1:5011 \
+  node powerview/web/front-end/tests/move-object.browser.cjs
+```
+
 ### Password resets
 
 User and computer detail panels expose a key action for resetting the selected
