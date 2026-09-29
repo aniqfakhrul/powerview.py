@@ -168,12 +168,16 @@ class ShadowCredential:
 			return None
 
 		subject = str(target_sid or target_sam or target_dn)
+		object_classes = entry.get("attributes", {}).get("objectClass") or []
+		if isinstance(object_classes, str):
+			object_classes = [object_classes]
 		certificate = X509Certificate2(subject=subject, keySize=key_size, notBefore=(-40 * 365), notAfter=(40 * 365))
 		key_cred = KeyCredential.fromX509Certificate2(
 			certificate=certificate,
 			deviceId=Guid(),
 			owner=target_dn,
-			currentTime=DateTime()
+			currentTime=DateTime(),
+			isComputerKey=any(object_class.lower() == "computer" for object_class in object_classes)
 		)
 		keycred_dnwb = key_cred.toDNWithBinary().toString().encode()
 
