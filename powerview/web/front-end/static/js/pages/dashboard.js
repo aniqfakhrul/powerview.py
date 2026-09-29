@@ -8,8 +8,6 @@ const request = createAPI(new URL(root.dataset.apiRoot, location.origin));
 const status = createStatus();
 const find = (id) => document.getElementById(id);
 const format = new Intl.NumberFormat();
-const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
-const displayDate = (value) => dateFormat.format(new Date(value));
 const refresh = find('dashboard-refresh');
 const exportButton = find('dashboard-export');
 const filter = find('evidence-filter');
@@ -224,14 +222,7 @@ function renderCollection() {
   const loaded = Object.keys(data).length;
   const summary = loading ? `Loading · ${loaded} of 4 sources` : loaded === 4 ? 'Snapshot complete' : loaded ? 'Partial snapshot' : 'Snapshot unavailable';
   find('dashboard-state').textContent = summary;
-  find('dashboard-coverage-count').textContent = `${loaded} of 4 sources loaded`;
   status.idle(`${summary} · Current domain · Read-only`);
-  const host = find('dashboard-sources');
-  host.replaceChildren();
-  for (const [source, label] of Object.entries(sources)) {
-    const value = data[source];
-    host.append(element('dt', '', label), element('dd', '', value ? `Collected ${displayDate(value.collected_at)}${value.counts?.missing_logon ? ` · ${format.format(value.counts.missing_logon)} enabled accounts without a readable replicated logon` : ''}` : failures[source] ? 'Unavailable' : 'Pending'));
-  }
   exportButton.disabled = loading || !loaded;
   refresh.disabled = loading;
   daysSelect.disabled = loading;

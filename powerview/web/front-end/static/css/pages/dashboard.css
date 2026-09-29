@@ -75,13 +75,6 @@
 .dashboard__empty { padding: 24px 16px; color: var(--color-muted); font-size: 12px; }
 .dashboard__errors { padding: 8px 16px; border-bottom: 1px solid var(--color-border); background: var(--color-danger-soft); color: var(--color-danger); font-size: 12px; overflow-wrap: anywhere; }
 .dashboard__errors p { padding: 4px 0; }
-.dashboard__coverage { color: var(--color-muted); font-size: 11px; }
-.dashboard__coverage summary { padding: 12px 16px; cursor: pointer; }
-.dashboard__coverage summary span { margin-left: 12px; color: var(--color-faint); }
-.dashboard__coverage > div { padding: 0 16px 16px; max-width: 90ch; }
-.dashboard__coverage p + p { margin-top: 8px; }
-.dashboard__coverage dl { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 4px 12px; }
-.dashboard__coverage dd { margin: 0; overflow-wrap: anywhere; }
 @media (min-width: 1700px) {
   .dashboard__assessment { grid-template-columns: minmax(0, 1fr) 330px; }
   .dashboard__review-body { grid-template-columns: 250px minmax(0, 1fr); }
@@ -117,7 +110,6 @@
   .dashboard__infrastructure > section { border-right: 0; border-bottom: 1px solid var(--color-border); }
   .dashboard__infrastructure > section:last-child { border: 0; }
   .dashboard__policy dl { grid-template-columns: minmax(0, 1fr); }
-  .dashboard__coverage summary span { display: block; margin: 4px 0 0 14px; }
 }
 .dashboard__threshold { display: inline-flex; flex: none; align-items: center; gap: 6px; color: var(--color-faint); font-size: 11px; white-space: nowrap; }
 .dashboard__threshold .dashboard__days { width: auto; }
