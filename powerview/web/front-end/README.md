@@ -25,7 +25,8 @@ front-end/
       core/dn.js                Escaped-DN parsing and naming-context resolution
       pages/explorer.js         Explorer orchestration
       pages/explorer/           Tree, details, dialogs, focus, DOM, request state
-    images/                     Local mark and stroke icon sprite
+    images/                     Local mark and Fluent icon sprite (MIT, icons.LICENSE.txt)
+  tools/build-icons.mjs         Regenerates the icon sprite from @fluentui/svg-icons
   tests/                        Node unit tests and browser contract tests
 ```
 
@@ -65,6 +66,22 @@ the frontend never receives connection credentials.
   endpoints concatenate names into DNs without escaping.
 - Light/dark themes follow the OS. On phones, the directory opens as a
   focus-contained overlay. Tree keys: arrows, Home/End, Enter.
+
+## Icons
+
+`static/images/icons.svg` is a sprite of Microsoft Fluent UI System Icons
+(Regular, 16px where available, otherwise 20px), filled with `currentColor`.
+Templates use the `icon()` macro and scripts use `icon()` from `core/dom.js`;
+both reference symbols by stable ids such as `user`, `trash` or `more`. To change
+or add an icon, edit the id-to-Fluent-name map in `tools/build-icons.mjs`, then run:
+
+```sh
+cd "$(mktemp -d)" && npm pack @fluentui/svg-icons && tar -xzf fluentui-svg-icons-*.tgz
+node /path/to/powerview.py/powerview/web/front-end/tools/build-icons.mjs "$PWD/package"
+```
+
+The generator fails if a mapped icon is missing and records the Fluent version
+in the sprite. `static/images/icons.LICENSE.txt` carries Microsoft's MIT notice.
 
 ## CSV export
 

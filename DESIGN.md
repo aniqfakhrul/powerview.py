@@ -286,7 +286,7 @@ A neutral graphite and crisp light pair with one blue accent and a small, fixed 
 - **Directory Blue** (`accent`, dark: `dark-accent`): DN links, "Show more" and retry links, the 2px focus ring, text caret, and the pane resizer on hover or drag. It never fills a button or a surface.
 
 ### Tertiary
-- **Type icon hues** (`type-domain`, `type-user`, `type-group`, `type-computer`, `type-ou`, `type-container`, `type-other` and their `dark-` pairs): stroke colour for the 15-16px object icons in the tree and the object header. Domains and users are blue, groups green, computers violet, OUs amber, containers neutral grey, anything else magenta. Only the icon takes the hue; the label beside it stays in text colour.
+- **Type icon hues** (`type-domain`, `type-user`, `type-group`, `type-computer`, `type-ou`, `type-container`, `type-other` and their `dark-` pairs): fill colour for the 16px object icons in the tree and the object header. Domains and users are blue, groups green, computers violet, OUs amber, containers neutral grey, anything else magenta. Only the icon takes the hue; the label beside it stays in text colour.
 - **Status** (`danger`, `success`, `danger-soft`): danger colours destructive hover states, the Clear attribute link, form errors, tree load errors and error status messages. It also fills the destructive dialog submit. Success colours the status-bar confirmation message, the connection dot and success toasts.
 - **State tag tones** (`pill-success-bg`, `pill-success-fg`, `pill-neutral-bg`, `pill-neutral-fg` and their `dark-` pairs): the fill and text of state tags. Success marks an active or positive state, neutral an inactive or categorical one. The danger tone reuses `danger-soft` and `danger`. Every pair keeps 4.5:1 text contrast.
 
@@ -360,20 +360,20 @@ Quiet, compact, desktop-native.
 - **Default:** surface fill with a strong-border stroke. Hover moves to the hover tone over a 120ms background transition.
 - **Primary:** inverted, with an ink fill and ground-coloured text. Hover steps to `primary-hover`. Use it once per decision point (Save, dialog submit).
 - **Danger:** a danger-red fill with `danger-text` (white in light, near-black in dark for 4.5:1+), used only for the destructive dialog submit.
-- **Toolbar:** transparent with no visible stroke and muted text plus a 14px icon. Hover brings up the hover tone and full text colour. Delete shows danger red only on hover.
+- **Toolbar:** transparent with no visible stroke and muted text plus a 16px icon. Hover brings up the hover tone and full text colour. Delete shows danger red only on hover.
 - **Icon button:** a 28px transparent square with a muted icon. Used for Refresh, remove value and the row edit button (24px).
-- **Link button:** no box, muted text with a leading 14px icon, darkening on hover. Used for "Add attribute" and "Add value".
+- **Link button:** no box, muted text with a leading 16px icon, darkening on hover. Used for "Add attribute" and "Add value".
 - **Disabled:** 40-45% opacity.
 
 ### Inputs / Fields
 - **Text input:** 28px, 4px corners, `input-border` stroke on surface, blue caret. Focus replaces the border with a 2px accent outline inset by 1px. Mono variant at 12px for DN and attribute-name entry. Selects use the same box.
-- **Search field:** the same box and stroke with a faint 14px leading icon. The outline is drawn on the wrapper through `:focus-within`, and the native cancel control is hidden.
+- **Search field:** the same box and stroke with a faint 16px leading icon. The outline is drawn on the wrapper through `:focus-within`, and the native cancel control is hidden.
 
 ### Toolbar and Address Bar
 The 40px toolbar holds the address bar as a canvas-toned search field that stretches to fill the row. It contains a domain icon and a mono DN input with the placeholder "Go to distinguished name". The action cluster (New, Move, Delete, Refresh) sits on the right with 4px gaps. Actions stay disabled until an object is selected.
 
 ### Directory Tree
-- **Rows:** 24px, 4px corners, a 16px twisty column with a 12px chevron that rotates 90 degrees on expand (120ms ease-out), a 15px type-coloured icon, and a label in text colour.
+- **Rows:** 24px, 4px corners, a 16px twisty column with a 12px chevron that rotates 90 degrees on expand (120ms ease-out), a 16px type-coloured icon, and a label in text colour.
 - **Indentation:** 12px per level plus 4px padding, with a 1px guide-coloured rule on each group's leading edge.
 - **States:** hover tone. Selected rows use the selection tone, one step stronger while the tree has focus. Keyboard focus draws a 1px inset accent outline. While children load, the twisty pulses.
 - **Notes:** loading, empty and error lines sit at row height in faint (or danger) with an inline accent Retry link.
@@ -418,6 +418,9 @@ Shared table loading uses eight rows of 8px hover-tone bars; dashboard evidence 
 `--duration-fast` is 120ms and `--duration-enter` is 160ms. Panel entry fades from 0.6 opacity with a 6px horizontal offset; Fields menus fade from 0.6 with a -3px vertical offset in 120ms; tabs fade from 0.7 in 120ms. These entrances reuse `--ease-out`. Icon buttons and panel tabs transition background and text colors in 120ms. Reduced motion disables the new entrances and skeleton pulse, plus Explorer's existing busy pulse.
 
 The shared active-tab underline translates and scales using `--duration-enter` (160ms) and `--ease-out`. Initial placement, resizing and reduced motion align it without animation; tab width, font and count changes update its alignment.
+
+### Icons
+Icons are Microsoft Fluent UI System Icons (Regular style, MIT) in a single sprite, `static/images/icons.svg`, filled with `currentColor` so they follow text, theme and `type-*` colours. They are drawn on a 16px grid and render at 16px in toolbars, search fields, link buttons, the tree and navigation; only the column-type glyphs (13px), column filter trigger and tree twisty (12px) and dashboard hints (13px) render smaller. Icons are decorative (`aria-hidden`); controls carry the name. `tools/build-icons.mjs` regenerates the sprite from the `@fluentui/svg-icons` package using a fixed id-to-Fluent-name map, so ids used in templates and scripts never change.
 
 ## Do's and Don'ts
 
