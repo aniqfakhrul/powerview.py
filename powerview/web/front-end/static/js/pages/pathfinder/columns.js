@@ -1,4 +1,5 @@
-import { chips, createColumnSet, nameColumn, textColumn, pill } from '../../components/grid/columns.js';
+import { chips } from '../../components/grid/chips.js';
+import { createColumnSet, nameColumn, textColumn, pill } from '../../components/grid/columns.js';
 
 const field = textColumn;
 const name = nameColumn('object');

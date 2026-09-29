@@ -6,6 +6,7 @@ import { createObjectPanel } from '../object-panel/index.js';
 import { createResizer } from '../resizer.js';
 import { createStatus } from '../status.js';
 import { notify } from '../notify.js';
+import { expandChips, fitChips } from './chips.js';
 import { createColumnFilter, filterSpec, isActive, matchesFilter } from './column-filter.js';
 import { createFieldsMenu } from './fields-menu.js';
 import { createSearchMenu } from './search-menu.js';
@@ -116,6 +117,14 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     document.querySelector('#grid').style.setProperty('--columns-width', `${columns.reduce((total, column) => total + widthOf(column), 0)}px`);
   }
 
+  const columnCells = (column, selector = '') => body.querySelectorAll(`tr[data-dn] > :nth-child(${columns.indexOf(column) + 2})${selector}`);
+  const columnWidths = new ResizeObserver((observed) => {
+    for (const { target } of observed) {
+      const column = columns.find((item) => item.key === target.dataset.key);
+      if (column) fitChips(columnCells(column, ' .cell-chips'));
+    }
+  });
+
   function setWidth(column, width) {
     widths[column.key] = Math.round(Math.min(MAX_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, width)));
     headers.get(column.key).style.width = `${widths[column.key]}px`;
@@ -141,7 +150,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     let right = box.left;
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       if (node.nodeType === Node.TEXT_NODE) right = Math.max(right, textRight(node, range));
-      else if (getComputedStyle(node).display.startsWith('inline')) right = Math.max(right, node.getBoundingClientRect().right);
+      else if (getComputedStyle(node).display.startsWith('inline') || getComputedStyle(node.parentElement).display.endsWith('flex')) right = Math.max(right, node.getBoundingClientRect().right);
     }
     return Math.ceil(right - box.left + parseFloat(style.paddingRight) + parseFloat(style.borderRightWidth));
   }
@@ -159,8 +168,9 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
 
   function fitColumn(column) {
     const th = headers.get(column.key);
-    const cells = body.querySelectorAll(`tr[data-dn] > :nth-child(${columns.indexOf(column) + 2})`);
-    setWidth(column, Math.max(labelWidth(th), ...[...cells].map(contentWidth)));
+    expandChips(columnCells(column, ' .cell-chips'));
+    setWidth(column, Math.max(labelWidth(th), ...[...columnCells(column)].map(contentWidth)));
+    fitChips(columnCells(column, ' .cell-chips'));
     columnSet.saveWidths(widths);
   }
 
@@ -190,6 +200,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     index.append(element('span', 'visually-hidden', 'Row'));
     head.replaceChildren(index);
     headers.clear();
+    columnWidths.disconnect();
     for (const column of columns) {
       const th = element('th', column.key === 'name' ? 'col-name' : '');
       th.scope = 'col';
@@ -223,6 +234,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       th.append(control, filterButton, grip);
       head.append(th);
       headers.set(column.key, th);
+      columnWidths.observe(th);
     }
     fitLabels();
     sizeColumns();
@@ -267,8 +279,10 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
 
   function renderMore() {
     const next = visible.slice(rendered, rendered + PAGE_SIZE);
+    const rows = next.map((entry, offset) => row(entry, rendered + offset));
     sentinel.remove();
-    body.append(...next.map((entry, offset) => row(entry, rendered + offset)));
+    body.append(...rows);
+    fitChips(rows.flatMap((tr) => [...tr.querySelectorAll('.cell-chips')]));
     rendered += next.length;
     if (rendered < visible.length) { body.append(sentinel); observer.observe(sentinel); }
   }
@@ -628,6 +642,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   });
 
   clearFilters.addEventListener('click', resetFilters);
+  document.fonts?.ready.then(() => fitChips(body.querySelectorAll('.cell-chips')));
   buildHead();
   paintFilters();
   if (autoLoad) load().then((loaded) => {

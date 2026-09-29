@@ -7,7 +7,7 @@ const fixture = [{ attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, ind
   ObjectDN: dn, ObjectSID: 'S-1-5-21-1-1003', ACEType: `ACCESS_${effect}_OBJECT_ACE`,
   SecurityIdentifier: index ? 'EXAMPLE\\alex.morgan' : '(Helpdesk operators) -> EXAMPLE\\alex.morgan',
   GrantedVia: index ? 'Direct' : 'Helpdesk operators',
-  ActiveDirectoryRights: index === 1 ? ['ReadControl', 'WriteDACL'] : ['ControlAccess'],
+  ActiveDirectoryRights: [['ControlAccess'], ['ReadControl', 'WriteDACL'], ['ControlAccess', 'CreateChild', 'DeleteChild', 'ReadProperty', 'WriteProperty', 'Self', 'ListObject']][index],
   ObjectAceType: 'User-Force-Change-Password', ACEFlags: ['INHERITED_ACE'],
 })) }];
 (async () => {
@@ -43,6 +43,14 @@ const fixture = [{ attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, ind
     const rightsChips = page.locator('#grid-body tr[data-key="0:1"] .cell-chips');
     assert.deepEqual(await rightsChips.locator('.state--neutral').allTextContents(), ['ReadControl', 'WriteDACL']);
     assert.equal(await rightsChips.getAttribute('title'), 'ReadControl, WriteDACL');
+    assert.equal(await rightsChips.locator('.cell-chips__more').count(), 0);
+    const crowded = page.locator('#grid-body tr[data-key="0:2"] .cell-chips');
+    const overflow = Number((await crowded.locator('.cell-chips__more').textContent()).slice(1));
+    assert.ok(overflow > 0);
+    assert.equal(await crowded.locator('.state--neutral:visible').count() + overflow, 7);
+    await page.locator('#grid-head th[data-key="rights"] .column-resizer').dblclick();
+    await page.waitForFunction(() => !document.querySelector('#grid-body tr[data-key="0:2"] .cell-chips__more'));
+    assert.equal(await crowded.locator('.state--neutral:visible').count(), 7);
     await page.getByRole('button', { name: 'SecurityIdentifier', exact: true }).waitFor();
     await page.locator('#grid-body tr[data-key="0:1"]').click();
     assert.equal(await page.locator('#grid-body tr[aria-selected="true"]').count(), 1);
@@ -106,6 +114,30 @@ const fixture = [{ attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, ind
     assert.equal(await page.locator('#grid-body tr[data-key]').count(), 0);
     assert.equal(await page.locator('#pathfinder-export').isDisabled(), true);
     assert.deepEqual(errors, []);
+    {
+      const stretched = await browser.newPage({ viewport: { width: 1920, height: 800 } });
+      await stretched.addInitScript(() => localStorage.setItem('powerview.pathfinder.columns', JSON.stringify(['rights'])));
+      await stretched.route('**/api/**', (route) => route.fulfill({ json: route.request().url().includes('get/domainobjectacl') ? fixture : { status: 'OK', available: false } }));
+      await stretched.goto(base + '/pathfinder?target=svc.backup');
+      await stretched.locator('#pathfinder-find').click();
+      const cell = stretched.locator('#grid-body tr[data-key="0:2"] .cell-chips');
+      await cell.waitFor();
+      const layout = () => cell.evaluate((node) => {
+        const edge = node.getBoundingClientRect().right;
+        const shown = [...node.children].filter((child) => !child.hidden);
+        return { more: node.querySelector('.cell-chips__more')?.textContent ?? '', chips: shown.filter((child) => !child.matches('.cell-chips__more')).length, clipped: shown.some((child) => child.getBoundingClientRect().right > edge + 0.5) };
+      });
+      assert.deepEqual(await layout(), { more: '', chips: 7, clipped: false });
+      await stretched.setViewportSize({ width: 800, height: 800 });
+      await stretched.waitForFunction(() => document.querySelector('#grid-body tr[data-key="0:2"] .cell-chips__more'));
+      const shrunk = await layout();
+      assert.equal(shrunk.clipped, false);
+      assert.equal(shrunk.chips + Number(shrunk.more.slice(1)), 7);
+      await stretched.setViewportSize({ width: 1920, height: 800 });
+      await stretched.waitForFunction(() => !document.querySelector('#grid-body tr[data-key="0:2"] .cell-chips__more'));
+      assert.deepEqual(await layout(), { more: '', chips: 7, clipped: false });
+      await stretched.close();
+    }
     console.log('Pathfinder browser checks passed.');
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exit(1); });
