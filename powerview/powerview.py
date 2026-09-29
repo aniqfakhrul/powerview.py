@@ -4422,8 +4422,8 @@ class PowerView:
 							 new_attributes={
 								'Owner': template_owner,
 								'Certificate Authorities': publishers.get(str(template.get('attributes').get('cn')).lower(), []),
-								'msPKI-Certificate-Name-Flag': certificate_name_flag,
-								'msPKI-Enrollment-Flag': enrollment_flag,
+								'msPKI-Certificate-Name-Flag': certificate_name_flag.to_str_list(),
+								'msPKI-Enrollment-Flag': enrollment_flag.to_str_list(),
 								'pKIExtendedKeyUsage': extended_key_usage,
 								'pKIExpirationPeriod': validity_period,
 								'pKIOverlapPeriod': renewal_period,

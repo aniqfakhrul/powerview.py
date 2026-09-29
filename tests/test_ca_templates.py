@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from powerview.powerview import PowerView
+from powerview.utils.constants import MS_PKI_CERTIFICATE_NAME_FLAG, MS_PKI_ENROLLMENT_FLAG
 
 
 def template(cn):
@@ -33,6 +34,8 @@ class TemplatePublishingTests(unittest.TestCase):
 		parsed = MagicMock()
 		parsed.parse_dacl.return_value = {key: [] for key in ['Enrollment Rights', 'Extended Rights', 'Write Owner', 'Write Dacl', 'Write Property']}
 		parsed.get_owner_sid.return_value = 'S-1-5-21-1-2-3-500'
+		parsed.get_certificate_name_flag.return_value = MS_PKI_CERTIFICATE_NAME_FLAG(0x00010001)
+		parsed.get_enrollment_flag.return_value = MS_PKI_ENROLLMENT_FLAG(0)
 		parsed.check_vulnerable_template.return_value = findings or {}
 
 		with patch('powerview.powerview.CAEnum', return_value=enum), patch('powerview.powerview.PARSE_TEMPLATE', return_value=parsed):
@@ -53,6 +56,11 @@ class TemplatePublishingTests(unittest.TestCase):
 		results = self.run_templates([authority('CA-One', ['Alpha']), authority('CA-Two', 'Charlie')])
 		self.assertTrue(results['Charlie']['Enabled'])
 		self.assertEqual(results['Charlie']['Certificate Authorities'], ['CA-Two'])
+
+	def test_flags_are_listed_by_name(self):
+		results = self.run_templates([authority('CA-One', ['Alpha'])])
+		self.assertEqual(results['Alpha']['msPKI-Certificate-Name-Flag'], ['EnrolleeSuppliesSubject', 'EnrolleeSuppliesSubjectAltName'])
+		self.assertEqual(results['Alpha']['msPKI-Enrollment-Flag'], [])
 
 	def test_finding_labels_are_kept_with_and_without_sid_resolution(self):
 		findings = {'Finding-A': ['S-1-5-21-1-2-3-500', 'S-1-5-21-1-2-3-512'], 'Finding-B': 'note'}

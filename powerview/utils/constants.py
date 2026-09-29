@@ -10,9 +10,7 @@ class IntFlag(enum.IntFlag):
 		return "".join(x.title() for x in components)
 
 	def to_list(self):
-		cls = self.__class__
-		members, _ = enum._decompose(cls, self._value_)
-		return members
+		return [member for member in self.__class__ if member._value_ and member._value_ & self._value_ == member._value_]
 
 	def to_str_list(self):
 		return list(map(lambda x: str(x), self.to_list()))
