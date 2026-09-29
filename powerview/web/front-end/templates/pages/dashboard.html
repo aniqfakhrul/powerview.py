@@ -14,14 +14,14 @@
   </header>
   <div class="dashboard__scroll">
     <div class="dashboard__identity">
-      <div><h2 id="dashboard-domain">Directory assessment</h2><p id="dashboard-context">Reading the connected domain…</p></div>
+      <div><h2 id="dashboard-domain">Directory assessment</h2><p id="dashboard-context"></p></div>
       <div class="dashboard__freshness"><span id="dashboard-state" role="status">Loading snapshot…</span><time id="dashboard-time"></time></div>
     </div>
     <nav id="dashboard-inventory" class="dashboard__inventory" aria-label="Directory inventory">
       {% for key, label, target in [('users', 'Users', 'users'), ('computers', 'Computers', 'computers'), ('groups', 'Groups', 'groups'), ('ous', 'Organizational units', 'ou'), ('gpos', 'Group policies', 'gpo')] %}
-      <a href="{{ url_for(target) }}"><span>{{ label }}</span><strong data-count="{{ key }}">—</strong><small data-detail="{{ key }}">Loading…</small></a>
+      <a href="{{ url_for(target) }}"><span>{{ label }}</span><strong data-count="{{ key }}"></strong><small data-detail="{{ key }}"></small></a>
       {% endfor %}
-      <a href="#dashboard-trusts"><span>Trusts</span><strong data-count="trusts">—</strong><small data-detail="trusts">Loading…</small></a>
+      <a href="#dashboard-trusts"><span>Trusts</span><strong data-count="trusts"></strong><small data-detail="trusts"></small></a>
     </nav>
     <div id="dashboard-errors" class="dashboard__errors" aria-live="polite" hidden></div>
     <div class="dashboard__assessment">
@@ -42,13 +42,13 @@
       </section>
       <section class="dashboard__policy" aria-labelledby="policy-title">
         <header class="dashboard__section-heading"><h2 id="policy-title">Domain baseline</h2><span class="dashboard__tip dashboard__tip--end"><button type="button" class="dashboard__hint" aria-describedby="policy-note">Default policy{{ icon('info') }}</button><span id="policy-note" class="dashboard__tooltip" role="tooltip">Fine-grained password policies may override these values for individual accounts.</span></span><a id="dashboard-domain-link" class="icon-button" aria-label="Inspect domain in Explorer" title="Inspect domain in Explorer" hidden>{{ icon('open') }}</a></header>
-        <div id="dashboard-policy"><p class="dashboard__empty">Reading domain policy…</p></div>
+        <div id="dashboard-policy"></div>
       </section>
     </div>
     <div class="dashboard__infrastructure">
-      <section aria-labelledby="systems-title"><header class="dashboard__section-heading"><h2 id="systems-title">Operating systems</h2><span id="systems-total"></span></header><div id="dashboard-systems"><p class="dashboard__empty">Reading computer inventory…</p></div></section>
-      <section aria-labelledby="controllers-title"><header class="dashboard__section-heading"><h2 id="controllers-title">Domain controllers</h2><span id="controllers-total"></span></header><div id="dashboard-controllers"><p class="dashboard__empty">Reading controllers…</p></div></section>
-      <section id="dashboard-trusts" aria-labelledby="trusts-title"><header class="dashboard__section-heading"><h2 id="trusts-title">Domain trusts</h2><span id="trusts-total"></span></header><div id="dashboard-trust-list"><p class="dashboard__empty">Reading trust objects…</p></div></section>
+      <section aria-labelledby="systems-title"><header class="dashboard__section-heading"><h2 id="systems-title">Operating systems</h2><span id="systems-total"></span></header><div id="dashboard-systems"></div></section>
+      <section aria-labelledby="controllers-title"><header class="dashboard__section-heading"><h2 id="controllers-title">Domain controllers</h2><span id="controllers-total"></span></header><div id="dashboard-controllers"></div></section>
+      <section id="dashboard-trusts" aria-labelledby="trusts-title"><header class="dashboard__section-heading"><h2 id="trusts-title">Domain trusts</h2><span id="trusts-total"></span></header><div id="dashboard-trust-list"></div></section>
     </div>
   </div>
 </section>

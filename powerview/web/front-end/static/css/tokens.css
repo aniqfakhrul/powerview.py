@@ -51,6 +51,8 @@
   --sidebar-width: 208px;
   --bar-height: 40px;
   --row-height: 24px;
+  --duration-fast: 120ms;
+  --duration-enter: 160ms;
   --ease-out: cubic-bezier(.16, 1, .3, 1);
 }
 

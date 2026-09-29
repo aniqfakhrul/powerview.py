@@ -1,3 +1,4 @@
+import { beginLoading, skeletonRows } from '../loading.js';
 import { createDirectory, entryFromRecord } from '../../core/directory.js';
 import { button, element, icon } from '../../core/dom.js';
 import { namingContext, sameDN } from '../../core/dn.js';
@@ -324,17 +325,6 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     message.replaceChildren(box);
   }
 
-  function skeleton() {
-    body.replaceChildren();
-    for (let index = 0; index < 12; index += 1) {
-      const tr = element('tr');
-      tr.setAttribute('aria-hidden', 'true');
-      tr.append(element('td', 'col-index'));
-      for (const column of columns) tr.append(element('td', column.key === 'name' ? 'col-name' : ''));
-      body.append(tr);
-    }
-  }
-
   async function load(fresh = false) {
     started = true;
     onLoadState?.(true);
@@ -345,7 +335,11 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     filter.disabled = true;
     refresh.disabled = true;
     setSortable(false);
-    skeleton();
+    body.replaceChildren();
+    const finishLoading = beginLoading(scroller, {
+      signal,
+      onDelay: () => body.replaceChildren(...skeletonRows(['col-index', ...columns.map((column) => column.key === 'name' ? 'col-name' : '')])),
+    });
     message.replaceChildren();
     count.textContent = `Loading ${noun.plural}…`;
     try {
@@ -372,7 +366,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       showMessage(`Cannot load ${noun.plural}`, error.message, () => load(true));
       return false;
     } finally {
-      if (!signal.aborted) { refresh.disabled = false; onLoadState?.(false); }
+      if (!signal.aborted) { finishLoading(); refresh.disabled = false; onLoadState?.(false); }
     }
   }
 

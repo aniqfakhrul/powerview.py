@@ -1,3 +1,4 @@
+import { beginLoading, skeletonRows } from '../components/loading.js';
 import { createAPI } from '../core/api.js';
 import { button, element, icon } from '../core/dom.js';
 import { createStatus } from '../components/status.js';
@@ -26,7 +27,30 @@ let failures = {};
 let active = signals.find((signal) => signal.key === new URL(location.href).searchParams.get('signal')) ?? signals[0];
 let selected = new URL(location.href).searchParams.has('signal');
 let loading = false;
+let loadingDelayed = false;
 let domainDN = '';
+
+const pending = (source) => loading && !data[source] && !failures[source];
+const placeholder = (build) => (loadingDelayed ? build() : []);
+
+function bar(width) {
+  const node = element('span', 'loading-bar');
+  node.style.width = width;
+  return node;
+}
+
+function skeletonItem(className, ...children) {
+  const item = element('div', `loading-row ${className}`.trim());
+  item.setAttribute('aria-hidden', 'true');
+  item.append(...children);
+  return item;
+}
+
+function busy(host, sources) {
+  const waiting = sources.some(pending);
+  host.setAttribute('aria-busy', String(waiting));
+  return waiting;
+}
 
 function objectLink(record, label = record.name, page = 'explorer') {
   if (!record.dn) return element('span', '', label);
@@ -67,7 +91,8 @@ function renderEvidence(resetScroll = false) {
     label.textContent = fill(signal.label);
     control.setAttribute('aria-pressed', String(signal.key === active.key));
     control.dataset.matches = String(Boolean(result?.count));
-    count.textContent = result ? format.format(result.count) : '—';
+    if (pending(signal.source)) count.replaceChildren(...placeholder(() => [bar('18px')]));
+    else count.textContent = result ? format.format(result.count) : '—';
     control.title = result ? `${format.format(result.count)} matching accounts` : failures[signal.source] ? 'Source unavailable' : 'Waiting for source';
   }
   find('evidence-title').textContent = fill(active.label);
@@ -76,10 +101,12 @@ function renderEvidence(resetScroll = false) {
   filter.disabled = !result;
   const query = filter.value.trim().toLowerCase();
   const objects = (result?.objects ?? []).filter((record) => `${record.name} ${record.dn} ${record.evidence}`.toLowerCase().includes(query));
-  find('evidence-total').textContent = result ? `${format.format(result.count)} ${result.count === 1 ? 'match' : 'matches'}` : 'Not evaluated';
+  const waiting = pending(active.source);
+  busy(find('dashboard-signals'), ['users', 'computers']);
+  find('evidence-total').textContent = result ? `${format.format(result.count)} ${result.count === 1 ? 'match' : 'matches'}` : waiting ? '' : 'Not evaluated';
   find('evidence-count').textContent = result
     ? `${query ? `${format.format(objects.length)} of ` : ''}${format.format(result.objects.length)} sampled ${result.objects.length === 1 ? 'object' : 'objects'} · ${format.format(result.count)} total ${result.count === 1 ? 'match' : 'matches'}`
-    : failures[active.source] ? 'Source unavailable · Refresh to retry' : 'Waiting for readable directory data';
+    : waiting ? '' : 'Source unavailable · Refresh to retry';
   const rows = objects.map((record) => {
     const row = element('tr');
     const name = element('td');
@@ -95,22 +122,30 @@ function renderEvidence(resetScroll = false) {
     row.append(name, element('td', '', record.evidence), inspect);
     return row;
   });
-  find('evidence-rows').replaceChildren(...rows);
+  find('evidence-rows').replaceChildren(...(waiting ? placeholder(() => skeletonRows(['', '', ''], 6)) : rows));
   if (resetScroll) root.querySelector('.dashboard__table-scroll').scrollTop = 0;
   const empty = find('evidence-empty');
-  empty.hidden = rows.length > 0;
-  empty.textContent = !result
-    ? failures[active.source] ? `${sources[active.source]} could not be read. Refresh to retry; this signal has not been evaluated.` : `Waiting for ${sources[active.source].toLowerCase()}…`
-    : result.count === 0 ? 'No matches in the returned directory data.' : 'No sampled objects match this filter.';
+  empty.hidden = rows.length > 0 || waiting;
+  empty.textContent = waiting ? ''
+    : !result ? `${sources[active.source]} could not be read. Refresh to retry; this signal has not been evaluated.`
+      : result.count === 0 ? 'No matches in the returned directory data.' : 'No sampled objects match this filter.';
 }
 
 function renderInventory() {
+  busy(find('dashboard-inventory'), ['users', 'computers', 'inventory']);
   for (const key of ['users', 'computers', 'groups', 'ous', 'gpos', 'trusts']) {
     const source = ['users', 'computers'].includes(key) ? key : 'inventory';
     const value = data[source]?.counts[source === 'inventory' ? key : 'total'];
-    root.querySelector(`[data-count="${key}"]`).textContent = value == null ? '—' : format.format(value);
-    root.querySelector(`[data-detail="${key}"]`).textContent = value == null
-      ? failures[source] ? 'Unavailable' : 'Loading…'
+    const count = root.querySelector(`[data-count="${key}"]`);
+    const detail = root.querySelector(`[data-detail="${key}"]`);
+    if (pending(source)) {
+      count.replaceChildren(...placeholder(() => [bar('44px')]));
+      detail.replaceChildren(...placeholder(() => [bar('96px')]));
+      continue;
+    }
+    count.textContent = value == null ? '—' : format.format(value);
+    detail.textContent = value == null
+      ? 'Unavailable'
       : source === 'inventory' ? 'Visible in this domain' : `${format.format(data[source].counts.enabled)} enabled · ${format.format(data[source].counts.disabled)} disabled${data[source].counts.unknown ? ` · ${format.format(data[source].counts.unknown)} unknown` : ''}`;
   }
 }
@@ -126,8 +161,16 @@ const duration = (value, unit) => {
 function renderPolicy() {
   const host = find('dashboard-policy');
   const result = data.domain;
+  if (busy(host, ['domain'])) {
+    host.replaceChildren(...placeholder(() => {
+      const list = element('dl');
+      list.append(...Array.from({ length: 9 }, (_, index) => skeletonItem('', bar(`${40 + (index * 13) % 30}%`), bar('48px'))));
+      return [list];
+    }));
+    return;
+  }
   if (!result) {
-    host.replaceChildren(element('p', 'dashboard__empty', failures.domain ? 'Domain policy unavailable. Refresh to retry.' : 'Reading domain policy…'));
+    host.replaceChildren(element('p', 'dashboard__empty', 'Domain policy unavailable. Refresh to retry.'));
     return;
   }
   const policy = result.policy;
@@ -156,11 +199,26 @@ function renderSystems() {
   const result = data.computers;
   const systems = find('dashboard-systems');
   const controllers = find('dashboard-controllers');
+  const waiting = busy(systems, ['computers']);
+  busy(controllers, ['computers']);
+  if (!result) find('systems-total').textContent = find('controllers-total').textContent = '';
+  if (waiting) {
+    systems.replaceChildren(...placeholder(() => {
+      const distribution = element('div', 'dashboard__distribution');
+      distribution.append(...[62, 48, 40, 34, 26].map((width) => {
+        const label = element('div', 'dashboard__bar-label');
+        label.append(bar(`${width}%`), bar('24px'));
+        return skeletonItem('', label, element('div', 'dashboard__bar'));
+      }));
+      return [distribution];
+    }));
+    controllers.replaceChildren(...placeholder(() => [objectSkeleton(2)]));
+    return;
+  }
   if (!result) {
-    const message = failures.computers ? 'Computer inventory unavailable. Refresh to retry.' : 'Reading computer inventory…';
+    const message = 'Computer inventory unavailable. Refresh to retry.';
     systems.replaceChildren(element('p', 'dashboard__empty', message));
     controllers.replaceChildren(element('p', 'dashboard__empty', message));
-    find('systems-total').textContent = find('controllers-total').textContent = '';
     return;
   }
   const { counts } = result;
@@ -194,12 +252,26 @@ function renderSystems() {
   controllers.append(element('p', 'dashboard__note', counts.controllers > result.controllers.length ? `Showing the first ${result.controllers.length} of ${format.format(counts.controllers)} controllers.` : 'Identified from domain-controller account flags. Reachability and replication health are not tested.'));
 }
 
+function objectSkeleton(count) {
+  const list = element('div', 'dashboard__object-list');
+  list.append(...Array.from({ length: count }, () => {
+    const detail = element('p');
+    detail.append(bar('55%'));
+    return skeletonItem('', bar('40%'), detail);
+  }));
+  return list;
+}
+
 function renderTrusts() {
   const result = data.inventory;
   const host = find('dashboard-trust-list');
   find('trusts-total').textContent = result ? format.format(result.counts.trusts) : '';
+  if (busy(host, ['inventory'])) {
+    host.replaceChildren(...placeholder(() => [objectSkeleton(2)]));
+    return;
+  }
   if (!result) {
-    host.replaceChildren(element('p', 'dashboard__empty', failures.inventory ? 'Trust inventory unavailable. Refresh to retry.' : 'Reading trust objects…'));
+    host.replaceChildren(element('p', 'dashboard__empty', 'Trust inventory unavailable. Refresh to retry.'));
     return;
   }
   const list = element('div', 'dashboard__object-list');
@@ -228,7 +300,13 @@ function renderCollection() {
   daysSelect.disabled = loading;
 }
 
+function renderIdentity() {
+  if (loading && !domainDN) find('dashboard-context').replaceChildren(...placeholder(() => [bar('240px')]));
+}
+
 function render() {
+  root.classList.toggle('is-loading-delayed', loadingDelayed);
+  renderIdentity();
   renderInventory();
   renderEvidence();
   renderPolicy();
@@ -240,13 +318,13 @@ function render() {
 async function load(fresh = false) {
   if (loading) return;
   loading = true;
+  const finishLoading = beginLoading(root.querySelector('.dashboard__table'), { onDelay: () => { loadingDelayed = true; render(); } });
   data = {};
   failures = {};
   domainDN = '';
   filter.value = '';
   find('dashboard-time').textContent = '';
   find('dashboard-domain').textContent = 'Directory assessment';
-  find('dashboard-context').textContent = 'Reading the connected domain…';
   find('dashboard-domain-link').hidden = true;
   render();
   for (const source of Object.keys(sources)) {
@@ -279,6 +357,8 @@ async function load(fresh = false) {
     }
     render();
   }
+  finishLoading();
+  loadingDelayed = false;
   loading = false;
   const timestamps = Object.values(data).map((value) => value.collected_at).sort();
   if (timestamps.length) {

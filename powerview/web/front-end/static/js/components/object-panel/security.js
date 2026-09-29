@@ -1,3 +1,4 @@
+import { beginLoading } from '../loading.js';
 import { values } from '../../core/directory.js';
 import { button, element, icon } from '../../core/dom.js';
 import { chips, fitChips } from '../grid/chips.js';
@@ -184,7 +185,8 @@ export function createSecurity({ directory }) {
       const skeleton = element('div', 'skeleton');
       skeleton.setAttribute('aria-hidden', 'true');
       for (let index = 0; index < 7; index += 1) skeleton.append(element('span'));
-      container.replaceChildren(skeleton);
+      container.replaceChildren();
+      const finishLoading = beginLoading(container, { signal, onDelay: () => container.replaceChildren(skeleton) });
       try {
         const { owner, aces } = await directory.security(dn, { signal, fresh });
         if (signal.aborted) return;
@@ -198,6 +200,8 @@ export function createSecurity({ directory }) {
         retry.addEventListener('click', () => this.render(container, dn, { fresh: true }));
         box.append(element('h2', '', 'Cannot read security'), element('p', '', error.message), retry);
         container.replaceChildren(box);
+      } finally {
+        if (!signal.aborted) finishLoading();
       }
     },
     cancel() { controller?.abort(); },

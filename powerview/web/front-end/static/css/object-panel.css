@@ -60,7 +60,7 @@
 .skeleton span:nth-child(3n + 1) { width: 62%; }
 .skeleton span:nth-child(3n + 2) { width: 48%; }
 .skeleton span:nth-child(3n) { width: 70%; }
-.panel-tabs { display: flex; flex: none; gap: 2px; height: 34px; padding: 0 var(--space-3); overflow-x: auto; border-bottom: 1px solid var(--color-border); scrollbar-width: none; }
+.panel-tabs { position: relative; display: flex; flex: none; gap: 2px; height: 34px; padding: 0 var(--space-3); overflow-x: auto; border-bottom: 1px solid var(--color-border); scrollbar-width: none; }
 .panel-tab { position: relative; flex: none; height: 100%; white-space: nowrap; padding: 0 10px; border: 0; background: none; color: var(--color-muted); font-weight: 500; }
 .panel-tab:hover { color: var(--color-text); }
 .panel-tab[aria-selected="true"] { color: var(--color-text); }
@@ -131,3 +131,6 @@
 }
 .summary-actions { padding: var(--space-3) var(--space-4); }
 .property-grid .state { height: auto; min-height: 18px; padding-block: 2px; white-space: normal; line-height: 1.3; }
+
+.panel-tabs__indicator { position: absolute; left: 0; bottom: 0; width: 1px; height: 2px; background: var(--color-text); transform-origin: left center; pointer-events: none; }
+.panel-tabs--indicator .panel-tab[aria-selected="true"]::after { display: none; }

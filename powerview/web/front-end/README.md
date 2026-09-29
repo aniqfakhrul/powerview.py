@@ -66,6 +66,24 @@ the frontend never receives connection credentials.
 - Light/dark themes follow the OS. On phones, the directory opens as a
   focus-contained overlay. Tree keys: arrows, Home/End, Enter.
 
+## Motion and loading
+
+Shared `static/css/motion.css` adds short panel, Fields-menu and tab entrances.
+`--duration-fast` (120ms) and `--duration-enter` (160ms) use the existing
+`--ease-out` curve. Icon buttons and panel tabs transition their colors in 120ms.
+The shared active-tab underline translates and scales in 160ms using `--ease-out`;
+initial placement, resizing and reduced motion align it immediately.
+`components/object-panel/tab-indicator.js` tracks tab widths, including font and
+count changes, with a resize observer.
+
+`components/loading.js` marks a region busy immediately and delays placeholders
+by 200ms. Completion or abort clears its timer and busy state. Shared tables
+show eight skeleton rows; dashboard evidence shows six. Other dashboard sections
+show content-shaped skeletons while their source is pending and switch to
+error or empty text as soon as it resolves; the header status keeps text progress. Delayed skeletons breathe
+over 1400ms without shimmer. Reduced motion disables these animations and the
+Explorer tree's busy pulse. Loading, empty and error states remain distinct.
+
 ## Status bar and connection
 
 Every page shares the bottom status bar (`partials/statusbar.html`). Page modules

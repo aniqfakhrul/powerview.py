@@ -1,3 +1,4 @@
+import { beginLoading } from '../loading.js';
 import { dnLabel, isDN } from '../../core/dn.js';
 import { attribute, recordName, values, textValue, objectType, TYPE_LABELS } from '../../core/directory.js';
 import { accountDisabled, readableTime } from '../../core/ldap-values.js';
@@ -220,8 +221,8 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
     filter.disabled = true;
     status.idle('');
     setTitle(dnLabel(dn));
-    skeleton();
-    panel.setAttribute('aria-busy', 'true');
+    panel.replaceChildren();
+    const finishLoading = beginLoading(panel, { signal, onDelay: skeleton });
     try {
       const result = await directory.record(dn, { signal, fresh });
       if (signal.aborted) return null;
@@ -237,7 +238,7 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
       message('Cannot load this object', error.message, () => (reopen ?? open)(dn, { fresh: true }));
       return null;
     } finally {
-      if (!signal.aborted) panel.setAttribute('aria-busy', 'false');
+      if (!signal.aborted) finishLoading();
     }
   }
 

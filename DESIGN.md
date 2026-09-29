@@ -412,6 +412,13 @@ The sidebar opens with a 40px brand row (20px mark, 14px/650 wordmark with a fai
 ### Skeleton
 Loading placeholders are 10px bars with 4px corners in the hover tone, at staggered widths (48-70%) and 10px gaps. They do not shimmer.
 
+Shared table loading uses eight rows of 8px hover-tone bars; dashboard evidence uses six rows. Dashboard sections replace loading sentences with skeletons shaped like their content: inventory counts, signal counts, baseline rows, operating-system bars and controller or trust entries. Each section stays busy only while its own source is pending, and switches to its error or empty text as soon as that source resolves; the header status remains the text progress indicator. Placeholders appear after 200ms, while the region becomes busy immediately. Delayed skeletons breathe to 0.55 opacity over 1400ms. Completion or abort clears the delay and busy state.
+
+### Motion
+`--duration-fast` is 120ms and `--duration-enter` is 160ms. Panel entry fades from 0.6 opacity with a 6px horizontal offset; Fields menus fade from 0.6 with a -3px vertical offset in 120ms; tabs fade from 0.7 in 120ms. These entrances reuse `--ease-out`. Icon buttons and panel tabs transition background and text colors in 120ms. Reduced motion disables the new entrances and skeleton pulse, plus Explorer's existing busy pulse.
+
+The shared active-tab underline translates and scales using `--duration-enter` (160ms) and `--ease-out`. Initial placement, resizing and reduced motion align it without animation; tab width, font and count changes update its alignment.
+
 ## Do's and Don'ts
 
 ### Do:

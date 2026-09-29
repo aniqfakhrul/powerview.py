@@ -1,0 +1,19 @@
+.loading-bar { display: block; height: 8px; border-radius: var(--radius-sm); background: var(--color-hover); }
+.loading-row { pointer-events: none; }
+.is-loading-delayed .loading-row, .is-loading-delayed > .skeleton { animation: loading-breathe 1400ms ease-in-out infinite; }
+@keyframes loading-breathe { 50% { opacity: .55; } }
+
+.side-panel:not([hidden]) { animation: panel-enter var(--duration-enter) var(--ease-out); }
+.fields-menu:popover-open { animation: menu-enter var(--duration-fast) var(--ease-out); }
+[role="tabpanel"]:not([hidden]) { animation: content-enter var(--duration-fast) var(--ease-out); }
+.icon-button, .panel-tab { transition: background-color var(--duration-fast), color var(--duration-fast); }
+.panel-tabs__indicator.is-moving { transition: transform var(--duration-enter) var(--ease-out); }
+@keyframes panel-enter { from { opacity: .6; transform: translateX(6px); } }
+@keyframes menu-enter { from { opacity: .6; transform: translateY(-3px); } }
+@keyframes content-enter { from { opacity: .7; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-tabs__indicator.is-moving { transition: none; }
+  .side-panel:not([hidden]), .fields-menu:popover-open, [role="tabpanel"]:not([hidden]) { animation: none; }
+  .is-loading-delayed .loading-row, .is-loading-delayed > .skeleton { animation: none; }
+}

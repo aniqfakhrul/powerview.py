@@ -1,3 +1,5 @@
+import { createTabIndicator } from './tab-indicator.js';
+import { beginLoading } from '../loading.js';
 import { objectType } from '../../core/directory.js';
 import { button, element } from '../../core/dom.js';
 import { createAttributes } from './attributes.js';
@@ -36,6 +38,7 @@ export function createObjectPanel({ root, defaultTab = 'attributes', summary, ..
   let active = defaultTab;
   let preferred = defaultTab;
   let generation = 0;
+  let finishPlaceholders = () => {};
   let currentDN = '';
   let securityDN = '';
   let securityFresh = false;
@@ -67,9 +70,10 @@ export function createObjectPanel({ root, defaultTab = 'attributes', summary, ..
     tabList.append(tab);
   }
 
+  const syncIndicator = createTabIndicator(tabList);
   const available = () => [...tabs.values()].filter(({ tab }) => !tab.hidden).map(({ definition }) => definition.key);
 
-  function show(key) {
+  function show(key, animate = false) {
     active = available().includes(key) ? key : defaultTab;
     for (const [name, { tab, panel }] of tabs) {
       const selected = name === active;
@@ -77,6 +81,7 @@ export function createObjectPanel({ root, defaultTab = 'attributes', summary, ..
       tab.tabIndex = selected ? 0 : -1;
       panel.hidden = !selected;
     }
+    syncIndicator(animate);
     if (filterHost) filterHost.hidden = active !== 'attributes';
     if (active === 'security' && currentDN && securityDN !== currentDN) {
       securityDN = currentDN;
@@ -86,7 +91,7 @@ export function createObjectPanel({ root, defaultTab = 'attributes', summary, ..
 
   function choose(key) {
     preferred = key;
-    show(key);
+    show(key, true);
   }
 
   function applicable(record) {
@@ -136,9 +141,15 @@ export function createObjectPanel({ root, defaultTab = 'attributes', summary, ..
     securityFresh = Boolean(openOptions.fresh);
     security.cancel();
     const views = [...tabs.values()].filter(({ definition }) => definition.key !== 'attributes');
-    for (const { panel } of views) placeholder(panel);
+    finishPlaceholders();
+    const pending = views.map(({ panel }) => {
+      panel.replaceChildren();
+      return beginLoading(panel, { onDelay: () => placeholder(panel) });
+    });
+    finishPlaceholders = () => pending.forEach((finish) => finish());
     const record = await attributes.open(dn, openOptions);
     if (current !== generation) return record;
+    finishPlaceholders();
     applicable(record);
     actions?.render(record);
     currentDN = record ? record.dn : '';
