@@ -38,6 +38,10 @@ const fixtures = {
     await page.route('**/api/**', async (route) => {
       const path = new URL(route.request().url()).pathname;
       if (path.endsWith('/connectioninfo')) return route.fulfill({ json: { status: 'OK', protocol: 'LDAPS', username: 'tester', domain: 'example.test' } });
+      if (path.endsWith('/get/domainobject')) {
+        const dn = route.request().postDataJSON().searchbase;
+        return route.fulfill({ json: [{ dn, attributes: { name: dn.split(',')[0].slice(3), objectClass: ['top', 'person', 'user'], memberOf: [] } }] });
+      }
       if (!path.includes('/dashboard/')) throw new Error(`Unexpected API request: ${path}`);
       assert.equal(route.request().method(), 'GET');
       const source = path.split('/').at(-1);
@@ -89,6 +93,28 @@ const fixtures = {
     assert.equal(await page.locator('#evidence-rows img').count(), 0);
     const link = page.locator('#evidence-rows tr').nth(1).locator('a').first();
     assert.equal(new URL(await link.getAttribute('href')).searchParams.get('dn'), users.users_preauth.objects[1].dn);
+    const dashboardURL = page.url();
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 1100 });
+      for (const selector of ['#evidence-rows a', '#dashboard-controllers a', '#dashboard-trust-list a', '#dashboard-domain-link']) {
+        const target = page.locator(selector).first();
+        const dn = await target.getAttribute('data-inspect-dn');
+        await target.click();
+        await page.locator('#object-panel .property-grid').waitFor();
+        assert.equal(page.url(), dashboardURL);
+        assert.equal(new URL(await page.locator('#panel-explorer').getAttribute('href')).searchParams.get('dn'), dn);
+        assert.equal(await page.locator('.dashboard__scroll').evaluate((node) => node.inert), true);
+        const bounds = await page.locator('#object-panel').boundingBox();
+        assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width);
+        if (process.env.DASHBOARD_SCREENSHOT_DIR && selector === '#evidence-rows a') {
+          await page.screenshot({ path: `${process.env.DASHBOARD_SCREENSHOT_DIR}/inspector-${width}.png`, animations: 'disabled' });
+        }
+        await page.keyboard.press('Escape');
+        assert.equal(await page.locator('#object-panel').isHidden(), true);
+        assert.equal(await target.evaluate((node) => document.activeElement === node), true);
+      }
+    }
+    await page.setViewportSize({ width: 1440, height: 1100 });
     await page.getByLabel('Filter sampled objects').fill('svc.backup');
     assert.equal(await page.locator('#evidence-rows tr').count(), 1);
     assert.equal(await page.locator('#evidence-count').textContent(), '1 of 100 sampled objects · 125 total matches');
@@ -122,7 +148,7 @@ const fixtures = {
         await page.screenshot({ path: `${process.env.DASHBOARD_SCREENSHOT_DIR}/${name}.png`, animations: 'disabled', fullPage: true });
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
         if (name.startsWith('mobile')) {
-          assert.ok((await page.locator('#dashboard-signals').boundingBox()).height < 60);
+          assert.equal(await page.locator('#dashboard-signals').evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').length), 2);
           assert.ok((await scroller.boundingBox()).height <= 288);
           assert.equal(await scroller.evaluate((node) => node.scrollHeight > node.clientHeight), true);
         }

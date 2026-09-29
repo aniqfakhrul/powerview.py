@@ -1,4 +1,4 @@
-.dashboard { display: flex; flex: 1; flex-direction: column; min-width: 0; background: var(--color-surface); }
+.dashboard { position: relative; display: flex; flex: 1; flex-direction: column; min-width: 0; background: var(--color-surface); }
 .dashboard [hidden] { display: none !important; }
 .dashboard__toolbar { justify-content: space-between; }
 .dashboard__toolbar h1 { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
@@ -126,3 +126,5 @@
 .dashboard__tip.is-dismissed .dashboard__tooltip { visibility: hidden; opacity: 0; }
 .dashboard .loading-row .loading-bar { flex: none; max-width: 100%; }
 .dashboard__object-list .loading-row p { margin-top: 8px; }
+
+.dashboard > .side-panel { position: absolute; inset: 0 0 0 auto; z-index: 6; width: min(560px, 100%); box-shadow: var(--shadow-pop); }

@@ -1,0 +1,60 @@
+import { createDirectory } from '../../core/directory.js';
+import { createMutationGuard } from '../../core/mutation-guard.js';
+import { createObjectPanel } from '../../components/object-panel/index.js';
+
+export function createDashboardInspector({ root, status, getRootDN, onSaved }) {
+  const panelRoot = root.querySelector('#object-panel');
+  const explorer = panelRoot.querySelector('#panel-explorer');
+  const close = panelRoot.querySelector('#panel-close');
+  const background = [...root.children].filter((node) => node !== panelRoot);
+  let selectedDN = '';
+  let returnFocus = null;
+  const panel = createObjectPanel({
+    root: panelRoot,
+    directory: createDirectory(new URL(root.dataset.apiRoot, location.origin)),
+    status,
+    guard: createMutationGuard(),
+    scope: (dn) => getRootDN() || dn,
+    onNavigate: open,
+    onSaved: async () => {
+      await panel.open(selectedDN, { fresh: true });
+      await onSaved();
+    },
+  });
+
+  function open(dn) {
+    if (!panel.canLeave()) return;
+    if (panelRoot.hidden) returnFocus = document.activeElement;
+    selectedDN = dn;
+    const url = new URL(root.dataset.explorer, location.origin);
+    url.searchParams.set('dn', dn);
+    explorer.href = url;
+    panelRoot.hidden = false;
+    for (const node of background) node.inert = true;
+    close.focus();
+    panel.open(dn);
+  }
+
+  function dismiss() {
+    if (!panel.canLeave()) return;
+    panelRoot.hidden = true;
+    for (const node of background) node.inert = false;
+    if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+    else root.querySelector('#dashboard-refresh').focus();
+  }
+
+  root.addEventListener('click', (event) => {
+    const link = event.target.closest('[data-inspect-dn]');
+    if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    open(link.dataset.inspectDn);
+  });
+  close.addEventListener('click', dismiss);
+  explorer.addEventListener('click', (event) => { if (!panel.canLeave()) event.preventDefault(); });
+  panelRoot.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !event.defaultPrevented) {
+      event.preventDefault();
+      dismiss();
+    }
+  });
+}

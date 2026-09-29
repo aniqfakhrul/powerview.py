@@ -41,7 +41,7 @@
         </div>
       </section>
       <section class="dashboard__policy" aria-labelledby="policy-title">
-        <header class="dashboard__section-heading"><h2 id="policy-title">Domain baseline</h2><span class="dashboard__tip dashboard__tip--end"><button type="button" class="dashboard__hint" aria-describedby="policy-note">Default policy{{ icon('info') }}</button><span id="policy-note" class="dashboard__tooltip" role="tooltip">Fine-grained password policies may override these values for individual accounts.</span></span><a id="dashboard-domain-link" class="icon-button" aria-label="Inspect domain in Explorer" title="Inspect domain in Explorer" hidden>{{ icon('open') }}</a></header>
+        <header class="dashboard__section-heading"><h2 id="policy-title">Domain baseline</h2><span class="dashboard__tip dashboard__tip--end"><button type="button" class="dashboard__hint" aria-describedby="policy-note">Default policy{{ icon('info') }}</button><span id="policy-note" class="dashboard__tooltip" role="tooltip">Fine-grained password policies may override these values for individual accounts.</span></span><a id="dashboard-domain-link" class="icon-button" aria-label="Inspect domain" title="Inspect domain" hidden>{{ icon('open') }}</a></header>
         <div id="dashboard-policy"></div>
       </section>
     </div>
@@ -51,6 +51,7 @@
       <section id="dashboard-trusts" aria-labelledby="trusts-title"><header class="dashboard__section-heading"><h2 id="trusts-title">Domain trusts</h2><span id="trusts-total"></span></header><div id="dashboard-trust-list"></div></section>
     </div>
   </div>
+  {% include "components/object-panel.html" %}
 </section>
 {% endblock %}
 {% block scripts %}<script type="module" src="{{ asset_url('js/pages/dashboard.js') }}"></script>{% endblock %}

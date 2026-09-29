@@ -212,9 +212,12 @@ not vulnerability verdicts. Domain policy excludes fine-grained overrides, and
 controller inventory does not test reachability or replication.
 
 Each signal keeps its total count and up to 100 object samples. The evidence table
-filters those samples in a scrollable list, with links into Explorer. The desktop
+filters those samples in a scrollable list. Object links open the shared details
+panel without leaving the dashboard; inventory links still navigate to their pages.
+The panel retains an explicit Open in Explorer link, and modified clicks preserve
+normal link navigation. Saved object changes refresh the snapshot. The desktop
 review area stays at a fixed height; its signals and evidence scroll independently.
-On mobile, signals form a horizontal strip and the evidence list has a maximum height. Controller and trust
+On mobile, signals form a two-column list and the evidence list has a maximum height. Controller and trust
 lists also retain only the first 100 objects; their counts cover all returned
 objects. These limits bound response samples, not the underlying directory reads.
 Snapshot export contains

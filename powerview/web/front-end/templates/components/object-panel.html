@@ -1,0 +1,14 @@
+{% from "components/icon.html" import icon %}
+<aside id="object-panel" class="side-panel" aria-label="Details" hidden>
+  <header class="object-header">
+    <div class="object-title" data-panel-title></div>
+    <div class="panel-actions" data-panel-actions></div>
+    <a id="panel-explorer" class="icon-button" href="#" title="Open in Explorer" aria-label="Open in Explorer">{{ icon('open') }}</a>
+    <button id="panel-close" class="icon-button" type="button" title="Close" aria-label="Close details">{{ icon('close') }}</button>
+  </header>
+  <div class="panel-tabs" data-panel-tabs></div>
+  <div class="side-panel__filter" data-panel-filter-host>
+    <label class="search-field">{{ icon('search') }}<input type="search" placeholder="Filter attributes" aria-label="Filter attributes" data-panel-filter disabled></label>
+  </div>
+  <div class="properties" tabindex="-1" data-panel-body></div>
+</aside>

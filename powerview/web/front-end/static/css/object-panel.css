@@ -134,3 +134,8 @@
 
 .panel-tabs__indicator { position: absolute; left: 0; bottom: 0; width: 1px; height: 2px; background: var(--color-text); transform-origin: left center; pointer-events: none; }
 .panel-tabs--indicator .panel-tab[aria-selected="true"]::after { display: none; }
+
+.side-panel { display: flex; flex: none; flex-direction: column; width: var(--panel-width); min-height: 0; background: var(--color-surface); }
+.side-panel .object-header { padding-right: var(--space-2); }
+.side-panel__filter { flex: none; padding: 8px var(--space-3); border-bottom: 1px solid var(--color-border); }
+.side-panel .property-grid col.property-grid__name { width: 42%; }

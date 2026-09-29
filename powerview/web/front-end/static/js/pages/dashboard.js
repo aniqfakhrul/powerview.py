@@ -1,3 +1,4 @@
+import { createDashboardInspector } from './dashboard/inspector.js';
 import { beginLoading, skeletonRows } from '../components/loading.js';
 import { createAPI } from '../core/api.js';
 import { button, element, icon } from '../core/dom.js';
@@ -30,6 +31,8 @@ let loading = false;
 let loadingDelayed = false;
 let domainDN = '';
 
+createDashboardInspector({ root, status, getRootDN: () => Object.values(data)[0]?.root_dn, onSaved: () => load(true) });
+
 const pending = (source) => loading && !data[source] && !failures[source];
 const placeholder = (build) => (loadingDelayed ? build() : []);
 
@@ -59,6 +62,7 @@ function objectLink(record, label = record.name, page = 'explorer') {
   url.searchParams.set('dn', record.dn);
   link.href = url;
   link.title = record.dn;
+  link.dataset.inspectDn = record.dn;
   return link;
 }
 
@@ -115,7 +119,7 @@ function renderEvidence(resetScroll = false) {
     if (record.dn) {
       const link = objectLink(record, '');
       link.className = 'icon-button';
-      link.setAttribute('aria-label', `Inspect ${record.name} in Explorer`);
+      link.setAttribute('aria-label', `Inspect ${record.name}`);
       link.append(icon('open'));
       inspect.append(link);
     }
@@ -341,6 +345,7 @@ async function load(fresh = false) {
       find('dashboard-context').textContent = `${result.root_dn}${result.dc ? ` · ${result.dc}` : ''}`;
       const domainLink = find('dashboard-domain-link');
       domainLink.href = objectLink({ dn: result.root_dn, name: result.domain }).href;
+      domainLink.dataset.inspectDn = result.root_dn;
       domainLink.hidden = false;
       if (!selected) {
         const firstMatch = signals.find((signal) => data[signal.source]?.findings[signal.key]?.count > 0);
