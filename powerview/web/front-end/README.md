@@ -80,6 +80,12 @@ cd "$(mktemp -d)" && npm pack @fluentui/svg-icons && tar -xzf fluentui-svg-icons
 node /path/to/powerview.py/powerview/web/front-end/tools/build-icons.mjs "$PWD/package"
 ```
 
+Icons are Regular by default and switch to Filled only to show the current
+state, as Microsoft 365 apps do: the current sidebar page and the chosen theme.
+The generator emits `<id>-filled` symbols for the ids listed in `FILLED`; the
+`state_icon()` macro renders both, and CSS shows the Filled one when its parent
+has `aria-current="page"` or `aria-checked="true"`.
+
 Object icons follow Active Directory Users and Computers metaphors, chosen from
 Fluent because Windows' own AD icons are not redistributable. `objectType()` in
 `core/directory.js` classifies records and `TYPE_ICONS` maps them: domain →

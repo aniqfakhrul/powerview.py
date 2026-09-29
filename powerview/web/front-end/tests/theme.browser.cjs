@@ -18,6 +18,9 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
 
     assert.equal(await group.getByRole('radio').count(), 3);
     assert.equal(await checked(), 'system');
+    const shownIcon = (name) => option(name).locator('svg:visible use').getAttribute('href');
+    assert.match(await shownIcon('System'), /#computer-filled$/);
+    assert.match(await shownIcon('Dark'), /#moon$/);
     assert.equal(await page.locator('.sidebar__footer').evaluate((node) => getComputedStyle(node).borderTopStyle), 'none');
     const dark = await color();
     await page.emulateMedia({ colorScheme: 'light' });
@@ -25,6 +28,8 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
     assert.notEqual(light, dark);
     await option('Dark').click();
     assert.equal(await color(), dark);
+    assert.match(await shownIcon('Dark'), /#moon-filled$/);
+    assert.match(await shownIcon('System'), /#computer$/);
     await page.reload();
     assert.equal(await checked(), 'dark');
     assert.equal(await color(), dark);

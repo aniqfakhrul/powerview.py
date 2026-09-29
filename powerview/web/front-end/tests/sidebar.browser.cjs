@@ -19,7 +19,11 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
     const labelShown = (name) => nav.getByRole('link', { name, exact: true }).locator('span').evaluate((node) => Number(getComputedStyle(node).opacity) > 0.99);
 
     await width(208);
-    assert.equal(await nav.locator('a > svg').count(), 10);
+    assert.equal(await nav.locator('a > svg.icon--regular').count(), 10);
+    assert.equal(await nav.locator('a > svg.icon--filled').count(), 10);
+    const shownIcon = (name) => nav.getByRole('link', { name, exact: true }).locator('svg:visible use').getAttribute('href');
+    assert.match(await shownIcon('Users'), /#user-filled$/);
+    assert.match(await shownIcon('Groups'), /#group$/);
     assert.equal(await nav.getByRole('link', { name: 'Users', exact: true }).getAttribute('aria-current'), 'page');
     assert.equal(await labelShown('Group policies'), true);
     assert.equal(Math.round((await body.boundingBox()).x), 208);

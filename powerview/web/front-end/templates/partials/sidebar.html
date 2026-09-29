@@ -1,4 +1,4 @@
-{% from "components/icon.html" import icon %}
+{% from "components/icon.html" import icon, state_icon %}
 <aside class="sidebar" aria-label="Workspace sidebar">
   <a class="brand" href="{{ url_for('index') }}">
     <img src="{{ asset_url('images/mark.svg') }}" width="28" height="28" alt="">
@@ -10,7 +10,7 @@
     <div class="navigation__group">
       <p class="navigation__label">{{ section }}</p>
       {% for item in pages if item.section == section %}
-      <a class="navigation__link" href="{{ url_for(item.endpoint) }}"{% if item.endpoint == page.endpoint %} aria-current="page"{% endif %}>{{ icon(item.icon) }}<span class="navigation__text">{{ item.title }}</span></a>
+      <a class="navigation__link" href="{{ url_for(item.endpoint) }}"{% if item.endpoint == page.endpoint %} aria-current="page"{% endif %}>{{ state_icon(item.icon) }}<span class="navigation__text">{{ item.title }}</span></a>
       {% endfor %}
     </div>
     {% endfor %}
@@ -19,7 +19,7 @@
     <button id="sidebar-toggle" class="icon-button sidebar__toggle" type="button" aria-controls="main-navigation" aria-expanded="true" aria-keyshortcuts="[" aria-label="Collapse sidebar" title="Collapse sidebar ([)">{{ icon('chevron-left') }}</button>
     <div class="theme-switch" role="radiogroup" aria-label="Color theme">
       {% for value, label, glyph in [('system', 'System theme', 'computer'), ('light', 'Light theme', 'sun'), ('dark', 'Dark theme', 'moon')] %}
-      <button type="button" role="radio" aria-checked="{{ 'true' if value == 'system' else 'false' }}" tabindex="{{ 0 if value == 'system' else -1 }}" data-theme-option="{{ value }}" aria-label="{{ label }}" title="{{ label }}">{{ icon(glyph) }}</button>
+      <button type="button" role="radio" aria-checked="{{ 'true' if value == 'system' else 'false' }}" tabindex="{{ 0 if value == 'system' else -1 }}" data-theme-option="{{ value }}" aria-label="{{ label }}" title="{{ label }}">{{ state_icon(glyph) }}</button>
       {% endfor %}
     </div>
   </div>
