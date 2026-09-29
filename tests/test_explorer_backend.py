@@ -71,6 +71,30 @@ class ExplorerBackendTests(unittest.TestCase):
                 if not identity:
                     self.assertNotIn('identity', passed)
 
+    def test_acl_mutations_forward_exact_parameters_and_preserve_failure(self):
+        server = self.make_server()
+        params = {
+            'targetidentity': 'CN=Target,DC=example,DC=test',
+            'principalidentity': 'S-1-5-11',
+            'rights': 'fullcontrol',
+            'rights_guid': '00299570-246d-11d0-a768-00aa006e0529',
+            'ace_type': 'denied',
+            'inheritance': True,
+        }
+        with server.app.test_client() as client:
+            for action in ('add', 'remove'):
+                method = MagicMock()
+                setattr(server.powerview, f'{action}_domainobjectacl', method)
+                for result in (True, False, None):
+                    with self.subTest(action=action, result=result):
+                        method.return_value = result
+                        response = client.post(f'/api/{action}/domainobjectacl', json=params)
+                        self.assertEqual(response.status_code, 200)
+                        self.assertEqual(response.get_json(), result)
+                        passed = method.call_args.kwargs
+                        inspect.signature(getattr(PowerView, f'{action}_domainobjectacl')).bind(server.powerview, **passed)
+                        self.assertEqual(passed, params)
+
     def test_user_search_options_reach_ldap_without_replacing_user_constraint(self):
         pv = PowerView.__new__(PowerView)
         pv.root_dn = 'DC=example,DC=test'

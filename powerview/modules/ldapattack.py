@@ -1270,6 +1270,9 @@ class ACLEnum:
 			parsed_ace['ACEType'] = ace['TypeName']
 			
 			parsed_ace['ACEFlags'] = _ace_flags
+			parsed_ace['ACEFlagsValue'] = ace['AceFlags']
+			parsed_ace['AccessMaskValue'] = ace['Ace']['Mask']['Mask']
+			parsed_ace['RawSecurityIdentifier'] = sid
 			
 			if ace['TypeName'] in ["ACCESS_ALLOWED_ACE", "ACCESS_DENIED_ACE"]:
 				parsed_ace['ActiveDirectoryRights'] = self.parsePerms(ace["Ace"]["Mask"]["Mask"])
@@ -1285,9 +1288,11 @@ class ACLEnum:
 				
 				_object_flags = [FLAG.name for FLAG in OBJECT_ACE_FLAGS if ace['Ace'].hasFlag(FLAG.value)]
 				parsed_ace['ObjectAceFlags'] = _object_flags
+				parsed_ace['ObjectAceFlagsValue'] = ace['Ace']['Flags']
 				
 				if ace['Ace']['ObjectTypeLen'] != 0:
 					obj_type = bin_to_string(ace['Ace']['ObjectType']).lower()
+					parsed_ace['ObjectAceTypeGuid'] = obj_type
 					parsed_ace['ObjectAceType'] = self.__guids_map_dict.get(obj_type, "UNKNOWN (%s)" % obj_type)
 				
 				if ace['Ace']['InheritedObjectTypeLen'] != 0:

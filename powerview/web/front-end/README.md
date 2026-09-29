@@ -194,6 +194,31 @@ EXPLORER_URL=http://127.0.0.1:5011 \
   node powerview/web/front-end/tests/reset-password.browser.cjs
 ```
 
+### ACL changes
+
+The shared object panel's Security tab offers Add access entry and a row trash
+action on hover or keyboard focus (always visible on touch devices). Both use the existing `/api/{add,remove}/domainobjectacl` endpoints, with
+the inspected DN fixed as `targetidentity`. Principal lookup suggests directory
+security principals; names, full DNs and well-known SIDs can also be entered.
+
+Choose a rights preset or a custom rights GUID, Allow/Deny, and this-object or
+inheritable scope. Prevent deletion always uses Deny. DCSync represents two
+replication rights. Custom GUIDs represent extended rights, except the member
+attribute GUID, which uses read/write property permissions.
+
+Removal matches explicit entries by principal, mask, ACE type, inheritance flags
+and object GUID metadata; it removes all matching duplicates. It cannot remove
+arbitrary masks or inherited entries from the child object; those rows have no
+trash action. Row deletion uses raw SID, mask, flags and GUID metadata and asks
+for confirmation without another configuration form. No match or a failed write
+keeps the entry visible. A confirmed `true` response triggers a fresh Security
+read. The mutation guard prevents duplicate submissions.
+
+```sh
+EXPLORER_URL=http://127.0.0.1:5011 \
+  node powerview/web/front-end/tests/acl-editor.browser.cjs
+```
+
 ### Dashboard
 
 The dashboard collects read-only summaries from

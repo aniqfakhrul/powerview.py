@@ -1,3 +1,7 @@
+import { removalParameters } from './acl-removal.js';
+import { confirmAction } from '../confirm.js';
+import { notify } from '../notify.js';
+import { addACL } from './acl-editor.js';
 import { beginLoading } from '../loading.js';
 import { values } from '../../core/directory.js';
 import { button, element, icon } from '../../core/dom.js';
@@ -23,6 +27,7 @@ function scopeOf(ace) {
 
 function toEntry(ace) {
   return {
+    removal: removalParameters(ace),
     denied: denied(ace),
     principal: clean(ace.SecurityIdentifier),
     rights: listed(ace.AccessMask).length ? listed(ace.AccessMask) : listed(ace.ActiveDirectoryRights),
@@ -69,13 +74,38 @@ function ownerBlock(owner) {
   return block;
 }
 
-export function createSecurity({ directory }) {
+export function createSecurity({ directory, guard, canLeave, onSaved }) {
   let controller;
 
   let fitRights = () => {};
   const rightsWidth = new ResizeObserver(() => fitRights());
 
-  function aceRows(entry) {
+  async function removeEntry(entry, dn, remove) {
+    if (!canLeave()) return;
+    const confirmed = await confirmAction({
+      title: 'Remove access entry?',
+      context: dn,
+      message: `${entry.denied ? 'Deny' : 'Allow'} · ${entry.principal} · ${entry.rights.join(', ')} · ${entry.appliesTo} · ${entry.scope}. Identical matching entries will also be removed.`,
+      confirmLabel: 'Remove',
+      danger: true,
+    });
+    if (!confirmed || !canLeave() || !guard.begin()) return;
+    remove.disabled = true;
+    try {
+      const { principalidentity, ...options } = entry.removal;
+      await directory.changeACL('remove', dn, principalidentity, options);
+    } catch (failure) {
+      notify.error(failure.message);
+      return;
+    } finally {
+      remove.disabled = false;
+      guard.end();
+    }
+    notify.success('Access entry removed');
+    try { await onSaved(); } catch (failure) { notify.warn(`Access entry removed, but refreshing failed: ${failure.message}`); }
+  }
+
+  function aceRows(entry, dn) {
     const row = element('tr', 'security__row');
     row.tabIndex = 0;
     row.setAttribute('aria-expanded', 'false');
@@ -90,6 +120,16 @@ export function createSecurity({ directory }) {
     principal.append(name, applies);
     const rights = element('td');
     rights.append(chips(entry.rights));
+    if (guard && entry.removal) {
+      rights.classList.add('security__rights--removable');
+      const remove = button('', { iconName: 'trash', className: 'icon-button security__remove', ariaLabel: `Remove access entry for ${entry.principal}` });
+      remove.title = 'Remove access entry';
+      remove.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        await removeEntry(entry, dn, remove);
+      });
+      rights.append(remove);
+    }
     row.append(access, principal, rights);
     const detailRow = element('tr', 'security__detail-row');
     detailRow.hidden = true;
@@ -102,11 +142,11 @@ export function createSecurity({ directory }) {
       row.setAttribute('aria-expanded', String(!detailRow.hidden));
     };
     row.addEventListener('click', toggle);
-    row.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); } });
+    row.addEventListener('keydown', (event) => { if (event.target === row && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); toggle(); } });
     return [row, detailRow];
   }
 
-  function groupRows(title, entries) {
+  function groupRows(title, entries, dn) {
     if (!entries.length) return [];
     const row = element('tr', 'security__group');
     const heading = element('th', '', title);
@@ -114,10 +154,10 @@ export function createSecurity({ directory }) {
     heading.colSpan = 3;
     heading.append(element('span', 'membership__count', String(entries.length)));
     row.append(heading);
-    return [row, ...entries.flatMap(aceRows)];
+    return [row, ...entries.flatMap((entry) => aceRows(entry, dn))];
   }
 
-  function aclList(entries) {
+  function aclList(entries, dn) {
     const wrapper = element('section', 'security__acl');
     const toolbar = element('div', 'membership__toolbar');
     const search = element('label', 'search-field');
@@ -131,6 +171,14 @@ export function createSecurity({ directory }) {
     explicitOnly.append(checkbox, document.createTextNode('Hide inherited'));
     const count = element('span', 'membership__count');
     toolbar.append(search, explicitOnly, count);
+    if (guard) {
+      const add = button('', { iconName: 'plus', className: 'icon-button membership__add', ariaLabel: 'Add access entry' });
+      add.title = 'Add access entry';
+      add.addEventListener('click', () => {
+        if (canLeave()) addACL({ dn, directory, guard, onChanged: onSaved });
+      });
+      toolbar.append(add);
+    }
 
     const grid = element('table', 'security__table');
     const headRow = element('tr');
@@ -154,8 +202,8 @@ export function createSecurity({ directory }) {
         && (!query || [entry.principal, ...entry.rights, entry.appliesTo].some((value) => value.toLocaleLowerCase().includes(query))));
       count.textContent = visible.length === entries.length ? String(entries.length) : `${visible.length} of ${entries.length}`;
       body.replaceChildren(
-        ...groupRows('Explicit', visible.filter((entry) => !entry.inheritedFrom)),
-        ...groupRows('Inherited', visible.filter((entry) => entry.inheritedFrom)),
+        ...groupRows('Explicit', visible.filter((entry) => !entry.inheritedFrom), dn),
+        ...groupRows('Inherited', visible.filter((entry) => entry.inheritedFrom), dn),
       );
       if (!visible.length) {
         const row = element('tr');
@@ -192,7 +240,7 @@ export function createSecurity({ directory }) {
         if (signal.aborted) return;
         const entries = aces.map(toEntry).sort((a, b) => Number(a.inheritedFrom) - Number(b.inheritedFrom)
           || Number(b.denied) - Number(a.denied) || collator.compare(a.principal, b.principal));
-        container.replaceChildren(ownerBlock(owner), aclList(entries));
+        container.replaceChildren(ownerBlock(owner), aclList(entries, dn));
       } catch (error) {
         if (signal.aborted) return;
         const box = element('div', 'panel-message');

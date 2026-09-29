@@ -139,3 +139,11 @@
 .side-panel .object-header { padding-right: var(--space-2); }
 .side-panel__filter { flex: none; padding: 8px var(--space-3); border-bottom: 1px solid var(--color-border); }
 .side-panel .property-grid col.property-grid__name { width: 42%; }
+
+.acl-dialog [hidden] { display: none !important; }
+
+.security__table td.security__rights--removable { position: relative; padding-right: 36px; }
+.security__remove { position: absolute; top: 50%; right: var(--space-2); width: 24px; opacity: 0; transform: translateY(-50%); }
+.security__row:hover .security__remove, .security__row:focus-within .security__remove { opacity: 1; }
+.security__remove:hover { color: var(--color-danger); }
+@media (hover: none) { .security__remove { opacity: 1; } }

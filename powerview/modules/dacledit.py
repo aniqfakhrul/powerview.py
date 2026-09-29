@@ -239,7 +239,9 @@ class DACLedit(object):
                     and ace['Ace']['Sid']['IdentifierAuthority']['Value'] == compare_ace['Ace']['Sid']['IdentifierAuthority']['Value']:
                     # If the ACE has an ObjectType, the GUIDs must match
                     if 'ObjectType' in ace['Ace'].fields.keys() and 'ObjectType' in compare_ace['Ace'].fields.keys():
-                        if ace['Ace']['ObjectType'] == compare_ace['Ace']['ObjectType']:
+                        if ace['Ace']['ObjectType'] == compare_ace['Ace']['ObjectType'] \
+                            and ace['Ace']['Flags'] == compare_ace['Ace']['Flags'] \
+                            and ace['Ace']['InheritedObjectType'] == compare_ace['Ace']['InheritedObjectType']:
                             ace_must_be_removed = True
                             dacl_must_be_replaced = True
                     else:
@@ -255,9 +257,9 @@ class DACLedit(object):
         # If at least one ACE must been removed
         if dacl_must_be_replaced:
             self.principal_security_descriptor['Dacl'].aces = new_dacl
-            self.modify_secDesc_for_dn(self.target_DN, self.principal_security_descriptor)
-        else:
-            logging.info("Nothing to remove...")
+            return self.modify_secDesc_for_dn(self.target_DN, self.principal_security_descriptor)
+        logging.info("Nothing to remove...")
+        return False
 
     
     # Attempts to retieve the SID and Distinguisehd Name from the sAMAccountName

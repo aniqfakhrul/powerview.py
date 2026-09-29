@@ -78,6 +78,10 @@ export function createDirectory(baseURL) {
       const aces = acls.flatMap((entry) => (Array.isArray(entry?.attributes) ? entry.attributes : []));
       return { owner: textValue(owner), aces };
     },
+    changeACL(action, targetidentity, principalidentity, options) {
+      if (!['add', 'remove'].includes(action)) throw new Error('Unsupported ACL action.');
+      return request(`${action}/domainobjectacl`, { mutation: true, body: { targetidentity, principalidentity, ...options } });
+    },
     async list(endpoint, { signal, fresh = false, properties = ['name'], search = {}, options = {} } = {}) {
       const body = { ...options, properties, raw: true, no_vuln_check: true, no_cache: fresh };
       if (search.base) body.searchbase = search.base;

@@ -5250,7 +5250,7 @@ class PowerView:
 				rights_guid,
 				inheritance
 			)
-		dacledit.remove()
+		return dacledit.remove()
 
 	def add_domainobjectacl(self, targetidentity, principalidentity, rights="fullcontrol", rights_guid=None, ace_type="allowed", inheritance=False):
 		# verify if target identity exists

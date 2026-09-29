@@ -42,7 +42,7 @@ export function createObjectPanel({ root, defaultTab = 'attributes', summary, ..
   let currentDN = '';
   let securityDN = '';
   let securityFresh = false;
-  const security = createSecurity(options);
+  const security = createSecurity({ ...options, canLeave: () => attributes.canLeave() });
 
   tabList.setAttribute('role', 'tablist');
   tabList.setAttribute('aria-label', 'Object details');
