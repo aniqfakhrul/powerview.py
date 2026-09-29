@@ -2,6 +2,7 @@ import { createDirectory, isContainer, values } from '../core/directory.js';
 import { namingContext, parentDN, sameDN } from '../core/dn.js';
 import { createTree } from './explorer/tree.js';
 import { createObjectPanel } from '../components/object-panel/index.js';
+import { attachObjectSearch } from '../components/object-search.js';
 import { createDialogs } from './explorer/dialogs.js';
 import { createStatus } from '../components/status.js';
 import { notify } from '../components/notify.js';
@@ -97,8 +98,9 @@ address.form.addEventListener('submit', (event) => {
   if (dn && !sameDN(dn, activeDN)) go(dn);
   address.blur();
 });
+attachObjectSearch({ input: address, directory, kind: 'any', onChoose: (record) => { address.blur(); go(record.dn); } });
 address.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') { address.value = activeDN; address.blur(); }
+  if (event.key === 'Escape' && !event.defaultPrevented) { address.value = activeDN; address.blur(); }
 });
 
 controls.create.addEventListener('click', () => {

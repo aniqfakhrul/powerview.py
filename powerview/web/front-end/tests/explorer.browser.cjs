@@ -18,7 +18,7 @@ const connection = { domain: 'example.test', ldap_address: '10.0.0.10', nameserv
 (async () => {
   const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || 'chrome', headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 960 } });
-  const errors = []; const writes = []; let mutationResponse = false; let failReads = false;
+  const errors = []; const writes = []; const lookups = []; let mutationResponse = false; let failReads = false;
   page.on('pageerror', (error) => errors.push(error.message));
   await page.route('**/api/**', async (route) => {
     const request = route.request(); const path = new URL(request.url()).pathname;
@@ -27,7 +27,11 @@ const connection = { domain: 'example.test', ldap_address: '10.0.0.10', nameserv
     if (path.endsWith('/connectioninfo')) response = connection;
     else if (path.endsWith('/get/domaininfo')) response = { root_dn: rootDN, domain: 'example.test' };
     else if (path.endsWith('/server/info')) response = { raw: { namingContexts: [rootDN] } };
-    else if (path.endsWith('/get/domainobject')) {
+    else if (path.endsWith('/get/domainobject') && data.size_limit) {
+      lookups.push(data);
+      const prefix = data.ldap_filter.match(/\(name=([^*]*)\*\)/)[1].toLowerCase();
+      response = objects.filter((item) => item.attributes.name.toLowerCase().startsWith(prefix)).slice(0, data.size_limit);
+    } else if (path.endsWith('/get/domainobject')) {
       if (failReads) return route.fulfill({ status: 400, json: { error: 'Read denied (test)' } });
       assert.deepEqual(data.properties, data.search_scope === 'BASE' ? ['*'] : ['name', 'objectClass']);
       if (data.search_scope === 'BASE') response = [objects.find((item) => item.dn === data.searchbase) || (data.searchbase === peopleDN ? container : contextRecord)];
@@ -122,6 +126,25 @@ const connection = { domain: 'example.test', ldap_address: '10.0.0.10', nameserv
   await heading('Person 002').waitFor();
   assert.equal(await page.locator('.tree-item[aria-selected="true"]').getAttribute('aria-label'), 'Person 002');
 
+  assert.equal(await page.locator('.toolbar__title').textContent(), 'Explorer');
+  const address = page.getByRole('combobox', { name: 'Go to object' });
+  const suggestions = page.getByRole('listbox').getByRole('option');
+  await address.fill('Person 01');
+  await suggestions.first().waitFor();
+  assert.equal(lookups.at(-1).ldap_filter, '(&(|(name=Person 01*)(sAMAccountName=Person 01*)))');
+  assert.equal(await suggestions.count(), 10);
+  await address.press('Escape');
+  assert.equal(await suggestions.count(), 0);
+  assert.equal(await address.inputValue(), 'Person 01');
+  await address.press('Escape');
+  assert.equal(await address.inputValue(), `CN=Person 002,${peopleDN}`);
+  await address.fill('Person 01');
+  await suggestions.filter({ hasText: 'Person 010' }).click();
+  await heading('Person 010').waitFor();
+  assert.equal(await address.inputValue(), `CN=Person 010,${peopleDN}`);
+  assert.equal(await suggestions.count(), 0);
+  assert.equal(await page.evaluate(() => document.activeElement.id === 'address'), false);
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: 'Directory', exact: true }).click();
   assert.equal(await page.locator('#directory-pane').isVisible(), true);
@@ -132,6 +155,6 @@ const connection = { domain: 'example.test', ldap_address: '10.0.0.10', nameserv
   assert.equal(await page.locator('#directory-pane').isVisible(), false);
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   assert.deepEqual(errors, []);
-  console.log('PASS: connection status (live, tooltip, loss announcement), tree paging and filtering, safe rendering, multi-value editing with failed-write preservation, DN links, create/move/delete, read recovery, mobile focus containment, no runtime errors.');
+  console.log('PASS: connection status (live, tooltip, loss announcement), address suggestions (search, Escape layering, navigation), tree paging and filtering, safe rendering, multi-value editing with failed-write preservation, DN links, create/move/delete, read recovery, mobile focus containment, no runtime errors.');
   await browser.close();
 })().catch((error) => { console.error(error); process.exit(1); });

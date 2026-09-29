@@ -15,6 +15,7 @@ export function attachObjectSearch({ input, directory, kind, onChoose }) {
   status.setAttribute('aria-live', 'polite');
   popup.hidden = true;
   popup.append(list, status);
+  popup.addEventListener('click', (event) => event.preventDefault());
   input.parentElement.classList.add('object-search-host');
   input.after(popup);
   input.autocomplete = 'off';

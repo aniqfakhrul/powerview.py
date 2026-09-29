@@ -1,6 +1,5 @@
 .grid-page { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--color-surface); }
 .grid-page [hidden] { display: none !important; }
-.toolbar__title { display: flex; flex: none; align-items: center; gap: var(--space-2); font-size: 13px; font-weight: 600; }
 .toolbar__search { flex: 0 100 280px; min-width: 96px; margin-left: auto; }
 .grid-page { container: grid-page / inline-size; }
 .grid-page .toolbar__actions { position: relative; flex: 0 1 auto; min-width: 0; padding-block: 2px; overflow-x: auto; scrollbar-width: none; }
@@ -116,7 +115,6 @@
 }
 @media (max-width: 720px) {
   .side-panel { width: 100%; border-left: 0; }
-  .toolbar__title span { display: none; }
   .toolbar .button { width: 28px; padding: 0; }
   .toolbar .button .fields-trigger__count { display: none; }
   .toolbar .button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

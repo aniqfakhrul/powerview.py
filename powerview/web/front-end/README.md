@@ -44,7 +44,11 @@ the frontend never receives connection credentials.
 - The tree pane is resizable (drag, arrow keys, double-click to reset); the width
   is remembered per browser. Labels never truncate; the pane scrolls horizontally.
 - The toolbar address bar shows the selected DN and navigates to any DN typed
-  into it. DN-valued attributes are links that reveal the target in the tree.
+  into it. Typing two or more characters of a name suggests matching objects in
+  the default domain naming context; choosing one navigates to it. Objects in
+  other naming contexts are reached by DN. The first Escape closes suggestions
+  and the second restores the selected DN. DN-valued attributes are links that
+  reveal the target in the tree.
 - Selecting an object loads its attributes with a BASE query. Request
   cancellation prevents stale responses from replacing a newer selection.
 - Attributes are edited inline, one input per value. Save replaces the values and
