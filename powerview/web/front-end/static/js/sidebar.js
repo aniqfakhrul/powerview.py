@@ -11,7 +11,7 @@
     const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
     toggle.setAttribute('aria-expanded', String(!collapsed));
     toggle.setAttribute('aria-label', label);
-    toggle.title = label;
+    toggle.title = `${label} ([)`;
   };
 
   try { collapsed = localStorage.getItem(key) === 'collapsed'; } catch {}
@@ -23,7 +23,7 @@
     if (!sidebar || !toggle) return;
     toggle.addEventListener('click', () => {
       collapsed = !collapsed;
-      if (collapsed) sidebar.classList.add('is-settling');
+      if (collapsed && sidebar.matches(':hover')) sidebar.classList.add('is-settling');
       apply();
       try {
         if (collapsed) localStorage.setItem(key, 'collapsed');
@@ -31,6 +31,13 @@
       } catch {}
     });
     sidebar.addEventListener('pointerleave', () => sidebar.classList.remove('is-settling'));
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== '[' || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable]')) return;
+      if (!matchMedia('(min-width: 721px)').matches) return;
+      event.preventDefault();
+      toggle.click();
+    });
   });
   window.addEventListener('storage', (event) => {
     if (event.key !== key && event.key !== null) return;

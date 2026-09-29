@@ -16,14 +16,11 @@
     {% endfor %}
   </nav>
   <div class="sidebar__footer">
-    <button id="sidebar-toggle" class="icon-button sidebar__toggle" type="button" aria-controls="main-navigation" aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar">{{ icon('chevron-left') }}</button>
-    <label class="theme-control" title="Color theme">
-      {{ icon('theme') }}
-      <select id="theme-preference" aria-label="Color theme">
-        <option value="system">System</option>
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-      </select>
-    </label>
+    <button id="sidebar-toggle" class="icon-button sidebar__toggle" type="button" aria-controls="main-navigation" aria-expanded="true" aria-keyshortcuts="[" aria-label="Collapse sidebar" title="Collapse sidebar ([)">{{ icon('chevron-left') }}</button>
+    <div class="theme-switch" role="radiogroup" aria-label="Color theme">
+      {% for value, label, glyph in [('system', 'System theme', 'computer'), ('light', 'Light theme', 'sun'), ('dark', 'Dark theme', 'moon')] %}
+      <button type="button" role="radio" aria-checked="{{ 'true' if value == 'system' else 'false' }}" tabindex="{{ 0 if value == 'system' else -1 }}" data-theme-option="{{ value }}" aria-label="{{ label }}" title="{{ label }}">{{ icon(glyph) }}</button>
+      {% endfor %}
+    </div>
   </div>
 </aside>

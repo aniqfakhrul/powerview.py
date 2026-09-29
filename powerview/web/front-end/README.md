@@ -110,7 +110,8 @@ Use `url_for` for navigation and `asset_url` for static assets. Keep reusable UI
 in macros and focused modules; directory data enters the DOM through textContent.
 
 Sidebar icons come from each `Page` entry. On desktop the sidebar starts
-expanded; the footer toggle collapses it to a 48px icon rail, and the choice
+expanded; the footer toggle or the `[` key (outside text fields) collapses it
+to a 48px icon rail, and the choice
 persists in `localStorage` and syncs across tabs. `sidebar.js` applies the stored
 state before styles load. A collapsed rail previews the full sidebar over the
 workspace after a 150ms hover, or at once on keyboard focus, without shifting
@@ -118,8 +119,10 @@ page content; it does not reopen under the pointer right after collapsing.
 Mobile uses horizontal navigation without the toggle. Motion respects
 reduced-motion preferences. `tests/sidebar.browser.cjs` covers these behaviors.
 
-The sidebar footer provides System, Light and Dark themes; mobile places the
-control beside the brand. System is the default and follows OS changes. Explicit
+The sidebar footer provides a three-way System, Light and Dark switch (a
+radiogroup: click or use arrow keys); mobile places it beside the brand, and the
+collapsed rail hides it until the sidebar is previewed. The footer is separated
+by spacing, not a divider. System is the default and follows OS changes. Explicit
 choices persist in `localStorage` and sync across tabs. `theme.js` applies the
 stored choice before styles load; unavailable storage still permits switching
 for the current page. Color tokens use `light-dark()` with the root color scheme,
