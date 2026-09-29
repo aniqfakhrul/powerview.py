@@ -907,7 +907,7 @@ class PowerView:
 
 		return entries
 
-	def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, ldap_filter=None, searchbase=None, sd_flag=None, include_deleted=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domainobject(self, args=None, properties=[], identity=None, identity_filter=None, ldap_filter=None, searchbase=None, sd_flag=None, include_deleted=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False, size_limit=0):
 		def_prop = [
 			ldap3.ALL_ATTRIBUTES
 		]
@@ -956,6 +956,7 @@ class PowerView:
 			searchbase,
 			ldap_filter,
 			attributes=list(properties),
+			size_limit=size_limit,
 			paged_size = 1000,
 			generator=True,
 			controls=controls,

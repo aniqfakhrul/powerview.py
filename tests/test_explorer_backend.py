@@ -90,6 +90,24 @@ class ExplorerBackendTests(unittest.TestCase):
         self.assertEqual(set(keywords['attributes']), {'name', 'mail'})
         self.assertTrue(keywords['raw'])
 
+    def test_object_suggestions_reach_ldap_with_a_size_limit(self):
+        pv = PowerView.__new__(PowerView)
+        pv.root_dn = 'DC=example,DC=test'
+        pv.args = Namespace()
+        pv.ldap_session = MagicMock()
+        search = pv.ldap_session.extend.standard.paged_search
+        search.return_value = []
+        server = self.make_server()
+        server.powerview.get_domainobject = pv.get_domainobject
+        with server.app.test_client() as client:
+            response = client.post('/api/get/domainobject', json={
+                'properties': ['name'], 'ldap_filter': '(|(name=al*)(sAMAccountName=al*))', 'size_limit': 21, 'raw': True, 'no_vuln_check': True,
+            })
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        positional, keywords = search.call_args
+        self.assertEqual(positional[1], '(&(objectClass=*)(|(name=al*)(sAMAccountName=al*)))')
+        self.assertEqual(keywords['size_limit'], 21)
+
     def test_computer_presets_reach_ldap(self):
         filters = {
             'enabled': '(!(userAccountControl:1.2.840.113556.1.4.803:=2))',
