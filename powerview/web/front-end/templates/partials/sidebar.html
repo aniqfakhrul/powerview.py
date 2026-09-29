@@ -15,4 +15,14 @@
     </div>
     {% endfor %}
   </nav>
+  <div class="sidebar__footer">
+    <label class="theme-control" title="Color theme">
+      {{ icon('theme') }}
+      <select id="theme-preference" aria-label="Color theme">
+        <option value="system">System</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+    </label>
+  </div>
 </aside>

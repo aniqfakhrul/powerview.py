@@ -115,6 +115,13 @@ keyboard focus without shifting page content. Touch-only desktop layouts keep
 the full sidebar, and mobile uses horizontal navigation. Expansion respects
 reduced-motion preferences. `tests/sidebar.browser.cjs` covers these behaviors.
 
+The sidebar footer provides System, Light and Dark themes; mobile places the
+control beside the brand. System is the default and follows OS changes. Explicit
+choices persist in `localStorage` and sync across tabs. `theme.js` applies the
+stored choice before styles load; unavailable storage still permits switching
+for the current page. Color tokens use `light-dark()` with the root color scheme.
+`tests/theme.browser.cjs` covers theme selection and persistence.
+
 ## Verification
 
 Python integration tests (all page routes, assets, URL prefixes, Basic Auth, and
