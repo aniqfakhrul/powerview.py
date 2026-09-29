@@ -12,6 +12,20 @@ const form = find('form');
 let query = null;
 let completed = null;
 
+const values = () => ({ identity: find('target').value.trim(), principal: find('principal').value.trim() });
+
+function syncControls() {
+  const { identity, principal } = values();
+  find('depth').disabled = !principal;
+  find('find').disabled = !identity && !principal;
+}
+
+function describeScope({ identity, security_identifier: principal, depth }) {
+  if (!principal) return `ACEs on ${identity} for any principal`;
+  const expansion = depth ? ` (+${depth} group level${depth === 1 ? '' : 's'})` : '';
+  return `ACEs granted to ${principal}${expansion} ${identity ? `on ${identity}` : 'across the domain'}`;
+}
+
 const page = createGridPage({
   root,
   endpoint: 'get/domainobjectacl',
@@ -43,22 +57,19 @@ const page = createGridPage({
     find('cancel').hidden = !loading;
     find('cancel').disabled = false;
     find('export').disabled = loading || !completed;
+    if (!loading) syncControls();
   },
 });
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
-  const identity = find('target').value.trim();
-  const principal = find('principal').value.trim();
-  if (!identity && !principal) {
-    find('target').setCustomValidity('Enter a target or principal.');
-    find('target').reportValidity();
-    return;
-  }
-  query = { depth: Number(find('depth').value), ...(identity ? { identity } : {}), ...(principal ? { security_identifier: principal } : {}) };
+  const { identity, principal } = values();
+  if (!identity && !principal) return;
+  query = { depth: principal ? Number(find('depth').value) : 0, ...(identity ? { identity } : {}), ...(principal ? { security_identifier: principal } : {}) };
+  find('hint').textContent = describeScope(query);
   page.reload();
 });
-for (const name of ['target', 'principal']) find(name).addEventListener('input', () => find('target').setCustomValidity(''));
+for (const name of ['target', 'principal']) find(name).addEventListener('input', syncControls);
 find('cancel').addEventListener('click', () => { completed = null; page.cancel(); });
 find('export').addEventListener('click', () => {
   if (!completed) return;
@@ -73,4 +84,5 @@ find('export').addEventListener('click', () => {
 const params = new URL(location.href).searchParams;
 find('target').value = params.get('target') ?? params.get('dn') ?? '';
 find('principal').value = params.get('source') ?? '';
+syncControls();
 page.status.idle('Pathfinder · Ready · Read-only');

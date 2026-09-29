@@ -25,8 +25,9 @@ const fixture = [{ attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, ind
     });
     await page.goto(base + '/pathfinder');
     await page.getByText('Find ACL relations', { exact: true }).waitFor();
-    await page.locator('#pathfinder-find').click();
-    assert.equal(await page.locator('#pathfinder-target').evaluate((node) => node.validationMessage), 'Enter a target or principal.');
+    assert.equal(await page.locator('#pathfinder-find').isDisabled(), true);
+    assert.equal(await page.locator('#pathfinder-depth').isDisabled(), true);
+    await page.locator('#pathfinder-target').press('Enter');
     assert.equal(calls.length, 0);
     assert.equal(await page.getByRole('link', { name: 'Graph', exact: true }).count(), 0);
     await page.locator('#pathfinder-target').fill('svc.backup');
@@ -34,6 +35,8 @@ const fixture = [{ attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, ind
     await page.locator('#pathfinder-find').click();
     await page.locator('#grid-body tr[data-key]').first().waitFor();
     assert.deepEqual(calls[0], { identity: 'svc.backup', security_identifier: 'alex.morgan', depth: 2, no_cache: false, resolveguids: true, no_vuln_check: true });
+    assert.equal(await page.locator('#pathfinder-hint').textContent(), 'ACEs granted to alex.morgan (+2 group levels) on svc.backup');
+    assert.equal(await page.locator('#pathfinder-depth').isDisabled(), false);
     assert.equal(await page.locator('#grid-body tr[data-key]').count(), 3);
     assert.equal(await page.locator('#grid-body .cell-name').first().getAttribute('title'), dn);
     await page.getByRole('button', { name: 'SecurityIdentifier', exact: true }).waitFor();

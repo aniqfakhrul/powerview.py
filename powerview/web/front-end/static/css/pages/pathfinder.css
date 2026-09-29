@@ -1,9 +1,10 @@
 .pathfinder-query { flex: none; padding: 12px 16px; border-bottom: 1px solid var(--color-border); background: var(--color-sidebar); }
 .pathfinder-query__form { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 12px; }
 .pathfinder-query__form label { display: flex; flex: 1 1 210px; flex-wrap: wrap; gap: 6px; font-size: 12px; }
-.pathfinder-query__form label > span { margin-left: auto; color: var(--color-faint); font-size: 11px; }
 .pathfinder-query__form .text-input { width: 100%; min-width: 0; }
 .pathfinder-query__form .pathfinder-query__depth { flex: 0 0 120px; }
+.pathfinder-query__form .pathfinder-query__depth:has(select:disabled) { color: var(--color-faint); }
+.pathfinder-query__hint { margin: 8px 0 0; color: var(--color-muted); font-size: 12px; }
 @media (max-width: 720px) {
   .pathfinder-query { padding: 12px; }
   .pathfinder-query__form { gap: 10px; }
