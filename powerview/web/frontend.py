@@ -17,19 +17,20 @@ class Page:
     title: str
     section: str = "Directory"
     template: str = "pages/placeholder.html"
+    icon: str = "object"
 
 
 PAGES = (
-    Page("index", "/", "Explorer", "Workspace", "pages/explorer.html"),
-    Page("dashboard", "/dashboard", "Dashboard", "Workspace", "pages/dashboard.html"),
-    Page("pathfinder", "/pathfinder", "Pathfinder", "Workspace", "pages/pathfinder.html"),
-    Page("users", "/users", "Users", template="pages/users.html"),
-    Page("computers", "/computers", "Computers", template="pages/computers.html"),
-    Page("groups", "/groups", "Groups", template="pages/groups.html"),
-    Page("dns", "/dns", "DNS", template="pages/dns.html"),
-    Page("ca", "/ca", "Certificate authorities", template="pages/ca.html"),
-    Page("ou", "/ou", "Organizational units", template="pages/ou.html"),
-    Page("gpo", "/gpo", "Group policies", template="pages/gpo.html"),
+    Page("index", "/", "Explorer", "Workspace", "pages/explorer.html", icon="folder"),
+    Page("dashboard", "/dashboard", "Dashboard", "Workspace", "pages/dashboard.html", icon="dashboard"),
+    Page("pathfinder", "/pathfinder", "Pathfinder", "Workspace", "pages/pathfinder.html", icon="pathfinder"),
+    Page("users", "/users", "Users", template="pages/users.html", icon="user"),
+    Page("computers", "/computers", "Computers", template="pages/computers.html", icon="computer"),
+    Page("groups", "/groups", "Groups", template="pages/groups.html", icon="group"),
+    Page("dns", "/dns", "DNS", template="pages/dns.html", icon="domain"),
+    Page("ca", "/ca", "Certificate authorities", template="pages/ca.html", icon="certificate"),
+    Page("ou", "/ou", "Organizational units", template="pages/ou.html", icon="ou"),
+    Page("gpo", "/gpo", "Group policies", template="pages/gpo.html", icon="policy"),
 )
 
 

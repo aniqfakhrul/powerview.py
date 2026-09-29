@@ -109,6 +109,12 @@ New modules start from `pages/placeholder.html`. Add a `Page` entry in `web/fron
 Use `url_for` for navigation and `asset_url` for static assets. Keep reusable UI
 in macros and focused modules; directory data enters the DOM through textContent.
 
+Sidebar icons come from each `Page` entry. On desktop with a fine pointer, the
+sidebar collapses to a 48px icon rail and expands over the workspace on hover or
+keyboard focus without shifting page content. Touch-only desktop layouts keep
+the full sidebar, and mobile uses horizontal navigation. Expansion respects
+reduced-motion preferences. `tests/sidebar.browser.cjs` covers these behaviors.
+
 ## Verification
 
 Python integration tests (all page routes, assets, URL prefixes, Basic Auth, and

@@ -1,7 +1,8 @@
+{% from "components/icon.html" import icon %}
 <aside class="sidebar" aria-label="Workspace sidebar">
   <a class="brand" href="{{ url_for('index') }}">
     <img src="{{ asset_url('images/mark.svg') }}" width="28" height="28" alt="">
-    <span>PowerView<span class="brand__suffix">.py</span></span>
+    <span class="brand__name">PowerView<span class="brand__suffix">.py</span></span>
     <span class="brand__version">{{ version }}</span>
   </a>
   <nav class="navigation" aria-label="Main navigation">
@@ -9,7 +10,7 @@
     <div class="navigation__group">
       <p class="navigation__label">{{ section }}</p>
       {% for item in pages if item.section == section %}
-      <a class="navigation__link" href="{{ url_for(item.endpoint) }}"{% if item.endpoint == page.endpoint %} aria-current="page"{% endif %}>{{ item.title }}</a>
+      <a class="navigation__link" href="{{ url_for(item.endpoint) }}"{% if item.endpoint == page.endpoint %} aria-current="page"{% endif %}>{{ icon(item.icon) }}<span class="navigation__text">{{ item.title }}</span></a>
       {% endfor %}
     </div>
     {% endfor %}
