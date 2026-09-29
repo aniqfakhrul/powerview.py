@@ -11,10 +11,10 @@
     <h1 class="toolbar__title">{{ icon(grid_icon, 'icon type--' ~ grid_icon) }}<span>{{ page.title }}</span></h1>
     <label class="search-field toolbar__search">{{ icon('search') }}<input id="grid-filter" type="search" placeholder="Filter results" aria-label="Filter {{ page.title | lower }}" disabled></label>
     <div class="toolbar__actions">
-      <button id="grid-search" class="button" type="button" title="Search options" aria-haspopup="dialog" aria-expanded="false" aria-controls="search-menu" popovertarget="search-menu">{{ icon('search') }}<span>Search options</span><span class="fields-trigger__count" data-search-count></span></button>
+      <button id="grid-search" aria-label="Search options" class="button" type="button" title="Search options" aria-haspopup="dialog" aria-expanded="false" aria-controls="search-menu" popovertarget="search-menu">{{ icon('search') }}<span>Search</span><span class="fields-trigger__count" data-search-count></span></button>
       <button id="grid-fields" class="button fields-trigger" type="button" title="Choose fields" aria-haspopup="dialog" aria-expanded="false" aria-controls="fields-menu" popovertarget="fields-menu">{{ icon('field-desc') }}<span>Fields</span><span class="fields-trigger__count"></span></button>
       {% block grid_actions %}{% endblock %}
-      <button id="grid-export" class="button" type="button" title="Export the rows shown as CSV" disabled>{{ icon('download') }}<span>Export CSV</span></button>
+      <button id="grid-more" class="icon-button" type="button" aria-label="More actions" title="More actions" aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu" popovertarget="more-menu">{{ icon('more') }}</button>
       <button id="grid-refresh" class="icon-button" type="button" aria-label="Refresh" title="Refresh">{{ icon('refresh') }}</button>
     </div>
   </header>
@@ -36,6 +36,10 @@
   <div id="search-menu" class="fields-menu search-menu" popover role="dialog" aria-label="Search options"></div>
   <div id="column-filter" class="fields-menu column-filter" popover role="dialog" aria-label="Column filter"></div>
   <div id="fields-menu" class="fields-menu" popover role="dialog" aria-label="Fields"></div>
+  <div id="more-menu" class="fields-menu action-menu" popover role="menu" aria-label="More actions">
+    <button id="grid-export" class="action-menu__item" type="button" role="menuitem" title="Export the rows shown as CSV" disabled>{{ icon('download') }}<span>Export CSV</span></button>
+    {% block grid_menu_actions %}{% endblock %}
+  </div>
   {% block grid_dialogs %}{% endblock %}
 </section>
 {% endblock %}

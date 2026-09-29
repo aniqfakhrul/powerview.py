@@ -14,7 +14,8 @@ const aces = [{ attributes: [{ ObjectDN: `CN=svc.backup,${rootDN}`, ACEType: 'AC
 
 async function download(page) {
   const pending = page.waitForEvent('download');
-  await page.locator('#grid-export').click();
+  await page.locator('#grid-more').click();
+  await page.getByRole('menuitem', { name: 'Export CSV' }).click();
   const file = await pending;
   return { name: file.suggestedFilename(), text: await fs.readFile(await file.path(), 'utf8') };
 }
@@ -38,11 +39,22 @@ async function download(page) {
     const errors = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto(`${base}/users`);
-    const button = page.getByRole('button', { name: 'Export CSV' });
+    const button = page.locator('#grid-export');
+    const more = page.getByRole('button', { name: 'More actions' });
+    assert.equal(await more.getAttribute('aria-haspopup'), 'menu');
     assert.equal(await button.isDisabled(), true);
     release();
     await page.locator('#grid-body tr[data-dn]').nth(2).waitFor();
     assert.equal(await button.isDisabled(), false);
+    await more.focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await more.getAttribute('aria-expanded'), 'true');
+    await page.waitForFunction(() => document.activeElement.id === 'grid-export');
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'grid-export');
+    await page.keyboard.press('Escape');
+    assert.equal(await more.getAttribute('aria-expanded'), 'false');
+    await page.waitForFunction(() => document.activeElement.id === 'grid-more');
 
     await page.locator('#grid-filter').fill('enabled');
     const shown = await page.locator('#grid-body tr[data-dn]').count();
@@ -77,7 +89,8 @@ async function download(page) {
 
     await page.goto(`${base}/pathfinder`);
     assert.equal(await button.isDisabled(), true);
-    assert.equal(await page.getByRole('button', { name: 'Export JSON' }).count(), 1);
+    assert.equal(await page.locator('#more-menu #pathfinder-export').textContent(), 'Export JSON');
+    assert.equal(await page.locator('.toolbar #pathfinder-export').count(), 0);
     await page.locator('#pathfinder-target').fill('svc.backup');
     await page.locator('#pathfinder-find').click();
     await page.locator('#grid-body tr[data-key]').first().waitFor();
@@ -86,6 +99,6 @@ async function download(page) {
     assert.match(acl.text.split('\r\n')[0], /"ObjectDN"$/);
     assert.ok(acl.text.includes('"ReadControl; WriteDACL"'));
     assert.deepEqual(errors, []);
-    console.log('PASS: CSV export on shared grids: disabled while loading and when empty, exports filtered rows with visible columns and DN, BOM and CRLF, quoting, formula neutralisation, no duplicate DN column, DN chip values, Pathfinder ObjectDN and JSON label, toast and file names.');
+    console.log('PASS: CSV export on shared grids: disabled while loading and when empty, exports filtered rows with visible columns and DN, BOM and CRLF, quoting, formula neutralisation, no duplicate DN column, DN chip values, More actions menu keyboard behaviour, Pathfinder ObjectDN and JSON menu item, toast and file names.');
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exitCode = 1; });

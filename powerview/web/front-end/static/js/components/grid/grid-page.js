@@ -8,6 +8,7 @@ import { createResizer } from '../resizer.js';
 import { createStatus } from '../status.js';
 import { notify } from '../notify.js';
 import { expandChips, fitChips } from './chips.js';
+import { createActionMenu } from './action-menu.js';
 import { downloadCsv, toCsv } from './csv-export.js';
 import { createColumnFilter, filterSpec, isActive, matchesFilter } from './column-filter.js';
 import { createFieldsMenu } from './fields-menu.js';
@@ -586,6 +587,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   filter.addEventListener('keydown', (event) => { if (event.key === 'Escape' && filter.value) { filter.value = ''; update(); } });
   refresh.addEventListener('click', () => load(true));
   exportButton.addEventListener('click', exportCsv);
+  createActionMenu({ trigger: document.querySelector('#grid-more'), menu: document.querySelector('#more-menu') });
 
   (columnSet.objectClass ? directory.schemaAttributes(columnSet.objectClass) : Promise.resolve(null))
     .then((attributes) => {

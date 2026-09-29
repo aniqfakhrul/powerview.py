@@ -1,7 +1,7 @@
 {% extends "layouts/grid.html" %}
 {% from "components/icon.html" import icon %}
 {% set grid_icon = "user" %}
-{% block grid_actions %}<button id="user-new" class="button" type="button" title="New user" disabled>{{ icon('plus') }}<span>New user</span></button>{% endblock %}
+{% block grid_actions %}<button id="user-new" aria-label="New user" class="button" type="button" title="New user" disabled>{{ icon('plus') }}<span>New</span></button>{% endblock %}
 {% block grid_dialogs %}
   <dialog id="user-dialog" class="dialog" aria-labelledby="user-dialog-title">
     <form id="user-form" method="dialog">

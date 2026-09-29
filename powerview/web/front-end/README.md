@@ -69,7 +69,12 @@ the frontend never receives connection credentials.
 ## CSV export
 
 Every shared grid page (Users, Computers, Groups, DNS, certificate templates
-and authorities, OUs, GPOs and Pathfinder) has **Export CSV** in its toolbar.
+and authorities, OUs, GPOs and Pathfinder) has **Export CSV** in the toolbar's
+**⋯ More actions** menu, which keeps occasional actions out of the toolbar. The
+menu opens with Enter or a click, moves with arrow keys and Home/End, closes
+with Escape and returns focus to its button. Pages add items through the
+`grid_menu_actions` template block; Pathfinder adds **Export JSON**. Toolbar
+buttons use short labels (such as **New**) with full accessible names.
 It exports the rows currently shown, after the text filter, column filters and
 sort, with the visible columns in on-screen order. A `distinguishedName` column
 (`ObjectDN` on Pathfinder) is appended unless one is already shown; DN name-chip
@@ -369,7 +374,7 @@ table supports sorting,
 local text and column filters, configurable fields and column widths. Selecting
 a row opens its ACE fields in a fixed order, an Explorer link to the target and
 **Find all ACEs on this target**, which replaces the query with that target and
-any principal. **Export JSON** downloads the filtered rows as JSON with
+any principal. **Export JSON** (in the ⋯ menu) downloads the filtered rows as JSON with
 query metadata, timestamp, filtered-row scope and interpretation notes; **Export
 CSV** downloads the same rows as a spreadsheet. Filenames include the export time. Table operations and evidence
 selection do not issue another ACL search.

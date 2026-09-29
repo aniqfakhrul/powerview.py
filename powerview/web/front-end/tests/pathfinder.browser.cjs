@@ -105,7 +105,8 @@ const fixture = [{ objectClass: ['top', 'person', 'user', 'computer'], attribute
     assert.equal(await page.locator('#grid-body tr[data-key]').count(), 1);
     assert.equal(calls.length, 2);
     const downloadEvent = page.waitForEvent('download');
-    await page.locator('#pathfinder-export').click();
+    await page.getByRole('button', { name: 'More actions' }).click();
+    await page.getByRole('menuitem', { name: 'Export JSON' }).click();
     const download = await downloadEvent;
     const exported = JSON.parse(await fs.readFile(await download.path(), 'utf8'));
     assert.equal(exported.aces.length, 1);

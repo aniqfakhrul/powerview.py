@@ -1,7 +1,7 @@
 {% extends "layouts/grid.html" %}
 {% from "components/icon.html" import icon %}
 {% set grid_icon = "policy" %}
-{% block grid_actions %}<button id="gpo-new" class="button" type="button" title="New group policy" disabled>{{ icon('plus') }}<span>New GPO</span></button>{% endblock %}
+{% block grid_actions %}<button id="gpo-new" aria-label="New GPO" class="button" type="button" title="New group policy" disabled>{{ icon('plus') }}<span>New</span></button>{% endblock %}
 {% block grid_dialogs %}
   <dialog id="gpo-dialog" class="dialog" aria-labelledby="gpo-dialog-title">
     <form id="gpo-form" method="dialog">

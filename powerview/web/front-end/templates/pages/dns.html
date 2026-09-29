@@ -3,7 +3,7 @@
 {% set grid_icon = "domain" %}
 {% block grid_actions %}
   <select id="dns-zone" class="text-input dns-zone" aria-label="DNS zone" title="DNS zone" disabled><option>Loading zones…</option></select>
-  <button id="dns-new" class="button" type="button" title="New A record" disabled>{{ icon('plus') }}<span>New record</span></button>
+  <button id="dns-new" aria-label="New record" class="button" type="button" title="New A record" disabled>{{ icon('plus') }}<span>New</span></button>
 {% endblock %}
 {% block grid_dialogs %}
   <dialog id="dns-dialog" class="dialog" aria-labelledby="dns-dialog-title" aria-describedby="dns-dialog-zone">
