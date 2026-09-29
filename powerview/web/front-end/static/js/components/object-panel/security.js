@@ -1,5 +1,6 @@
 import { values } from '../../core/directory.js';
 import { button, element, icon } from '../../core/dom.js';
+import { chips, fitChips } from '../grid/chips.js';
 
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 const OWNER = /^(.*?)\s*\((S-[\d-]+)\)$/;
@@ -23,26 +24,37 @@ function toEntry(ace) {
   return {
     denied: denied(ace),
     principal: clean(ace.SecurityIdentifier),
-    rights: (listed(ace.AccessMask).length ? listed(ace.AccessMask) : listed(ace.ActiveDirectoryRights)).join(', '),
+    rights: listed(ace.AccessMask).length ? listed(ace.AccessMask) : listed(ace.ActiveDirectoryRights),
     appliesTo: clean(ace.ObjectAceType) || 'All properties',
     scope: scopeOf(ace),
     inheritedFrom: hasFlag(ace, 'INHERITED_ACE'),
     type: clean(ace.ACEType),
-    flags: listed(ace.ACEFlags).join(', ') || 'None',
+    flags: listed(ace.ACEFlags),
   };
 }
 
+const pills = (items, tone = 'neutral') => {
+  const list = element('span', 'security__pills');
+  list.append(...items.map((item) => element('span', `state state--${tone}`, item)));
+  return list;
+};
+
 function details(entry) {
   const list = element('dl', 'security__details');
-  for (const [label, value] of [
-    ['Principal', entry.principal],
-    ['Rights', entry.rights],
+  const rows = [
+    ['Principal', entry.principal || 'Unknown principal'],
+    ['Rights', entry.rights.length ? pills(entry.rights) : 'None'],
     ['Applies to', entry.appliesTo],
     ['Scope', entry.scope],
     ['Source', entry.inheritedFrom ? 'Inherited from a parent' : 'Explicit on this object'],
-    ['Entry type', entry.type],
-    ['Flags', entry.flags],
-  ]) list.append(element('dt', '', label), element('dd', '', value));
+    ['Entry type', pills([entry.type], entry.denied ? 'danger' : 'success')],
+    ['Flags', entry.flags.length ? pills(entry.flags) : 'None'],
+  ];
+  for (const [label, value] of rows) {
+    const cell = element('dd');
+    cell.append(value);
+    list.append(element('dt', '', label), cell);
+  }
   return list;
 }
 
@@ -59,7 +71,52 @@ function ownerBlock(owner) {
 export function createSecurity({ directory }) {
   let controller;
 
-  function table(entries) {
+  let fitRights = () => {};
+  const rightsWidth = new ResizeObserver(() => fitRights());
+
+  function aceRows(entry) {
+    const row = element('tr', 'security__row');
+    row.tabIndex = 0;
+    row.setAttribute('aria-expanded', 'false');
+    const access = element('td');
+    access.append(element('span', entry.denied ? 'state state--danger' : 'state state--success', entry.denied ? 'Deny' : 'Allow'));
+    const principal = element('td');
+    const target = `${entry.appliesTo} · ${entry.scope}`;
+    const name = element('span', 'security__principal', entry.principal || 'Unknown principal');
+    name.title = entry.principal;
+    const applies = element('span', 'security__target', target);
+    applies.title = target;
+    principal.append(name, applies);
+    const rights = element('td');
+    rights.append(chips(entry.rights));
+    row.append(access, principal, rights);
+    const detailRow = element('tr', 'security__detail-row');
+    detailRow.hidden = true;
+    const detailCell = element('td');
+    detailCell.colSpan = 3;
+    detailCell.append(details(entry));
+    detailRow.append(detailCell);
+    const toggle = () => {
+      detailRow.hidden = !detailRow.hidden;
+      row.setAttribute('aria-expanded', String(!detailRow.hidden));
+    };
+    row.addEventListener('click', toggle);
+    row.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); } });
+    return [row, detailRow];
+  }
+
+  function groupRows(title, entries) {
+    if (!entries.length) return [];
+    const row = element('tr', 'security__group');
+    const heading = element('th', '', title);
+    heading.scope = 'colgroup';
+    heading.colSpan = 3;
+    heading.append(element('span', 'membership__count', String(entries.length)));
+    row.append(heading);
+    return [row, ...entries.flatMap(aceRows)];
+  }
+
+  function aclList(entries) {
     const wrapper = element('section', 'security__acl');
     const toolbar = element('div', 'membership__toolbar');
     const search = element('label', 'search-field');
@@ -75,56 +132,38 @@ export function createSecurity({ directory }) {
     toolbar.append(search, explicitOnly, count);
 
     const grid = element('table', 'security__table');
-    const head = element('thead');
     const headRow = element('tr');
-    for (const label of ['Access', 'Principal', 'Rights', 'Applies to', 'Scope']) {
+    const headers = ['Access', 'Principal', 'Rights'].map((label) => {
       const th = element('th', '', label);
       th.scope = 'col';
-      headRow.append(th);
-    }
+      return th;
+    });
+    headRow.append(...headers);
+    const head = element('thead');
     head.append(headRow);
     const body = element('tbody');
     grid.append(head, body);
-    const scroller = element('div', 'security__scroll');
-    scroller.append(grid);
+    rightsWidth.disconnect();
+    fitRights = () => fitChips(body.querySelectorAll('.cell-chips'));
+    rightsWidth.observe(headers[2]);
 
     function update() {
       const query = input.value.trim().toLocaleLowerCase();
       const visible = entries.filter((entry) => (!checkbox.checked || !entry.inheritedFrom)
-        && (!query || [entry.principal, entry.rights, entry.appliesTo].some((value) => value.toLocaleLowerCase().includes(query))));
+        && (!query || [entry.principal, ...entry.rights, entry.appliesTo].some((value) => value.toLocaleLowerCase().includes(query))));
       count.textContent = visible.length === entries.length ? String(entries.length) : `${visible.length} of ${entries.length}`;
-      body.replaceChildren(...visible.flatMap((entry) => {
-        const tr = element('tr', 'security__row');
-        tr.tabIndex = 0;
-        tr.setAttribute('aria-expanded', 'false');
-        const access = element('td');
-        access.append(element('span', entry.denied ? 'state state--danger' : 'state state--neutral', entry.denied ? 'Deny' : 'Allow'));
-        const principal = element('td', '', entry.principal);
-        const rights = element('td', 'security__rights', entry.rights);
-        const applies = element('td', '', entry.appliesTo);
-        const scope = element('td', entry.inheritedFrom ? 'cell-muted' : '', entry.scope);
-        tr.append(access, principal, rights, applies, scope);
-        const detailRow = element('tr', 'security__detail-row');
-        detailRow.hidden = true;
-        const detailCell = element('td');
-        detailCell.colSpan = 5;
-        detailCell.append(details(entry));
-        detailRow.append(detailCell);
-        const toggle = () => {
-          detailRow.hidden = !detailRow.hidden;
-          tr.setAttribute('aria-expanded', String(!detailRow.hidden));
-        };
-        tr.addEventListener('click', toggle);
-        tr.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); } });
-        return [tr, detailRow];
-      }));
+      body.replaceChildren(
+        ...groupRows('Explicit', visible.filter((entry) => !entry.inheritedFrom)),
+        ...groupRows('Inherited', visible.filter((entry) => entry.inheritedFrom)),
+      );
       if (!visible.length) {
-        const tr = element('tr');
-        const td = element('td', 'cell-muted', 'No entries match');
-        td.colSpan = 5;
-        tr.append(td);
-        body.append(tr);
+        const row = element('tr');
+        const cell = element('td', 'cell-muted', 'No entries match');
+        cell.colSpan = 3;
+        row.append(cell);
+        body.append(row);
       }
+      if (grid.isConnected) fitRights();
     }
 
     input.addEventListener('input', update);
@@ -132,7 +171,7 @@ export function createSecurity({ directory }) {
       if (event.key === 'Escape' && input.value) { event.preventDefault(); input.value = ''; update(); }
     });
     checkbox.addEventListener('change', update);
-    wrapper.append(toolbar, scroller);
+    wrapper.append(toolbar, grid);
     update();
     return wrapper;
   }
@@ -151,7 +190,7 @@ export function createSecurity({ directory }) {
         if (signal.aborted) return;
         const entries = aces.map(toEntry).sort((a, b) => Number(a.inheritedFrom) - Number(b.inheritedFrom)
           || Number(b.denied) - Number(a.denied) || collator.compare(a.principal, b.principal));
-        container.replaceChildren(ownerBlock(owner), table(entries));
+        container.replaceChildren(ownerBlock(owner), aclList(entries));
       } catch (error) {
         if (signal.aborted) return;
         const box = element('div', 'panel-message');
