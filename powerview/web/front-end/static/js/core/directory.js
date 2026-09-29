@@ -1,7 +1,7 @@
 import { createAPI, APIError } from './api.js';
 import { dnLabel } from './dn.js';
 
-export const TREE_PROPERTIES = ['name', 'objectClass'];
+export const TREE_PROPERTIES = ['name', 'objectClass', 'userAccountControl'];
 const SUGGESTION_LIMIT = 20;
 const OBJECT_KINDS = {
   member: '(|(objectCategory=person)(objectCategory=group)(objectCategory=computer))',
@@ -16,23 +16,47 @@ export function attribute(record, name) {
   const key = Object.keys(record.attributes).find((item) => item.toLowerCase() === name.toLowerCase());
   return key ? record.attributes[key] : undefined;
 }
+const SERVICE_ACCOUNT_CLASSES = ['msds-groupmanagedserviceaccount', 'msds-managedserviceaccount', 'msds-delegatedmanagedserviceaccount'];
+const PKI_CLASSES = ['pkicertificatetemplate', 'pkienrollmentservice', 'certificationauthority'];
+const CONTAINER_CLASSES = ['container', 'builtindomain', 'configuration', 'dmd', 'dnszone'];
+
+export function isController(record) {
+  const control = Number(values(attribute(record, 'userAccountControl'))[0]);
+  return Number.isInteger(control) && Boolean(control & (8192 | 67108864));
+}
+
 export function objectType(record) {
   const classes = values(attribute(record, 'objectClass')).map((value) => String(value).toLowerCase());
-  if (classes.includes('computer')) return 'computer';
-  if (classes.includes('user')) return 'user';
-  if (classes.includes('group')) return 'group';
-  if (classes.includes('organizationalunit')) return 'ou';
-  if (classes.includes('grouppolicycontainer')) return 'policy';
-  if (classes.includes('domaindns')) return 'domain';
-  if (classes.some((value) => ['container', 'builtindomain', 'configuration', 'dmd', 'dnszone'].includes(value))) return 'container';
+  const has = (...names) => names.some((name) => classes.includes(name));
+  if (has(...SERVICE_ACCOUNT_CLASSES)) return 'service';
+  if (has('computer')) return isController(record) ? 'controller' : 'computer';
+  if (has('user')) return 'user';
+  if (has('contact')) return 'contact';
+  if (has('group')) return 'group';
+  if (has('organizationalunit')) return 'ou';
+  if (has('grouppolicycontainer')) return 'policy';
+  if (has('domaindns')) return 'domain';
+  if (has('foreignsecurityprincipal')) return 'foreign';
+  if (has('printqueue')) return 'printer';
+  if (has('volume')) return 'share';
+  if (has(...PKI_CLASSES)) return 'certificate';
+  if (has(...CONTAINER_CLASSES)) return 'container';
   return 'other';
 }
+
+export const accountKind = (type) => (type === 'controller' ? 'computer' : type);
 const PLAIN_NAME = /^[^,=+<>;"\\\x00-\x1f]+$/;
 export function assertPlainName(name) {
   if (!PLAIN_NAME.test(name) || name.trim() !== name) throw new Error('Use a plain name without commas, equals signs, or leading and trailing spaces.');
 }
-export const TYPE_ICONS = { domain: 'domain', user: 'user', group: 'group', computer: 'computer', ou: 'ou', policy: 'policy', container: 'folder', other: 'object' };
-export const TYPE_LABELS = { domain: 'Domain', user: 'User', group: 'Group', computer: 'Computer', ou: 'Organizational unit', policy: 'Group policy', container: 'Container', other: 'Object' };
+export const TYPE_ICONS = {
+  domain: 'domain', user: 'user', contact: 'contact', group: 'group', computer: 'computer', controller: 'server', service: 'service-account',
+  foreign: 'foreign-principal', ou: 'ou', policy: 'policy', printer: 'printer', share: 'shared-folder', certificate: 'certificate', container: 'folder', other: 'object',
+};
+export const TYPE_LABELS = {
+  domain: 'Domain', user: 'User', contact: 'Contact', group: 'Group', computer: 'Computer', controller: 'Domain controller', service: 'Managed service account',
+  foreign: 'Foreign security principal', ou: 'Organizational unit', policy: 'Group policy', printer: 'Printer', share: 'Shared folder', certificate: 'Certificate services object', container: 'Container', other: 'Object',
+};
 const isPolicy = (record) => values(attribute(record, 'objectClass')).some((item) => String(item).toLowerCase() === 'grouppolicycontainer');
 export const recordName = (record) => (isPolicy(record) && textValue(attribute(record, 'displayName')))
   || textValue(attribute(record, 'name')) || dnLabel(record.dn);

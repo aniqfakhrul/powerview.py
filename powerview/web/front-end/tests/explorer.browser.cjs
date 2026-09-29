@@ -33,7 +33,7 @@ const connection = { domain: 'example.test', ldap_address: '10.0.0.10', nameserv
       response = objects.filter((item) => item.attributes.name.toLowerCase().startsWith(prefix)).slice(0, data.size_limit);
     } else if (path.endsWith('/get/domainobject')) {
       if (failReads) return route.fulfill({ status: 400, json: { error: 'Read denied (test)' } });
-      assert.deepEqual(data.properties, data.search_scope === 'BASE' ? ['*'] : ['name', 'objectClass']);
+      assert.deepEqual(data.properties, data.search_scope === 'BASE' ? ['*'] : ['name', 'objectClass', 'userAccountControl']);
       if (data.search_scope === 'BASE') response = [objects.find((item) => item.dn === data.searchbase) || (data.searchbase === peopleDN ? container : contextRecord)];
       else response = data.searchbase === rootDN ? [container] : data.searchbase === peopleDN ? objects : [];
     } else { writes.push({ path, data }); response = mutationResponse; }

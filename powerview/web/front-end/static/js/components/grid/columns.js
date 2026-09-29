@@ -87,14 +87,13 @@ export const statusColumn = {
   filter: { type: 'values', choices: ['Enabled', 'Disabled'] },
 };
 
-export function nameColumn(iconName) {
+export function nameColumn(kind) {
   return {
     key: 'name', label: 'name', hint: 'Object name', icon: 'field-text', width: 240, attributes: ['name'],
     render: (record, entry) => {
       const cell = element('div', 'cell-name');
-      const type = objectType(record);
-      const name = iconName ?? TYPE_ICONS[type];
-      cell.append(icon(name, `type--${iconName ?? type}`), element('span', '', entry.name));
+      const type = (typeof kind === 'function' ? kind(record) : kind) ?? objectType(record);
+      cell.append(icon(TYPE_ICONS[type] ?? type, `type--${type}`), element('span', '', entry.name));
       return cell;
     },
     text: (record, entry) => entry.name,

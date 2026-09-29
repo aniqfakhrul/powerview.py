@@ -1,11 +1,12 @@
-import { attribute, objectType, recordName, values } from '../../core/directory.js';
+import { accountKind, attribute, objectType, recordName, values } from '../../core/directory.js';
 import { accountDisabled, toTime } from '../../core/ldap-values.js';
 import { button } from '../../core/dom.js';
 import { confirmAction } from '../confirm.js';
 import { notify } from '../notify.js';
 import { resetPassword } from './reset-password.js';
 
-const ACCOUNT_TYPES = new Set(['user', 'computer']);
+const ACCOUNT_KINDS = new Set(['user', 'computer', 'service']);
+const PASSWORD_KINDS = new Set(['user', 'computer']);
 
 export function createActions({ host, directory, scope, guard, canLeave, onChanged, onDeleted, isRoot = () => false, describeRemoval, extraActions }) {
   let current = null;
@@ -62,11 +63,13 @@ export function createActions({ host, directory, scope, guard, canLeave, onChang
       current = record;
       host.replaceChildren();
       if (!record) return;
-      const type = objectType(record);
-      if (ACCOUNT_TYPES.has(type)) {
-        host.append(action(type === 'computer' ? 'Reset computer account password…' : 'Reset password…', 'key', () => {
-          if (canLeave()) resetPassword({ record, directory, guard, onChanged: () => onChanged(record) });
-        }));
+      const kind = accountKind(objectType(record));
+      if (ACCOUNT_KINDS.has(kind)) {
+        if (PASSWORD_KINDS.has(kind)) {
+          host.append(action(kind === 'computer' ? 'Reset computer account password…' : 'Reset password…', 'key', () => {
+            if (canLeave()) resetPassword({ record, directory, guard, onChanged: () => onChanged(record) });
+          }));
+        }
         const control = attribute(record, 'userAccountControl');
         if (values(control).length) {
           const disabled = accountDisabled(control);

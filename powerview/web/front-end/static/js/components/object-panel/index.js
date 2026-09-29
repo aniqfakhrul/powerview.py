@@ -11,7 +11,7 @@ import { createActions } from './actions.js';
 const TABS = [
   { key: 'attributes', label: 'Attributes' },
   { key: 'members', label: 'Members', attribute: 'member', noun: 'members', types: ['group'] },
-  { key: 'memberOf', label: 'Member of', attribute: 'memberOf', noun: 'groups', types: ['group', 'user', 'computer'] },
+  { key: 'memberOf', label: 'Member of', attribute: 'memberOf', noun: 'groups', types: ['group', 'user', 'contact', 'computer', 'controller', 'service'] },
   { key: 'security', label: 'Security', lazy: true },
 ];
 

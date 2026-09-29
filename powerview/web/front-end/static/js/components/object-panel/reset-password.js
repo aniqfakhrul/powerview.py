@@ -1,10 +1,10 @@
-import { objectType, recordName } from '../../core/directory.js';
+import { accountKind, objectType, recordName } from '../../core/directory.js';
 import { button, element, setBusy } from '../../core/dom.js';
 import { notify } from '../notify.js';
 
 export function resetPassword({ record, directory, guard, onChanged }) {
   const returnFocus = document.activeElement;
-  const type = objectType(record);
+  const type = accountKind(objectType(record));
   const dialog = element('dialog', 'dialog');
   dialog.setAttribute('aria-labelledby', 'reset-password-title');
   const form = element('form');

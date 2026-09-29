@@ -80,6 +80,18 @@ cd "$(mktemp -d)" && npm pack @fluentui/svg-icons && tar -xzf fluentui-svg-icons
 node /path/to/powerview.py/powerview/web/front-end/tools/build-icons.mjs "$PWD/package"
 ```
 
+Object icons follow Active Directory Users and Computers metaphors, chosen from
+Fluent because Windows' own AD icons are not redistributable. `objectType()` in
+`core/directory.js` classifies records and `TYPE_ICONS` maps them: domain →
+Organization, OU → FolderList, container/builtinDomain → Folder, user and
+inetOrgPerson → Person, contact → ContactCard, group → People, computer →
+Desktop, domain controller (`userAccountControl` server or read-only DC flags) →
+Server, sMSA/gMSA/dMSA → PersonSettings, foreignSecurityPrincipal → PersonLink,
+group policy → DocumentSettings, printQueue → Print, volume → FolderLink and
+certificate services objects → Certificate. DNS uses Globe. Domain controllers
+keep computer account actions; managed service accounts can be enabled, disabled
+or unlocked but offer no password reset, because AD manages their passwords.
+
 The generator fails if a mapped icon is missing and records the Fluent version
 in the sprite. `static/images/icons.LICENSE.txt` carries Microsoft's MIT notice.
 

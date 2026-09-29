@@ -1,4 +1,4 @@
-import { attribute, values } from '../../core/directory.js';
+import { attribute, isController, values } from '../../core/directory.js';
 import { dnChipColumn } from '../../components/grid/chips.js';
 import { countColumn, createColumnSet, dnColumn, nameColumn, statusColumn, textColumn, timeColumn } from '../../components/grid/columns.js';
 
@@ -15,7 +15,7 @@ const ipAddressColumn = {
 export const computerColumns = createColumnSet({
   storageKey: 'powerview.computers.columns',
   objectClass: 'computer',
-  name: nameColumn('computer'),
+  name: nameColumn((record) => (isController(record) ? 'controller' : 'computer')),
   catalog: [
     textColumn('dnsHostName', 'dNSHostName', 'DNS host name', 240),
     statusColumn,

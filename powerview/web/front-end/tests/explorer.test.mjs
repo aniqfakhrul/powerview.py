@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAPI } from '../static/js/core/api.js';
-import { createDirectory, objectType } from '../static/js/core/directory.js';
+import { accountKind, createDirectory, objectType, TYPE_ICONS, TYPE_LABELS } from '../static/js/core/directory.js';
 import { splitDN, parentDN, dnLabel, namingContext } from '../static/js/core/dn.js';
 import { createRequestLane } from '../static/js/core/request-lane.js';
 import { accountDisabled, readableTime, toTime } from '../static/js/core/ldap-values.js';
@@ -18,6 +18,38 @@ test('DN parsing preserves escaped separators and decodes UTF-8 hex escapes', ()
 
 test('computers are classified before users', () => {
   assert.equal(objectType({ attributes: { objectClass: ['top', 'person', 'user', 'computer'] } }), 'computer');
+});
+
+test('AD object classes map to Active Directory-like types, icons and labels', () => {
+  const type = (objectClass, extra = {}) => objectType({ attributes: { objectClass, ...extra } });
+  const computer = ['top', 'person', 'organizationalPerson', 'user', 'computer'];
+  assert.equal(type(computer, { userAccountControl: 4096 }), 'computer');
+  assert.equal(type(computer, { userAccountControl: [532480] }), 'controller');
+  assert.equal(type(computer, { userAccountControl: '83890176' }), 'controller');
+  assert.equal(type([...computer, 'msDS-GroupManagedServiceAccount'], { userAccountControl: 4096 }), 'service');
+  assert.equal(type([...computer, 'msDS-ManagedServiceAccount']), 'service');
+  assert.equal(type(['top', 'person', 'organizationalPerson', 'user', 'inetOrgPerson']), 'user');
+  assert.equal(type(['top', 'person', 'organizationalPerson', 'contact']), 'contact');
+  assert.equal(type(['top', 'foreignSecurityPrincipal']), 'foreign');
+  assert.equal(type(['top', 'leaf', 'connectionPoint', 'printQueue']), 'printer');
+  assert.equal(type(['top', 'leaf', 'connectionPoint', 'volume']), 'share');
+  assert.equal(type(['top', 'pKICertificateTemplate']), 'certificate');
+  assert.equal(type(['top', 'builtinDomain']), 'container');
+  assert.equal(type(['top', 'domain', 'domainDNS']), 'domain');
+  assert.equal(type(['top', 'organizationalUnit']), 'ou');
+  assert.equal(type(['top', 'nTDSService']), 'other');
+  for (const key of Object.keys(TYPE_ICONS)) assert.ok(TYPE_LABELS[key], key);
+  assert.equal(TYPE_ICONS.controller, 'server');
+  assert.equal(accountKind('controller'), 'computer');
+  assert.equal(accountKind('service'), 'service');
+});
+
+test('every type icon exists exactly once in the sprite', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const sprite = await readFile(new URL('../static/images/icons.svg', import.meta.url), 'utf8');
+  const ids = [...sprite.matchAll(/<symbol id="([^"]+)"/g)].map((match) => match[1]);
+  assert.equal(new Set(ids).size, ids.length);
+  for (const id of [...Object.values(TYPE_ICONS), 'globe']) assert.ok(ids.includes(id), id);
 });
 
 test('starting a new read cancels the previous signal', () => {

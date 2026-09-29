@@ -1,10 +1,9 @@
 import { isDN } from '../core/dn.js';
-import { objectType, recordName } from '../core/directory.js';
+import { objectType, recordName, TYPE_ICONS } from '../core/directory.js';
 import { element, icon } from '../core/dom.js';
 
 const SEARCH_DELAY = 250;
 const MIN_QUERY = 2;
-const TYPE_ICONS = { user: 'user', group: 'group', computer: 'computer', ou: 'ou', policy: 'policy', domain: 'domain', container: 'folder' };
 
 export function attachObjectSearch({ input, directory, kind, onChoose }) {
   const popup = element('div', 'object-search');
