@@ -85,15 +85,14 @@ export function createSecurity({ directory, guard, canLeave, onSaved }) {
     const confirmed = await confirmAction({
       title: 'Remove access entry?',
       context: dn,
-      message: `${entry.denied ? 'Deny' : 'Allow'} · ${entry.principal} · ${entry.rights.join(', ')} · ${entry.appliesTo} · ${entry.scope}. Identical matching entries will also be removed.`,
+      message: `${entry.denied ? 'Deny' : 'Allow'} · ${entry.principal} · ${entry.rights.join(', ')} · ${entry.appliesTo} · ${entry.scope}. Only this entry will be removed.`,
       confirmLabel: 'Remove',
       danger: true,
     });
     if (!confirmed || !canLeave() || !guard.begin()) return;
     remove.disabled = true;
     try {
-      const { principalidentity, ...options } = entry.removal;
-      await directory.changeACL('remove', dn, principalidentity, options);
+      await directory.removeACE(dn, entry.removal.ace);
     } catch (failure) {
       notify.error(failure.message);
       return;

@@ -206,13 +206,21 @@ inheritable scope. Prevent deletion always uses Deny. DCSync represents two
 replication rights. Custom GUIDs represent extended rights, except the member
 attribute GUID, which uses read/write property permissions.
 
-Removal matches explicit entries by principal, mask, ACE type, inheritance flags
-and object GUID metadata; it removes all matching duplicates. It cannot remove
-arbitrary masks or inherited entries from the child object; those rows have no
-trash action. Row deletion uses raw SID, mask, flags and GUID metadata and asks
-for confirmation without another configuration form. No match or a failed write
-keeps the entry visible. A confirmed `true` response triggers a fresh Security
-read. The mutation guard prevents duplicate submissions.
+Row removal sends `{targetidentity, ace: {index, ace, dacl}}` to
+`/api/remove/domainobjectacl`. The nested `ace` and `dacl` values are SHA-256
+fingerprints supplied as `RemovalIdentity` when ACL enumeration requests
+`include_ace_identity: true`. The Security tab opts in; ordinary CLI and
+whole-domain enumeration do not compute or return these fingerprints. The backend reads
+a fresh descriptor and checks the index and both fingerprints before removing
+one occurrence. Identical duplicates, arbitrary masks, class restrictions and
+other ACE bytes are preserved. Stale selections require a refresh; inherited
+entries must be changed on their source object and have no trash action.
+
+The check covers changes made since enumeration; the LDAP read and write are
+separate operations, not an atomic compare-and-swap. The existing principal and
+rights parameters remain available for preset-based CLI/API removal. Exact
+selection cannot be mixed with those parameters. Failed writes leave the row
+visible; confirmed writes trigger a fresh Security read.
 
 ```sh
 EXPLORER_URL=http://127.0.0.1:5011 \

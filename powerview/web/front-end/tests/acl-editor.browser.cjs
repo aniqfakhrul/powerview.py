@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
 const rootDN = 'DC=example,DC=test';
 const dn = `CN=Target,CN=Users,${rootDN}`;
+const identity = { index: 0, ace: 'a'.repeat(64), dacl: 'b'.repeat(64) };
 const principalDN = `CN=Operators,CN=Users,${rootDN}`;
 
 (async () => {
@@ -26,7 +27,7 @@ const principalDN = `CN=Operators,CN=Users,${rootDN}`;
       if (path.endsWith('/get/domainobjectowner')) return route.fulfill({ json: [{ attributes: { Owner: 'Administrators (S-1-5-32-544)' } }] });
       if (path.endsWith('/get/domainobjectacl')) {
         reads.push(body);
-        return route.fulfill({ json: [{ attributes: [{ ACEType: 'ACCESS_ALLOWED_OBJECT_ACE', ACEFlags: [], ACEFlagsValue: 0, AccessMask: ['ControlAccess'], AccessMaskValue: 256, RawSecurityIdentifier: 'S-1-5-11', SecurityIdentifier: 'Authenticated Users', ObjectAceType: 'Reset Password', ObjectAceTypeGuid: '00299570-246d-11d0-a768-00aa006e0529', ObjectAceFlagsValue: 1 }] }] });
+        return route.fulfill({ json: [{ attributes: [{ RemovalIdentity: identity, ACEType: 'ACCESS_ALLOWED_OBJECT_ACE', ACEFlags: [], ACEFlagsValue: 0, AccessMask: ['ControlAccess'], AccessMaskValue: 256, RawSecurityIdentifier: 'S-1-5-11', SecurityIdentifier: 'Authenticated Users', ObjectAceType: 'Reset Password', ObjectAceTypeGuid: '00299570-246d-11d0-a768-00aa006e0529', ObjectAceFlagsValue: 1 }] }] });
       }
       if (path.endsWith('/get/domainobject') && body.ldap_filter) {
         assert.match(body.ldap_filter, /objectSid=\*/);
@@ -107,7 +108,7 @@ const principalDN = `CN=Operators,CN=Users,${rootDN}`;
     await remove.focus();
     await page.keyboard.press('Enter');
     const removal = page.getByRole('dialog', { name: 'Remove access entry?', exact: true });
-    assert.match(await removal.textContent(), /Identical matching entries/);
+    assert.match(await removal.textContent(), /Only this entry/);
     assert.equal(await row.getAttribute('aria-expanded'), 'false');
     await removal.getByRole('button', { name: 'Cancel', exact: true }).click();
     assert.equal(writes.length, 6);
@@ -117,7 +118,7 @@ const principalDN = `CN=Operators,CN=Users,${rootDN}`;
     await removal.getByRole('button', { name: 'Remove', exact: true }).click();
     await arrival;
     await page.waitForFunction(() => document.querySelector('.security__remove')?.disabled);
-    assert.deepEqual(writes.at(-1), { targetidentity: dn, principalidentity: 'S-1-5-11', rights: 'fullcontrol', rights_guid: '00299570-246d-11d0-a768-00aa006e0529', ace_type: 'allowed', inheritance: false });
+    assert.deepEqual(writes.at(-1), { targetidentity: dn, ace: identity });
     release();
     await page.locator('.toast__text').filter({ hasText: 'PowerView did not confirm this change' }).waitFor();
     assert.equal(await row.isVisible(), true);

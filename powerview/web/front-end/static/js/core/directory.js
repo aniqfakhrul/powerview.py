@@ -69,7 +69,7 @@ export function createDirectory(baseURL) {
       const body = { identity: dn, searchbase: dn, search_scope: 'BASE', no_cache: fresh };
       const [owners, acls] = await Promise.all([
         request('get/domainobjectowner', { signal, body }),
-        request('get/domainobjectacl', { signal, body: { ...body, resolveguids: true } }),
+        request('get/domainobjectacl', { signal, body: { ...body, resolveguids: true, include_ace_identity: true } }),
       ]);
       if (!Array.isArray(acls) || !Array.isArray(owners)) {
         throw new APIError('PowerView could not read this object\'s security descriptor. The account may lack permission to read it; check the CLI logs.');
@@ -77,6 +77,9 @@ export function createDirectory(baseURL) {
       const owner = owners[0]?.attributes?.Owner ?? '';
       const aces = acls.flatMap((entry) => (Array.isArray(entry?.attributes) ? entry.attributes : []));
       return { owner: textValue(owner), aces };
+    },
+    removeACE(targetidentity, ace) {
+      return request('remove/domainobjectacl', { mutation: true, body: { targetidentity, ace } });
     },
     changeACL(action, targetidentity, principalidentity, options) {
       if (!['add', 'remove'].includes(action)) throw new Error('Unsupported ACL action.');

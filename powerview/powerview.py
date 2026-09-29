@@ -1326,7 +1326,7 @@ class PowerView:
 
 		return writable_entries
 
-	def get_domainobjectacl(self, identity=None, security_identifier=None, ldapfilter=None, resolveguids=False, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False, depth=0):
+	def get_domainobjectacl(self, identity=None, security_identifier=None, ldapfilter=None, resolveguids=False, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False, depth=0, include_ace_identity=False):
 		if args:
 			security_identifier = args.security_identifier if hasattr(args, 'security_identifier') else security_identifier
 			depth = args.depth if hasattr(args, 'depth') else depth
@@ -1491,7 +1491,7 @@ class PowerView:
 		if not entries:
 			raise ValueError('[Get-DomainObjectAcl] No readable security descriptors found in scope')
 
-		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=(principalidentity_map if principalidentity_map else security_identifier), guids_map_dict=guids_dict, no_cache=no_cache)
+		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=(principalidentity_map if principalidentity_map else security_identifier), guids_map_dict=guids_dict, no_cache=no_cache, include_ace_identity=include_ace_identity)
 		return enum.read_dacl()
 
 	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolvesids=False, ldapfilter=None, include_ip=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
@@ -5184,7 +5184,11 @@ class PowerView:
 			
 			return True
 
-	def remove_domainobjectacl(self, targetidentity, principalidentity, rights="fullcontrol", rights_guid=None, ace_type="allowed", inheritance=False):
+	def remove_domainobjectacl(self, targetidentity, principalidentity=None, rights="fullcontrol", rights_guid=None, ace_type="allowed", inheritance=False, ace=None):
+		if ace is None and not principalidentity:
+			raise ValueError("PrincipalIdentity is required for preset-based removal.")
+		if ace is not None and (principalidentity is not None or rights != "fullcontrol" or rights_guid is not None or ace_type != "allowed" or inheritance):
+			raise ValueError("Exact ACE selection cannot be combined with preset removal options.")
 		# verify if target identity exists
 		target_entries = self.get_domainobject(identity=targetidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName','nTSecurityDescriptor'], sd_flag=0x04, no_cache=True)
 		
@@ -5207,6 +5211,14 @@ class PowerView:
 
 		logging.info(f'[Remove-DomainObjectACL] Found target identity: {target_dn if target_dn else target_sAMAccountName}')
 		
+		if ace is not None:
+			dacledit = DACLedit(
+				self.ldap_server, self.ldap_session, self.root_dn,
+				target_sAMAccountName, target_SID, target_dn, target_security_descriptor,
+				None, None, None, ace_type, rights, rights_guid, inheritance,
+			)
+			return dacledit.remove_exact(ace)
+
 		# verify if principalidentity exists
 		principal_entries = self.get_domainobject(identity=principalidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName'])
 		

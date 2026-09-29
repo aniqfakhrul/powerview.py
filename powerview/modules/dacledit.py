@@ -36,6 +36,7 @@ from ldap3.protocol.formatters.formatters import format_sid
 from impacket import version
 from impacket.examples import logger, utils
 from impacket.ldap import ldaptypes
+from powerview.utils.ace_identity import ace_identity, dacl_fingerprint, validate_ace_identity
 from powerview.utils.constants import (
     SCHEMA_OBJECTS,
     EXTENDED_RIGHTS
@@ -198,6 +199,23 @@ class DACLedit(object):
         # Effectively push the DACL with the new ACE
         return self.modify_secDesc_for_dn(self.target_DN, self.principal_security_descriptor)
 
+
+    def remove_exact(self, selection):
+        validate_ace_identity(selection)
+        dacl = self.principal_security_descriptor['Dacl']
+        if not isinstance(dacl, ldaptypes.ACL):
+            raise ValueError('This object has no DACL to edit.')
+        fingerprint = dacl_fingerprint(dacl)
+        index = selection['index']
+        if fingerprint != selection['dacl'] or index >= len(dacl.aces):
+            raise ValueError('The DACL changed. Refresh Security and select the entry again.')
+        ace = dacl.aces[index]
+        if ace_identity(ace, index, fingerprint) != selection:
+            raise ValueError('The access entry changed. Refresh Security and select it again.')
+        if ace.hasFlag(ldaptypes.ACE.INHERITED_ACE):
+            raise ValueError('Inherited entries must be removed from their source object.')
+        dacl.aces = dacl.aces[:index] + dacl.aces[index + 1:]
+        return self.modify_secDesc_for_dn(self.target_DN, self.principal_security_descriptor)
 
     # Attempts to remove an ACE from the DACL
     # To do it, a new DACL is built locally with all the ACEs that must NOT BE removed, and this new DACL is pushed on the server

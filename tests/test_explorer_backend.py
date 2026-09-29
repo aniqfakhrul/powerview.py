@@ -95,6 +95,23 @@ class ExplorerBackendTests(unittest.TestCase):
                         inspect.signature(getattr(PowerView, f'{action}_domainobjectacl')).bind(server.powerview, **passed)
                         self.assertEqual(passed, params)
 
+    def test_exact_acl_api_preserves_selection_and_reports_stale_errors(self):
+        server = self.make_server()
+        server.powerview.args.stack_trace = False
+        selection = {'index': 3, 'ace': 'a' * 64, 'dacl': 'b' * 64}
+        params = {'targetidentity': 'CN=Target,DC=example,DC=test', 'ace': selection}
+        method = MagicMock(return_value=True)
+        server.powerview.remove_domainobjectacl = method
+        with server.app.test_client() as client:
+            response = client.post('/api/remove/domainobjectacl', json=params)
+            self.assertIs(response.get_json(), True)
+            method.assert_called_once_with(**params)
+            inspect.signature(PowerView.remove_domainobjectacl).bind(server.powerview, **method.call_args.kwargs)
+            method.side_effect = ValueError('The DACL changed. Refresh Security and select the entry again.')
+            response = client.post('/api/remove/domainobjectacl', json=params)
+            self.assertEqual(response.status_code, 400)
+            self.assertIn('DACL changed', response.get_json()['error'])
+
     def test_user_search_options_reach_ldap_without_replacing_user_constraint(self):
         pv = PowerView.__new__(PowerView)
         pv.root_dn = 'DC=example,DC=test'

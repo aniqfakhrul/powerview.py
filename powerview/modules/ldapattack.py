@@ -47,6 +47,7 @@ from dsinternals.common.cryptography.X509Certificate2 import X509Certificate2
 from dsinternals.system.DateTime import DateTime
 from dsinternals.common.data.hello.KeyCredential import KeyCredential
 
+from powerview.utils.ace_identity import ace_identity, dacl_fingerprint
 from powerview.utils.constants import WELL_KNOWN_SIDS, EXTENDED_RIGHTS_NAME_MAP, EXTENDED_RIGHTS_MAP, SCHEMA_OBJECTS
 
 # This is new from ldap3 v2.5
@@ -1171,12 +1172,13 @@ class ALLOWED_OBJECT_ACE_MASK_FLAGS(Enum):
 	Self = ACCESS_ALLOWED_OBJECT_ACE.ADS_RIGHT_DS_SELF
 
 class ACLEnum:
-	def __init__(self, powerview, entries, root_dn, resolveguids=None, targetidentity=None, principalidentity=None, guids_map_dict=None, no_cache=False):
+	def __init__(self, powerview, entries, root_dn, resolveguids=None, targetidentity=None, principalidentity=None, guids_map_dict=None, no_cache=False, include_ace_identity=False):
 		self.entries = entries
 		self.powerview = powerview
 		self.root_dn = root_dn
 		self.objectdn = ''
 		self.objectsid = ''
+		self.include_ace_identity = include_ace_identity
 		self.no_cache = no_cache
 		self.resolved_sids = {}
 
@@ -1235,9 +1237,12 @@ class ACLEnum:
 
 	def parseDACL(self, dacl):
 		parsed_dacl = []
-		for ace in dacl['Data']:
+		fingerprint = dacl_fingerprint(dacl) if self.include_ace_identity else None
+		for index, ace in enumerate(dacl['Data']):
 			parsed_ace = self.parseACE(ace)
 			if parsed_ace:
+				if self.include_ace_identity and not ace.hasFlag(ACE.INHERITED_ACE):
+					parsed_ace['RemovalIdentity'] = ace_identity(ace, index, fingerprint)
 				parsed_dacl.append(parsed_ace)
 		return parsed_dacl
 
