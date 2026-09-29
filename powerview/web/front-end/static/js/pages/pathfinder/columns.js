@@ -1,4 +1,4 @@
-import { chips } from '../../components/grid/chips.js';
+import { chipColumn } from '../../components/grid/chips.js';
 import { createColumnSet, nameColumn, textColumn, pill } from '../../components/grid/columns.js';
 
 const field = textColumn;
@@ -15,8 +15,6 @@ export const aceTypeTone = (type) => {
 };
 const aceType = field('type', 'ACEType', 'ACE type', 240);
 aceType.render = (record) => pill(record.attributes.ACEType, aceTypeTone(record.attributes.ACEType));
-const rights = field('rights', 'Rights', 'Rights', 220);
-rights.render = (record) => chips(record.attributes.Rights);
 
 export const aclColumns = createColumnSet({
   storageKey: 'powerview.pathfinder.columns',
@@ -26,15 +24,15 @@ export const aclColumns = createColumnSet({
     field('trustee', 'SecurityIdentifier', 'Trustee / membership chain', 290),
     field('via', 'GrantedVia', 'Group that grants this ACE to the principal, or Direct', 200),
     aceType,
-    rights,
+    chipColumn('rights', 'Rights', 'Rights', 220),
     field('objectType', 'ObjectAceType', 'Object-specific right', 240),
     field('scope', 'Scope', 'Explicit or inherited ACE', 110),
     field('inheritance', 'InheritanceType', 'Inherited object type', 220),
-    field('flags', 'ACEFlags', 'ACE flags', 220),
+    chipColumn('flags', 'ACEFlags', 'ACE flags', 220),
     field('dn', 'ObjectDN', 'Target DN', 360),
     field('sid', 'ObjectSID', 'Target SID', 240),
-    field('mask', 'AccessMask', 'Access mask', 220),
-    field('objectFlags', 'ObjectAceFlags', 'Object ACE flags', 240),
+    chipColumn('mask', 'AccessMask', 'Access mask', 220),
+    chipColumn('objectFlags', 'ObjectAceFlags', 'Object ACE flags', 240),
     field('debug', 'DEBUG', 'Parser note', 300),
   ],
   defaults: ['trustee', 'type', 'rights', 'objectType', 'scope'],

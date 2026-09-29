@@ -1,6 +1,6 @@
-import { values } from '../../core/directory.js';
+import { attribute, values } from '../../core/directory.js';
 import { element } from '../../core/dom.js';
-import { pill } from './columns.js';
+import { pill, textColumn } from './columns.js';
 
 const MORE = 'cell-chips__more';
 const itemsOf = (cell) => [...cell.children].filter((child) => !child.classList.contains(MORE));
@@ -13,6 +13,8 @@ export function chips(value) {
   cell.append(...items.map((item) => pill(item)));
   return cell;
 }
+
+export const chipColumn = (key, name, hint, width) => ({ ...textColumn(key, name, hint, width), render: (record) => chips(attribute(record, name)) });
 
 export function expandChips(cells) {
   for (const cell of cells) {

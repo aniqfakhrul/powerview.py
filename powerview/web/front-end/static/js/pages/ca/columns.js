@@ -1,5 +1,6 @@
 import { attribute, values } from '../../core/directory.js';
 import { element } from '../../core/dom.js';
+import { chipColumn } from '../../components/grid/chips.js';
 import { booleanColumn, countColumn, createColumnSet, nameColumn, textColumn } from '../../components/grid/columns.js';
 
 export const isEnabled = (record) => values(attribute(record, 'Enabled'))[0] === true;
@@ -41,8 +42,8 @@ export const templateColumns = createColumnSet({
   name: nameColumn('certificate'),
   catalog: [
     enabledColumn,
-    textColumn('authorities', 'Certificate Authorities', 'Certificate authorities publishing this template', 200),
-    textColumn('eku', 'pKIExtendedKeyUsage', 'Extended key usages', 280),
+    chipColumn('authorities', 'Certificate Authorities', 'Certificate authorities publishing this template', 200),
+    chipColumn('eku', 'pKIExtendedKeyUsage', 'Extended key usages', 280),
     booleanColumn('clientAuth', 'Client Authentication', 'Usable for client authentication'),
     booleanColumn('managerApproval', 'ManagerApproval', 'Requests need CA manager approval'),
     textColumn('validity', 'pKIExpirationPeriod', 'Validity period', 150),
@@ -50,14 +51,14 @@ export const templateColumns = createColumnSet({
     findingsColumn,
     textColumn('displayName', 'displayName', 'Display name'),
     textColumn('owner', 'Owner', 'Template owner'),
-    textColumn('extendedRights', 'Extended Rights', 'Principals with extended rights', 240),
-    textColumn('writeOwner', 'Write Owner', 'Principals that can change the owner', 240),
-    textColumn('writeDacl', 'Write Dacl', 'Principals that can change permissions', 240),
-    textColumn('writeProperty', 'Write Property', 'Principals that can edit the template', 240),
+    chipColumn('extendedRights', 'Extended Rights', 'Principals with extended rights', 240),
+    chipColumn('writeOwner', 'Write Owner', 'Principals that can change the owner', 240),
+    chipColumn('writeDacl', 'Write Dacl', 'Principals that can change permissions', 240),
+    chipColumn('writeProperty', 'Write Property', 'Principals that can edit the template', 240),
     booleanColumn('enrollmentAgent', 'Enrollment Agent', 'Certificate Request Agent usage'),
     booleanColumn('anyPurpose', 'Any Purpose', 'Any Purpose or no usage restriction'),
-    textColumn('nameFlag', 'msPKI-Certificate-Name-Flag', 'Subject name flags', 240),
-    textColumn('enrollmentFlag', 'msPKI-Enrollment-Flag', 'Enrollment flags', 240),
+    chipColumn('nameFlag', 'msPKI-Certificate-Name-Flag', 'Subject name flags', 240),
+    chipColumn('enrollmentFlag', 'msPKI-Enrollment-Flag', 'Enrollment flags', 240),
     textColumn('privateKeyFlag', 'msPKI-Private-Key-Flag', 'Private key flags'),
     textColumn('keySize', 'msPKI-Minimal-Key-Size', 'Minimum key size', 150),
     textColumn('schemaVersion', 'msPKI-Template-Schema-Version', 'Template schema version', 150),

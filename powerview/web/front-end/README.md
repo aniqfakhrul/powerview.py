@@ -232,9 +232,11 @@ group that grants it through `memberOf` expansion, or `Direct`. The CLI prints
 the same field and is off by default; add it from **Fields** for principal
 queries. **ACEType** shows the same values as the CLI, such as
 `ACCESS_ALLOWED_OBJECT_ACE` or `ACCESS_DENIED_ACE`, as green allow and red deny pills.
-**Rights** shows each right as a neutral chip on one line. Chips that do not fit
-collapse into a `+N` chip, and the full list shows on hover; double-clicking
-the column edge fits every chip.
+**Rights**, **ACEFlags**, **AccessMask** and **ObjectAceFlags** show each value
+as a neutral chip on one line. Chips that do not fit collapse into a `+N` chip,
+and the full list shows on hover; double-clicking the column edge fits every
+chip. The same chip columns are used for the certificate template authority,
+EKU, principal and flag columns.
 **Scope** is derived as `Explicit` or `Inherited` from `ACEFlags`. The shared
 table supports sorting,
 local text and column filters, configurable fields and column widths. Selecting

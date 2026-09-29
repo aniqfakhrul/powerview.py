@@ -51,7 +51,9 @@ const webResults = { 'CA-One': ['http://ca-one.example.test/certsrv'], 'CA-Two':
     assert.equal(await page.locator('.view-switch [aria-current="page"]').textContent(), 'Templates');
     assert.deepEqual(await page.locator('#grid-head .column-sort__label').allTextContents(), ['name', 'Enabled', 'Certificate Authorities', 'pKIExtendedKeyUsage', 'Client Authentication', 'ManagerApproval', 'pKIExpirationPeriod', 'Enrollment Rights (count)', 'Vulnerable']);
     const user = rows.filter({ hasText: 'User' });
-    assert.match(await user.innerText(), /Enabled\s+CA-One; CA-Two/);
+    assert.match(await user.innerText(), /Enabled/);
+    assert.deepEqual(await user.locator('.cell-chips').first().locator('.state').allTextContents(), ['CA-One', 'CA-Two']);
+    assert.deepEqual(await user.locator('.cell-chips').nth(1).locator('.state').allTextContents(), ['Server Authentication']);
     assert.equal(await user.locator('.state--danger').textContent(), '1');
     const approval = async (name) => rows.filter({ hasText: name }).locator('td').nth(6).innerText();
     assert.equal(await user.locator('td').nth(5).innerText(), 'Yes');
