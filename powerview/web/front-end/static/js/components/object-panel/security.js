@@ -1,6 +1,7 @@
 import { removalParameters } from './acl-removal.js';
 import { confirmAction } from '../confirm.js';
 import { notify } from '../notify.js';
+import { canEditACE, editACL } from './acl-edit.js';
 import { addACL } from './acl-editor.js';
 import { beginLoading } from '../loading.js';
 import { values } from '../../core/directory.js';
@@ -27,6 +28,7 @@ function scopeOf(ace) {
 
 function toEntry(ace) {
   return {
+    ace,
     removal: removalParameters(ace),
     denied: denied(ace),
     principal: clean(ace.SecurityIdentifier),
@@ -131,7 +133,19 @@ export function createSecurity({ directory, guard, canLeave, onSaved }) {
         event.stopPropagation();
         await removeEntry(entry, dn, remove);
       });
-      rights.append(remove);
+      const actions = element('span', 'security__actions');
+      if (canEditACE(entry.ace)) {
+        rights.classList.add('security__rights--editable');
+        const edit = button('', { iconName: 'edit', className: 'icon-button security__edit', ariaLabel: `Edit access entry for ${entry.principal}` });
+        edit.title = 'Edit access entry';
+        edit.addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (canLeave()) editACL({ dn, ace: entry.ace, directory, guard, onChanged: onSaved });
+        });
+        actions.append(edit);
+      }
+      actions.append(remove);
+      rights.append(actions);
     }
     row.append(access, principal, rights);
     const detailRow = element('tr', 'security__detail-row');

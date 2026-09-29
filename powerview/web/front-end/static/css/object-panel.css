@@ -142,7 +142,15 @@
 .acl-dialog [hidden] { display: none !important; }
 
 .security__table td.security__rights--removable { position: relative; padding-right: 36px; }
-.security__remove { position: absolute; top: 50%; right: var(--space-2); width: 24px; opacity: 0; transform: translateY(-50%); }
-.security__row:hover .security__remove, .security__row:focus-within .security__remove { opacity: 1; }
+.security__table td.security__rights--editable { padding-right: 64px; }
+.security__actions { position: absolute; display: flex; top: 50%; right: var(--space-2); opacity: 0; transform: translateY(-50%); }
+.security__actions .icon-button { width: 24px; }
+.security__row:hover .security__actions, .security__row:focus-within .security__actions { opacity: 1; }
 .security__remove:hover { color: var(--color-danger); }
-@media (hover: none) { .security__remove { opacity: 1; } }
+@media (hover: none) { .security__actions { opacity: 1; } }
+.acl-edit__checks, .acl-edit__scope { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.acl-edit__checks { padding-top: var(--space-2); }
+.acl-edit__scope { padding: 0; border: 0; }
+.acl-edit__scope legend { margin-bottom: var(--space-2); }
+.acl-edit__checks label, .acl-edit__scope label { display: flex; align-items: center; gap: var(--space-2); font-weight: 400; }
+.acl-edit__permissions summary { cursor: pointer; }

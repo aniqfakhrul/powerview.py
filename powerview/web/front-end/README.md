@@ -292,8 +292,9 @@ EXPLORER_URL=http://127.0.0.1:5011 \
 
 ### ACL changes
 
-The shared object panel's Security tab offers Add access entry and a row trash
-action on hover or keyboard focus (always visible on touch devices). Both use the existing `/api/{add,remove}/domainobjectacl` endpoints, with
+The shared object panel's Security tab offers Add access entry, plus row edit and
+trash actions on hover or keyboard focus (always visible on touch devices).
+Add and remove use `/api/{add,remove}/domainobjectacl`, with
 the inspected DN fixed as `targetidentity`. Principal lookup suggests directory
 security principals; names, full DNs and well-known SIDs can also be entered.
 
@@ -305,12 +306,39 @@ attribute GUID, which uses read/write property permissions.
 Row removal sends `{targetidentity, ace: {index, ace, dacl}}` to
 `/api/remove/domainobjectacl`. The nested `ace` and `dacl` values are SHA-256
 fingerprints supplied as `RemovalIdentity` when ACL enumeration requests
-`include_ace_identity: true`. The Security tab opts in; ordinary CLI and
+`include_ace_identity: true`. The Security tab opts in; CLI queries without
+`-IncludeACEIdentity` and
 whole-domain enumeration do not compute or return these fingerprints. The backend reads
 a fresh descriptor and checks the index and both fingerprints before removing
 one occurrence. Identical duplicates, arbitrary masks, class restrictions and
 other ACE bytes are preserved. Stale selections require a refresh; inherited
 entries must be changed on their source object and have no trash action.
+
+Row editing uses `/api/set/domainobjectacl` with the same exact `ace` selection
+and optional `access_mask`, `ace_type` (`allowed` or `denied`) and `ace_flags`.
+It replaces one explicit standard or object-specific Allow/Deny ACE in a single
+DACL write, preserving its trustee, object GUIDs, position, unspecified fields
+and unrelated ACEs. Unsupported and inherited ACEs offer no edit action.
+The editor shows the current mask, individual permission bits and inheritance
+flags; permission checkboxes preserve unlisted bits. Principal and GUIDs are
+read-only. Errors keep the editor open; a successful edit refreshes Security.
+
+The CLI exposes `Set-DomainObjectAcl` (alias `Set-ObjectAcl`). First obtain the
+selection from `Get-DomainObjectAcl -IncludeACEIdentity -NoCache`; copy the
+selected row's `RemovalIdentity.index`, `.ace` and `.dacl` into the corresponding
+arguments below. Despite its historical name, `RemovalIdentity` identifies the
+entry for both editing and deletion.
+
+```text
+Get-DomainObjectAcl -Identity "CN=Target,DC=example,DC=test" -IncludeACEIdentity -NoCache -Json
+Set-DomainObjectAcl -TargetIdentity "CN=Target,DC=example,DC=test" -ACEIndex 2 -ACEFingerprint <ace-sha256> -DACLFingerprint <dacl-sha256> -AccessMask 0x00040000 -ACEType allowed
+```
+
+At least one change must be supplied. `-AccessMask` accepts an unsigned 32-bit
+integer in decimal or hexadecimal. `-ACEFlags` accepts 0–15: combine 1 (object
+inherit), 2 (container inherit), 4 (no propagation beyond immediate children),
+and 8 (inherit only). Omitted options preserve the original values. Zero clears
+the corresponding mask or inheritance bits; it does not delete the entry.
 
 The check covers changes made since enumeration; the LDAP read and write are
 separate operations, not an atomic compare-and-swap. The existing principal and

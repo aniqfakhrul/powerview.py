@@ -200,7 +200,7 @@ class DACLedit(object):
         return self.modify_secDesc_for_dn(self.target_DN, self.principal_security_descriptor)
 
 
-    def remove_exact(self, selection):
+    def _selected_ace(self, selection):
         validate_ace_identity(selection)
         dacl = self.principal_security_descriptor['Dacl']
         if not isinstance(dacl, ldaptypes.ACL):
@@ -213,8 +213,45 @@ class DACLedit(object):
         if ace_identity(ace, index, fingerprint) != selection:
             raise ValueError('The access entry changed. Refresh Security and select it again.')
         if ace.hasFlag(ldaptypes.ACE.INHERITED_ACE):
-            raise ValueError('Inherited entries must be removed from their source object.')
+            raise ValueError('Inherited entries must be changed on their source object.')
+        return dacl, index, ace
+
+    def remove_exact(self, selection):
+        dacl, index, ace = self._selected_ace(selection)
         dacl.aces = dacl.aces[:index] + dacl.aces[index + 1:]
+        return self.modify_secDesc_for_dn(self.target_DN, self.principal_security_descriptor)
+
+    def edit_exact(self, selection, access_mask=None, ace_type=None, ace_flags=None):
+        dacl, index, current = self._selected_ace(selection)
+        types = {
+            ldaptypes.ACCESS_ALLOWED_ACE.ACE_TYPE: (ldaptypes.ACCESS_ALLOWED_ACE, ldaptypes.ACCESS_DENIED_ACE),
+            ldaptypes.ACCESS_DENIED_ACE.ACE_TYPE: (ldaptypes.ACCESS_ALLOWED_ACE, ldaptypes.ACCESS_DENIED_ACE),
+            ldaptypes.ACCESS_ALLOWED_OBJECT_ACE.ACE_TYPE: (ldaptypes.ACCESS_ALLOWED_OBJECT_ACE, ldaptypes.ACCESS_DENIED_OBJECT_ACE),
+            ldaptypes.ACCESS_DENIED_OBJECT_ACE.ACE_TYPE: (ldaptypes.ACCESS_ALLOWED_OBJECT_ACE, ldaptypes.ACCESS_DENIED_OBJECT_ACE),
+        }
+        if current['AceType'] not in types:
+            raise ValueError('Only standard and object-specific Allow/Deny entries can be edited.')
+        if access_mask is None and ace_type is None and ace_flags is None:
+            raise ValueError('Specify an access mask, access type or inheritance flags to change.')
+        if access_mask is not None and (type(access_mask) is not int or not 0 <= access_mask <= 0xffffffff):
+            raise ValueError('Access mask must be an unsigned 32-bit integer.')
+        if ace_type is not None and ace_type not in ('allowed', 'denied'):
+            raise ValueError('ACE type must be allowed or denied.')
+        if ace_flags is not None and (type(ace_flags) is not int or not 0 <= ace_flags <= 0x0f):
+            raise ValueError('ACE flags must contain only inheritance flags (0x00 through 0x0f).')
+        updated = ldaptypes.ACE(data=current.getData())
+        if ace_type is not None:
+            body_type = types[current['AceType']][ace_type == 'denied']
+            updated['AceType'] = body_type.ACE_TYPE
+            updated['TypeName'] = body_type.__name__
+            updated['Ace'] = body_type(data=updated['Ace'].getData())
+        if access_mask is not None:
+            updated['Ace']['Mask']['Mask'] = access_mask
+        if ace_flags is not None:
+            updated['AceFlags'] = (updated['AceFlags'] & ~0x0f) | ace_flags
+        if updated.getData() == current.getData():
+            return True
+        dacl.aces[index] = updated
         return self.modify_secDesc_for_dn(self.target_DN, self.principal_security_descriptor)
 
     # Attempts to remove an ACE from the DACL

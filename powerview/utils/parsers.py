@@ -226,6 +226,7 @@ def powerview_arg_parse(cmd):
 	get_domainobjectacl_parser.add_argument('-SearchBase', action='store', dest='searchbase', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_domainobjectacl_parser.add_argument('-Server', action='store', dest='server')
 	get_domainobjectacl_parser.add_argument('-SecurityIdentifier', action='store', dest='security_identifier')
+	get_domainobjectacl_parser.add_argument('-IncludeACEIdentity', action='store_true', default=False, dest='include_ace_identity', help='Include exact ACE selection fingerprints for Set-DomainObjectAcl.')
 	get_domainobjectacl_parser.add_argument('-ResolveGUIDs', action='store_true', default=False, dest='resolveguids')
 	get_domainobjectacl_parser.add_argument('-Depth', default=2, action='store', type=int, dest='depth', help='Recursively get security identifier groups up to the specified depth. Default is 2.')
 	get_domainobjectacl_parser.add_argument('-Select', action='store', dest='select', type=Helper.parse_select)
@@ -1338,6 +1339,17 @@ def powerview_arg_parse(cmd):
 	add_domainobjectacl_parser.add_argument('-Inheritance', action='store_true', dest='inheritance', default=False)
 	add_domainobjectacl_parser.add_argument('-Server', action='store', dest='server')
 	add_domainobjectacl_parser.add_argument('-OutFile', action='store', dest='outfile')
+
+	set_domainobjectacl_parser = subparsers.add_parser('Set-DomainObjectAcl', aliases=['Set-ObjectAcl'], exit_on_error=False, help='Edit one explicit ACE using fingerprints from Get-DomainObjectAcl -IncludeACEIdentity.')
+	set_domainobjectacl_parser.add_argument('-TargetIdentity', required=True, dest='targetidentity', type=escape_filter_chars_except_asterisk)
+	set_domainobjectacl_parser.add_argument('-ACEIndex', required=True, dest='ace_index', type=int, help='RemovalIdentity.index from the selected ACE.')
+	set_domainobjectacl_parser.add_argument('-ACEFingerprint', required=True, dest='ace_fingerprint', help='RemovalIdentity.ace from the selected ACE.')
+	set_domainobjectacl_parser.add_argument('-DACLFingerprint', required=True, dest='dacl_fingerprint', help='RemovalIdentity.dacl from the selected ACE.')
+	set_domainobjectacl_parser.add_argument('-AccessMask', dest='access_mask', type=lambda value: int(value, 0), help='Permission mask in decimal or 0x-prefixed hexadecimal; omitted preserves it.')
+	set_domainobjectacl_parser.add_argument('-ACEType', dest='ace_type', choices=['allowed', 'denied'], type=str.lower)
+	set_domainobjectacl_parser.add_argument('-ACEFlags', dest='ace_flags', type=lambda value: int(value, 0), help='Inheritance flags: 1 object inherit, 2 container inherit, 4 no propagate, 8 inherit only. Omitted preserves them.')
+	set_domainobjectacl_parser.add_argument('-Server', dest='server')
+	set_domainobjectacl_parser.add_argument('-OutFile', dest='outfile')
 
 	# remove domain object acl
 	remove_domainobjectacl_parser = subparsers.add_parser('Remove-DomainObjectAcl', aliases=['Remove-ObjectAcl'], exit_on_error=False)

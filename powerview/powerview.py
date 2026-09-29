@@ -1327,6 +1327,7 @@ class PowerView:
 		return writable_entries
 
 	def get_domainobjectacl(self, identity=None, security_identifier=None, ldapfilter=None, resolveguids=False, guids_map_dict=None, searchbase=None, args=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False, depth=0, include_ace_identity=False):
+		include_ace_identity = include_ace_identity or bool(getattr(args, 'include_ace_identity', False))
 		if args:
 			security_identifier = args.security_identifier if hasattr(args, 'security_identifier') else security_identifier
 			depth = args.depth if hasattr(args, 'depth') else depth
@@ -5183,6 +5184,25 @@ class PowerView:
 					return False
 			
 			return True
+
+	def set_domainobjectacl(self, targetidentity, ace, access_mask=None, ace_type=None, ace_flags=None):
+		entries = self.get_domainobject(
+			identity=targetidentity, properties=['objectSid', 'distinguishedName', 'sAMAccountName', 'nTSecurityDescriptor'],
+			sd_flag=0x04, no_cache=True,
+		)
+		if len(entries) != 1:
+			raise ValueError('Target identity must resolve to exactly one object.')
+		entry = entries[0]
+		descriptors = entry.get('raw_attributes', {}).get('nTSecurityDescriptor', [])
+		if not descriptors:
+			raise ValueError('The target security descriptor could not be read.')
+		attributes = entry.get('attributes', {})
+		editor = DACLedit(
+			self.ldap_server, self.ldap_session, self.root_dn,
+			attributes.get('sAMAccountName'), attributes.get('objectSid'), entry['dn'], descriptors[0],
+			None, None, None, 'allowed', 'fullcontrol', None, False,
+		)
+		return editor.edit_exact(ace, access_mask=access_mask, ace_type=ace_type, ace_flags=ace_flags)
 
 	def remove_domainobjectacl(self, targetidentity, principalidentity=None, rights="fullcontrol", rights_guid=None, ace_type="allowed", inheritance=False, ace=None):
 		if ace is None and not principalidentity:

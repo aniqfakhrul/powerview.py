@@ -101,6 +101,9 @@ export function createDirectory(baseURL) {
       const aces = acls.flatMap((entry) => (Array.isArray(entry?.attributes) ? entry.attributes : []));
       return { owner: textValue(owner), aces };
     },
+    editACE(targetidentity, ace, changes) {
+      return request('set/domainobjectacl', { mutation: true, body: { targetidentity, ace, ...changes } });
+    },
     removeACE(targetidentity, ace) {
       return request('remove/domainobjectacl', { mutation: true, body: { targetidentity, ace } });
     },

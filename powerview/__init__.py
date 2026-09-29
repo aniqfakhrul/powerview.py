@@ -421,6 +421,16 @@ def main():
                                     ace_type=pv_args.ace_type,
                                     inheritance=pv_args.inheritance
                                 )
+                            elif pv_args.module.casefold() in ('set-domainobjectacl', 'set-objectacl'):
+                                succeed = pv.set_domainobjectacl(
+                                    targetidentity=pv_args.targetidentity,
+                                    ace={'index': pv_args.ace_index, 'ace': pv_args.ace_fingerprint, 'dacl': pv_args.dacl_fingerprint},
+                                    access_mask=pv_args.access_mask,
+                                    ace_type=pv_args.ace_type,
+                                    ace_flags=pv_args.ace_flags,
+                                )
+                                if succeed:
+                                    logging.info('Access entry updated')
                             elif pv_args.module.casefold() == 'remove-domainobjectacl' or pv_args.module.casefold() == 'remove-objectacl':
                                 pv.remove_domainobjectacl(
                                     targetidentity=pv_args.targetidentity,
