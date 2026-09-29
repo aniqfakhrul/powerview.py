@@ -8,6 +8,7 @@ import { createResizer } from '../resizer.js';
 import { createStatus } from '../status.js';
 import { notify } from '../notify.js';
 import { expandChips, fitChips } from './chips.js';
+import { downloadCsv, toCsv } from './csv-export.js';
 import { createColumnFilter, filterSpec, isActive, matchesFilter } from './column-filter.js';
 import { createFieldsMenu } from './fields-menu.js';
 import { createSearchMenu } from './search-menu.js';
@@ -18,7 +19,7 @@ const MIN_COLUMN_WIDTH = 64;
 const MAX_COLUMN_WIDTH = 800;
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
-export function createGridPage({ root, endpoint, noun, columnSet, search: searchConfig = {}, fetch: fetchEntries, deletable = true, describeRemoval, isProtected = () => false, afterDelete, summary, panelActions, autoLoad = true, initialMessage, emptyMessage, details, onLoadState }) {
+export function createGridPage({ root, endpoint, noun, columnSet, search: searchConfig = {}, fetch: fetchEntries, deletable = true, describeRemoval, isProtected = () => false, afterDelete, summary, panelActions, autoLoad = true, initialMessage, emptyMessage, details, onLoadState, exportName = root.id }) {
   const directory = createDirectory(new URL(root.dataset.apiRoot, window.location.origin));
   const scroller = document.querySelector('#grid-scroll');
   const head = document.querySelector('#grid-head');
@@ -27,6 +28,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   const count = document.querySelector('#grid-count');
   const filter = document.querySelector('#grid-filter');
   const refresh = document.querySelector('#grid-refresh');
+  const exportButton = document.querySelector('#grid-export');
   const panelRoot = document.querySelector('#object-panel');
   const explorerLink = document.querySelector('#panel-explorer');
   const gridMain = document.querySelector('.grid-main');
@@ -308,6 +310,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     const narrowed = query || columnFilters.size;
     count.textContent = narrowed ? `${visible.length} of ${entries.length} ${noun.plural}` : `${entries.length} ${entries.length === 1 ? noun.singular : noun.plural}`;
     message.replaceChildren();
+    syncExport();
     if (entries.length && !visible.length) {
       if (columnFilters.size) showMessage(`No ${noun.plural} match`, 'No rows match the column filters.', resetFilters, 'Clear filters');
       else showMessage(`No ${noun.plural} match`, 'Try a different filter.');
@@ -325,6 +328,19 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     message.replaceChildren(box);
   }
 
+  function syncExport() {
+    exportButton.disabled = filter.disabled || !visible.length;
+  }
+
+  function exportCsv() {
+    const header = details ? 'ObjectDN' : 'distinguishedName';
+    const shown = columns.some((column) => column.label.toLowerCase() === header.toLowerCase());
+    const fields = columns.map((column) => ({ label: column.label, value: (entry) => (column.csv ?? column.text)(entry.record, entry) }));
+    if (!shown && visible.some((entry) => entry.dn)) fields.push({ label: header, value: (entry) => entry.dn });
+    downloadCsv(exportName, toCsv(fields, visible));
+    notify.success(`Exported ${visible.length} ${visible.length === 1 ? noun.singular : noun.plural} to CSV`);
+  }
+
   async function load(fresh = false) {
     started = true;
     onLoadState?.(true);
@@ -334,6 +350,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     const { signal } = controller;
     filter.disabled = true;
     refresh.disabled = true;
+    syncExport();
     setSortable(false);
     body.replaceChildren();
     const finishLoading = beginLoading(scroller, {
@@ -361,6 +378,8 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     } catch (error) {
       if (signal.aborted) return false;
       entries = [];
+      visible = [];
+      syncExport();
       body.replaceChildren();
       count.textContent = '';
       showMessage(`Cannot load ${noun.plural}`, error.message, () => load(true));
@@ -566,6 +585,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   filter.addEventListener('input', update);
   filter.addEventListener('keydown', (event) => { if (event.key === 'Escape' && filter.value) { filter.value = ''; update(); } });
   refresh.addEventListener('click', () => load(true));
+  exportButton.addEventListener('click', exportCsv);
 
   (columnSet.objectClass ? directory.schemaAttributes(columnSet.objectClass) : Promise.resolve(null))
     .then((attributes) => {
@@ -673,6 +693,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       count.textContent = '';
       filter.disabled = true;
       refresh.disabled = false;
+      syncExport();
       setSortable(false);
       showMessage('Search cancelled', 'An LDAP read already started may finish on the server.');
       onLoadState?.(false);

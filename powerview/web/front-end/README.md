@@ -66,6 +66,24 @@ the frontend never receives connection credentials.
 - Light/dark themes follow the OS. On phones, the directory opens as a
   focus-contained overlay. Tree keys: arrows, Home/End, Enter.
 
+## CSV export
+
+Every shared grid page (Users, Computers, Groups, DNS, certificate templates
+and authorities, OUs, GPOs and Pathfinder) has **Export CSV** in its toolbar.
+It exports the rows currently shown, after the text filter, column filters and
+sort, with the visible columns in on-screen order. A `distinguishedName` column
+(`ObjectDN` on Pathfinder) is appended unless one is already shown; DN name-chip
+columns export full DNs and mark partial LDAP ranges as incomplete. Files are
+UTF-8 with a BOM and CRLF line endings, every cell is quoted, and values starting
+with `=`, `+`, `-`, `@`, their full-width variants, tab, carriage return or line
+feed (other than plain numbers) are prefixed with `'` to reduce spreadsheet
+formula injection risk. CSV interpretation varies between spreadsheet applications;
+this is not a universal guarantee, particularly after saving and reopening a file.
+The button is disabled while loading and
+when no rows are shown. The export is built in the browser and issues no
+directory request. Logic lives in `components/grid/csv-export.js`;
+`tests/csv-export.test.mjs` and `tests/grid-export.browser.cjs` cover it.
+
 ## Motion and loading
 
 Shared `static/css/motion.css` adds short panel, Fields-menu and tab entrances.
@@ -351,9 +369,9 @@ table supports sorting,
 local text and column filters, configurable fields and column widths. Selecting
 a row opens its ACE fields in a fixed order, an Explorer link to the target and
 **Find all ACEs on this target**, which replaces the query with that target and
-any principal. **Export rows** downloads the filtered rows as JSON with
-query metadata, timestamp, filtered-row scope and interpretation notes. Filenames include the
-export time. Table operations and evidence
+any principal. **Export JSON** downloads the filtered rows as JSON with
+query metadata, timestamp, filtered-row scope and interpretation notes; **Export
+CSV** downloads the same rows as a spreadsheet. Filenames include the export time. Table operations and evidence
 selection do not issue another ACL search.
 
 Results are observed ACE evidence, not an effective-access calculation or

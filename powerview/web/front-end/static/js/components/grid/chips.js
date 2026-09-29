@@ -35,6 +35,11 @@ export function dnChipColumn(key, name, hint, width = 260) {
   return {
     key, label: name, hint, icon: 'field-text', width, attributes: [name],
     text: (record) => [...labels(record), ...dns(record)].join('; '),
+    csv: (record) => {
+      const items = dns(record);
+      const text = items.join('; ');
+      return rangedValues(record, name).partial ? `${text} [Partial: ${items.length} values returned; more exist]` : text;
+    },
     sort: (record) => labels(record)[0]?.toLocaleLowerCase() ?? null,
     filter: { type: 'values', values: labels },
     render: (record) => {

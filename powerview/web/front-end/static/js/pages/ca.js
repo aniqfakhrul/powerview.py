@@ -78,6 +78,7 @@ function templatesView() {
   const page = createGridPage({
     root,
     noun: { singular: 'template', plural: 'templates' },
+    exportName: 'ca-templates',
     columnSet: templateColumns,
     search: false,
     deletable: false,
@@ -114,6 +115,7 @@ function authoritiesView() {
   const page = createGridPage({
     root,
     noun: { singular: 'authority', plural: 'authorities' },
+    exportName: 'ca-authorities',
     columnSet: authorityColumns,
     search: false,
     deletable: false,

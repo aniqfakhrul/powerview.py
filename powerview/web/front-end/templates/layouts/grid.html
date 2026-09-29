@@ -14,6 +14,7 @@
       <button id="grid-search" class="button" type="button" title="Search options" aria-haspopup="dialog" aria-expanded="false" aria-controls="search-menu" popovertarget="search-menu">{{ icon('search') }}<span>Search options</span><span class="fields-trigger__count" data-search-count></span></button>
       <button id="grid-fields" class="button fields-trigger" type="button" title="Choose fields" aria-haspopup="dialog" aria-expanded="false" aria-controls="fields-menu" popovertarget="fields-menu">{{ icon('field-desc') }}<span>Fields</span><span class="fields-trigger__count"></span></button>
       {% block grid_actions %}{% endblock %}
+      <button id="grid-export" class="button" type="button" title="Export the rows shown as CSV" disabled>{{ icon('download') }}<span>Export CSV</span></button>
       <button id="grid-refresh" class="icon-button" type="button" aria-label="Refresh" title="Refresh">{{ icon('refresh') }}</button>
     </div>
   </header>
