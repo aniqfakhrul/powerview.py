@@ -69,7 +69,11 @@ function ownerBlock(owner) {
   block.append(element('h3', '', 'Owner'));
   const match = owner.match(OWNER);
   if (!owner) block.append(element('p', 'cell-muted', 'Not returned by the directory'));
-  else if (match) block.append(element('p', '', match[1] || match[2]), element('code', '', match[2]));
+  else if (match) {
+    const name = element('p', '', match[1].trim() || match[2]);
+    name.title = match[2];
+    block.append(name);
+  }
   else block.append(element('p', '', owner));
   return block;
 }

@@ -180,7 +180,8 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
     ['/api/get/domainobjectacl', `CN=Second Person,CN=Users,${rootDN}`, 'BASE'],
   ]);
   assert.equal(await panel.locator('.security__owner p').textContent(), 'EXAMPLE\\Domain Admins');
-  assert.equal(await panel.locator('.security__owner code').textContent(), 'S-1-5-21-1-2-3-512');
+  assert.equal(await panel.locator('.security__owner p').getAttribute('title'), 'S-1-5-21-1-2-3-512');
+  assert.equal(await panel.locator('.security__owner code').count(), 0);
   const aceRows = panel.locator('.security__row');
   assert.deepEqual(await panel.locator('.security__table thead th').allTextContents(), ['Access', 'Principal', 'Rights']);
   assert.deepEqual(await panel.locator('.security__group th').allTextContents(), ['Explicit3', 'Inherited1']);
