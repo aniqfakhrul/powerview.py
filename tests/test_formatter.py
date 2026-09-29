@@ -1,6 +1,7 @@
 import contextlib
 import copy
 import io
+import json
 import unittest
 from argparse import Namespace
 
@@ -40,19 +41,28 @@ def object_entries():
 
 
 class FormatterTextTests(unittest.TestCase):
-	def test_list_values_print_one_item_per_aligned_line(self):
+	def test_ace_lists_print_on_one_line(self):
 		lines = render("print", acl_entries()).splitlines()
 		width = len("ActiveDirectoryRights") + 5
-		self.assertIn(f"{'ActiveDirectoryRights'.ljust(width)}: ReadControl", lines)
-		self.assertIn(f"{''.ljust(width + 2)}WriteDACL", lines)
+		self.assertIn(f"{'ActiveDirectoryRights'.ljust(width)}: ReadControl, WriteDACL", lines)
+		self.assertIn(f"{'ACEFlags'.ljust(width)}: CONTAINER_INHERIT_ACE, INHERITED_ACE", lines)
+
+	def test_object_lists_print_one_item_per_aligned_line(self):
+		lines = render("print", object_entries()).splitlines()
+		width = len("sAMAccountName") + 5
+		self.assertIn(f"{'memberOf'.ljust(width)}: CN=Staff", lines)
+		self.assertIn(f"{''.ljust(width + 2)}CN=Admins", lines)
+
+	def test_json_keeps_ace_lists(self):
+		self.assertEqual(json.loads(render("print_json", acl_entries()))[0]["attributes"][0]["ActiveDirectoryRights"], ["ReadControl", "WriteDACL"])
 
 	def test_empty_lists_are_omitted(self):
 		output = render("print", acl_entries())
 		self.assertEqual(output.count("ACEFlags"), 1)
 		self.assertNotIn("ObjectAceFlags", output)
 
-	def test_single_select_prints_each_list_item(self):
-		self.assertEqual(render("print_select", acl_entries(), select=["ActiveDirectoryRights"]).split(), ["ReadControl", "WriteDACL"])
+	def test_single_select_prints_the_ace_list_on_one_line(self):
+		self.assertEqual(render("print_select", acl_entries(), select=["ActiveDirectoryRights"]).strip(), "ReadControl, WriteDACL")
 
 	def test_where_matches_individual_list_items(self):
 		entries = acl_entries()
@@ -82,7 +92,8 @@ class FormatterTextTests(unittest.TestCase):
 		header = output.strip().splitlines()[0]
 		for key in ("ActiveDirectoryRights", "AccessMask", "ObjectAceFlags"):
 			self.assertIn(key, header)
-		self.assertIn('"ReadControl\nWriteDACL"', output)
+		self.assertIn('"ReadControl, WriteDACL"', output)
+		self.assertIn('"CN=Staff\nCN=Admins"', render("table_view", object_entries(), tableview="csv"))
 
 
 if __name__ == '__main__':

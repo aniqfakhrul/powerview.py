@@ -289,6 +289,10 @@ class FORMATTER:
         return []
 
     @staticmethod
+    def _is_acl(entry):
+        return isinstance(entry, dict) and isinstance(entry.get("attributes"), list)
+
+    @staticmethod
     def _lookup(record, name):
         wanted = str(name).casefold()
         for key in record.keys():
@@ -322,16 +326,19 @@ class FORMATTER:
             return [text]
         return [text[index:index + length] for index in range(0, len(text), length)]
 
-    def _lines(self, value):
-        return [line for item in self._text_items(value) for line in self._wrap(item)]
+    def _lines(self, value, inline=False):
+        items = self._text_items(value)
+        if inline and isinstance(value, (list, tuple)):
+            return [", ".join(items)] if items else []
+        return [line for item in items for line in self._wrap(item)]
 
     def _visible(self, lines):
         return self.config['show_empty_values'] or any(line.strip() for line in lines)
 
-    def _print_record(self, record, width, keys):
+    def _print_record(self, record, width, keys, inline=False):
         printed = False
         for key in keys:
-            lines = self._lines(record[key])
+            lines = self._lines(record[key], inline)
             if not self._visible(lines):
                 continue
             self._emit(f"{str(key).ljust(width)}: " + f"\n{''.ljust(width + 2)}".join(lines))
@@ -346,15 +353,16 @@ class FORMATTER:
                 self._emit(entry)
                 continue
             records = self._records(entry)
+            inline = self._is_acl(entry)
             width = self._width(names or [key for record in records for key in record.keys()])
             for record in records:
                 keys = [key for key in record.keys() if not wanted or str(key).casefold() in wanted]
                 if wanted and len(names) == 1:
                     for key in keys:
-                        for line in self._lines(record[key]):
+                        for line in self._lines(record[key], inline):
                             if self._visible([line]):
                                 self._emit(line)
-                elif self._print_record(record, width, keys):
+                elif self._print_record(record, width, keys, inline):
                     self._emit()
 
     def print(self, entries):
@@ -392,9 +400,13 @@ class FORMATTER:
             else:
                 print("Invalid command or page limit reached.")
 
-    def _cell(self, record, head):
+    def _cell(self, record, head, inline=False):
         found, value = self._lookup(record, head)
-        return self.format_value_by_type(value) if found else ""
+        if not found:
+            return ""
+        if inline and isinstance(value, (list, tuple)):
+            return ", ".join(self._text_items(value))
+        return self.format_value_by_type(value)
 
     def table_view(self, entries):
         self._warn_if_cached(entries)
@@ -410,15 +422,16 @@ class FORMATTER:
                 logging.info("No results found")
             return
 
-        records = [record for entry in entries for record in self._records(self._normalize_entry(entry))]
+        normalized = [self._normalize_entry(entry) for entry in entries]
+        records = [(record, self._is_acl(entry)) for entry in normalized for record in self._records(entry)]
         properties = getattr(self.args, "properties", None)
         if isinstance(select, list):
             headers = select
         elif properties and properties != ldap3.ALL_ATTRIBUTES:
             headers = properties
         else:
-            headers = list(dict.fromkeys(key for record in records for key in record.keys()))
-        rows = [[self._cell(record, head) for head in headers] for record in records]
+            headers = list(dict.fromkeys(key for record, _ in records for key in record.keys()))
+        rows = [[self._cell(record, head, inline) for head in headers] for record, inline in records]
         self.print_table(entries=rows, headers=headers)
 
     def _sort_key(self, record, name):
