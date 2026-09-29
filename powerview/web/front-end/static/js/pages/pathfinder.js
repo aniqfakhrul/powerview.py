@@ -25,9 +25,7 @@ const page = createGridPage({
   details: {
     title: (entry) => `${entry.name} · ACE ${entry.record.attributes.ACEIndex}`,
     render(container, entry) {
-      const fields = element('div');
-      renderSummary(fields, Object.entries(entry.record.attributes).map(([label, value]) => ({ label, values: value == null ? [] : [String(value)] })));
-      container.replaceChildren(element('p', 'pathfinder-evidence__note', 'Observed ACE evidence. An allow entry is not proof of control; review deny entries, flags, and object-specific scope together.'), fields);
+      renderSummary(container, Object.entries(entry.record.attributes).map(([label, value]) => ({ label, values: value == null ? [] : [String(value)] })));
     },
   },
   async fetch({ signal, fresh }) {
