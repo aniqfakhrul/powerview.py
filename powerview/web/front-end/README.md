@@ -209,7 +209,9 @@ scrollable ACE table, with a separate evidence panel for the selected row.
 The form has optional Target and Principal fields and Group depth (0–5,
 default 2). There are no tips or result summaries underneath the form.
 
-Opening the page performs no ACL search. **Find** explicitly submits
+Opening the page performs no ACL search. Submitted queries are written to the
+URL as `target`, `principal` and `depth`, and a page opened from that URL
+restores the form without searching. **Find** explicitly submits
 `POST /api/get/domainobjectacl` through the existing PowerView session. Target
 maps to `identity`; leaving it blank omits Identity and searches visible domain objects for the
 specified principal. At least one of Target or Principal is required. This UI
@@ -218,13 +220,24 @@ can still produce large results. Principal maps to `security_identifier`; leavin
 all returned trustees. Group depth follows the principal's `memberOf` expansion
 using the existing command semantics. Requests also set `resolveguids: true`
 and `no_vuln_check: true`. Ordinary searches permit cached data; Refresh repeats
-the submitted query with `no_cache: true`. Cancel stops browser waiting, while
-LDAP work already started may continue on the server.
+the submitted query with `no_cache: true`. An unresolved or ambiguous target or principal,
+or a scope with no readable security descriptors, returns the backend's error
+message instead of an empty result. Cancel stops browser waiting, while
+LDAP work already started may continue on the server. Escape on the focused
+Cancel button also cancels.
 
 Each returned ACE becomes a distinct row, including multiple ACEs on one target.
-The shared table supports sorting, local text and column filters, configurable
-fields and column widths. Selecting a row opens its ACE fields and an Explorer
-link to the target. **Export rows** downloads the filtered rows as JSON with
+When a principal is submitted, the backend adds `GrantedVia` to each ACE: the
+group that grants it through `memberOf` expansion, or `Direct`. The CLI prints
+the same field and is off by default; add it from **Fields** for principal
+queries. **ACEType** shows the same values as the CLI, such as
+`ACCESS_ALLOWED_OBJECT_ACE` or `ACCESS_DENIED_ACE`, as green allow and red deny pills.
+**Scope** is derived as `Explicit` or `Inherited` from `ACEFlags`. The shared
+table supports sorting,
+local text and column filters, configurable fields and column widths. Selecting
+a row opens its ACE fields in a fixed order, an Explorer link to the target and
+**Find all ACEs on this target**, which replaces the query with that target and
+any principal. **Export rows** downloads the filtered rows as JSON with
 query metadata, timestamp, filtered-row scope and interpretation notes. Filenames include the
 export time. Table operations and evidence
 selection do not issue another ACL search.
@@ -243,7 +256,7 @@ Implementation lives in `templates/pages/pathfinder.html`,
 icons and theme tokens. No graph renderer or separate Pathfinder backend is
 required.
 
-Unit checks cover ACE normalization and malformed responses. Browser checks
+Unit checks cover ACE normalization, derived fields and malformed responses. Browser checks
 intercept API requests with synthetic fixtures. Start the shell preview on port
 5011, then run:
 

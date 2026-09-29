@@ -6,6 +6,7 @@ const dn = 'CN=svc.backup,DC=example,DC=test';
 const fixture = [{ attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, index) => ({
   ObjectDN: dn, ObjectSID: 'S-1-5-21-1-1003', ACEType: `ACCESS_${effect}_OBJECT_ACE`,
   SecurityIdentifier: index ? 'EXAMPLE\\alex.morgan' : '(Helpdesk operators) -> EXAMPLE\\alex.morgan',
+  GrantedVia: index ? 'Direct' : 'Helpdesk operators',
   ActiveDirectoryRights: index === 1 ? 'WriteDACL' : 'ControlAccess',
   ObjectAceType: 'User-Force-Change-Password', ACEFlags: 'INHERITED_ACE',
 })) }];
@@ -43,11 +44,17 @@ const fixture = [{ attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, ind
     await page.locator('#grid-body tr[data-key="0:1"]').click();
     assert.equal(await page.locator('#grid-body tr[aria-selected="true"]').count(), 1);
     assert.match(await page.locator('[data-panel-body]').innerText(), /WriteDACL/);
+    assert.match(await page.locator('[data-panel-body]').innerText(), /Granted via\s+Direct/);
     assert.match(await page.locator('#panel-explorer').getAttribute('href'), /dn=CN/);
-    await page.locator('#panel-close').click();
+    assert.deepEqual(Object.fromEntries(new URL(page.url()).searchParams), { target: 'svc.backup', principal: 'alex.morgan', depth: '2' });
+    await page.getByRole('button', { name: 'Find all ACEs on this target', exact: true }).click();
+    await page.waitForFunction(() => !document.querySelector('#grid-refresh').disabled);
+    assert.deepEqual(calls.at(-1), { identity: dn, depth: 0, no_cache: false, resolveguids: true, no_vuln_check: true });
+    assert.equal(await page.locator('#pathfinder-principal').inputValue(), '');
+    assert.equal(await page.locator('#object-panel').isHidden(), true);
     await page.locator('#grid-filter').fill('WriteDACL');
     assert.equal(await page.locator('#grid-body tr[data-key]').count(), 1);
-    assert.equal(calls.length, 1);
+    assert.equal(calls.length, 2);
     const downloadEvent = page.waitForEvent('download');
     await page.locator('#pathfinder-export').click();
     const download = await downloadEvent;

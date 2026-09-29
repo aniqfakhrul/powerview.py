@@ -57,6 +57,7 @@ textarea.text-input { height: auto; padding: 5px 8px; resize: vertical; }
 .dialog__footer { display: flex; justify-content: flex-end; gap: 6px; padding: 10px 16px; border-top: 1px solid var(--color-border); }
 @media (prefers-reduced-motion: reduce) { .dialog[open] { animation: none; } }
 .state { display: inline-flex; align-items: center; height: 18px; padding: 0 8px; border-radius: 999px; background: var(--pill-success-bg); color: var(--pill-success-fg); font-size: 12px; line-height: 1; }
+.state--success { background: var(--pill-success-bg); color: var(--pill-success-fg); }
 .state--neutral { background: var(--pill-neutral-bg); color: var(--pill-neutral-fg); }
 .state--danger { background: var(--color-danger-soft); color: var(--color-danger); }
 .state--disabled { background: var(--pill-neutral-bg); color: var(--pill-neutral-fg); }

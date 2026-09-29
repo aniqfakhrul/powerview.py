@@ -10,12 +10,18 @@ test('ACL rows preserve evidence and distinguish ACEs on the same target', () =>
   assert.notEqual(rows[0].id, rows[1].id);
   assert.equal(rows[0].record.attributes.SecurityIdentifier, ace.SecurityIdentifier);
   assert.equal(rows[0].record.attributes.Rights, '0x100');
-  assert.equal(rows[1].record.attributes.Effect, 'Deny');
-  assert.equal(ace.Effect, undefined);
+  assert.equal(rows[1].record.attributes.ACEType, 'ACCESS_DENIED_OBJECT_ACE');
+  assert.equal(ace.Rights, undefined);
 });
 
 test('empty results remain distinct from missing or malformed results', () => {
   assert.deepEqual(aclEntries([]), []);
   for (const result of [null, {}, [{ attributes: {} }], [{ attributes: [null] }]]) assert.throws(() => aclEntries(result));
-  assert.equal(aclEntries([{ attributes: [{}] }])[0].record.attributes.Effect, 'Unsupported');
+  assert.equal(aclEntries([{ attributes: [{}] }])[0].record.attributes.Rights, '');
+});
+
+test('scope reflects the inherited ACE flag', () => {
+  const [inherited, explicit] = aclEntries([{ attributes: [{ ACEFlags: 'CONTAINER_INHERIT_ACE, INHERITED_ACE' }, { ACEFlags: 'None' }] }]);
+  assert.equal(inherited.record.attributes.Scope, 'Inherited');
+  assert.equal(explicit.record.attributes.Scope, 'Explicit');
 });
