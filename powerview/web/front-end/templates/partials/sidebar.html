@@ -5,7 +5,7 @@
     <span class="brand__name">PowerView<span class="brand__suffix">.py</span></span>
     <span class="brand__version">{{ version }}</span>
   </a>
-  <nav class="navigation" aria-label="Main navigation">
+  <nav id="main-navigation" class="navigation" aria-label="Main navigation">
     {% for section in sections %}
     <div class="navigation__group">
       <p class="navigation__label">{{ section }}</p>
@@ -16,6 +16,7 @@
     {% endfor %}
   </nav>
   <div class="sidebar__footer">
+    <button id="sidebar-toggle" class="icon-button sidebar__toggle" type="button" aria-controls="main-navigation" aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar">{{ icon('chevron-left') }}</button>
     <label class="theme-control" title="Color theme">
       {{ icon('theme') }}
       <select id="theme-preference" aria-label="Color theme">

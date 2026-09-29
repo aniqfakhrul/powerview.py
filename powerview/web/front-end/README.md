@@ -109,17 +109,21 @@ New modules start from `pages/placeholder.html`. Add a `Page` entry in `web/fron
 Use `url_for` for navigation and `asset_url` for static assets. Keep reusable UI
 in macros and focused modules; directory data enters the DOM through textContent.
 
-Sidebar icons come from each `Page` entry. On desktop with a fine pointer, the
-sidebar collapses to a 48px icon rail and expands over the workspace on hover or
-keyboard focus without shifting page content. Touch-only desktop layouts keep
-the full sidebar, and mobile uses horizontal navigation. Expansion respects
+Sidebar icons come from each `Page` entry. On desktop the sidebar starts
+expanded; the footer toggle collapses it to a 48px icon rail, and the choice
+persists in `localStorage` and syncs across tabs. `sidebar.js` applies the stored
+state before styles load. A collapsed rail previews the full sidebar over the
+workspace after a 150ms hover, or at once on keyboard focus, without shifting
+page content; it does not reopen under the pointer right after collapsing.
+Mobile uses horizontal navigation without the toggle. Motion respects
 reduced-motion preferences. `tests/sidebar.browser.cjs` covers these behaviors.
 
 The sidebar footer provides System, Light and Dark themes; mobile places the
 control beside the brand. System is the default and follows OS changes. Explicit
 choices persist in `localStorage` and sync across tabs. `theme.js` applies the
 stored choice before styles load; unavailable storage still permits switching
-for the current page. Color tokens use `light-dark()` with the root color scheme.
+for the current page. Color tokens use `light-dark()` with the root color scheme,
+which requires Chrome 123, Safari 17.5 or Firefox 120 or later.
 `tests/theme.browser.cjs` covers theme selection and persistence.
 
 ## Verification
