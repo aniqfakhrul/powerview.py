@@ -209,7 +209,7 @@ scrollable ACE table, with a separate evidence panel for the selected row.
 The form has optional Target and Principal fields and Group depth (0–5,
 default 2). There are no tips or result summaries underneath the form.
 
-Opening the page performs no ACL search. **Find relations** explicitly submits
+Opening the page performs no ACL search. **Find** explicitly submits
 `POST /api/get/domainobjectacl` through the existing PowerView session. Target
 maps to `identity`; leaving it blank omits Identity and searches visible domain objects for the
 specified principal. At least one of Target or Principal is required. This UI
