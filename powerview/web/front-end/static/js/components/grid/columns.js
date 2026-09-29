@@ -67,6 +67,15 @@ export const countColumn = (key, name, hint) => ({
 
 export const pill = (text, tone = 'neutral') => (text ? element('span', `state state--${tone}`, text) : element('span', 'cell-muted', '—'));
 
+export function chips(value) {
+  const items = values(value).map(String).filter(Boolean);
+  if (!items.length) return element('span', 'cell-muted', '—');
+  const cell = element('span', 'cell-chips');
+  cell.title = items.join(', ');
+  cell.append(...items.map((item) => pill(item)));
+  return cell;
+}
+
 export function booleanColumn(key, name, hint) {
   const flag = (record) => values(attribute(record, name))[0];
   return {

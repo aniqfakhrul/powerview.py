@@ -40,6 +40,9 @@ const fixture = [{ attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, ind
     assert.equal(await page.locator('#pathfinder-depth').isDisabled(), false);
     assert.equal(await page.locator('#grid-body tr[data-key]').count(), 3);
     assert.equal(await page.locator('#grid-body .cell-name').first().getAttribute('title'), dn);
+    const rightsChips = page.locator('#grid-body tr[data-key="0:1"] .cell-chips');
+    assert.deepEqual(await rightsChips.locator('.state--neutral').allTextContents(), ['ReadControl', 'WriteDACL']);
+    assert.equal(await rightsChips.getAttribute('title'), 'ReadControl, WriteDACL');
     await page.getByRole('button', { name: 'SecurityIdentifier', exact: true }).waitFor();
     await page.locator('#grid-body tr[data-key="0:1"]').click();
     assert.equal(await page.locator('#grid-body tr[aria-selected="true"]').count(), 1);

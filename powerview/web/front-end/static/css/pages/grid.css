@@ -101,6 +101,8 @@
 
 .cell-name { display: flex; align-items: center; gap: var(--space-2); overflow: hidden; }
 .cell-name span { overflow: hidden; text-overflow: ellipsis; }
+.cell-chips { display: flex; align-items: center; gap: 4px; overflow: hidden; }
+.cell-chips > .state { flex: none; }
 .cell-muted { color: var(--color-faint); }
 
 .grid-footer__clear { margin-left: var(--space-3); font-size: 11px; }

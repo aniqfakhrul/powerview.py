@@ -232,6 +232,7 @@ group that grants it through `memberOf` expansion, or `Direct`. The CLI prints
 the same field and is off by default; add it from **Fields** for principal
 queries. **ACEType** shows the same values as the CLI, such as
 `ACCESS_ALLOWED_OBJECT_ACE` or `ACCESS_DENIED_ACE`, as green allow and red deny pills.
+**Rights** shows each right as a neutral chip, with the full list on hover.
 **Scope** is derived as `Explicit` or `Inherited` from `ACEFlags`. The shared
 table supports sorting,
 local text and column filters, configurable fields and column widths. Selecting

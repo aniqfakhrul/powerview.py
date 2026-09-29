@@ -1,4 +1,4 @@
-import { createColumnSet, nameColumn, textColumn, pill } from '../../components/grid/columns.js';
+import { chips, createColumnSet, nameColumn, textColumn, pill } from '../../components/grid/columns.js';
 
 const field = textColumn;
 const name = nameColumn('object');
@@ -14,6 +14,8 @@ export const aceTypeTone = (type) => {
 };
 const aceType = field('type', 'ACEType', 'ACE type', 240);
 aceType.render = (record) => pill(record.attributes.ACEType, aceTypeTone(record.attributes.ACEType));
+const rights = field('rights', 'Rights', 'Rights', 220);
+rights.render = (record) => chips(record.attributes.Rights);
 
 export const aclColumns = createColumnSet({
   storageKey: 'powerview.pathfinder.columns',
@@ -23,7 +25,7 @@ export const aclColumns = createColumnSet({
     field('trustee', 'SecurityIdentifier', 'Trustee / membership chain', 290),
     field('via', 'GrantedVia', 'Group that grants this ACE to the principal, or Direct', 200),
     aceType,
-    field('rights', 'Rights', 'Rights', 220),
+    rights,
     field('objectType', 'ObjectAceType', 'Object-specific right', 240),
     field('scope', 'Scope', 'Explicit or inherited ACE', 110),
     field('inheritance', 'InheritanceType', 'Inherited object type', 220),
