@@ -1,4 +1,4 @@
-import { attribute, textValue, values } from '../../core/directory.js';
+import { attribute, textValue, values, objectType, TYPE_ICONS } from '../../core/directory.js';
 import { accountDisabled, formatTime, toTime } from '../../core/ldap-values.js';
 import { element, icon } from '../../core/dom.js';
 
@@ -92,7 +92,9 @@ export function nameColumn(iconName) {
     key: 'name', label: 'name', hint: 'Object name', icon: 'field-text', width: 240, attributes: ['name'],
     render: (record, entry) => {
       const cell = element('div', 'cell-name');
-      cell.append(icon(iconName, `type--${iconName}`), element('span', '', entry.name));
+      const type = objectType(record);
+      const name = iconName ?? TYPE_ICONS[type];
+      cell.append(icon(name, `type--${iconName ?? type}`), element('span', '', entry.name));
       return cell;
     },
     text: (record, entry) => entry.name,

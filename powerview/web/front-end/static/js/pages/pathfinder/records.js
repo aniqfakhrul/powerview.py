@@ -12,6 +12,7 @@ export function aclEntries(result) {
         id: `${objectIndex}:${aceIndex}`, dn, name: dn ? dnLabel(dn) : 'Unknown target',
         record: { dn, attributes: {
           ...ace,
+          objectClass: values(group.objectClass),
           Rights: values(ace.ActiveDirectoryRights).length ? values(ace.ActiveDirectoryRights) : values(ace.AccessMask),
           Scope: values(ace.ACEFlags).includes('INHERITED_ACE') ? 'Inherited' : 'Explicit',
           ACEIndex: aceIndex + 1,

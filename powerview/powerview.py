@@ -1478,7 +1478,7 @@ class PowerView:
 			
 		entries = self.get_domainobject(
 			identity=identity if identity else "", 
-			properties=['nTSecurityDescriptor', 'sAMAccountName', 'distinguishedName', 'objectSid'], 
+			properties=['nTSecurityDescriptor', 'sAMAccountName', 'distinguishedName', 'objectSid', 'objectClass'],
 			searchbase=searchbase, 
 			ldap_filter=ldapfilter,
 			sd_flag=0x05,

@@ -31,6 +31,7 @@ const PLAIN_NAME = /^[^,=+<>;"\\\x00-\x1f]+$/;
 export function assertPlainName(name) {
   if (!PLAIN_NAME.test(name) || name.trim() !== name) throw new Error('Use a plain name without commas, equals signs, or leading and trailing spaces.');
 }
+export const TYPE_ICONS = { domain: 'domain', user: 'user', group: 'group', computer: 'computer', ou: 'ou', policy: 'policy', container: 'folder', other: 'object' };
 export const TYPE_LABELS = { domain: 'Domain', user: 'User', group: 'Group', computer: 'Computer', ou: 'Organizational unit', policy: 'Group policy', container: 'Container', other: 'Object' };
 const isPolicy = (record) => values(attribute(record, 'objectClass')).some((item) => String(item).toLowerCase() === 'grouppolicycontainer');
 export const recordName = (record) => (isPolicy(record) && textValue(attribute(record, 'displayName')))

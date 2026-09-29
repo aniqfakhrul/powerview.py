@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
 const dn = 'CN=svc.backup,DC=example,DC=test';
-const fixture = [{ attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, index) => ({
+const fixture = [{ objectClass: ['top', 'person', 'user', 'computer'], attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, index) => ({
   ObjectDN: dn, ObjectSID: 'S-1-5-21-1-1003', ACEType: `ACCESS_${effect}_OBJECT_ACE`,
   SecurityIdentifier: index ? 'EXAMPLE\\alex.morgan' : '(Helpdesk operators) -> EXAMPLE\\alex.morgan',
   GrantedVia: index ? 'Direct' : 'Helpdesk operators',
@@ -76,6 +76,7 @@ const fixture = [{ attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, ind
     assert.equal(await page.locator('#pathfinder-depth').isDisabled(), false);
     assert.equal(await page.locator('#grid-body tr[data-key]').count(), 3);
     assert.equal(await page.locator('#grid-body .cell-name').first().getAttribute('title'), dn);
+    assert.equal(await page.locator('#grid-body .cell-name > .type--computer').count(), 3);
     const rightsChips = page.locator('#grid-body tr[data-key="0:1"] .cell-chips');
     assert.deepEqual(await rightsChips.locator('.state--neutral').allTextContents(), ['ReadControl', 'WriteDACL']);
     assert.equal(await rightsChips.getAttribute('title'), 'ReadControl, WriteDACL');

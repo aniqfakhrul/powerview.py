@@ -1227,6 +1227,8 @@ class ACLEnum:
 				self.objectsid = objectsid
 				dacl = self.parseDACL(secDesc['Dacl'])
 				if dacl:
+					classes = entry.get('attributes', {}).get('objectClass') or []
+					dacl_dict['objectClass'] = [classes] if isinstance(classes, str) else classes
 					dacl_dict['attributes'] = dacl
 					parsed_dacl.append(dacl_dict)
 			except Exception as e:

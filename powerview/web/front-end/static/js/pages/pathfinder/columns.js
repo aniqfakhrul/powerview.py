@@ -2,7 +2,7 @@ import { chipColumn } from '../../components/grid/chips.js';
 import { createColumnSet, nameColumn, textColumn, pill } from '../../components/grid/columns.js';
 
 const field = textColumn;
-const name = nameColumn('object');
+const name = nameColumn();
 const target = { ...name, label: 'Target', hint: 'Object whose ACL contains this ACE', attributes: ['ObjectDN'] };
 target.render = (record, entry) => {
   const cell = name.render(record, entry);

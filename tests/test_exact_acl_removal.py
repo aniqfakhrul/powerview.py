@@ -93,6 +93,20 @@ class ExactACLRemovalTests(unittest.TestCase):
         enum.parseACE = lambda ace: None if ace['Ace']['Mask']['Mask'] == 0x20000 else original(ace)
         self.assertEqual(enum.parseDACL(parsed)[1]['RemovalIdentity']['index'], 2)
 
+    def test_acl_response_keeps_target_classes_once_per_object(self):
+        self.dacl.aces = [self.simple(), self.simple(0x20000)]
+        for classes in (['top', 'user', 'computer'], 'group', None):
+            entry = {'dn': self.editor.target_DN, 'attributes': {
+                'objectClass': classes,
+                'nTSecurityDescriptor': self.editor.principal_security_descriptor.getData(),
+            }}
+            enum = ACLEnum(None, [entry], 'DC=example,DC=test')
+            enum.resolve_trustee = MagicMock(return_value=('Principal', None))
+            result = enum.read_dacl()
+            self.assertEqual(result[0]['objectClass'], ['group'] if classes == 'group' else classes or [])
+            self.assertEqual(len(result[0]['attributes']), 2)
+            self.assertNotIn('objectClass', result[0]['attributes'][0])
+
     def test_api_function_reads_fresh_without_resolving_principal(self):
         view = PowerView.__new__(PowerView)
         view.ldap_server = MagicMock()

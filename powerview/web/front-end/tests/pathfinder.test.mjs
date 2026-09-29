@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { objectType, TYPE_ICONS } from '../static/js/core/directory.js';
 import { aclEntries } from '../static/js/pages/pathfinder/records.js';
 
 test('ACL rows preserve evidence and distinguish ACEs on the same target', () => {
@@ -24,4 +25,15 @@ test('scope reflects the inherited ACE flag', () => {
   const [inherited, explicit] = aclEntries([{ attributes: [{ ACEFlags: ['CONTAINER_INHERIT_ACE', 'INHERITED_ACE'] }, { ACEFlags: [] }] }]);
   assert.equal(inherited.record.attributes.Scope, 'Inherited');
   assert.equal(explicit.record.attributes.Scope, 'Explicit');
+});
+
+test('target icons follow LDAP classes with a generic fallback', () => {
+  for (const [classes, expected] of [
+    [['top', 'user', 'computer'], 'computer'], [['USER'], 'user'], [['group'], 'group'],
+    [['organizationalUnit'], 'ou'], [['groupPolicyContainer'], 'policy'],
+    [['domainDNS'], 'domain'], [['container'], 'folder'], [undefined, 'object'],
+  ]) {
+    const [row] = aclEntries([{ objectClass: classes, attributes: [{ ObjectDN: 'CN=Target,DC=test' }] }]);
+    assert.equal(TYPE_ICONS[objectType(row.record)], expected);
+  }
 });

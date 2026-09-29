@@ -1,13 +1,12 @@
 import { beginLoading } from '../loading.js';
 import { dnLabel, isDN } from '../../core/dn.js';
-import { attribute, recordName, values, textValue, objectType } from '../../core/directory.js';
+import { attribute, recordName, values, textValue, objectType, TYPE_ICONS } from '../../core/directory.js';
 import { accountDisabled, readableTime } from '../../core/ldap-values.js';
 import { createRequestLane } from '../../core/request-lane.js';
 import { notify } from '../notify.js';
 import { createValueEditor } from './value-editor.js';
 import { button, dnText, element, icon, setBusy } from '../../core/dom.js';
 
-const TYPE_ICONS = { domain: 'domain', user: 'user', group: 'group', computer: 'computer', ou: 'ou', policy: 'policy', container: 'folder', other: 'object' };
 const VALUE_PREVIEW = 12;
 const PROTECTED = /^(distinguishedname|name|cn|ou|objectclass|objectcategory|objectguid|objectsid|whencreated|whenchanged|usncreated|usnchanged|instancetype|ntsecuritydescriptor|unicodepwd|.*certificate.*|.*;binary|.*photo.*|.*jpeg.*|.*securitydescriptor.*|logonhours|repl.*|.*keycredential.*)$/i;
 

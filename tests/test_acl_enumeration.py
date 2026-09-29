@@ -53,6 +53,15 @@ class ACLEnumerationTests(unittest.TestCase):
 		self.assertEqual(ACLEnum(view, [], 'DC=test', principalidentity='sid').resolve_trustee('sid'), ('TEST\\carol', 'Direct'))
 		self.assertEqual(ACLEnum(view, [], 'DC=test').resolve_trustee('sid'), ('TEST\\carol', None))
 
+	def test_target_classes_are_requested_in_the_existing_acl_search(self):
+		view = PowerView.__new__(PowerView)
+		view.root_dn = 'DC=test'
+		view.get_domainobject = MagicMock(return_value=[{'attributes': {}}])
+		with patch('powerview.powerview.ACLEnum'):
+			view.get_domainobjectacl(guids_map_dict={'guid': 'right'})
+		view.get_domainobject.assert_called_once()
+		self.assertIn('objectClass', view.get_domainobject.call_args.kwargs['properties'])
+
 	def test_unresolved_identities_raise_instead_of_returning_none(self):
 		view = PowerView.__new__(PowerView)
 		view.root_dn = 'DC=test'

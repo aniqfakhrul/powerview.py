@@ -268,6 +268,10 @@ EXPLORER_URL=http://127.0.0.1:5011 \
 
 ### Pathfinder
 
+Target icons use LDAP `objectClass` returned once per object in the existing ACL
+response. They share the object panel's class-to-icon mapping; missing or unknown
+classes use the generic object icon, with no additional lookup requests.
+
 `/pathfinder` uses the shared list-page layout: a compact query form above a
 scrollable ACE table, with a separate evidence panel for the selected row.
 The form has optional Target and Principal fields and Group depth (0–5,
