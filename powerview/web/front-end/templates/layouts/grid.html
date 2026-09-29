@@ -17,6 +17,7 @@
       <button id="grid-refresh" class="icon-button" type="button" aria-label="Refresh" title="Refresh">{{ icon('refresh') }}</button>
     </div>
   </header>
+  {% block grid_query %}{% endblock %}
   <div class="grid-page__body">
     <div class="grid-main">
       <div id="grid-scroll" class="grid-scroll" tabindex="0" aria-label="{{ page.title }} table">

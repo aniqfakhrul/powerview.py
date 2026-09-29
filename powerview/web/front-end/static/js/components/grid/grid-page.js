@@ -9,13 +9,14 @@ import { notify } from '../notify.js';
 import { createColumnFilter, filterSpec, isActive, matchesFilter } from './column-filter.js';
 import { createFieldsMenu } from './fields-menu.js';
 import { createSearchMenu } from './search-menu.js';
+import { createRowDetails } from './row-details.js';
 
 const PAGE_SIZE = 200;
 const MIN_COLUMN_WIDTH = 64;
 const MAX_COLUMN_WIDTH = 800;
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
-export function createGridPage({ root, endpoint, noun, columnSet, search: searchConfig = {}, fetch: fetchEntries, deletable = true, describeRemoval, isProtected = () => false, afterDelete, summary, panelActions }) {
+export function createGridPage({ root, endpoint, noun, columnSet, search: searchConfig = {}, fetch: fetchEntries, deletable = true, describeRemoval, isProtected = () => false, afterDelete, summary, panelActions, autoLoad = true, initialMessage, emptyMessage, details, onLoadState }) {
   const directory = createDirectory(new URL(root.dataset.apiRoot, window.location.origin));
   const scroller = document.querySelector('#grid-scroll');
   const head = document.querySelector('#grid-head');
@@ -32,6 +33,9 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   let returnFocus = null;
   const status = createStatus();
   let selectedDN = '';
+  const keyOf = (entry) => details ? entry.id : entry.dn;
+  const sameKey = (left, right) => details ? left === right : sameDN(left, right);
+  let started = false;
   let rootDN = '';
   let search = {};
 
@@ -239,7 +243,8 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     const tr = element('tr');
     tr.tabIndex = index === 0 ? 0 : -1;
     tr.dataset.dn = entry.dn;
-    tr.setAttribute('aria-selected', String(sameDN(entry.dn, selectedDN)));
+    tr.dataset.key = keyOf(entry);
+    tr.setAttribute('aria-selected', String(sameKey(keyOf(entry), selectedDN)));
     tr.setAttribute('aria-rowindex', String(index + 2));
     tr.append(element('td', 'col-index', String(index + 1)));
     for (const column of columns) {
@@ -317,6 +322,9 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   }
 
   async function load(fresh = false) {
+    started = true;
+    onLoadState?.(true);
+    if (details) { closePanel(); entries = []; visible = []; }
     controller?.abort();
     controller = new AbortController();
     const { signal } = controller;
@@ -340,7 +348,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       setSortable(true);
       update();
       panel.refreshSummary();
-      if (!entries.length) showMessage(`No ${noun.plural} found`, `The connected directory returned no ${noun.singular} objects.`);
+      if (!entries.length) showMessage(emptyMessage?.title ?? `No ${noun.plural} found`, emptyMessage?.description ?? `The connected directory returned no ${noun.singular} objects.`);
       return true;
     } catch (error) {
       if (signal.aborted) return false;
@@ -350,34 +358,36 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       showMessage(`Cannot load ${noun.plural}`, error.message, () => load(true));
       return false;
     } finally {
-      if (!signal.aborted) refresh.disabled = false;
+      if (!signal.aborted) { refresh.disabled = false; onLoadState?.(false); }
     }
   }
 
   function explorerURL(dn) {
+    if (details) dn = entries.find((entry) => entry.id === dn)?.dn ?? '';
     const url = new URL(root.dataset.explorer, window.location.origin);
     url.searchParams.set('dn', dn);
     return url;
   }
 
   function remember(dn) {
+    if (details) return;
     const url = new URL(window.location.href);
     if (dn) url.searchParams.set('dn', dn); else url.searchParams.delete('dn');
     history.replaceState(null, '', url);
   }
 
   function markSelected() {
-    for (const tr of body.querySelectorAll('tr[data-dn]')) tr.setAttribute('aria-selected', String(sameDN(tr.dataset.dn, selectedDN)));
+    for (const tr of body.querySelectorAll('tr[data-dn]')) tr.setAttribute('aria-selected', String(sameKey(tr.dataset.key, selectedDN)));
   }
 
   function syncOverlay() {
     const covering = overlay.matches && !panelRoot.hidden;
     gridMain.inert = covering;
-    for (const node of [document.querySelector('.grid-page > .toolbar'), document.querySelector('.workspace > .sidebar')]) {
+    for (const node of [document.querySelector('.grid-page > .toolbar'), document.querySelector('[data-grid-query]'), document.querySelector('.workspace > .sidebar')]) {
       if (node) node.inert = covering;
     }
     if (covering && !panelRoot.contains(document.activeElement)) {
-      panelRoot.querySelector('[role="tab"][aria-selected="true"]')?.focus();
+      (panelRoot.querySelector('[role="tab"][aria-selected="true"]') ?? panelRoot.querySelector('#panel-close'))?.focus();
     }
   }
 
@@ -389,11 +399,12 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     markSelected();
     remember(dn);
     explorerLink.href = explorerURL(dn);
+    explorerLink.hidden = Boolean(details && !entries.find((entry) => entry.id === dn)?.dn);
     panelRoot.hidden = false;
     panelResizer.hidden = false;
     syncOverlay();
-    discoverRoots();
-    if (opening && overlay.matches) panelRoot.querySelector('[role="tab"][aria-selected="true"]')?.focus();
+    if (!details) discoverRoots();
+    if (opening && overlay.matches) (panelRoot.querySelector('[role="tab"][aria-selected="true"]') ?? panelRoot.querySelector('#panel-close'))?.focus();
     panel.open(dn);
   }
 
@@ -406,7 +417,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     syncOverlay();
     markSelected();
     remember('');
-    const row = body.querySelector(`tr[data-dn="${CSS.escape(previous)}"]`);
+    const row = body.querySelector(`tr[data-key="${CSS.escape(previous)}"]`);
     (row ?? (returnFocus?.isConnected ? returnFocus : null))?.focus();
     returnFocus = null;
   }
@@ -438,7 +449,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   async function reloadKeepingPosition() {
     const scrollTop = scroller.scrollTop;
     if (!(await load(true))) return;
-    const position = visible.findIndex((entry) => sameDN(entry.dn, selectedDN));
+    const position = visible.findIndex((entry) => sameKey(keyOf(entry), selectedDN));
     while (position >= rendered && rendered < visible.length) renderMore();
     scroller.scrollTop = scrollTop;
   }
@@ -463,13 +474,13 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     entries[index] = updated;
     const scrollTop = scroller.scrollTop;
     update();
-    const position = visible.findIndex((entry) => sameDN(entry.dn, selectedDN));
+    const position = visible.findIndex((entry) => sameKey(keyOf(entry), selectedDN));
     while (position >= rendered && rendered < visible.length) renderMore();
     scroller.scrollTop = scrollTop;
   }
 
   const guard = createMutationGuard({ onBlocked: () => notify.info('Wait for the current change to finish.') });
-  const panel = createObjectPanel({
+  const panel = details ? createRowDetails({ root: panelRoot, getEntry: (key) => entries.find((entry) => entry.id === key), details }) : createObjectPanel({
     root: panelRoot,
     summary: summary && { label: summary.label, render: (panel, record) => summary.render(panel, entries.find((entry) => sameDN(entry.dn, record.dn)), record) },
     directory,
@@ -509,7 +520,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     const link = event.target.closest('[data-dn-link]');
     if (link) { select(link.dataset.dnLink); return; }
     const tr = event.target.closest('tr[data-dn]');
-    if (tr) select(tr.dataset.dn);
+    if (tr) select(tr.dataset.key);
   });
 
   body.addEventListener('keydown', (event) => {
@@ -524,10 +535,10 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       while (rendered < visible.length) renderMore();
       target = [...body.querySelectorAll('tr[data-dn]')].at(-1);
     }
-    else if (event.key === 'Enter') { select(tr.dataset.dn); return; }
+    else if (event.key === 'Enter') { event.preventDefault(); select(tr.dataset.key); return; }
     else return;
     event.preventDefault();
-    if (!target?.dataset.dn) return;
+    if (!target?.dataset.key) return;
     tr.tabIndex = -1;
     target.tabIndex = 0;
     target.focus();
@@ -544,7 +555,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       fieldsMenu.schemaChanged();
       if (!columnKeys.some((key) => key.startsWith('attr:'))) return;
       const focusedHeader = document.activeElement?.closest('#grid-head th')?.dataset.key;
-      const focusedRow = document.activeElement?.closest('#grid-body tr[data-dn]')?.dataset.dn;
+      const focusedRow = document.activeElement?.closest('#grid-body tr[data-dn]')?.dataset.key;
       const scrollTop = scroller.scrollTop;
       const scrollLeft = scroller.scrollLeft;
       const previous = columns;
@@ -555,7 +566,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       scroller.scrollTop = scrollTop;
       scroller.scrollLeft = scrollLeft;
       if (focusedHeader) head.querySelector(`th[data-key="${CSS.escape(focusedHeader)}"] button`)?.focus({ preventScroll: true });
-      else if (focusedRow) body.querySelector(`tr[data-dn="${CSS.escape(focusedRow)}"]`)?.focus({ preventScroll: true });
+      else if (focusedRow) body.querySelector(`tr[data-key="${CSS.escape(focusedRow)}"]`)?.focus({ preventScroll: true });
     })
     .catch(() => {});
 
@@ -575,11 +586,11 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     return discovering;
   }
 
-  const domainReady = directory.domain()
+  const domainReady = (details ? Promise.resolve(null) : directory.domain())
     .then((domain) => { rootDN = domain?.root_dn ?? ''; return rootDN; })
     .catch(() => '');
 
-  discoverRoots();
+  if (!details) discoverRoots();
   const fieldsMenu = createFieldsMenu({
     trigger: document.querySelector('#grid-fields'),
     menu: document.querySelector('#fields-menu'),
@@ -601,8 +612,9 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
       const loaded = new Set(loadedProperties.map((name) => name.toLowerCase()));
       const missingOptions = Object.entries(columnSet.requestOptions(columns)).some(([key, value]) => loadedOptions[key] !== value);
       const needsFetch = !fetchEntries && (missingOptions || columnSet.properties(columns).some((name) => !loaded.has(name.toLowerCase())));
-      if (needsFetch || filter.disabled) load();
-      else { setSortable(true); update(); }
+      if (!started) showMessage(initialMessage?.title ?? 'Choose search options', initialMessage?.description ?? 'Run a search to load results.');
+      else if (needsFetch || (filter.disabled && !fetchEntries)) load();
+      else if (!filter.disabled) { setSortable(true); update(); }
     },
   });
 
@@ -618,16 +630,33 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   clearFilters.addEventListener('click', resetFilters);
   buildHead();
   paintFilters();
-  load().then((loaded) => {
+  if (autoLoad) load().then((loaded) => {
     const requested = new URLSearchParams(window.location.search).get('dn');
     if (loaded && requested) select(requested);
   });
+  else {
+    refresh.disabled = true;
+    showMessage(initialMessage?.title ?? 'Choose search options', initialMessage?.description ?? 'Run a search to load results.');
+  }
 
   return {
     directory,
     status,
     domainReady,
     rootDN: () => rootDN,
+    visibleEntries: () => [...visible],
+    cancel() {
+      controller?.abort();
+      entries = [];
+      visible = [];
+      body.replaceChildren();
+      count.textContent = '';
+      filter.disabled = true;
+      refresh.disabled = false;
+      setSortable(false);
+      showMessage('Search cancelled', 'An LDAP read already started may finish on the server.');
+      onLoadState?.(false);
+    },
     reload: (fresh = false) => load(fresh),
     rerender() {
       if (!filter.disabled) update();

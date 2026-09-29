@@ -1,4 +1,5 @@
 """Explorer integration checks without a live directory or write operations."""
+import inspect
 import unittest
 from argparse import Namespace
 from types import SimpleNamespace
@@ -33,7 +34,7 @@ class ExplorerBackendTests(unittest.TestCase):
     def test_pages_assets_and_prefix(self):
         server = self.make_server()
         with server.app.test_client() as client:
-            for path in ['/', '/dashboard', '/graph', '/users', '/computers', '/groups', '/dns', '/ca', '/ou', '/gpo', '/smb', '/utils']:
+            for path in ['/', '/dashboard', '/pathfinder', '/users', '/computers', '/groups', '/dns', '/ca', '/ou', '/gpo', '/smb', '/utils']:
                 response = client.get(path)
                 self.assertEqual(response.status_code, 200, path)
                 self.assertIn('id="connection-status"', response.get_data(as_text=True), path)
@@ -46,6 +47,25 @@ class ExplorerBackendTests(unittest.TestCase):
             html = client.get('/', environ_overrides={'SCRIPT_NAME': '/pv'}).get_data(as_text=True)
             self.assertIn('data-api-root="/pv/api/"', html)
             self.assertIn('/pv/static/js/pages/explorer.js', html)
+
+    def test_pathfinder_uses_existing_acl_endpoint_with_optional_identity(self):
+        server = self.make_server()
+        result = [{'attributes': [{'ObjectDN': 'DC=example,DC=test', 'ACEType': 'ACCESS_ALLOWED_ACE'}]}]
+        server.powerview.get_domainobjectacl = MagicMock(return_value=result)
+        with server.app.test_client() as client:
+            for identity in (None, 'Administrator'):
+                params = {'depth': 2, 'security_identifier': 'alice', 'resolveguids': True, 'no_cache': True, 'no_vuln_check': True}
+                if identity:
+                    params['identity'] = identity
+                response = client.post('/api/get/domainobjectacl', json=params)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.get_json(), result)
+                passed = server.powerview.get_domainobjectacl.call_args.kwargs
+                inspect.signature(PowerView.get_domainobjectacl).bind(server.powerview, **passed)
+                for key, value in params.items():
+                    self.assertEqual(passed[key], value)
+                if not identity:
+                    self.assertNotIn('identity', passed)
 
     def test_user_search_options_reach_ldap_without_replacing_user_constraint(self):
         pv = PowerView.__new__(PowerView)

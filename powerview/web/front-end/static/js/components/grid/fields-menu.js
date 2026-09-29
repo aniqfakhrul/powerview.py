@@ -65,6 +65,7 @@ export function createFieldsMenu({ trigger, menu, columnSet, getKeys, onApply })
     refreshSearch = applySearch;
 
     const manual = element('details', 'fields-menu__manual');
+    manual.hidden = columnSet.allowCustom === false;
     manual.append(element('summary', '', 'Add by exact name'));
     const add = element('form', 'fields-menu__add');
     const attributeInput = element('input', 'text-input text-input--mono');

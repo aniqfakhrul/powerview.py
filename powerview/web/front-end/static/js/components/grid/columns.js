@@ -118,11 +118,12 @@ export function customColumn(name, kind = 'text', key = `attr:${name}`) {
   return { ...(KIND_COLUMNS[kind] ?? textColumn)(key, name, hint), custom: true };
 }
 
-export function createColumnSet({ storageKey, objectClass, name, catalog, defaults }) {
+export function createColumnSet({ storageKey, objectClass, name, catalog, defaults, allowCustom = true }) {
   let schema = null;
 
   function columnFor(key) {
     if (!key.startsWith('attr:')) return catalog.find((column) => column.key === key) ?? null;
+    if (!allowCustom) return null;
     const attributeName = key.slice(5);
     if (!isAttributeName(attributeName)) return null;
     const known = schema?.get(attributeName.toLowerCase());
@@ -134,6 +135,7 @@ export function createColumnSet({ storageKey, objectClass, name, catalog, defaul
     catalog,
     defaults,
     objectClass,
+    allowCustom,
     columnFor,
     setSchema(attributes) {
       schema = new Map(attributes.map((item) => [item.name.toLowerCase(), item]));
