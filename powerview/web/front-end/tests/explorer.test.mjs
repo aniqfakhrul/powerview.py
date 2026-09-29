@@ -26,6 +26,9 @@ test('AD object classes map to Active Directory-like types, icons and labels', (
   assert.equal(type(computer, { userAccountControl: 4096 }), 'computer');
   assert.equal(type(computer, { userAccountControl: [532480] }), 'controller');
   assert.equal(type(computer, { userAccountControl: '83890176' }), 'controller');
+  assert.equal(type(computer, { userAccountControl: ['SERVER_TRUST_ACCOUNT', 'TRUSTED_FOR_DELEGATION'] }), 'controller');
+  assert.equal(type(computer, { userAccountControl: ['WORKSTATION_TRUST_ACCOUNT', 'TRUSTED_TO_AUTH_FOR_DELEGATION', 'PARTIAL_SECRETS_ACCOUNT'] }), 'controller');
+  assert.equal(type(computer, { userAccountControl: ['WORKSTATION_TRUST_ACCOUNT'] }), 'computer');
   assert.equal(type([...computer, 'msDS-GroupManagedServiceAccount'], { userAccountControl: 4096 }), 'service');
   assert.equal(type([...computer, 'msDS-ManagedServiceAccount']), 'service');
   assert.equal(type(['top', 'person', 'organizationalPerson', 'user', 'inetOrgPerson']), 'user');

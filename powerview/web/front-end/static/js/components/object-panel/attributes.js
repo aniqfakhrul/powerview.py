@@ -45,7 +45,7 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
   let rows = [];
 
   function setTitle(name, type, record) {
-    title.replaceChildren(icon(TYPE_ICONS[type] ?? 'object', type ? `type--${type}` : ''), element('h1', '', name));
+    title.replaceChildren(...(type ? [icon(TYPE_ICONS[type] ?? 'object', `type--${type}`)] : []), element('h1', '', name));
     if (!record) return;
     const copy = button('', { iconName: 'copy', className: 'icon-button object-title__copy', ariaLabel: 'Copy distinguished name' });
     copy.title = 'Copy distinguished name';

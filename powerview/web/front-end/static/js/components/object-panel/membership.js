@@ -20,6 +20,7 @@ export function membershipCount(record, name) {
 
 export function renderMembership(container, record, name, { onNavigate, noun, editor, directory }) {
   const { dns, partial } = entries(record, name);
+  const groups = name.toLowerCase() === 'memberof';
   const items = dns.map((dn) => ({ dn, label: dnLabel(dn), path: parentDN(dn) }))
     .sort((a, b) => collator.compare(a.label, b.label));
 
@@ -78,7 +79,7 @@ export function renderMembership(container, record, name, { onNavigate, noun, ed
     const link = element('button', 'membership__item');
     link.type = 'button';
     link.title = item.dn;
-    link.append(icon('object'), element('span', 'membership__name', item.label), element('span', 'membership__path', item.path));
+    link.append(groups ? icon('group', 'type--group') : icon('object'), element('span', 'membership__name', item.label), element('span', 'membership__path', item.path));
     link.addEventListener('click', () => onNavigate(item.dn));
     li.append(link);
     if (editor) {

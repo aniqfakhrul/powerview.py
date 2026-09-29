@@ -1,5 +1,6 @@
 import { createAPI, APIError } from './api.js';
 import { dnLabel } from './dn.js';
+import { controllerAccount } from './ldap-values.js';
 
 export const TREE_PROPERTIES = ['name', 'objectClass', 'userAccountControl'];
 const SUGGESTION_LIMIT = 20;
@@ -20,10 +21,7 @@ const SERVICE_ACCOUNT_CLASSES = ['msds-groupmanagedserviceaccount', 'msds-manage
 const PKI_CLASSES = ['pkicertificatetemplate', 'pkienrollmentservice', 'certificationauthority'];
 const CONTAINER_CLASSES = ['container', 'builtindomain', 'configuration', 'dmd', 'dnszone'];
 
-export function isController(record) {
-  const control = Number(values(attribute(record, 'userAccountControl'))[0]);
-  return Number.isInteger(control) && Boolean(control & (8192 | 67108864));
-}
+export const isController = (record) => controllerAccount(attribute(record, 'userAccountControl'));
 
 export function objectType(record) {
   const classes = values(attribute(record, 'objectClass')).map((value) => String(value).toLowerCase());
@@ -202,7 +200,7 @@ export function createDirectory(baseURL) {
     async findObjects(text, { kind = 'member', limit = SUGGESTION_LIMIT, signal } = {}) {
       const escaped = text.replace(/[\\*()\0]/g, (character) => `\\${character.charCodeAt(0).toString(16).padStart(2, '0')}`);
       const found = records(await request('get/domainobject', { signal, body: {
-        properties: ['name', 'objectClass', 'sAMAccountName'],
+        properties: ['name', 'objectClass', 'sAMAccountName', 'userAccountControl'],
         ldap_filter: `(&${OBJECT_KINDS[kind]}(|(name=${escaped}*)(sAMAccountName=${escaped}*)))`,
         size_limit: limit + 1, raw: true, no_vuln_check: true,
       } }));

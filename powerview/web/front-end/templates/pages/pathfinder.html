@@ -1,6 +1,6 @@
 {% extends "layouts/grid.html" %}
 {% from "components/icon.html" import icon %}
-{% set grid_icon = "search" %}
+{% set grid_icon = "pathfinder" %}
 {% block styles %}{{ super() }}<link rel="stylesheet" href="{{ asset_url('css/pages/pathfinder.css') }}">{% endblock %}
 {% block grid_menu_actions %}<button id="pathfinder-export" class="action-menu__item" type="button" role="menuitem" title="Export the rows shown as JSON with query metadata" disabled>{{ icon('download') }}<span>Export JSON</span></button>{% endblock %}
 {% block grid_query %}

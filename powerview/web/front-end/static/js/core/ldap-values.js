@@ -1,4 +1,5 @@
 const ACCOUNT_DISABLED = 0x2;
+const CONTROLLER_ACCOUNT = 0x2000 | 0x4000000;
 const FILETIME_EPOCH_OFFSET = 11644473600000;
 const GENERALIZED_TIME = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\.\d+)?(?:Z|[+-]\d{4})?$/;
 const DAY_FIRST = /^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/;
@@ -8,15 +9,19 @@ const MAX_YEAR = 9998;
 
 const first = (value) => (Array.isArray(value) ? value[0] : value);
 
-export function accountDisabled(value) {
+export function hasAccountFlag(value, bits, names) {
   const items = Array.isArray(value) ? value : [value];
+  const named = new RegExp(`\\b(?:${names.join('|')})\\b`, 'i');
   return items.some((item) => {
-    if (typeof item === 'number') return (item & ACCOUNT_DISABLED) !== 0;
+    if (typeof item === 'number') return (item & bits) !== 0;
     const text = String(item ?? '').trim();
-    if (/^\d+$/.test(text)) return (Number(text) & ACCOUNT_DISABLED) !== 0;
-    return /\bACCOUNTDISABLE\b/i.test(text);
+    if (/^\d+$/.test(text)) return (Number(text) & bits) !== 0;
+    return named.test(text);
   });
 }
+
+export const accountDisabled = (value) => hasAccountFlag(value, ACCOUNT_DISABLED, ['ACCOUNTDISABLE']);
+export const controllerAccount = (value) => hasAccountFlag(value, CONTROLLER_ACCOUNT, ['SERVER_TRUST_ACCOUNT', 'PARTIAL_SECRETS_ACCOUNT']);
 
 function valid(time) {
   if (!Number.isFinite(time)) return null;
