@@ -4,7 +4,7 @@ import { button, element } from '../../core/dom.js';
 const OPTIONS = [
   ['enabled', 'Enabled accounts'], ['disabled', 'Disabled accounts'],
   ['passnotrequired', 'Password not required'], ['password_expired', 'Password expired'],
-  ['preauthnotrequired', 'Kerberos preauthentication not required'], ['admincount', 'AdminCount = 1'],
+  ['preauthnotrequired', 'Kerberos preauthentication not required'], ['admincount', 'Protected accounts', 'adminCount=1. This marker can remain after privileged group membership is removed; it does not prove current administrative access.'],
   ['lockedout', 'Locked out'], ['spn', 'Has a service principal name'],
   ['allowdelegation', 'Allow delegation'], ['disallowdelegation', 'Disallow delegation'],
   ['trustedtoauth', 'Trusted to authenticate for delegation'], ['unconstrained', 'Unconstrained delegation'],
@@ -50,10 +50,14 @@ export function createSearchMenu({ trigger, menu, onApply, defaultBase, options 
     const list = element('div', 'search-menu__options');
     list.hidden = !options.length;
     const boxes = new Map();
-    for (const [key, label] of options) {
+    for (const [key, label, hint] of options) {
       const row = element('label', 'fields-menu__option');
       const box = element('input');
       box.type = 'checkbox';
+      if (hint) {
+        row.title = hint;
+        box.setAttribute('aria-description', hint);
+      }
       box.checked = draft.options.includes(key);
       box.addEventListener('change', () => {
         draft.options = draft.options.filter((item) => item !== key && (!box.checked || item !== exclusive[key]));

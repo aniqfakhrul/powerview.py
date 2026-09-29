@@ -165,6 +165,12 @@ and outside clicks discard drafts. Filters are session-local and remain active
 when refreshing or changing Fields. The toolbar text filter only narrows loaded
 results across visible fields.
 
+The Protected accounts option sends `admincount: true` (`adminCount=1`). This
+marker may persist after privileged membership is removed and does not establish
+current administrative access. Select the `memberOf` direct-groups column in
+Fields to show group names with full DNs on hover; primary and nested groups are
+not included.
+
 Search integration checks (all directory requests intercepted):
 
 ```sh

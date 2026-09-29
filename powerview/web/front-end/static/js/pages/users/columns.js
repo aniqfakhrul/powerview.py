@@ -15,7 +15,7 @@ export const userColumns = createColumnSet({
     textColumn('title', 'title', 'Title'),
     textColumn('department', 'department', 'Department', 180),
     countColumn('groups', 'memberOf', 'Groups'),
-    dnChipColumn('groupNames', 'memberOf', 'Group names; hover a chip for its DN'),
+    dnChipColumn('groupNames', 'memberOf', 'Direct groups, excluding the primary group; hover a chip for its DN'),
     timeColumn('lastLogon', 'lastLogonTimestamp', 'Last logon'),
     timeColumn('pwdLastSet', 'pwdLastSet', 'Password last set'),
     timeColumn('created', 'whenCreated', 'Created'),
