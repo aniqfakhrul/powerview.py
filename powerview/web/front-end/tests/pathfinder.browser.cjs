@@ -7,8 +7,8 @@ const fixture = [{ attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, ind
   ObjectDN: dn, ObjectSID: 'S-1-5-21-1-1003', ACEType: `ACCESS_${effect}_OBJECT_ACE`,
   SecurityIdentifier: index ? 'EXAMPLE\\alex.morgan' : '(Helpdesk operators) -> EXAMPLE\\alex.morgan',
   GrantedVia: index ? 'Direct' : 'Helpdesk operators',
-  ActiveDirectoryRights: index === 1 ? 'WriteDACL' : 'ControlAccess',
-  ObjectAceType: 'User-Force-Change-Password', ACEFlags: 'INHERITED_ACE',
+  ActiveDirectoryRights: index === 1 ? ['ReadControl', 'WriteDACL'] : ['ControlAccess'],
+  ObjectAceType: 'User-Force-Change-Password', ACEFlags: ['INHERITED_ACE'],
 })) }];
 (async () => {
   const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || 'chrome', headless: true });
@@ -44,6 +44,7 @@ const fixture = [{ attributes: ['ALLOWED', 'DENIED', 'ALLOWED'].map((effect, ind
     await page.locator('#grid-body tr[data-key="0:1"]').click();
     assert.equal(await page.locator('#grid-body tr[aria-selected="true"]').count(), 1);
     assert.match(await page.locator('[data-panel-body]').innerText(), /WriteDACL/);
+    assert.equal(await page.locator('[data-panel-body] tr').filter({ has: page.locator('th', { hasText: /^Rights$/ }) }).locator('.value').count(), 2);
     assert.match(await page.locator('[data-panel-body]').innerText(), /Granted via\s+Direct/);
     assert.match(await page.locator('#panel-explorer').getAttribute('href'), /dn=CN/);
     assert.deepEqual(Object.fromEntries(new URL(page.url()).searchParams), { target: 'svc.backup', principal: 'alex.morgan', depth: '2' });

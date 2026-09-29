@@ -1,6 +1,7 @@
 import { createGridPage } from '../components/grid/grid-page.js';
 import { renderSummary } from '../components/object-panel/summary.js';
 import { createAPI } from '../core/api.js';
+import { values } from '../core/directory.js';
 import { button, element, setBusy } from '../core/dom.js';
 import { aceTypeTone, aclColumns } from './pathfinder/columns.js';
 import { aclEntries } from './pathfinder/records.js';
@@ -20,10 +21,10 @@ const form = find('form');
 let query = null;
 let completed = null;
 
-const values = () => ({ identity: find('target').value.trim(), principal: find('principal').value.trim() });
+const formValues = () => ({ identity: find('target').value.trim(), principal: find('principal').value.trim() });
 
 function syncControls() {
-  const { identity, principal } = values();
+  const { identity, principal } = formValues();
   find('depth').disabled = !principal;
   find('find').disabled = !identity && !principal;
 }
@@ -53,8 +54,9 @@ function restore() {
 
 function detailRows(attributes) {
   return DETAIL_FIELDS
-    .filter(([key]) => attributes[key] != null && attributes[key] !== '')
-    .map(([key, label]) => ({ label, values: [String(attributes[key])], tone: TONES[key]?.(attributes[key]) }));
+    .map(([key, label]) => ({ key, label, values: values(attributes[key]).filter((value) => value !== '').map(String) }))
+    .filter((row) => row.values.length)
+    .map(({ key, label, values: items }) => ({ label, values: items, tone: TONES[key]?.(items[0]) }));
 }
 
 function searchTarget(dn) {
@@ -128,7 +130,7 @@ const page = createGridPage({
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
-  const { identity, principal } = values();
+  const { identity, principal } = formValues();
   if (!identity && !principal) return;
   query = { depth: principal ? Number(find('depth').value) : 0, ...(identity ? { identity } : {}), ...(principal ? { security_identifier: principal } : {}) };
   find('hint').textContent = describeScope(query);

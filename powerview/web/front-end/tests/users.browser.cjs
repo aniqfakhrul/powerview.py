@@ -31,10 +31,10 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
       securityRequests.push({ path, data });
       if (data.identity === groupDN) return route.fulfill({ json: null });
       return route.fulfill({ json: [{ attributes: [
-        { ACEType: 'ACCESS_ALLOWED_OBJECT_ACE', ACEFlags: 'CONTAINER_INHERIT_ACE, INHERIT_ONLY_ACE', SecurityIdentifier: 'EXAMPLE\\Helpdesk', AccessMask: 'WriteProperty', ObjectAceType: 'Telephone-Number', InheritanceType: 'User' },
-        { ACEType: 'ACCESS_ALLOWED_ACE', ACEFlags: 'None', SecurityIdentifier: 'EXAMPLE\\Helpdesk', AccessMask: 'ReadProperty, WriteProperty', ObjectAceType: null },
-        { ACEType: 'ACCESS_DENIED_OBJECT_ACE', ACEFlags: 'None', SecurityIdentifier: 'Everyone', AccessMask: 'ExtendedRight', ObjectAceType: 'User-Change-Password' },
-        { ACEType: 'ACCESS_ALLOWED_ACE', ACEFlags: 'CONTAINER_INHERIT_ACE, INHERITED_ACE', SecurityIdentifier: 'EXAMPLE\\Domain Admins', AccessMask: 'FullControl', ObjectAceType: null },
+        { ACEType: 'ACCESS_ALLOWED_OBJECT_ACE', ACEFlags: ['CONTAINER_INHERIT_ACE', 'INHERIT_ONLY_ACE'], SecurityIdentifier: 'EXAMPLE\\Helpdesk', AccessMask: ['WriteProperty'], ObjectAceType: 'Telephone-Number', InheritanceType: 'User' },
+        { ACEType: 'ACCESS_ALLOWED_ACE', ACEFlags: [], SecurityIdentifier: 'EXAMPLE\\Helpdesk', AccessMask: ['ReadProperty', 'WriteProperty'], ObjectAceType: null },
+        { ACEType: 'ACCESS_DENIED_OBJECT_ACE', ACEFlags: [], SecurityIdentifier: 'Everyone', AccessMask: ['ExtendedRight'], ObjectAceType: 'User-Change-Password' },
+        { ACEType: 'ACCESS_ALLOWED_ACE', ACEFlags: ['CONTAINER_INHERIT_ACE', 'INHERITED_ACE'], SecurityIdentifier: 'EXAMPLE\\Domain Admins', AccessMask: ['FullControl'], ObjectAceType: null },
       ] }] });
     }
     if (path.endsWith('/get/domainobject') && data.searchbase === groupDN) {

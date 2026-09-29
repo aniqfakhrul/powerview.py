@@ -1,9 +1,11 @@
+import { values } from '../../core/directory.js';
 import { button, element, icon } from '../../core/dom.js';
 
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 const OWNER = /^(.*?)\s*\((S-[\d-]+)\)$/;
 
-const hasFlag = (ace, flag) => new RegExp(`\\b${flag}\\b`).test(ace.ACEFlags ?? '');
+const listed = (value) => values(value).filter((item) => item != null && item !== 'None').map(String);
+const hasFlag = (ace, flag) => listed(ace.ACEFlags).includes(flag);
 const denied = (ace) => /DENIED/.test(ace.ACEType ?? '');
 const clean = (value) => (value == null || value === 'None' ? '' : String(value));
 
@@ -21,12 +23,12 @@ function toEntry(ace) {
   return {
     denied: denied(ace),
     principal: clean(ace.SecurityIdentifier),
-    rights: clean(ace.AccessMask || ace.ActiveDirectoryRights),
+    rights: (listed(ace.AccessMask).length ? listed(ace.AccessMask) : listed(ace.ActiveDirectoryRights)).join(', '),
     appliesTo: clean(ace.ObjectAceType) || 'All properties',
     scope: scopeOf(ace),
     inheritedFrom: hasFlag(ace, 'INHERITED_ACE'),
     type: clean(ace.ACEType),
-    flags: clean(ace.ACEFlags) || 'None',
+    flags: listed(ace.ACEFlags).join(', ') || 'None',
   };
 }
 

@@ -1,3 +1,4 @@
+import { values } from '../../core/directory.js';
 import { dnLabel } from '../../core/dn.js';
 
 export function aclEntries(result) {
@@ -11,8 +12,8 @@ export function aclEntries(result) {
         id: `${objectIndex}:${aceIndex}`, dn, name: dn ? dnLabel(dn) : 'Unknown target',
         record: { dn, attributes: {
           ...ace,
-          Rights: ace.ActiveDirectoryRights || ace.AccessMask || '',
-          Scope: String(ace.ACEFlags ?? '').includes('INHERITED_ACE') ? 'Inherited' : 'Explicit',
+          Rights: values(ace.ActiveDirectoryRights).length ? values(ace.ActiveDirectoryRights) : values(ace.AccessMask),
+          Scope: values(ace.ACEFlags).includes('INHERITED_ACE') ? 'Inherited' : 'Explicit',
           ACEIndex: aceIndex + 1,
         } },
       };
