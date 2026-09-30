@@ -143,7 +143,17 @@ const fixtures = {
         await page.locator('#object-panel .property-grid').waitFor();
         assert.equal(page.url(), dashboardURL);
         assert.equal(new URL(await page.locator('#panel-explorer').getAttribute('href')).searchParams.get('dn'), dn);
-        assert.equal(await page.locator('.dashboard__scroll').evaluate((node) => node.inert), true);
+        assert.equal(await page.locator('.dashboard__scroll').evaluate((node) => node.inert), width <= 1100);
+        if (width === 1440 && selector === '#evidence-rows a') {
+          const next = page.locator('#evidence-rows tr').nth(1).locator('a').first();
+          await next.click({ timeout: 1500 });
+          assert.equal(new URL(await page.locator('#panel-explorer').getAttribute('href')).searchParams.get('dn'), await next.getAttribute('data-inspect-dn'));
+          await page.setViewportSize({ width: 390, height: 1100 });
+          await page.waitForFunction(() => document.querySelector('.dashboard__scroll').inert);
+          await page.setViewportSize({ width, height: 1100 });
+          await page.waitForFunction(() => !document.querySelector('.dashboard__scroll').inert);
+          await target.click();
+        }
         const bounds = await page.locator('#object-panel').boundingBox();
         assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width);
         if (process.env.DASHBOARD_SCREENSHOT_DIR && selector === '#evidence-rows a') {

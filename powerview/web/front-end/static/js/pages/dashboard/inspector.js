@@ -8,6 +8,7 @@ export function createDashboardInspector({ root, status, getRootDN, onSaved }) {
   const explorer = panelRoot.querySelector('#panel-explorer');
   const close = panelRoot.querySelector('#panel-close');
   const background = [...root.children].filter((node) => node !== panelRoot);
+  const overlay = matchMedia('(max-width: 1100px)');
   let selectedDN = '';
   let returnFocus = null;
   const panel = createObjectPanel({
@@ -36,15 +37,21 @@ export function createDashboardInspector({ root, status, getRootDN, onSaved }) {
     },
   });
 
+  function syncOverlay() {
+    const covering = overlay.matches && !panelRoot.hidden;
+    for (const node of background) node.inert = covering;
+    if (covering && !panelRoot.contains(document.activeElement)) close.focus();
+  }
+
   function open(dn) {
     if (!panel.canLeave()) return;
-    if (panelRoot.hidden) returnFocus = document.activeElement;
+    if (!panelRoot.contains(document.activeElement)) returnFocus = document.activeElement;
     selectedDN = dn;
     const url = new URL(root.dataset.explorer, location.origin);
     url.searchParams.set('dn', dn);
     explorer.href = url;
     panelRoot.hidden = false;
-    for (const node of background) node.inert = true;
+    syncOverlay();
     close.focus();
     panel.open(dn);
   }
@@ -52,7 +59,7 @@ export function createDashboardInspector({ root, status, getRootDN, onSaved }) {
   function dismiss() {
     if (!panel.canLeave()) return;
     panelRoot.hidden = true;
-    for (const node of background) node.inert = false;
+    syncOverlay();
     if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
     else root.querySelector('#dashboard-refresh').focus();
   }
@@ -64,6 +71,7 @@ export function createDashboardInspector({ root, status, getRootDN, onSaved }) {
     open(link.dataset.inspectDn);
   });
   close.addEventListener('click', dismiss);
+  overlay.addEventListener('change', syncOverlay);
   explorer.addEventListener('click', (event) => { if (!panel.canLeave()) event.preventDefault(); });
   panelRoot.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !event.defaultPrevented) {
