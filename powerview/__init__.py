@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from contextlib import ExitStack
+from powerview.utils.session import session_lock
 import sys
 try:
     sys.modules.pop('readline', None)
@@ -103,6 +105,7 @@ def main():
                 sys.exit(1)
 
         while True:
+            command_sessions = ExitStack()
             try:
                 temp_powerview = None
                 if args.query:
@@ -140,6 +143,7 @@ def main():
                         if args.json:
                             pv_args.json = True
 
+                        command_sessions.enter_context(session_lock(powerview))
                         if pv_args.server and pv_args.server.lower() != powerview.domain.lower():
                             try:
                                 temp_powerview = powerview.get_domain_powerview(pv_args.server)
@@ -166,8 +170,9 @@ def main():
                             # No server specified or same as current domain
                             current_target_domain = None
                             temp_powerview = None
-                            
+
                         pv = temp_powerview if temp_powerview else powerview
+                        command_sessions.enter_context(session_lock(pv))
 
                         try:
                             entries = None
@@ -711,6 +716,9 @@ def main():
                     raise
                 else:
                     logging.error(str(e))
+
+            finally:
+                command_sessions.close()
 
             if args.query:
                 sys.exit(0)

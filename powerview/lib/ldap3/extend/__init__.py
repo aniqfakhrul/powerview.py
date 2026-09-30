@@ -11,6 +11,7 @@ from uuid import uuid4
 from ldap3.protocol.convert import build_controls_list
 from pyasn1.codec.ber.encoder import encode
 from powerview.utils.query_cache import QueryCache
+from powerview.utils.session import session_locked
 from powerview.modules.vulnerabilities import VulnerabilityDetector
 from powerview.utils.helpers import strip_entry
 from powerview.utils.hints import patch_ldap3_exceptions
@@ -68,6 +69,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 			formatted += f" - {vuln_dict['details']}"
 		return formatted
 
+	@session_locked
 	def paged_search(self,
 					 search_base,
 					 search_filter,

@@ -1,3 +1,5 @@
+from powerview.utils.session import session_guard
+
 import logging
 import json
 
@@ -5,7 +7,8 @@ def setup_resources(mcp, powerview_instance):
 	"""Register all PowerView resources with the MCP server."""
 
 	@mcp.resource("powerview://connection_info")
-	async def get_connection_info() -> str:
+	@session_guard(powerview_instance)
+	def get_connection_info() -> str:
 		"""Get current PowerView connection info (protocol, server, domain)."""
 		try:
 			info = {

@@ -167,6 +167,15 @@ secrets. `asset_url` resolves deployment prefixes and adds a release cache key.
 Paths resolve relative to the Python package, independent of the launch directory.
 The existing `MANIFEST.in` includes templates and assets in distributions.
 
+Flask retains its default threaded request handling. API operations share a
+connection-owned reentrant lock with CLI commands and MCP calls, including result
+consumption. The connection-status endpoint performs a fresh LDAP probe under this
+lock, so it may wait behind a long query. Health, logs, history, constants, and
+static files do not acquire it. LDAP keepalive and pool health checks skip busy
+sessions; rebind and LDAP teardown wait for active operations. Pool entries are
+removed under the registry lock and closed after releasing it. SMB search streams
+release the session lock after setup, before enumerating shares and sending events.
+
 New modules start from `pages/placeholder.html`. Add a `Page` entry in `web/frontend.py`, extend
 `layouts/workspace.html`, and load page-specific files in `styles`/`scripts` blocks.
 Use `url_for` for navigation and `asset_url` for static assets. Keep reusable UI

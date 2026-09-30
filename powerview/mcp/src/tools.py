@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from powerview.utils.session import session_guard
+
 import logging
 import json
 from typing import Any, Optional
@@ -57,7 +59,8 @@ def setup_tools(mcp, powerview_instance):
 	"""Register all PowerView tools with the MCP server."""
 
 	@mcp.tool()
-	async def login_as(
+	@session_guard(powerview_instance)
+	def login_as(
 		username: str,
 		password: str | None = None,
 		domain: str | None = None,
@@ -100,7 +103,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=f"An unexpected error occurred during login: {str(e)}")
 
 	@mcp.tool()
-	async def get_domain_user(
+	@session_guard(powerview_instance)
+	def get_domain_user(
 		identity: str = "*",
 		properties: str = "*",
 		preauthnotrequired: bool = False,
@@ -181,7 +185,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_computer(
+	@session_guard(powerview_instance)
+	def get_domain_computer(
 		identity: str = "*",
 		properties: str = "*",
 		enabled: bool = False,
@@ -274,7 +279,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_group(
+	@session_guard(powerview_instance)
+	def get_domain_group(
 		identity: str = "*",
 		properties: str = "*",
 		admincount: bool = False,
@@ -319,7 +325,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_group_member(
+	@session_guard(powerview_instance)
+	def get_domain_group_member(
 		identity: str,
 		multiple: bool = False,
 		no_cache: bool = False,
@@ -353,7 +360,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_controller(
+	@session_guard(powerview_instance)
+	def get_domain_controller(
 		identity: str = "*",
 		properties: str = "*",
 		ldapfilter: str = "",
@@ -395,7 +403,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_trust(
+	@session_guard(powerview_instance)
+	def get_domain_trust(
 		identity: str = "*",
 		properties: str = "*",
 		searchbase: str = "",
@@ -435,7 +444,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain(
+	@session_guard(powerview_instance)
+	def get_domain(
 		identity: str = "*",
 		properties: str = "*",
 		ldapfilter: str = "",
@@ -474,7 +484,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_object(
+	@session_guard(powerview_instance)
+	def get_domain_object(
 		identity: str = "*",
 		properties: str = "*",
 		include_deleted: bool = False,
@@ -514,7 +525,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_object_acl(
+	@session_guard(powerview_instance)
+	def get_domain_object_acl(
 		identity: str = "*",
 		security_identifier: str = "",
 		ldapfilter: str = "",
@@ -555,7 +567,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_ou(
+	@session_guard(powerview_instance)
+	def get_domain_ou(
 		identity: str = "",
 		properties: str = "",
 		resolve_gplink: bool = False,
@@ -600,7 +613,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_gpo(
+	@session_guard(powerview_instance)
+	def get_domain_gpo(
 		identity: str = "",
 		properties: str = "",
 		ldapfilter: str = "",
@@ -639,7 +653,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_gpo_localgroup(
+	@session_guard(powerview_instance)
+	def get_domain_gpo_localgroup(
 		identity: str = "",
 	) -> str:
 		"""Get local group membership from GPOs."""
@@ -655,7 +670,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_gpo_settings(
+	@session_guard(powerview_instance)
+	def get_domain_gpo_settings(
 		identity: str = "",
 		no_cache: bool = False,
 		no_vuln_check: bool = False,
@@ -687,7 +703,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_dns_zone(
+	@session_guard(powerview_instance)
+	def get_domain_dns_zone(
 		identity: str = "",
 		properties: str = "",
 		ldapfilter: str = "",
@@ -727,7 +744,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def invoke_kerberoast(
+	@session_guard(powerview_instance)
+	def invoke_kerberoast(
 		identity: str = "",
 		ldapfilter: str = "",
 		searchbase: str = "",
@@ -760,7 +778,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def invoke_asreproast(
+	@session_guard(powerview_instance)
+	def invoke_asreproast(
 		identity: str = "",
 		ldapfilter: str = "",
 		searchbase: str = "",
@@ -789,7 +808,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_ca(
+	@session_guard(powerview_instance)
+	def get_domain_ca(
 		identity: str = "",
 		properties: str = "",
 		check_all: bool = False,
@@ -831,7 +851,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_ca_template(
+	@session_guard(powerview_instance)
+	def get_domain_ca_template(
 		identity: str = "",
 		properties: str = "",
 		vulnerable: bool = False,
@@ -881,7 +902,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_gmsa(
+	@session_guard(powerview_instance)
+	def get_domain_gmsa(
 		identity: str = "",
 		ldapfilter: str = "",
 		searchbase: str = "",
@@ -922,7 +944,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_domain_object_owner(
+	@session_guard(powerview_instance)
+	def get_domain_object_owner(
 		identity: str = "*",
 		searchbase: str = "",
 		no_cache: bool = False,
@@ -963,7 +986,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_exchange_server(
+	@session_guard(powerview_instance)
+	def get_exchange_server(
 		identity: str = "*",
 		properties: str = "*",
 		ldapfilter: str = "",
@@ -1010,7 +1034,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def get_netshare(
+	@session_guard(powerview_instance)
+	def get_netshare(
 		computer: str = "",
 		computername: str = ""
 	) -> str:
@@ -1049,7 +1074,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=error_msg)
 
 	@mcp.tool()
-	async def set_domain_user_password(
+	@session_guard(powerview_instance)
+	def set_domain_user_password(
 		identity: str,
 		accountpassword: str,
 		oldpassword: str | None = None
@@ -1099,7 +1125,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=f"An unexpected exception occurred: {error_msg}")
 
 	@mcp.tool()
-	async def add_domain_user(
+	@session_guard(powerview_instance)
+	def add_domain_user(
 		username: str,
 		password: str,
 		basedn: str | None = None
@@ -1132,7 +1159,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=f"An unexpected exception occurred: {str(e)}")
 
 	@mcp.tool()
-	async def remove_domain_user(
+	@session_guard(powerview_instance)
+	def remove_domain_user(
 		identity: str
 	) -> str:
 		"""
@@ -1156,7 +1184,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=f"An unexpected exception occurred: {str(e)}")
 
 	@mcp.tool()
-	async def add_domain_group_member(
+	@session_guard(powerview_instance)
+	def add_domain_group_member(
 		identity: str,
 		members: str
 	) -> str:
@@ -1194,7 +1223,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=f"An unexpected exception occurred: {str(e)}")
 
 	@mcp.tool()
-	async def remove_domain_group_member(
+	@session_guard(powerview_instance)
+	def remove_domain_group_member(
 		identity: str,
 		members: str
 	) -> str:
@@ -1226,7 +1256,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=f"An unexpected exception occurred: {str(e)}")
 
 	@mcp.tool()
-	async def add_domain_object_acl(
+	@session_guard(powerview_instance)
+	def add_domain_object_acl(
 		targetidentity: str,
 		principalidentity: str,
 		rights: str = "fullcontrol",
@@ -1267,7 +1298,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=f"An unexpected exception occurred: {str(e)}")
 
 	@mcp.tool()
-	async def remove_domain_object_acl(
+	@session_guard(powerview_instance)
+	def remove_domain_object_acl(
 		targetidentity: str,
 		principalidentity: str,
 		rights: str = "fullcontrol",
@@ -1308,7 +1340,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=f"An unexpected exception occurred: {str(e)}")
 
 	@mcp.tool()
-	async def set_domain_object_owner(
+	@session_guard(powerview_instance)
+	def set_domain_object_owner(
 		targetidentity: str,
 		principalidentity: str,
 		searchbase: str | None = None
@@ -1341,7 +1374,8 @@ def setup_tools(mcp, powerview_instance):
 				return _format_mcp_response(error=f"An unexpected exception occurred: {str(e)}")
 
 	@mcp.tool()
-	async def set_domain_computer_password(
+	@session_guard(powerview_instance)
+	def set_domain_computer_password(
 		identity: str,
 		accountpassword: str,
 		oldpassword: str | None = None
@@ -1382,7 +1416,8 @@ def setup_tools(mcp, powerview_instance):
 				return _format_mcp_response(error=f"An unexpected exception occurred: {str(e)}")
 
 	@mcp.tool()
-	async def convert_sid_to_name(
+	@session_guard(powerview_instance)
+	def convert_sid_to_name(
 		sid: str
 	) -> str:
 		"""Convert a SID to a name."""
@@ -1394,7 +1429,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=f"An unexpected exception occurred: {str(e)}")
 
 	@mcp.tool()
-	async def get_current_auth_context() -> str:
+	@session_guard(powerview_instance)
+	def get_current_auth_context() -> str:
 		"""Get the current authenticated user context for the PowerView session."""
 		try:
 			identity = powerview_instance.conn.who_am_i()
@@ -1409,7 +1445,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def find_localadminaccess(
+	@session_guard(powerview_instance)
+	def find_localadminaccess(
 		computer: str = None,
 		username: str = None,
 		password: str = None,
@@ -1445,7 +1482,8 @@ def setup_tools(mcp, powerview_instance):
 			return _format_mcp_response(error=str(e))
 
 	@mcp.tool()
-	async def smbclient(
+	@session_guard(powerview_instance)
+	def smbclient(
 		computer: str,
 		command: str,
 		username: str = "",

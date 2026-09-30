@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from flask import jsonify, request, Response, stream_with_context
+from flask import jsonify, request, Response, stream_with_context, g
 import logging
 from contextlib import redirect_stdout, redirect_stderr
 import io
@@ -21,6 +21,7 @@ from powerview.modules.smbclient import SMBClient
 from powerview.lib.tsts import TSHandler
 from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip, is_valid_sid
 from powerview.utils.schema import SchemaCatalog
+from powerview.utils.session import session_lock
 import re
 
 SCHEMA_NAME = re.compile(r'^[A-Za-z][A-Za-z0-9-]*$')
@@ -60,7 +61,21 @@ class APIServer:
 		self.log_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, file_name)
 		self.history_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, '.powerview_history')
 
+		self.app.before_request(self._acquire_session)
+		self.app.teardown_request(self._release_session)
 		self._register_routes()
+
+	def _acquire_session(self):
+		if not request.path.startswith('/api/') or request.endpoint in {'health', 'history', 'logs', 'constants'}:
+			return
+		lock = session_lock(self.powerview)
+		lock.acquire()
+		g.powerview_session_lock = lock
+
+	def _release_session(self, error=None):
+		lock = g.pop('powerview_session_lock', None)
+		if lock is not None:
+			lock.release()
 
 	def _register_routes(self):
 		def add_route_with_auth(rule, endpoint, view_func, **options):
@@ -1407,6 +1422,7 @@ class APIServer:
 				'Cache-Control': 'no-cache',
 				'X-Accel-Buffering': 'no'
 			}
+			self._release_session()
 			return Response(stream_with_context(event_stream()), headers=headers)
 		except Exception as e:
 			logging.error(f"[SMB SEARCH STREAM] Error: {str(e)}")

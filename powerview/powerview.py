@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from powerview.utils.session import session_lock, session_locked
 from impacket.dcerpc.v5 import srvs, wkst, scmr, rrp, rprn
 from powerview.lib.dfsnm import NetrDfsRemoveStdRoot, MSRPC_UUID_DFSNM
 from impacket.dcerpc.v5.ndr import NULL
@@ -499,6 +500,7 @@ class PowerView:
 				logging.debug(traceback.format_exc())
 			raise
 
+	@session_locked
 	def execute(self, args):
 		module_name = args.module
 
@@ -2179,8 +2181,8 @@ class PowerView:
 						else:
 							import concurrent.futures
 							with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-								future = executor.submit(self.conn.init_ldap_session, ldap_address=group_domain)
-								_, ldap_session = future.result(timeout=10)
+								future = executor.submit(self.conn.get_domain_connection, group_domain)
+								ldap_session = future.result(timeout=10).ldap_session
 					except Exception as e:
 						logging.warning(f"[Get-DomainForeignUser] Cannot reach domain {group_domain}: {e}")
 						# Add a stub entry with available info
@@ -2197,13 +2199,14 @@ class PowerView:
 							)
 						continue
 					ldap_filter = f"(&(objectCategory=group)(distinguishedName={group}))"
-					succeed = ldap_session.search(group_root_dn, ldap_filter, attributes='*')
-					if not succeed:
-						logging.error("[Get-DomainForeignUser] Failed ldap query")
-						continue
-					if not ldap_session.entries:
-						continue
-					ent = ldap_session.entries[0]
+					with session_lock(ldap_session):
+						succeed = ldap_session.search(group_root_dn, ldap_filter, attributes='*')
+						if not succeed:
+							logging.error("[Get-DomainForeignUser] Failed ldap query")
+							continue
+						if not ldap_session.entries:
+							continue
+						ent = ldap_session.entries[0]
 					entries.append(
 							{'attributes':{
 									'UserDomain': dn2domain(user['attributes']['distinguishedName']),
@@ -2262,7 +2265,7 @@ class PowerView:
 
 					if len(member_domain) != 0 and member_domain.casefold() != self.domain.casefold():
 						# Try to resolve foreign member via cross-domain LDAP.
-						# Use cached domain instances first; fall back to init_ldap_session
+						# Use cached domain instances first; fall back to a pooled connection
 						# with a timeout guard to prevent hangs on unreachable domains.
 						try:
 							foreign_pv = self.domain_instances.get(member_domain.casefold())
@@ -2273,8 +2276,8 @@ class PowerView:
 							else:
 								import concurrent.futures
 								with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-									future = executor.submit(self.conn.init_ldap_session, ldap_address=member_domain)
-									_, ldap_session = future.result(timeout=10)
+									future = executor.submit(self.conn.get_domain_connection, member_domain)
+									ldap_session = future.result(timeout=10).ldap_session
 						except Exception as e:
 							logging.warning(f"[Get-DomainGroupMember] Cannot reach domain {member_domain} for foreign member {member_dn}: {e}")
 							# Build a stub entry from the DN itself so we don't lose the member
@@ -2288,11 +2291,12 @@ class PowerView:
 							}
 							new_entries.append({'attributes': stub_infos})
 							continue
-						succeed = ldap_session.search(member_root_dn, ldap_filter, attributes='*')
-						if not succeed:
-							logging.error(f"[Get-DomainGroupMember] Failed to query for {member_dn}")
-							continue
-						member_entries = ldap_session.entries
+						with session_lock(ldap_session):
+							succeed = ldap_session.search(member_root_dn, ldap_filter, attributes='*')
+							if not succeed:
+								logging.error(f"[Get-DomainGroupMember] Failed to query for {member_dn}")
+								continue
+							member_entries = ldap_session.entries
 					else:
 						member_entries = self.ldap_session.extend.standard.paged_search(
 							self.root_dn,
