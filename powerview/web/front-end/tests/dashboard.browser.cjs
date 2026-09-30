@@ -52,7 +52,7 @@ const fixtures = {
       if (mode === 'error' || (mode === 'partial' && source === 'users')) return route.fulfill({ status: 400, json: { error: 'Access denied by directory (fixture)' } });
       const result = structuredClone(fixtures[source]);
       if (mode === 'changed' && source === 'users') result.root_dn = 'DC=other,DC=test';
-      if (mode === 'partial' && source === 'inventory') Object.assign(result, { ca_error: 'Insufficient access rights (fixture)', counts: { ...result.counts, cas: null, published_templates: null } });
+      if (mode === 'ca' && source === 'inventory') Object.assign(result, { ca_error: 'Insufficient access rights (fixture)', counts: { ...result.counts, cas: null, published_templates: null } });
       if (mode === 'empty') {
         if (result.counts) for (const key of Object.keys(result.counts)) result.counts[key] = 0;
         if (result.findings) for (const finding of Object.values(result.findings)) { finding.count = 0; finding.objects = []; }
@@ -142,6 +142,8 @@ const fixtures = {
     assert.equal(snapshot.sources.users.findings.users_preauth.count, 125);
     assert.equal(snapshot.sources.users.findings.users_preauth.objects.length, 100);
     assert.match(snapshot.limitations, /not proof/);
+    assert.match(snapshot.scope, /certificate authorities and published templates, which are forest-wide/);
+    assert.deepEqual(snapshot.errors, {});
     if (process.env.DASHBOARD_SCREENSHOT_DIR) {
       for (const [name, viewport, theme] of [
         ['desktop-light', { width: 1440, height: 1100 }, 'light'],
@@ -172,15 +174,21 @@ const fixtures = {
     assert.equal(await page.locator('#dashboard-state').textContent(), 'Partial snapshot');
     assert.equal(await page.locator('[data-count="users"]').textContent(), '—');
     assert.equal(await page.locator('[data-count="computers"]').textContent(), '386');
-    assert.equal(await page.locator('[data-count="cas"]').textContent(), '—');
-    assert.equal(await page.locator('[data-detail="cas"]').textContent(), 'Unavailable');
-    assert.equal(await page.locator('[data-detail="cas"]').getAttribute('title'), 'Insufficient access rights (fixture)');
-    assert.equal(await page.locator('[data-count="groups"]').textContent(), '248');
     assert.match(await page.locator('#evidence-empty').textContent(), /not been evaluated/);
     assert.match(await page.locator('#evidence-count').textContent(), /Source unavailable/);
     assert.equal(await page.locator('#evidence-filter').isDisabled(), true);
     assert.match(await page.locator('#dashboard-errors').textContent(), /Access denied/);
     if (process.env.DASHBOARD_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.DASHBOARD_SCREENSHOT_DIR}/partial.png`, animations: 'disabled' });
+    mode = 'ca';
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await complete();
+    assert.equal(await page.locator('#dashboard-state').textContent(), 'Partial snapshot');
+    assert.equal(await page.locator('#dashboard-errors').textContent(), 'Certificate authorities unavailable: Insufficient access rights (fixture)');
+    assert.equal(await page.locator('[data-count="users"]').textContent(), '1,428');
+    assert.equal(await page.locator('[data-count="cas"]').textContent(), '—');
+    assert.equal(await page.locator('[data-detail="cas"]').textContent(), 'Unavailable');
+    assert.equal(await page.locator('[data-detail="cas"]').getAttribute('title'), 'Insufficient access rights (fixture)');
+    assert.equal(await page.locator('[data-count="groups"]').textContent(), '248');
     mode = 'empty';
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await complete();

@@ -300,14 +300,21 @@ function renderTrusts() {
   host.append(element('p', 'dashboard__note', result.counts.trusts > result.trusts.length ? `Showing the first ${result.trusts.length} of ${format.format(result.counts.trusts)} trusts.` : 'Direction is relative to this domain. Trust objects do not establish connectivity or effective access.'));
 }
 
+function collectionErrors() {
+  const messages = Object.entries(failures).map(([source, message]) => [sources[source], message]);
+  if (data.inventory?.ca_error) messages.push(['Certificate authorities', data.inventory.ca_error]);
+  return messages;
+}
+
 function renderCollection() {
+  const issues = collectionErrors();
   const errors = find('dashboard-errors');
-  errors.replaceChildren(...Object.entries(failures).map(([source, message]) => element('p', '', `${sources[source]} unavailable: ${message}`)));
-  errors.hidden = !Object.keys(failures).length;
+  errors.replaceChildren(...issues.map(([label, message]) => element('p', '', `${label} unavailable: ${message}`)));
+  errors.hidden = !issues.length;
   const loaded = Object.keys(data).length;
-  const summary = loading ? `Loading · ${loaded} of 4 sources` : loaded === 4 ? 'Snapshot complete' : loaded ? 'Partial snapshot' : 'Snapshot unavailable';
+  const summary = loading ? `Loading · ${loaded} of 4 sources` : loaded === 4 && !issues.length ? 'Snapshot complete' : loaded ? 'Partial snapshot' : 'Snapshot unavailable';
   find('dashboard-state').textContent = summary;
-  status.idle(`${summary} · Current domain · Read-only`);
+  status.idle(`${summary} · Current domain, forest-wide CAs · Read-only`);
   exportButton.disabled = loading || !loaded;
   refresh.disabled = loading;
   daysSelect.disabled = loading;
@@ -398,11 +405,11 @@ daysSelect.addEventListener('change', () => {
 });
 exportButton.addEventListener('click', () => {
   const snapshot = {
-    exported_at: new Date().toISOString(), scope: 'Current domain; objects visible to the connected session',
+    exported_at: new Date().toISOString(), scope: 'Current domain, except certificate authorities and published templates, which are forest-wide; objects visible to the connected session',
     limitations: 'Configuration signals are not proof of exploitability. Counts cover returned objects; evidence is capped at 100 objects per signal. Signals overlap. Missing attributes may reflect permissions.',
     inactive_days: days,
     signals: signals.map((signal) => ({ ...signal, label: fill(signal.label), description: fill(signal.description) })),
-    sources: data, errors: failures,
+    sources: data, errors: Object.fromEntries(collectionErrors()),
   };
   const url = URL.createObjectURL(new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' }));
   const link = element('a');
