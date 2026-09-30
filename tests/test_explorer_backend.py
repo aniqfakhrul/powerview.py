@@ -34,23 +34,39 @@ class ExplorerBackendTests(unittest.TestCase):
     def test_pages_assets_and_prefix(self):
         server = self.make_server()
         with server.app.test_client() as client:
-            for path in ['/', '/dashboard', '/pathfinder', '/users', '/computers', '/groups', '/dns', '/ca', '/ou', '/gpo']:
+            for path in ['/', '/explorer', '/pathfinder', '/users', '/computers', '/groups', '/dns', '/ca', '/ou', '/gpo']:
                 response = client.get(path)
                 self.assertEqual(response.status_code, 200, path)
                 self.assertIn('id="connection-status"', response.get_data(as_text=True), path)
             for path in ['/smb', '/utils']:
                 self.assertEqual(client.get(path).status_code, 404, path)
             html = client.get('/').get_data(as_text=True)
+            self.assertIn('id="dashboard"', html)
             self.assertNotIn('SMB browser', html)
             self.assertNotIn('Utilities', html)
+            self.assertLess(html.index('href="/"'), html.index('href="/explorer"'))
+            html = client.get('/explorer').get_data(as_text=True)
             self.assertIn('id="explorer"', html)
+            self.assertIn('class="brand" href="/"', html)
             self.assertNotIn('UI foundation', html)
             for path in ['css/pages/explorer.css', 'js/pages/explorer.js', 'images/icons.svg']:
                 with client.get('/static/' + path) as response:
                     self.assertEqual(response.status_code, 200)
-            html = client.get('/', environ_overrides={'SCRIPT_NAME': '/pv'}).get_data(as_text=True)
+            html = client.get('/explorer', environ_overrides={'SCRIPT_NAME': '/pv'}).get_data(as_text=True)
             self.assertIn('data-api-root="/pv/api/"', html)
             self.assertIn('/pv/static/js/pages/explorer.js', html)
+            self.assertIn('data-explorer="/pv/explorer"', client.get('/users', environ_overrides={'SCRIPT_NAME': '/pv'}).get_data(as_text=True))
+
+    def test_dashboard_is_home_and_old_links_redirect(self):
+        server = self.make_server()
+        with server.app.test_client() as client:
+            legacy = client.get('/dashboard?signal=users_spn', environ_overrides={'SCRIPT_NAME': '/pv'})
+            self.assertEqual(legacy.status_code, 302)
+            self.assertEqual(legacy.headers['Location'], '/pv/?signal=users_spn')
+            deep = client.get('/?dn=CN%3DAlice%2CDC%3Dexample%2CDC%3Dtest')
+            self.assertEqual(deep.status_code, 302)
+            self.assertTrue(deep.headers['Location'].startswith('/explorer?dn='))
+            self.assertEqual(client.get(deep.headers['Location']).status_code, 200)
 
     def test_pathfinder_uses_existing_acl_endpoint_with_optional_identity(self):
         server = self.make_server()

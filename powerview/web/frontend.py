@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 
-from flask import Flask, render_template, url_for
+from flask import Flask, redirect, render_template, request, url_for
 
 from powerview._version import __version__
 
@@ -21,8 +21,8 @@ class Page:
 
 
 PAGES = (
-    Page("index", "/", "Explorer", "Workspace", "pages/explorer.html", icon="explorer"),
-    Page("dashboard", "/dashboard", "Dashboard", "Workspace", "pages/dashboard.html", icon="dashboard"),
+    Page("dashboard", "/", "Dashboard", "Workspace", "pages/dashboard.html", icon="dashboard"),
+    Page("explorer", "/explorer", "Explorer", "Workspace", "pages/explorer.html", icon="explorer"),
     Page("pathfinder", "/pathfinder", "Pathfinder", "Workspace", "pages/pathfinder.html", icon="pathfinder"),
     Page("users", "/users", "Users", template="pages/users.html", icon="user"),
     Page("computers", "/computers", "Computers", template="pages/computers.html", icon="computer"),
@@ -59,7 +59,20 @@ def render_page(page):
     )
 
 
+def render_home(page):
+    """Serve the Dashboard at / while sending pre-Dashboard Explorer deep links on."""
+    if "dn" in request.args:
+        return redirect(url_for("explorer", **request.args))
+    return render_page(page)
+
+
+def redirect_to_dashboard():
+    return redirect(url_for("dashboard", **request.args))
+
+
 def register_frontend(add_route):
     """Use the server's route registrar so page authentication stays consistent."""
     for page in PAGES:
-        add_route(page.path, page.endpoint, partial(render_page, page), methods=["GET"])
+        view = partial(render_home if page.path == "/" else render_page, page)
+        add_route(page.path, page.endpoint, view, methods=["GET"])
+    add_route("/dashboard", "dashboard_legacy", redirect_to_dashboard, methods=["GET"])

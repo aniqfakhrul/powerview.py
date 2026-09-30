@@ -187,7 +187,7 @@ class DashboardTests(unittest.TestCase):
         pv.get_domainuser.assert_not_called()
         pv.args.web_auth = None
         with APIServer(pv).app.test_client() as client:
-            html = client.get('/dashboard', environ_overrides={'SCRIPT_NAME': '/pv'}).get_data(as_text=True)
+            html = client.get('/', environ_overrides={'SCRIPT_NAME': '/pv'}).get_data(as_text=True)
             self.assertIn('data-api-root="/pv/api/"', html)
             self.assertIn('/pv/static/js/pages/dashboard.js', html)
             self.assertNotIn('Coming next', html)

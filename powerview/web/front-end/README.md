@@ -32,6 +32,11 @@ front-end/
 
 ## Explorer behavior
 
+The Dashboard is the home page at `/` and is first in the sidebar; the brand links
+to it. The Explorer lives at `/explorer`. Older links still work: `/dashboard`
+redirects to `/` and a `/?dn=…` Explorer deep link redirects to `/explorer?dn=…`,
+both keeping their query strings.
+
 The Explorer is a classic two-pane directory browser: **a fully expandable object
 tree on the left and the selected object's property grid on the right**. There is
 no results table. It uses the CLI's existing authenticated session through the API;

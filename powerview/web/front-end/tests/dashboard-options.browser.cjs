@@ -46,7 +46,7 @@ function fixture(source, days) {
     await page.locator('.dashboard__signal', { hasText: 'Kerberoastable users' }).click();
     assert.equal(await page.locator('#evidence-total').textContent(), '1 match');
     assert.equal(await relative(page.locator('#evidence-rows a.dashboard__object').first()), `/users CN=svc.web,OU=Service,${rootDN}`);
-    assert.match(await relative(page.locator('#evidence-rows a.icon-button').first()), /^\/ CN=svc\.web/);
+    assert.match(await relative(page.locator('#evidence-rows a.icon-button').first()), /^\/explorer CN=svc\.web/);
     assert.equal(await relative(page.locator('#dashboard-controllers a').first()), `/computers CN=DC01,OU=Domain Controllers,${rootDN}`);
     const policy = await page.locator('#dashboard-policy').innerText();
     assert.match(policy, /Maximum password age\s+No expiry/);

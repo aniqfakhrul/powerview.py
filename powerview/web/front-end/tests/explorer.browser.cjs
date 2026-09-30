@@ -48,7 +48,7 @@ const connection = { domain: 'example.test', ldap_address: '10.0.0.10', nameserv
   const dialog = page.locator('#object-dialog');
   const visibleChildren = page.locator('[aria-label="People"] > .tree-group > .tree-item:not([hidden])');
 
-  await page.goto(base);
+  await page.goto(`${base}/explorer`);
   await heading('example').waitFor();
   const indicator = page.locator('#connection-status');
   await page.locator('#connection-status[data-state="ok"]').waitFor();
@@ -124,6 +124,7 @@ const connection = { domain: 'example.test', ldap_address: '10.0.0.10', nameserv
   connection.status = 'OK';
 
   await page.goto(`${base}/?dn=${encodeURIComponent(`CN=Person 002,${peopleDN}`)}`);
+  assert.match(new URL(page.url()).pathname, /\/explorer$/);
   await heading('Person 002').waitFor();
   assert.equal(await page.locator('.tree-item[aria-selected="true"]').getAttribute('aria-label'), 'Person 002');
 

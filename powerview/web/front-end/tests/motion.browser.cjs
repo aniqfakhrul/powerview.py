@@ -76,7 +76,7 @@ const endpoints = { users: 'domainuser', computers: 'domaincomputer', groups: 'd
         if (path.endsWith('/server/info')) return route.fulfill({ json: { raw: { namingContexts: [root] } } });
         return route.fulfill({ json: { status: 'OK', available: false } });
       });
-      await page.goto(`${base}/${name === 'explorer' ? `?dn=${encodeURIComponent(object.dn)}` : name}`);
+      await page.goto(`${base}/${name === 'explorer' ? `explorer?dn=${encodeURIComponent(object.dn)}` : name}`);
       const skeleton = page.locator(name === 'explorer' ? '.skeleton:visible' : '.loading-row').first();
       await skeleton.waitFor();
       if (capture) await page.screenshot({ path: `${capture}/${name}-loading.png`, animations: 'disabled' });

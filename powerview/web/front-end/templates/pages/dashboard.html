@@ -4,7 +4,7 @@
 {% block header %}{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/pages/dashboard.css') }}">{% endblock %}
 {% block content %}
-<section id="dashboard" class="dashboard" aria-label="Dashboard" data-api-root="{{ request.script_root }}/api/" data-explorer="{{ url_for('index') }}" data-users="{{ url_for('users') }}" data-computers="{{ url_for('computers') }}">
+<section id="dashboard" class="dashboard" aria-label="Dashboard" data-api-root="{{ request.script_root }}/api/" data-explorer="{{ url_for('explorer') }}" data-users="{{ url_for('users') }}" data-computers="{{ url_for('computers') }}">
   <header class="toolbar dashboard__toolbar">
     <h1>{{ icon('dashboard') }}Dashboard</h1>
     <div class="toolbar__actions">
