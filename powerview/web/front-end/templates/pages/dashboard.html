@@ -21,7 +21,7 @@
       {% for key, label, target in [('users', 'Users', 'users'), ('computers', 'Computers', 'computers'), ('groups', 'Groups', 'groups'), ('ous', 'Organizational units', 'ou'), ('gpos', 'Group policies', 'gpo')] %}
       <a href="{{ url_for(target) }}"><span>{{ label }}</span><strong data-count="{{ key }}"></strong><small data-detail="{{ key }}"></small></a>
       {% endfor %}
-      <a href="#dashboard-trusts"><span>Trusts</span><strong data-count="trusts"></strong><small data-detail="trusts"></small></a>
+      <a href="{{ url_for('ca', view='authorities') }}"><span>Certificate authorities</span><strong data-count="cas"></strong><small data-detail="cas"></small></a>
     </nav>
     <div id="dashboard-errors" class="dashboard__errors" aria-live="polite" hidden></div>
     <div class="dashboard__assessment">

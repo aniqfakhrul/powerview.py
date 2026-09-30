@@ -17,7 +17,7 @@ users.users_preauth.objects[1].name = '<img src=x onerror=alert(1)>';
 users.users_preauth.objects[1].dn = `CN=Last\\, First,OU=Service Accounts,${rootDN}`;
 const fixtures = {
   domain: { ...metadata, policy: { minPwdLength: 12, pwdHistoryLength: 24, maxPwdAge: 3628800, minPwdAge: 86400, lockoutThreshold: 5, lockoutDuration: 1800, pwdProperties: 1, 'ms-DS-MachineAccountQuota': 10 } },
-  inventory: { ...metadata, counts: { groups: 248, ous: 32, gpos: 47, trusts: 2 }, trusts: [
+  inventory: { ...metadata, ca_error: null, counts: { groups: 248, ous: 32, gpos: 47, trusts: 2, cas: 2, published_templates: 12 }, trusts: [
     { name: 'partners.test', partner: 'partners.test', dn: `CN=partners.test,CN=System,${rootDN}`, direction: 2, attributes: 8 },
     { name: 'child.example.test', partner: 'child.example.test', dn: `CN=child.example.test,CN=System,${rootDN}`, direction: 3, attributes: 32 },
   ] },
@@ -52,6 +52,7 @@ const fixtures = {
       if (mode === 'error' || (mode === 'partial' && source === 'users')) return route.fulfill({ status: 400, json: { error: 'Access denied by directory (fixture)' } });
       const result = structuredClone(fixtures[source]);
       if (mode === 'changed' && source === 'users') result.root_dn = 'DC=other,DC=test';
+      if (mode === 'partial' && source === 'inventory') Object.assign(result, { ca_error: 'Insufficient access rights (fixture)', counts: { ...result.counts, cas: null, published_templates: null } });
       if (mode === 'empty') {
         if (result.counts) for (const key of Object.keys(result.counts)) result.counts[key] = 0;
         if (result.findings) for (const finding of Object.values(result.findings)) { finding.count = 0; finding.objects = []; }
@@ -68,6 +69,11 @@ const fixtures = {
     assert.deepEqual(requests, ['domain', 'inventory', 'users', 'computers']);
     assert.equal(maxInFlight, 1);
     assert.equal(await page.locator('[data-count="users"]').textContent(), '1,428');
+    const authorities = page.locator('#dashboard-inventory a', { hasText: 'Certificate authorities' });
+    assert.equal(await authorities.getAttribute('href'), '/ca?view=authorities');
+    assert.equal(await page.locator('[data-count="cas"]').textContent(), '2');
+    assert.equal(await page.locator('[data-detail="cas"]').textContent(), 'Forest-wide · 12 templates published');
+    assert.equal(await page.locator('[data-count="trusts"]').count(), 0);
     assert.equal(await page.locator('#dashboard-domain').textContent(), 'example.test');
     assert.equal(await page.locator('#dashboard-state').textContent(), 'Snapshot complete');
     assert.equal(await page.locator('#evidence-rows tr').count(), 100);
@@ -166,6 +172,10 @@ const fixtures = {
     assert.equal(await page.locator('#dashboard-state').textContent(), 'Partial snapshot');
     assert.equal(await page.locator('[data-count="users"]').textContent(), '—');
     assert.equal(await page.locator('[data-count="computers"]').textContent(), '386');
+    assert.equal(await page.locator('[data-count="cas"]').textContent(), '—');
+    assert.equal(await page.locator('[data-detail="cas"]').textContent(), 'Unavailable');
+    assert.equal(await page.locator('[data-detail="cas"]').getAttribute('title'), 'Insufficient access rights (fixture)');
+    assert.equal(await page.locator('[data-count="groups"]').textContent(), '248');
     assert.match(await page.locator('#evidence-empty').textContent(), /not been evaluated/);
     assert.match(await page.locator('#evidence-count').textContent(), /Source unavailable/);
     assert.equal(await page.locator('#evidence-filter').isDisabled(), true);
@@ -175,6 +185,7 @@ const fixtures = {
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await complete();
     assert.equal(await page.locator('[data-count="users"]').textContent(), '0');
+    assert.equal(await page.locator('[data-detail="cas"]').textContent(), 'Forest-wide · none registered');
     assert.match(await page.locator('#evidence-empty').textContent(), /No matches/);
     assert.match(await page.locator('#dashboard-policy').textContent(), /Not readable/);
     assert.match(await page.locator('#dashboard-policy').textContent(), /No lockout/);

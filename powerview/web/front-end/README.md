@@ -366,7 +366,13 @@ Sources load sequentially and fail independently. Refresh starts a new collectio
 the dashboard does not poll or retry directory reads automatically. A domain change
 during collection discards the mixed snapshot.
 
-Inventory counts cover returned objects. Review signals include enabled-account
+Inventory counts cover returned objects. The Certificate authorities tile counts
+enrollment services in the forest's Configuration partition and the distinct
+templates they publish, linking to the CA Authorities view. It is read inside the
+inventory source with only `name`, `dNSHostName` and `certificateTemplates`, no
+security descriptors or web-enrollment checks; a missing Enrollment Services
+container counts as none registered, and a failed read marks only this tile
+Unavailable with the reason on hover. Review signals include enabled-account
 password flags, user SPNs, adminCount, computer delegation, and replicated logons
 older than the selected threshold. Unknown account state is reported separately; missing logon
 timestamps are excluded from inactivity signals. These are configuration signals,

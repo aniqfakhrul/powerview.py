@@ -135,9 +135,19 @@ function renderEvidence(resetScroll = false) {
       : result.count === 0 ? 'No matches in the returned directory data.' : 'No sampled objects match this filter.';
 }
 
+function inventoryDetail(key, source) {
+  const { counts } = data[source];
+  if (key === 'cas') {
+    if (!counts.cas) return 'Forest-wide · none registered';
+    return `Forest-wide · ${format.format(counts.published_templates)} ${counts.published_templates === 1 ? 'template' : 'templates'} published`;
+  }
+  if (source === 'inventory') return 'Visible in this domain';
+  return `${format.format(counts.enabled)} enabled · ${format.format(counts.disabled)} disabled${counts.unknown ? ` · ${format.format(counts.unknown)} unknown` : ''}`;
+}
+
 function renderInventory() {
   busy(find('dashboard-inventory'), ['users', 'computers', 'inventory']);
-  for (const key of ['users', 'computers', 'groups', 'ous', 'gpos', 'trusts']) {
+  for (const key of ['users', 'computers', 'groups', 'ous', 'gpos', 'cas']) {
     const source = ['users', 'computers'].includes(key) ? key : 'inventory';
     const value = data[source]?.counts[source === 'inventory' ? key : 'total'];
     const count = root.querySelector(`[data-count="${key}"]`);
@@ -148,9 +158,8 @@ function renderInventory() {
       continue;
     }
     count.textContent = value == null ? '—' : format.format(value);
-    detail.textContent = value == null
-      ? 'Unavailable'
-      : source === 'inventory' ? 'Visible in this domain' : `${format.format(data[source].counts.enabled)} enabled · ${format.format(data[source].counts.disabled)} disabled${data[source].counts.unknown ? ` · ${format.format(data[source].counts.unknown)} unknown` : ''}`;
+    detail.textContent = value == null ? 'Unavailable' : inventoryDetail(key, source);
+    detail.title = key === 'cas' && value == null ? data.inventory?.ca_error ?? '' : '';
   }
 }
 

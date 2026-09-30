@@ -10,7 +10,7 @@ const computerKeys = ['computers_unconstrained', 'computers_constrained', 'compu
 
 function fixture(source, days) {
   if (source === 'domain') return { ...metadata, policy: { minPwdLength: 12, pwdHistoryLength: 24, maxPwdAge: 'never', minPwdAge: 86400, lockoutThreshold: 5, lockoutDuration: 'never', pwdProperties: 1, 'ms-DS-MachineAccountQuota': 0 } };
-  if (source === 'inventory') return { ...metadata, counts: { groups: 1, ous: 1, gpos: 1, trusts: 0 }, trusts: [] };
+  if (source === 'inventory') return { ...metadata, counts: { groups: 1, ous: 1, gpos: 1, trusts: 0, cas: 1, published_templates: 1 }, trusts: [], ca_error: null };
   if (source === 'users') {
     const findings = empty(userKeys);
     findings.users_spn = { count: 1, objects: [{ name: 'svc.web', dn: `CN=svc.web,OU=Service,${rootDN}`, evidence: 'HTTP/web' }] };
@@ -48,6 +48,7 @@ function fixture(source, days) {
     assert.equal(await relative(page.locator('#evidence-rows a.dashboard__object').first()), `/users CN=svc.web,OU=Service,${rootDN}`);
     assert.match(await relative(page.locator('#evidence-rows a.icon-button').first()), /^\/explorer CN=svc\.web/);
     assert.equal(await relative(page.locator('#dashboard-controllers a').first()), `/computers CN=DC01,OU=Domain Controllers,${rootDN}`);
+    assert.equal(await page.locator('[data-detail="cas"]').textContent(), 'Forest-wide · 1 template published');
     const policy = await page.locator('#dashboard-policy').innerText();
     assert.match(policy, /Maximum password age\s+No expiry/);
     assert.match(policy, /Lockout duration\s+Until an administrator unlocks/);

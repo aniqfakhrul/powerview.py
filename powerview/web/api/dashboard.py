@@ -2,6 +2,8 @@ from collections import Counter
 from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 
+from ldap3.core.exceptions import LDAPException, LDAPNoSuchObjectResult
+
 
 SAMPLE_LIMIT = 100
 INACTIVE_DAYS = (30, 60, 90, 180)
@@ -185,7 +187,25 @@ def inventory_summary(powerview, fresh=False, **_):
                 'direction': number(attrs.get('trustdirection')),
                 'type': number(attrs.get('trusttype')), 'attributes': number(attrs.get('trustattributes')),
             })
-    return {'counts': dict(counts), 'trusts': trusts}
+    ca_error = None
+    try:
+        counts['cas'], counts['published_templates'] = authority_summary(powerview, fresh)
+    except (ValueError, LDAPException) as error:
+        counts['cas'] = counts['published_templates'] = None
+        ca_error = str(error) or 'Certificate authorities are not readable in this session.'
+    return {'counts': dict(counts), 'trusts': trusts, 'ca_error': ca_error}
+
+
+def authority_summary(powerview, fresh=False):
+    try:
+        authorities = read(powerview, 'get_domainca', fresh, properties=['name', 'dNSHostName', 'certificateTemplates'], check_all=False)
+    except LDAPNoSuchObjectResult:
+        return 0, 0
+    templates = set()
+    for entry in authorities:
+        published = attributes(entry).get('certificatetemplates') or []
+        templates.update(text(name).lower() for name in (published if isinstance(published, list) else [published]))
+    return len(authorities), len(templates)
 
 
 SECTIONS = {

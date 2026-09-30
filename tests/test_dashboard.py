@@ -3,6 +3,8 @@ from argparse import Namespace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+
+from ldap3.core.exceptions import LDAPNoSuchObjectResult, LDAPOperationResult
 from ldap3.utils.ciDict import CaseInsensitiveDict
 
 from powerview.web.api.dashboard import account_summary, dashboard_section, domain_summary, inventory_summary
@@ -24,7 +26,7 @@ def powerview():
         ldap_session=SimpleNamespace(result={'result': 0}),
         get_domain=MagicMock(return_value=[entry('example', minPwdLength=12)]),
         get_domainuser=MagicMock(return_value=[]), get_domaincomputer=MagicMock(return_value=[]),
-        get_domainobject=MagicMock(return_value=[]),
+        get_domainobject=MagicMock(return_value=[]), get_domainca=MagicMock(return_value=[]),
     )
 
 
@@ -115,9 +117,29 @@ class DashboardTests(unittest.TestCase):
             entry('gpo', objectClass=['top', 'groupPolicyContainer']),
             entry('partner', OBJECTCLASS=['trustedDomain'], TRUSTDIRECTION=[3], trustPartner='partner.test', trustAttributes=8),
         ]
+        pv.get_domainca.return_value = [
+            entry('CA-One', certificateTemplates=['User', 'WebServer']),
+            entry('CA-Two', CERTIFICATETEMPLATES='user'),
+        ]
         result = inventory_summary(pv)
-        self.assertEqual(result['counts'], {'groups': 1, 'ous': 1, 'gpos': 1, 'trusts': 1})
+        self.assertEqual(result['counts'], {'groups': 1, 'ous': 1, 'gpos': 1, 'trusts': 1, 'cas': 2, 'published_templates': 2})
         self.assertEqual(result['trusts'][0]['direction'], 3)
+        self.assertIsNone(result['ca_error'])
+        self.assertEqual(pv.get_domainca.call_args.kwargs['check_all'], False)
+        self.assertEqual(pv.get_domainca.call_args.kwargs['properties'], ['name', 'dNSHostName', 'certificateTemplates'])
+
+    def test_authority_failures_do_not_hide_inventory(self):
+        pv = powerview()
+        pv.get_domainobject.return_value = [entry('group', objectClass=['top', 'group'])]
+        pv.get_domainca.side_effect = LDAPNoSuchObjectResult()
+        result = inventory_summary(pv)
+        self.assertEqual((result['counts']['cas'], result['counts']['published_templates'], result['ca_error']), (0, 0, None))
+        pv.get_domainca.side_effect = LDAPOperationResult(description='insufficientAccessRights')
+        result = inventory_summary(pv)
+        self.assertEqual(result['counts']['groups'], 1)
+        self.assertIsNone(result['counts']['cas'])
+        self.assertIsNone(result['counts']['published_templates'])
+        self.assertTrue(result['ca_error'])
 
     def test_reads_use_the_cache_by_default(self):
         pv = powerview()
@@ -126,7 +148,7 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(result['root_dn'], ROOT_DN)
             self.assertEqual(result['sample_limit'], 100)
             self.assertIn('collected_at', result)
-        for method in [pv.get_domain, pv.get_domainobject, pv.get_domainuser, pv.get_domaincomputer]:
+        for method in [pv.get_domain, pv.get_domainobject, pv.get_domainca, pv.get_domainuser, pv.get_domaincomputer]:
             kwargs = method.call_args.kwargs
             self.assertIs(kwargs['no_cache'], False)
             for option in ['raw', 'no_vuln_check']:
