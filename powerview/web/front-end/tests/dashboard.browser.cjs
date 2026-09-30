@@ -15,7 +15,16 @@ const computers = Object.fromEntries(['unconstrained', 'constrained', 'password_
 }]));
 users.users_preauth.objects[1].name = '<img src=x onerror=alert(1)>';
 users.users_preauth.objects[1].dn = `CN=Last\\, First,OU=Service Accounts,${rootDN}`;
+const privilegedAccount = (name, extra) => ({ name, dn: `CN=${name},OU=Admins,${rootDN}`, groups: ['Domain Admins'], enabled: true, protected: false, stale: false, old_password: false, never_expires: false, last_logon: '2026-09-20T08:00:00+00:00', password_set: '2026-06-01T08:00:00+00:00', ...extra });
 const fixtures = {
+  privileged: { ...metadata, inactive_days: 90, password_age_days: 365, protected_users: true,
+    counts: { accounts: 3, enabled: 2, unprotected: 1, stale: 1, old_password: 1, never_expires: 0 },
+    groups: [{ name: 'Administrators', dn: `CN=Administrators,CN=Builtin,${rootDN}`, count: 2 }, { name: 'Domain Admins', dn: `CN=Domain Admins,CN=Users,${rootDN}`, count: 2 }],
+    accounts: [
+      privilegedAccount('alice.admin', { groups: ['Administrators', 'Domain Admins'], protected: true }),
+      privilegedAccount('bob.admin', { stale: true, old_password: true, last_logon: null }),
+      privilegedAccount('old.admin', { enabled: false }),
+    ] },
   domain: { ...metadata, policy: { minPwdLength: 12, pwdHistoryLength: 24, maxPwdAge: 3628800, minPwdAge: 86400, lockoutThreshold: 5, lockoutDuration: 1800, pwdProperties: 1, 'ms-DS-MachineAccountQuota': 10 } },
   inventory: { ...metadata, ca_error: null, counts: { groups: 248, ous: 32, gpos: 47, trusts: 2, cas: 2, published_templates: 12 }, trusts: [
     { name: 'partners.test', partner: 'partners.test', dn: `CN=partners.test,CN=System,${rootDN}`, direction: 2, attributes: 8 },
@@ -57,6 +66,7 @@ const fixtures = {
         if (result.counts) for (const key of Object.keys(result.counts)) result.counts[key] = 0;
         if (result.findings) for (const finding of Object.values(result.findings)) { finding.count = 0; finding.objects = []; }
         if (result.trusts) result.trusts = [];
+        if (result.accounts) { result.accounts = []; result.groups = []; }
         if (result.systems) result.systems = [];
         if (result.controllers) result.controllers = [];
         if (result.policy) { result.policy.lockoutThreshold = 0; result.policy.maxPwdAge = 0; result.policy.minPwdLength = null; }
@@ -66,7 +76,31 @@ const fixtures = {
     const complete = () => page.waitForFunction(() => !document.querySelector('#dashboard-refresh').disabled && document.querySelector('#dashboard-state').textContent !== 'Loading snapshot…');
     await page.goto(`${base}/dashboard`);
     await complete();
-    assert.deepEqual(requests, ['domain', 'inventory', 'users', 'computers']);
+    assert.deepEqual(requests, ['domain', 'inventory', 'users', 'computers', 'privileged']);
+    assert.equal(await page.locator('#privileged-total').textContent(), '3');
+    await page.getByRole('tab', { name: 'Privileged access' }).click();
+    assert.deepEqual(await page.locator('.dashboard__privileged-aside .dashboard__signal-count').allTextContents(), ['3', '2', '1', '1', '1', '0']);
+    assert.deepEqual(await page.locator('.dashboard__privileged-aside .dashboard__signal').evaluateAll((nodes) => nodes.map((node) => node.dataset.matches)), ['false', 'false', 'true', 'true', 'true', 'false']);
+    assert.equal(await page.getByRole('button', { name: 'Logon > 90 days 1', exact: true }).count(), 1);
+    assert.deepEqual(await page.locator('.dashboard__privileged-groups li').allInnerTexts(), ['Administrators\n2', 'Domain Admins\n2']);
+    const privilegedRows = page.locator('.dashboard__privileged-table tbody tr');
+    assert.equal(await privilegedRows.count(), 3);
+    assert.equal(await privilegedRows.nth(0).locator('td').nth(1).textContent(), 'Administrators, Domain Admins');
+    assert.deepEqual(await privilegedRows.nth(0).locator('.state').allTextContents(), []);
+    assert.deepEqual(await privilegedRows.nth(1).locator('.state').allTextContents(), ['No recent logon', 'Old password', 'Not in Protected Users']);
+    assert.equal(await privilegedRows.nth(1).locator('td').nth(2).textContent(), 'Not reported');
+    assert.deepEqual(await privilegedRows.nth(2).locator('.state').allTextContents(), ['Disabled']);
+    assert.equal(new URL(await privilegedRows.nth(0).locator('a').getAttribute('href'), base).pathname, '/users');
+    await page.getByRole('button', { name: 'Enabled accounts 2', exact: true }).click();
+    assert.equal(await privilegedRows.count(), 2);
+    await page.getByRole('button', { name: 'All privileged accounts 3', exact: true }).click();
+    const assessmentHeight = await page.locator('.dashboard__review').evaluate((node) => node.offsetHeight);
+    const requestCount = requests.length;
+    await page.getByRole('tab', { name: 'Privileged access' }).press('ArrowLeft');
+    assert.equal(await page.getByRole('tab', { name: 'Review queue' }).getAttribute('aria-selected'), 'true');
+    assert.equal(await page.locator('#privileged-panel').isHidden(), true);
+    assert.equal(await page.locator('.dashboard__review').evaluate((node) => node.offsetHeight), assessmentHeight);
+    assert.equal(requests.length, requestCount);
     assert.equal(maxInFlight, 1);
     assert.equal(await page.locator('[data-count="users"]').textContent(), '1,428');
     const authorities = page.locator('#dashboard-inventory a', { hasText: 'Certificate authorities' });
@@ -120,6 +154,13 @@ const fixtures = {
         assert.equal(await target.evaluate((node) => document.activeElement === node), true);
       }
     }
+    await page.getByRole('tab', { name: 'Privileged access' }).click();
+    assert.equal(await page.locator('.dashboard__privileged-table th').nth(1).isVisible(), false);
+    const notes = await page.locator('.dashboard__privileged-table tbody tr').nth(1).locator('td').last().boundingBox();
+    assert.ok(notes.x + notes.width <= 390);
+    assert.equal(await page.locator('.dashboard__privileged-aside').evaluate((node) => node.scrollHeight <= node.clientHeight), true);
+    assert.equal(await page.locator('.dashboard__privileged-content').evaluate((node) => node.scrollHeight <= node.clientHeight), true);
+    await page.getByRole('tab', { name: 'Review queue' }).click();
     await page.setViewportSize({ width: 1440, height: 1100 });
     await page.getByLabel('Filter sampled objects').fill('svc.backup');
     assert.equal(await page.locator('#evidence-rows tr').count(), 1);
@@ -154,6 +195,14 @@ const fixtures = {
         await page.setViewportSize(viewport);
         await page.emulateMedia({ colorScheme: theme });
         await page.screenshot({ path: `${process.env.DASHBOARD_SCREENSHOT_DIR}/${name}.png`, animations: 'disabled', fullPage: true });
+        await page.getByRole('tab', { name: 'Privileged access' }).click();
+        await page.screenshot({ path: `${process.env.DASHBOARD_SCREENSHOT_DIR}/${name}-privileged.png`, animations: 'disabled', fullPage: true });
+        if (viewport.width < 720) {
+          await page.locator('.dashboard__privileged-accounts').scrollIntoViewIfNeeded();
+          await page.screenshot({ path: `${process.env.DASHBOARD_SCREENSHOT_DIR}/${name}-privileged-table.png`, animations: 'disabled' });
+        }
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        await page.getByRole('tab', { name: 'Review queue' }).click();
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
         if (name.startsWith('mobile')) {
           assert.equal(await page.locator('#dashboard-signals').evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').length), 2);

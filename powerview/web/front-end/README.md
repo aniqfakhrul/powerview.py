@@ -136,7 +136,7 @@ Shared `static/css/motion.css` adds short panel, Fields-menu and tab entrances.
 `--ease-out` curve. Icon buttons and panel tabs transition their colors in 120ms.
 The shared active-tab underline translates and scales in 160ms using `--ease-out`;
 initial placement, resizing and reduced motion align it immediately.
-`components/object-panel/tab-indicator.js` tracks tab widths, including font and
+`components/tab-indicator.js` tracks tab widths, including font and
 count changes, with a resize observer.
 
 `components/loading.js` marks a region busy immediately and delays placeholders
@@ -365,6 +365,13 @@ again. `days` (30, 60, 90 or 180; default 90) sets the inactivity threshold.
 Sources load sequentially and fail independently. Refresh starts a new collection;
 the dashboard does not poll or retry directory reads automatically. A domain change
 during collection discards the mixed snapshot.
+
+The assessment area has Review queue and Privileged access tabs, sharing a bounded
+panel beside Domain baseline. Tabs support arrow keys, Home and End, and switching
+views makes no additional requests. Privileged account filters operate on the
+returned sample; their counts cover all accounts returned by the privileged source.
+The account table opens the existing object panel and reports missing logon dates
+as Not reported. The inactivity threshold applies to both assessment views.
 
 Inventory counts cover returned objects. The Certificate authorities tile counts
 enrollment services in the forest's Configuration partition and the distinct

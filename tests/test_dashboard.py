@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 from ldap3.core.exceptions import LDAPNoSuchObjectResult, LDAPOperationResult
 from ldap3.utils.ciDict import CaseInsensitiveDict
 
-from powerview.web.api.dashboard import account_summary, dashboard_section, domain_summary, inventory_summary
+from powerview.web.api.dashboard import account_summary, dashboard_section, domain_summary, inventory_summary, privileged_summary
 from powerview.web.api.server import APIServer
 
 
@@ -43,7 +43,7 @@ class DashboardTests(unittest.TestCase):
             method.return_value = [record]
         with APIServer(pv).app.test_client() as client:
             results = {}
-            for section in ['domain', 'inventory', 'users', 'computers']:
+            for section in ['domain', 'inventory', 'users', 'computers', 'privileged']:
                 response = client.get(f'/api/dashboard/{section}')
                 self.assertEqual(response.status_code, 200, response.get_json())
                 results[section] = response.get_json()
@@ -128,6 +128,41 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(pv.get_domainca.call_args.kwargs['check_all'], False)
         self.assertEqual(pv.get_domainca.call_args.kwargs['properties'], ['name', 'dNSHostName', 'certificateTemplates'])
 
+    def test_privileged_access_lists_members_of_builtin_groups_by_sid(self):
+        pv = powerview()
+        domain_sid = bytes.fromhex('010400000000000515000000a065cf7e784b9b5fe77c8770')
+        pv.get_domain.return_value = [entry('example', objectSid=domain_sid)]
+        ticks = lambda days: int(((NOW - timedelta(days=days)) - datetime(1601, 1, 1, tzinfo=timezone.utc)).total_seconds() * 10**7)
+        members = {
+            'Administrators': [entry('alice', userAccountControl=512, lastLogonTimestamp=ticks(5), pwdLastSet=ticks(30)), entry('bob', userAccountControl=66048, lastLogonTimestamp=ticks(200), pwdLastSet=ticks(400)), entry('carol', userAccountControl=512, pwdLastSet=ticks(120)), entry('dave', userAccountControl=512, pwdLastSet=ticks(10))],
+            'Domain Admins': [entry('alice', userAccountControl=512, lastLogonTimestamp=ticks(5), pwdLastSet=ticks(30)), entry('old', userAccountControl=514, lastLogonTimestamp=ticks(900), pwdLastSet=ticks(900))],
+            'Protected Users': [entry('alice')],
+        }
+        def objects(ldap_filter, **_):
+            if 'memberOf:' not in ldap_filter:
+                return [entry('Administrators', objectSid='S-1-5-32-544'), entry('Domain Admins', objectSid='S-1-5-21-2127521184-1604012920-1887927527-512'),
+                        entry('Protected Users', objectSid='S-1-5-21-2127521184-1604012920-1887927527-525')]
+            return next(value for name, value in members.items() if f'CN={name},' in ldap_filter)
+        pv.get_domainobject.side_effect = objects
+        result = privileged_summary(pv, NOW)
+        lookup = pv.get_domainobject.call_args_list[0].kwargs['ldap_filter']
+        self.assertIn('(objectSid=S-1-5-32-544)', lookup)
+        self.assertIn('(objectSid=S-1-5-21-2127521184-1604012920-1887927527-519)', lookup)
+        self.assertIn('(objectSid=S-1-5-21-2127521184-1604012920-1887927527-525)', lookup)
+        self.assertIn(f'memberOf:1.2.840.113556.1.4.1941:=CN=Administrators,CN=Users,{ROOT_DN}', pv.get_domainobject.call_args_list[2].kwargs['ldap_filter'])
+        self.assertEqual(result['groups'], [
+            {'name': 'Administrators', 'dn': f'CN=Administrators,CN=Users,{ROOT_DN}', 'count': 4},
+            {'name': 'Domain Admins', 'dn': f'CN=Domain Admins,CN=Users,{ROOT_DN}', 'count': 2},
+        ])
+        self.assertEqual(result['counts'], {'accounts': 5, 'enabled': 4, 'unprotected': 3, 'stale': 2, 'old_password': 1, 'never_expires': 1})
+        accounts = {item['name']: item for item in result['accounts']}
+        self.assertEqual(accounts['alice']['groups'], ['Administrators', 'Domain Admins'])
+        self.assertTrue(accounts['alice']['protected'])
+        self.assertEqual((accounts['bob']['stale'], accounts['bob']['old_password'], accounts['bob']['never_expires']), (True, True, True))
+        self.assertEqual((accounts['carol']['stale'], accounts['dave']['stale']), (True, False))
+        self.assertEqual((accounts['old']['enabled'], accounts['old']['stale']), (False, False))
+        self.assertTrue(result['protected_users'])
+
     def test_authority_failures_do_not_hide_inventory(self):
         pv = powerview()
         pv.get_domainobject.return_value = [entry('group', objectClass=['top', 'group'])]
@@ -143,7 +178,7 @@ class DashboardTests(unittest.TestCase):
 
     def test_reads_use_the_cache_by_default(self):
         pv = powerview()
-        for section in ['domain', 'inventory', 'users', 'computers']:
+        for section in ['domain', 'inventory', 'users', 'computers', 'privileged']:
             result = dashboard_section(pv, section)
             self.assertEqual(result['root_dn'], ROOT_DN)
             self.assertEqual(result['sample_limit'], 100)

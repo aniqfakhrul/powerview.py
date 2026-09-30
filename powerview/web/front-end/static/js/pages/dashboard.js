@@ -1,3 +1,4 @@
+import { createTabIndicator } from '../components/tab-indicator.js';
 import { createDashboardInspector } from './dashboard/inspector.js';
 import { beginLoading, skeletonRows } from '../components/loading.js';
 import { createAPI } from '../core/api.js';
@@ -15,6 +16,31 @@ const exportButton = find('dashboard-export');
 const filter = find('evidence-filter');
 const signalButtons = new Map();
 const daysSelect = find('dashboard-days');
+const assessmentTabs = [...find('assessment-tabs').querySelectorAll('[role="tab"]')];
+const syncAssessmentIndicator = createTabIndicator(find('assessment-tabs'));
+let privilegedFilter = 'all';
+
+function selectAssessment(tab) {
+  for (const item of assessmentTabs) {
+    const selected = item === tab;
+    item.setAttribute('aria-selected', String(selected));
+    item.tabIndex = selected ? 0 : -1;
+    find(item.getAttribute('aria-controls')).hidden = !selected;
+  }
+  syncAssessmentIndicator(true);
+}
+
+for (const [index, tab] of assessmentTabs.entries()) {
+  tab.addEventListener('click', () => selectAssessment(tab));
+  tab.addEventListener('keydown', (event) => {
+    const next = { ArrowRight: (index + 1) % assessmentTabs.length, ArrowLeft: (index + assessmentTabs.length - 1) % assessmentTabs.length, Home: 0, End: assessmentTabs.length - 1 }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    assessmentTabs[next].focus();
+    selectAssessment(assessmentTabs[next]);
+  });
+}
+
 const DAYS_KEY = 'powerview.dashboard.inactiveDays';
 let days = 90;
 try {
@@ -312,7 +338,8 @@ function renderCollection() {
   errors.replaceChildren(...issues.map(([label, message]) => element('p', '', `${label} unavailable: ${message}`)));
   errors.hidden = !issues.length;
   const loaded = Object.keys(data).length;
-  const summary = loading ? `Loading · ${loaded} of 4 sources` : loaded === 4 && !issues.length ? 'Snapshot complete' : loaded ? 'Partial snapshot' : 'Snapshot unavailable';
+  const total = Object.keys(sources).length;
+  const summary = loading ? `Loading · ${loaded} of ${total} sources` : loaded === total && !issues.length ? 'Snapshot complete' : loaded ? 'Partial snapshot' : 'Snapshot unavailable';
   find('dashboard-state').textContent = summary;
   status.idle(`${summary} · Current domain, forest-wide CAs · Read-only`);
   exportButton.disabled = loading || !loaded;
@@ -324,6 +351,112 @@ function renderIdentity() {
   if (loading && !domainDN) find('dashboard-context').replaceChildren(...placeholder(() => [bar('240px')]));
 }
 
+const shortDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
+
+const privilegedFilters = [
+  { key: 'all', label: 'All privileged accounts', count: 'accounts', matches: () => true },
+  { key: 'enabled', label: 'Enabled accounts', count: 'enabled', matches: (account) => account.enabled },
+  { key: 'unprotected', label: 'Not in Protected Users', count: 'unprotected', finding: true, matches: (account) => account.enabled && !account.protected },
+  { key: 'stale', label: 'Logon > {days} days', count: 'stale', finding: true, matches: (account) => account.stale },
+  { key: 'old_password', label: 'Password > 1 year', count: 'old_password', finding: true, matches: (account) => account.old_password },
+  { key: 'never_expires', label: 'Password never expires', count: 'never_expires', finding: true, matches: (account) => account.enabled && account.never_expires },
+];
+
+function privilegedSummary(result) {
+  const aside = element('nav', 'dashboard__signals dashboard__privileged-aside');
+  aside.setAttribute('aria-label', 'Privileged account filters');
+  aside.append(element('h3', '', 'Accounts'));
+  for (const definition of privilegedFilters) {
+    const control = button(fill(definition.label), { className: 'dashboard__signal' });
+    control.dataset.filter = definition.key;
+    control.setAttribute('aria-pressed', String(privilegedFilter === definition.key));
+    control.dataset.matches = String(Boolean(definition.finding && result.counts[definition.count]));
+    control.append(element('span', 'dashboard__signal-count', format.format(result.counts[definition.count])));
+    control.addEventListener('click', () => {
+      privilegedFilter = definition.key;
+      renderPrivileged();
+      find('dashboard-privileged').querySelector(`[data-filter="${definition.key}"]`).focus();
+    });
+    aside.append(control);
+  }
+  aside.append(element('h3', '', 'Groups'));
+  const groups = element('ul', 'dashboard__privileged-groups');
+  groups.append(...result.groups.map((group) => {
+    const item = element('li');
+    item.append(objectLink(group, group.name, 'groups'), element('span', '', format.format(group.count)));
+    return item;
+  }));
+  aside.append(groups);
+  return aside;
+}
+
+function privilegedNotes(account) {
+  const notes = element('span', 'dashboard__privileged-notes');
+  const labels = [
+    !account.enabled && 'Disabled', account.stale && 'No recent logon', account.old_password && 'Old password',
+    account.never_expires && 'Never expires', account.enabled && !account.protected && 'Not in Protected Users',
+  ].filter(Boolean);
+  notes.append(...labels.map((label) => element('span', label === 'Disabled' ? 'state state--disabled' : 'state state--outline', label)));
+  return notes;
+}
+
+function privilegedTable(accounts) {
+  const scroll = element('div', 'dashboard__privileged-accounts');
+  scroll.tabIndex = 0;
+  scroll.setAttribute('role', 'region');
+  scroll.setAttribute('aria-label', 'Privileged accounts');
+  const table = element('table', 'dashboard__table dashboard__privileged-table');
+  const head = element('tr');
+  head.append(...['Account', 'Groups', 'Last logon', 'Notes'].map((label) => Object.assign(element('th', '', label), { scope: 'col' })));
+  const header = element('thead');
+  header.append(head);
+  const body = element('tbody');
+  body.append(...accounts.map((account) => {
+    const row = element('tr');
+    const name = element('td');
+    name.append(objectLink(account, account.name, 'users'));
+    const notes = element('td');
+    notes.append(privilegedNotes(account));
+    row.append(name, element('td', '', account.groups.join(', ')), element('td', '', account.last_logon ? shortDate.format(new Date(account.last_logon)) : 'Not reported'), notes);
+    return row;
+  }));
+  table.append(header, body);
+  scroll.append(table);
+  return scroll;
+}
+
+function renderPrivileged() {
+  const host = find('dashboard-privileged');
+  const result = data.privileged;
+  find('privileged-total').textContent = result ? format.format(result.counts.accounts) : '';
+  if (busy(host, ['privileged'])) {
+    host.replaceChildren(...placeholder(() => {
+      const table = element('table', 'dashboard__table dashboard__privileged-table');
+      const body = element('tbody');
+      body.append(...skeletonRows(['', '', '', ''], 5));
+      table.append(body);
+      return [table];
+    }));
+    return;
+  }
+  if (!result) {
+    host.replaceChildren(element('p', 'dashboard__empty', 'Privileged access unavailable. Refresh to retry.'));
+    return;
+  }
+  const definition = privilegedFilters.find((item) => item.key === privilegedFilter);
+  const accounts = result.accounts.filter(definition.matches);
+  const evidence = element('section', 'dashboard__evidence');
+  const heading = element('header', 'dashboard__evidence-heading');
+  heading.append(element('h3', '', fill(definition.label)));
+  evidence.append(heading, accounts.length ? privilegedTable(accounts) : element('p', 'dashboard__empty', 'No matching accounts in the returned sample.'));
+  const footer = element('footer', 'dashboard__evidence-footer');
+  footer.append(element('span', '', `${format.format(accounts.length)} sampled accounts · ${format.format(result.counts[definition.count])} total matches`));
+  evidence.append(footer);
+  const layout = element('div', 'dashboard__privileged-body');
+  layout.append(privilegedSummary(result), evidence);
+  host.replaceChildren(layout);
+}
+
 function render() {
   root.classList.toggle('is-loading-delayed', loadingDelayed);
   renderIdentity();
@@ -332,13 +465,14 @@ function render() {
   renderPolicy();
   renderSystems();
   renderTrusts();
+  renderPrivileged();
   renderCollection();
 }
 
 async function load(fresh = false) {
   if (loading) return;
   loading = true;
-  const finishLoading = beginLoading(root.querySelector('.dashboard__table'), { onDelay: () => { loadingDelayed = true; render(); } });
+  const finishLoading = beginLoading(find('evidence-table'), { onDelay: () => { loadingDelayed = true; render(); } });
   data = {};
   failures = {};
   domainDN = '';

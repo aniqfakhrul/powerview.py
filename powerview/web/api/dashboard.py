@@ -3,6 +3,8 @@ from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 
 from ldap3.core.exceptions import LDAPException, LDAPNoSuchObjectResult
+from ldap3.protocol.formatters.formatters import format_sid
+from ldap3.utils.conv import escape_filter_chars
 
 
 SAMPLE_LIMIT = 100
@@ -12,6 +14,14 @@ ACCOUNT_PROPERTIES = [
     'name', 'sAMAccountName', 'distinguishedName', 'userAccountControl',
     'lastLogonTimestamp',
 ]
+PASSWORD_AGE_DAYS = 365
+IN_CHAIN = '1.2.840.113556.1.4.1941'
+PRIVILEGED_GROUPS = (
+    ('S-1-5-32-544', 'Administrators'), (512, 'Domain Admins'), (519, 'Enterprise Admins'), (518, 'Schema Admins'),
+    ('S-1-5-32-548', 'Account Operators'), ('S-1-5-32-551', 'Backup Operators'), ('S-1-5-32-549', 'Server Operators'), ('S-1-5-32-550', 'Print Operators'),
+)
+PROTECTED_USERS_RID = 525
+PRIVILEGED_PROPERTIES = ['name', 'sAMAccountName', 'distinguishedName', 'userAccountControl', 'lastLogonTimestamp', 'pwdLastSet']
 DOMAIN_PROPERTIES = [
     'ms-DS-MachineAccountQuota',
     'minPwdLength', 'pwdHistoryLength', 'maxPwdAge', 'minPwdAge',
@@ -39,6 +49,11 @@ def text(value):
     if value is None or value == []:
         return ''
     return value.decode('utf-8', errors='replace') if isinstance(value, bytes) else str(value)
+
+
+def sid(value):
+    value = first(value)
+    return format_sid(value) if isinstance(value, bytes) else text(value)
 
 
 def timestamp(value):
@@ -208,11 +223,75 @@ def authority_summary(powerview, fresh=False):
     return len(authorities), len(templates)
 
 
+def group_members(powerview, fresh, group_dn):
+    member_filter = f'(&(objectCategory=person)(objectClass=user)(memberOf:{IN_CHAIN}:={escape_filter_chars(group_dn)}))'
+    return read(powerview, 'get_domainobject', fresh, ldap_filter=member_filter, properties=PRIVILEGED_PROPERTIES)
+
+
+def privileged_account(entry, now, days):
+    attrs = attributes(entry)
+    uac = number(attrs.get('useraccountcontrol'))
+    enabled = uac is not None and not uac & 2
+    last_logon = timestamp(attrs.get('lastlogontimestamp'))
+    password_set = timestamp(attrs.get('pwdlastset'))
+    active = last_logon or password_set
+    return {
+        **object_row(entry, attrs), 'groups': [], 'protected': False, 'enabled': enabled,
+        'last_logon': last_logon.isoformat() if last_logon else None,
+        'password_set': password_set.isoformat() if password_set else None,
+        'never_expires': bool(uac and uac & 65536),
+        'stale': bool(enabled and active and active < now - timedelta(days=days)),
+        'old_password': bool(enabled and password_set and password_set < now - timedelta(days=PASSWORD_AGE_DAYS)),
+    }
+
+
+def privileged_summary(powerview, now=None, fresh=False, days=90):
+    now = now or datetime.now(timezone.utc)
+    domain = read(powerview, 'get_domain', fresh, properties=['objectSid'], search_scope='BASE')
+    domain_sid = sid(attributes(domain[0]).get('objectsid')) if domain else ''
+    labels = {key if isinstance(key, str) else f'{domain_sid}-{key}': label for key, label in PRIVILEGED_GROUPS if isinstance(key, str) or domain_sid}
+    protected_sid = f'{domain_sid}-{PROTECTED_USERS_RID}' if domain_sid else ''
+    wanted = [*labels, *([protected_sid] if protected_sid else [])]
+    found = {}
+    for entry in read(powerview, 'get_domainobject', fresh, ldap_filter='(|' + ''.join(f'(objectSid={value})' for value in wanted) + ')', properties=['name', 'distinguishedName', 'objectSid']):
+        attrs = attributes(entry)
+        found[sid(attrs.get('objectsid'))] = {'dn': text(entry.get('dn') or attrs.get('distinguishedname')), 'name': text(attrs.get('name'))}
+    protected = {object_row(entry, attributes(entry))['dn'].lower() for entry in group_members(powerview, fresh, found[protected_sid]['dn'])} if protected_sid in found else set()
+    accounts = {}
+    groups = []
+    for group_sid, label in labels.items():
+        if group_sid not in found:
+            continue
+        name = found[group_sid]['name'] or label
+        members = group_members(powerview, fresh, found[group_sid]['dn'])
+        groups.append({'name': name, 'dn': found[group_sid]['dn'], 'count': len(members)})
+        for entry in members:
+            account = privileged_account(entry, now, days)
+            account = accounts.setdefault(account['dn'].lower(), account)
+            account['groups'].append(name)
+    for key, account in accounts.items():
+        account['protected'] = key in protected
+    ordered = sorted(accounts.values(), key=lambda item: item['name'].lower())
+    enabled = [item for item in ordered if item['enabled']]
+    counts = {
+        'accounts': len(ordered), 'enabled': len(enabled),
+        'unprotected': sum(not item['protected'] for item in enabled),
+        'stale': sum(item['stale'] for item in enabled),
+        'old_password': sum(item['old_password'] for item in enabled),
+        'never_expires': sum(item['never_expires'] for item in enabled),
+    }
+    return {
+        'counts': counts, 'groups': groups, 'accounts': ordered[:SAMPLE_LIMIT],
+        'protected_users': protected_sid in found, 'inactive_days': days, 'password_age_days': PASSWORD_AGE_DAYS,
+    }
+
+
 SECTIONS = {
     'domain': domain_summary,
     'users': lambda powerview, **options: account_summary(powerview, 'users', **options),
     'computers': lambda powerview, **options: account_summary(powerview, 'computers', **options),
     'inventory': inventory_summary,
+    'privileged': privileged_summary,
 }
 
 

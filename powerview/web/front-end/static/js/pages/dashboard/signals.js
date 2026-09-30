@@ -1,4 +1,4 @@
-export const sources = { domain: 'Domain policy', inventory: 'Directory inventory', users: 'Users', computers: 'Computers' };
+export const sources = { domain: 'Domain policy', inventory: 'Directory inventory', users: 'Users', computers: 'Computers', privileged: 'Privileged access' };
 
 export const signals = [
   { key: 'users_preauth', source: 'users', label: 'No Kerberos pre-auth', description: 'Enabled users with DONT_REQ_PREAUTH. Review exposure to offline password guessing; this flag alone does not establish that an account can be compromised.' },

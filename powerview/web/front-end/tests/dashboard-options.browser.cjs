@@ -10,6 +10,7 @@ const computerKeys = ['computers_unconstrained', 'computers_constrained', 'compu
 
 function fixture(source, days) {
   if (source === 'domain') return { ...metadata, policy: { minPwdLength: 12, pwdHistoryLength: 24, maxPwdAge: 'never', minPwdAge: 86400, lockoutThreshold: 5, lockoutDuration: 'never', pwdProperties: 1, 'ms-DS-MachineAccountQuota': 0 } };
+  if (source === 'privileged') return { ...metadata, inactive_days: days, password_age_days: 365, protected_users: true, counts: { accounts: 0, enabled: 0, unprotected: 0, stale: 0, old_password: 0, never_expires: 0 }, groups: [], accounts: [] };
   if (source === 'inventory') return { ...metadata, counts: { groups: 1, ous: 1, gpos: 1, trusts: 0, cas: 1, published_templates: 1 }, trusts: [], ca_error: null };
   if (source === 'users') {
     const findings = empty(userKeys);
@@ -39,7 +40,7 @@ function fixture(source, days) {
 
     await page.goto(`${base}/dashboard`);
     await complete();
-    assert.deepEqual(requests.map((item) => [item.days, item.fresh]), Array(4).fill(['90', null]));
+    assert.deepEqual(requests.map((item) => [item.days, item.fresh]), Array(5).fill(['90', null]));
     assert.equal(await page.locator('.dashboard__scope').count(), 0);
     assert.match(await page.locator('#dashboard-export').getAttribute('title'), /account names/);
 
@@ -72,12 +73,12 @@ function fixture(source, days) {
     await page.getByRole('button', { name: 'Refresh' }).click();
     await page.waitForFunction(() => !document.querySelector('#dashboard-refresh').disabled);
     await complete();
-    assert.deepEqual(requests.map((item) => item.fresh), Array(4).fill('1'));
+    assert.deepEqual(requests.map((item) => item.fresh), Array(5).fill('1'));
 
     requests.length = 0;
     await page.locator('#dashboard-days').selectOption('30');
     await complete();
-    assert.deepEqual(requests.map((item) => [item.days, item.fresh]), Array(4).fill(['30', null]));
+    assert.deepEqual(requests.map((item) => [item.days, item.fresh]), Array(5).fill(['30', null]));
     await page.getByText('User logon > 30 days').waitFor();
     assert.match(await page.locator('.dashboard__signal', { hasText: 'User logon > 30 days' }).innerText(), /4/);
     await page.reload();

@@ -1,4 +1,4 @@
-import { element } from '../../core/dom.js';
+import { element } from '../core/dom.js';
 
 export function createTabIndicator(tabList) {
   const indicator = element('span', 'panel-tabs__indicator');

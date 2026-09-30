@@ -4,7 +4,7 @@
 {% block header %}{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/pages/dashboard.css') }}">{% endblock %}
 {% block content %}
-<section id="dashboard" class="dashboard" aria-label="Dashboard" data-api-root="{{ request.script_root }}/api/" data-explorer="{{ url_for('explorer') }}" data-users="{{ url_for('users') }}" data-computers="{{ url_for('computers') }}">
+<section id="dashboard" class="dashboard" aria-label="Dashboard" data-api-root="{{ request.script_root }}/api/" data-explorer="{{ url_for('explorer') }}" data-users="{{ url_for('users') }}" data-computers="{{ url_for('computers') }}" data-groups="{{ url_for('groups') }}">
   <header class="toolbar dashboard__toolbar">
     <h1>{{ icon('dashboard') }}Dashboard</h1>
     <div class="toolbar__actions">
@@ -25,19 +25,27 @@
     </nav>
     <div id="dashboard-errors" class="dashboard__errors" aria-live="polite" hidden></div>
     <div class="dashboard__assessment">
-      <section class="dashboard__review" aria-labelledby="review-title">
-        <header class="dashboard__section-heading"><h2 id="review-title">Review queue</h2><label class="dashboard__threshold"><span>Inactive after</span><select id="dashboard-days" class="text-input dashboard__days"><option value="30">30 days</option><option value="60">60 days</option><option value="90" selected>90 days</option><option value="180">180 days</option></select></label></header>
-        <div class="dashboard__review-body">
+      <section class="dashboard__review" aria-label="Directory assessment">
+        <header class="dashboard__section-heading dashboard__assessment-heading">
+          <div id="assessment-tabs" class="panel-tabs dashboard__tabs" role="tablist" aria-label="Assessment views">
+            <button id="review-tab" class="panel-tab" type="button" role="tab" aria-selected="true" aria-controls="review-panel">Review queue</button>
+            <button id="privileged-tab" class="panel-tab" type="button" role="tab" aria-selected="false" aria-controls="privileged-panel" tabindex="-1">Privileged access<span id="privileged-total" class="panel-tab__count"></span></button>
+          </div>
+          <label class="dashboard__threshold"><span>Inactive after</span><select id="dashboard-days" class="text-input dashboard__days"><option value="30">30 days</option><option value="60">60 days</option><option value="90" selected>90 days</option><option value="180">180 days</option></select></label></header>
+        <div id="review-panel" class="dashboard__review-body" role="tabpanel" aria-labelledby="review-tab">
           <nav id="dashboard-signals" class="dashboard__signals" aria-label="Review signals"></nav>
           <section class="dashboard__evidence" aria-labelledby="evidence-title">
             <header class="dashboard__evidence-heading"><h3 id="evidence-title"></h3><span class="dashboard__tip"><button type="button" class="icon-button dashboard__info" aria-label="About this signal" aria-describedby="evidence-description">{{ icon('info') }}</button><span id="evidence-description" class="dashboard__tooltip" role="tooltip"></span></span></header>
             <div class="dashboard__evidence-tools"><label class="search-field">{{ icon('search') }}<input id="evidence-filter" type="search" placeholder="Filter sampled objects" aria-label="Filter sampled objects" disabled></label><span id="evidence-total"></span></div>
             <div class="dashboard__table-scroll" tabindex="0" role="region" aria-label="Matching objects">
-              <table class="dashboard__table"><caption class="visually-hidden">Objects matching the selected review signal</caption><thead><tr><th scope="col">Account</th><th scope="col">Evidence</th><th scope="col"><span class="visually-hidden">Inspect</span></th></tr></thead><tbody id="evidence-rows"></tbody></table>
+              <table id="evidence-table" class="dashboard__table"><caption class="visually-hidden">Objects matching the selected review signal</caption><thead><tr><th scope="col">Account</th><th scope="col">Evidence</th><th scope="col"><span class="visually-hidden">Inspect</span></th></tr></thead><tbody id="evidence-rows"></tbody></table>
               <p id="evidence-empty" class="dashboard__empty" role="status"></p>
             </div>
             <footer class="dashboard__evidence-footer"><span id="evidence-count"></span></footer>
           </section>
+        </div>
+        <div id="privileged-panel" class="dashboard__privileged" role="tabpanel" aria-labelledby="privileged-tab" hidden>
+          <div id="dashboard-privileged" class="dashboard__privileged-content"></div>
         </div>
       </section>
       <section class="dashboard__policy" aria-labelledby="policy-title">

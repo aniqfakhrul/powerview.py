@@ -84,8 +84,8 @@ const endpoints = { users: 'domainuser', computers: 'domaincomputer', groups: 'd
       assert.equal(await skeleton.evaluate((node) => getComputedStyle(node).animationName), 'none');
       if (name === 'dashboard') {
         assert.equal(await page.locator('#dashboard').getAttribute('aria-busy'), null);
-        assert.equal(await page.locator('.dashboard__table').getAttribute('aria-busy'), 'true');
-        for (const id of ['dashboard-policy', 'dashboard-systems', 'dashboard-controllers', 'dashboard-trust-list']) {
+        assert.equal(await page.locator('#evidence-table').getAttribute('aria-busy'), 'true');
+        for (const id of ['dashboard-policy', 'dashboard-systems', 'dashboard-controllers', 'dashboard-trust-list', 'dashboard-privileged']) {
           assert.equal(await page.locator(`#${id} .loading-row`).count() > 0, true, id);
           assert.equal(await page.locator(`#${id}`).getAttribute('aria-busy'), 'true', id);
         }
@@ -100,7 +100,7 @@ const endpoints = { users: 'domainuser', computers: 'domaincomputer', groups: 'd
       release();
       await skeleton.waitFor({ state: 'detached' });
       if (name === 'dashboard') {
-        await page.waitForFunction(() => document.querySelector('.dashboard__table').getAttribute('aria-busy') === 'false');
+        await page.waitForFunction(() => document.querySelector('#evidence-table').getAttribute('aria-busy') === 'false');
         assert.equal(await page.locator('.dashboard__scroll .loading-row, .dashboard__scroll .loading-bar').count(), 0);
         assert.equal(await page.locator('.dashboard__scroll [aria-busy="true"]').count(), 0);
         assert.match(await page.locator('#dashboard-systems').innerText(), /Computer inventory unavailable/);

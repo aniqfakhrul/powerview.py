@@ -1,4 +1,4 @@
-import { createTabIndicator } from './tab-indicator.js';
+import { createTabIndicator } from '../tab-indicator.js';
 import { beginLoading } from '../loading.js';
 import { objectType } from '../../core/directory.js';
 import { button, element } from '../../core/dom.js';
