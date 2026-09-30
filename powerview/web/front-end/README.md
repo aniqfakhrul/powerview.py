@@ -175,6 +175,13 @@ static files do not acquire it. LDAP keepalive and pool health checks skip busy
 sessions; rebind and LDAP teardown wait for active operations. Pool entries are
 removed under the registry lock and closed after releasing it. SMB search streams
 release the session lock after setup, before enumerating shares and sending events.
+An interrupted LDAP operation marks its own connection for replacement. The CLI
+tries recovery immediately; a second Ctrl+C leaves it pending until the next query.
+Status reports KO while recovery is pending, and pool maintenance skips the session.
+Relayed sessions require a new relay instead of attempting credential-based recovery.
+PowerView refreshes its session reference and paging wrapper while retaining the
+query cache for interrupted reads. Interrupted writes invalidate cached results
+because their outcome is unknown. Ctrl+C at an idle prompt does not reconnect.
 
 New modules start from `pages/placeholder.html`. Add a `Page` entry in `web/frontend.py`, extend
 `layouts/workspace.html`, and load page-specific files in `styles`/`scripts` blocks.

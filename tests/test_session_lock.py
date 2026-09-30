@@ -7,9 +7,12 @@ from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from ldap3 import Connection, Server, OFFLINE_AD_2012_R2
+
 from powerview.powerview import PowerView
 from powerview.utils.connections import CONNECTION, ConnectionPool, ConnectionPoolEntry
-from powerview.utils.session import session_lock
+from powerview.utils.session import session_lock, recover_interrupted_session
+from powerview.utils.shell import get_prompt
 from powerview.web.api.server import APIServer
 
 
@@ -33,6 +36,7 @@ class SessionLockTests(unittest.TestCase):
 
     def test_api_serializes_generator_consumption_and_status_queries(self):
         server, pv, conn = self.make_server()
+        session = conn.ldap_session
         entered, release, status_started = threading.Event(), threading.Event(), threading.Event()
 
         def records():
@@ -53,7 +57,7 @@ class SessionLockTests(unittest.TestCase):
             try:
                 self.assertTrue(status_started.wait(1))
                 self.assertFalse(check.done())
-                conn.ldap_session.search.assert_not_called()
+                session.search.assert_not_called()
                 self.assertEqual(executor.submit(self.request, server, '/health').result(1)[0], 200)
             finally:
                 release.set()
@@ -134,6 +138,156 @@ class SessionLockTests(unittest.TestCase):
         conn.ldap_session = SimpleNamespace(bound=True)
         self.assertIs(session_lock(conn), original)
         self.assertIs(session_lock(conn.ldap_session), original)
+
+    def test_powerview_refreshes_replaced_session_and_extensions(self):
+        _, _, conn = self.make_server()
+        views = []
+        for _ in range(2):
+            view = PowerView.__new__(PowerView)
+            view.conn = conn
+            view.ldap_session = conn.ldap_session
+            view.ldap_server = conn.ldap_server
+            view._initialize_attributes_from_connection = MagicMock()
+            views.append(view)
+        replacement = SimpleNamespace(bound=True)
+        conn.ldap_session = replacement
+        conn.ldap_server = object()
+        for view in views:
+            self.assertIs(view.ldap_session, replacement)
+            self.assertIs(view.ldap_server, conn.ldap_server)
+            view._initialize_attributes_from_connection.assert_called_once()
+
+    def test_fresh_reset_skips_rebind_and_replaces_interrupted_session(self):
+        _, _, conn = self.make_server()
+        old = conn.ldap_session
+        old.rebind = MagicMock()
+        old.unbind = MagicMock()
+        old.close = MagicMock()
+        replacement = SimpleNamespace(bound=True, search=MagicMock(return_value=True))
+        conn.init_ldap_session = MagicMock(return_value=(conn.ldap_server, replacement))
+        self.assertTrue(conn.reset_connection(fresh=True))
+        old.rebind.assert_not_called()
+        old.unbind.assert_not_called()
+        old.close.assert_called_once()
+        self.assertIs(conn.ldap_session, replacement)
+
+    def test_replacement_session_reinstalls_custom_paging_and_cache(self):
+        _, _, conn = self.make_server()
+        conn.ldap_server = Server('dc.example.test', get_info=OFFLINE_AD_2012_R2)
+        conn.ldap_session = Connection(conn.ldap_server)
+        conn.who_am_i = MagicMock(return_value='EXAMPLE\\tester')
+        view = PowerView.__new__(PowerView)
+        view.conn = conn
+        view.args = Namespace(obfuscate=False, no_cache=False, no_vuln_check=True, use_adws=False, raw=False)
+        view.ldap_server = conn.ldap_server
+        view.ldap_session = conn.ldap_session
+        view._initialize_attributes_from_connection()
+        original = view.custom_paged_search.standard
+        query = ('DC=example,DC=test', '(objectClass=domain)')
+        rows = [{'type': 'searchResEntry', 'attributes': {'name': 'example'}}]
+        with patch('powerview.lib.ldap3.extend.paged_search_generator', return_value=iter(rows)):
+            original.paged_search(*query)
+        conn.ldap_session = Connection(conn.ldap_server)
+        self.assertIs(view.ldap_session, conn.ldap_session)
+        operations = view.custom_paged_search.standard
+        self.assertIs(operations._connection, conn.ldap_session)
+        self.assertIs(conn.ldap_session.extend.standard.paged_search.__self__, operations)
+        self.assertEqual(operations.cache_namespace, original.cache_namespace)
+        self.assertIs(operations.cache, original.cache)
+        self.assertTrue(operations.no_vuln_check)
+        with patch('powerview.lib.ldap3.extend.paged_search_generator') as search:
+            self.assertTrue(operations.paged_search(*query)[0]['from_cache'])
+            search.assert_not_called()
+
+    def test_foreign_operation_marks_only_its_own_connection(self):
+        _, _, primary = self.make_server()
+        _, _, foreign = self.make_server()
+        with self.assertRaises(KeyboardInterrupt) as raised:
+            with session_lock(primary):
+                with session_lock(foreign.ldap_session):
+                    raise KeyboardInterrupt()
+        self.assertTrue(session_lock(foreign).interrupted)
+        self.assertFalse(session_lock(primary).interrupted)
+        self.assertIs(raised.exception.session_lock, session_lock(foreign))
+
+    def test_interrupted_relay_never_unbinds_or_reauthenticates(self):
+        _, _, conn = self.make_server()
+        session = conn.ldap_session
+        session.unbind = MagicMock()
+        conn._relayed_session = True
+        conn.init_ldap_session = MagicMock()
+        session_lock(conn).interrupted = True
+        self.assertFalse(conn.reset_connection(fresh=True))
+        self.assertFalse(conn.is_connection_alive())
+        with self.assertRaisesRegex(ConnectionError, 'relay again'):
+            _ = conn.ldap_session
+        conn.init_ldap_session.assert_not_called()
+        session.unbind.assert_not_called()
+
+    def test_second_interrupt_defers_recovery_until_next_access(self):
+        _, _, conn = self.make_server()
+        lock = session_lock(conn)
+        lock.interrupted = True
+        replacement = SimpleNamespace(bound=True, search=MagicMock(return_value=True))
+        conn.init_ldap_session = MagicMock(side_effect=[KeyboardInterrupt(), (conn.ldap_server, replacement)])
+        error = KeyboardInterrupt()
+        error.session_lock = lock
+        self.assertFalse(recover_interrupted_session(error))
+        self.assertTrue(lock.interrupted)
+        self.assertFalse(lock.recovering)
+        self.assertFalse(conn.is_connection_alive())
+        self.assertIs(conn.ldap_session, replacement)
+        self.assertFalse(lock.interrupted)
+
+    def test_raw_search_marks_the_foreign_connection(self):
+        class InterruptedSession:
+            def search(self):
+                raise KeyboardInterrupt()
+
+        _, _, primary = self.make_server()
+        _, _, foreign = self.make_server()
+        foreign.ldap_session = InterruptedSession()
+        with self.assertRaises(KeyboardInterrupt) as raised:
+            with session_lock(primary):
+                foreign.ldap_session.search()
+        self.assertIs(raised.exception.session_lock.owner, foreign)
+        self.assertFalse(session_lock(primary).interrupted)
+
+    def test_flagged_connection_status_and_pool_checks_do_not_recover(self):
+        server, _, conn = self.make_server()
+        conn.reset_connection = MagicMock()
+        session_lock(conn).interrupted = True
+        pool = ConnectionPool(cleanup_interval=0, keepalive_interval=0)
+        pool._pool['example.test'] = ConnectionPoolEntry(conn, 'example.test')
+        try:
+            self.assertEqual(self.request(server, '/api/connectioninfo')[1]['status'], 'KO')
+            pool._perform_keepalive()
+            pool._cleanup_expired_connections()
+            self.assertEqual(pool.get_all_domains(), ['example.test'])
+            conn.reset_connection.assert_not_called()
+        finally:
+            pool.shutdown()
+
+    def test_prompt_never_retries_interrupted_recovery(self):
+        _, pv, conn = self.make_server()
+        pv.whoami = 'EXAMPLE\\tester'
+        conn.who_am_i = MagicMock(side_effect=KeyboardInterrupt())
+        session_lock(conn).interrupted = True
+        for _ in range(3):
+            self.assertIn('EXAMPLE\\tester', get_prompt(pv, args=Namespace(no_admin_check=True)))
+        conn.who_am_i.assert_not_called()
+
+    def test_fresh_reset_closes_ldap_transport_without_unbind(self):
+        _, _, conn = self.make_server()
+        original = Connection(Server('dc.example.test'))
+        conn.ldap_session = original
+        original.strategy.close = MagicMock()
+        original.unbind = MagicMock(side_effect=RuntimeError('must not send'))
+        replacement = SimpleNamespace(bound=True, search=MagicMock(return_value=True))
+        conn.init_ldap_session = MagicMock(return_value=(conn.ldap_server, replacement))
+        self.assertTrue(conn.reset_connection(fresh=True))
+        original.strategy.close.assert_called_once()
+        original.unbind.assert_not_called()
 
     def test_execute_holds_lock_until_generator_is_consumed(self):
         conn = SimpleNamespace()

@@ -26,7 +26,11 @@ patch_ldap3_exceptions()
 def invalidate_on_success(operation):
 	@wraps(operation)
 	def wrapped(*args, **kwargs):
-		result = operation(*args, **kwargs)
+		try:
+			result = operation(*args, **kwargs)
+		except KeyboardInterrupt:
+			QueryCache.invalidate_all()
+			raise
 		if result is True or (isinstance(result, tuple) and result and result[0] is True):
 			QueryCache.invalidate_all()
 		return result
@@ -50,8 +54,9 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 		self.no_vuln_check = no_vuln_check
 		self.use_adws = use_adws
 		self.raw = raw
-		self.cache_namespace = uuid4().hex
-		self.cache = QueryCache()
+		if '_powerview_query_cache' not in vars(connection):
+			connection._powerview_query_cache = (uuid4().hex, QueryCache())
+		self.cache_namespace, self.cache = connection._powerview_query_cache
 		install_cache_invalidation(connection)
 		self.vulnerability_detector = VulnerabilityDetector()
 	

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from contextlib import ExitStack
-from powerview.utils.session import session_lock
+from powerview.utils.session import session_lock, recover_interrupted_session
 import sys
 try:
     sys.modules.pop('readline', None)
@@ -690,8 +690,9 @@ def main():
                         except ldap3.core.exceptions.LDAPSocketReceiveError as e:
                             logging.error(str(e))
                             conn.reset_connection()
-            except KeyboardInterrupt:
+            except KeyboardInterrupt as error:
                 print(file=sys.stderr)
+                recover_interrupted_session(error)
             except EOFError:
                 if args.mcp and hasattr(powerview, 'mcp_server') and powerview.mcp_server.get_status():
                     powerview.mcp_server.stop()

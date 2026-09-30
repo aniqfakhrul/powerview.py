@@ -91,6 +91,22 @@ LAPS_SCHEMA_VARIANTS = (
 
 
 class PowerView:
+	@property
+	@session_locked
+	def ldap_session(self):
+		connection = getattr(self, 'conn', None)
+		session = getattr(connection, 'ldap_session', self._ldap_session)
+		if session is not self._ldap_session:
+			self._ldap_session = session
+			self.ldap_server = connection.ldap_server
+			if session is not None:
+				self._initialize_attributes_from_connection()
+		return session
+
+	@ldap_session.setter
+	def ldap_session(self, session):
+		self._ldap_session = session
+
 	def __init__(self, conn, args, target_server=None, target_domain=None):
 		self.conn = conn
 		self.args = args

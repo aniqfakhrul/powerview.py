@@ -35,7 +35,7 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
     if args and not getattr(args, 'no_admin_check', False):
         is_admin = _safe(lambda: powerview.get_admin_status(), False)
 
-    cur_user = _safe(lambda: powerview.conn.who_am_i(), "")
+    cur_user = getattr(powerview, 'whoami', '')
     if is_admin:
         cur_user = f"{_rl(bcolors.WARNING)}{cur_user}{_rl(bcolors.ENDC)}"
 

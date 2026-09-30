@@ -23,7 +23,7 @@ def make_powerview(add_result=0):
 	powerview.smb = MagicMock()
 	powerview.conn = MagicMock()
 	powerview.conn.init_smb_session.return_value = powerview.smb
-	powerview.ldap_session = MagicMock()
+	powerview.ldap_session = powerview.conn.ldap_session
 	powerview.ldap_session.result = {'result': add_result, 'description': 'constraintViolation' if add_result else 'success'}
 	powerview.ldap_session.extend.standard.paged_search.return_value = iter([])
 	return powerview

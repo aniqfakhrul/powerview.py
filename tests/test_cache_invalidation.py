@@ -38,6 +38,16 @@ class CacheInvalidationTests(unittest.TestCase):
 			connection.modify()
 		self.assertEqual(QueryCache.generation(), generation)
 
+	def test_interrupted_write_invalidates_unknown_outcome(self):
+		def interrupted():
+			raise KeyboardInterrupt()
+		connection = SimpleNamespace(modify=interrupted)
+		install_cache_invalidation(connection)
+		generation = QueryCache.generation()
+		with self.assertRaises(KeyboardInterrupt):
+			connection.modify()
+		self.assertEqual(QueryCache.generation(), generation + 1)
+
 	def test_inflight_read_cannot_repopulate_invalidated_cache(self):
 		operations = self.operations()
 		def search(*args):

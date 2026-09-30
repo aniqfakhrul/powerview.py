@@ -87,6 +87,8 @@ class ConnectionPoolEntry:
 		if not lock.acquire(blocking=False):
 			return self.is_healthy
 		try:
+			if lock.interrupted:
+				return self.is_healthy
 			if not self.is_healthy:
 				return False
 			return self.connection.is_connection_alive()
@@ -186,6 +188,8 @@ class ConnectionPool:
 			if not lock.acquire(blocking=False):
 				continue
 			try:
+				if lock.interrupted:
+					continue
 				if hasattr(entry.connection, 'keep_alive'):
 					success = entry.connection.keep_alive()
 					if success:
@@ -632,11 +636,19 @@ class SMBConnectionPool(ConnectionPool):
 class CONNECTION:
 	@property
 	def ldap_session(self):
-		return getattr(self, '_ldap_session', None)
+		lock = session_lock(self)
+		with lock:
+			if lock.interrupted and not lock.recovering:
+				if not lock.owner.reset_connection(fresh=True):
+					raise ConnectionError('LDAP session interrupted; relay again' if getattr(lock.owner, '_relayed_session', False) else 'LDAP session recovery failed')
+			return getattr(lock.owner or self, '_ldap_session', None)
 
 	@ldap_session.setter
 	def ldap_session(self, value):
 		if value is not None:
+			previous = getattr(self, '_ldap_session', None)
+			if previous is not None and '_powerview_query_cache' in vars(previous):
+				value._powerview_query_cache = previous._powerview_query_cache
 			share_session_lock(self, value)
 		self._ldap_session = value
 
@@ -691,7 +703,7 @@ class CONNECTION:
 		return None, None, None
 
 	def __init__(self, args, get_alt_server_info=False, _is_child=False):
-		self._session_lock = threading.RLock()
+		session_lock(self)
 		self.args = args
 		self._connection_pool = ConnectionPool(
 			max_connections=getattr(args, 'max_connections', 10),
@@ -1243,7 +1255,7 @@ class CONNECTION:
 			return self.username
 
 	@session_locked
-	def reset_connection(self, max_retries=3):
+	def reset_connection(self, max_retries=3, fresh=False):
 		"""
 		Reset and reconnect the LDAP connection using exponential backoff strategy.
 		First tries rebind(), then falls back to a full fresh connection if the
@@ -1251,10 +1263,27 @@ class CONNECTION:
 
 		Args:
 			max_retries (int): Maximum number of reconnection attempts
+			fresh (bool): Replace the session without attempting a rebind.
 
 		Returns:
 			bool: True if reconnection successful, False otherwise
 		"""
+		lock = session_lock(self)
+		if lock.owner is not None and lock.owner is not self:
+			return lock.owner.reset_connection(max_retries=max_retries, fresh=fresh)
+		if getattr(self, '_relayed_session', False):
+			lock.interrupted = True
+			logging.error('LDAP session cannot be reauthenticated; relay again')
+			return False
+		fresh = fresh or lock.interrupted
+		lock.interrupted = True
+		lock.recovering = True
+		try:
+			return self._reset_connection(max_retries, fresh)
+		finally:
+			lock.recovering = False
+
+	def _reset_connection(self, max_retries, fresh):
 		self._cached_whoami = None
 		retry_count = 0
 		success = False
@@ -1266,20 +1295,25 @@ class CONNECTION:
 					logging.info(f"LDAP reconnection attempt {retry_count+1}/{max_retries} after {backoff_time:.2f} seconds")
 					time.sleep(backoff_time)
 
-				if retry_count == 0:
+				if retry_count == 0 and not fresh:
 					# First attempt: try lightweight rebind
 					self.ldap_session.rebind()
 				else:
-					# Subsequent attempts: full fresh connection (rebind already
-					# failed, so the socket/TLS state is likely corrupted)
-					logging.debug("Rebind failed, creating fresh connection")
+					logging.debug("Creating fresh LDAP connection")
 					try:
-						self.ldap_session.unbind()
+						if fresh:
+							if isinstance(self.ldap_session, ldap3.Connection):
+								self.ldap_session.strategy.close()
+							else:
+								self.ldap_session.close()
+						else:
+							self.ldap_session.unbind()
 					except Exception:
 						pass
 					self.ldap_server, self.ldap_session = self.init_ldap_session()
 
 				if self.is_connection_alive():
+					session_lock(self).interrupted = False
 					logging.info("LDAP reconnection successful")
 					success = True
 				else:
@@ -1316,10 +1350,13 @@ class CONNECTION:
 				pass
 
 		with session_lock(self):
-			if hasattr(self, 'ldap_session') and self.ldap_session:
+			session = getattr(self, '_ldap_session', None)
+			if session is not None:
 				try:
-					if self.ldap_session.bound:
-						self.ldap_session.unbind()
+					if session_lock(self).interrupted and isinstance(session, ldap3.Connection):
+						session.strategy.close()
+					elif session.bound:
+						session.unbind()
 					self.ldap_session = None
 				except Exception:
 					pass
@@ -1454,6 +1491,7 @@ class CONNECTION:
 						raise
 
 				self.ldap_session = self.relay_instance.get_ldap_session()
+				self._relayed_session = True
 				self.ldap_server = self.relay_instance.get_ldap_server()
 				self.proto = self.relay_instance.get_scheme()
 
@@ -1701,10 +1739,10 @@ class CONNECTION:
 
 		if ccache is None:
 			ccache = CCache()
-			if self.TGT and hasattr(self.TGT, 'oldSessionKey') and hasattr(self.TGT, 'sessionKey'):
-				ccache.fromTGT(self.TGT['KDC_REP'], self.TGT['oldSessionKey'], self.TGT['sessionKey'])
-			elif self.TGS and hasattr(self.TGS, 'oldSessionKey') and hasattr(self.TGS, 'sessionKey'):
+			if self.TGS and 'oldSessionKey' in self.TGS and 'sessionKey' in self.TGS:
 				ccache.fromTGS(self.TGS['KDC_REP'], self.TGS['oldSessionKey'], self.TGS['sessionKey'])
+			elif self.TGT and 'oldSessionKey' in self.TGT and 'sessionKey' in self.TGT:
+				ccache.fromTGT(self.TGT['KDC_REP'], self.TGT['oldSessionKey'], self.TGT['sessionKey'])
 
 		principal = f'ldap/{target.lower()}@{domain.upper()}'
 		creds = ccache.getCredential(principal, anySPN=False)
@@ -2509,6 +2547,9 @@ class CONNECTION:
 		Returns:
 			bool: True if connection is alive, False otherwise
 		"""
+		lock = session_lock(self)
+		if lock.interrupted and not lock.recovering:
+			return False
 		try:
 			if not self.ldap_session or not hasattr(self.ldap_session, 'bound') or not self.ldap_session.bound:
 				return False
