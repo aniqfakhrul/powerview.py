@@ -74,7 +74,7 @@ def recover_interrupted_session(error):
     if lock is None:
         return False
     try:
-        logging.info('LDAP operation interrupted. Replacing the session')
+        logging.warning('LDAP operation interrupted. Replacing the session')
         return lock.owner.reset_connection(fresh=True)
     except KeyboardInterrupt:
         logging.warning('LDAP recovery interrupted; the next query will retry')
