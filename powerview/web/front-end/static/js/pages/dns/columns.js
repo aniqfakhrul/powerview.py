@@ -29,7 +29,7 @@ function agingText(raw) {
 export const dnsColumns = createColumnSet({
   storageKey: 'powerview.dns.columns',
   objectClass: null,
-  name: nameColumn('globe'),
+  name: nameColumn('dns'),
   catalog: [
     { ...field('type', 'RecordType', 'Record type', 110), render: (record) => pill(textValue(record.attributes.RecordType)) },
     field('address', 'Address', 'Address or alias', 240),

@@ -1,12 +1,13 @@
 import { moveObject } from './move-object.js';
 import { beginLoading } from '../loading.js';
 import { dnLabel, isDN, sameDN } from '../../core/dn.js';
-import { attribute, recordName, values, textValue, objectType, TYPE_ICONS } from '../../core/directory.js';
+import { attribute, recordName, values, textValue, objectType } from '../../core/directory.js';
 import { accountDisabled, readableTime } from '../../core/ldap-values.js';
 import { createRequestLane } from '../../core/request-lane.js';
 import { notify } from '../notify.js';
+import { typeIcon } from '../type-icon.js';
 import { createValueEditor } from './value-editor.js';
-import { button, dnText, element, icon, setBusy } from '../../core/dom.js';
+import { button, dnText, element, setBusy } from '../../core/dom.js';
 
 const VALUE_PREVIEW = 12;
 const PROTECTED = /^(distinguishedname|name|cn|ou|objectclass|objectcategory|objectguid|objectsid|whencreated|whenchanged|usncreated|usnchanged|instancetype|ntsecuritydescriptor|unicodepwd|.*certificate.*|.*;binary|.*photo.*|.*jpeg.*|.*securitydescriptor.*|logonhours|repl.*|.*keycredential.*)$/i;
@@ -45,7 +46,7 @@ export function createAttributes({ root, directory, scope, status, guard, onNavi
   let rows = [];
 
   function setTitle(name, type, record) {
-    title.replaceChildren(...(type ? [icon(TYPE_ICONS[type] ?? 'object', `type--${type}`)] : []), element('h1', '', name));
+    title.replaceChildren(...(type ? [typeIcon(type)] : []), element('h1', '', name));
     if (!record) return;
     const copy = button('', { iconName: 'copy', className: 'icon-button object-title__copy', ariaLabel: 'Copy distinguished name' });
     copy.title = 'Copy distinguished name';

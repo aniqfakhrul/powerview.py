@@ -1,6 +1,7 @@
 import { attribute, textValue, values } from '../../core/directory.js';
-import { element, icon } from '../../core/dom.js';
+import { element } from '../../core/dom.js';
 import { createColumnSet, textColumn, timeColumn } from '../../components/grid/columns.js';
+import { typeIcon } from '../../components/type-icon.js';
 import { linkLabel, policyLinks } from './links.js';
 
 const STATUS = ['All settings enabled', 'User settings disabled', 'Computer settings disabled', 'All settings disabled'];
@@ -16,7 +17,7 @@ const nameColumn = {
   key: 'name', label: 'displayName', hint: 'Policy name', icon: 'field-text', width: 280, attributes: ['displayName', 'name'],
   render: (record) => {
     const cell = element('div', 'cell-name');
-    cell.append(icon('policy', 'type--policy'), element('span', '', policyName(record)));
+    cell.append(typeIcon('policy'), element('span', '', policyName(record)));
     return cell;
   },
   text: policyName,

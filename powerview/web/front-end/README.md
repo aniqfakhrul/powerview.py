@@ -77,8 +77,10 @@ the frontend never receives connection credentials.
 `static/images/icons.svg` is a sprite of Microsoft Fluent UI System Icons
 (Regular, 16px where available, otherwise 20px), filled with `currentColor`.
 Templates use the `icon()` macro and scripts use `icon()` from `core/dom.js`;
-both reference symbols by stable ids such as `user`, `trash` or `more`. To change
-or add an icon, edit the id-to-Fluent-name map in `tools/build-icons.mjs`, then run:
+both reference symbols by stable ids such as `user`, `trash` or `more`. Object
+type icons use `typeIcon()` from `components/type-icon.js`, which adds the type's
+color. To change or add an icon, edit the id-to-Fluent-name map in
+`tools/build-icons.mjs`, then run:
 
 ```sh
 cd "$(mktemp -d)" && npm pack @fluentui/svg-icons && tar -xzf fluentui-svg-icons-*.tgz
@@ -89,7 +91,8 @@ Icons are Regular by default and switch to Filled only to show the current
 state, as Microsoft 365 apps do: the current sidebar page and the chosen theme.
 The generator emits `<id>-filled` symbols for the ids listed in `FILLED`; the
 `state_icon()` macro renders both, and CSS shows the Filled one when its parent
-has `aria-current="page"` or `aria-checked="true"`.
+has `aria-current="page"` or `aria-checked="true"`. The Python tests fail if a
+page renders a missing symbol, such as a page icon absent from `FILLED`.
 
 Object icons follow Active Directory Users and Computers metaphors, chosen from
 Fluent because Windows' own AD icons are not redistributable. `objectType()` in
@@ -98,8 +101,8 @@ Organization, OU → FolderList, container/builtinDomain → Folder, user and
 inetOrgPerson → Person, contact → ContactCard, group → People, computer →
 Desktop, domain controller (`userAccountControl` server or read-only DC flags) →
 Server, sMSA/gMSA/dMSA → PersonSettings, foreignSecurityPrincipal → PersonLink,
-group policy → DocumentSettings, printQueue → Print, volume → FolderLink and
-certificate services objects → Certificate. DNS uses Globe. Domain controllers
+group policy → DocumentSettings, printQueue → Print, volume → FolderLink,
+certificate services objects → Certificate and dnsNode → Globe. Domain controllers
 keep computer account actions; managed service accounts can be enabled, disabled
 or unlocked but offer no password reset, because AD manages their passwords.
 
@@ -188,7 +191,7 @@ New modules start from `pages/placeholder.html`. Add a `Page` entry in `web/fron
 Use `url_for` for navigation and `asset_url` for static assets. Keep reusable UI
 in macros and focused modules; directory data enters the DOM through textContent.
 
-Sidebar icons come from each `Page` entry. On desktop the sidebar starts
+Sidebar and page title icons come from each `Page` entry. On desktop the sidebar starts
 expanded; the footer toggle or the `[` key (outside text fields) collapses it
 to a 48px icon rail, and the choice
 persists in `localStorage` and syncs across tabs. `sidebar.js` applies the stored

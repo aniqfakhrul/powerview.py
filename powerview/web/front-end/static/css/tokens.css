@@ -33,7 +33,6 @@
   --shadow-pop-light: 0 12px 40px rgb(10 10 12 / 16%), 0 2px 6px rgb(10 10 12 / 8%);
   --shadow-pop-dark: 0 16px 48px rgb(0 0 0 / 60%), 0 0 0 1px var(--color-border-strong);
   --shadow-pop: var(--shadow-pop-light);
-  --type-domain: light-dark(#2f6fed, #7aa2ff);
   --type-user: light-dark(#2f6fed, #7aa7ff);
   --type-group: light-dark(#1f8a5b, #5fcf97);
   --type-computer: light-dark(#7c4ddb, #b39dff);

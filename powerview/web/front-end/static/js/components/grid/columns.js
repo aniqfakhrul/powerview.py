@@ -1,6 +1,7 @@
-import { attribute, textValue, values, objectType, TYPE_ICONS } from '../../core/directory.js';
+import { attribute, textValue, values, objectType } from '../../core/directory.js';
 import { accountDisabled, formatTime, toTime } from '../../core/ldap-values.js';
-import { element, icon } from '../../core/dom.js';
+import { element } from '../../core/dom.js';
+import { typeIcon } from '../type-icon.js';
 
 const ATTRIBUTE_NAME = /^[a-z][a-z0-9-]*$/i;
 
@@ -93,7 +94,7 @@ export function nameColumn(kind) {
     render: (record, entry) => {
       const cell = element('div', 'cell-name');
       const type = (typeof kind === 'function' ? kind(record) : kind) ?? objectType(record);
-      cell.append(icon(TYPE_ICONS[type] ?? type, `type--${type}`), element('span', '', entry.name));
+      cell.append(typeIcon(type), element('span', '', entry.name));
       return cell;
     },
     text: (record, entry) => entry.name,

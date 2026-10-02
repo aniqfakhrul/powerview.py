@@ -26,7 +26,6 @@
 .tree-twisty .icon { width: 12px; height: 12px; transition: transform 120ms var(--ease-out); }
 .tree-item[aria-expanded="true"] > .tree-line .tree-twisty .icon { transform: rotate(90deg); }
 .tree-item:not([aria-expanded]) > .tree-line .tree-twisty { visibility: hidden; }
-.tree-line > .icon { width: 16px; height: 16px; }
 .tree-item[aria-busy="true"] > .tree-line .tree-twisty .icon { animation: tree-pulse 900ms ease-in-out infinite alternate; }
 @keyframes tree-pulse { from { opacity: 1; } to { opacity: .25; } }
 .tree-note { display: flex; align-items: center; gap: 6px; height: var(--row-height); padding-left: 20px; color: var(--color-faint); white-space: nowrap; }

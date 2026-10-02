@@ -1,6 +1,7 @@
 import { dnLabel, sameDN, splitDN } from '../../core/dn.js';
-import { objectType, recordName, TYPE_ICONS } from '../../core/directory.js';
+import { objectType, recordName } from '../../core/directory.js';
 import { element, icon } from '../../core/dom.js';
+import { typeIcon } from '../../components/type-icon.js';
 
 const PAGE_SIZE = 500;
 const KEY_SELECT_DELAY = 140;
@@ -32,7 +33,7 @@ export function createTree({ directory, onSelect }) {
   function paint(node) {
     const twisty = element('span', 'tree-twisty');
     twisty.append(icon('chevron-right'));
-    node.line.replaceChildren(twisty, icon(TYPE_ICONS[node.type], `type--${node.type}`), element('span', 'tree-label', node.label));
+    node.line.replaceChildren(twisty, typeIcon(node.type), element('span', 'tree-label', node.label));
     node.item.setAttribute('aria-label', node.label);
   }
 

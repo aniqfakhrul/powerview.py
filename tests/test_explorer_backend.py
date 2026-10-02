@@ -1,5 +1,6 @@
 """Explorer integration checks without a live directory or write operations."""
 import inspect
+import re
 import unittest
 from argparse import Namespace
 from types import SimpleNamespace
@@ -7,6 +8,7 @@ from unittest.mock import MagicMock
 
 from powerview.powerview import PowerView
 from powerview.web.api.server import APIServer
+from powerview.web.frontend import PAGES
 
 
 class ExplorerBackendTests(unittest.TestCase):
@@ -56,6 +58,16 @@ class ExplorerBackendTests(unittest.TestCase):
             self.assertIn('data-api-root="/pv/api/"', html)
             self.assertIn('/pv/static/js/pages/explorer.js', html)
             self.assertIn('data-explorer="/pv/explorer"', client.get('/users', environ_overrides={'SCRIPT_NAME': '/pv'}).get_data(as_text=True))
+
+    def test_rendered_icons_exist_in_sprite(self):
+        server = self.make_server()
+        with server.app.test_client() as client:
+            with client.get('/static/images/icons.svg') as response:
+                symbols = set(re.findall(r'<symbol id="([^"]+)"', response.get_data(as_text=True)))
+            for page in PAGES:
+                names = set(re.findall(r'icons\.svg[^#"]*#([^"]+)"', client.get(page.path).get_data(as_text=True)))
+                self.assertIn(f'{page.icon}-filled', names, page.path)
+                self.assertEqual(names - symbols, set(), page.path)
 
     def test_dashboard_is_home_and_old_links_redirect(self):
         server = self.make_server()

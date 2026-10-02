@@ -9,7 +9,6 @@ const ICONS = {
   download: 'arrow_download',
   'chevron-left': 'chevron_left',
   'chevron-right': 'chevron_right',
-  'chevron-down': 'chevron_down',
   key: 'key',
   domain: 'organization',
   globe: 'globe',

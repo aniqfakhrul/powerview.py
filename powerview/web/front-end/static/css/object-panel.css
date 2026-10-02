@@ -38,7 +38,6 @@
 .property-grid tfoot tr.is-editing td { padding: 3px var(--space-3); }
 .link-button { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--color-muted); }
 .link-button:hover { color: var(--color-text); }
-.link-button .icon { width: 16px; height: 16px; }
 .value-editor { display: grid; gap: 6px; max-width: 560px; padding: 4px 0; }
 .value-editor__remove { opacity: 0; transition: opacity 120ms; }
 .value-editor__row:hover .value-editor__remove, .value-editor__remove:focus-visible { opacity: 1; }

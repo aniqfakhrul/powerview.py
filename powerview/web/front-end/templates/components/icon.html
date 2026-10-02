@@ -1,2 +1,2 @@
-{% macro icon(name, class="icon") %}<svg class="{{ class }}" aria-hidden="true" focusable="false"><use href="{{ asset_url('images/icons.svg') }}#{{ name }}"></use></svg>{% endmacro %}
-{% macro state_icon(name) %}{{ icon(name, 'icon icon--regular') }}{{ icon(name ~ '-filled', 'icon icon--filled') }}{% endmacro %}
+{% macro icon(name, class="") %}<svg class="{{ ('icon ' ~ class) | trim }}" aria-hidden="true"><use href="{{ asset_url('images/icons.svg') }}#{{ name }}"></use></svg>{% endmacro %}
+{% macro state_icon(name) %}{{ icon(name, 'icon--regular') }}{{ icon(name ~ '-filled', 'icon--filled') }}{% endmacro %}

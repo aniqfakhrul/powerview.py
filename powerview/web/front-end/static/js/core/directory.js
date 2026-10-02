@@ -34,6 +34,7 @@ export function objectType(record) {
   if (has('organizationalunit')) return 'ou';
   if (has('grouppolicycontainer')) return 'policy';
   if (has('domaindns')) return 'domain';
+  if (has('dnsnode')) return 'dns';
   if (has('foreignsecurityprincipal')) return 'foreign';
   if (has('printqueue')) return 'printer';
   if (has('volume')) return 'share';
@@ -49,11 +50,7 @@ export function assertPlainName(name) {
 }
 export const TYPE_ICONS = {
   domain: 'domain', user: 'user', contact: 'contact', group: 'group', computer: 'computer', controller: 'server', service: 'service-account',
-  foreign: 'foreign-principal', ou: 'ou', policy: 'policy', printer: 'printer', share: 'shared-folder', certificate: 'certificate', container: 'folder', other: 'object',
-};
-export const TYPE_LABELS = {
-  domain: 'Domain', user: 'User', contact: 'Contact', group: 'Group', computer: 'Computer', controller: 'Domain controller', service: 'Managed service account',
-  foreign: 'Foreign security principal', ou: 'Organizational unit', policy: 'Group policy', printer: 'Printer', share: 'Shared folder', certificate: 'Certificate services object', container: 'Container', other: 'Object',
+  foreign: 'foreign-principal', ou: 'ou', policy: 'policy', dns: 'globe', printer: 'printer', share: 'shared-folder', certificate: 'certificate', container: 'folder', other: 'object',
 };
 const isPolicy = (record) => values(attribute(record, 'objectClass')).some((item) => String(item).toLowerCase() === 'grouppolicycontainer');
 export const recordName = (record) => (isPolicy(record) && textValue(attribute(record, 'displayName')))

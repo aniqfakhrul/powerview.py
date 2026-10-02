@@ -48,7 +48,6 @@
   .workspace-header { padding: 0 var(--space-4); }
 }
 
-.navigation__link > .icon { flex: none; }
 .sidebar__footer { display: flex; flex: none; align-items: center; gap: 4px; margin-top: auto; padding: 8px; }
 .sidebar__toggle { width: 32px; height: 32px; }
 .sidebar__toggle .icon { transition: transform var(--duration-enter) var(--ease-out); }

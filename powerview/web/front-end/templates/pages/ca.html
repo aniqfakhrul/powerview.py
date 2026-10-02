@@ -1,6 +1,5 @@
 {% extends "layouts/grid.html" %}
 {% from "components/icon.html" import icon %}
-{% set grid_icon = "certificate" %}
 {% set view = "authorities" if request.args.get("view") == "authorities" else "templates" %}
 {% block grid_actions %}
   <nav class="view-switch" aria-label="View">

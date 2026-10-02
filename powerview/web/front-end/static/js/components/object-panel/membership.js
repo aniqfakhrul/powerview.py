@@ -79,7 +79,7 @@ export function renderMembership(container, record, name, { onNavigate, noun, ed
     const link = element('button', 'membership__item');
     link.type = 'button';
     link.title = item.dn;
-    link.append(groups ? icon('group', 'type--group') : icon('object'), element('span', 'membership__name', item.label), element('span', 'membership__path', item.path));
+    link.append(icon(groups ? 'group' : 'object'), element('span', 'membership__name', item.label), element('span', 'membership__path', item.path));
     link.addEventListener('click', () => onNavigate(item.dn));
     li.append(link);
     if (editor) {

@@ -1,14 +1,13 @@
 {% extends "layouts/workspace.html" %}
 {% from "components/icon.html" import icon %}
-{% set grid_icon = grid_icon | default("object") %}
 {% block workspace_class %}workspace--app{% endblock %}
 {% block header %}{% endblock %}
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/pages/grid.css') }}">{% endblock %}
 {% block content %}
 <section id="{{ page.endpoint }}" class="grid-page" aria-label="{{ page.title }}"
-  data-api-root="{{ request.script_root }}/api/" data-explorer="{{ url_for('explorer') }}" data-sprite="{{ asset_url('images/icons.svg') }}">
+  data-api-root="{{ request.script_root }}/api/" data-explorer="{{ url_for('explorer') }}">
   <header class="toolbar">
-    <h1 class="toolbar__title">{{ icon(grid_icon, 'icon type--' ~ grid_icon) }}<span>{{ page.title }}</span></h1>
+    <h1 class="toolbar__title">{{ icon(page.icon) }}<span>{{ page.title }}</span></h1>
     <label class="search-field toolbar__search">{{ icon('search') }}<input id="grid-filter" type="search" placeholder="Filter results" aria-label="Filter {{ page.title | lower }}" disabled></label>
     <div class="toolbar__actions">
       <button id="grid-search" aria-label="Search options" class="button" type="button" title="Search options" aria-haspopup="dialog" aria-expanded="false" aria-controls="search-menu" popovertarget="search-menu">{{ icon('search') }}<span>Search</span><span class="fields-trigger__count" data-search-count></span></button>

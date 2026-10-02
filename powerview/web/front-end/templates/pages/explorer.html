@@ -5,10 +5,10 @@
 {% block styles %}<link rel="stylesheet" href="{{ asset_url('css/pages/explorer.css') }}">{% endblock %}
 {% block content %}
 <section id="explorer" class="explorer" aria-label="Explorer"
-  data-api-root="{{ request.script_root }}/api/" data-sprite="{{ asset_url('images/icons.svg') }}">
+  data-api-root="{{ request.script_root }}/api/">
   <header class="toolbar">
     <button id="tree-toggle" type="button" class="icon-button mobile-only" aria-controls="directory-pane" aria-expanded="false" aria-label="Directory">{{ icon('folder') }}</button>
-    <h1 class="toolbar__title">{{ icon('explorer') }}<span>{{ page.title }}</span></h1>
+    <h1 class="toolbar__title">{{ icon(page.icon) }}<span>{{ page.title }}</span></h1>
     <form id="address-form" class="address-bar" role="search">
       <label class="search-field">{{ icon('globe') }}<input id="address" type="text" spellcheck="false" autocomplete="off" aria-label="Go to object" placeholder="Go to name or distinguished name"></label>
     </form>

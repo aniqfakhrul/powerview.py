@@ -1,6 +1,7 @@
 import { isDN } from '../core/dn.js';
-import { objectType, recordName, TYPE_ICONS } from '../core/directory.js';
-import { element, icon } from '../core/dom.js';
+import { objectType, recordName } from '../core/directory.js';
+import { element } from '../core/dom.js';
+import { typeIcon } from './type-icon.js';
 
 const SEARCH_DELAY = 250;
 const MIN_QUERY = 2;
@@ -53,10 +54,9 @@ export function attachObjectSearch({ input, directory, kind, onChoose }) {
 
   function option(record) {
     const item = element('li', 'object-search__option');
-    const type = objectType(record);
     item.setAttribute('role', 'option');
     item.tabIndex = -1;
-    item.append(icon(TYPE_ICONS[type] ?? 'object', `type--${type}`), element('span', '', recordName(record)), element('span', 'object-search__dn', record.dn));
+    item.append(typeIcon(objectType(record)), element('span', '', recordName(record)), element('span', 'object-search__dn', record.dn));
     item.addEventListener('click', () => choose(record));
     return item;
   }

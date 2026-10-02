@@ -1,6 +1,5 @@
 {% extends "layouts/grid.html" %}
 {% from "components/icon.html" import icon %}
-{% set grid_icon = "ou" %}
 {% block grid_actions %}<button id="ou-new" aria-label="New OU" class="button" type="button" title="New organizational unit" disabled>{{ icon('plus') }}<span>New</span></button>{% endblock %}
 {% block grid_dialogs %}
   <dialog id="ou-dialog" class="dialog" aria-labelledby="ou-dialog-title">

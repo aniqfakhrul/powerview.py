@@ -25,7 +25,6 @@ textarea.text-input { height: auto; padding: 5px 8px; resize: vertical; }
 .text-input::placeholder { color: var(--color-faint); opacity: 1; }
 .search-field { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border: 1px solid var(--color-input-border); border-radius: var(--radius-sm); background: var(--color-surface); color: var(--color-faint); }
 .search-field:focus-within { outline: 2px solid var(--color-accent); outline-offset: -1px; border-color: transparent; }
-.search-field .icon { width: 16px; height: 16px; }
 .search-field input { width: 100%; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--color-text); caret-color: var(--color-accent); }
 .search-field input::placeholder { color: var(--color-faint); opacity: 1; }
 .search-field input::-webkit-search-cancel-button { display: none; }
@@ -34,19 +33,12 @@ textarea.text-input { height: auto; padding: 5px 8px; resize: vertical; }
 .toolbar__actions { display: flex; flex: none; align-items: center; gap: 4px; }
 .toolbar .button { border-color: transparent; background: transparent; color: var(--color-muted); }
 .toolbar .button:hover { background: var(--color-hover); color: var(--color-text); }
-.toolbar .button .icon { width: 16px; height: 16px; }
-.type--domain { color: var(--type-domain); }
-.type--user { color: var(--type-user); }
+.type--user, .type--contact, .type--service, .type--foreign, .type--domain, .type--dns { color: var(--type-user); }
 .type--group { color: var(--type-group); }
-.type--computer { color: var(--type-computer); }
-.type--ou { color: var(--type-ou); }
-.type--container { color: var(--type-container); }
+.type--computer, .type--controller { color: var(--type-computer); }
+.type--ou, .type--policy, .type--certificate { color: var(--type-ou); }
+.type--container, .type--printer, .type--share { color: var(--type-container); }
 .type--other { color: var(--type-other); }
-.type--certificate, .type--policy { color: var(--type-ou); }
-.type--contact, .type--service, .type--foreign { color: var(--type-user); }
-.type--controller { color: var(--type-computer); }
-.type--printer, .type--share { color: var(--type-container); }
-.type--globe { color: var(--type-domain); }
 .icon--filled { display: none; }
 :is([aria-current="page"], [aria-checked="true"]) > .icon--regular { display: none; }
 :is([aria-current="page"], [aria-checked="true"]) > .icon--filled { display: block; }
