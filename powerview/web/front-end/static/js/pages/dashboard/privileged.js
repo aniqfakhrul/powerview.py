@@ -24,7 +24,7 @@ export function createPrivilegedView(view) {
   function select(key) {
     active = key;
     remember('accounts', key === 'all' ? '' : key);
-    render();
+    render({ selectionOnly: true });
     view.afterRender();
   }
 
@@ -59,6 +59,7 @@ export function createPrivilegedView(view) {
       const key = `group:${item.dn}`;
       const option = choice('dashboard__signal', item.name);
       check(option.control, current.key === key);
+      option.control.dataset.filter = key;
       option.value.textContent = numbers.format(item.count);
       option.control.addEventListener('click', () => select(key));
       row.append(option.control);
@@ -139,7 +140,7 @@ export function createPrivilegedView(view) {
     return section;
   }
 
-  function render() {
+  function render({ selectionOnly = false } = {}) {
     const result = view.data.privileged;
     total.textContent = result ? numbers.format(result.counts.accounts) : '';
     if (settle(host, view.waiting('privileged'), Boolean(result))) {
@@ -160,11 +161,20 @@ export function createPrivilegedView(view) {
     const current = group
       ? { key: active, label: group.name, group, description: 'User members of this group, including nested membership. Sampled in name order.' }
       : filters.find((item) => item.key === active && !(item.protection && !result.protected_users)) ?? filters[0];
+    const previous = host.querySelector('.dashboard__privileged-aside');
+    if (selectionOnly && previous) {
+      for (const control of previous.querySelectorAll('[role="radio"]')) check(control, control.dataset.filter === current.key);
+      host.querySelector('.dashboard__evidence').replaceWith(evidence(result, current));
+      return;
+    }
+    const scrollTop = previous?.scrollTop ?? 0;
     const focused = document.activeElement?.matches('#dashboard-privileged [role="radio"]');
     const layout = element('div', 'dashboard__privileged-body');
-    layout.append(aside(result, current), evidence(result, current));
+    const rail = aside(result, current);
+    layout.append(rail, evidence(result, current));
     host.replaceChildren(layout);
-    if (focused) host.querySelector('[role="radio"][aria-checked="true"]')?.focus();
+    rail.scrollTop = scrollTop;
+    if (focused) host.querySelector('[role="radio"][aria-checked="true"]')?.focus({ preventScroll: true });
   }
 
   return { render };
