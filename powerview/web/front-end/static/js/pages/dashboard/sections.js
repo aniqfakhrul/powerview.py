@@ -135,11 +135,7 @@ function renderSystems(view) {
     return row;
   }));
   systems.replaceChildren(items.length ? distribution : element('p', 'dashboard__empty', 'No computers returned.'));
-  const notes = [
-    counts.missing_logon && `${count(counts.missing_logon, 'enabled computer has', 'enabled computers have')} no readable replicated logon timestamp.`,
-    counts.total && 'OS names are directory values, not a patch assessment.',
-  ].filter(Boolean);
-  if (notes.length) systems.append(element('p', 'dashboard__note', notes.join(' ')));
+  if (counts.missing_logon) systems.append(element('p', 'dashboard__note', `${count(counts.missing_logon, 'enabled computer has', 'enabled computers have')} no readable replicated logon timestamp.`));
   const list = element('div', 'dashboard__object-list');
   list.append(...result.controllers.map((record) => {
     const row = element('div');
@@ -147,9 +143,7 @@ function renderSystems(view) {
     return row;
   }));
   controllers.replaceChildren(result.controllers.length ? list : element('p', 'dashboard__empty', 'No domain controllers identified in returned account-control values.'));
-  controllers.append(element('p', 'dashboard__note', counts.controllers > result.controllers.length
-    ? `Showing the first ${numbers.format(result.controllers.length)} of ${count(counts.controllers, 'controller')}.`
-    : 'Identified from domain-controller account flags. Reachability and replication health are not tested.'));
+  if (counts.controllers > result.controllers.length) controllers.append(element('p', 'dashboard__note', `Showing the first ${numbers.format(result.controllers.length)} of ${count(counts.controllers, 'controller')}.`));
 }
 
 function renderTrusts(view) {
@@ -174,9 +168,7 @@ function renderTrusts(view) {
     return row;
   }));
   host.replaceChildren(result.trusts.length ? list : element('p', 'dashboard__empty', 'No trust objects returned in this domain.'));
-  host.append(element('p', 'dashboard__note', result.counts.trusts > result.trusts.length
-    ? `Showing the first ${numbers.format(result.trusts.length)} of ${count(result.counts.trusts, 'trust')}.`
-    : 'Direction is relative to this domain. Trust objects do not establish connectivity or effective access.'));
+  if (result.counts.trusts > result.trusts.length) host.append(element('p', 'dashboard__note', `Showing the first ${numbers.format(result.trusts.length)} of ${count(result.counts.trusts, 'trust')}.`));
 }
 
 export function renderInfrastructure(view) {
