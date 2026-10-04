@@ -63,9 +63,13 @@ const ace = { RemovalIdentity: identity, ACEType: 'ACCESS_ALLOWED_OBJECT_ACE', A
     await dialog.getByRole('alert').filter({ hasText: 'DACL changed' }).waitFor();
     assert.equal(await mask.inputValue(), '0x01040100');
     assert.deepEqual(writes[0], { targetidentity: dn, ace: identity, access_mask: 0x01040100, ace_type: 'denied', ace_flags: 10 });
+    const closing = await dialog.elementHandle();
     await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await page.waitForFunction((node) => node.inert && node.getAttribute('aria-hidden') === 'true', closing);
     fail = false;
     await edit.click();
+    assert.equal(await page.getByRole('dialog', { name: 'Edit access entry' }).count(), 1);
+    await closing.waitForElementState('hidden');
     await page.setViewportSize({ width: 390, height: 844 });
     await mask.fill('0x00040000');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);

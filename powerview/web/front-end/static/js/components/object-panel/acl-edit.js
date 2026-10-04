@@ -1,6 +1,7 @@
 import { removalParameters } from './acl-removal.js';
 import { dnLabel } from '../../core/dn.js';
 import { button, element, setBusy } from '../../core/dom.js';
+import { leave } from '../../core/motion.js';
 import { notify } from '../notify.js';
 
 const TYPES = new Set(['ACCESS_ALLOWED_ACE', 'ACCESS_DENIED_ACE', 'ACCESS_ALLOWED_OBJECT_ACE', 'ACCESS_DENIED_OBJECT_ACE']);
@@ -110,7 +111,7 @@ export function editACL({ dn, ace, directory, guard, onChanged }) {
   cancel.addEventListener('click', () => { if (!busy) dialog.close(); });
   dialog.addEventListener('cancel', (event) => { if (busy) event.preventDefault(); });
   dialog.addEventListener('close', () => {
-    dialog.remove();
+    leave(dialog);
     if (returnFocus?.isConnected) returnFocus.focus();
   }, { once: true });
   form.addEventListener('submit', async (event) => {

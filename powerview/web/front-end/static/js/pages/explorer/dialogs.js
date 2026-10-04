@@ -1,6 +1,7 @@
 import { moveObject } from '../../components/object-panel/move-object.js';
 import { assertPlainName, recordName } from '../../core/directory.js';
 import { element, setBusy } from '../../core/dom.js';
+import { settled } from '../../core/motion.js';
 import { notify } from '../../components/notify.js';
 
 const OBJECT_TYPES = [['user', 'User'], ['group', 'Group'], ['ou', 'Organizational unit']];
@@ -17,7 +18,12 @@ export function createDialogs({ directory, roots, scope, guard, onChanged }) {
   const close = () => { if (!guard.busy()) dialog.close(); };
   document.querySelector('#dialog-cancel').addEventListener('click', close);
   dialog.addEventListener('cancel', (event) => { if (guard.busy()) event.preventDefault(); });
-  dialog.addEventListener('close', () => { fields.replaceChildren(); action = null; });
+  dialog.addEventListener('close', () => {
+    action = null;
+    dialog.inert = true;
+    dialog.setAttribute('aria-hidden', 'true');
+    settled(dialog).then(() => { if (!dialog.open) fields.replaceChildren(); });
+  });
 
   function fail(message) {
     error.textContent = message;
@@ -41,6 +47,8 @@ export function createDialogs({ directory, roots, scope, guard, onChanged }) {
     submit.className = `button ${danger ? 'button--danger' : 'button--primary'}`;
     if (context) fields.append(element('p', 'dialog__context', context));
     action = { run, after, success };
+    dialog.inert = false;
+    dialog.removeAttribute('aria-hidden');
     dialog.showModal();
   }
 
@@ -72,7 +80,7 @@ export function createDialogs({ directory, roots, scope, guard, onChanged }) {
           assertPlainName(name);
           return directory.create(type.value, name, password.value, container);
         },
-        after: () => onChanged({ container }),
+        after: () => onChanged({ container, created: `${type.value === 'ou' ? 'OU' : 'CN'}=${nameInput.value},${container}` }),
       });
       const typeLabel = element('label', '', 'Type');
       const type = element('select', 'text-input');

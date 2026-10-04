@@ -26,8 +26,15 @@
 .tree-twisty .icon { width: 12px; height: 12px; transition: transform 120ms var(--ease-out); }
 .tree-item[aria-expanded="true"] > .tree-line .tree-twisty .icon { transform: rotate(90deg); }
 .tree-item:not([aria-expanded]) > .tree-line .tree-twisty { visibility: hidden; }
-.tree-item[aria-busy="true"] > .tree-line .tree-twisty .icon { animation: tree-pulse 900ms ease-in-out infinite alternate; }
+.tree-item.is-loading-delayed > .tree-line .tree-twisty .icon { animation: tree-pulse 900ms ease-in-out infinite alternate; }
 @keyframes tree-pulse { from { opacity: 1; } to { opacity: .25; } }
+.tree-group.is-entering { animation: tree-group-enter var(--duration-enter) var(--ease-out); }
+.tree-line.is-arrived { animation: tree-arrived 1400ms var(--ease-out); }
+.tree-item.is-leaving { overflow: hidden; pointer-events: none; animation: tree-leave var(--duration-enter) var(--ease-out) forwards; }
+@keyframes tree-group-enter { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes tree-arrived { from { background: var(--color-selection-focus); } }
+@keyframes tree-leave { from { height: var(--leave-height); } to { height: 0; opacity: 0; } }
+@keyframes tree-fade-out { to { opacity: 0; } }
 .tree-note { display: flex; align-items: center; gap: 6px; height: var(--row-height); padding-left: 20px; color: var(--color-faint); white-space: nowrap; }
 .tree-note--error { color: var(--color-danger); }
 .tree-note button { padding: 0; border: 0; background: none; color: var(--color-accent); }
@@ -39,7 +46,8 @@
 .mobile-only { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .tree-twisty .icon { transition: none; }
-  .tree-item[aria-busy="true"] > .tree-line .tree-twisty .icon { animation: none; }
+  .tree-item.is-loading-delayed > .tree-line .tree-twisty .icon, .tree-group.is-entering { animation: none; }
+  .tree-item.is-leaving { animation-name: tree-fade-out; }
 }
 @media (max-width: 1100px) {
   .explorer { --tree-width: 300px; }

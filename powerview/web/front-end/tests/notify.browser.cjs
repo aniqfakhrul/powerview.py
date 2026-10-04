@@ -53,6 +53,7 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
   await closeButton('First').focus();
   await show('Fourth', 'warn');
   assert.equal(await closeButton('First').count(), 0);
+  await page.locator('.toast', { hasText: 'First' }).waitFor({ state: 'detached' });
   assert.match(await active(), /Second/);
   assert.notEqual(await page.evaluate(() => document.activeElement.tagName), 'BODY');
 

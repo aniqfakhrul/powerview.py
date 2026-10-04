@@ -1,10 +1,13 @@
-import { dnLabel, sameDN, splitDN } from '../../core/dn.js';
+import { dnLabel, parentDN, sameDN, splitDN } from '../../core/dn.js';
 import { objectType, recordName } from '../../core/directory.js';
 import { element, icon } from '../../core/dom.js';
+import { leave, restart } from '../../core/motion.js';
 import { typeIcon } from '../../components/type-icon.js';
+import { beginLoading } from '../../components/loading.js';
 
 const PAGE_SIZE = 500;
 const KEY_SELECT_DELAY = 140;
+const SLOW_AFTER = 3000;
 
 const key = (dn) => dn.toLowerCase();
 const isWithin = (dn, ancestor) => sameDN(dn, ancestor) || key(dn).endsWith(`,${key(ancestor)}`);
@@ -47,7 +50,10 @@ export function createTree({ directory, onSelect }) {
     const line = element('div', 'tree-line');
     line.title = dn;
     item.append(line);
-    const node = { dn, label, type, level, item, line, group: null, children: null, expanded: false, loading: false, error: null, limit: PAGE_SIZE };
+    const node = {
+      dn, label, type, level, item, line, group: null, children: null, expanded: false, opening: false,
+      loading: false, wait: null, controller: null, error: null, limit: PAGE_SIZE,
+    };
     paint(node);
     sync(node);
     nodes.set(key(dn), node);
@@ -75,6 +81,11 @@ export function createTree({ directory, onSelect }) {
     return line;
   }
 
+  function waitNote(node) {
+    const slow = node.wait === 'slow';
+    return note(slow ? 'Still loading…' : 'Loading…', slow && 'Cancel', () => { collapse(node); focus(node); });
+  }
+
   function sync(node) {
     const searching = Boolean(query());
     const open = node.expanded || (searching && node.children?.length > 0);
@@ -87,6 +98,7 @@ export function createTree({ directory, onSelect }) {
     const group = element('ul', 'tree-group');
     group.setAttribute('role', 'group');
     if (node.error) group.append(note(node.error.message, 'Retry', () => expand(node, true), 'tree-note--error'));
+    if (node.wait && node.children === null) group.append(waitNote(node));
     const children = node.children ?? [];
     const visible = searching ? children : children.slice(0, node.limit);
     for (const child of visible) group.append(child.item);
@@ -94,19 +106,29 @@ export function createTree({ directory, onSelect }) {
       const remaining = children.length - node.limit;
       group.append(note(`${remaining} more`, `Show ${Math.min(PAGE_SIZE, remaining)}`, () => { node.limit += PAGE_SIZE; sync(node); }));
     }
-    if (group.childElementCount) { node.group = group; node.item.append(group); }
+    if (!group.childElementCount) return;
+    if (node.opening) group.classList.add('is-entering');
+    node.opening = Boolean(node.wait) && node.children === null;
+    node.group = group;
+    node.item.append(group);
   }
 
   async function load(node, fresh = false) {
     if (node.pending) return node.pending;
     if (node.children && !fresh) return undefined;
     const current = generation;
+    const known = node.children !== null;
+    const arrived = [];
+    const controller = new AbortController();
+    const waiting = (state) => () => { node.wait = state; sync(node); };
+    const finishLoading = beginLoading(node.item, { signal: controller.signal, onDelay: waiting('loading') });
+    const slowTimer = setTimeout(waiting('slow'), SLOW_AFTER);
+    node.controller = controller;
     node.loading = true;
     node.error = null;
-    node.item.setAttribute('aria-busy', 'true');
     node.pending = (async () => {
       try {
-        const records = await directory.children(node.dn, { fresh });
+        const records = await directory.children(node.dn, { fresh, signal: controller.signal });
         if (current !== generation) return;
         const stale = new Set((node.children ?? []).map((child) => key(child.dn)));
         node.children = records
@@ -115,7 +137,11 @@ export function createTree({ directory, onSelect }) {
           .map(({ dn, label, type }) => {
             stale.delete(key(dn));
             const existing = nodes.get(key(dn));
-            if (!existing) return createNode(dn, label, type, node.level + 1);
+            if (!existing) {
+              const child = createNode(dn, label, type, node.level + 1);
+              if (known) arrived.push(child);
+              return child;
+            }
             if (existing.label !== label || existing.type !== type) {
               existing.label = label;
               existing.type = type;
@@ -125,14 +151,18 @@ export function createTree({ directory, onSelect }) {
           });
         for (const dn of stale) forget(dn);
       } catch (error) {
-        if (current === generation) node.error = error;
+        if (current === generation && !controller.signal.aborted) node.error = error;
       } finally {
+        clearTimeout(slowTimer);
+        finishLoading();
         node.pending = null;
+        node.controller = null;
+        node.wait = null;
         if (current === generation) {
           node.loading = false;
-          node.item.removeAttribute('aria-busy');
           sync(node);
           if (query()) applyFilter();
+          for (const child of arrived) child.line.classList.add('is-arrived');
         }
       }
     })();
@@ -140,13 +170,16 @@ export function createTree({ directory, onSelect }) {
   }
 
   async function expand(node, fresh = false) {
+    if (!node.expanded) node.opening = true;
     node.expanded = true;
     sync(node);
     await load(node, fresh);
   }
 
   function collapse(node) {
+    if (node.children === null) node.controller?.abort();
     node.expanded = false;
+    node.opening = false;
     sync(node);
     if (selected && selected !== node && isWithin(selected.dn, node.dn)) focus(node);
   }
@@ -240,6 +273,8 @@ export function createTree({ directory, onSelect }) {
     event.preventDefault();
   });
 
+  tree.addEventListener('animationend', ({ target }) => target.classList.remove('is-entering', 'is-arrived'));
+
   filter.addEventListener('input', applyFilter);
   filter.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && filter.value) { filter.value = ''; applyFilter(); event.stopPropagation(); }
@@ -286,6 +321,25 @@ export function createTree({ directory, onSelect }) {
     async refresh(dn) {
       const node = nodes.get(key(dn));
       if (node?.children) await load(node, true);
+    },
+
+    highlight(dn) {
+      const node = nodes.get(key(dn));
+      if (!node?.item.isConnected) return;
+      restart(node.line, 'is-arrived');
+      node.line.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    },
+
+    async dismiss(dn) {
+      const node = nodes.get(key(dn));
+      if (!node?.item.isConnected) return;
+      node.item.style.setProperty('--leave-height', `${node.item.offsetHeight}px`);
+      await leave(node.item);
+      const parent = nodes.get(key(parentDN(dn)));
+      forget(dn);
+      if (!parent?.children) return;
+      parent.children = parent.children.filter((child) => child !== node);
+      sync(parent);
     },
   };
 }

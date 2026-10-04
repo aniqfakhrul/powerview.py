@@ -84,14 +84,23 @@ function go(dn) {
   if (properties.canLeave()) navigate(dn);
 }
 
-async function changed({ container, removed, movedTo } = {}) {
+async function changed({ container, removed, movedTo, created } = {}) {
+  if (removed) await tree.dismiss(removed);
   await Promise.all([
     removed && tree.refresh(parentDN(removed)),
     container && tree.refresh(container),
   ]);
-  if (movedTo) await navigate(movedTo, { fresh: true });
-  else if (removed && within(activeDN, removed)) await navigate(parentDN(removed));
-  else if (container) await tree.expand(container);
+  if (movedTo) {
+    await Promise.all([
+      navigate(movedTo, { fresh: true, fromTree: true }),
+      tree.reveal(movedTo).then(() => tree.highlight(movedTo)),
+    ]);
+  } else if (removed && within(activeDN, removed)) {
+    await navigate(parentDN(removed));
+  } else if (container) {
+    await tree.expand(container);
+    if (created) tree.highlight(created);
+  }
 }
 
 address.form.addEventListener('submit', (event) => {

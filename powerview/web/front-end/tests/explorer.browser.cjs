@@ -103,10 +103,22 @@ const connection = { domain: 'example.test', ldap_address: '10.0.0.10', nameserv
   assert.equal(writes.at(-1).data.destination_dn, rootDN);
 
   await select('Person 003');
+  await page.getByRole('treeitem', { name: 'Person 003', exact: true }).evaluate((node) => {
+    window.treeExitFinished = false;
+    node.addEventListener('animationend', (event) => {
+      if (event.target === node && event.animationName === 'tree-leave') window.treeExitFinished = true;
+    });
+  });
+  const deletionRefresh = page.waitForRequest((request) => {
+    const data = request.postDataJSON();
+    return request.url().endsWith('/get/domainobject') && data?.searchbase === peopleDN && data.no_cache === true;
+  });
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
   await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
   await page.waitForFunction(() => !document.querySelector('#object-dialog').open);
   assert.equal(writes.at(-1).path, '/api/remove/domainobject');
+  await deletionRefresh;
+  assert.equal(await page.evaluate(() => window.treeExitFinished), true, 'row exit must finish before the parent refresh');
 
   failReads = true;
   await page.getByRole('button', { name: 'Refresh', exact: true }).click();

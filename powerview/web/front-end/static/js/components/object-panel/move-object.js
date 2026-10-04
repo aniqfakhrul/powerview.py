@@ -1,6 +1,7 @@
 import { namingContext, parentDN, sameDN, splitDN } from '../../core/dn.js';
 import { recordName } from '../../core/directory.js';
 import { button, element, setBusy } from '../../core/dom.js';
+import { leave } from '../../core/motion.js';
 import { notify } from '../notify.js';
 
 export function moveObject({ record, directory, guard, getRoots, onMoved }) {
@@ -33,7 +34,7 @@ export function moveObject({ record, directory, guard, getRoots, onMoved }) {
   cancel.addEventListener('click', () => { if (!busy) dialog.close(); });
   dialog.addEventListener('cancel', (event) => { if (busy) event.preventDefault(); });
   dialog.addEventListener('close', () => {
-    dialog.remove();
+    leave(dialog);
     if (returnFocus?.isConnected) returnFocus.focus();
   }, { once: true });
   form.addEventListener('submit', async (event) => {

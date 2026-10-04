@@ -1,5 +1,6 @@
 import { dnLabel } from '../../core/dn.js';
 import { button, element, setBusy } from '../../core/dom.js';
+import { leave } from '../../core/motion.js';
 import { attachObjectSearch } from '../object-search.js';
 import { notify } from '../notify.js';
 
@@ -92,7 +93,7 @@ export function addACL({ dn, directory, guard, onChanged }) {
   dialog.addEventListener('cancel', (event) => { if (busy) event.preventDefault(); });
   dialog.addEventListener('close', () => {
     search.close();
-    dialog.remove();
+    leave(dialog);
     if (returnFocus?.isConnected) returnFocus.focus();
   }, { once: true });
 

@@ -66,7 +66,7 @@ const rootDN = 'DC=example,DC=test';
       assert.ok(release);
       release();
       await dialog.waitFor({ state: 'detached' });
-      await page.getByText('Password reset for Test account', { exact: true }).waitFor();
+      await page.locator('.toast__text', { hasText: /^Password reset for Test account$/ }).waitFor();
       assert.equal(writes.length, 2);
       await action.click();
       assert.equal(await password.inputValue(), '');

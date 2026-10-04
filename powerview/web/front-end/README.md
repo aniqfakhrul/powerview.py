@@ -152,6 +152,15 @@ error or empty text as soon as it resolves; the header status keeps text progres
 over 1400ms without shimmer. Reduced motion disables these animations and the
 Explorer tree's busy pulse. Loading, empty and error states remain distinct.
 
+Explorer tree nodes use the same delay: the twisty pulses and a `Loading…` row
+appears only after 200ms, and a first load still pending after 3s offers
+`Still loading…` with Cancel. Cancel or collapsing aborts the read without
+reporting an error; a refresh of already loaded children keeps them visible and
+cannot be cancelled by collapsing. `core/motion.js`
+provides `settled`, `restart` and `leave`, which dialogs, toasts and tree rows use
+to finish their exit before removal. `tests/explorer-loading.browser.cjs` covers
+tree loading.
+
 ## Status bar and connection
 
 Every page shares the bottom status bar (`partials/statusbar.html`). Page modules

@@ -1,4 +1,5 @@
 import { button, element, icon } from '../core/dom.js';
+import { leave, restart } from '../core/motion.js';
 
 const MAX_VISIBLE = 3;
 const DISMISS_AFTER = 4000;
@@ -45,9 +46,13 @@ function announce(tone, text) {
   requestAnimationFrame(() => { target.textContent = text; });
 }
 
+const visibleToasts = () => [...region.querySelectorAll('.toast:not(.is-leaving)')];
+
 function focusAfterRemoving(toast) {
   if (!toast.contains(document.activeElement)) return;
-  const neighbour = toast.nextElementSibling ?? toast.previousElementSibling;
+  const others = visibleToasts();
+  const index = others.indexOf(toast);
+  const neighbour = others[index + 1] ?? others[index - 1];
   const target = neighbour?.querySelector('.toast__close')
     ?? (returnTarget?.isConnected ? returnTarget : null)
     ?? document.querySelector('#main-content');
@@ -56,8 +61,8 @@ function focusAfterRemoving(toast) {
 
 function removeToast(toast) {
   focusAfterRemoving(toast);
-  toast.remove();
   for (const [key, entry] of active) if (entry.element === toast) active.delete(key);
+  leave(toast);
 }
 
 function show(tone, text, { action } = {}) {
@@ -95,9 +100,7 @@ function show(tone, text, { action } = {}) {
   }
   function refresh() {
     region.append(toast);
-    toast.classList.remove('toast--repeat');
-    void toast.offsetWidth;
-    toast.classList.add('toast--repeat');
+    restart(toast, 'toast--repeat');
     schedule();
   }
   const handle = { dismiss, refresh, element: toast };
@@ -112,7 +115,7 @@ function show(tone, text, { action } = {}) {
 
   region.append(toast);
   active.set(key, handle);
-  while (region.childElementCount > MAX_VISIBLE) removeToast(region.firstElementChild);
+  for (const extra of visibleToasts().slice(0, -MAX_VISIBLE)) removeToast(extra);
   announce(tone, text);
   schedule();
   return handle;

@@ -54,9 +54,14 @@ textarea.text-input { height: auto; padding: 5px 8px; resize: vertical; }
 :is([aria-current="page"], [aria-checked="true"]) > .icon--filled { display: block; }
 .form-error { color: var(--color-danger); font-size: 12px; overflow-wrap: anywhere; }
 .dialog { width: 420px; max-width: calc(100vw - 32px); padding: 0; border: 0; border-radius: var(--radius-md); background: var(--color-raised); color: var(--color-text); box-shadow: var(--shadow-pop); }
-.dialog[open] { animation: dialog-in 160ms var(--ease-out); }
+.dialog, .dialog::backdrop { transition: opacity var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out), overlay var(--duration-fast) allow-discrete, display var(--duration-fast) allow-discrete; }
+.dialog:not([open]) { opacity: 0; transform: translateY(4px) scale(.99); pointer-events: none; }
+.dialog[open] { animation: dialog-in var(--duration-enter) var(--ease-out); }
 .dialog::backdrop { background: var(--color-overlay); }
+.dialog:not([open])::backdrop { opacity: 0; }
+.dialog[open]::backdrop { animation: backdrop-in var(--duration-enter) var(--ease-out); }
 @keyframes dialog-in { from { opacity: 0; transform: translateY(4px) scale(.99); } }
+@keyframes backdrop-in { from { opacity: 0; } }
 .dialog__title { padding: 16px 16px 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
 .dialog__fields { display: grid; gap: 12px; padding: 12px 16px 16px; }
 .dialog__context { color: var(--color-muted); font-family: var(--font-mono); font-size: 12px; overflow-wrap: anywhere; }
@@ -65,7 +70,10 @@ textarea.text-input { height: auto; padding: 5px 8px; resize: vertical; }
 .dialog__fields label.dialog__check { display: flex; align-items: center; gap: 8px; color: var(--color-text); font-size: 13px; }
 #dialog-error, .dialog__error { padding: 0 16px 12px; }
 .dialog__footer { display: flex; justify-content: flex-end; gap: 6px; padding: 10px 16px; border-top: 1px solid var(--color-border); }
-@media (prefers-reduced-motion: reduce) { .dialog[open] { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .dialog, .dialog::backdrop { transition: none; }
+  .dialog[open], .dialog[open]::backdrop { animation: none; }
+}
 .state { display: inline-flex; align-items: center; height: 18px; padding: 0 8px; border-radius: 999px; background: var(--pill-success-bg); color: var(--pill-success-fg); font-size: 12px; line-height: 1; }
 .state--success { background: var(--pill-success-bg); color: var(--pill-success-fg); }
 .state--neutral { background: var(--pill-neutral-bg); color: var(--pill-neutral-fg); }
@@ -95,8 +103,10 @@ textarea.text-input { height: auto; padding: 5px 8px; resize: vertical; }
 .toast__close { width: 22px; height: 22px; }
 .toast--repeat { animation: toast-repeat 240ms var(--ease-out); }
 @keyframes toast-repeat { 50% { transform: scale(1.02); } }
+.toast.is-leaving { pointer-events: none; animation: toast-out var(--duration-fast) var(--ease-out) forwards; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } }
-@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .toast, .toast.is-leaving { animation: none; } }
 @media (max-width: 720px) {
   .toasts { right: 50%; transform: translateX(50%); }
   .toolbar__title span { display: none; }

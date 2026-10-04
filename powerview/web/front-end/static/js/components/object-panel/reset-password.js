@@ -1,5 +1,6 @@
 import { accountKind, objectType, recordName } from '../../core/directory.js';
 import { button, element, setBusy } from '../../core/dom.js';
+import { leave } from '../../core/motion.js';
 import { notify } from '../notify.js';
 
 export function resetPassword({ record, directory, guard, onChanged }) {
@@ -51,7 +52,7 @@ export function resetPassword({ record, directory, guard, onChanged }) {
   dialog.addEventListener('cancel', (event) => { if (busy) event.preventDefault(); });
   dialog.addEventListener('close', () => {
     form.reset();
-    dialog.remove();
+    leave(dialog);
     if (returnFocus?.isConnected) returnFocus.focus();
   }, { once: true });
 

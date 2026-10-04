@@ -52,7 +52,7 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
     while (!release) await page.waitForTimeout(10);
     release();
     await page.locator('#grid-body tr[data-dn]').waitFor();
-    assert.equal(await dialog.isVisible(), false);
+    await dialog.waitFor({ state: 'hidden' });
     assert.equal(await page.locator('#grid-filter').inputValue(), 'WS-NEW');
     assert.equal(writes.length, 2);
     assert.equal(await page.locator('#computer-password').inputValue(), '');
@@ -64,7 +64,7 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
     while (!release) await page.waitForTimeout(10);
     release();
     await page.getByRole('heading', { name: 'Cannot load computers' }).waitFor();
-    assert.equal(await dialog.isVisible(), false);
+    await dialog.waitFor({ state: 'hidden' });
     for (const colorScheme of ['light', 'dark']) {
       await page.emulateMedia({ colorScheme }); await page.setViewportSize({ width: 390, height: 844 });
       await page.getByRole('button', { name: 'Add computer', exact: true }).click();
