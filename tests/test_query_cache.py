@@ -37,6 +37,15 @@ class QueryCacheTests(unittest.TestCase):
 		self.now[0] += 1
 		self.assertIsNone(cache.get(*QUERY))
 
+	def test_lookup_reports_the_age_of_a_hit(self):
+		cache = self.cache(cache_ttl=60)
+		self.assertIsNone(cache.lookup(*QUERY))
+		cache.put(*QUERY, results=[1])
+		self.now[0] += 42
+		self.assertEqual(cache.lookup(*QUERY), (42, [1]))
+		self.now[0] += 18
+		self.assertIsNone(cache.lookup(*QUERY))
+
 	def test_lru_eviction_preserves_recently_read_entry(self):
 		cache = self.cache(max_entries=2)
 		for name in ('first', 'second'):

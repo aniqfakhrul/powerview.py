@@ -18,15 +18,6 @@
 .view-switch a[aria-current="page"] { background: var(--color-raised); color: var(--color-text); box-shadow: 0 0 0 1px var(--color-border); }
 
 .fields-trigger__count { min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--color-active); color: var(--color-muted); font-size: 11px; line-height: 16px; text-align: center; }
-.fields-menu { position: fixed; inset: auto; margin: 0; padding: 8px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-raised); color: var(--color-text); box-shadow: var(--shadow-pop); }
-/* Override Safari's intrinsic popover height before grid tracks are sized. */
-.fields-menu { height: auto; align-content: start; }
-.fields-menu:popover-open { display: grid; gap: 8px; }
-.action-menu:popover-open { gap: 2px; min-width: 180px; padding: 4px; }
-.action-menu__item { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-text); font: inherit; text-align: left; cursor: pointer; }
-.action-menu__item:hover, .action-menu__item:focus-visible { background: var(--color-hover); outline: none; }
-.action-menu__item:disabled { color: var(--color-faint); cursor: default; }
-.action-menu__item:disabled .icon { opacity: .6; }
 .fields-menu__list { display: grid; max-height: 300px; overflow: auto; margin: 0 -4px; }
 .fields-menu__option { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 6px; border-radius: var(--radius-sm); cursor: pointer; }
 .fields-menu__option:hover { background: var(--color-hover); }

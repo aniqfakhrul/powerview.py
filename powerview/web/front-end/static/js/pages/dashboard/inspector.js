@@ -2,7 +2,7 @@ import { createDirectory } from '../../core/directory.js';
 import { createMutationGuard } from '../../core/mutation-guard.js';
 import { createObjectPanel } from '../../components/object-panel/index.js';
 
-export function createDashboardInspector({ root, status, getRootDN, onSaved }) {
+export function createDashboardInspector({ root, status, getRootDN, onSaved, onInspect }) {
   const directory = createDirectory(new URL(root.dataset.apiRoot, location.origin));
   const panelRoot = root.querySelector('#object-panel');
   const explorer = panelRoot.querySelector('#panel-explorer');
@@ -25,6 +25,7 @@ export function createDashboardInspector({ root, status, getRootDN, onSaved }) {
     },
     onMoved: async ({ movedTo }) => {
       selectedDN = movedTo;
+      onInspect(movedTo);
       const url = new URL(root.dataset.explorer, location.origin);
       url.searchParams.set('dn', movedTo);
       explorer.href = url;
@@ -47,6 +48,7 @@ export function createDashboardInspector({ root, status, getRootDN, onSaved }) {
     if (!panel.canLeave()) return;
     if (!panelRoot.contains(document.activeElement)) returnFocus = document.activeElement;
     selectedDN = dn;
+    onInspect(dn);
     const url = new URL(root.dataset.explorer, location.origin);
     url.searchParams.set('dn', dn);
     explorer.href = url;
@@ -59,6 +61,7 @@ export function createDashboardInspector({ root, status, getRootDN, onSaved }) {
   function dismiss() {
     if (!panel.canLeave()) return;
     panelRoot.hidden = true;
+    onInspect('');
     syncOverlay();
     if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
     else root.querySelector('#dashboard-refresh').focus();

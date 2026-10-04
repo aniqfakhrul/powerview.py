@@ -6,11 +6,13 @@ from ldap3 import SUBTREE, DEREF_ALWAYS
 import ldapx
 
 import logging
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from uuid import uuid4
 from ldap3.protocol.convert import build_controls_list
 from pyasn1.codec.ber.encoder import encode
 from powerview.utils.query_cache import QueryCache
+from powerview.utils.query_reads import record_query_read
 from powerview.utils.session import session_locked
 from powerview.modules.vulnerabilities import VulnerabilityDetector
 from powerview.utils.helpers import strip_entry
@@ -114,13 +116,17 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 
 		try:
 			if not skip_cache_read:
-				cached_results = self.cache.get(search_base, search_filter, search_scope, attributes, host=self.server.host, raw=raw, cache_context=cache_context, generation=generation)
-				if cached_results is not None:
+				cached = self.cache.lookup(search_base, search_filter, search_scope, attributes, host=self.server.host, raw=raw, cache_context=cache_context, generation=generation)
+				if cached is not None:
 					logging.debug("[CustomStandardExtendedOperations] Returning cached results for query")
-					
+					age, cached_results = cached
+					read_at = datetime.now(timezone.utc) - timedelta(seconds=age)
+					record_query_read(read_at, cached=True)
+					read_at = read_at.isoformat()
 					for entry in cached_results:
 						if 'attributes' in entry:
 							entry['from_cache'] = True
+							entry['read_at'] = read_at
 					
 					if not no_vuln_check:
 						for entry in cached_results:
@@ -150,6 +156,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 					modified_attributes = ldapx.obfuscate_attrlist(attributes, attrlist_chain)
 					logging.debug("[CustomStandardExtendedOperations] Modified Attributes: {}".format(modified_attributes))
 
+			read_at = datetime.now(timezone.utc)
 			if generator:
 				if self.use_adws:
 					results = list(adws_paged_search_generator(self._connection, modified_dn, modified_filter, search_scope, modified_attributes, size_limit, time_limit, types_only, get_operational_attributes, controls, paged_size, paged_criticality))
@@ -223,6 +230,7 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 						vulnerabilities = self.vulnerability_detector.detect_vulnerabilities(entry['attributes'])
 						if vulnerabilities:
 							entry['attributes']['vulnerabilities'] = [self._format_vulnerability(v) for v in vulnerabilities]
+			record_query_read(read_at)
 			return filtered_results
 		finally:
 			if raw and original_formatter is not None and self.server:

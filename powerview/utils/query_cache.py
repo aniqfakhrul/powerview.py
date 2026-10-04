@@ -79,6 +79,10 @@ class QueryCache:
             self._bytes += size
 
     def get(self, search_base, search_filter, search_scope, attributes, host, raw=False, cache_context=None, generation=None):
+        hit = self.lookup(search_base, search_filter, search_scope, attributes, host, raw, cache_context, generation)
+        return None if hit is None else hit[1]
+
+    def lookup(self, search_base, search_filter, search_scope, attributes, host, raw=False, cache_context=None, generation=None):
         key = self._generate_cache_key(search_base, search_filter, search_scope, attributes, host, raw, cache_context)
         with self._lock:
             if generation is not None and generation != self._generation:
@@ -87,8 +91,9 @@ class QueryCache:
             if entry is None:
                 return None
             created, results, _ = entry
-            if self._clock() - created >= self.cache_ttl:
+            age = self._clock() - created
+            if age >= self.cache_ttl:
                 self._remove(key)
                 return None
             self._entries.move_to_end(key)
-            return deepcopy(results)
+            return age, deepcopy(results)

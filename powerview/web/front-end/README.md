@@ -25,6 +25,8 @@ front-end/
       core/dn.js                Escaped-DN parsing and naming-context resolution
       pages/explorer.js         Explorer orchestration
       pages/explorer/           Tree, details, dialogs, focus, DOM, request state
+      pages/dashboard.js        Dashboard collection, freshness and page state
+      pages/dashboard/          Signals, review queue, privileged view, sections, inspector
     images/                     Local mark and Fluent icon sprite (MIT, icons.LICENSE.txt)
   tools/build-icons.mjs         Regenerates the icon sprite from @fluentui/svg-icons
   tests/                        Node unit tests and browser contract tests
@@ -267,7 +269,12 @@ and outside clicks discard drafts. Filters are session-local and remain active
 when refreshing or changing Fields. The toolbar text filter only narrows loaded
 results across visible fields.
 
-The Protected accounts option sends `admincount: true` (`adminCount=1`). This
+A grid page opened with `?ldapfilter=(...)` applies that filter as the search's
+additional LDAP filter on its first load, and the Search options count shows it.
+Applying search options rewrites or removes the parameter. Malformed filters are
+ignored. The Dashboard uses this to link each signal to its full result set.
+
+The adminCount set option sends `admincount: true` (`adminCount=1`). This
 marker may persist after privileged membership is removed and does not establish
 current administrative access. Select the `memberOf` direct-groups column in
 Fields to show group names with full DNs on hover; primary and nested groups are
@@ -378,19 +385,39 @@ EXPLORER_URL=http://127.0.0.1:5011 \
 ### Dashboard
 
 The dashboard collects read-only summaries from
-`GET /api/dashboard/{domain,inventory,users,computers}` using the current session.
-Opening the page may reuse cached results; Refresh adds `fresh=1` to read the directory
-again. `days` (30, 60, 90 or 180; default 90) sets the inactivity threshold.
-Sources load sequentially and fail independently. Refresh starts a new collection;
-the dashboard does not poll or retry directory reads automatically. A domain change
-during collection discards the mixed snapshot.
+`GET /api/dashboard/{domain,inventory,users,computers,privileged}` using the current
+session. Opening the page may reuse results from PowerView's 30-minute query cache, so
+every source reports `read_at`, when the directory was actually read, and `cached`,
+whether the result came from the cache, including cached empty query results. Read
+metadata is scoped to the collection so concurrent requests remain independent.
+The header shows the oldest read time, or
+"Cached · read 12 minutes ago" with a Read live action. Refresh and Read live add
+`fresh=1` to read the directory again. `days` (30, 60, 90 or 180; default 90) sets the
+inactivity threshold; changing it re-reads only the users, computers and privileged
+sources. Sources load sequentially and fail independently, and a failed source offers
+Retry for that source alone. A refresh keeps the previous snapshot visible, dimmed,
+until each source is replaced. Saved object changes refresh the snapshot without
+clearing the evidence filter. The dashboard does not poll or retry directory reads
+automatically. A domain change during collection discards the mixed snapshot.
 
 The assessment area has Review queue and Privileged access tabs, sharing a bounded
 panel beside Domain baseline. Tabs support arrow keys, Home and End, and switching
-views makes no additional requests. Privileged account filters operate on the
-returned sample; their counts cover all accounts returned by the privileged source.
-The account table opens the existing object panel and reports missing logon dates
-as Not reported. The inactivity threshold applies to both assessment views.
+views makes no additional requests. Review signals are grouped as Credential exposure
+and Account hygiene; the signal list and the privileged filters are radio groups that
+also move with arrow keys, Home and End. The selected signal, the Privileged access
+tab (`view=privileged`) and its filter (`accounts=`) are kept in the URL. Privileged
+account filters operate on the returned sample; their counts cover all accounts
+returned by the privileged source. Selecting a privileged group shows its user
+members in the evidence area, including nested membership, without another request.
+Each group carries its own name-ordered sample of up to 100 accounts and full member
+count, independent of the overall account sample. View group details opens the group
+object panel; account names still open account details. The group selection is kept
+in the `accounts` URL parameter. Inactive > N days uses the replicated logon time,
+or the last password change for accounts that never signed in, while the Review queue
+logon signals exclude missing timestamps. When the Protected Users group is not found,
+its filter is disabled and no account is tagged against it. The account table opens
+the existing object panel and reports missing logon dates as Not reported. The
+inactivity threshold applies to both assessment views.
 
 Inventory counts cover returned objects. The Certificate authorities tile counts
 enrollment services in the forest's Configuration partition and the distinct
@@ -405,19 +432,31 @@ timestamps are excluded from inactivity signals. These are configuration signals
 not vulnerability verdicts. Domain policy excludes fine-grained overrides, and
 controller inventory does not test reachability or replication.
 
-Each signal keeps its total count and up to 100 object samples. The evidence table
-filters those samples in a scrollable list. Object links open the shared details
-panel without leaving the dashboard; inventory links still navigate to their pages.
+Each signal keeps its total count and up to 100 object samples in triage order:
+unset and oldest passwords first for credential signals, oldest logons first for
+inactivity, and name order for delegation. Selection retains at most 100 candidates
+per signal while counting all matches; underlying directory results are still
+collected in full. Samples carry `password_set`
+(`never` when unset), `last_logon` and, for computers, the operating system; SPN and
+delegation signals add their first value as evidence. The evidence table shows the
+columns its signal needs, with the signal's literal flag beside the title, and filters
+the samples in a scrollable list. Each finding also carries an equivalent
+`ldap_filter`, and View all opens the Users or Computers page with that filter
+applied, so the full set can be sorted, filtered and exported there. Object links
+open the shared details panel without leaving the dashboard, and the inspected row
+stays marked; inventory links still navigate to their pages.
 The panel retains an explicit Open in Explorer link, and modified clicks preserve
-normal link navigation. Saved object changes refresh the snapshot. The desktop
-review area stays at a fixed height; its signals and evidence scroll independently.
-On mobile, signals form a two-column list and the evidence list has a maximum height. Controller and trust
+normal link navigation. The desktop review area stays at a fixed height; its signals
+and evidence scroll independently. On mobile, signals form a two-column list with
+touch-sized rows, descriptions show under the evidence title, and the evidence list
+has a maximum height. Controller and trust
 lists also retain only the first 100 objects; their counts cover all returned
 objects. These limits bound response samples, not the underlying directory reads.
-Snapshot export contains
-the summaries, sample evidence, source timestamps, interpretation notes, and errors.
+Export JSON, in the ⋯ menu, downloads the summaries, sample evidence, source read
+times, interpretation notes, and errors.
 No password secrets are requested. LDAP errors and incomplete results are shown as
-unavailable sources rather than zero counts.
+unavailable sources rather than zero counts; sources failing for the same reason share
+one line in the error banner.
 
 Checks use synthetic data and intercept all browser API requests:
 

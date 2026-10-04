@@ -28,9 +28,9 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
     assert.equal(requests.length, 1);
     await trigger.click(); assert.equal(await menu.getByLabel('Password not required', { exact: true }).isChecked(), false);
     await menu.getByLabel('Password not required', { exact: true }).check();
-    const protectedAccounts = menu.getByLabel('Protected accounts', { exact: true });
-    assert.match(await protectedAccounts.getAttribute('aria-description'), /does not prove current administrative access/);
-    await protectedAccounts.check();
+    const adminCount = menu.getByLabel('adminCount set', { exact: true });
+    assert.match(await adminCount.getAttribute('aria-description'), /does not prove current administrative access/);
+    await adminCount.check();
     await menu.getByLabel('Enabled accounts', { exact: true }).check();
     await menu.getByLabel('Disabled accounts', { exact: true }).check();
     assert.equal(await menu.getByLabel('Enabled accounts', { exact: true }).isChecked(), false);
@@ -48,6 +48,7 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
     assert.equal(query.searchbase, 'OU=People,DC=example,DC=test'); assert.equal(query.search_scope, 'LEVEL');
     assert.deepEqual(query.args, { passnotrequired: true, admincount: true, disabled: true, ldapfilter: '(mail=*)', identity: 'a*', memberof: 'Domain Admins', department: 'IT' });
     assert.equal(await trigger.getAttribute('aria-label'), 'Search options, 9 active');
+    assert.equal(new URL(page.url()).searchParams.get('ldapfilter'), '(mail=*)');
     await page.locator('#grid-refresh').click(); await page.locator('#grid-body tr[data-dn]').waitFor();
     assert.deepEqual(requests.at(-1).args, query.args);
     await page.locator('#grid-fields').click(); await page.locator('#fields-menu').getByLabel('department, Department', { exact: true }).check();
@@ -61,7 +62,7 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
     assert.equal(await group.getAttribute('title'), 'CN=Domain Admins,CN=Users,DC=example,DC=test');
     await trigger.click(); await menu.getByRole('button', { name: 'Clear', exact: true }).click();
     await page.locator('.toolbar__title').click();
-    await trigger.click(); assert.equal(await menu.getByLabel('Protected accounts', { exact: true }).isChecked(), true);
+    await trigger.click(); assert.equal(await menu.getByLabel('adminCount set', { exact: true }).isChecked(), true);
     fail = true;
     await menu.getByRole('button', { name: 'Apply', exact: true }).click();
     await page.getByRole('heading', { name: 'Cannot load users' }).waitFor();
@@ -72,6 +73,16 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
     await trigger.click(); await menu.getByRole('button', { name: 'Clear', exact: true }).click();
     await menu.getByRole('button', { name: 'Apply', exact: true }).click(); await page.locator('#grid-body tr[data-dn]').waitFor();
     assert.equal(requests.at(-1).args, undefined); assert.equal(requests.at(-1).searchbase, undefined);
+    assert.equal(new URL(page.url()).searchParams.get('ldapfilter'), null);
+    await page.goto(`${base}/users?ldapfilter=${encodeURIComponent('(adminCount=1)')}`);
+    await page.locator('#grid-body tr[data-dn]').waitFor();
+    assert.deepEqual(requests.at(-1).args, { ldapfilter: '(adminCount=1)' });
+    assert.equal(await trigger.getAttribute('aria-label'), 'Search options, 1 active');
+    await trigger.click(); assert.equal(await menu.getByLabel('LDAP filter', { exact: true }).inputValue(), '(adminCount=1)');
+    await page.keyboard.press('Escape');
+    await page.goto(`${base}/users?ldapfilter=adminCount=1`);
+    await page.locator('#grid-body tr[data-dn]').waitFor();
+    assert.equal(requests.at(-1).args, undefined);
     for (const colorScheme of ['light', 'dark']) {
       await page.emulateMedia({ colorScheme });
       for (const width of [1440, 390]) {
@@ -86,6 +97,6 @@ const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
       }
     }
     assert.deepEqual(errors, []);
-    console.log('PASS: explicit Apply, Escape/outside discard, CLI payloads, exclusive options, base/scope/filter, Fields and refresh retention, error/retry, Clear, desktop/mobile light/dark bounds.');
+    console.log('PASS: explicit Apply, Escape/outside discard, CLI payloads, exclusive options, base/scope/filter, Fields and refresh retention, error/retry, Clear, linked LDAP filters, desktop/mobile light/dark bounds.');
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exit(1); });

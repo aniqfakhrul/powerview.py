@@ -42,14 +42,15 @@ function fixture(source, days) {
     await complete();
     assert.deepEqual(requests.map((item) => [item.days, item.fresh]), Array(5).fill(['90', null]));
     assert.equal(await page.locator('.dashboard__scope').count(), 0);
-    assert.match(await page.locator('#dashboard-export').getAttribute('title'), /account names/);
+    assert.match(await page.locator('#dashboard-export-note').textContent(), /account names/);
+    assert.equal(await page.locator('#dashboard-export').getAttribute('aria-describedby'), 'dashboard-export-note');
 
     await page.locator('.dashboard__signal', { hasText: 'Kerberoastable users' }).click();
-    assert.equal(await page.locator('#evidence-total').textContent(), '1 match');
+    assert.match(await page.locator('#evidence-count').textContent(), /· 1 total match$/);
+    assert.equal(await page.locator('#evidence-rows a').count(), 1);
     assert.equal(await relative(page.locator('#evidence-rows a.dashboard__object').first()), `/users CN=svc.web,OU=Service,${rootDN}`);
-    assert.match(await relative(page.locator('#evidence-rows a.icon-button').first()), /^\/explorer CN=svc\.web/);
     assert.equal(await relative(page.locator('#dashboard-controllers a').first()), `/computers CN=DC01,OU=Domain Controllers,${rootDN}`);
-    assert.equal(await page.locator('[data-detail="cas"]').textContent(), 'Forest-wide · 1 template published');
+    assert.equal(await page.locator('[data-detail="cas"]').textContent(), 'Forest-wide\u00a0· 1 template published');
     const policy = await page.locator('#dashboard-policy').innerText();
     assert.match(policy, /Maximum password age\s+No expiry/);
     assert.match(policy, /Lockout duration\s+Until an administrator unlocks/);
@@ -78,7 +79,8 @@ function fixture(source, days) {
     requests.length = 0;
     await page.locator('#dashboard-days').selectOption('30');
     await complete();
-    assert.deepEqual(requests.map((item) => [item.days, item.fresh]), Array(5).fill(['30', null]));
+    assert.deepEqual(requests.map((item) => [item.source, item.days, item.fresh]), ['users', 'computers', 'privileged'].map((source) => [source, '30', null]));
+    assert.equal(await page.locator('#dashboard-policy').getAttribute('aria-busy'), 'false');
     await page.getByText('User logon > 30 days').waitFor();
     assert.match(await page.locator('.dashboard__signal', { hasText: 'User logon > 30 days' }).innerText(), /4/);
     await page.reload();
@@ -92,6 +94,6 @@ function fixture(source, days) {
     assert.equal(clipped, 0);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     assert.deepEqual(errors, []);
-    console.log('Dashboard option checks passed: cached first load, fresh Refresh, persisted inactivity threshold with updated labels, typed-page object links, singular match count, never intervals, neutral zero counts, mobile signals within the viewport.');
+    console.log('Dashboard option checks passed: cached first load, fresh Refresh, persisted inactivity threshold that re-reads only threshold sources, typed-page object links, one link per row, singular match count, never intervals, neutral zero counts, mobile signals within the viewport.');
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exit(1); });

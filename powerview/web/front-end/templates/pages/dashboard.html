@@ -8,18 +8,18 @@
   <header class="toolbar dashboard__toolbar">
     <h1>{{ icon(page.icon) }}{{ page.title }}</h1>
     <div class="toolbar__actions">
-      <button id="dashboard-export" aria-label="Export snapshot" class="button" type="button" title="Downloads a JSON file that includes account names and distinguished names" disabled>{{ icon('download') }}<span>Export</span></button>
+      <button id="dashboard-more" class="icon-button" type="button" aria-label="More actions" title="More actions" aria-haspopup="menu" aria-expanded="false" aria-controls="dashboard-menu" popovertarget="dashboard-menu">{{ icon('more') }}</button>
       <button id="dashboard-refresh" class="button" type="button">{{ icon('refresh') }}<span>Refresh</span></button>
     </div>
   </header>
   <div class="dashboard__scroll">
     <div class="dashboard__identity">
-      <div><h2 id="dashboard-domain">Directory assessment</h2><p id="dashboard-context"></p></div>
-      <div class="dashboard__freshness"><span id="dashboard-state" role="status">Loading snapshot…</span><time id="dashboard-time"></time></div>
+      <div class="dashboard__domain"><h2 id="dashboard-domain">Directory assessment</h2><p id="dashboard-context"></p></div>
+      <div class="dashboard__freshness"><span id="dashboard-state">Loading snapshot…</span><span class="dashboard__read"><time id="dashboard-time"></time><button id="dashboard-live" class="dashboard__text-action" type="button" hidden>Read live</button></span></div>
     </div>
     <nav id="dashboard-inventory" class="dashboard__inventory" aria-label="Directory inventory">
-      {% for key, label, target in [('users', 'Users', 'users'), ('computers', 'Computers', 'computers'), ('groups', 'Groups', 'groups'), ('ous', 'Organizational units', 'ou'), ('gpos', 'Group policies', 'gpo')] %}
-      <a href="{{ url_for(target) }}"><span>{{ label }}</span><strong data-count="{{ key }}"></strong><small data-detail="{{ key }}"></small></a>
+      {% for key, label, target, detail in [('users', 'Users', 'users', true), ('computers', 'Computers', 'computers', true), ('groups', 'Groups', 'groups', false), ('ous', 'Organizational units', 'ou', false), ('gpos', 'Group policies', 'gpo', false)] %}
+      <a href="{{ url_for(target) }}"><span>{{ label }}</span><strong data-count="{{ key }}"></strong>{% if detail %}<small data-detail="{{ key }}"></small>{% endif %}</a>
       {% endfor %}
       <a href="{{ url_for('ca', view='authorities') }}"><span>Certificate authorities</span><strong data-count="cas"></strong><small data-detail="cas"></small></a>
     </nav>
@@ -33,15 +33,15 @@
           </div>
           <label class="dashboard__threshold"><span>Inactive after</span><select id="dashboard-days" class="text-input dashboard__days"><option value="30">30 days</option><option value="60">60 days</option><option value="90" selected>90 days</option><option value="180">180 days</option></select></label></header>
         <div id="review-panel" class="dashboard__review-body" role="tabpanel" aria-labelledby="review-tab">
-          <nav id="dashboard-signals" class="dashboard__signals" aria-label="Review signals"></nav>
-          <section class="dashboard__evidence" aria-labelledby="evidence-title">
-            <header class="dashboard__evidence-heading"><h3 id="evidence-title"></h3><span class="dashboard__tip"><button type="button" class="icon-button dashboard__info" aria-label="About this signal" aria-describedby="evidence-description">{{ icon('info') }}</button><span id="evidence-description" class="dashboard__tooltip" role="tooltip"></span></span></header>
-            <div class="dashboard__evidence-tools"><label class="search-field">{{ icon('search') }}<input id="evidence-filter" type="search" placeholder="Filter sampled objects" aria-label="Filter sampled objects" disabled></label><span id="evidence-total"></span></div>
+          <div id="dashboard-signals" class="dashboard__signals" role="radiogroup" aria-label="Review signals"></div>
+          <section id="review-evidence" class="dashboard__evidence" aria-labelledby="evidence-title">
+            <header class="dashboard__evidence-heading"><h3 id="evidence-title"></h3><code id="evidence-flag" class="dashboard__flag"></code><span class="dashboard__tip dashboard__about"><button type="button" class="icon-button dashboard__info" aria-label="About this signal" aria-describedby="evidence-description">{{ icon('info') }}</button><span id="evidence-description" class="dashboard__tooltip" role="tooltip"></span></span></header>
+            <div class="dashboard__evidence-tools"><label class="search-field">{{ icon('search') }}<input id="evidence-filter" type="search" placeholder="Filter sampled objects" aria-label="Filter sampled objects" disabled></label><a id="evidence-all" class="dashboard__view-all" hidden></a></div>
             <div class="dashboard__table-scroll" tabindex="0" role="region" aria-label="Matching objects">
-              <table id="evidence-table" class="dashboard__table"><caption class="visually-hidden">Objects matching the selected review signal</caption><thead><tr><th scope="col">Account</th><th scope="col">Evidence</th><th scope="col"><span class="visually-hidden">Inspect</span></th></tr></thead><tbody id="evidence-rows"></tbody></table>
-              <p id="evidence-empty" class="dashboard__empty" role="status"></p>
+              <table id="evidence-table" class="dashboard__table"><caption class="visually-hidden">Objects matching the selected review signal</caption><thead><tr id="evidence-head"></tr></thead><tbody id="evidence-rows"></tbody></table>
+              <p id="evidence-empty" class="dashboard__empty"></p>
             </div>
-            <footer class="dashboard__evidence-footer"><span id="evidence-count"></span></footer>
+            <footer class="dashboard__evidence-footer"><span id="evidence-count" aria-live="polite"></span></footer>
           </section>
         </div>
         <div id="privileged-panel" class="dashboard__privileged" role="tabpanel" aria-labelledby="privileged-tab" hidden>
@@ -58,6 +58,9 @@
       <section aria-labelledby="controllers-title"><header class="dashboard__section-heading"><h2 id="controllers-title">Domain controllers</h2><span id="controllers-total"></span></header><div id="dashboard-controllers"></div></section>
       <section id="dashboard-trusts" aria-labelledby="trusts-title"><header class="dashboard__section-heading"><h2 id="trusts-title">Domain trusts</h2><span id="trusts-total"></span></header><div id="dashboard-trust-list"></div></section>
     </div>
+  </div>
+  <div id="dashboard-menu" class="fields-menu action-menu" popover role="menu" aria-label="More actions">
+    <button id="dashboard-export" class="action-menu__item" type="button" role="menuitem" aria-label="Export JSON" aria-describedby="dashboard-export-note" disabled>{{ icon('download') }}<span>Export JSON<small id="dashboard-export-note">Snapshot with account names and distinguished names</small></span></button>
   </div>
   {% include "components/object-panel.html" %}
 </section>

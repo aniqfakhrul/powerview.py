@@ -4,7 +4,7 @@ import { button, element } from '../../core/dom.js';
 const OPTIONS = [
   ['enabled', 'Enabled accounts'], ['disabled', 'Disabled accounts'],
   ['passnotrequired', 'Password not required'], ['password_expired', 'Password expired'],
-  ['preauthnotrequired', 'Kerberos preauthentication not required'], ['admincount', 'Protected accounts', 'adminCount=1. This marker can remain after privileged group membership is removed; it does not prove current administrative access.'],
+  ['preauthnotrequired', 'Kerberos preauthentication not required'], ['admincount', 'adminCount set', 'adminCount=1. This marker can remain after privileged group membership is removed; it does not prove current administrative access.'],
   ['lockedout', 'Locked out'], ['spn', 'Has a service principal name'],
   ['allowdelegation', 'Allow delegation'], ['disallowdelegation', 'Disallow delegation'],
   ['trustedtoauth', 'Trusted to authenticate for delegation'], ['unconstrained', 'Unconstrained delegation'],
@@ -30,10 +30,10 @@ export function validateFilter(filter) {
   return depth === 0 ? '' : 'The LDAP filter has an unmatched opening parenthesis.';
 }
 
-export function createSearchMenu({ trigger, menu, onApply, defaultBase, options = OPTIONS, exclusive = EXCLUSIVE, advancedFields = ADVANCED_FIELDS }) {
+export function createSearchMenu({ trigger, menu, onApply, defaultBase, initial = {}, options = OPTIONS, exclusive = EXCLUSIVE, advancedFields = ADVANCED_FIELDS }) {
   const textKeys = ['base', 'filter', ...advancedFields.map(([key]) => key)];
   const emptySearch = () => ({ options: [], scope: 'SUBTREE', ...Object.fromEntries(textKeys.map((key) => [key, ''])) });
-  let applied = emptySearch();
+  let applied = { ...emptySearch(), ...initial };
   let draft;
   const count = trigger.querySelector('[data-search-count]');
 

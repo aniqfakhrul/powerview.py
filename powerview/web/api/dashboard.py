@@ -1,27 +1,42 @@
+from bisect import insort
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from heapq import nsmallest
 
 from ldap3.core.exceptions import LDAPException, LDAPNoSuchObjectResult
 from ldap3.protocol.formatters.formatters import format_sid
 from ldap3.utils.conv import escape_filter_chars
 
+from powerview.utils.query_reads import track_query_reads
+
 
 SAMPLE_LIMIT = 100
 INACTIVE_DAYS = (30, 60, 90, 180)
-NEVER = 'never'
-ACCOUNT_PROPERTIES = [
-    'name', 'sAMAccountName', 'distinguishedName', 'userAccountControl',
-    'lastLogonTimestamp',
-]
 PASSWORD_AGE_DAYS = 365
+NEVER = 'never'
+EPOCH = datetime(1601, 1, 1, tzinfo=timezone.utc)
 IN_CHAIN = '1.2.840.113556.1.4.1941'
+ALL_BITS = '1.2.840.113556.1.4.803'
+ANY_BIT = '1.2.840.113556.1.4.804'
+ACCOUNTDISABLE = 0x2
+PASSWD_NOTREQD = 0x20
+SERVER_TRUST_ACCOUNT = 0x2000
+DONT_EXPIRE_PASSWORD = 0x10000
+TRUSTED_FOR_DELEGATION = 0x80000
+DONT_REQ_PREAUTH = 0x400000
+PARTIAL_SECRETS_ACCOUNT = 0x4000000
+CONTROLLER = SERVER_TRUST_ACCOUNT | PARTIAL_SECRETS_ACCOUNT
+ENABLED_FILTER = f'(!(userAccountControl:{ALL_BITS}:={ACCOUNTDISABLE}))'
+ACCOUNT_PROPERTIES = ['name', 'sAMAccountName', 'distinguishedName', 'userAccountControl', 'lastLogonTimestamp', 'pwdLastSet']
+USER_PROPERTIES = ACCOUNT_PROPERTIES + ['adminCount', 'servicePrincipalName']
+COMPUTER_PROPERTIES = ACCOUNT_PROPERTIES + ['dNSHostName', 'operatingSystem', 'msDS-AllowedToDelegateTo']
 PRIVILEGED_GROUPS = (
     ('S-1-5-32-544', 'Administrators'), (512, 'Domain Admins'), (519, 'Enterprise Admins'), (518, 'Schema Admins'),
     ('S-1-5-32-548', 'Account Operators'), ('S-1-5-32-551', 'Backup Operators'), ('S-1-5-32-549', 'Server Operators'), ('S-1-5-32-550', 'Print Operators'),
 )
 PROTECTED_USERS_RID = 525
-PRIVILEGED_PROPERTIES = ['name', 'sAMAccountName', 'distinguishedName', 'userAccountControl', 'lastLogonTimestamp', 'pwdLastSet']
 DOMAIN_PROPERTIES = [
     'ms-DS-MachineAccountQuota',
     'minPwdLength', 'pwdHistoryLength', 'maxPwdAge', 'minPwdAge',
@@ -59,13 +74,14 @@ def sid(value):
 def timestamp(value):
     value = first(value)
     if isinstance(value, datetime):
-        return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+        result = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+        return result if result > EPOCH else None
     ticks = number(value)
     if ticks is not None:
         if ticks <= 0:
             return None
         try:
-            result = datetime(1601, 1, 1, tzinfo=timezone.utc) + timedelta(microseconds=ticks // 10)
+            result = EPOCH + timedelta(microseconds=ticks // 10)
             return result if result.year > 1601 else None
         except OverflowError:
             return None
@@ -74,6 +90,15 @@ def timestamp(value):
         return result.replace(tzinfo=timezone.utc) if result.tzinfo is None else result.astimezone(timezone.utc)
     except ValueError:
         return None
+
+
+def never_set(value):
+    value = first(value)
+    return number(value) == 0 or (isinstance(value, datetime) and timestamp(value) is None)
+
+
+def iso(value):
+    return value.isoformat() if value else None
 
 
 def interval_seconds(value):
@@ -88,6 +113,11 @@ def interval_seconds(value):
     return abs(ticks) / 10000000 if ticks is not None else None
 
 
+def listed(values):
+    values = values if isinstance(values, list) else [values]
+    return text(values) + (f' (+{len(values) - 1} more)' if len(values) > 1 else '')
+
+
 def object_row(entry, attrs):
     return {
         'dn': text(entry.get('dn') or attrs.get('distinguishedname')),
@@ -95,18 +125,118 @@ def object_row(entry, attrs):
     }
 
 
-def read(powerview, method, fresh=False, **kwargs):
-    entries = getattr(powerview, method)(raw=True, no_cache=fresh, no_vuln_check=True, **kwargs)
-    if entries is None or entries is False:
-        raise ValueError('The directory did not return a result. Check the session and permissions.')
-    entries = list(entries)
-    if any(not isinstance(entry, Mapping) or not isinstance(entry.get('attributes'), Mapping) for entry in entries):
-        raise ValueError('The directory returned an unexpected result.')
-    return entries
+@dataclass(frozen=True)
+class Account:
+    row: dict
+    attrs: dict
+    uac: int | None
+    last_logon: datetime | None
+    password_set: datetime | None
+    password_never_set: bool
+
+    @classmethod
+    def from_entry(cls, entry):
+        attrs = attributes(entry)
+        return cls(
+            object_row(entry, attrs), attrs, number(attrs.get('useraccountcontrol')),
+            timestamp(attrs.get('lastlogontimestamp')), timestamp(attrs.get('pwdlastset')), never_set(attrs.get('pwdlastset')),
+        )
+
+    @property
+    def enabled(self):
+        return self.uac is not None and not self.uac & ACCOUNTDISABLE
+
+    @property
+    def password(self):
+        return NEVER if self.password_never_set else iso(self.password_set)
+
+    @property
+    def operating_system(self):
+        return text(self.attrs.get('operatingsystem')) or 'Not reported'
+
+    def flagged(self, flags):
+        return self.uac is not None and bool(self.uac & flags)
 
 
-def domain_summary(powerview, fresh=False, **_):
-    entries = read(powerview, 'get_domain', fresh, properties=DOMAIN_PROPERTIES, search_scope='BASE')
+@dataclass(frozen=True)
+class Signal:
+    key: str
+    ldap_filter: str
+    order: str
+    matches: Callable[[Account], bool]
+    evidence: Callable[[Account], str] | None = None
+
+
+def flag_filter(flags):
+    return f'(userAccountControl:{ALL_BITS}:={flags})'
+
+
+def stale_signal(cutoff):
+    ticks = (cutoff - EPOCH) // timedelta(microseconds=1) * 10
+    return Signal(
+        'stale', f'(lastLogonTimestamp>=1)(lastLogonTimestamp<={ticks - 1})', 'last_logon',
+        lambda account: account.last_logon is not None and account.last_logon < cutoff,
+    )
+
+
+USER_SIGNALS = (
+    Signal('preauth', flag_filter(DONT_REQ_PREAUTH), 'password_set', lambda account: account.flagged(DONT_REQ_PREAUTH)),
+    Signal(
+        'spn', '(servicePrincipalName=*)(!(sAMAccountName=krbtgt))', 'password_set',
+        lambda account: bool(account.attrs.get('serviceprincipalname')) and account.row['name'].lower() != 'krbtgt',
+        lambda account: listed(account.attrs['serviceprincipalname']),
+    ),
+    Signal('password_not_required', flag_filter(PASSWD_NOTREQD), 'password_set', lambda account: account.flagged(PASSWD_NOTREQD)),
+    Signal('never_expires', flag_filter(DONT_EXPIRE_PASSWORD), 'password_set', lambda account: account.flagged(DONT_EXPIRE_PASSWORD)),
+    Signal('admin', '(adminCount=1)', 'password_set', lambda account: number(account.attrs.get('admincount')) == 1),
+)
+COMPUTER_SIGNALS = (
+    Signal(
+        'unconstrained', f'{flag_filter(TRUSTED_FOR_DELEGATION)}(!(userAccountControl:{ANY_BIT}:={CONTROLLER}))', 'name',
+        lambda account: account.flagged(TRUSTED_FOR_DELEGATION) and not account.flagged(CONTROLLER),
+    ),
+    Signal(
+        'constrained', '(msDS-AllowedToDelegateTo=*)', 'name',
+        lambda account: bool(account.attrs.get('msds-allowedtodelegateto')),
+        lambda account: listed(account.attrs['msds-allowedtodelegateto']),
+    ),
+    Signal('password_not_required', flag_filter(PASSWD_NOTREQD), 'password_set', lambda account: account.flagged(PASSWD_NOTREQD)),
+)
+ORDERS = {
+    'password_set': lambda account: (not account.password_never_set, account.password_set is None, account.password_set or EPOCH),
+    'last_logon': lambda account: (account.last_logon is None, account.last_logon or EPOCH),
+    'name': lambda account: account.row['name'].lower(),
+}
+
+
+class Collection:
+    def __init__(self, powerview, fresh=False, now=None):
+        self.powerview = powerview
+        self.fresh = fresh
+        self.now = now or datetime.now(timezone.utc)
+        self.read_at = None
+        self.cached = False
+
+    def read(self, method, **kwargs):
+        started = datetime.now(timezone.utc)
+        with track_query_reads() as reads:
+            entries = getattr(self.powerview, method)(raw=True, no_cache=self.fresh, no_vuln_check=True, **kwargs)
+            if entries is None or entries is False:
+                raise ValueError('The directory did not return a result. Check the session and permissions.')
+            entries = list(entries)
+        if any(not isinstance(entry, Mapping) or not isinstance(entry.get('attributes'), Mapping) for entry in entries):
+            raise ValueError('The directory returned an unexpected result.')
+        if reads.read_at is None:
+            for entry in entries:
+                if entry.get('from_cache'):
+                    reads.record(timestamp(entry.get('read_at')) or started, cached=True)
+        self.cached = self.cached or reads.cached
+        self.read_at = min(filter(None, (self.read_at, reads.read_at or started)))
+        return entries
+
+
+def domain_summary(collection, **_):
+    entries = collection.read('get_domain', properties=DOMAIN_PROPERTIES, search_scope='BASE')
     if not entries:
         raise ValueError('The domain object is not readable in this session.')
     attrs = attributes(entries[0])
@@ -116,72 +246,73 @@ def domain_summary(powerview, fresh=False, **_):
     return {'policy': policy}
 
 
-def account_summary(powerview, kind, now=None, fresh=False, days=90):
-    now = now or datetime.now(timezone.utc)
-    properties = ACCOUNT_PROPERTIES + (['adminCount', 'servicePrincipalName'] if kind == 'users' else [
-        'dNSHostName', 'operatingSystem', 'msDS-AllowedToDelegateTo',
-    ])
-    entries = read(powerview, 'get_domainuser' if kind == 'users' else 'get_domaincomputer', fresh, properties=properties)
-    keys = ['preauth', 'spn', 'password_not_required', 'never_expires', 'admin', 'stale'] if kind == 'users' else ['unconstrained', 'constrained', 'password_not_required', 'stale']
-    findings = {f'{kind}_{key}': {'count': 0, 'objects': []} for key in keys}
+def sample(account, signal, kind):
+    row = {**account.row, 'password_set': account.password, 'last_logon': iso(account.last_logon)}
+    if kind == 'computers':
+        row['os'] = account.operating_system
+    if signal.evidence:
+        row['evidence'] = signal.evidence(account)
+    return row
+
+
+class AccountSample:
+    def __init__(self, signal):
+        self.signal = signal
+        self.count = 0
+        self.items = []
+
+    def add(self, account):
+        self.count += 1
+        item = (ORDERS[self.signal.order](account), self.count, account)
+        if len(self.items) == SAMPLE_LIMIT:
+            if item >= self.items[-1]:
+                return
+            self.items.pop()
+        insort(self.items, item)
+
+    def finding(self, kind):
+        return {
+            'count': self.count,
+            'order': self.signal.order,
+            'ldap_filter': f'(&{ENABLED_FILTER}{self.signal.ldap_filter})',
+            'objects': [sample(account, self.signal, kind) for _, _, account in self.items],
+        }
+
+
+def account_summary(collection, kind, days=90):
+    users = kind == 'users'
+    signals = (USER_SIGNALS if users else COMPUTER_SIGNALS) + (stale_signal(collection.now - timedelta(days=days)),)
+    entries = collection.read('get_domainuser' if users else 'get_domaincomputer', properties=USER_PROPERTIES if users else COMPUTER_PROPERTIES)
+    matches = {signal.key: AccountSample(signal) for signal in signals}
     counts = Counter(total=len(entries), enabled=0, disabled=0, unknown=0, missing_logon=0, controllers=0)
     systems = Counter()
     controllers = []
-
-    def add(key, row, evidence):
-        finding = findings[f'{kind}_{key}']
-        finding['count'] += 1
-        if len(finding['objects']) < SAMPLE_LIMIT:
-            finding['objects'].append({**row, 'evidence': evidence})
-
     for entry in entries:
-        attrs = attributes(entry)
-        row = object_row(entry, attrs)
-        uac = number(attrs.get('useraccountcontrol'))
-        enabled = uac is not None and not uac & 2
-        counts['unknown' if uac is None else 'enabled' if enabled else 'disabled'] += 1
-        is_dc = uac is not None and bool(uac & (8192 | 67108864))
-        last_logon = timestamp(attrs.get('lastlogontimestamp'))
-        if enabled and last_logon is None:
+        account = Account.from_entry(entry)
+        counts['unknown' if account.uac is None else 'enabled' if account.enabled else 'disabled'] += 1
+        if account.enabled and account.last_logon is None:
             counts['missing_logon'] += 1
-        if kind == 'computers':
-            os_name = text(attrs.get('operatingsystem')) or 'Not reported'
-            systems[os_name] += 1
-            if is_dc:
+        if not users:
+            systems[account.operating_system] += 1
+            if account.flagged(CONTROLLER):
                 counts['controllers'] += 1
                 if len(controllers) < SAMPLE_LIMIT:
-                    controllers.append({**row, 'host': text(attrs.get('dnshostname')), 'os': os_name, 'enabled': enabled})
-        if not enabled:
-            continue
-        if last_logon and last_logon < now - timedelta(days=days):
-            add('stale', row, f'Last replicated logon: {last_logon.date().isoformat()}')
-        if uac & 32:
-            add('password_not_required', row, 'PASSWD_NOTREQD is set')
-        if kind == 'users':
-            if uac & 4194304:
-                add('preauth', row, 'DONT_REQ_PREAUTH is set')
-            if attrs.get('serviceprincipalname') and row['name'].lower() != 'krbtgt':
-                spns = attrs['serviceprincipalname']
-                add('spn', row, text(spns) + (f' (+{len(spns) - 1} more)' if isinstance(spns, list) and len(spns) > 1 else ''))
-            if uac & 65536:
-                add('never_expires', row, 'DONT_EXPIRE_PASSWORD is set')
-            if number(attrs.get('admincount')) == 1:
-                add('admin', row, 'adminCount = 1')
-        else:
-            if uac & 524288 and not is_dc:
-                add('unconstrained', row, 'TRUSTED_FOR_DELEGATION; not a domain controller')
-            if attrs.get('msds-allowedtodelegateto'):
-                add('constrained', row, text(attrs['msds-allowedtodelegateto']))
+                    controllers.append({**account.row, 'host': text(account.attrs.get('dnshostname')), 'os': account.operating_system, 'enabled': account.enabled})
+        if account.enabled:
+            for signal in signals:
+                if signal.matches(account):
+                    matches[signal.key].add(account)
     return {
-        'counts': dict(counts), 'findings': findings, 'inactive_days': days,
+        'counts': dict(counts), 'inactive_days': days,
+        'findings': {f'{kind}_{signal.key}': matches[signal.key].finding(kind) for signal in signals},
         'systems': [{'name': name, 'count': count} for name, count in sorted(systems.items(), key=lambda item: (-item[1], item[0]))],
         'controllers': controllers,
     }
 
 
-def inventory_summary(powerview, fresh=False, **_):
-    entries = read(
-        powerview, 'get_domainobject', fresh,
+def inventory_summary(collection, **_):
+    entries = collection.read(
+        'get_domainobject',
         ldap_filter='(|(objectClass=group)(objectClass=organizationalUnit)(objectClass=groupPolicyContainer)(objectClass=trustedDomain))',
         properties=['objectClass', 'name', 'distinguishedName', 'trustPartner', 'trustDirection', 'trustType', 'trustAttributes'],
     )
@@ -204,16 +335,16 @@ def inventory_summary(powerview, fresh=False, **_):
             })
     ca_error = None
     try:
-        counts['cas'], counts['published_templates'] = authority_summary(powerview, fresh)
+        counts['cas'], counts['published_templates'] = authority_summary(collection)
     except (ValueError, LDAPException) as error:
         counts['cas'] = counts['published_templates'] = None
         ca_error = str(error) or 'Certificate authorities are not readable in this session.'
     return {'counts': dict(counts), 'trusts': trusts, 'ca_error': ca_error}
 
 
-def authority_summary(powerview, fresh=False):
+def authority_summary(collection):
     try:
-        authorities = read(powerview, 'get_domainca', fresh, properties=['name', 'dNSHostName', 'certificateTemplates'], check_all=False)
+        authorities = collection.read('get_domainca', properties=['name', 'dNSHostName', 'certificateTemplates'], check_all=False)
     except LDAPNoSuchObjectResult:
         return 0, 0
     templates = set()
@@ -223,52 +354,51 @@ def authority_summary(powerview, fresh=False):
     return len(authorities), len(templates)
 
 
-def group_members(powerview, fresh, group_dn):
+def group_members(collection, group_dn):
     member_filter = f'(&(objectCategory=person)(objectClass=user)(memberOf:{IN_CHAIN}:={escape_filter_chars(group_dn)}))'
-    return read(powerview, 'get_domainobject', fresh, ldap_filter=member_filter, properties=PRIVILEGED_PROPERTIES)
+    return collection.read('get_domainobject', ldap_filter=member_filter, properties=ACCOUNT_PROPERTIES)
 
 
 def privileged_account(entry, now, days):
-    attrs = attributes(entry)
-    uac = number(attrs.get('useraccountcontrol'))
-    enabled = uac is not None and not uac & 2
-    last_logon = timestamp(attrs.get('lastlogontimestamp'))
-    password_set = timestamp(attrs.get('pwdlastset'))
-    active = last_logon or password_set
+    account = Account.from_entry(entry)
+    active = account.last_logon or account.password_set
+    old_password = account.password_never_set or bool(account.password_set and account.password_set < now - timedelta(days=PASSWORD_AGE_DAYS))
     return {
-        **object_row(entry, attrs), 'groups': [], 'protected': False, 'enabled': enabled,
-        'last_logon': last_logon.isoformat() if last_logon else None,
-        'password_set': password_set.isoformat() if password_set else None,
-        'never_expires': bool(uac and uac & 65536),
-        'stale': bool(enabled and active and active < now - timedelta(days=days)),
-        'old_password': bool(enabled and password_set and password_set < now - timedelta(days=PASSWORD_AGE_DAYS)),
+        **account.row, 'groups': [], 'protected': False, 'enabled': account.enabled,
+        'last_logon': iso(account.last_logon), 'password_set': account.password,
+        'never_expires': account.flagged(DONT_EXPIRE_PASSWORD),
+        'stale': bool(account.enabled and active and active < now - timedelta(days=days)),
+        'old_password': account.enabled and old_password,
     }
 
 
-def privileged_summary(powerview, now=None, fresh=False, days=90):
-    now = now or datetime.now(timezone.utc)
-    domain = read(powerview, 'get_domain', fresh, properties=['objectSid'], search_scope='BASE')
+def privileged_summary(collection, days=90):
+    domain = collection.read('get_domain', properties=['objectSid'], search_scope='BASE')
     domain_sid = sid(attributes(domain[0]).get('objectsid')) if domain else ''
     labels = {key if isinstance(key, str) else f'{domain_sid}-{key}': label for key, label in PRIVILEGED_GROUPS if isinstance(key, str) or domain_sid}
     protected_sid = f'{domain_sid}-{PROTECTED_USERS_RID}' if domain_sid else ''
     wanted = [*labels, *([protected_sid] if protected_sid else [])]
     found = {}
-    for entry in read(powerview, 'get_domainobject', fresh, ldap_filter='(|' + ''.join(f'(objectSid={value})' for value in wanted) + ')', properties=['name', 'distinguishedName', 'objectSid']):
+    for entry in collection.read('get_domainobject', ldap_filter='(|' + ''.join(f'(objectSid={value})' for value in wanted) + ')', properties=['name', 'distinguishedName', 'objectSid']):
         attrs = attributes(entry)
         found[sid(attrs.get('objectsid'))] = {'dn': text(entry.get('dn') or attrs.get('distinguishedname')), 'name': text(attrs.get('name'))}
-    protected = {object_row(entry, attributes(entry))['dn'].lower() for entry in group_members(powerview, fresh, found[protected_sid]['dn'])} if protected_sid in found else set()
+    protected = {object_row(entry, attributes(entry))['dn'].lower() for entry in group_members(collection, found[protected_sid]['dn'])} if protected_sid in found else set()
     accounts = {}
     groups = []
     for group_sid, label in labels.items():
         if group_sid not in found:
             continue
         name = found[group_sid]['name'] or label
-        members = group_members(powerview, fresh, found[group_sid]['dn'])
-        groups.append({'name': name, 'dn': found[group_sid]['dn'], 'count': len(members)})
+        members = group_members(collection, found[group_sid]['dn'])
         for entry in members:
-            account = privileged_account(entry, now, days)
+            account = privileged_account(entry, collection.now, days)
             account = accounts.setdefault(account['dn'].lower(), account)
             account['groups'].append(name)
+        sampled = nsmallest(SAMPLE_LIMIT, members, key=lambda entry: object_row(entry, attributes(entry))['name'].lower())
+        groups.append({
+            'name': name, 'dn': found[group_sid]['dn'], 'count': len(members),
+            'accounts': [accounts[object_row(entry, attributes(entry))['dn'].lower()] for entry in sampled],
+        })
     for key, account in accounts.items():
         account['protected'] = key in protected
     ordered = sorted(accounts.values(), key=lambda item: item['name'].lower())
@@ -288,8 +418,8 @@ def privileged_summary(powerview, now=None, fresh=False, days=90):
 
 SECTIONS = {
     'domain': domain_summary,
-    'users': lambda powerview, **options: account_summary(powerview, 'users', **options),
-    'computers': lambda powerview, **options: account_summary(powerview, 'computers', **options),
+    'users': lambda collection, **options: account_summary(collection, 'users', **options),
+    'computers': lambda collection, **options: account_summary(collection, 'computers', **options),
     'inventory': inventory_summary,
     'privileged': privileged_summary,
 }
@@ -299,10 +429,12 @@ def dashboard_section(powerview, section, fresh=False, days=90):
     if days not in INACTIVE_DAYS:
         raise ValueError(f'Inactivity threshold must be one of {", ".join(map(str, INACTIVE_DAYS))} days.')
     context = {'domain': powerview.domain, 'root_dn': powerview.root_dn, 'dc': powerview.dc_dnshostname}
-    result = SECTIONS[section](powerview, fresh=fresh, days=days)
+    collection = Collection(powerview, fresh)
+    result = SECTIONS[section](collection, days=days)
     if context['root_dn'] != powerview.root_dn:
         raise ValueError('The connected domain changed during collection. Refresh to retry.')
     return {
         **result, **context, 'sample_limit': SAMPLE_LIMIT,
         'collected_at': datetime.now(timezone.utc).isoformat(),
+        'read_at': iso(collection.read_at), 'cached': collection.cached,
     }

@@ -8,17 +8,22 @@ import { createResizer } from '../resizer.js';
 import { createStatus } from '../status.js';
 import { notify } from '../notify.js';
 import { expandChips, fitChips } from './chips.js';
-import { createActionMenu } from './action-menu.js';
+import { createActionMenu } from '../action-menu.js';
 import { downloadCsv, toCsv } from './csv-export.js';
 import { createColumnFilter, filterSpec, isActive, matchesFilter } from './column-filter.js';
 import { createFieldsMenu } from './fields-menu.js';
-import { createSearchMenu } from './search-menu.js';
+import { createSearchMenu, validateFilter } from './search-menu.js';
 import { createRowDetails } from './row-details.js';
 
 const PAGE_SIZE = 200;
 const MIN_COLUMN_WIDTH = 64;
 const MAX_COLUMN_WIDTH = 800;
 const collator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+
+function linkedSearch() {
+  const filter = new URLSearchParams(window.location.search).get('ldapfilter') ?? '';
+  return filter && !validateFilter(filter) ? { filter } : {};
+}
 
 export function createGridPage({ root, endpoint, noun, columnSet, search: searchConfig = {}, fetch: fetchEntries, deletable = true, describeRemoval, isProtected = () => false, afterDelete, summary, panelActions, autoLoad = true, initialMessage, emptyMessage, details, onLoadState, exportName = root.id }) {
   const directory = createDirectory(new URL(root.dataset.apiRoot, window.location.origin));
@@ -42,7 +47,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   const sameKey = (left, right) => details ? left === right : sameDN(left, right);
   let started = false;
   let rootDN = '';
-  let search = {};
+  let search = searchConfig === false || fetchEntries ? {} : linkedSearch();
 
   let columnKeys = columnSet.load();
   let columns = columnSet.columns(columnKeys);
@@ -404,6 +409,12 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     history.replaceState(null, '', url);
   }
 
+  function rememberSearch(value) {
+    const url = new URL(window.location.href);
+    if (value.filter) url.searchParams.set('ldapfilter', value.filter); else url.searchParams.delete('ldapfilter');
+    history.replaceState(null, '', url);
+  }
+
   function markSelected() {
     for (const tr of body.querySelectorAll('tr[data-dn]')) tr.setAttribute('aria-selected', String(sameKey(tr.dataset.key, selectedDN)));
   }
@@ -665,7 +676,8 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     menu: document.querySelector('#search-menu'),
     defaultBase: () => rootDN,
     ...searchConfig,
-    onApply(value) { search = value; load(true); },
+    initial: search,
+    onApply(value) { search = value; rememberSearch(value); load(true); },
   });
 
   clearFilters.addEventListener('click', resetFilters);

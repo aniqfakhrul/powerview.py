@@ -1,4 +1,5 @@
 import unittest
+from heapq import nsmallest
 from argparse import Namespace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -7,12 +8,16 @@ from unittest.mock import MagicMock
 from ldap3.core.exceptions import LDAPNoSuchObjectResult, LDAPOperationResult
 from ldap3.utils.ciDict import CaseInsensitiveDict
 
-from powerview.web.api.dashboard import account_summary, dashboard_section, domain_summary, inventory_summary, privileged_summary
+from powerview.web.api.dashboard import Account, AccountSample, Collection, ORDERS, USER_SIGNALS, COMPUTER_SIGNALS, stale_signal, account_summary, dashboard_section, domain_summary, inventory_summary, privileged_summary
 from powerview.web.api.server import APIServer
 
 
 ROOT_DN = 'DC=example,DC=test'
 NOW = datetime(2026, 9, 27, tzinfo=timezone.utc)
+
+
+def ticks(days):
+    return ((NOW - timedelta(days=days)) - datetime(1601, 1, 1, tzinfo=timezone.utc)) // timedelta(microseconds=1) * 10
 
 
 def entry(name, **attrs):
@@ -61,7 +66,7 @@ class DashboardTests(unittest.TestCase):
             entry('krbtgt', userAccountControl=512, servicePrincipalName=['kadmin/changepw']),
             entry('boundary', userAccountControl='512', lastLogonTimestamp=NOW - timedelta(days=90)),
         ]
-        result = account_summary(pv, 'users', NOW)
+        result = account_summary(Collection(pv, now=NOW), 'users')
         self.assertEqual(result['counts']['total'], 5)
         self.assertEqual(result['counts']['enabled'], 3)
         self.assertEqual(result['counts']['disabled'], 1)
@@ -75,11 +80,59 @@ class DashboardTests(unittest.TestCase):
     def test_samples_are_bounded_but_counts_are_not(self):
         pv = powerview()
         pv.get_domainuser.return_value = [entry(str(index), userAccountControl=4194304) for index in range(125)]
-        result = account_summary(pv, 'users', NOW)
+        result = account_summary(Collection(pv, now=NOW), 'users')
         finding = result['findings']['users_preauth']
         self.assertEqual(finding['count'], 125)
         self.assertEqual(len(finding['objects']), 100)
         self.assertEqual(result['findings']['users_stale']['count'], 0)
+
+    def test_samples_bound_retained_accounts_and_preserve_order(self):
+        accounts = [Account.from_entry(entry(str(index), pwdLastSet=ticks(index % 170), lastLogonTimestamp=ticks(index % 200))) for index in range(450)]
+        for signal in (USER_SIGNALS[0], COMPUTER_SIGNALS[0], stale_signal(NOW)):
+            with self.subTest(order=signal.order):
+                selected = AccountSample(signal)
+                for account in accounts:
+                    selected.add(account)
+                    self.assertLessEqual(len(selected.items), 100)
+                expected = nsmallest(100, accounts, key=ORDERS[signal.order])
+                self.assertEqual(selected.count, len(accounts))
+                self.assertEqual([row['name'] for row in selected.finding('users')['objects']], [account.row['name'] for account in expected])
+
+    def test_samples_keep_the_accounts_to_review_first(self):
+        pv = powerview()
+        pv.get_domainuser.return_value = [
+            entry('recent', userAccountControl=4194304, pwdLastSet=ticks(5)),
+            entry('unreadable', userAccountControl=4194304),
+            entry('april', userAccountControl=4194304, pwdLastSet=ticks(900), lastLogonTimestamp=ticks(400)),
+            entry('reset', userAccountControl=4194304, pwdLastSet=0),
+            entry('january', userAccountControl=4194304, pwdLastSet=datetime(2024, 1, 2, tzinfo=timezone.utc)),
+            entry('unset', userAccountControl=4194304, pwdLastSet=datetime(1601, 1, 1, tzinfo=timezone.utc), lastLogonTimestamp=datetime(1601, 1, 1)),
+        ]
+        result = account_summary(Collection(pv, now=NOW), 'users')
+        finding = result['findings']['users_preauth']
+        self.assertEqual(finding['order'], 'password_set')
+        self.assertEqual([item['name'] for item in finding['objects']], ['reset', 'unset', 'january', 'april', 'recent', 'unreadable'])
+        rows = {item['name']: item for item in finding['objects']}
+        self.assertEqual((rows['reset']['password_set'], rows['unset']['password_set'], rows['unreadable']['password_set']), ('never', 'never', None))
+        self.assertEqual(rows['january']['password_set'], '2024-01-02T00:00:00+00:00')
+        self.assertIsNone(rows['unset']['last_logon'])
+        self.assertTrue(rows['april']['last_logon'].startswith('2025-08-23'))
+        self.assertNotIn('evidence', rows['april'])
+        self.assertEqual(result['counts']['missing_logon'], 5)
+        self.assertEqual(result['findings']['users_stale']['count'], 1)
+
+    def test_findings_carry_equivalent_ldap_filters(self):
+        pv = powerview()
+        users = account_summary(Collection(pv, now=NOW), 'users', days=30)['findings']
+        enabled = '(!(userAccountControl:1.2.840.113556.1.4.803:=2))'
+        self.assertEqual(users['users_preauth']['ldap_filter'], f'(&{enabled}(userAccountControl:1.2.840.113556.1.4.803:=4194304))')
+        self.assertEqual(users['users_spn']['ldap_filter'], f'(&{enabled}(servicePrincipalName=*)(!(sAMAccountName=krbtgt)))')
+        self.assertEqual(users['users_admin']['ldap_filter'], f'(&{enabled}(adminCount=1))')
+        self.assertEqual(users['users_stale']['ldap_filter'], f'(&{enabled}(lastLogonTimestamp>=1)(lastLogonTimestamp<={ticks(30) - 1}))')
+        self.assertEqual(users['users_stale']['order'], 'last_logon')
+        computers = account_summary(Collection(pv, now=NOW), 'computers')['findings']
+        self.assertEqual(computers['computers_unconstrained']['ldap_filter'], f'(&{enabled}(userAccountControl:1.2.840.113556.1.4.803:=524288)(!(userAccountControl:1.2.840.113556.1.4.804:=67117056)))')
+        self.assertEqual(computers['computers_constrained']['order'], 'name')
 
     def test_computers_exclude_controllers_from_unconstrained_signal(self):
         pv = powerview()
@@ -90,18 +143,20 @@ class DashboardTests(unittest.TestCase):
             entry('app$', userAccountControl=[4096 | 524288 | 32], operatingSystem='Windows Server', lastLogonTimestamp=str(old), **{'msDS-AllowedToDelegateTo': ['HTTP/service']}),
             entry('disabled$', userAccountControl=4096 | 524288 | 2),
         ]
-        result = account_summary(pv, 'computers', NOW)
+        result = account_summary(Collection(pv, now=NOW), 'computers')
         self.assertEqual(result['counts']['controllers'], 2)
         for finding in result['findings'].values():
             self.assertEqual(finding['count'], 1)
             self.assertEqual(finding['objects'][0]['name'], 'app$')
+            self.assertEqual(finding['objects'][0]['os'], 'Windows Server')
+        self.assertEqual(result['findings']['computers_constrained']['objects'][0]['evidence'], 'HTTP/service')
         self.assertEqual(sum(item['count'] for item in result['systems']), 4)
         self.assertEqual(result['controllers'][0]['host'], 'dc.example.test')
 
     def test_domain_intervals_missing_values_and_zero_are_distinct(self):
         pv = powerview()
         pv.get_domain.return_value = [entry('domain', minPwdLength=[0], maxPwdAge=-36288000000000, minPwdAge=timedelta(0), lockoutDuration=timedelta(minutes=-30), pwdProperties=17)]
-        result = domain_summary(pv)['policy']
+        result = domain_summary(Collection(pv))['policy']
         self.assertEqual(result['minPwdLength'], 0)
         self.assertEqual(result['maxPwdAge'], 42 * 86400)
         self.assertEqual(result['minPwdAge'], 0)
@@ -121,18 +176,38 @@ class DashboardTests(unittest.TestCase):
             entry('CA-One', certificateTemplates=['User', 'WebServer']),
             entry('CA-Two', CERTIFICATETEMPLATES='user'),
         ]
-        result = inventory_summary(pv)
+        result = inventory_summary(Collection(pv))
         self.assertEqual(result['counts'], {'groups': 1, 'ous': 1, 'gpos': 1, 'trusts': 1, 'cas': 2, 'published_templates': 2})
         self.assertEqual(result['trusts'][0]['direction'], 3)
         self.assertIsNone(result['ca_error'])
         self.assertEqual(pv.get_domainca.call_args.kwargs['check_all'], False)
         self.assertEqual(pv.get_domainca.call_args.kwargs['properties'], ['name', 'dNSHostName', 'certificateTemplates'])
 
+    def test_each_privileged_group_has_its_own_bounded_sample(self):
+        pv = powerview()
+        pv.get_domain.return_value = [entry('example', objectSid='S-1-5-21-1-2-3')]
+        groups = [entry('Administrators', objectSid='S-1-5-32-544'), entry('Domain Admins', objectSid='S-1-5-21-1-2-3-512'), entry('Account Operators', objectSid='S-1-5-32-548')]
+        def objects(ldap_filter, **_):
+            if 'memberOf:' not in ldap_filter:
+                return groups
+            if 'CN=Administrators,' in ldap_filter:
+                return [entry(f'admin{index:03}', userAccountControl=512) for index in reversed(range(125))]
+            return [entry('zulu', userAccountControl=512)] if 'CN=Domain Admins,' in ldap_filter else []
+        pv.get_domainobject.side_effect = objects
+        result = privileged_summary(Collection(pv, now=NOW))
+        self.assertEqual(result['counts']['accounts'], 126)
+        self.assertNotIn('zulu', [account['name'] for account in result['accounts']])
+        by_name = {group['name']: group for group in result['groups']}
+        self.assertEqual(by_name['Administrators']['count'], 125)
+        self.assertEqual([account['name'] for account in by_name['Administrators']['accounts']], [f'admin{index:03}' for index in range(100)])
+        self.assertEqual([account['name'] for account in by_name['Domain Admins']['accounts']], ['zulu'])
+        self.assertEqual(by_name['Account Operators']['accounts'], [])
+        self.assertEqual(pv.get_domainobject.call_count, 4)
+
     def test_privileged_access_lists_members_of_builtin_groups_by_sid(self):
         pv = powerview()
         domain_sid = bytes.fromhex('010400000000000515000000a065cf7e784b9b5fe77c8770')
         pv.get_domain.return_value = [entry('example', objectSid=domain_sid)]
-        ticks = lambda days: int(((NOW - timedelta(days=days)) - datetime(1601, 1, 1, tzinfo=timezone.utc)).total_seconds() * 10**7)
         members = {
             'Administrators': [entry('alice', userAccountControl=512, lastLogonTimestamp=ticks(5), pwdLastSet=ticks(30)), entry('bob', userAccountControl=66048, lastLogonTimestamp=ticks(200), pwdLastSet=ticks(400)), entry('carol', userAccountControl=512, pwdLastSet=ticks(120)), entry('dave', userAccountControl=512, pwdLastSet=ticks(10))],
             'Domain Admins': [entry('alice', userAccountControl=512, lastLogonTimestamp=ticks(5), pwdLastSet=ticks(30)), entry('old', userAccountControl=514, lastLogonTimestamp=ticks(900), pwdLastSet=ticks(900))],
@@ -144,19 +219,21 @@ class DashboardTests(unittest.TestCase):
                         entry('Protected Users', objectSid='S-1-5-21-2127521184-1604012920-1887927527-525')]
             return next(value for name, value in members.items() if f'CN={name},' in ldap_filter)
         pv.get_domainobject.side_effect = objects
-        result = privileged_summary(pv, NOW)
+        result = privileged_summary(Collection(pv, now=NOW))
         lookup = pv.get_domainobject.call_args_list[0].kwargs['ldap_filter']
         self.assertIn('(objectSid=S-1-5-32-544)', lookup)
         self.assertIn('(objectSid=S-1-5-21-2127521184-1604012920-1887927527-519)', lookup)
         self.assertIn('(objectSid=S-1-5-21-2127521184-1604012920-1887927527-525)', lookup)
         self.assertIn(f'memberOf:1.2.840.113556.1.4.1941:=CN=Administrators,CN=Users,{ROOT_DN}', pv.get_domainobject.call_args_list[2].kwargs['ldap_filter'])
-        self.assertEqual(result['groups'], [
+        self.assertEqual([{key: value for key, value in group.items() if key != 'accounts'} for group in result['groups']], [
             {'name': 'Administrators', 'dn': f'CN=Administrators,CN=Users,{ROOT_DN}', 'count': 4},
             {'name': 'Domain Admins', 'dn': f'CN=Domain Admins,CN=Users,{ROOT_DN}', 'count': 2},
         ])
         self.assertEqual(result['counts'], {'accounts': 5, 'enabled': 4, 'unprotected': 3, 'stale': 2, 'old_password': 1, 'never_expires': 1})
         accounts = {item['name']: item for item in result['accounts']}
         self.assertEqual(accounts['alice']['groups'], ['Administrators', 'Domain Admins'])
+        self.assertEqual([account['name'] for account in result['groups'][1]['accounts']], ['alice', 'old'])
+        self.assertEqual(result['groups'][0]['accounts'][0], accounts['alice'])
         self.assertTrue(accounts['alice']['protected'])
         self.assertEqual((accounts['bob']['stale'], accounts['bob']['old_password'], accounts['bob']['never_expires']), (True, True, True))
         self.assertEqual((accounts['carol']['stale'], accounts['dave']['stale']), (True, False))
@@ -167,10 +244,10 @@ class DashboardTests(unittest.TestCase):
         pv = powerview()
         pv.get_domainobject.return_value = [entry('group', objectClass=['top', 'group'])]
         pv.get_domainca.side_effect = LDAPNoSuchObjectResult()
-        result = inventory_summary(pv)
+        result = inventory_summary(Collection(pv))
         self.assertEqual((result['counts']['cas'], result['counts']['published_templates'], result['ca_error']), (0, 0, None))
         pv.get_domainca.side_effect = LDAPOperationResult(description='insufficientAccessRights')
-        result = inventory_summary(pv)
+        result = inventory_summary(Collection(pv))
         self.assertEqual(result['counts']['groups'], 1)
         self.assertIsNone(result['counts']['cas'])
         self.assertIsNone(result['counts']['published_templates'])
@@ -193,15 +270,29 @@ class DashboardTests(unittest.TestCase):
 
     def test_refresh_bypasses_the_cache(self):
         pv = powerview()
-        dashboard_section(pv, 'users', fresh=True)
+        result = dashboard_section(pv, 'users', fresh=True)
         self.assertIs(pv.get_domainuser.call_args.kwargs['no_cache'], True)
+        self.assertIs(result['cached'], False)
+        self.assertLess(abs(datetime.fromisoformat(result['read_at']) - datetime.now(timezone.utc)), timedelta(minutes=1))
+
+    def test_cached_reads_report_when_the_directory_was_read(self):
+        pv = powerview()
+        pv.get_domainuser.return_value = [
+            {**entry('cached', userAccountControl=512), 'from_cache': True, 'read_at': '2026-09-27T09:00:00+00:00'},
+            {**entry('other', userAccountControl=512), 'from_cache': True, 'read_at': '2026-09-27T09:05:00+00:00'},
+        ]
+        result = dashboard_section(pv, 'users')
+        self.assertIs(result['cached'], True)
+        self.assertEqual(result['read_at'], '2026-09-27T09:00:00+00:00')
+        self.assertGreater(result['collected_at'], result['read_at'])
 
     def test_inactivity_threshold_is_configurable_and_validated(self):
         pv = powerview()
         pv.get_domainuser.return_value = [entry('idle', userAccountControl=512, lastLogonTimestamp=NOW - timedelta(days=45))]
-        self.assertEqual(account_summary(pv, 'users', NOW, days=30)['findings']['users_stale']['count'], 1)
-        self.assertEqual(account_summary(pv, 'users', NOW, days=60)['findings']['users_stale']['count'], 0)
-        self.assertEqual(account_summary(pv, 'users', NOW, days=60)['inactive_days'], 60)
+        collection = Collection(pv, now=NOW)
+        self.assertEqual(account_summary(collection, 'users', days=30)['findings']['users_stale']['count'], 1)
+        self.assertEqual(account_summary(collection, 'users', days=60)['findings']['users_stale']['count'], 0)
+        self.assertEqual(account_summary(collection, 'users', days=60)['inactive_days'], 60)
         with self.assertRaises(ValueError):
             dashboard_section(pv, 'users', days=45)
 
@@ -216,7 +307,7 @@ class DashboardTests(unittest.TestCase):
     def test_never_intervals_are_reported_explicitly(self):
         pv = powerview()
         pv.get_domain.return_value = [entry('domain', maxPwdAge=timedelta.max, lockoutDuration=-9223372036854775808, minPwdAge=timedelta(days=1))]
-        policy = domain_summary(pv)['policy']
+        policy = domain_summary(Collection(pv))['policy']
         self.assertEqual(policy['maxPwdAge'], 'never')
         self.assertEqual(policy['lockoutDuration'], 'never')
         self.assertEqual(policy['minPwdAge'], 86400)

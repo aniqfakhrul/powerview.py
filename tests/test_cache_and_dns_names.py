@@ -1,9 +1,12 @@
 import unittest
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from powerview.lib.ldap3.extend import CustomStandardExtendedOperations
 from powerview.lib.dns import DNS_UTIL
+from powerview.utils.query_cache import QueryCache
+from powerview.web.api.dashboard import Collection
 
 BASE = 'DC=example.test,CN=MicrosoftDNS,DC=DomainDnsZones,DC=example,DC=test'
 FRESH = [{'type': 'searchResEntry', 'dn': f'DC=web01,{BASE}', 'attributes': {'name': 'web01'}}]
@@ -22,7 +25,7 @@ class PagedSearchCacheTests(unittest.TestCase):
 		operations.use_adws = False
 		operations.raw = False
 		operations.cache = MagicMock()
-		operations.cache.get.return_value = [dict(entry) for entry in STALE]
+		operations.cache.lookup.return_value = (60, [dict(entry) for entry in STALE])
 		return operations
 
 	def search(self, operations, **kwargs):
@@ -31,22 +34,48 @@ class PagedSearchCacheTests(unittest.TestCase):
 
 	def test_cached_read_returns_cache_without_querying(self):
 		operations = self.make_operations()
-		self.assertEqual(self.search(operations)[0]['dn'], STALE[0]['dn'])
+		result = self.search(operations)[0]
+		self.assertEqual(result['dn'], STALE[0]['dn'])
+		self.assertTrue(result['from_cache'])
+		age = datetime.now(timezone.utc) - datetime.fromisoformat(result['read_at'])
+		self.assertAlmostEqual(age.total_seconds(), 60, delta=5)
 		operations.cache.put.assert_not_called()
 
 	def test_per_request_no_cache_skips_read_and_refreshes_cache(self):
 		operations = self.make_operations()
 		results = self.search(operations, no_cache=True)
 		self.assertEqual([entry['dn'] for entry in results], [FRESH[0]['dn']])
-		operations.cache.get.assert_not_called()
+		self.assertNotIn('read_at', results[0])
+		operations.cache.lookup.assert_not_called()
 		operations.cache.put.assert_called_once()
 		self.assertEqual(operations.cache.put.call_args.kwargs['results'], results)
 
 	def test_global_no_cache_never_touches_cache(self):
 		operations = self.make_operations(global_no_cache=True)
 		self.search(operations)
-		operations.cache.get.assert_not_called()
+		operations.cache.lookup.assert_not_called()
 		operations.cache.put.assert_not_called()
+
+	def test_dashboard_tracks_empty_cache_hits_and_refresh(self):
+		operations = self.make_operations()
+		clock = [0.0]
+		operations.cache = QueryCache(clock=lambda: clock[0])
+		pv = SimpleNamespace(get_domainuser=lambda **kwargs: operations.paged_search(BASE, '(objectClass=user)', attributes=['name'], no_cache=kwargs['no_cache']))
+		with patch('powerview.lib.ldap3.extend.paged_search_generator', side_effect=lambda *args: iter([])) as query:
+			first = Collection(pv)
+			self.assertEqual(first.read('get_domainuser'), [])
+			self.assertFalse(first.cached)
+			clock[0] += 60
+			cached = Collection(pv)
+			self.assertEqual(cached.read('get_domainuser'), [])
+			self.assertTrue(cached.cached)
+			self.assertAlmostEqual((datetime.now(timezone.utc) - cached.read_at).total_seconds(), 60, delta=5)
+			self.assertEqual(query.call_count, 1)
+			fresh = Collection(pv, fresh=True)
+			self.assertEqual(fresh.read('get_domainuser'), [])
+			self.assertFalse(fresh.cached)
+			self.assertEqual(query.call_count, 2)
+			self.assertGreater(fresh.read_at, cached.read_at)
 
 
 class RelativeDnsNameTests(unittest.TestCase):
