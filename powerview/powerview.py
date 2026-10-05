@@ -1512,7 +1512,7 @@ class PowerView:
 		enum = ACLEnum(self, entries, searchbase, resolveguids=resolveguids, targetidentity=identity, principalidentity=(principalidentity_map if principalidentity_map else security_identifier), guids_map_dict=guids_dict, no_cache=no_cache, include_ace_identity=include_ace_identity)
 		return enum.read_dacl()
 
-	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolvesids=False, ldapfilter=None, include_ip=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+	def get_domaincomputer(self, args=None, properties=[], identity=None, searchbase=None, resolvesids=False, ldapfilter=None, include_ip=False, include_laps=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [
 			'objectClass',
 			'lastLogonTimestamp',
@@ -1595,13 +1595,7 @@ class PowerView:
 				logging.debug("[Get-DomainComputer] Searching for computers that are trusted to authenticate for other principals")
 				ldap_filter += '(msds-allowedtodelegateto=*)'
 				properties.add('msds-AllowedToDelegateTo')
-			if hasattr(args, 'laps') and args.laps:
-				logging.debug("[Get-DomainComputer] Searching for computers with LAPS enabled")
-				laps_feature = self._resolve_schema_feature("LAPS", LAPS_SCHEMA_VARIANTS)
-				if not laps_feature:
-					return []
-				ldap_filter += laps_feature.presence_filter
-				properties.update(laps_feature.properties)
+
 			if hasattr(args, 'rbcd') and args.rbcd:
 				logging.debug("[Get-DomainComputer] Searching for computers that are configured to allow resource-based constrained delegation")
 				ldap_filter += '(msDS-AllowedToActOnBehalfOfOtherIdentity=*)'
@@ -1639,6 +1633,15 @@ class PowerView:
 			if hasattr(args, 'ldapfilter') and args.ldapfilter:
 				logging.debug(f'[Get-DomainComputer] Using additional LDAP filter: {args.ldapfilter}')
 				ldap_filter += f"{args.ldapfilter}"
+
+		laps_filter = bool(getattr(args, 'laps', False))
+		if include_laps or laps_filter:
+			laps_feature = self._resolve_schema_feature('LAPS', LAPS_SCHEMA_VARIANTS)
+			if laps_filter and not laps_feature:
+				return []
+			if laps_filter:
+				ldap_filter += laps_feature.presence_filter
+			properties.update(laps_feature.properties)
 
 		if include_ip and not any(prop.lower() == 'dnshostname' for prop in properties):
 			properties.add('dnsHostName')

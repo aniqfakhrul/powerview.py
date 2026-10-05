@@ -50,6 +50,13 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
   let search = searchConfig === false || fetchEntries ? {} : linkedSearch();
 
   let columnKeys = columnSet.load();
+  let contextualKeys = [];
+  function applySearchColumns() {
+    columnKeys = columnKeys.filter((key) => !contextualKeys.includes(key));
+    contextualKeys = (search.options ?? []).flatMap((option) => searchConfig.columns?.[option] ?? []).filter((key) => !columnKeys.includes(key));
+    columnKeys = [...new Set([...contextualKeys, ...columnKeys])];
+  }
+  applySearchColumns();
   let columns = columnSet.columns(columnKeys);
   let widths = columnSet.loadWidths();
   const fitted = new Map();
@@ -654,7 +661,7 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
         columnSet.saveWidths(widths);
       }
       columnKeys = keys;
-      columnSet.save(keys);
+      columnSet.save(keys.filter((key) => !contextualKeys.includes(key)));
       const previous = columns;
       columns = columnSet.columns(keys);
       if (!columns.some((column) => column.key === sortKey)) { sortKey = 'name'; sortDirection = 1; }
@@ -677,7 +684,18 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     defaultBase: () => rootDN,
     ...searchConfig,
     initial: search,
-    onApply(value) { search = value; rememberSearch(value); load(true); },
+    onApply(value) {
+      search = value;
+      rememberSearch(value);
+      const previous = columns;
+      applySearchColumns();
+      columns = columnSet.columns(columnKeys);
+      if (!columns.some((column) => column.key === sortKey)) { sortKey = 'name'; sortDirection = 1; }
+      buildHead();
+      reconcileFilters(previous);
+      fieldsMenu.refresh();
+      load(true);
+    },
   });
 
   clearFilters.addEventListener('click', resetFilters);

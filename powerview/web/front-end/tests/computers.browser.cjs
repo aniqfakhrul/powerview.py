@@ -10,6 +10,7 @@ const computer = (index, extra = {}) => ({ dn: `CN=WS-${String(index).padStart(3
   lastLogonTimestamp: `${String((index % 27) + 1).padStart(2, '0')}/09/2026 08:00:00`, whenCreated: '14/08/2025 15:40:15', ...extra,
 } });
 const computers = Array.from({ length: 40 }, (_, index) => computer(index));
+computers[0].attributes.IPAddress = ['192.0.2.10', '192.0.2.11'];
 computers[3].attributes.description = '<img src=x onerror=alert(1)>';
 const ownerDN = `CN=Dana Whitfield,OU=Staff,${rootDN}`;
 computers[5].attributes.managedBy = ownerDN;
@@ -95,6 +96,9 @@ computers[5].attributes.managedBy = ownerDN;
     unconstrained: true, trustedtoauth: true, rbcd: true, shadowcred: true, laps: true, pre2k: true,
     identity: 'WS-010', ldapfilter: '(operatingSystem=Windows*)',
   });
+  assert.equal(query.include_laps, true);
+  assert.ok((await page.locator('#grid-head .column-sort__label').allTextContents()).includes('msLAPS-Password'));
+  assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem('powerview.computers.columns')) ?? [])).includes('lapsPassword'), false);
   const refreshed = page.waitForResponse((response) => response.url().endsWith('/get/domaincomputer'));
   await page.locator('#grid-refresh').click(); await refreshed;
   assert.deepEqual(listRequests.at(-1).args, query.args);
@@ -116,6 +120,21 @@ computers[5].attributes.managedBy = ownerDN;
   assert.equal(await page.locator('#grid-body tr[aria-selected="true"]').count(), 0);
   await page.locator('#object-panel').getByRole('button', { name: 'Close details' }).click();
 
+  await page.getByRole('button', { name: /^Fields/ }).click();
+  await page.locator('#fields-menu').getByRole('checkbox', { name: 'IPAddress, Resolved from AD DNS', exact: true }).check();
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => document.querySelector('#grid-export').disabled === false && [...document.querySelectorAll('#grid-head .column-sort__label')].some((node) => node.textContent === 'IPAddress'));
+  assert.equal(listRequests.at(-1).include_ip, true);
+  await page.locator('#grid-more').click();
+  const downloaded = page.waitForEvent('download');
+  await page.locator('#grid-export').click();
+  const stream = await (await downloaded).createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  const csv = Buffer.concat(chunks).toString('utf8');
+  assert.match(csv, /"IPAddress"/);
+  assert.match(csv, /"192\.0\.2\.10, 192\.0\.2\.11"/);
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${base}/computers`);
   await rows.first().waitFor();
@@ -129,6 +148,7 @@ computers[5].attributes.managedBy = ownerDN;
   const cleared = page.waitForResponse((response) => response.url().endsWith('/get/domaincomputer'));
   await searchMenu.getByRole('button', { name: 'Apply', exact: true }).click(); await cleared;
   assert.equal(listRequests.at(-1).args, undefined);
+  assert.ok(!(await page.locator('#grid-head .column-sort__label').allTextContents()).includes('msLAPS-Password'));
   assert.deepEqual(errors, []);
   console.log('PASS: computer endpoint and default properties, columns, safe cells, status, filtering, sorting, side panel tabs, search base/scope/identity/LDAP filter, independent Fields storage, navigable monospace Managed by DN, mobile overflow, no runtime errors.');
   await browser.close();

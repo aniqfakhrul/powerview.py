@@ -88,6 +88,15 @@ class SchemaAttributeResolverTests(unittest.TestCase):
 
 
 class LapsSchemaTests(unittest.TestCase):
+    def test_laps_columns_enrich_without_filtering_computers(self):
+        for attributes in [LEGACY_LAPS_ATTRIBUTES, WINDOWS_LAPS_ATTRIBUTES, set()]:
+            with self.subTest(attributes=attributes):
+                powerview, search = make_powerview({'name', *attributes})
+                powerview.get_domaincomputer(properties=['name'], include_laps=True)
+                self.assertEqual(search.call_args.args[1], '(&(objectClass=computer))')
+                self.assertEqual(set(search.call_args.kwargs['attributes']), {'name', *attributes})
+
+
     def assert_query(self, paged_search, expected_filter, expected_properties):
         paged_search.assert_called_once()
         call = paged_search.call_args

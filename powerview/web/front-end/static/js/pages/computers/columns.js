@@ -12,6 +12,8 @@ const ipAddressColumn = {
   filter: { type: 'values', values: ipAddresses },
 };
 
+const lapsColumn = (column) => ({ ...column, attributes: [], request: { include_laps: true } });
+
 export const computerColumns = createColumnSet({
   storageKey: 'powerview.computers.columns',
   objectClass: 'computer',
@@ -21,6 +23,10 @@ export const computerColumns = createColumnSet({
     statusColumn,
     textColumn('os', 'operatingSystem', 'Operating system', 240),
     ipAddressColumn,
+    lapsColumn(timeColumn('lapsExpiry', 'ms-Mcs-AdmPwdExpirationTime', 'Legacy LAPS expiration')),
+    lapsColumn(timeColumn('windowsLapsExpiry', 'msLAPS-PasswordExpirationTime', 'Windows LAPS expiration')),
+    lapsColumn(textColumn('lapsPassword', 'ms-Mcs-AdmPwd', 'Legacy LAPS password, when readable', 240)),
+    lapsColumn(textColumn('windowsLapsPassword', 'msLAPS-Password', 'Windows LAPS password, when readable', 280)),
     textColumn('osVersion', 'operatingSystemVersion', 'OS version', 160),
     textColumn('description', 'description', 'Description', 280, 'field-desc'),
     textColumn('account', 'sAMAccountName', 'Account', 180),

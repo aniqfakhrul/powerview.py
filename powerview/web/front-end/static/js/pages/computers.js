@@ -9,6 +9,7 @@ const page = createGridPage({
   noun: { singular: 'computer', plural: 'computers' },
   columnSet: computerColumns,
   search: {
+    columns: { laps: ['lapsExpiry', 'windowsLapsExpiry', 'lapsPassword', 'windowsLapsPassword'] },
     options: [
       ['enabled', 'Enabled computers'],
       ['disabled', 'Disabled computers'],
