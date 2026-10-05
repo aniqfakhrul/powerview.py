@@ -98,7 +98,7 @@ fixtures.privileged.groups[1].accounts = [fixtures.privileged.accounts[0], fixtu
     assert.equal(await page.locator('#dashboard-live').isHidden(), true);
     assert.equal(await page.locator('#privileged-total').textContent(), '3');
     assert.deepEqual(await page.locator('#dashboard-signals h3').allTextContents(), ['Credential exposure', 'Account hygiene']);
-    assert.equal(await page.locator('#dashboard-signals [role="radio"]').count(), 10);
+    assert.equal(await page.locator('#dashboard-signals [role="radio"]').count(), 11);
     assert.equal(await radio('No Kerberos pre-auth 125').getAttribute('aria-checked'), 'true');
 
     await page.getByRole('tab', { name: 'Privileged access' }).click();
