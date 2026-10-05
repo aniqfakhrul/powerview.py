@@ -362,7 +362,7 @@ class PowerView:
 
 			logging.debug(f"[{caller}] Cross-trust user {username}, searching home domain {user_domain}")
 			try:
-				domain_pv = self.get_domain_powerview(user_domain)
+				domain_pv = self.get_domain_powerview(user_domain, max_retries=1)
 				entries = domain_pv.get_domainobject(
 					ldap_filter=f"(sAMAccountName={username})",
 					properties=properties,
@@ -372,7 +372,7 @@ class PowerView:
 					logging.debug(f"[{caller}] Found user {username} in {user_domain}")
 					return entries
 			except Exception as e:
-				logging.debug(f"[{caller}] Cross-domain lookup to {user_domain} failed: {str(e)}")
+				logging.warning(f"[{caller}] Home-domain lookup to {user_domain} failed: {str(e)}")
 			return []
 
 		# Local user: search the connected domain
@@ -427,7 +427,7 @@ class PowerView:
 			return host2ip(host, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
 		return host
 
-	def get_domain_powerview(self, domain):
+	def get_domain_powerview(self, domain, max_retries=3):
 		"""Get or create a PowerView instance for a specific domain with robust
 		error handling and connection verification
 		
@@ -455,7 +455,6 @@ class PowerView:
 				if domain in self.domain_instances:
 					del self.domain_instances[domain]
 		
-		max_retries = 3
 		backoff_factor = 1.5
 		retry_count = 0
 		
@@ -4307,22 +4306,14 @@ class PowerView:
 			properties=['objectSid'],
 			caller="Get-DomainCATemplate"
 		)
-		if len(current_user) == 0:
-			logging.error(f"[Get-DomainCATemplate] Current user {username} not found")
-			return
-		elif len(current_user) > 1:
-			logging.error(f"[Get-DomainCATemplate] More than one current user {username} found")
-			return
-		current_user_sid = current_user[0].get("attributes", {}).get("objectSid")
-
+		current_user_sid = current_user[0].get('attributes', {}).get('objectSid') if len(current_user) == 1 else None
 		if not current_user_sid:
-			logging.error(f"[Get-DomainCATemplate] Current user {username} has no objectSid")
-			return
+			logging.warning(f'[Get-DomainCATemplate] Cannot resolve {username}; returning templates without user-specific assessment')
 
 		# For cross-trust users, pre-compute SIDs using their home domain's LDAP session
 		# so template ACL evaluation works correctly with cross-trust group memberships
 		cross_trust_user_sids = None
-		if self._is_cross_trust_user():
+		if current_user_sid and self._is_cross_trust_user():
 			user_netbios = self.whoami.split('\\')[0].upper()
 			user_domain = None
 			try:
@@ -4336,13 +4327,14 @@ class PowerView:
 				pass
 			if user_domain:
 				try:
-					domain_pv = self.get_domain_powerview(user_domain)
+					domain_pv = self.get_domain_powerview(user_domain, max_retries=1)
 					user_domain_sid = '-'.join(current_user_sid.split('-')[:-1])
 					cross_trust_user_sids = get_user_sids(user_domain_sid, current_user_sid, domain_pv.ldap_session)
 					logging.debug(f"[Get-DomainCATemplate] Resolved {len(cross_trust_user_sids)} SIDs for cross-trust user from {user_domain}")
 				except Exception as e:
 					logging.debug(f"[Get-DomainCATemplate] Failed to resolve cross-trust SIDs: {str(e)}")
 
+		assessment_available = bool(current_user_sid) and (not self._is_cross_trust_user() or cross_trust_user_sids is not None)
 		publishers = {}
 		for ca in cas:
 			ca_name = ca.get("attributes").get("name")
@@ -4391,7 +4383,7 @@ class PowerView:
 			renewal_period = template_ops.get_renewal_period()
 			requires_manager_approval = template_ops.get_requires_manager_approval()
 
-			vulns = template_ops.check_vulnerable_template()
+			vulns = template_ops.check_vulnerable_template() if assessment_available else {}
 
 			if resolve_sids:
 				template_owner = self.convertfrom_sid(template_ops.get_owner_sid())
@@ -4460,7 +4452,8 @@ class PowerView:
 								'Write Dacl': parsed_dacl['Write Dacl'],
 								'Write Property': parsed_dacl['Write Property'],
 								'Enabled': str(template.get('attributes').get('cn')).lower() in publishers,
-								'Vulnerable': list_vuln
+								'Assessment': 'Complete' if assessment_available else 'Unavailable: current-user identity or group lookup failed',
+								'Vulnerable': list_vuln if assessment_available else None
 							},
 							 remove = [
 								 'nTSecurityDescriptor',

@@ -23,15 +23,21 @@ const enabledColumn = {
 };
 
 const findingsColumn = {
-  key: 'findings', label: 'Vulnerable', hint: 'Template findings reported by PowerView', icon: 'alert', width: 130, attributes: ['Vulnerable'],
+  key: 'findings', label: 'Vulnerable', hint: 'Template findings reported by PowerView', icon: 'alert', width: 130, attributes: ['Vulnerable', 'Assessment'],
   render: (record) => {
+    const assessment = attribute(record, 'Assessment');
+    if (assessment?.startsWith('Unavailable')) {
+      const status = element('span', 'cell-muted', 'Unavailable');
+      status.title = assessment;
+      return status;
+    }
     const list = findings(record);
     if (!list.length) return element('span', 'cell-muted', '—');
     const pill = element('span', 'state state--danger', String(list.length));
     pill.title = list.join('\n');
     return pill;
   },
-  text: (record) => findings(record).join('; '),
+  text: (record) => attribute(record, 'Assessment')?.startsWith('Unavailable') ? attribute(record, 'Assessment') : findings(record).join('; '),
   sort: (record) => findings(record).length,
   filter: { type: 'values', values: findings },
 };

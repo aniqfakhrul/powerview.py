@@ -17,11 +17,13 @@ def authority(name, published):
 
 
 class TemplatePublishingTests(unittest.TestCase):
-	def run_templates(self, authorities, findings=None, **kwargs):
+	def run_templates(self, authorities, findings=None, current_user=True, **kwargs):
 		powerview = PowerView.__new__(PowerView)
 		powerview.root_dn = 'DC=example,DC=test'
 		powerview.whoami = 'EXAMPLE\\tester'
 		powerview._resolve_current_user = MagicMock(return_value=[{'attributes': {'objectSid': 'S-1-5-21-1-2-3-1105'}}])
+		if not current_user:
+			powerview._resolve_current_user.return_value = []
 		powerview._is_cross_trust_user = MagicMock(return_value=False)
 		powerview.ldap_session = MagicMock()
 		powerview.convertfrom_sid = lambda sid: f'EXAMPLE\\{sid}'
@@ -41,6 +43,13 @@ class TemplatePublishingTests(unittest.TestCase):
 		with patch('powerview.powerview.CAEnum', return_value=enum), patch('powerview.powerview.PARSE_TEMPLATE', return_value=parsed):
 			entries = powerview.get_domaincatemplate(**kwargs)
 		return {entry['attributes']['cn']: entry['attributes'] for entry in entries}
+
+	def test_unresolved_user_preserves_inventory_without_clean_assessment(self):
+		results = self.run_templates([authority('CA-One', ['Alpha'])], current_user=False)
+		self.assertEqual(len(results), 3)
+		self.assertTrue(results['Alpha']['Enabled'])
+		self.assertIsNone(results['Alpha']['Vulnerable'])
+		self.assertIn('Unavailable', results['Alpha']['Assessment'])
 
 	def test_every_publishing_authority_is_listed_and_enables_the_template(self):
 		results = self.run_templates([
