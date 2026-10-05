@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from powerview.utils.connections import CONNECTION
@@ -7,6 +8,7 @@ from powerview.utils.connections import CONNECTION
 class KerberosRecoveryTests(unittest.TestCase):
     def test_reconnect_rebuilds_cache_from_saved_service_ticket(self):
         conn = CONNECTION.__new__(CONNECTION)
+        conn.args = SimpleNamespace(ldap_timeout=30)
         conn.use_gc_ldaps = False
         conn.use_ldaps = True
         conn.port = 636

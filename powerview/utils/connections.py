@@ -955,8 +955,8 @@ class CONNECTION:
 		self._connection_pool.remove_connection(domain)
 
 	def get_alt_server_info(self, read_server_info=False):
-		_server = ldap3.Server(self.args.ldap_address, get_info=ldap3.ALL)
-		_connection = ldap3.Connection(_server)
+		_server = ldap3.Server(self.args.ldap_address, get_info=ldap3.ALL, connect_timeout=getattr(self.args, "ldap_timeout", 30))
+		_connection = ldap3.Connection(_server, receive_timeout=getattr(self.args, "ldap_timeout", 30))
 		_connection.open(read_server_info=read_server_info)
 		_connection.search(search_base='',
 									search_filter='(objectClass=*)',
@@ -1268,6 +1268,8 @@ class CONNECTION:
 		Returns:
 			bool: True if reconnection successful, False otherwise
 		"""
+		if getattr(self, "_closing", False):
+			return False
 		lock = session_lock(self)
 		if lock.owner is not None and lock.owner is not self:
 			return lock.owner.reset_connection(max_retries=max_retries, fresh=fresh)
@@ -1337,29 +1339,43 @@ class CONNECTION:
 		return success
 
 	def close(self):
-		"""Close all connections and resources properly"""
-		self._connection_pool.shutdown()
-
-		if hasattr(self, '_smb_pool'):
-			self._smb_pool.shutdown()
-
-		for f in getattr(self, '_temp_cert_files', []):
+		if getattr(self, '_closing', False):
+			return
+		self._closing = True
+		lock = session_lock(self)
+		session = getattr(self, '_ldap_session', None)
+		transport = getattr(session, 'socket', None)
+		if transport is not None:
 			try:
-				os.unlink(f)
+				transport.shutdown(socket.SHUT_RDWR)
 			except OSError:
 				pass
+			finally:
+				transport.close()
+		if lock.acquire(timeout=1):
+			try:
+				if session is not None:
+					try:
+						if isinstance(session, ldap3.Connection):
+							session.strategy.close()
+						elif session.bound:
+							session.unbind()
+					except Exception:
+						pass
+				self._ldap_session = None
+			finally:
+				lock.release()
+		else:
+			logging.debug('LDAP shutdown stopped waiting for an active operation')
 
-		with session_lock(self):
-			session = getattr(self, '_ldap_session', None)
-			if session is not None:
-				try:
-					if session_lock(self).interrupted and isinstance(session, ldap3.Connection):
-						session.strategy.close()
-					elif session.bound:
-						session.unbind()
-					self.ldap_session = None
-				except Exception:
-					pass
+		self._connection_pool.shutdown()
+		if hasattr(self, '_smb_pool'):
+			self._smb_pool.shutdown()
+		for path in getattr(self, '_temp_cert_files', []):
+			try:
+				os.unlink(path)
+			except OSError:
+				pass
 
 		if hasattr(self, 'relay_instance') and self.relay_instance:
 			try:
@@ -1376,6 +1392,8 @@ class CONNECTION:
 
 	@session_locked
 	def init_ldap_session(self, ldap_address=None, use_ldap=False, use_gc_ldap=False, _retry_depth=0):
+		if getattr(self, "_closing", False):
+			raise ConnectionError("Connection is closing")
 		self._cached_whoami = None
 		if _retry_depth > 3:
 			raise ConnectionSetupError("Maximum LDAP session retry depth exceeded")
@@ -1584,6 +1602,7 @@ class CONNECTION:
 
 	def init_ldap_anonymous(self, target, tls=None):
 		ldap_server_kwargs = {
+			"connect_timeout": getattr(self.args, "ldap_timeout", 30),
 			"host": target,
 			"get_info": ldap3.ALL,
 			"formatter": self._get_formatter()
@@ -1597,7 +1616,7 @@ class CONNECTION:
 
 		logging.debug(f"Connecting as ANONYMOUS to {ldap_server_kwargs['host']}, Port: {ldap_server_kwargs.get('port')}, SSL: {ldap_server_kwargs.get('use_ssl')}")
 		self.ldap_server = ldap3.Server(**ldap_server_kwargs)
-		self.ldap_session = ldap3.Connection(self.ldap_server)
+		self.ldap_session = ldap3.Connection(self.ldap_server, receive_timeout=getattr(self.args, "ldap_timeout", 30))
 
 		if not self.ldap_session.bind():
 			logging.info(f"Error binding to {self.proto}")
@@ -1652,6 +1671,7 @@ class CONNECTION:
 		from impacket.krb5.types import Principal
 		from impacket.krb5 import constants
 		ldap_server_kwargs = {
+			"connect_timeout": getattr(self.args, "ldap_timeout", 30),
 			"host": target,
 			"get_info": ldap3.ALL,
 			"use_ssl": True if self.use_gc_ldaps or self.use_ldaps else False,
@@ -1781,6 +1801,7 @@ class CONNECTION:
 			   '/ Kerberos auth')
 
 		ldap_connection_kwargs = {
+			"receive_timeout": getattr(self.args, "ldap_timeout", 30),
 			"server": ldap_server,
 			"user": f"{username}@{domain.upper()}",
 			"raise_exceptions": True,
@@ -1896,6 +1917,7 @@ class CONNECTION:
 		if _retry_depth > 3:
 			raise ConnectionSetupError("Maximum schannel retry depth exceeded")
 		ldap_server_kwargs = {
+			"connect_timeout": getattr(self.args, "ldap_timeout", 30),
 			"host": target,
 			"get_info": ldap3.ALL,
 			"use_ssl": True if self.use_gc_ldaps or self.use_ldaps else False,
@@ -1913,6 +1935,7 @@ class CONNECTION:
 		ldap_server = ldap3.Server(**ldap_server_kwargs)
 
 		ldap_connection_kwargs = {
+			"receive_timeout": getattr(self.args, "ldap_timeout", 30),
 			"server": ldap_server,
 			"user": None,
 			"raise_exceptions": True,
@@ -2019,6 +2042,7 @@ class CONNECTION:
 		if _retry_depth > 3:
 			raise ConnectionSetupError("Maximum LDAP connection retry depth exceeded")
 		ldap_server_kwargs = {
+			"connect_timeout": getattr(self.args, "ldap_timeout", 30),
 			"host": target,
 			"get_info": ldap3.ALL,
 			"allowed_referral_hosts": [('*', True)],
@@ -2045,6 +2069,7 @@ class CONNECTION:
 			user = username
 
 		ldap_connection_kwargs = {
+			"receive_timeout": getattr(self.args, "ldap_timeout", 30),
 			"user":user,
 			"raise_exceptions": True,
 			"authentication": auth_method

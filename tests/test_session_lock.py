@@ -1,5 +1,6 @@
 import asyncio
 import json
+import socket
 import threading
 import unittest
 from argparse import Namespace
@@ -352,6 +353,41 @@ class SessionLockTests(unittest.TestCase):
                     session.unbind.assert_called_once()
                 else:
                     session.rebind.assert_called_once()
+
+    def test_close_wakes_a_blocked_ldap_read(self):
+        _, _, conn = self.make_server()
+        client, peer = socket.socketpair()
+        conn._ldap_session.socket = client
+        conn._ldap_session.unbind = MagicMock()
+        entered = threading.Event()
+
+        def read():
+            with session_lock(conn):
+                entered.set()
+                try:
+                    return client.recv(1)
+                except OSError:
+                    return b''
+
+        try:
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                pending = executor.submit(read)
+                self.assertTrue(entered.wait(1))
+                conn.close()
+                self.assertEqual(pending.result(1), b'')
+            self.assertFalse(conn.reset_connection())
+        finally:
+            client.close()
+            peer.close()
+
+    def test_close_does_not_wait_indefinitely_for_session_lock(self):
+        _, _, conn = self.make_server()
+        conn._ldap_session.unbind = MagicMock()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            with session_lock(conn):
+                pending = executor.submit(conn.close)
+                pending.result(2)
+            conn._ldap_session.unbind.assert_not_called()
 
     def test_mcp_tool_shares_the_session_lock(self):
         from fastmcp import FastMCP

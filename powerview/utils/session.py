@@ -61,6 +61,8 @@ def session_guard(owner):
         def guarded(*args, **kwargs):
             lock = session_lock(owner)
             with lock:
+                if lock.owner is not None and getattr(lock.owner, '_closing', False):
+                    raise ConnectionError('Connection is closing')
                 if owner is not lock.owner and vars(owner).get('_session_lock') is lock and lock.interrupted and not lock.recovering:
                     raise ConnectionError('LDAP session interrupted; reconnect before using this session')
                 return function(*args, **kwargs)

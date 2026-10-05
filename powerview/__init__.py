@@ -127,6 +127,9 @@ def main():
                     pv_args = powerview_arg_parse(cmd)
 
                     if pv_args:
+                        if pv_args.module.casefold() == 'exit':
+                            log_handler.save_history()
+                            sys.exit(0)
                         # One gate for every way JSON can be requested. Only
                         # commands that produce a result set can render it;
                         # action commands assign to `succeed` and plugins print
@@ -544,11 +547,6 @@ def main():
                                 clear_screen()
                             elif pv_args.module.casefold() == 'whoami':
                                 print(powerview.conn.who_am_i())
-                            elif pv_args.module.casefold() == 'exit':
-                                if args.mcp and hasattr(powerview, 'mcp_server') and powerview.mcp_server.get_status():
-                                    powerview.mcp_server.stop()
-                                log_handler.save_history()
-                                sys.exit(0)
                             elif pv_args.module.casefold() == 'get-plugin' and pv.plugin_registry:
                                 plugins = pv.plugin_registry.list_plugins()
                                 if not plugins:
@@ -740,6 +738,8 @@ def main():
         # one-shot queries, parser exits, and unexpected exceptions.
         if conn is not None:
             conn.close()
+        if args.mcp and 'powerview' in locals() and hasattr(powerview, 'mcp_server'):
+            powerview.mcp_server.stop()
 
 if __name__ == '__main__':
     main()

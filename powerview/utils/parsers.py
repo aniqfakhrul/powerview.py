@@ -23,6 +23,12 @@ class PowerViewParser(argparse.ArgumentParser):
 			sys.exit(0)
 		raise argparse.ArgumentError(None, message)
 
+def positive_timeout(value):
+	seconds = int(value)
+	if seconds <= 0:
+		raise argparse.ArgumentTypeError('Timeout must be greater than zero')
+	return seconds
+
 def arg_parse():
 	parser = PowerViewParser(description = f"Python alternative to SharpSploit's PowerView script, version {bcolors.OKBLUE + __version__ + bcolors.ENDC}")
 	parser.add_argument('target', action='store', metavar='target', help='[[domain/]username[:password]@]<targetName or address>')
@@ -30,6 +36,7 @@ def arg_parse():
 	parser.add_argument('-d','--debug', dest='debug', action='store_true', help='Enable debug output')
 	parser.add_argument('--stack-trace', dest='stack_trace', action='store_true', help='raise exceptions and exit if unhandled errors')
 	parser.add_argument('-q','--query', dest='query', action='store', help='PowerView query to be executed one-time')
+	parser.add_argument('--ldap-timeout', type=positive_timeout, default=30, help='LDAP connect and receive timeout in seconds (default: 30)')
 	parser.add_argument('--no-admin-check', dest='no_admin_check', default=False, action='store_true', help='Skip admin check when first logging in')
 	parser.add_argument('--obfuscate', dest='obfuscate', nargs='?', const=True, default=False, help='Obfuscate LDAP queries. Optionally specify ldapx chain codes (e.g. --obfuscate CZXANDR)')
 	parser.add_argument('--no-cache', dest='no_cache', default=False, action='store_true', help='Disable caching of LDAP queries')
