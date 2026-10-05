@@ -57,6 +57,21 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(results['users']['findings']['users_preauth']['count'], 1)
         self.assertEqual(results['computers']['counts']['controllers'], 1)
 
+    def test_pre2k_candidates_require_both_flags_and_zero_logons(self):
+        pv = powerview()
+        pv.get_domaincomputer.return_value = [
+            entry('candidate', userAccountControl=4128, logonCount=0),
+            entry('used', userAccountControl=4128, logonCount=1),
+            entry('unknown', userAccountControl=4128),
+            entry('normal', userAccountControl=4096, logonCount=0),
+        ]
+        result = account_summary(Collection(pv, now=NOW), 'computers')
+        finding = result['findings']['computers_pre2k']
+        self.assertEqual(finding['count'], 1)
+        self.assertEqual(finding['objects'][0]['name'], 'candidate')
+        self.assertIn('logonCount', pv.get_domaincomputer.call_args.kwargs['properties'])
+        pv.get_domaincomputer.assert_called_once()
+
     def test_enabled_signals_and_unknown_account_state(self):
         pv = powerview()
         pv.get_domainuser.return_value = [
@@ -145,7 +160,10 @@ class DashboardTests(unittest.TestCase):
         ]
         result = account_summary(Collection(pv, now=NOW), 'computers')
         self.assertEqual(result['counts']['controllers'], 2)
-        for finding in result['findings'].values():
+        self.assertEqual(result['findings']['computers_pre2k']['count'], 0)
+        for key, finding in result['findings'].items():
+            if key == 'computers_pre2k':
+                continue
             self.assertEqual(finding['count'], 1)
             self.assertEqual(finding['objects'][0]['name'], 'app$')
             self.assertEqual(finding['objects'][0]['os'], 'Windows Server')

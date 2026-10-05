@@ -31,7 +31,7 @@ CONTROLLER = SERVER_TRUST_ACCOUNT | PARTIAL_SECRETS_ACCOUNT
 ENABLED_FILTER = f'(!(userAccountControl:{ALL_BITS}:={ACCOUNTDISABLE}))'
 ACCOUNT_PROPERTIES = ['name', 'sAMAccountName', 'distinguishedName', 'userAccountControl', 'lastLogonTimestamp', 'pwdLastSet']
 USER_PROPERTIES = ACCOUNT_PROPERTIES + ['adminCount', 'servicePrincipalName']
-COMPUTER_PROPERTIES = ACCOUNT_PROPERTIES + ['dNSHostName', 'operatingSystem', 'msDS-AllowedToDelegateTo']
+COMPUTER_PROPERTIES = ACCOUNT_PROPERTIES + ['logonCount', 'dNSHostName', 'operatingSystem', 'msDS-AllowedToDelegateTo']
 PRIVILEGED_GROUPS = (
     ('S-1-5-32-544', 'Administrators'), (512, 'Domain Admins'), (519, 'Enterprise Admins'), (518, 'Schema Admins'),
     ('S-1-5-32-548', 'Account Operators'), ('S-1-5-32-551', 'Backup Operators'), ('S-1-5-32-549', 'Server Operators'), ('S-1-5-32-550', 'Print Operators'),
@@ -191,6 +191,7 @@ USER_SIGNALS = (
     Signal('admin', '(adminCount=1)', 'password_set', lambda account: number(account.attrs.get('admincount')) == 1),
 )
 COMPUTER_SIGNALS = (
+    Signal('pre2k', '(userAccountControl=4128)(logonCount=0)', 'password_set', lambda account: account.uac == 4128 and number(account.attrs.get('logoncount')) == 0),
     Signal(
         'unconstrained', f'{flag_filter(TRUSTED_FOR_DELEGATION)}(!(userAccountControl:{ANY_BIT}:={CONTROLLER}))', 'name',
         lambda account: account.flagged(TRUSTED_FOR_DELEGATION) and not account.flagged(CONTROLLER),
