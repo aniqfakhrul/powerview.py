@@ -126,6 +126,8 @@ export function createColumnSet({ storageKey, objectClass, name, catalog, defaul
   function columnFor(key) {
     if (!key.startsWith('attr:')) return catalog.find((column) => column.key === key) ?? null;
     if (!allowCustom) return null;
+    const computed = catalog.find((column) => column.request && column.label.toLowerCase() === key.slice(5).toLowerCase());
+    if (computed) return { ...computed, key };
     const attributeName = key.slice(5);
     if (!isAttributeName(attributeName)) return null;
     const known = schema?.get(attributeName.toLowerCase());

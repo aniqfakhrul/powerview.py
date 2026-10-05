@@ -35,3 +35,16 @@ test('toCsv writes a header row and one CRLF-separated line per entry', () => {
   const csv = toCsv(columns, [{ name: 'alice', description: '=bad' }, { name: 'bob', description: '' }]);
   assert.equal(csv, '"name","description"\r\n"alice","\'=bad"\r\n"bob",""');
 });
+
+
+test('computer IP exports retain resolved addresses for built-in and custom selections', async () => {
+  const { computerColumns } = await import('../static/js/pages/computers/columns.js');
+  for (const key of ['ipAddress', 'attr:IPAddress', 'attr:ipaddress']) {
+    const columns = computerColumns.columns([key]);
+    assert.deepEqual(computerColumns.requestOptions(columns), { include_ip: true });
+    assert.ok(!computerColumns.properties(columns).some((name) => name.toLowerCase() === 'ipaddress'));
+    const fields = columns.map((column) => ({ label: column.label, value: (entry) => (column.csv ?? column.text)(entry.record, entry) }));
+    const csv = toCsv(fields, [{ name: 'PC01', record: { attributes: { IPAddress: ['192.0.2.1', '192.0.2.2'] } } }]);
+    assert.equal(csv, '"name","IPAddress"\r\n"PC01","192.0.2.1, 192.0.2.2"');
+  }
+});
