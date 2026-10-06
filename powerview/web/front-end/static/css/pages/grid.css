@@ -19,12 +19,12 @@
 
 .fields-trigger__count { min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--color-active); color: var(--color-muted); font-size: 11px; line-height: 16px; text-align: center; }
 .fields-menu__list { display: grid; max-height: 300px; overflow: auto; margin: 0 -4px; }
-.fields-menu__option { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 6px; border-radius: var(--radius-sm); cursor: pointer; }
+.fields-menu__option { display: flex; align-items: center; gap: 8px; min-width: 0; height: 28px; padding: 0 6px; border-radius: var(--radius-sm); cursor: pointer; }
 .fields-menu__option:hover { background: var(--color-hover); }
-.fields-menu__option input { margin: 0; accent-color: var(--color-accent); }
-.fields-menu__label { font-family: var(--font-mono); font-size: 12px; }
+.fields-menu__option input { flex: none; margin: 0; accent-color: var(--color-accent); }
+.fields-menu__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 12px; }
 .fields-menu__label--computed { font-family: inherit; font-size: 13px; }
-.fields-menu__hint { margin-left: auto; overflow: hidden; color: var(--color-faint); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.fields-menu__hint { flex: 1 1 0; min-width: 0; text-align: right; margin-left: auto; overflow: hidden; color: var(--color-faint); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .fields-menu__suggestions { display: grid; max-height: 220px; margin: 0 -4px; overflow: auto; }
 .fields-menu__suggestions:empty { display: none; }
 .fields-menu__section { padding: 6px 6px 2px; color: var(--color-faint); font-size: 11px; font-weight: 500; }
@@ -86,7 +86,7 @@
 .column-filter__all { border-bottom: 1px solid var(--color-border); border-radius: 0; }
 .column-filter__range { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px; }
 .column-filter__range[hidden] { display: none; }
-.column-filter .fields-menu__hint { margin-left: auto; font-variant-numeric: tabular-nums; }
+.column-filter .fields-menu__hint { flex: none; margin-left: auto; font-variant-numeric: tabular-nums; }
 .column-filter .fields-menu__label { min-width: 0; font-family: inherit; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .cell-name { display: flex; align-items: center; gap: var(--space-2); overflow: hidden; }

@@ -22,6 +22,7 @@ export function createFieldsMenu({ trigger, menu, columnSet, getKeys, onApply })
 
   function option(column) {
     const row = element('label', 'fields-menu__option');
+    row.title = column.hint ? `${column.label} — ${column.hint}` : column.label;
     const box = element('input');
     box.type = 'checkbox';
     box.checked = draft.includes(column.key);
