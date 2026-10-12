@@ -7762,7 +7762,12 @@ class PowerView:
 			return
 		
 		tgt = self.conn.get_TGT()
-		if not tgt:
+		if tgt:
+			cipher = tgt['cipher']
+			sessionKey = tgt['sessionKey']
+			oldSessionKey = tgt.get('oldSessionKey', sessionKey)
+			tgt = tgt['KDC_REP']
+		else:
 			userName = Principal(self.conn.username, type=constants.PrincipalNameType.NT_PRINCIPAL.value)
 			tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, self.conn.password, self.conn.get_domain(),
 																unhexlify(self.conn.lmhash), unhexlify(self.conn.nthash), self.conn.auth_aes_key,
