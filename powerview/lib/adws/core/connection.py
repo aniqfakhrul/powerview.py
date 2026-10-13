@@ -145,18 +145,19 @@ class Connection(object):
         except (OSError, AttributeError):
             return False
     
-    def abandon(self, message_id):
-        """
-        ADWS has no abandon operation. Used for keep-alive compatibility with ldap3.
-        """
-        return self.is_connection_alive()
-
     def keep_alive(self):
-        """
-        Check if the ADWS connection is still alive.
-        Compatible with the connection pool interface.
-        """
-        return self.is_connection_alive()
+        if not self.is_connection_alive():
+            return False
+        if self.resource != ENUMERATION:
+            self.reconnect(ENUMERATION)
+        sock = self.nmf._sock
+        timeout = sock.gettimeout()
+        sock.settimeout(min(timeout, 5) if timeout is not None else 5)
+        try:
+            return self.search(search_base='', search_filter='(objectClass=*)',
+                               search_scope=BASE, attributes=['currentTime'])
+        finally:
+            sock.settimeout(timeout)
 
     def _create_NNS_from_auth(self, sock: socket.socket) -> NNS:
         return NNS(

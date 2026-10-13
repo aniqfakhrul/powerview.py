@@ -87,8 +87,9 @@ def tls_channel_binding_token(peer_certificate):
 class ConnectionPoolEntry:
 	"""Represents a single connection entry in the pool with metadata"""
 	
-	def __init__(self, connection, domain, created_time=None):
+	def __init__(self, connection, domain, created_time=None, *, owns_connection=True):
 		self.connection = connection
+		self.owns_connection = owns_connection
 		self.domain = domain.lower()
 		self.created_time = created_time or time.time()
 		self.last_used = time.time()
@@ -101,6 +102,11 @@ class ConnectionPoolEntry:
 		with self._lock:
 			self.last_used = time.time()
 			self.use_count += 1
+
+	def mark_failed(self):
+		self.is_healthy = False
+		if not self.owns_connection:
+			session_lock(self.connection).interrupted = True
 	
 	def is_alive(self):
 		lock = session_lock(self.connection)
@@ -111,9 +117,12 @@ class ConnectionPoolEntry:
 				return self.is_healthy
 			if not self.is_healthy:
 				return False
-			return self.connection.is_connection_alive()
+			alive = self.connection.is_connection_alive()
+			if not alive:
+				self.mark_failed()
+			return alive
 		except Exception:
-			self.is_healthy = False
+			self.mark_failed()
 			return False
 		finally:
 			lock.release()
@@ -121,6 +130,8 @@ class ConnectionPoolEntry:
 	def close(self):
 		with self._lock:
 			self.is_healthy = False
+		if not self.owns_connection:
+			return
 		try:
 			if hasattr(self.connection, 'close'):
 				self.connection.close()
@@ -215,6 +226,7 @@ class ConnectionPool:
 					if success:
 						entry.mark_used()
 					else:
+						entry.mark_failed()
 						dead_domains.append((domain, entry))
 						logging.debug(f"[ConnectionPool] {self._pool_type} connection keep-alive failed for domain: {domain}")
 				else:
@@ -224,6 +236,7 @@ class ConnectionPool:
 						dead_domains.append((domain, entry))
 						logging.debug(f"[ConnectionPool] {self._pool_type} connection dead during keep-alive for domain: {domain}")
 			except Exception as e:
+				entry.mark_failed()
 				dead_domains.append((domain, entry))
 				logging.debug(f"[ConnectionPool] {self._pool_type} keep-alive error for domain {domain}: {str(e)}")
 			finally:
@@ -329,23 +342,26 @@ class ConnectionPool:
 		self._record_connection_attempt(domain, success=True)
 		return selected
 
-	def add_connection(self, connection, domain):
+	def add_connection(self, connection, domain, *, owns_connection=True):
 		domain = domain.lower()
 		if not connection.is_connection_alive():
 			raise ConnectionError(f"Cannot add dead connection for domain {domain}")
 		discarded = []
 		with self._pool_lock:
 			existing = self._pool.get(domain)
-			if existing and existing.connection is connection:
+			if existing and existing.connection is connection and existing.is_healthy:
+				existing.owns_connection = owns_connection
 				existing.mark_used()
 				self._pool.move_to_end(domain)
 				return
 			if existing:
-				discarded.append(self._pool.pop(domain))
+				self._pool.pop(domain)
+				if existing.connection is not connection:
+					discarded.append(existing)
 			if len(self._pool) >= self.max_connections:
 				discarded.append(self._pool.popitem(last=False)[1])
 				logging.debug(f"[ConnectionPool] {self._pool_type} Evicting connection for domain: {discarded[-1].domain}")
-			self._pool[domain] = ConnectionPoolEntry(connection, domain)
+			self._pool[domain] = ConnectionPoolEntry(connection, domain, owns_connection=owns_connection)
 			logging.debug(f"[ConnectionPool] {self._pool_type} Added connection for domain: {domain}")
 		for entry in discarded:
 			entry.close()
@@ -914,7 +930,8 @@ class CONNECTION:
 		self.channel_binding_active = False
 
 	def add_domain_connection(self, domain):
-		self._connection_pool.add_connection(self, domain)
+		self._connection_pool.add_connection(self, domain, owns_connection=False)
+		self._primary_domain_registered = True
 
 	def get_domain_connection(self, domain):
 		if not domain:
@@ -925,7 +942,7 @@ class CONNECTION:
 		if domain == self.get_domain().lower():
 			if self.is_connection_alive():
 				try:
-					self._connection_pool.add_connection(self, domain)
+					self.add_domain_connection(domain)
 					logging.debug(f"Added primary domain {domain} to pool")
 				except Exception as e:
 					logging.debug(f"Failed to add primary domain to pool: {str(e)}")
@@ -1353,6 +1370,8 @@ class CONNECTION:
 					self.ldap_server, self.ldap_session = self.init_ldap_session()
 
 				if self.is_connection_alive():
+					if getattr(self, '_primary_domain_registered', False):
+						self.add_domain_connection(self.get_domain())
 					session_lock(self).interrupted = False
 					logging.info("LDAP reconnection successful")
 					success = True
@@ -2652,11 +2671,14 @@ class CONNECTION:
 			bool: True if connection is still alive, False otherwise
 		"""
 		try:
-			if hasattr(self.ldap_session, 'abandon'):
+			session = self.ldap_session
+			if isinstance(session, ldap3.Connection):
 				if self.args.stack_trace:
 					logging.debug(f"[Connection] Sending Abandon(1) operation to keep the connection alive")
 				abandon = ldap3.operation.abandon.abandon_operation(1)
-				return self.ldap_session.send('abandonRequest', abandon, None)
+				return bool(session.send('abandonRequest', abandon, None))
+			elif hasattr(session, 'keep_alive'):
+				return bool(session.keep_alive())
 			else:
 				if self.args.stack_trace:
 					logging.debug(f"[Connection] Using is_connection_alive() to keep connection alive")
