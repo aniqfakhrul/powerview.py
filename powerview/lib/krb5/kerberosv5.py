@@ -514,7 +514,7 @@ def getKerberosType3(cipher, sessionKey, auth_data):
 
 def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT = None, TGS = None, targetName='',
                      kdcHost = None, useCache = True, dce_style = True, targetService = 'host', mutual_auth = True,
-                     tgt_cache = None):
+                     tgt_cache = None, channel_binding_value = None):
 
     # Convert to binary form, just in case we're receiving strings
     if isinstance(lmhash, str):
@@ -667,19 +667,26 @@ def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT 
     authenticator['cusec'] = now.microsecond
     authenticator['ctime'] = KerberosTime.to_asn1(now)
 
-    if mutual_auth:
+    if mutual_auth or channel_binding_value is not None:
         authenticator['cksum'] = noValue
         authenticator['cksum']['cksumtype'] = 0x8003
 
         chkField = CheckSumField()
         chkField['Lgth'] = 16
+        if channel_binding_value is not None:
+            chkField['Bnd'] = channel_binding_value
 
-        flags = GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG | GSS_C_SEQUENCE_FLAG | GSS_C_REPLAY_FLAG | GSS_C_MUTUAL_FLAG
-        if dce_style:
-            flags |= GSS_C_DCE_STYLE
+        if mutual_auth:
+            flags = GSS_C_CONF_FLAG | GSS_C_INTEG_FLAG | GSS_C_SEQUENCE_FLAG | GSS_C_REPLAY_FLAG | GSS_C_MUTUAL_FLAG
+            if dce_style:
+                flags |= GSS_C_DCE_STYLE
+        else:
+            # The DC refuses integrity/confidentiality over TLS
+            flags = 0
         chkField['Flags'] = flags
         authenticator['cksum']['checksum'] = chkField.getData()
-        authenticator['seq-number'] = 0
+        if mutual_auth:
+            authenticator['seq-number'] = 0
 
     encodedAuthenticator = encoder.encode(authenticator)
 

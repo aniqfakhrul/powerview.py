@@ -47,8 +47,8 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
         if getattr(args, 'web', False) and hasattr(powerview, 'api_server'):
             web_running = _safe(lambda: powerview.api_server.get_status(), False)
 
-    channel_binding_active = getattr(powerview.conn, 'use_channel_binding', False)
-    ldap_signing_active = getattr(powerview.conn, 'use_sign_and_seal', False)
+    channel_binding_active = getattr(powerview.conn, 'channel_binding_active', False)
+    ldap_signing_active = getattr(powerview.conn, 'sign_and_seal_active', False)
 
     domain_indicator = f" {_rl(bcolors.BOLD + bcolors.FAIL)}[→ {current_target_domain}]{_rl(bcolors.ENDC)}" if current_target_domain else ""
     cache_indicator = f" {_rl(bcolors.WARNING)}[CACHED]{_rl(bcolors.ENDC)}" if using_cache else ""

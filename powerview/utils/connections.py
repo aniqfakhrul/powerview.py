@@ -64,6 +64,26 @@ class ConnectionSetupError(Exception):
 	"""Raised when a connection cannot be established due to configuration or auth errors."""
 	pass
 
+CHANNEL_BINDING_ERROR = '80090346'
+
+def tls_channel_binding_token(peer_certificate):
+	from hashlib import md5
+	from cryptography import x509
+	from cryptography.hazmat.primitives import hashes
+
+	try:
+		algorithm = x509.load_der_x509_certificate(peer_certificate).signature_hash_algorithm
+	except Exception:
+		algorithm = None
+	# RFC 5929 section 4.1
+	if algorithm is None or isinstance(algorithm, (hashes.MD5, hashes.SHA1)):
+		algorithm = hashes.SHA256()
+	digest = hashes.Hash(algorithm)
+	digest.update(peer_certificate)
+	application_data = b'tls-server-end-point:' + digest.finalize()
+	bindings = b'\x00' * 16 + len(application_data).to_bytes(4, 'little') + application_data
+	return md5(bindings).digest()
+
 class ConnectionPoolEntry:
 	"""Represents a single connection entry in the pool with metadata"""
 	
@@ -702,6 +722,54 @@ class CONNECTION:
 				return "LDAP", False, self.port or 389
 		return None, None, None
 
+	@staticmethod
+	def _ldaps_tls(legacy=False):
+		return ldap3.Tls(
+			validate=ssl.CERT_NONE,
+			version=ssl.PROTOCOL_TLSv1 if legacy else ssl.PROTOCOL_TLS_CLIENT,
+			ciphers='ALL:@SECLEVEL=0',
+		)
+
+	def _wants_channel_binding(self, use_ssl, channel_binding=None):
+		if channel_binding is None:
+			channel_binding = getattr(self, 'channel_binding', True)
+		return bool(use_ssl and channel_binding and getattr(self, 'channel_binding_supported', False))
+
+	def _wants_sign_and_seal(self, use_ssl, sign_and_seal=None):
+		if sign_and_seal is None:
+			sign_and_seal = getattr(self, 'sign_and_seal', True)
+		return bool(not use_ssl and sign_and_seal and getattr(self, 'sign_and_seal_supported', False))
+
+	def _security_kwargs(self, use_ssl, auth_method, sasl_mechanism=None, sign_and_seal=None, channel_binding=None):
+		ntlm = auth_method == ldap3.NTLM
+		gssapi = auth_method == ldap3.SASL and sasl_mechanism == ldap3.KERBEROS
+		# ldap3 only accepts channel_binding for NTLM; GSSAPI binds the TLS channel itself
+		if ntlm and self._wants_channel_binding(use_ssl, channel_binding):
+			return {"channel_binding": ldap3.TLS_CHANNEL_BINDING}
+		if (ntlm or gssapi) and self._wants_sign_and_seal(use_ssl, sign_and_seal):
+			return {"session_security": ldap3.ENCRYPT}
+		return {}
+
+	def _set_session_security_state(self, session=None, channel_binding=False):
+		self.sign_and_seal_active = getattr(session, 'session_security', None) == getattr(ldap3, 'ENCRYPT', object())
+		self.channel_binding_active = bool(channel_binding)
+
+	def _signing_required_error(self, auth_method):
+		if auth_method == ldap3.SIMPLE:
+			return "LDAP signing is enforced and SIMPLE binds over plain LDAP cannot be signed. Use LDAPS or NTLM/Kerberos"
+		if not getattr(self, 'sign_and_seal', True):
+			return "LDAP signing is enforced by the server. Remove --no-sign-and-seal or use LDAPS"
+		if not getattr(self, 'sign_and_seal_supported', False):
+			return "LDAP signing is enforced but the installed ldap3 does not support sign and seal. Use LDAPS"
+		return "LDAP signing is enforced by the server"
+
+	def _channel_binding_required_error(self):
+		if not getattr(self, 'channel_binding', True):
+			return "LDAP channel binding is enforced by the server. Remove --no-channel-binding"
+		if not getattr(self, 'channel_binding_supported', False):
+			return "LDAP channel binding is enforced but the installed ldap3 does not support channel binding"
+		return "LDAP channel binding is enforced and the server rejected the channel binding token"
+
 	def __init__(self, args, get_alt_server_info=False, _is_child=False):
 		session_lock(self)
 		self.args = args
@@ -834,46 +902,16 @@ class CONNECTION:
 			else:
 				socket.gethostname = lambda: "localhost"
 
-		# stolen from https://github.com/the-useless-one/pywerview/blob/master/pywerview/requester.py#L90
-		try:
-			if ldap3.SIGN and ldap3.ENCRYPT:
-				self.sign_and_seal_supported = True
-				logging.debug('LDAP sign and seal are supported')
-		except AttributeError:
-			self.sign_and_seal_supported = False
-			logging.debug('LDAP sign and seal are not supported. Install with "pip install ldap3-bleeding-edge"')
-
-		try:
-			if ldap3.TLS_CHANNEL_BINDING:
-				self.tls_channel_binding_supported = True
-				logging.debug('TLS channel binding is supported')
-		except AttributeError:
-			self.tls_channel_binding_supported = False
-			logging.debug('TLS channel binding is not supported Install with "pip install ldap3-bleeding-edge"')
-		self.use_sign_and_seal = self.args.use_sign_and_seal
-		self.use_channel_binding = self.args.use_channel_binding
-		# check sign and cb is supported
-		if self.use_sign_and_seal and not self.sign_and_seal_supported:
-			logging.warning('LDAP sign and seal are not supported. Ignoring flag')
-			self.use_sign_and_seal = False
-		elif self.use_channel_binding and not self.tls_channel_binding_supported:
-			logging.warning('Channel binding is not supported. Ignoring flag')
-			self.use_channel_binding = False
-
-		if self.use_sign_and_seal and self.use_ldaps:
-			if self.args.use_ldaps:
-				logging.error('Sign and seal not supported with LDAPS')
-				raise ConnectionSetupError('Sign and seal not supported with LDAPS')
-			logging.warning('Sign and seal not supported with LDAPS. Falling back to LDAP')
-			self.use_ldap = True
-			self.use_ldaps = False
-		elif self.use_channel_binding and self.use_ldap:
-			if self.args.use_ldap:
-				logging.error('TLS channel binding not supported with LDAP')
-				raise ConnectionSetupError('TLS channel binding not supported with LDAP')
-			logging.warning('Channel binding not supported with LDAP. Proceed with LDAPS')
-			self.use_ldaps = True
-			self.use_ldap = False
+		self.sign_and_seal_supported = hasattr(ldap3, 'SIGN') and hasattr(ldap3, 'ENCRYPT')
+		self.channel_binding_supported = hasattr(ldap3, 'TLS_CHANNEL_BINDING')
+		self.sign_and_seal = getattr(args, 'sign_and_seal', True)
+		self.channel_binding = getattr(args, 'channel_binding', True)
+		if self.sign_and_seal and not self.sign_and_seal_supported:
+			logging.warning('Installed ldap3 does not support LDAP sign and seal')
+		if self.channel_binding and not self.channel_binding_supported:
+			logging.warning('Installed ldap3 does not support TLS channel binding')
+		self.sign_and_seal_active = False
+		self.channel_binding_active = False
 
 	def add_domain_connection(self, domain):
 		self._connection_pool.add_connection(self, domain)
@@ -1454,6 +1492,8 @@ class CONNECTION:
 				target = self.domain
 		
 		if self.do_certificate:
+			if self.use_adws:
+				raise ConnectionSetupError("Certificate (--pfx) authentication is not supported over ADWS. Use LDAPS, LDAP, GC or GC-SSL")
 			logging.debug("Using Schannel, trying to authenticate with provided certificate")
 
 			try:
@@ -1510,6 +1550,7 @@ class CONNECTION:
 
 				self.ldap_session = self.relay_instance.get_ldap_session()
 				self._relayed_session = True
+				self._set_session_security_state()
 				self.ldap_server = self.relay_instance.get_ldap_server()
 				self.proto = self.relay_instance.get_scheme()
 
@@ -1525,19 +1566,16 @@ class CONNECTION:
 			if self.relay:
 				logging.warning("Credentials supplied with relay option. Ignoring relay flag...")
 
+		def _bind(tls=None):
+			if _anonymous:
+				return self.init_ldap_anonymous(target, tls)
+			if self.use_kerberos:
+				return self.init_ldap_kerberos(target, tls, self.domain, self.username, self.password, self.lmhash, self.nthash, self.auth_aes_key, self.kdcHost)
+			return self.init_ldap_connection(target, tls, self.domain, self.username, self.password, self.lmhash, self.nthash, auth_aes_key=self.auth_aes_key, auth_method=self.auth_method)
+
 		if self.use_ldaps is True or self.use_gc_ldaps is True:
 			try:
-				tls = ldap3.Tls(
-					validate=ssl.CERT_NONE,
-					version=ssl.PROTOCOL_TLSv1_2,
-					ciphers='ALL:@SECLEVEL=0',
-				)
-				if _anonymous:
-					self.ldap_server, self.ldap_session = self.init_ldap_anonymous(target, tls)
-				elif self.use_kerberos:
-					self.ldap_server, self.ldap_session = self.init_ldap_kerberos(target, tls, self.domain, self.username, self.password, self.lmhash, self.nthash, self.auth_aes_key, self.kdcHost, seal_and_sign=self.use_sign_and_seal)
-				else:
-					self.ldap_server, self.ldap_session = self.init_ldap_connection(target, tls, self.domain, self.username, self.password, self.lmhash, self.nthash, auth_aes_key=self.auth_aes_key, auth_method=self.auth_method)
+				self.ldap_server, self.ldap_session = _bind(self._ldaps_tls())
 
 				# check if domain is empty
 				if not self.domain or not is_valid_fqdn(self.domain):
@@ -1547,15 +1585,8 @@ class CONNECTION:
 				return self.ldap_server, self.ldap_session
 			except (ldap3.core.exceptions.LDAPSocketOpenError, ConnectionResetError):
 				try:
-					tls = ldap3.Tls(
-						validate=ssl.CERT_NONE,
-						version=ssl.PROTOCOL_TLSv1,
-						ciphers='ALL:@SECLEVEL=0',
-					)
-					if _anonymous:
-						self.ldap_server, self.ldap_session = self.init_ldap_anonymous(target, tls)
-					else:
-						self.ldap_server, self.ldap_session = self.init_ldap_connection(target, tls, self.domain, self.username, self.password, self.lmhash, self.nthash, auth_aes_key=self.auth_aes_key, auth_method=self.auth_method)
+					logging.debug('TLS handshake failed, retrying with legacy TLS 1.0')
+					self.ldap_server, self.ldap_session = _bind(self._ldaps_tls(legacy=True))
 					self.username = self._extract_username_from_whoami()
 					self.domain = dn2domain(self.ldap_server.info.other["defaultNamingContext"][0])
 					return self.ldap_server, self.ldap_session
@@ -1569,6 +1600,7 @@ class CONNECTION:
 					return self.init_ldap_session(_retry_depth=_retry_depth + 1)
 		elif self.use_adws:
 			self.ldap_server, self.ldap_session = self.init_adws_session()
+			self._set_session_security_state()
 			# Extract domain from server info if available (like LDAP path)
 			try:
 				server_domain = dn2domain(self.ldap_server.info.other["defaultNamingContext"][0])
@@ -1578,12 +1610,7 @@ class CONNECTION:
 				pass
 			return self.ldap_server, self.ldap_session
 		else:
-			if _anonymous:
-				self.ldap_server, self.ldap_session = self.init_ldap_anonymous(target)
-			elif self.use_kerberos:
-				self.ldap_server, self.ldap_session = self.init_ldap_kerberos(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash, self.auth_aes_key, self.kdcHost, seal_and_sign=self.use_sign_and_seal)
-			else:
-				self.ldap_server, self.ldap_session = self.init_ldap_connection(target, None, self.domain, self.username, self.password, self.lmhash, self.nthash, auth_aes_key=self.auth_aes_key, auth_method=self.auth_method)
+			self.ldap_server, self.ldap_session = _bind()
 			self.username = self._extract_username_from_whoami()
 			self.domain = dn2domain(self.ldap_server.info.other["defaultNamingContext"][0])
 			return self.ldap_server, self.ldap_session
@@ -1605,6 +1632,7 @@ class CONNECTION:
 			"connect_timeout": getattr(self.args, "ldap_timeout", 30),
 			"host": target,
 			"get_info": ldap3.ALL,
+			"tls": tls,
 			"formatter": self._get_formatter()
 		}
 
@@ -1630,6 +1658,7 @@ class CONNECTION:
 			raise ConnectionSetupError(f"ANONYMOUS access not allowed for {self.domain}")
 		else:
 			logging.info("Server allows ANONYMOUS access!")
+			self._set_session_security_state()
 			
 			# check if domain is empty
 			if not self.domain or not is_valid_fqdn(self.domain):
@@ -1663,7 +1692,7 @@ class CONNECTION:
 
 		return new_creds
 
-	def init_ldap_kerberos(self, target, tls=None, domain=None, username=None, password=None, lmhash=None, nthash=None, aesKey=None, kdcHost=None, seal_and_sign=False, channel_binding=False, _retry_depth=0):
+	def init_ldap_kerberos(self, target, tls=None, domain=None, username=None, password=None, lmhash=None, nthash=None, aesKey=None, kdcHost=None, sign_and_seal=None, channel_binding=None, _retry_depth=0):
 		if _retry_depth > 3:
 			raise ConnectionSetupError("Maximum Kerberos LDAP retry depth exceeded")
 		from impacket.krb5.ccache import CCache
@@ -1809,24 +1838,28 @@ class CONNECTION:
 			"sasl_mechanism": ldap3.KERBEROS,
 			"cred_store": cred_store
 		}
+		use_ssl = bool(ldap_server.ssl)
+		ldap_connection_kwargs.update(self._security_kwargs(use_ssl, ldap3.SASL, ldap3.KERBEROS, sign_and_seal=sign_and_seal, channel_binding=channel_binding))
 
-		if seal_and_sign or self.use_sign_and_seal:
-			if not self.sign_and_seal_supported:
-				logging.warning("LDAP sign and seal is not supported")
-				raise ConnectionSetupError("LDAP sign and seal is not supported")
-			ldap_connection_kwargs["session_security"] = ldap3.ENCRYPT
-		if channel_binding or self.use_channel_binding:
-			if not self.tls_channel_binding_supported:
-				logging.warning("TLS channel binding is not supported")
-				raise ConnectionSetupError("TLS channel binding is not supported")
-			ldap_connection_kwargs["channel_binding"] = ldap3.TLS_CHANNEL_BINDING
-
+		logging.debug('Connecting to LDAP with parameters:')
+		for k, v in ldap_connection_kwargs.items():
+			logging.debug(f'  {k}: {v}')
 		try:
-			logging.debug('Connecting to LDAP with parameters:')
-			for k, v in ldap_connection_kwargs.items():
-				logging.debug(f'  {k}: {v}')
 			ldap_connection = ldap3.Connection(**ldap_connection_kwargs)
+		except ldap3.core.exceptions.LDAPInvalidValueError as e:
+			raise ConnectionSetupError(str(e))
+
+		fallback_args = (ldap_connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost, use_ssl, channel_binding)
+		channel_binding_disabled = channel_binding is False or (channel_binding is None and not getattr(self, 'channel_binding', True))
+		if use_ssl and channel_binding_disabled:
+			# ldap3 always binds GSSAPI to the TLS channel, so use the SPNEGO bind to honour --no-channel-binding
+			logging.debug("Channel binding disabled, using impacket style kerberos login")
+			channel_bound = self._impacket_kerberos_fallback(*fallback_args)
+			self._set_session_security_state(ldap_connection, channel_binding=channel_bound)
+			return ldap_server, ldap_connection
+		try:
 			ldap_connection.bind()
+			channel_bound = use_ssl
 		except ldap3.core.exceptions.LDAPSocketOpenError as e:
 				logging.critical(e)
 				if tls:
@@ -1834,34 +1867,51 @@ class CONNECTION:
 										  'not supporting SHA1 as signing algorithm for certificates')
 				raise ConnectionSetupError(f"LDAP socket open error: {str(e)}")
 		except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult:
-			logging.warning("Server returns LDAPStrongerAuthRequiredResult")
-			if not self.sign_and_seal_supported:
-				logging.warning("Sealing not available, falling back to LDAPS")
-				tls = ldap3.Tls(
-					validate=ssl.CERT_NONE,
-					version=ssl.PROTOCOL_TLSv1_2,
-					ciphers='ALL:@SECLEVEL=0',
-				)
-				return self.init_ldap_kerberos(target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, aesKey=aesKey, seal_and_sign=False, _retry_depth=_retry_depth + 1)
-			else:
-				logging.warning("Falling back to Kerberos sealing")
-				return self.init_ldap_kerberos(target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, aesKey=aesKey, seal_and_sign=True, _retry_depth=_retry_depth + 1)
+			raise ConnectionSetupError(self._signing_required_error(ldap3.SASL))
 		except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult:
 			logging.warning("Server returns LDAPAuthMethodNotSupportedResult.")
 			if is_proxychains():
 				logging.warning("This might caused by gssapi is not supported via proxychains. Try to use https://github.com/hmgle/graftcp instead.")
 			
 			logging.warning("Falling back to impacket style kerberos login")
-			self.impacket_ldap3_kerberos_login(ldap_connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost=kdcHost, useCache=self.no_pass)
+			channel_bound = self._impacket_kerberos_fallback(*fallback_args)
 		except Exception as e:
 			if self.stack_trace:
 				raise e
 			logging.warning(f"Unknown error: {e}. Falling back to impacket style kerberos login")
-			self.impacket_ldap3_kerberos_login(ldap_connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost=kdcHost, useCache=self.no_pass)
+			channel_bound = self._impacket_kerberos_fallback(*fallback_args)
 
+		self._set_session_security_state(ldap_connection, channel_binding=channel_bound)
 		return ldap_server, ldap_connection
 
-	def impacket_ldap3_kerberos_login(self, connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True):
+	def _impacket_kerberos_fallback(self, connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost, use_ssl, channel_binding=None):
+		send_channel_binding = self._wants_channel_binding(use_ssl, channel_binding)
+		login = lambda cb: self.impacket_ldap3_kerberos_login(connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost=kdcHost, useCache=self.no_pass, channel_binding=cb)
+		try:
+			channel_bound = login(send_channel_binding)
+			if self._wants_sign_and_seal(use_ssl):
+				logging.warning("The impacket Kerberos fallback cannot sign and seal. This LDAP session is not encrypted")
+			return channel_bound
+		except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult:
+			if not self._wants_sign_and_seal(use_ssl):
+				message = self._signing_required_error(ldap3.SASL)
+			else:
+				message = ("LDAP signing is enforced, but the impacket Kerberos fallback cannot sign and seal. "
+						 "Use LDAPS, or a GSSAPI library with credential store support (MIT krb5)")
+			raise ConnectionSetupError(message)
+		except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
+			if CHANNEL_BINDING_ERROR not in str(e):
+				raise
+			if send_channel_binding:
+				logging.warning("Server rejected the Kerberos channel binding token. Retrying without channel binding")
+				try:
+					return login(False)
+				except ldap3.core.exceptions.LDAPInvalidCredentialsResult as retry_error:
+					if CHANNEL_BINDING_ERROR not in str(retry_error):
+						raise
+			raise ConnectionSetupError(self._channel_binding_required_error())
+
+	def impacket_ldap3_kerberos_login(self, connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True, channel_binding=False):
 		"""
 		Login to the target system explicitly using Kerberos via SPNEGO.
 
@@ -1874,6 +1924,21 @@ class CONNECTION:
 		if self.TGT or self.TGS:
 			useCache = False
 
+		# Ensure a clean connection for the SPNEGO bind (prior SASL attempt may
+		# have left the socket in a bad state, e.g. after gssapi fallback)
+		try:
+			if not connection.closed:
+				connection.unbind()
+		except Exception:
+			pass
+		connection.open(read_server_info=False)
+
+		channel_binding_value = None
+		peer_certificate = getattr(connection.server.tls, 'peer_certificate', None) if connection.server.ssl else None
+		if channel_binding and peer_certificate:
+			channel_binding_value = tls_channel_binding_token(peer_certificate)
+			logging.debug("Adding TLS channel binding token to the Kerberos authenticator")
+
 		_, _, blob = getKerberosType1(
 			user, password, domain, lmhash, nthash,
 			aesKey=aesKey,
@@ -1885,6 +1950,7 @@ class CONNECTION:
 			dce_style=False,
 			targetService='ldap',
 			mutual_auth=False,
+			channel_binding_value=channel_binding_value,
 		)
 
 		request = ldap3.operation.bind.bind_operation(
@@ -1892,18 +1958,11 @@ class CONNECTION:
 			None, 'GSS-SPNEGO', blob
 		)
 
-		# Ensure a clean connection for the SPNEGO bind (prior SASL attempt may
-		# have left the socket in a bad state, e.g. after gssapi fallback)
-		try:
-			if not connection.closed:
-				connection.unbind()
-		except Exception:
-			pass
-		connection.open(read_server_info=False)
-
 		connection.sasl_in_progress = True
-		response = connection.post_send_single_response(connection.send('bindRequest', request, None))
-		connection.sasl_in_progress = False
+		try:
+			response = connection.post_send_single_response(connection.send('bindRequest', request, None))
+		finally:
+			connection.sasl_in_progress = False
 		if response[0]['result'] != 0:
 			raise Exception(response)
 
@@ -1911,9 +1970,9 @@ class CONNECTION:
 		connection.session_security = None # just to skip the session security check
 		connection.refresh_server_info()
 
-		return True
+		return channel_binding_value is not None
 
-	def init_ldap_schannel_connection(self, target, tls, seal_and_sign=False, tls_channel_binding=False, _retry_depth=0):
+	def init_ldap_schannel_connection(self, target, tls, _retry_depth=0):
 		if _retry_depth > 3:
 			raise ConnectionSetupError("Maximum schannel retry depth exceeded")
 		ldap_server_kwargs = {
@@ -1926,7 +1985,7 @@ class CONNECTION:
 			"formatter": self._get_formatter()
 		}
 
-		proto, use_ssl, port = self._resolve_protocol(tls=True)
+		proto, use_ssl, port = self._resolve_protocol(tls=self.use_ldaps or self.use_gc_ldaps)
 		if proto:
 			self.proto = proto
 			ldap_server_kwargs["use_ssl"] = use_ssl
@@ -1950,39 +2009,20 @@ class CONNECTION:
 			ldap_connection_kwargs["auto_bind"] = ldap3.AUTO_BIND_TLS_BEFORE_BIND
 
 		try:
-			if seal_and_sign or self.use_sign_and_seal:
-				logging.debug("Using seal and sign")
-				ldap_connection_kwargs["session_security"] = ldap3.ENCRYPT
-			elif tls_channel_binding or self.use_channel_binding:
-				logging.debug("Using channel binding")
-				ldap_connection_kwargs["channel_binding"] = ldap3.TLS_CHANNEL_BINDING
-			
 			logging.debug('Connecting to LDAP with parameters:')
 			for k, v in ldap_connection_kwargs.items():
 				logging.debug(f'  {k}: {v}')
 			ldap_session = ldap3.Connection(**ldap_connection_kwargs)
-			ldap_session.open()
+			if ldap_session.closed:
+				ldap_session.open()
 		except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
-			logging.debug("Server returns invalidCredentials")
-			if 'AcceptSecurityContext error, data 80090346' in str(ldap_session.result):
-				self.use_channel_binding = True
-				logging.warning("Channel binding is enforced!")
-				if self.tls_channel_binding_supported and (self.use_ldaps or self.use_gc_ldaps):
-					logging.debug("Re-authenticate with channel binding")
-					return self.init_ldap_schannel_connection(target, tls, tls_channel_binding=True, _retry_depth=_retry_depth + 1)
-				else:
-					logging.warning('ldap3 library doesn\'t support CB. Install with "pip install \"git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements\""')
-					raise ConnectionSetupError("ldap3 library doesn't support channel binding")
-		except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult as e:
-			logging.debug("Server returns LDAPStrongerAuthRequiredResult")
-			self.use_sign_and_seal = True
-			logging.warning("LDAP Signing is enforced!")
-			if self.sign_and_seal_supported:
-				logging.debug("Re-authenticate with seal and sign")
-				return self.init_ldap_schannel_connection(target, tls, seal_and_sign=True, _retry_depth=_retry_depth + 1)
+			if CHANNEL_BINDING_ERROR in str(e):
+				message = "Server requires channel binding for this certificate bind"
 			else:
-				logging.warning('ldap3 library doesn\'t support CB. Install with "pip install \"git+https://github.com/H0j3n/ldap3.git@powerview.py_match-requirements\""')
-				raise ConnectionSetupError("ldap3 library doesn't support sign and seal")
+				message = f"Schannel authentication failed: {str(e)}"
+			raise ConnectionSetupError(message)
+		except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult as e:
+			raise ConnectionSetupError("LDAP signing is enforced by the server")
 		except ldap3.core.exceptions.LDAPInappropriateAuthenticationResult as e:
 			logging.error("Cannot start kerberos signing/sealing when using TLS/SSL")
 			raise ConnectionSetupError("Cannot start kerberos signing/sealing when using TLS/SSL")
@@ -1997,9 +2037,10 @@ class CONNECTION:
 			logging.error(f"AuthError: {ldap_session.result}")
 			raise ConnectionSetupError(f"Authentication error: {ldap_session.result}")
 
+		self._set_session_security_state(ldap_session)
 		return ldap_server, ldap_session
 
-	def init_adws_connection(self, target, domain=None, username=None, password=None, lmhash=None, nthash=None, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM, aesKey='', kdcHost=None, use_kerberos=False, no_pass=False):
+	def init_adws_connection(self, target, domain=None, username=None, password=None, lmhash=None, nthash=None, auth_method=ldap3.NTLM, aesKey='', kdcHost=None, use_kerberos=False, no_pass=False):
 		self.proto = "ADWS"
 
 		adws_server_kwargs = {
@@ -2038,7 +2079,7 @@ class CONNECTION:
 				logging.error(f"Error during ADWS authentication with error: {str(e)}")
 			raise ConnectionSetupError(f"ADWS authentication failed: {str(e)}")
 
-	def init_ldap_connection(self, target, tls, domain=None, username=None, password=None, lmhash=None, nthash=None, auth_aes_key=None, seal_and_sign=False, tls_channel_binding=False, auth_method=ldap3.NTLM, _retry_depth=0):
+	def init_ldap_connection(self, target, tls, domain=None, username=None, password=None, lmhash=None, nthash=None, auth_aes_key=None, sign_and_seal=None, channel_binding=None, auth_method=ldap3.NTLM, _retry_depth=0):
 		if _retry_depth > 3:
 			raise ConnectionSetupError("Maximum LDAP connection retry depth exceeded")
 		ldap_server_kwargs = {
@@ -2047,6 +2088,7 @@ class CONNECTION:
 			"get_info": ldap3.ALL,
 			"allowed_referral_hosts": [('*', True)],
 			"mode": ldap3.IP_V4_PREFERRED,
+			"tls": tls,
 			"formatter": self._get_formatter()
 		}
 
@@ -2076,12 +2118,12 @@ class CONNECTION:
 		}
 		logging.debug(f"Authentication: {auth_method}, User: {user}")
 
-		if seal_and_sign or self.use_sign_and_seal:
-			logging.debug("Using seal and sign")
-			ldap_connection_kwargs["session_security"] = ldap3.ENCRYPT
-		elif tls_channel_binding or self.use_channel_binding:
-			logging.debug("Using channel binding")
-			ldap_connection_kwargs["channel_binding"] = ldap3.TLS_CHANNEL_BINDING
+		use_ssl = bool(ldap_server.ssl)
+		security = self._security_kwargs(use_ssl, auth_method, sign_and_seal=sign_and_seal, channel_binding=channel_binding)
+		ldap_connection_kwargs.update(security)
+		if auth_method == ldap3.SIMPLE and not use_ssl:
+			logging.warning("SIMPLE bind over plain LDAP sends the password in cleartext")
+		retry_kwargs = dict(target=target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, auth_aes_key=auth_aes_key, sign_and_seal=sign_and_seal, channel_binding=channel_binding, auth_method=auth_method, _retry_depth=_retry_depth + 1)
 		
 		logging.debug(f"Connecting to {ldap_server_kwargs['host']}, Port: {ldap_server_kwargs['port']}, SSL: {ldap_server_kwargs['use_ssl']}")
 		if self.hashes is not None:
@@ -2100,27 +2142,18 @@ class CONNECTION:
 			bind = ldap_session.bind()
 		except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
 			logging.debug("Server returns invalidCredentials")
-			if 'AcceptSecurityContext error, data 80090346' in str(ldap_session.result):
-				logging.warning("Channel binding is enforced!")
-				self.use_channel_binding = True
-				if self.tls_channel_binding_supported and (self.use_ldaps or self.use_gc_ldaps):
-					logging.debug("Re-authenticate with channel binding")
-					return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, auth_aes_key, tls_channel_binding=True, auth_method=self.auth_method, _retry_depth=_retry_depth + 1)
-				else:
-					if lmhash and nthash:
-						raise ConnectionSetupError("Channel binding is enforced and hash authentication is not supported without CB")
-					else:
-						logging.info("Falling back to SIMPLE authentication")
-						return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, auth_aes_key, auth_method=ldap3.SIMPLE, _retry_depth=_retry_depth + 1)
+			if CHANNEL_BINDING_ERROR in str(ldap_session.result):
+				if "channel_binding" in security:
+					logging.warning("Server rejected the channel binding token. Retrying without channel binding")
+					retry_kwargs["channel_binding"] = False
+					return self.init_ldap_connection(**retry_kwargs)
+				if auth_method == ldap3.NTLM and use_ssl and not self.channel_binding_supported and password and not (lmhash or nthash):
+					logging.warning("Channel binding is enforced but not supported by the installed ldap3. Falling back to SIMPLE authentication")
+					retry_kwargs["auth_method"] = ldap3.SIMPLE
+					return self.init_ldap_connection(**retry_kwargs)
+				raise ConnectionSetupError(self._channel_binding_required_error())
 		except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult as e:
-			logging.debug("Server returns LDAPStrongerAuthRequiredResult")
-			logging.warning("LDAP Signing is enforced!")
-			self.use_sign_and_seal = True
-			if self.sign_and_seal_supported:
-				logging.debug("Re-authenticate with seal and sign")
-				return self.init_ldap_connection(target, tls, domain, username, password, lmhash, nthash, auth_aes_key, seal_and_sign=True, auth_method=self.auth_method, _retry_depth=_retry_depth + 1)
-			else:
-				raise ConnectionSetupError("LDAP Signing is enforced but sign and seal is not supported")
+			raise ConnectionSetupError(self._signing_required_error(auth_method))
 		except ldap3.core.exceptions.LDAPInappropriateAuthenticationResult as e:
 			logging.error("Cannot start kerberos signing/sealing when using TLS/SSL")
 			raise ConnectionSetupError("Cannot start kerberos signing/sealing when using TLS/SSL")
@@ -2144,6 +2177,7 @@ class CONNECTION:
 		else:
 			logging.debug("Bind SUCCESS!")
 
+		self._set_session_security_state(ldap_session, channel_binding="channel_binding" in security)
 		return ldap_server, ldap_session
 
 	def init_smb_session(self, host, username=None, password=None, nthash=None, lmhash=None, aesKey=None, domain=None, timeout=10, useCache=True, force_new=False, show_exceptions=True):

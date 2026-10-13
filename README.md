@@ -44,10 +44,18 @@ powerview range.net/lowpriv:Password123@192.168.86.192 --web [--web-host 0.0.0.0
 ```
 ![IMG_4602](https://github.com/user-attachments/assets/15bcd3e3-0693-4b0c-9c58-c8f36d899486)
 
-* Init connection with specific authentication. Note that `--use-sign-and-seal` and `--use-channel-binding` is only available if you install `ldap3` library directly from this [branch](https://github.com/ThePirateWhoSmellsOfSunflowers/ldap3/tree/tls_cb_and_seal_for_ntlm) 
+* Init connection with specific authentication
 ```
-powerview range.net/lowpriv:Password123@192.168.86.192 [--use-channel-binding | --use-sign-and-seal | --use-simple-auth]
+powerview range.net/lowpriv:Password123@192.168.86.192 [--use-simple-auth] [--no-channel-binding] [--no-sign-and-seal]
 ```
+> [!NOTE]
+> Channel binding and sign and seal are on by default, wherever the protocol and authentication method support them:
+> * **Channel binding** for NTLM and Kerberos over LDAPS/GC-SSL (shown as 📦 in the prompt)
+> * **Sign and seal** for NTLM and Kerberos over LDAP/GC (shown as 🔒 in the prompt)
+>
+> SIMPLE, certificate (`--pfx`), anonymous and ADWS sessions use neither. `--no-channel-binding` and `--no-sign-and-seal` opt out.
+>
+> Kerberos sealing over LDAP/GC needs a GSSAPI library with credential store support (MIT krb5). Without one, such as on macOS, powerview falls back to an impacket-based Kerberos bind that cannot seal. Use LDAPS against DCs that require signing.
 * Init with schannel. `--pfx` flag accept pfx formatted certificate file.
 > [!NOTE]  
 > powerview will try to load certificate without password on the first attempt. If it fails, it'll prompt for password. So, no password parameter needed

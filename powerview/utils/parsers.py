@@ -62,10 +62,11 @@ def arg_parse():
 	auth.add_argument("-k", "--kerberos", dest="use_kerberos", action="store_true", help='Use Kerberos authentication. Grabs credentials from .ccache file (KRB5CCNAME) based on target parameters. If valid credentials cannot be found, it will use the ones specified in the command line')
 	
 	auth_type_group = auth.add_mutually_exclusive_group()
-	auth_type_group.add_argument("--use-channel-binding", action='store_true', default=False, help='[Optional] Use channel binding if channel binding is required on LDAP server')
-	auth_type_group.add_argument("--use-sign-and-seal", action='store_true', default=False, help='[Optional] Use sign and seal if LDAP signing is required on ldap server')
 	auth_type_group.add_argument("--use-simple-auth", dest="use_simple_auth", action="store_true", default=False, help='Authenticate with SIMPLE authentication')
 	auth_type_group.add_argument("--pfx", dest="pfx", action="store", help='Supply .pfx formatted certificate. Use --cert and --key if no pfx')
+
+	auth.add_argument("--no-channel-binding", dest="channel_binding", action="store_false", default=True, help='Disable TLS channel binding for NTLM/Kerberos binds over LDAPS/GC-SSL (enabled by default)')
+	auth.add_argument("--no-sign-and-seal", dest="sign_and_seal", action="store_false", default=True, help='Disable signing and sealing for NTLM/Kerberos binds over LDAP/GC (enabled by default)')
 
 	auth.add_argument("--ldap-user-dn", dest="ldap_user_dn", action="store", help="LDAP user DN for SASL EXTERNAL bind (e.g. CN=User,...). Optional")
 	auth.add_argument('--no-pass', action="store_true", help="don't ask for password (useful for -k)")
