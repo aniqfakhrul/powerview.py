@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { csvCell, toCsv } from '../static/js/components/grid/csv-export.js';
+import { csvCell, csvFilename, toCsv } from '../static/js/components/grid/csv-export.js';
 import { dnChipColumn } from '../static/js/components/grid/chips.js';
 
 test('cells are always quoted and embedded quotes are doubled', () => {
@@ -46,5 +46,17 @@ test('computer IP exports retain resolved addresses for built-in and custom sele
     const fields = columns.map((column) => ({ label: column.label, value: (entry) => (column.csv ?? column.text)(entry.record, entry) }));
     const csv = toCsv(fields, [{ name: 'PC01', record: { attributes: { IPAddress: ['192.0.2.1', '192.0.2.2'] } } }]);
     assert.equal(csv, '"name","IPAddress"\r\n"PC01","192.0.2.1, 192.0.2.2"');
+  }
+});
+
+
+test('CSV filenames identify the connected domain and export view', () => {
+  const date = new Date('2026-10-13T20:39:23.000Z');
+  for (const view of ['users', 'computers', 'groups', 'dns', 'ca-templates', 'ca-authorities', 'ou', 'gpo', 'pathfinder']) {
+    assert.equal(csvFilename(view, 'WONKA.LAB', date), `powerview-wonka.lab-${view}-2026-10-13T20-39-23-000Z.csv`);
+  }
+  assert.equal(csvFilename('users', '../wonka/lab\\test:', date), 'powerview-wonka-lab-test-users-2026-10-13T20-39-23-000Z.csv');
+  for (const domain of [undefined, null, '', '  ', {}, '../']) {
+    assert.equal(csvFilename('users', domain, date), 'powerview-unknown-domain-users-2026-10-13T20-39-23-000Z.csv');
   }
 });

@@ -28,6 +28,7 @@ async function download(page) {
     const gate = new Promise((resolve) => { release = resolve; });
     await context.route('**/api/**', async (route) => {
       const path = new URL(route.request().url()).pathname;
+      if (path.endsWith('/connectioninfo')) return route.fulfill({ json: { status: 'OK', domain: 'example.test' } });
       if (path.endsWith('/get/domaininfo')) return route.fulfill({ json: { root_dn: rootDN } });
       if (path.endsWith('/server/info')) return route.fulfill({ json: { raw: { namingContexts: [rootDN] } } });
       if (path.endsWith('/get/domainuser')) { await gate; return route.fulfill({ json: users }); }
@@ -60,7 +61,7 @@ async function download(page) {
     const shown = await page.locator('#grid-body tr[data-dn]').count();
     assert.equal(shown, 2);
     const exported = await download(page);
-    assert.match(exported.name, /^powerview-users-\d{4}-\d{2}-\d{2}T.*\.csv$/);
+    assert.match(exported.name, /^powerview-example\.test-users-\d{4}-\d{2}-\d{2}T.*\.csv$/);
     assert.ok(exported.text.startsWith('﻿'));
     const lines = exported.text.slice(1).trimEnd().split('\r\n');
     const labels = await page.locator('#grid-head .column-sort__label').allTextContents();
@@ -84,7 +85,7 @@ async function download(page) {
     await page.goto(`${base}/groups`);
     await page.locator('#grid-body .cell-chips').first().waitFor();
     const groupsCsv = await download(page);
-    assert.match(groupsCsv.name, /^powerview-groups-/);
+    assert.match(groupsCsv.name, /^powerview-example\.test-groups-/);
     assert.ok(groupsCsv.text.includes(`"CN=Alpha,OU=Staff,${rootDN}; CN=Bravo,OU=Staff,${rootDN}"`));
 
     await page.goto(`${base}/pathfinder`);
@@ -95,7 +96,7 @@ async function download(page) {
     await page.locator('#pathfinder-find').click();
     await page.locator('#grid-body tr[data-key]').first().waitFor();
     const acl = await download(page);
-    assert.match(acl.name, /^powerview-pathfinder-/);
+    assert.match(acl.name, /^powerview-example\.test-pathfinder-/);
     assert.match(acl.text.split('\r\n')[0], /"ObjectDN"$/);
     assert.ok(acl.text.includes('"ReadControl; WriteDACL"'));
     assert.deepEqual(errors, []);

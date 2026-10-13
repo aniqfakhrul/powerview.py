@@ -131,7 +131,9 @@ formula injection risk. CSV interpretation varies between spreadsheet applicatio
 this is not a universal guarantee, particularly after saving and reopening a file.
 The button is disabled while loading and
 when no rows are shown. The export is built in the browser and issues no
-directory request. Logic lives in `components/grid/csv-export.js`;
+directory request. Filenames include the connected domain from `/api/connectioninfo`,
+for example `powerview-wonka.lab-users-2026-10-13T20-39-23-000Z.csv`;
+unavailable connection metadata uses `unknown-domain`. Logic lives in `components/grid/csv-export.js`;
 `tests/csv-export.test.mjs` and `tests/grid-export.browser.cjs` cover it.
 
 ## Motion and loading

@@ -27,6 +27,7 @@ function linkedSearch() {
 
 export function createGridPage({ root, endpoint, noun, columnSet, search: searchConfig = {}, fetch: fetchEntries, deletable = true, describeRemoval, isProtected = () => false, afterDelete, summary, panelActions, autoLoad = true, initialMessage, emptyMessage, details, onLoadState, exportName = root.id }) {
   const directory = createDirectory(new URL(root.dataset.apiRoot, window.location.origin));
+  const exportDomain = directory.connection(AbortSignal.timeout(5000)).then((info) => info?.domain).catch(() => null);
   const scroller = document.querySelector('#grid-scroll');
   const head = document.querySelector('#grid-head');
   const body = document.querySelector('#grid-body');
@@ -345,13 +346,15 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     exportButton.disabled = filter.disabled || !visible.length;
   }
 
-  function exportCsv() {
+  async function exportCsv() {
     const header = details ? 'ObjectDN' : 'distinguishedName';
     const shown = columns.some((column) => column.label.toLowerCase() === header.toLowerCase());
     const fields = columns.map((column) => ({ label: column.label, value: (entry) => (column.csv ?? column.text)(entry.record, entry) }));
     if (!shown && visible.some((entry) => entry.dn)) fields.push({ label: header, value: (entry) => entry.dn });
-    downloadCsv(exportName, toCsv(fields, visible));
-    notify.success(`Exported ${visible.length} ${visible.length === 1 ? noun.singular : noun.plural} to CSV`);
+    const csv = toCsv(fields, visible);
+    const count = visible.length;
+    downloadCsv(exportName, csv, await exportDomain);
+    notify.success(`Exported ${count} ${count === 1 ? noun.singular : noun.plural} to CSV`);
   }
 
   async function load(fresh = false) {

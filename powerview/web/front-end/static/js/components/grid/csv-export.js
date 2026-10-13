@@ -12,11 +12,17 @@ export function toCsv(columns, entries) {
   return lines.map((cells) => cells.map(csvCell).join(',')).join('\r\n');
 }
 
-export function downloadCsv(name, csv) {
+export function csvFilename(name, domain, date = new Date()) {
+  const environment = typeof domain === 'string' ? domain.trim().toLowerCase().replace(/[^a-z0-9.-]+/g, '-').replace(/^[.-]+|[.-]+$/g, '') : '';
+  const timestamp = date.toISOString().replace(/[:.]/g, '-');
+  return `powerview-${environment || 'unknown-domain'}-${name}-${timestamp}.csv`;
+}
+
+export function downloadCsv(name, csv, domain) {
   const url = URL.createObjectURL(new Blob([`﻿${csv}\r\n`], { type: 'text/csv;charset=utf-8' }));
   const link = document.createElement('a');
   link.href = url;
-  link.download = `powerview-${name}-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
+  link.download = csvFilename(name, domain);
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
