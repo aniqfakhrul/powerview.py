@@ -3,7 +3,6 @@ import sys
 import logging
 
 from impacket import version
-from powerview.utils.completer import COMMANDS
 from powerview.utils.colors import bcolors, Gradient
 from powerview.utils.helpers import escape_filter_chars_except_asterisk, parse_hashes, parse_username, parse_identity, parse_identity_list
 from powerview._version import BANNER,__version__
@@ -22,6 +21,13 @@ class PowerViewParser(argparse.ArgumentParser):
 			print(message, file=sys.stderr)
 			sys.exit(0)
 		raise argparse.ArgumentError(None, message)
+
+class PowerViewConsoleParser(PowerViewParser):
+	def _parse_optional(self, arg_string):
+		name, separator, value = arg_string.partition('=')
+		if name not in self._option_string_actions:
+			name = next((option for option in self._option_string_actions if option.casefold() == name.casefold()), name)
+		return super()._parse_optional(name + separator + value)
 
 def positive_timeout(value):
 	seconds = int(value)
@@ -150,7 +156,7 @@ class Helper:
 		return {'web_auth_user': web_auth_user, 'web_auth_password': web_auth_password}
 
 def powerview_arg_parse(cmd):
-	parser = PowerViewParser(exit_on_error=False)
+	parser = PowerViewConsoleParser(exit_on_error=False)
 	subparsers = parser.add_subparsers(dest='module')
 	parser.add_argument('-Server', action='store', dest='server')
 	parser.add_argument('-Where', action='store', dest='where')
@@ -1667,18 +1673,19 @@ def powerview_arg_parse(cmd):
 			plugin_parser.add_argument('-NoVulnCheck', action='store_true', dest='no_vuln_check')
 			plugin_parser.add_argument('-Raw', action='store_true', dest='raw')
 
+	cmd = list(cmd)
+	if cmd:
+		commands = {name.casefold(): name for name in subparsers.choices}
+		cmd[0] = commands.get(cmd[0].casefold(), cmd[0])
+
 	try:
 		args, unknown = parser.parse_known_args(cmd)
 		
 		if unknown:
 			for unk in unknown:
-				if unk[0] == "-":
-					if unk.casefold() in [ item.casefold() for item in COMMANDS[cmd[0]]]:
-						indexs = [item.lower() for item in COMMANDS[cmd[0]]].index(unk.lower())
-						cmd = [c.replace(unk,COMMANDS[cmd[0]][indexs]) for c in cmd]
-					else:
-						print(f"Unrecognized argument: {unk}", file=sys.stderr)
-						return None
+				if unk.startswith('-'):
+					print(f"Unrecognized argument: {unk}", file=sys.stderr)
+					return None
 				else:
 					if hasattr(args, 'identity'):
 						args.identity = parse_identity_list(unk)
@@ -1715,14 +1722,6 @@ def powerview_arg_parse(cmd):
 
 		return args
 	except argparse.ArgumentError as e:
-		try:
-			for i in list(COMMANDS.keys()):
-				if cmd[0].casefold() == i.casefold():
-					cmd[0] = i
-					return parser.parse_args(cmd)
-		except:
-			pass
-		
 		if "module" in str(e):
 			print("Invalid command", file=sys.stderr)
 		else:
