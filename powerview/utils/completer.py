@@ -256,7 +256,10 @@ class Completer(object):
         begidx = readline.get_begidx()
         endidx = readline.get_endidx()
 
-        left = buffer[:begidx]
+        argument_start = max(buffer.rfind(delimiter, 0, begidx) for delimiter in ' \t\n;') + 1
+        replacement_offset = begidx - argument_start
+        text = buffer[argument_start:endidx]
+        left = buffer[:argument_start]
         right = buffer[endidx:]
 
         left_tokens = _split_partial(left)
@@ -283,12 +286,12 @@ class Completer(object):
             if prev_token == '-properties' and not text.startswith('-') and '-Properties' in COMMANDS[full_cmd]:
                 if state == 0:
                     self._property_matches = self._complete_properties(text, right)
-                return self._property_matches[state] if state < len(self._property_matches) else None
+                return self._property_matches[state][replacement_offset:] if state < len(self._property_matches) else None
 
             if prev_token in file_related_flags:
                 path_prefix = text if text else None
-                results = self._complete_path(path_prefix) + [None]
-                return results[state]
+                results = self._complete_path(path_prefix)
+                return results[state][replacement_offset:] if state < len(results) else None
 
             if text.startswith('-') or not text:
                 available_flags = [arg for arg in COMMANDS[full_cmd] if arg.casefold() not in used_flags]
@@ -298,7 +301,7 @@ class Completer(object):
         return None
 
     def setup_completer(self):
-        readline.set_completer_delims(' \t\n;')
+        readline.set_completer_delims(' \t\n;,')
         readline.parse_and_bind("set completion-ignore-case on")
         readline.parse_and_bind("tab: complete")
         readline.parse_and_bind(r'"\C-l": clear-screen')

@@ -1,4 +1,6 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from ldap3 import OFFLINE_AD_2012_R2, Server
@@ -16,7 +18,7 @@ class PropertyCompletionTests(unittest.TestCase):
 
     def complete(self, line, cursor=None):
         cursor = len(line) if cursor is None else cursor
-        start = max(line.rfind(delimiter, 0, cursor) for delimiter in ' \t\n;') + 1
+        start = max(line.rfind(delimiter, 0, cursor) for delimiter in ' \t\n;,') + 1
         with (
             patch('powerview.utils.completer.readline.get_line_buffer', return_value=line),
             patch('powerview.utils.completer.readline.get_begidx', return_value=start),
@@ -34,7 +36,13 @@ class PropertyCompletionTests(unittest.TestCase):
         self.assertEqual(self.complete('gEt-DoMaInUsEr -pRoPeRtIeS SAMACCOUNTN'), ['sAMAccountName'])
 
     def test_comma_list_preserves_previous_spelling(self):
-        self.assertEqual(self.complete('Get-DomainUser -Properties NAME,SAMACCOUNTN'), ['NAME,sAMAccountName'])
+        self.assertEqual(self.complete('Get-DomainUser -Properties NAME,SAMACCOUNTN'), ['sAMAccountName'])
+
+    def test_comma_list_suggestions_only_show_current_attribute(self):
+        self.assertEqual(self.complete('Get-DomainUser -Properties dNSHostName,dnsAllow'),
+                         ['dnsAllowDynamic', 'dnsAllowXFR'])
+        self.assertEqual(self.complete('Get-DomainUser -Properties name,dNSHostName,dnsAllow'),
+                         ['dnsAllowDynamic', 'dnsAllowXFR'])
 
     def test_excludes_previously_selected_attributes_case_insensitively(self):
         self.assertEqual(self.complete('Get-DomainUser -Properties SAMACCOUNTNAME,samaccountn'), [])
@@ -59,7 +67,14 @@ class PropertyCompletionTests(unittest.TestCase):
 
     def test_unclosed_quotes(self):
         for quote in ('"', "'"):
-            self.assertEqual(self.complete('Get-DomainUser -Properties ' + quote + 'name,samaccountn'), [quote + 'name,sAMAccountName'])
+            self.assertEqual(self.complete('Get-DomainUser -Properties ' + quote + 'name,samaccountn'), ['sAMAccountName'])
+
+    def test_file_completion_preserves_comma_in_path(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / 'reports,archive'
+            path.mkdir()
+            (path / 'audit.csv').touch()
+            self.assertEqual(self.complete(f'Get-DomainUser -OutFile {path}/aud'), ['archive/audit.csv'])
 
     def test_middle_of_value_preserves_suffix(self):
         line = 'Get-DomainUser -Properties samAccountName,description -Identity alice'
