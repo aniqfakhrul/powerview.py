@@ -1,5 +1,7 @@
 import os
 import shlex
+
+from powerview.utils.schema import SchemaCatalog
 try:
     import gnureadline as readline
 except ImportError:
@@ -179,7 +181,85 @@ COMMANDS = {
     'Disable-Plugin':['-Name'],
 }
 
+PROPERTY_CLASSES = {
+    'get-domain': 'domainDNS',
+    'get-domainuser': 'user',
+    'get-domaincomputer': 'computer',
+    'get-domaincontroller': 'computer',
+    'get-domaingroup': 'group',
+    'get-domainou': 'organizationalUnit',
+    'get-domaingpo': 'groupPolicyContainer',
+    'get-domaindnszone': 'dnsZone',
+    'get-domaindnsrecord': 'dnsNode',
+    'get-domaintrust': 'trustedDomain',
+    'get-domaingmsa': 'msDS-GroupManagedServiceAccount',
+    'get-gmsa': 'msDS-GroupManagedServiceAccount',
+    'get-domaindmsa': 'msDS-DelegatedManagedServiceAccount',
+    'get-dmsa': 'msDS-DelegatedManagedServiceAccount',
+    'get-domainca': 'pKIEnrollmentService',
+    'get-ca': 'pKIEnrollmentService',
+    'get-domaincatemplate': 'pKICertificateTemplate',
+    'get-catemplate': 'pKICertificateTemplate',
+}
+
+
+def _split_partial(text):
+    for suffix in ('', '"', "'"):
+        try:
+            return shlex.split(text + suffix)
+        except ValueError:
+            continue
+    return []
+
+
 class Completer(object):
+
+    def __init__(self, schema_provider=None):
+        self.schema_provider = schema_provider
+        self._property_matches = []
+
+    def _property_names(self, command, tokens):
+        if command == 'get-localuser' or self.schema_provider is None:
+            return []
+        schema = self.schema_provider()
+        attributes = getattr(schema, 'attribute_types', None)
+        if not attributes:
+            return []
+        catalog = SchemaCatalog(schema)
+        class_name = PROPERTY_CLASSES.get(command)
+        flags = {token.casefold() for token in tokens}
+        if command == 'get-domaincomputer':
+            if '-bitlocker' in flags:
+                class_name = 'msFVE-RecoveryInformation'
+            elif '-gmsapassword' in flags:
+                class_name = 'msDS-GroupManagedServiceAccount'
+        if class_name and catalog.has_class(class_name):
+            names = [item.name for item in catalog.class_attributes(class_name, include_constructed=True)]
+        else:
+            names = [info.name[0] for info in attributes.values() if info.name]
+        return sorted(set(names), key=str.casefold)
+
+    def _complete_properties(self, command, text, right, tokens):
+        quote = text[:1] if text.startswith(('"', "'")) else ''
+        value = text[len(quote):]
+        if value.endswith(('"', "'")):
+            return []
+        head, separator, prefix = value.rpartition(',')
+        excluded = {name.casefold() for name in head.split(',')} if separator else set()
+        suffix = right.split(None, 1)[0] if right and not right[0].isspace() else ''
+        suffix = suffix.rstrip('"\'')
+        tail, _, remaining = suffix.partition(',')
+        excluded.update(name.casefold() for name in remaining.split(','))
+        results = []
+        for name in ['*', *self._property_names(command, tokens)]:
+            if name.casefold() in excluded or not name.casefold().startswith(prefix.casefold()):
+                continue
+            if tail:
+                if not name.casefold().endswith(tail.casefold()) or len(name) < len(prefix) + len(tail):
+                    continue
+                name = name[:-len(tail)]
+            results.append(quote + head + separator + name)
+        return results
 
     def _listdir(self, root):
         "List directory 'root' appending the path separator to subdirs."
@@ -213,15 +293,8 @@ class Completer(object):
         left = buffer[:begidx]
         right = buffer[endidx:]
 
-        try:
-            left_tokens = shlex.split(left)
-        except ValueError:
-            left_tokens = shlex.split(left + '"')
-
-        try:
-            right_tokens = shlex.split(right)
-        except ValueError:
-            right_tokens = shlex.split(right + '"')
+        left_tokens = _split_partial(left)
+        right_tokens = _split_partial(right)
 
         if not left_tokens:
             prefix = text.strip()
@@ -233,13 +306,18 @@ class Completer(object):
         if cmd in (c.casefold() for c in COMMANDS.keys()):
             full_cmd = [c for c in list(COMMANDS.keys()) if c.casefold() == cmd][0]
 
-            file_related_flags = ['-OutFile']
+            file_related_flags = ['-outfile']
 
             tokens_before_current_args = left_tokens[1:] if len(left_tokens) > 1 else []
             tokens_after_current_args = right_tokens
-            used_flags = [t for t in tokens_before_current_args + tokens_after_current_args if t.startswith('-')]
+            used_flags = {t.casefold() for t in tokens_before_current_args + tokens_after_current_args if t.startswith('-')}
 
-            prev_token = tokens_before_current_args[-1] if tokens_before_current_args else None
+            prev_token = tokens_before_current_args[-1].casefold() if tokens_before_current_args else None
+
+            if prev_token == '-properties' and not text.startswith('-') and '-Properties' in COMMANDS[full_cmd]:
+                if state == 0:
+                    self._property_matches = self._complete_properties(cmd, text, right, left_tokens + right_tokens)
+                return self._property_matches[state] if state < len(self._property_matches) else None
 
             if prev_token in file_related_flags:
                 path_prefix = text if text else None
@@ -247,7 +325,7 @@ class Completer(object):
                 return results[state]
 
             if text.startswith('-') or not text:
-                available_flags = [arg for arg in COMMANDS[full_cmd] if arg not in used_flags]
+                available_flags = [arg for arg in COMMANDS[full_cmd] if arg.casefold() not in used_flags]
                 results = [arg + ' ' for arg in available_flags if arg.casefold().startswith(text.casefold())] + [None]
                 return results[state]
 

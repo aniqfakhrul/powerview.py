@@ -70,7 +70,7 @@ def main():
         if powerview.ldap_session and powerview.ldap_session.bound:
             powerview.add_domain_connection(powerview.conn.get_domain())
 
-        comp = Completer()
+        comp = Completer(schema_provider=lambda: getattr(powerview.ldap_server, 'schema', None))
         comp.setup_completer()
 
         # Load plugins
