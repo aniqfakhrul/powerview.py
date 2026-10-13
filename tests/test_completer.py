@@ -45,9 +45,10 @@ class PropertyCompletionTests(unittest.TestCase):
         self.assertIn('*', results)
         self.assertNotIn('-Identity ', results)
 
-    def test_class_specific_suggestions(self):
-        self.assertIn('operatingSystem', self.complete('Get-DomainComputer -Properties oper'))
-        self.assertNotIn('operatingSystem', self.complete('Get-DomainUser -Properties oper'))
+    def test_directory_commands_offer_attributes_from_other_classes(self):
+        for command in ('Get-DomainUser', 'Get-DomainComputer', 'Get-DomainGroup', 'Get-DomainOU'):
+            self.assertIn('operatingSystem', self.complete(f'{command} -Properties OPER'))
+            self.assertIn('dNSHostName', self.complete(f'{command} -Properties dnsh'))
 
     def test_generic_object_alias_uses_all_attributes(self):
         self.assertIn('operatingSystem', self.complete('Get-ADObject -Properties OPER'))
@@ -70,10 +71,14 @@ class PropertyCompletionTests(unittest.TestCase):
         self.assertIn('-Identity ', results)
         self.assertNotIn('-Properties ', results)
 
-    def test_missing_schema_and_non_directory_command(self):
+    def test_missing_schema(self):
         self.completer = Completer()
         self.assertEqual(self.complete('Get-DomainUser -Properties sam'), [])
-        self.completer = Completer(lambda: self.schema)
+
+    def test_localuser_offers_select_without_properties(self):
+        results = self.complete('Get-LocalUser -')
+        self.assertIn('-Select ', results)
+        self.assertNotIn('-Properties ', results)
         self.assertEqual(self.complete('Get-LocalUser -Properties sam'), [])
 
     def test_schema_provider_is_read_again_after_switch(self):

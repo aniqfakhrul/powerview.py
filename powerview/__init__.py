@@ -204,9 +204,8 @@ def main():
                             elif pv_args.module.casefold() == 'get-domainuser':
                                 entries = pv.get_domainuser(args=pv_args)
                             elif pv_args.module.casefold() == 'get-localuser':
-                                properties = pv_args.properties if pv_args.properties else None
                                 computername = pv_args.computer if pv_args.computer else pv_args.computername
-                                entries = pv.get_localuser(computer_name=computername, identity=pv_args.identity, properties=properties, args=pv_args)
+                                entries = pv.get_localuser(computer_name=computername, identity=pv_args.identity, args=pv_args)
                             elif pv_args.module.casefold() == 'get-domaincomputer':
                                 entries = pv.get_domaincomputer(args=pv_args)
                             elif pv_args.module.casefold() == 'get-domaingroup':

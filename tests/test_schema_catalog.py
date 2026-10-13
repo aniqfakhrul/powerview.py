@@ -1,10 +1,13 @@
 import unittest
 from argparse import Namespace
 from types import SimpleNamespace
+from unittest.mock import Mock
 
+from ldap3 import OFFLINE_AD_2012_R2, Server
 from ldap3.protocol.rfc4512 import AttributeTypeInfo, DitContentRuleInfo, ObjectClassInfo
 from ldap3.utils.ciDict import CaseInsensitiveDict
 
+from powerview.lib.adws.core.server import Server as AdwsServer
 from powerview.utils.schema import SchemaCatalog
 from powerview.web.api.server import APIServer
 
@@ -72,6 +75,26 @@ class SchemaCatalogTests(unittest.TestCase):
         self.assertFalse(SchemaCatalog(None).available)
         self.assertEqual(SchemaCatalog(None).class_attributes('user'), ())
         self.assertEqual(SchemaCatalog(fake_schema()).class_attributes('computer'), ())
+
+
+class AdwsSchemaTests(unittest.TestCase):
+    def test_schema_fetch_preserves_auxiliary_class_attributes(self):
+        source = Server('test', get_info=OFFLINE_AD_2012_R2).schema
+        server = AdwsServer('test')
+        server._dsa_info = SimpleNamespace(schema_entry=['CN=Aggregate,CN=Schema'], other={})
+        connection = SimpleNamespace(entries=[])
+
+        def search(*args, attributes, **kwargs):
+            selected = {name: source.raw[name] for name in attributes if name in source.raw}
+            connection.entries = [{'attributes': selected, 'raw_attributes': selected}]
+            return True
+
+        connection.search = Mock(side_effect=search)
+        server._get_schema_info(connection)
+        attributes = {item.name for item in SchemaCatalog.from_server(server).class_attributes('user')}
+        self.assertIn('sAMAccountName', attributes)
+        self.assertIn('objectSid', attributes)
+        self.assertEqual(len(server.schema.dit_content_rules), len(source.dit_content_rules))
 
 
 class SchemaAttributesEndpointTests(unittest.TestCase):

@@ -353,7 +353,6 @@ def powerview_arg_parse(cmd):
 	get_localuser_group.add_argument('-Computer', action='store', const=None, dest='computer', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_localuser_group.add_argument('-ComputerName', action='store', const=None, dest='computername', type=lambda value: escape_filter_chars_except_asterisk(value))
 	get_localuser_parser.add_argument('-Identity', action='store', dest='identity', type=parse_identity_list)
-	get_localuser_parser.add_argument('-Properties', action='store', dest='properties', type=Helper.parse_properties)
 	get_localuser_parser.add_argument('-TableView', nargs='?', const='default', default='', dest='tableview', help="Format the output as a table. Options: 'md', 'csv'. Defaults to standard table if no value is provided.", type=Helper.parse_tableview)
 	get_localuser_parser.add_argument('-Json', action='store_true', default=False, dest='json', help='Output results as JSON')
 	get_localuser_parser.add_argument('-SortBy', action='store', dest='sort_by')

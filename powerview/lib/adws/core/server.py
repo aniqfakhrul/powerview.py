@@ -87,6 +87,7 @@ class Server(object):
                              attributes=[
                                  'objectClasses',
                                  'attributeTypes',
+                                 'dITContentRules',
                                  'createTimestamp',
                                  'modifyTimestamp'
                              ])

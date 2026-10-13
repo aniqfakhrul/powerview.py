@@ -1,7 +1,6 @@
 import os
 import shlex
 
-from powerview.utils.schema import SchemaCatalog
 try:
     import gnureadline as readline
 except ImportError:
@@ -50,7 +49,7 @@ COMMANDS = {
     'Get-DomainTrustKey':['-Identity','-Properties','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-Json', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-TrustKey':['-Identity','-Properties','-SearchBase','-Server','-Select', '-Where', '-Count', '-NoWrap', '-TableView', '-Json', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
     'Get-DomainUser':['-Identity','-Properties','-LDAPFilter','-SearchBase','-Server','-Select','-Enabled','-Disabled','-RBCD', '-ShadowCred', '-Unconstrained','-PassNotRequired','-PreAuthNotRequired','-AllowDelegation','-DisallowDelegation','-AdminCount','-LockedOut','-PassExpired','-TrustedToAuth','-SPN','-MemberOf','-Department','-Where', '-Count', '-NoWrap', '-TableView', '-Json', '-SortBy', '-OutFile', '-NoCache', '-NoVulnCheck', '-Raw'],
-    'Get-LocalUser':['-Computer','-ComputerName', '-Identity', '-Properties', '-Select','-Enabled','-Disabled', '-Server', '-Count', '-OutFile', '-TableView', '-Json', '-SortBy'],
+    'Get-LocalUser':['-Computer','-ComputerName', '-Identity', '-Select','-Enabled','-Disabled', '-Server', '-Count', '-OutFile', '-TableView', '-Json', '-SortBy'],
     'Get-NamedPipes':['-Name','-Computer','-ComputerName', '-Timeout', '-MaxThreads', '-Server', '-NoWrap', '-Count', '-TableView', '-Json', '-OutFile'],
     'Get-NetShare':['-Computer','-ComputerName','-TableView', '-Json','-Server', '-NoWrap', '-Count', '-OutFile'],
     'Get-NetSession':['-Computer','-ComputerName','-Username','-Password','-Hash','-Server', '-Count', '-OutFile', '-TableView', '-Json', '-SortBy'],
@@ -181,28 +180,6 @@ COMMANDS = {
     'Disable-Plugin':['-Name'],
 }
 
-PROPERTY_CLASSES = {
-    'get-domain': 'domainDNS',
-    'get-domainuser': 'user',
-    'get-domaincomputer': 'computer',
-    'get-domaincontroller': 'computer',
-    'get-domaingroup': 'group',
-    'get-domainou': 'organizationalUnit',
-    'get-domaingpo': 'groupPolicyContainer',
-    'get-domaindnszone': 'dnsZone',
-    'get-domaindnsrecord': 'dnsNode',
-    'get-domaintrust': 'trustedDomain',
-    'get-domaingmsa': 'msDS-GroupManagedServiceAccount',
-    'get-gmsa': 'msDS-GroupManagedServiceAccount',
-    'get-domaindmsa': 'msDS-DelegatedManagedServiceAccount',
-    'get-dmsa': 'msDS-DelegatedManagedServiceAccount',
-    'get-domainca': 'pKIEnrollmentService',
-    'get-ca': 'pKIEnrollmentService',
-    'get-domaincatemplate': 'pKICertificateTemplate',
-    'get-catemplate': 'pKICertificateTemplate',
-}
-
-
 def _split_partial(text):
     for suffix in ('', '"', "'"):
         try:
@@ -218,28 +195,17 @@ class Completer(object):
         self.schema_provider = schema_provider
         self._property_matches = []
 
-    def _property_names(self, command, tokens):
-        if command == 'get-localuser' or self.schema_provider is None:
+    def _property_names(self):
+        if self.schema_provider is None:
             return []
         schema = self.schema_provider()
         attributes = getattr(schema, 'attribute_types', None)
         if not attributes:
             return []
-        catalog = SchemaCatalog(schema)
-        class_name = PROPERTY_CLASSES.get(command)
-        flags = {token.casefold() for token in tokens}
-        if command == 'get-domaincomputer':
-            if '-bitlocker' in flags:
-                class_name = 'msFVE-RecoveryInformation'
-            elif '-gmsapassword' in flags:
-                class_name = 'msDS-GroupManagedServiceAccount'
-        if class_name and catalog.has_class(class_name):
-            names = [item.name for item in catalog.class_attributes(class_name, include_constructed=True)]
-        else:
-            names = [info.name[0] for info in attributes.values() if info.name]
+        names = [info.name[0] for info in attributes.values() if info.name]
         return sorted(set(names), key=str.casefold)
 
-    def _complete_properties(self, command, text, right, tokens):
+    def _complete_properties(self, text, right):
         quote = text[:1] if text.startswith(('"', "'")) else ''
         value = text[len(quote):]
         if value.endswith(('"', "'")):
@@ -251,7 +217,7 @@ class Completer(object):
         tail, _, remaining = suffix.partition(',')
         excluded.update(name.casefold() for name in remaining.split(','))
         results = []
-        for name in ['*', *self._property_names(command, tokens)]:
+        for name in ['*', *self._property_names()]:
             if name.casefold() in excluded or not name.casefold().startswith(prefix.casefold()):
                 continue
             if tail:
@@ -316,7 +282,7 @@ class Completer(object):
 
             if prev_token == '-properties' and not text.startswith('-') and '-Properties' in COMMANDS[full_cmd]:
                 if state == 0:
-                    self._property_matches = self._complete_properties(cmd, text, right, left_tokens + right_tokens)
+                    self._property_matches = self._complete_properties(text, right)
                 return self._property_matches[state] if state < len(self._property_matches) else None
 
             if prev_token in file_related_flags:

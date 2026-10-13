@@ -221,7 +221,7 @@ class SchemaCatalog:
         single = bool(info.single_value) if info is not None else False
         return SchemaAttribute(canonical, kind, single)
 
-    def class_attributes(self, class_name: str, *, include_constructed=False) -> tuple[SchemaAttribute, ...]:
+    def class_attributes(self, class_name: str) -> tuple[SchemaAttribute, ...]:
         """Return list-searchable attributes of a class, including inherited and auxiliary ones."""
 
         if not self.has_class(class_name):
@@ -229,7 +229,7 @@ class SchemaCatalog:
         names = {}
         for info in self._class_chain(class_name):
             for name in (*_names(info.must_contain), *_names(info.may_contain)):
-                if include_constructed or name.casefold() not in _CONSTRUCTED_ATTRIBUTES:
+                if name.casefold() not in _CONSTRUCTED_ATTRIBUTES:
                     names.setdefault(name.casefold(), name)
         attributes = (self._describe(name) for name in names.values())
         return tuple(sorted(attributes, key=lambda attribute: attribute.name.casefold()))

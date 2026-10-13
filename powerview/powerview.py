@@ -746,13 +746,13 @@ class PowerView:
 				locked.append(entry)
 		return locked
 
-	def get_localuser(self, computer_name, identity=None, properties=[], port=445, args=None):
+	def get_localuser(self, computer_name, identity=None, port=445, args=None):
 		entries = list()
 		identity_values = self._resolve_identity_values(identity, args)
 		if len(identity_values) > 1:
 			results = []
 			for ident in identity_values:
-				result = self.get_localuser(computer_name, identity=ident, properties=properties, port=port, args=args)
+				result = self.get_localuser(computer_name, identity=ident, port=port, args=args)
 				if isinstance(result, list):
 					results.extend(result)
 				elif result:
@@ -763,17 +763,6 @@ class PowerView:
 		if computer_name is None:
 			#computer_name = host2ip(self.get_server_dns(), self.nameserver, 3, True, use_system_ns=self.use_system_nameserver, type=list)
 			computer_name = self.get_server_dns()
-
-		default_properties = {'username', 'userrid', 'fullname', 'homedirectory', 'allowedworkstation', 
-						  'comment', 'accountactive', 'passwordlastset', 'passwordexpires', 
-						  'lastlogon', 'logoncount', 'localgroupmemberships', 'globalgroupmemberships'}
-	
-		properties = set(prop.lower() for prop in (properties or default_properties))
-
-		invalid_properties = properties - default_properties
-		if invalid_properties:
-			logging.error(f"[Get-LocalUser] Invalid properties: {', '.join(invalid_properties)}")
-			return
 
 		if is_ipaddress(computer_name) and self.use_kerberos:
 			logging.error("[Get-NetLoggedOn] Use FQDN when using kerberos")
@@ -805,40 +794,23 @@ class PowerView:
 
 
 		for rid in rids:
-			entry = dict({
-				"attributes": dict()
-			})
 			samrh = samrobj.open_handle(dce)
 			user_info = samrobj.get_local_user(dce, samrh, rid)
-
-			if 'username' in properties:
-				entry['attributes']['userName'] = user_info['UserName']
-			if 'userrid' in properties:
-				entry['attributes']['userRID'] = rid
-			if 'fullname' in properties:
-				entry['attributes']['fullName'] = user_info['FullName']
-			if 'homedirectory' in properties:
-				entry['attributes']['homeDirectory'] = user_info['HomeDirectory']
-			if 'allowedworkstation' in properties:
-				entry['attributes']['allowedWorkstation'] = "All" if not user_info['WorkStations'] else user_info['WorkStations']
-			if 'comment' in properties:
-				entry['attributes']['comment'] = user_info['AdminComment']
-			if 'accountactive' in properties:
-				entry['attributes']['accountActive'] = user_info['UserAccountControl'] & samr.USER_ACCOUNT_DISABLED != samr.USER_ACCOUNT_DISABLED
-			if 'passwordlastset' in properties:
-				entry['attributes']['passwordLastSet'] = get_time_string(user_info['PasswordLastSet'])
-			if 'passwordexpires' in properties:
-				entry['attributes']['passwordExpires'] = get_time_string(user_info['PasswordMustChange'])
-			if 'lastlogon' in properties:
-				entry['attributes']['lastLogon'] = get_time_string(user_info['LastLogon'])
-			if 'logoncount' in properties:
-				entry['attributes']['logonCount'] = user_info['LogonCount']
-			if 'localgroupmemberships' in properties:
-				entry['attributes']['localGroupMemberships'] = user_info['LocalGroups']
-			if 'globalgroupmemberships' in properties:
-				entry['attributes']['globalGroupMemberships'] = user_info['GlobalGroups']
-
-			entries.append(entry)
+			entries.append({'attributes': {
+				'userName': user_info['UserName'],
+				'userRID': rid,
+				'fullName': user_info['FullName'],
+				'homeDirectory': user_info['HomeDirectory'],
+				'allowedWorkstation': user_info['WorkStations'] or 'All',
+				'comment': user_info['AdminComment'],
+				'accountActive': user_info['UserAccountControl'] & samr.USER_ACCOUNT_DISABLED != samr.USER_ACCOUNT_DISABLED,
+				'passwordLastSet': get_time_string(user_info['PasswordLastSet']),
+				'passwordExpires': get_time_string(user_info['PasswordMustChange']),
+				'lastLogon': get_time_string(user_info['LastLogon']),
+				'logonCount': user_info['LogonCount'],
+				'localGroupMemberships': user_info['LocalGroups'],
+				'globalGroupMemberships': user_info['GlobalGroups'],
+			}})
 		return entries
 
 	def get_domaincontroller(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
