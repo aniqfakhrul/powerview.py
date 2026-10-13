@@ -1880,11 +1880,9 @@ class CONNECTION:
 			ldap_connection.bind()
 			channel_bound = use_ssl
 		except ldap3.core.exceptions.LDAPSocketOpenError as e:
-				logging.critical(e)
-				if tls:
-					logging.critical('TLS negotiation failed, this error is mostly due to your host '
-										  'not supporting SHA1 as signing algorithm for certificates')
-				raise ConnectionSetupError(f"LDAP socket open error: {str(e)}")
+			if tls:
+				raise
+			raise ConnectionSetupError(f"LDAP socket open error: {str(e)}")
 		except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult:
 			raise ConnectionSetupError(self._signing_required_error(ldap3.SASL))
 		except ldap3.core.exceptions.LDAPAuthMethodNotSupportedResult:

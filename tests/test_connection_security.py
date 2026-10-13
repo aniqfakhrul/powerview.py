@@ -196,6 +196,39 @@ class LdapsTlsTests(unittest.TestCase):
         self.assertTrue(conn.use_ldap)
         self.assertFalse(conn.use_ldaps)
 
+    def kerberos_socket_failure(self, tls):
+        conn = make_conn(use_ssl=tls is not None)
+        conn.TGT = {'KDC_REP': b'tgt', 'oldSessionKey': b'old', 'sessionKey': b'session'}
+        conn.TGS = {'KDC_REP': b'tgs', 'oldSessionKey': b'old', 'sessionKey': b'session'}
+        conn.stack_trace = False
+        session = MagicMock()
+        session.bind.side_effect = ldap3.core.exceptions.LDAPSocketOpenError('socket ssl wrapping error: [Errno 54] Connection reset by peer')
+        with patch.dict('os.environ', {}, clear=True), \
+                patch('impacket.krb5.ccache.CCache') as cache_type, \
+                patch.object(ldap3, 'Server', return_value=MagicMock(ssl=tls is not None)), \
+                patch.object(ldap3, 'Connection', return_value=session):
+            cache_type.return_value.getCredential.return_value = None
+            conn.init_ldap_kerberos('dc.example.test', tls, 'example.test', 'alice', 'secret')
+
+    def test_kerberos_tls_socket_error_reaches_the_tls_fallback(self):
+        with self.assertRaises(ldap3.core.exceptions.LDAPSocketOpenError):
+            self.kerberos_socket_failure(CONNECTION._ldaps_tls())
+
+    def test_kerberos_plain_socket_error_is_a_setup_error(self):
+        with self.assertRaises(ConnectionSetupError):
+            self.kerberos_socket_failure(None)
+
+    def test_kerberos_falls_back_to_plain_ldap_when_both_tls_attempts_fail(self):
+        conn = self.make_session_conn()
+        conn.use_kerberos = True
+        conn.ldap_address = 'dc.example.test'
+        failure = ldap3.core.exceptions.LDAPSocketOpenError('handshake failed')
+        conn.init_ldap_kerberos = MagicMock(side_effect=[failure, failure, self.bound()])
+        conn.init_ldap_session()
+        first, retry, plain = (call.args[1] for call in conn.init_ldap_kerberos.call_args_list)
+        self.assertEqual((first.version, retry.version, plain), (ssl.PROTOCOL_TLS_CLIENT, ssl.PROTOCOL_TLSv1, None))
+        self.assertTrue(conn.use_ldap)
+
 
 class FakeSession:
     def __init__(self, kwargs, error=None):
