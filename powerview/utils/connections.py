@@ -2182,6 +2182,7 @@ class CONNECTION:
 			"kdcHost": kdcHost,
 			"use_kerberos": use_kerberos,
 			"no_pass": no_pass,
+			"receive_timeout": getattr(self.args, "ldap_timeout", 30),
 		}
 		try:
 			adws_connection = adws.Connection(adws_server, **adws_connection_kwargs)

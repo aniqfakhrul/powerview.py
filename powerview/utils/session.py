@@ -40,7 +40,7 @@ def share_session_lock(owner, connection):
         if lock.owner is None:
             lock.owner = owner
         owner._session_lock = connection._session_lock = lock
-    for name in ('search', 'add', 'modify', 'delete', 'modify_dn', 'compare', 'extended', 'bind', 'rebind'):
+    for name in ('search', 'add', 'modify', 'delete', 'modify_dn', 'compare', 'extended', 'bind', 'rebind', 'set_password', 'change_password'):
         operation = getattr(connection, name, None)
         if getattr(operation, '__self__', None) is connection and not getattr(operation, '_powerview_session_guard', False):
             setattr(connection, name, session_guard(connection)(operation))

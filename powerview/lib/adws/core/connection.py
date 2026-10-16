@@ -8,6 +8,7 @@ from ..operation.customaction import set_password_operation, change_password_ope
 from ..nns import NNS
 from ..nmf import NMFConnection
 from ..error import ADWSError
+from ..transport import TRANSPORT_ERRORS
 
 from ldap3.utils.dn import safe_dn
 from ldap3 import (
@@ -18,7 +19,7 @@ from ldap3 import (
 )
 from ldap3.core.connection import CLIENT_STRATEGIES
 from ldap3.protocol.rfc2696 import paged_search_control
-from ldap3.core.exceptions import LDAPChangeError, LDAPAttributeError, LDAPUnknownStrategyError, LDAPObjectClassError
+from ldap3.core.exceptions import LDAPChangeError, LDAPAttributeError, LDAPUnknownStrategyError, LDAPObjectClassError, LDAPCommunicationError, LDAPSocketReceiveError, LDAPSocketSendError
 from ldap3.protocol.formatters.standard import format_attribute_values
 from ldap3.strategy.sync import SyncStrategy
 from ldap3.strategy.safeSync import SafeSyncStrategy
@@ -38,7 +39,7 @@ from copy import deepcopy
 from functools import reduce
 
 class Connection(object):
-    def __init__(self, server, user, password, domain, lmhash, nthash, raise_exceptions=False, authentication=NTLM, check_names=True, auto_encode=True, client_strategy=SYNC, aesKey='', kdcHost=None, use_kerberos=False, no_pass=False):
+    def __init__(self, server, user, password, domain, lmhash, nthash, raise_exceptions=False, authentication=NTLM, check_names=True, auto_encode=True, client_strategy=SYNC, aesKey='', kdcHost=None, use_kerberos=False, no_pass=False, receive_timeout=30):
         self.server = server
         self.host = server.host
         self.port = server.port
@@ -54,6 +55,8 @@ class Connection(object):
         self.kdcHost = kdcHost
         self.use_kerberos = use_kerberos
         self.no_pass = no_pass
+        self.receive_timeout = receive_timeout
+        self.socket = None
         self.check_names = check_names
         self.auto_encode = auto_encode
         self.result = {}
@@ -110,15 +113,16 @@ class Connection(object):
         Compatible with ldap3.Connection.unbind()
         """
         try:
-            if hasattr(self, 'nmf') and self.nmf is not None:
+            if self.socket is not None:
                 try:
-                    self.nmf._sock.close()
-                except Exception:
+                    self.socket.shutdown(socket.SHUT_RDWR)
+                except OSError:
                     pass
-                self.nmf = None
-        except Exception:
-            pass
+                finally:
+                    self.socket.close()
         finally:
+            self.socket = None
+            self.nmf = None
             self.bound = False
             self.closed = True
     
@@ -157,7 +161,8 @@ class Connection(object):
             return self.search(search_base='', search_filter='(objectClass=*)',
                                search_scope=BASE, attributes=['currentTime'])
         finally:
-            sock.settimeout(timeout)
+            if self.nmf is not None and self.nmf._sock is sock:
+                sock.settimeout(timeout)
 
     def _create_NNS_from_auth(self, sock: socket.socket) -> NNS:
         return NNS(
@@ -252,9 +257,17 @@ class Connection(object):
         self.server.get_info_from_server(self)
 
     def send_and_recv(self, request):
-        self.nmf.send(request)
-        response = self.nmf.recv()
-        return response
+        if self.nmf is None:
+            raise LDAPSocketSendError('ADWS session is closed')
+        try:
+            self.nmf.send(request)
+            return self.nmf.recv()
+        except (*TRANSPORT_ERRORS, OSError, KeyboardInterrupt) as error:
+            # A late reply or a partial frame stays on the stream and would answer the next request
+            self.unbind()
+            if isinstance(error, OSError) and not isinstance(error, LDAPCommunicationError):
+                raise LDAPSocketReceiveError(f'ADWS transport failed: {error}') from error
+            raise
 
     def search(self,
                search_base,
@@ -698,6 +711,8 @@ class Connection(object):
             resource = resource if resource is not None else self.resource
             logging.debug(f"[ADWS] Connecting to {self.host}:{self.port} for {resource}")
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket = sock
+            sock.settimeout(self.receive_timeout)
             sock.connect(server_address)
             auth_method = "Kerberos" if self.use_kerberos else "NTLM"
             logging.debug(f"[ADWS] TCP connection established, starting NNS/{auth_method} authentication")
@@ -718,9 +733,11 @@ class Connection(object):
             # Set connection state
             self.bound = True
             self.closed = False
+        except TRANSPORT_ERRORS:
+            self.unbind()
+            raise
         except Exception as e:
-            self.bound = False
-            self.closed = True
+            self.unbind()
             try:
                 err_msg = str(e)
             except Exception:
@@ -742,12 +759,10 @@ class Connection(object):
         """
         try:
             logging.debug(f"Reconnecting to {self.host} for {resource}")
-            if hasattr(self, 'nmf') and self.nmf is not None:
-                try:
-                    self.nmf._sock.close()
-                except Exception:
-                    pass
+            self.unbind()
             return self.connect(resource)
+        except TRANSPORT_ERRORS:
+            raise
         except Exception as e:
             self.bound = False
             self.closed = True

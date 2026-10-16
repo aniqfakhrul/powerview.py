@@ -2,6 +2,7 @@
 import logging
 import socket
 import struct
+from hmac import compare_digest
 
 import impacket.examples.logger
 import impacket.ntlm
@@ -10,8 +11,10 @@ import impacket.structure
 from Cryptodome.Cipher import ARC4
 from impacket.hresult_errors import ERROR_MESSAGES
 from impacket.krb5.gssapi import GSSAPI
+from ldap3.core.exceptions import LDAPSignatureVerificationFailedError
 
 from .encoder.records.utils import Net7BitInteger
+from .transport import receive_exactly
 
 
 def hexdump(data, length=16):
@@ -187,38 +190,13 @@ class NNS:
 
 	def _recv_handshake(self) -> 'NNS_handshake':
 		"""Receive an NNS handshake message from the server."""
+		header = receive_exactly(self._sock, 5)
 		return NNS_handshake(
-			message_id=int.from_bytes(self._sock.recv(1), "big"),
-			major_version=int.from_bytes(self._sock.recv(1), "big"),
-			minor_version=int.from_bytes(self._sock.recv(1), "big"),
-			payload=self._sock.recv(int.from_bytes(self._sock.recv(2), "big")),
+			message_id=header[0],
+			major_version=header[1],
+			minor_version=header[2],
+			payload=receive_exactly(self._sock, int.from_bytes(header[3:5], 'big')),
 		)
-
-	def seal(self, data: bytes) -> tuple[bytes, bytes]:
-		"""seals data with the current context (NTLM only)
-
-		Args:
-			data (bytes): bytes to seal
-
-		Returns:
-			tuple[bytes, bytes]: output_data, signature
-		"""
-
-		server = bool(
-			self._flags & impacket.ntlm.NTLMSSP_NEGOTIATE_EXTENDED_SESSIONSECURITY
-		)
-
-		output, sig = impacket.ntlm.SEAL(
-			self._flags,
-			self._server_signing_key if server else self._client_signing_key,
-			self._server_sealing_key if server else self._client_sealing_key,
-			data,
-			data,
-			self._sequence,
-			self._server_sealing_handle if server else self._client_sealing_handle,
-		)
-
-		return output, sig.getData()
 
 	def recv(self, _: int = 0) -> bytes:
 		"""Recive an NNS packet and return the entire
@@ -241,21 +219,13 @@ class NNS:
 
 		nmfsize, nmflenlen = Net7BitInteger.decode7bit(first_pkt[1:])
 
-		# its all just one packet
-		if nmfsize < 0xFC30:
-			return first_pkt
-
-		# otherwise, we have a multi part message
-		pkt = first_pkt
-		nmfsize -= len(first_pkt[nmflenlen:])
-
-		while nmfsize > 0:
-			thisFragment = self._recv()
-
-			pkt += thisFragment
-			nmfsize -= len(thisFragment)
-
-		return pkt
+		expected_size = 1 + nmflenlen + nmfsize
+		pkt = bytearray(first_pkt)
+		while len(pkt) < expected_size:
+			pkt.extend(self._recv())
+		if len(pkt) != expected_size:
+			raise ConnectionError('ADWS envelope exceeded its declared size')
+		return bytes(pkt)
 
 	def _strip_gss_header(self, data: bytes) -> bytes:
 		"""Strip MechIndepToken GSS-API header (Application tag + length + OID).
@@ -320,11 +290,10 @@ class NNS:
 		The paramiter is used to allow interoperability with socket.socket.recv.
 		Does not respect any passed buffer sizes.
 		"""
-		size = int.from_bytes(self._sock.recv(4), "little")
-
-		payload = b""
-		while len(payload) != size:
-			payload += self._sock.recv(size - len(payload))
+		size = int.from_bytes(receive_exactly(self._sock, 4), 'little')
+		if not 16 <= size <= 64 * 1024 * 1024:
+			raise ConnectionError(f'Invalid ADWS frame size: {size}')
+		payload = receive_exactly(self._sock, size)
 
 		if self._auth_type == 'kerberos':
 			from impacket.krb5.gssapi import GSSAPI_RC4
@@ -341,7 +310,13 @@ class NNS:
 		# NTLM: payload is [16-byte signature][ciphertext]
 		signature = payload[0:16]
 		cipherText = payload[16:]
-		clearText, sig = self.seal(cipherText)
+		clearText = self._server_sealing_handle(cipherText)
+		expected = impacket.ntlm.MAC(
+			self._flags, self._server_sealing_handle, self._server_signing_key,
+			struct.unpack('<i', signature[12:16])[0], clearText,
+		).getData()
+		if not compare_digest(expected, signature):
+			raise LDAPSignatureVerificationFailedError('ADWS NTLM signature verification failed')
 		return clearText
 
 	def sendall(self, data: bytes):
