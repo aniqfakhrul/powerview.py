@@ -351,7 +351,9 @@ class SpnegoNtlmBindTests(unittest.TestCase):
             [{'result': 14, 'saslCreds': challenge}],
             [{'result': 49, 'description': 'invalidCredentials'}],
         ]
-        with patch.object(ldap3.operation.bind, 'bind_operation', side_effect=lambda *a: sent.append(a) or a):
+        # Not circular: fails if the name is read at import time (before the patch), leaking the real hostname
+        with patch.object(ldap3.operation.bind, 'bind_operation', side_effect=lambda *a: sent.append(a) or a), \
+                patch('powerview.utils.connections.socket.gethostname', return_value='localhost'):
             make_conn()._ntlm_spnego_bind(session, 'wonka.lab', 'alice', 'secret', '', '', {})
         authenticate = NTLMAuthChallengeResponse()
         authenticate.fromString(sent[1][5])

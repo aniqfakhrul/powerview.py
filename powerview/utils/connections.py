@@ -86,7 +86,6 @@ def tls_channel_binding_token(peer_certificate):
 
 WINDOWS_NTLM_VERSION = (10, 0, 26100)
 WINDOWS_NTLM_NEGOTIATE_FLAGS = 0xe20882b7
-NTLM_WORKSTATION = 'localhost'
 
 class SpnegoNtlmSeal:
 	def __init__(self, cipher):
@@ -1993,7 +1992,8 @@ class CONNECTION:
 		authenticate, session_key = getNTLMSSPType3(negotiate, challenge, username, password or '', domain, lm, nt,
 			use_ntlmv2=True, channel_binding_value=channel_binding_value, service='ldap', version=version)
 		authenticate['flags'] = NTLMAuthChallenge(challenge)['flags'] & ~(NTLMSSP_TARGET_TYPE_DOMAIN | NTLMSSP_TARGET_TYPE_SERVER)
-		authenticate['host_name'] = NTLM_WORKSTATION.encode('utf-16le')
+		# Read at bind time: CONNECTION.__init__ patches gethostname to hide the operator's real hostname
+		authenticate['host_name'] = socket.gethostname().encode('utf-16le')
 		authenticate['MIC'] = hmac_md5(session_key, negotiate_data + challenge + authenticate.getData())
 		result = sasl_bind(authenticate.getData())
 		if result['result'] != ldap3.core.results.RESULT_SUCCESS:
