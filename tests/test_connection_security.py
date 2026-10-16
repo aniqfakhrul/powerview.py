@@ -153,7 +153,7 @@ class LdapsTlsTests(unittest.TestCase):
         tls = CONNECTION._ldaps_tls()
         self.assertEqual(tls.version, ssl.PROTOCOL_TLS_CLIENT)
         self.assertEqual(tls.validate, ssl.CERT_NONE)
-        self.assertEqual(tls.ciphers, 'ALL:@SECLEVEL=0')
+        self.assertIsNone(tls.ciphers)
 
     def test_legacy_retry_is_tls10(self):
         tls = CONNECTION._ldaps_tls(legacy=True)
@@ -256,6 +256,7 @@ class InitLdapConnectionTests(unittest.TestCase):
             return FakeSession(kwargs, errors.pop(0) if errors else None)
 
         server = MagicMock(ssl=conn.use_ldaps)
+        conn._ntlm_spnego_bind = MagicMock(side_effect=lambda session, *args: session.bind())
         with patch.object(ldap3, 'Server', return_value=server), patch.object(ldap3, 'Connection', side_effect=connection):
             conn.init_ldap_connection('dc.example.test', MagicMock() if conn.use_ldaps else None, 'example.test', 'alice', 'secret', auth_method=auth_method)
         return calls
@@ -304,6 +305,62 @@ class InitLdapConnectionTests(unittest.TestCase):
         with self.assertLogs(level='WARNING'), self.assertRaisesRegex(ConnectionSetupError, 'SIMPLE'):
             self.bind(conn, [LDAPStrongerAuthRequiredResult], auth_method=ldap3.SIMPLE)
 
+
+class SpnegoNtlmBindTests(unittest.TestCase):
+    def negotiate(self, use_ssl, security):
+        from impacket.ntlm import NTLMAuthNegotiate
+        sent = []
+        session = MagicMock(closed=False, version=3)
+        session.server.tls.peer_certificate = None
+        session.post_send_single_response.return_value = [{'result': 49, 'description': 'invalidCredentials'}]
+        with patch.object(ldap3.operation.bind, 'bind_operation', side_effect=lambda *a: sent.append(a) or a):
+            with self.assertRaises(ConnectionSetupError):
+                make_conn(use_ssl=use_ssl)._ntlm_spnego_bind(session, 'wonka.lab', 'alice', 'secret', '', '', security)
+        version, authentication, name, password, mechanism, credentials = sent[0]
+        negotiate = NTLMAuthNegotiate()
+        negotiate.fromString(credentials)
+        return mechanism, name, negotiate, credentials
+
+    def test_sealed_negotiate_matches_windows_explicit_credentials(self):
+        mechanism, name, negotiate, raw = self.negotiate(False, {'session_security': ldap3.ENCRYPT})
+        self.assertEqual((mechanism, name), ('GSS-SPNEGO', ''))
+        self.assertEqual(negotiate['flags'], 0xe20882b7)
+        self.assertEqual((negotiate['host_name'], negotiate['domain_name']), (b'', b''))
+        self.assertEqual(raw[32:40], bytes([10, 0]) + (26100).to_bytes(2, 'little') + b'\x00\x00\x00\x0f')
+
+    def test_tls_negotiate_drops_sign_and_seal(self):
+        from impacket.ntlm import NTLMSSP_NEGOTIATE_SIGN, NTLMSSP_NEGOTIATE_SEAL
+        negotiate = self.negotiate(True, {'channel_binding': ldap3.TLS_CHANNEL_BINDING})[2]
+        self.assertFalse(negotiate['flags'] & (NTLMSSP_NEGOTIATE_SIGN | NTLMSSP_NEGOTIATE_SEAL))
+        self.assertEqual(negotiate['flags'], 0xe2088287)
+
+    def test_protocol_failure_falls_back_to_sicily(self):
+        conn = make_conn()
+        conn._ntlm_spnego_bind = MagicMock(side_effect=ValueError('bad NTLM challenge'))
+        session = MagicMock()
+        session.bind.return_value = True
+        self.assertTrue(conn._ntlm_bind(session, 'example.test', 'alice', 'secret', '', '', {}))
+        session.bind.assert_called_once()
+
+    def test_server_refusal_reports_the_server_message(self):
+        message = '00002029: LdapErr: DSID-0C0906A1, comment: Cannot bind using sign/seal on a connection on which TLS or SSL is in effect, data 0, v65f4' + chr(0)
+        conn = make_conn()
+        conn._ntlm_spnego_bind = MagicMock(side_effect=ldap3.core.exceptions.LDAPUnwillingToPerformResult(result=53, description='unwillingToPerform', message=message))
+        with patch.object(ldap3, 'Server', return_value=MagicMock(ssl=True)), patch.object(ldap3, 'Connection'):
+            with self.assertRaisesRegex(ConnectionSetupError, 'Cannot bind using sign/seal') as raised:
+                conn.init_ldap_connection('dc.example.test', MagicMock(), 'example.test', 'alice', 'secret')
+        self.assertNotIn(chr(0), str(raised.exception))
+
+    def test_credential_and_socket_errors_do_not_fall_back(self):
+        for error in (LDAPInvalidCredentialsResult(result=49, description='invalidCredentials', message='data 52e'),
+                      ldap3.core.exceptions.LDAPSocketOpenError('reset')):
+            with self.subTest(error=type(error).__name__):
+                conn = make_conn()
+                conn._ntlm_spnego_bind = MagicMock(side_effect=error)
+                session = MagicMock()
+                with self.assertRaises(type(error)):
+                    conn._ntlm_bind(session, 'example.test', 'alice', 'secret', '', '', {})
+                session.bind.assert_not_called()
 
 class KerberosFallbackTests(unittest.TestCase):
     def fallback(self, conn, use_ssl, side_effect):

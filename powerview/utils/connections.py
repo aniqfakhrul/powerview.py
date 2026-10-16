@@ -84,6 +84,20 @@ def tls_channel_binding_token(peer_certificate):
 	bindings = b'\x00' * 16 + len(application_data).to_bytes(4, 'little') + application_data
 	return md5(bindings).digest()
 
+WINDOWS_NTLM_VERSION = (10, 0, 26100)
+WINDOWS_NTLM_NEGOTIATE_FLAGS = 0xe20882b7
+
+class SpnegoNtlmSeal:
+	def __init__(self, cipher):
+		self._cipher = cipher
+
+	def seal(self, message):
+		signature, sealed = self._cipher.encrypt(message)
+		return signature.getData() + sealed
+
+	def unseal(self, message):
+		return self._cipher.decrypt(message)[1]
+
 class ConnectionPoolEntry:
 	"""Represents a single connection entry in the pool with metadata"""
 	
@@ -740,11 +754,9 @@ class CONNECTION:
 
 	@staticmethod
 	def _ldaps_tls(legacy=False):
-		return ldap3.Tls(
-			validate=ssl.CERT_NONE,
-			version=ssl.PROTOCOL_TLSv1 if legacy else ssl.PROTOCOL_TLS_CLIENT,
-			ciphers='ALL:@SECLEVEL=0',
-		)
+		if legacy:
+			return ldap3.Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLSv1, ciphers='ALL:@SECLEVEL=0')
+		return ldap3.Tls(validate=ssl.CERT_NONE, version=ssl.PROTOCOL_TLS_CLIENT)
 
 	def _wants_channel_binding(self, use_ssl, channel_binding=None):
 		if channel_binding is None:
@@ -1928,6 +1940,70 @@ class CONNECTION:
 						raise
 			raise ConnectionSetupError(self._channel_binding_required_error())
 
+	def _ntlm_bind(self, session, domain, username, password, lmhash, nthash, security):
+		try:
+			return self._ntlm_spnego_bind(session, domain, username, password, lmhash, nthash, security)
+		except (ldap3.core.exceptions.LDAPOperationResult, ldap3.core.exceptions.LDAPCommunicationError):
+			raise
+		except Exception as e:
+			logging.debug(f"SPNEGO NTLM bind failed ({e}), falling back to Sicily NTLM bind")
+			try:
+				session.unbind()
+			except Exception:
+				pass
+			return session.bind()
+
+	def _ntlm_spnego_bind(self, session, domain, username, password, lmhash, nthash, security):
+		from impacket.ntlm import getNTLMSSPType3, VERSION, hmac_md5, NTLMSSP_NEGOTIATE_SEAL, NTLMSSP_TARGET_TYPE_DOMAIN, NTLMSSP_TARGET_TYPE_SERVER
+		from impacket.spnego import SPNEGOCipher
+
+		if session.closed:
+			session.open(read_server_info=False)
+		channel_binding_value = b''
+		if 'channel_binding' in security:
+			peer_certificate = getattr(session.server.tls, 'peer_certificate', None)
+			if peer_certificate:
+				channel_binding_value = tls_channel_binding_token(peer_certificate)
+		seal = 'session_security' in security
+
+		# Same shape as a Windows LDAP client binding with explicit credentials (GSS-SPNEGO carrying raw NTLMSSP)
+		version = VERSION()
+		version['ProductMajorVersion'], version['ProductMinorVersion'], version['ProductBuild'] = WINDOWS_NTLM_VERSION
+		negotiate = NTLMAuthNegotiate()
+		negotiate['flags'] = WINDOWS_NTLM_NEGOTIATE_FLAGS if seal else WINDOWS_NTLM_NEGOTIATE_FLAGS & ~(NTLMSSP_NEGOTIATE_SIGN | NTLMSSP_NEGOTIATE_SEAL)
+		negotiate['os_version'] = version
+		negotiate_data = negotiate.getData()
+
+		def sasl_bind(credentials):
+			request = ldap3.operation.bind.bind_operation(session.version, ldap3.SASL, '', None, 'GSS-SPNEGO', credentials)
+			session.sasl_in_progress = True
+			try:
+				return session.post_send_single_response(session.send('bindRequest', request, None))[0]
+			finally:
+				session.sasl_in_progress = False
+
+		result = sasl_bind(negotiate_data)
+		challenge = result.get('saslCreds') or b''
+		if result['result'] != ldap3.core.results.RESULT_SASL_BIND_IN_PROGRESS or not challenge.startswith(b'NTLMSSP\x00'):
+			raise ConnectionSetupError(f"Unexpected NTLM negotiate response: {result.get('description')}")
+
+		lm = unhexlify(lmhash) if lmhash else ''
+		nt = unhexlify(nthash) if nthash else ''
+		authenticate, session_key = getNTLMSSPType3(negotiate, challenge, username, password or '', domain, lm, nt,
+			use_ntlmv2=True, channel_binding_value=channel_binding_value, service='ldap', version=version)
+		authenticate['flags'] = NTLMAuthChallenge(challenge)['flags'] & ~(NTLMSSP_TARGET_TYPE_DOMAIN | NTLMSSP_TARGET_TYPE_SERVER)
+		authenticate['host_name'] = b''
+		authenticate['MIC'] = hmac_md5(session_key, negotiate_data + challenge + authenticate.getData())
+		result = sasl_bind(authenticate.getData())
+		if result['result'] != ldap3.core.results.RESULT_SUCCESS:
+			return False
+
+		session.bound = True
+		if seal:
+			session.ntlm_client = SpnegoNtlmSeal(SPNEGOCipher(authenticate['flags'], session_key))
+		session.refresh_server_info()
+		return True
+
 	def impacket_ldap3_kerberos_login(self, connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True, channel_binding=False):
 		"""
 		Login to the target system explicitly using Kerberos via SPNEGO.
@@ -2041,8 +2117,7 @@ class CONNECTION:
 		except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult as e:
 			raise ConnectionSetupError("LDAP signing is enforced by the server")
 		except ldap3.core.exceptions.LDAPInappropriateAuthenticationResult as e:
-			logging.error("Cannot start kerberos signing/sealing when using TLS/SSL")
-			raise ConnectionSetupError("Cannot start kerberos signing/sealing when using TLS/SSL")
+			raise ConnectionSetupError(f"Certificate bind refused by the server: {(e.message or e.description or '').rstrip(chr(0)).strip()}")
 		except ldap3.core.exceptions.LDAPInvalidValueError as e:
 			logging.error(str(e))
 			raise ConnectionSetupError(str(e))
@@ -2156,7 +2231,10 @@ class CONNECTION:
 				else:
 					logging.debug(f'  {k}: {v}')
 			ldap_session = ldap3.Connection(ldap_server, **ldap_connection_kwargs)
-			bind = ldap_session.bind()
+			if auth_method == ldap3.NTLM:
+				bind = self._ntlm_bind(ldap_session, domain, username, password, lmhash, nthash, security)
+			else:
+				bind = ldap_session.bind()
 		except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
 			logging.debug("Server returns invalidCredentials")
 			if CHANNEL_BINDING_ERROR in str(ldap_session.result):
@@ -2171,9 +2249,8 @@ class CONNECTION:
 				raise ConnectionSetupError(self._channel_binding_required_error())
 		except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult as e:
 			raise ConnectionSetupError(self._signing_required_error(auth_method))
-		except ldap3.core.exceptions.LDAPInappropriateAuthenticationResult as e:
-			logging.error("Cannot start kerberos signing/sealing when using TLS/SSL")
-			raise ConnectionSetupError("Cannot start kerberos signing/sealing when using TLS/SSL")
+		except (ldap3.core.exceptions.LDAPInappropriateAuthenticationResult, ldap3.core.exceptions.LDAPUnwillingToPerformResult) as e:
+			raise ConnectionSetupError(f"Bind refused by the server: {(e.message or e.description or '').rstrip(chr(0)).strip()}")
 		except ldap3.core.exceptions.LDAPInvalidValueError as e:
 			logging.error(str(e))
 			raise ConnectionSetupError(str(e))
