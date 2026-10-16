@@ -328,6 +328,35 @@ class SpnegoNtlmBindTests(unittest.TestCase):
         self.assertEqual((negotiate['host_name'], negotiate['domain_name']), (b'', b''))
         self.assertEqual(raw[32:40], bytes([10, 0]) + (26100).to_bytes(2, 'little') + b'\x00\x00\x00\x0f')
 
+    def test_authenticate_carries_the_workstation_name(self):
+        from impacket.ntlm import NTLMAuthChallengeResponse
+        sent = []
+        session = MagicMock(closed=False, version=3)
+        session.server.tls.peer_certificate = None
+        from impacket.ntlm import NTLMAuthChallenge, AV_PAIRS, NTLMSSP_AV_HOSTNAME, NTLMSSP_AV_DOMAINNAME, NTLMSSP_AV_DNS_HOSTNAME
+        av = AV_PAIRS()
+        av[NTLMSSP_AV_DOMAINNAME] = 'WONKA'.encode('utf-16le')
+        av[NTLMSSP_AV_HOSTNAME] = 'DC01'.encode('utf-16le')
+        av[NTLMSSP_AV_DNS_HOSTNAME] = 'dc01.wonka.lab'.encode('utf-16le')
+        message = NTLMAuthChallenge()
+        message['flags'] = 0xe2898235
+        message['challenge'] = b'\x01' * 8
+        message['domain_name'] = 'WONKA'.encode('utf-16le')
+        message['Version'] = b'\x0a\x00\xf4\x65\x00\x00\x00\x0f'
+        message['TargetInfoFields'] = av.getData()
+        message['TargetInfoFields_offset'] = 56 + len(message['domain_name'])
+        message['domain_offset'] = 56
+        challenge = message.getData()
+        session.post_send_single_response.side_effect = [
+            [{'result': 14, 'saslCreds': challenge}],
+            [{'result': 49, 'description': 'invalidCredentials'}],
+        ]
+        with patch.object(ldap3.operation.bind, 'bind_operation', side_effect=lambda *a: sent.append(a) or a):
+            make_conn()._ntlm_spnego_bind(session, 'wonka.lab', 'alice', 'secret', '', '', {})
+        authenticate = NTLMAuthChallengeResponse()
+        authenticate.fromString(sent[1][5])
+        self.assertEqual(authenticate['host_name'].decode('utf-16le'), 'localhost')
+
     def test_tls_negotiate_drops_sign_and_seal(self):
         from impacket.ntlm import NTLMSSP_NEGOTIATE_SIGN, NTLMSSP_NEGOTIATE_SEAL
         negotiate = self.negotiate(True, {'channel_binding': ldap3.TLS_CHANNEL_BINDING})[2]
