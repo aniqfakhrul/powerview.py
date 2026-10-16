@@ -21,12 +21,27 @@ tests/*
 !tests/__init__.py
 !tests/test_*.py
 docs
+# Detection research and packet-capture evidence (PowerView vs. legitimate LDAP
+# auth). Already covered by the "docs" blanket above — stated explicitly so
+# narrowing that rule (e.g. to track docs/architecture/) cannot start committing
+# this material, and so the captures in particular never enter the repo.
+docs/powerview-ldap-traffic-analysis.md
+docs/evidence/
 
 # AGENTS RELATED
 .mcp.json
 .impeccable
 .pi
+# Project-scoped MCP config: pi reads .pi/mcp.json; the ssh-mcp host profile and
+# its key paths live in .pi/ssh-mcp/. Stated explicitly so narrowing the ".pi"
+# blanket above (e.g. to track .pi/skills/) cannot start committing MCP config.
+.pi/mcp.json
+.pi/ssh-mcp/
 .codex
+# Codex project-scoped config: the ssh-mcp server entry lives in
+# .codex/config.toml. Stated explicitly so narrowing the ".codex" blanket above
+# (e.g. to track .codex/hooks.json) cannot start committing MCP config.
+.codex/config.toml
 .agents
 .claude
 CLAUDE.md
