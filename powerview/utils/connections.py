@@ -61,7 +61,7 @@ _gethostname_lock = threading.Lock()
 _original_gethostname = socket.gethostname
 
 def _hide_local_hostname():
-	# Process-wide and installed once: impacket (SMB) and the NTLM bind read the client name from here
+	# Process-wide and installed once. The NTLM bind reads the client name here; impacket SMB uses it only for the NetBIOS session name
 	with _gethostname_lock:
 		if socket.gethostname is _original_gethostname:
 			socket.gethostname = lambda: "localhost"
