@@ -489,6 +489,39 @@ class ReconnectTests(unittest.TestCase):
         session.rebind.assert_not_called()
         conn.init_ldap_session.assert_called_once()
 
+
+class SwitchIdentityTests(unittest.TestCase):
+    def conn_with_session(self):
+        conn = make_conn()
+        conn.use_kerberos, conn.do_certificate, conn.auth_method = True, True, ldap3.SASL
+        conn.TGT, conn.TGS, conn.auth_aes_key = {'KDC_REP': b'x'}, {'KDC_REP': b'y'}, 'aa' * 32
+        old = MagicMock(spec=ldap3.Connection)
+        old.server = MagicMock(ssl=True, host='dc.example.test')
+        conn.ldap_session = old
+        return conn, old
+
+    def test_failed_switch_keeps_the_current_session(self):
+        conn, old = self.conn_with_session()
+        conn.init_ldap_connection = MagicMock(side_effect=ConnectionSetupError('invalidCredentials'))
+        with self.assertRaises(ConnectionSetupError):
+            conn.switch_identity('example.test', 'bob', 'wrong')
+        self.assertIs(conn.ldap_session, old)
+        old.unbind.assert_not_called()
+        self.assertTrue(conn.use_kerberos)
+
+    def test_successful_switch_replaces_the_session_and_identity(self):
+        conn, old = self.conn_with_session()
+        new_server, new_session = MagicMock(), MagicMock()
+        conn.init_ldap_connection = MagicMock(return_value=(new_server, new_session))
+        conn.switch_identity('example.test', 'bob', '', 'aad3b435b51404eeaad3b435b51404ee', '11' * 16)
+        self.assertEqual(conn.init_ldap_connection.call_args.args[0], 'dc.example.test')
+        self.assertEqual(conn.init_ldap_connection.call_args.kwargs['auth_method'], ldap3.NTLM)
+        self.assertIs(conn.ldap_session, new_session)
+        old.unbind.assert_called_once()
+        self.assertEqual((conn.username, conn.password, conn.nthash), ('bob', '', '11' * 16))
+        self.assertEqual((conn.use_kerberos, conn.do_certificate, conn.auth_method), (False, False, ldap3.NTLM))
+        self.assertEqual((conn.TGT, conn.TGS, conn.auth_aes_key), (None, None, None))
+
 class KerberosFallbackTests(unittest.TestCase):
     def fallback(self, conn, use_ssl, side_effect):
         conn.impacket_ldap3_kerberos_login = MagicMock(side_effect=side_effect)

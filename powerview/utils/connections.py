@@ -953,6 +953,22 @@ class CONNECTION:
 		self.sign_and_seal_active = False
 		self.channel_binding_active = False
 
+	def switch_identity(self, domain, username, password='', lmhash='', nthash=''):
+		if not isinstance(self.ldap_session, ldap3.Connection):
+			raise ConnectionSetupError("Login-As is only supported on LDAP sessions")
+		old_session = self.ldap_session
+		tls = self._ldaps_tls() if old_session.server.ssl else None
+		self.ldap_server, self.ldap_session = self.init_ldap_connection(old_session.server.host, tls, domain, username, password, lmhash, nthash, auth_method=ldap3.NTLM)
+		try:
+			old_session.unbind()
+		except Exception:
+			pass
+		self.domain, self.username, self.password = domain, username, password
+		self.lmhash, self.nthash, self.hashes = lmhash, nthash, f'{lmhash}:{nthash}' if nthash else None
+		self.use_kerberos, self.do_certificate, self.auth_method = False, False, ldap3.NTLM
+		self.auth_aes_key, self.TGT, self.TGS = None, None, None
+		self._cached_whoami = None
+
 	def add_domain_connection(self, domain):
 		self._connection_pool.add_connection(self, domain, owns_connection=False)
 		self._primary_domain_registered = True
@@ -2231,7 +2247,7 @@ class CONNECTION:
 		retry_kwargs = dict(target=target, tls=tls, domain=domain, username=username, password=password, lmhash=lmhash, nthash=nthash, auth_aes_key=auth_aes_key, sign_and_seal=sign_and_seal, channel_binding=channel_binding, auth_method=auth_method, _retry_depth=_retry_depth + 1)
 		
 		logging.debug(f"Connecting to {ldap_server_kwargs['host']}, Port: {ldap_server_kwargs['port']}, SSL: {ldap_server_kwargs['use_ssl']}")
-		if self.hashes is not None:
+		if nthash:
 			ldap_connection_kwargs["password"] = f'{lmhash}:{nthash}'
 		elif password is not None:
 			ldap_connection_kwargs["password"] = password

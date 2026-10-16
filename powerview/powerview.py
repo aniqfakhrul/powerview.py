@@ -8599,40 +8599,19 @@ class PowerView:
 			nthash = args.nthash
 		if hasattr(args, 'lmhash') and args.lmhash:
 			lmhash = args.lmhash
-		if nthash is not None and lmhash is not None:
-			password = f"{lmhash}:{nthash}"
 		if hasattr(args, 'auth_aes_key') and args.auth_aes_key:
 			auth_aes_key = args.auth_aes_key
 		if auth_aes_key is not None:
 			raise ValueError("Auth AES key is not yet supported for Login-As")
-			return False
+		if nthash:
+			password = ''
 		try:
-			logging.debug(f"[Login-As] Rebinding to {username}@{domain} with password {password}")
-			self.conn.ldap_session.rebind(
-				user='%s\\%s' % (domain, username),
-				password=password,
-				authentication=ldap3.NTLM
-			)
-			self.conn._cached_whoami = None
+			logging.debug(f"[Login-As] Binding as {domain}\\{username}")
+			self.conn.switch_identity(domain, username, password or '', lmhash or '', nthash or '')
 			logging.info(f"[Login-As] Successfully logged in as {self.conn.who_am_i()}")
-			# self._initialize_attributes_from_connection()
-			if username:
-				self.conn.username = username
-			if password:
-				self.conn.password = password
-			if domain:
-				self.conn.domain = domain
-			if nthash:
-				self.conn.nthash = nthash
-			if lmhash:
-				self.conn.lmhash = lmhash
-			if auth_aes_key:
-				self.conn.auth_aes_key = auth_aes_key
-
 			return True
 		except Exception as e:
 			if self.args.stack_trace:
 				raise e
-			else:
-				logging.error(f"[Login-As] Failed to login as {self.conn.username}@{self.conn.domain}: {e}")
-				return False
+			logging.error(f"[Login-As] Failed to login as {domain}\\{username}: {e}")
+			return False
