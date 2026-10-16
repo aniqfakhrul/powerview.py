@@ -60,6 +60,12 @@ import powerview.lib.adws as adws
 _gethostname_lock = threading.Lock()
 _original_gethostname = socket.gethostname
 
+def _hide_local_hostname():
+	# Process-wide and installed once: impacket (SMB) and the NTLM bind read the client name from here
+	with _gethostname_lock:
+		if socket.gethostname is _original_gethostname:
+			socket.gethostname = lambda: "localhost"
+
 class ConnectionSetupError(Exception):
 	"""Raised when a connection cannot be established due to configuration or auth errors."""
 	pass
@@ -798,7 +804,7 @@ class CONNECTION:
 			return "LDAP channel binding is enforced but the installed ldap3 does not support channel binding"
 		return "LDAP channel binding is enforced and the server rejected the channel binding token"
 
-	def __init__(self, args, get_alt_server_info=False, _is_child=False):
+	def __init__(self, args, _is_child=False):
 		session_lock(self)
 		self.args = args
 		self._connection_pool = ConnectionPool(
@@ -919,16 +925,7 @@ class CONNECTION:
 		self.TGT = None
 		self.TGS = None
 
-		# get alt server info
-		self.alt_server_info = None
-		if get_alt_server_info:
-			self.alt_server_info = self.get_alt_server_info()
-		
-		with _gethostname_lock:
-			if self.alt_server_info and hasattr(self.alt_server_info, "dnsHostName") and len(self.alt_server_info["dnsHostName"]) > 0:
-				socket.gethostname = lambda: self.alt_server_info["dnsHostName"][0].split(".")[0]
-			else:
-				socket.gethostname = lambda: "localhost"
+		_hide_local_hostname()
 
 		self.sign_and_seal_supported = hasattr(ldap3, 'SIGN') and hasattr(ldap3, 'ENCRYPT')
 		self.channel_binding_supported = hasattr(ldap3, 'TLS_CHANNEL_BINDING')

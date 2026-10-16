@@ -393,6 +393,26 @@ class SpnegoNtlmBindTests(unittest.TestCase):
                     conn._ntlm_bind(session, 'example.test', 'alice', 'secret', '', '', {})
                 session.bind.assert_not_called()
 
+
+class HiddenHostnameTests(unittest.TestCase):
+    def test_installed_once_and_hides_the_real_hostname(self):
+        import socket
+        from powerview.utils import connections
+        with patch.object(socket, 'gethostname', connections._original_gethostname):
+            connections._hide_local_hostname()
+            installed = socket.gethostname
+            connections._hide_local_hostname()
+            self.assertIs(socket.gethostname, installed)
+            self.assertEqual(socket.gethostname(), 'localhost')
+
+    def test_existing_override_is_left_alone(self):
+        import socket
+        from powerview.utils import connections
+        custom = lambda: 'CUSTOM'
+        with patch.object(socket, 'gethostname', custom):
+            connections._hide_local_hostname()
+            self.assertIs(socket.gethostname, custom)
+
 class KerberosFallbackTests(unittest.TestCase):
     def fallback(self, conn, use_ssl, side_effect):
         conn.impacket_ldap3_kerberos_login = MagicMock(side_effect=side_effect)
