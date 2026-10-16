@@ -94,15 +94,30 @@ WINDOWS_NTLM_VERSION = (10, 0, 26100)
 WINDOWS_NTLM_NEGOTIATE_FLAGS = 0xe20882b7
 
 class SpnegoNtlmSeal:
-	def __init__(self, cipher):
-		self._cipher = cipher
+	def __init__(self, flags, session_key):
+		from impacket import ntlm
+		from Cryptodome.Cipher import ARC4
+		self._flags = flags
+		self._client_signing_key = ntlm.SIGNKEY(flags, session_key)
+		self._server_signing_key = ntlm.SIGNKEY(flags, session_key, 'Server')
+		self._client_handle = ARC4.new(ntlm.SEALKEY(flags, session_key)).encrypt
+		self._server_handle = ARC4.new(ntlm.SEALKEY(flags, session_key, 'Server')).encrypt
+		self._sequence = 0
 
 	def seal(self, message):
-		signature, sealed = self._cipher.encrypt(message)
+		from impacket import ntlm
+		sealed, signature = ntlm.SEAL(self._flags, self._client_signing_key, None, message, message, self._sequence, self._client_handle)
+		self._sequence += 1
 		return signature.getData() + sealed
 
 	def unseal(self, message):
-		return self._cipher.decrypt(message)[1]
+		from impacket import ntlm
+		signature = message[:16]
+		plain = self._server_handle(message[16:])
+		expected = ntlm.MAC(self._flags, self._server_handle, self._server_signing_key, unpack('<i', signature[12:16])[0], plain).getData()
+		if expected != signature:
+			raise ldap3.core.exceptions.LDAPSignatureVerificationFailedError(f"Signature verification failed for a sealed LDAP message (expected {expected.hex()}, got {signature.hex()})")
+		return plain
 
 class ConnectionPoolEntry:
 	"""Represents a single connection entry in the pool with metadata"""
@@ -1361,8 +1376,8 @@ class CONNECTION:
 					logging.info(f"LDAP reconnection attempt {retry_count+1}/{max_retries} after {backoff_time:.2f} seconds")
 					time.sleep(backoff_time)
 
-				if retry_count == 0 and not fresh:
-					# First attempt: try lightweight rebind
+				if retry_count == 0 and not fresh and getattr(self.ldap_session, 'authentication', None) != ldap3.NTLM:
+					# First attempt: try lightweight rebind. Not for NTLM: ldap3 would rebind with its Sicily bind
 					self.ldap_session.rebind()
 				else:
 					logging.debug("Creating fresh LDAP connection")
@@ -1952,7 +1967,6 @@ class CONNECTION:
 
 	def _ntlm_spnego_bind(self, session, domain, username, password, lmhash, nthash, security):
 		from impacket.ntlm import getNTLMSSPType3, VERSION, hmac_md5, NTLMSSP_NEGOTIATE_SEAL, NTLMSSP_TARGET_TYPE_DOMAIN, NTLMSSP_TARGET_TYPE_SERVER
-		from impacket.spnego import SPNEGOCipher
 
 		if session.closed:
 			session.open(read_server_info=False)
@@ -1991,6 +2005,7 @@ class CONNECTION:
 		authenticate['flags'] = NTLMAuthChallenge(challenge)['flags'] & ~(NTLMSSP_TARGET_TYPE_DOMAIN | NTLMSSP_TARGET_TYPE_SERVER)
 		# Read at bind time: CONNECTION.__init__ patches gethostname to hide the operator's real hostname
 		authenticate['host_name'] = socket.gethostname().encode('utf-16le')
+		authenticate['MIC'] = b'\x00' * 16
 		authenticate['MIC'] = hmac_md5(session_key, negotiate_data + challenge + authenticate.getData())
 		result = sasl_bind(authenticate.getData())
 		if result['result'] != ldap3.core.results.RESULT_SUCCESS:
@@ -1998,7 +2013,7 @@ class CONNECTION:
 
 		session.bound = True
 		if seal:
-			session.ntlm_client = SpnegoNtlmSeal(SPNEGOCipher(authenticate['flags'], session_key))
+			session.ntlm_client = SpnegoNtlmSeal(authenticate['flags'], session_key)
 		session.refresh_server_info()
 		return True
 

@@ -359,6 +359,38 @@ class SpnegoNtlmBindTests(unittest.TestCase):
         authenticate.fromString(sent[1][5])
         self.assertEqual(authenticate['host_name'].decode('utf-16le'), 'localhost')
 
+    def test_mic_is_computed_over_a_zero_filled_mic_field(self):
+        import impacket.ntlm as ntlm
+        from impacket.ntlm import NTLMAuthChallenge, AV_PAIRS, NTLMSSP_AV_HOSTNAME, NTLMSSP_AV_DOMAINNAME, NTLMSSP_AV_DNS_HOSTNAME
+        av = AV_PAIRS()
+        av[NTLMSSP_AV_DOMAINNAME] = 'WONKA'.encode('utf-16le')
+        av[NTLMSSP_AV_HOSTNAME] = 'DC01'.encode('utf-16le')
+        av[NTLMSSP_AV_DNS_HOSTNAME] = 'dc01.wonka.lab'.encode('utf-16le')
+        message = NTLMAuthChallenge()
+        message['flags'] = 0xe2898235
+        message['challenge'] = b'\x01' * 8
+        message['domain_name'] = 'WONKA'.encode('utf-16le')
+        message['Version'] = b'\x0a\x00\xf4\x65\x00\x00\x00\x0f'
+        message['TargetInfoFields'] = av.getData()
+        message['TargetInfoFields_offset'] = 56 + len(message['domain_name'])
+        message['domain_offset'] = 56
+        challenge = message.getData()
+        sent, mic_inputs = [], []
+        real_hmac = ntlm.hmac_md5
+        def record(key, data):
+            if data.startswith(b'NTLMSSP\x00\x01'):
+                mic_inputs.append(data)
+            return real_hmac(key, data)
+        session = MagicMock(closed=False, version=3)
+        session.server.tls.peer_certificate = None
+        session.post_send_single_response.side_effect = [[{'result': 14, 'saslCreds': challenge}], [{'result': 49}]]
+        with patch.object(ldap3.operation.bind, 'bind_operation', side_effect=lambda *a: sent.append(a) or a), \
+                patch.object(ntlm, 'hmac_md5', side_effect=record):
+            make_conn()._ntlm_spnego_bind(session, 'wonka.lab', 'alice', 'secret', '', '', {})
+        negotiate, authenticate = sent[0][5], sent[1][5]
+        self.assertEqual(len(mic_inputs), 1)
+        self.assertEqual(mic_inputs[0], negotiate + challenge + authenticate[:72] + b'\x00' * 16 + authenticate[88:])
+
     def test_tls_negotiate_drops_sign_and_seal(self):
         from impacket.ntlm import NTLMSSP_NEGOTIATE_SIGN, NTLMSSP_NEGOTIATE_SEAL
         negotiate = self.negotiate(True, {'channel_binding': ldap3.TLS_CHANNEL_BINDING})[2]
@@ -412,6 +444,50 @@ class HiddenHostnameTests(unittest.TestCase):
         with patch.object(socket, 'gethostname', custom):
             connections._hide_local_hostname()
             self.assertIs(socket.gethostname, custom)
+
+
+class SpnegoNtlmSealTests(unittest.TestCase):
+    FLAGS = 0xe2888235
+
+    def server_seal(self, key, message, seq, handle):
+        from impacket import ntlm
+        sealed, signature = ntlm.SEAL(self.FLAGS, ntlm.SIGNKEY(self.FLAGS, key, 'Server'), None, message, message, seq, handle)
+        return signature.getData() + sealed
+
+    def test_unseals_server_messages_and_verifies_their_signatures(self):
+        from impacket import ntlm
+        from Cryptodome.Cipher import ARC4
+        from powerview.utils.connections import SpnegoNtlmSeal
+        key = b'K' * 16
+        client = SpnegoNtlmSeal(self.FLAGS, key)
+        server = ARC4.new(ntlm.SEALKEY(self.FLAGS, key, 'Server')).encrypt
+        for seq, message in enumerate((b'first response', b'second response')):
+            self.assertEqual(client.unseal(self.server_seal(key, message, seq, server)), message)
+
+    def test_tampered_message_is_rejected(self):
+        from impacket import ntlm
+        from Cryptodome.Cipher import ARC4
+        from powerview.utils.connections import SpnegoNtlmSeal
+        key = b'K' * 16
+        client = SpnegoNtlmSeal(self.FLAGS, key)
+        sealed = bytearray(self.server_seal(key, b'search result', 0, ARC4.new(ntlm.SEALKEY(self.FLAGS, key, 'Server')).encrypt))
+        sealed[-1] ^= 0x01
+        with self.assertRaises(ldap3.core.exceptions.LDAPSignatureVerificationFailedError):
+            client.unseal(bytes(sealed))
+
+
+class ReconnectTests(unittest.TestCase):
+    def test_ntlm_sessions_reconnect_fresh_instead_of_rebinding(self):
+        conn = make_conn()
+        conn.args = SimpleNamespace(ldap_timeout=30, stack_trace=False)
+        session = MagicMock(spec=ldap3.Connection)
+        session.authentication = ldap3.NTLM
+        conn.ldap_session = session
+        conn.init_ldap_session = MagicMock(return_value=(MagicMock(), session))
+        conn.is_connection_alive = MagicMock(return_value=True)
+        self.assertTrue(conn._reset_connection(max_retries=1, fresh=False))
+        session.rebind.assert_not_called()
+        conn.init_ldap_session.assert_called_once()
 
 class KerberosFallbackTests(unittest.TestCase):
     def fallback(self, conn, use_ssl, side_effect):
