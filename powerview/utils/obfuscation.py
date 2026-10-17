@@ -45,9 +45,14 @@ class ObfuscationSettings:
 	@classmethod
 	def from_args(cls, args: argparse.Namespace) -> "ObfuscationSettings | None":
 		requested = getattr(args, "obfuscate", False)
-		explicit = {name: getattr(args, "obfuscate_" + name, None) for name in CHAIN_NAMES[1:]}
-		options = tuple(getattr(args, "obfuscate_option", None) or ())
+		explicit = {name: getattr(args, "obfuscate_" + name, None) for name in CHAIN_NAMES}
+		options = tuple((str(key), str(value)) for key, value in (getattr(args, "obfuscate_option", None) or ()))
 		operations = getattr(args, "obfuscate_ops", None)
+		if isinstance(operations, str):
+			try:
+				operations = operations_argument(operations)
+			except argparse.ArgumentTypeError as error:
+				raise ObfuscationError(str(error)) from error
 		if requested is False and all(chain is None for chain in explicit.values()):
 			if options or operations:
 				raise ObfuscationError("--obfuscate-option and --obfuscate-ops require --obfuscate or a chain flag")
@@ -57,6 +62,15 @@ class ObfuscationSettings:
 			chains["filter"] = requested
 		chains.update({name: chain for name, chain in explicit.items() if chain is not None})
 		return cls(**chains, options=options, operations=tuple(operations or DEFAULT_OPERATIONS))
+
+
+def obfuscation_arguments(settings: ObfuscationSettings | None) -> dict[str, object]:
+	return {
+		"obfuscate": settings is not None,
+		**{"obfuscate_" + name: getattr(settings, name, None) for name in CHAIN_NAMES},
+		"obfuscate_option": settings.options if settings is not None else None,
+		"obfuscate_ops": settings.operations if settings is not None else None,
+	}
 
 
 def option_argument(value: str) -> tuple[str, str]:

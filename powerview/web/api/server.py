@@ -17,7 +17,7 @@ from powerview.utils.constants import UAC_DICT
 import types
 from powerview.web.frontend import create_web_app, register_frontend
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
-from powerview.utils.obfuscation import DEFAULT_CHAINS, ObfuscationError, ObfuscationSettings
+from powerview.utils.obfuscation import ObfuscationError, ObfuscationSettings, obfuscation_arguments
 from powerview.modules.smbclient import SMBClient
 from powerview.lib.tsts import TSHandler
 from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip, is_valid_sid
@@ -209,7 +209,9 @@ class APIServer:
 		return jsonify({'status': 'OK' if success else 'KO'}), 200 if success else 400
 	
 	def handle_settings(self):
-		return jsonify(vars(self.powerview.args))
+		settings = dict(vars(self.powerview.args))
+		settings.update(obfuscation_arguments(self.powerview.conn.obfuscation))
+		return jsonify(settings)
 
 	def handle_plugins_list(self):
 		registry = getattr(self.powerview, 'plugin_registry', None)
@@ -278,13 +280,13 @@ class APIServer:
 
 	def handle_set_settings(self):
 		try:
-			obfuscate = request.json.get('obfuscate', False)
-			no_cache = request.json.get('no_cache', False)
-			no_vuln_check = request.json.get('no_vuln_check', False)
-			logging.info(f"obfuscate: {obfuscate}, no_cache: {no_cache}, no_vuln_check: {no_vuln_check}")
+			settings = self._obfuscation_from_request(request.json)
+			no_cache = request.json.get('no_cache', self.powerview.args.no_cache)
+			no_vuln_check = request.json.get('no_vuln_check', self.powerview.args.no_vuln_check)
+			logging.info(f"obfuscate: {settings is not None}, no_cache: {no_cache}, no_vuln_check: {no_vuln_check}")
 			
-			self.powerview.conn.set_obfuscation(self._obfuscation_from_request(obfuscate))
-			self.powerview.args.obfuscate = obfuscate
+			self.powerview.conn.set_obfuscation(settings)
+			vars(self.powerview.args).update(obfuscation_arguments(settings))
 			self.powerview.args.no_cache = no_cache
 			self.powerview.args.no_vuln_check = no_vuln_check
 
@@ -305,14 +307,19 @@ class APIServer:
 			logging.error(f"Error setting settings: {str(e)}")
 			return jsonify({'error': str(e)}), 400
 
-	def _obfuscation_from_request(self, value):
-		if value is None or value is False or value == '':
-			return None
-		if value is True:
-			return self.powerview.conn.obfuscation or ObfuscationSettings.defaults()
+	def _obfuscation_from_request(self, values):
+		current = self.powerview.conn.obfuscation
+		value = values.get('obfuscate', current is not None)
+		if 'obfuscate' in values:
+			if value is None or value is False or value == '':
+				return None
+			if value is not True and not isinstance(value, str):
+				raise ObfuscationError("obfuscate must be a boolean or a filter chain")
+		arguments = obfuscation_arguments(current)
+		arguments.update(values)
 		if isinstance(value, str):
-			return ObfuscationSettings(**dict(DEFAULT_CHAINS, filter=value))
-		raise ObfuscationError("obfuscate must be a boolean or a filter chain")
+			arguments['obfuscate_filter'] = value
+		return ObfuscationSettings.from_args(Namespace(**arguments))
 
 	def handle_connection_info(self):
 		return jsonify({
