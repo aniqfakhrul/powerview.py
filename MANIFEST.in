@@ -1,4 +1,6 @@
 graft powerview/web
 prune powerview/web/.git
 prune powerview/web/*/__pycache__
-prune powerview/web/*/*/__pycache__ 
+prune powerview/web/*/*/__pycache__
+include powerview/lib/ldapx/LICENSE
+include powerview/lib/ldapx/LICENSE-GO
