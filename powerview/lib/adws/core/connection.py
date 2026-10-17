@@ -66,6 +66,7 @@ class Connection(object):
         self.closed = True
         self.last_error = None
         self.entries = []
+        self.obfuscator = None
 
         # Add compatibility attributes for connection pooling
         self.nmf = None
@@ -333,7 +334,11 @@ class Connection(object):
 
         try:
             # make search operation to the server before pulling the results
-            request = search_operation(self.host, search_base, search_filter, search_scope, attributes, controls=controls)
+            wire_base, wire_filter, wire_attributes = search_base, search_filter, attributes
+            if self.obfuscator is not None:
+                wire_base, wire_filter, wire_attributes = self.obfuscator.search_strings(search_base, search_filter, attributes)
+                logging.debug(f"[ldapx] ADWS search base='{wire_base}' filter={wire_filter} attributes={wire_attributes}")
+            request = search_operation(self.host, wire_base, wire_filter, search_scope, wire_attributes, controls=controls)
             response = self.send_and_recv(request)
             enum_resp = search_enumerate_response_to_dict(response)
             enum_ctx = enum_resp['EnumerationContext']

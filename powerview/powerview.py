@@ -184,7 +184,7 @@ class PowerView:
 				sys.exit(1)
 
 	def _initialize_attributes_from_connection(self):
-		self.custom_paged_search = CustomExtendedOperationsRoot(self.ldap_session, server=self.ldap_server, obfuscate=self.args.obfuscate, no_cache=self.args.no_cache, no_vuln_check=self.args.no_vuln_check, use_adws=self.args.use_adws, raw=self.args.raw)
+		self.custom_paged_search = CustomExtendedOperationsRoot(self.ldap_session, server=self.ldap_server, no_cache=self.args.no_cache, no_vuln_check=self.args.no_vuln_check, use_adws=self.args.use_adws, raw=self.args.raw)
 		if not hasattr(self.ldap_session, 'extend'):
 			self.ldap_session.extend = type('ExtendedOperations', (), {'standard': type('StandardOperations', (), {})()})()
 		self.ldap_session.extend.standard.paged_search = self.custom_paged_search.standard.paged_search

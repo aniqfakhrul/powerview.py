@@ -17,6 +17,7 @@ from powerview.utils.constants import UAC_DICT
 import types
 from powerview.web.frontend import create_web_app, register_frontend
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
+from powerview.utils.obfuscation import DEFAULT_CHAINS, ObfuscationError, ObfuscationSettings
 from powerview.modules.smbclient import SMBClient
 from powerview.lib.tsts import TSHandler
 from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip, is_valid_sid
@@ -282,19 +283,27 @@ class APIServer:
 			no_vuln_check = request.json.get('no_vuln_check', False)
 			logging.info(f"obfuscate: {obfuscate}, no_cache: {no_cache}, no_vuln_check: {no_vuln_check}")
 			
-			# Update powerview args
+			self.powerview.conn.set_obfuscation(self._obfuscation_from_request(obfuscate))
 			self.powerview.args.obfuscate = obfuscate
 			self.powerview.args.no_cache = no_cache
 			self.powerview.args.no_vuln_check = no_vuln_check
-			
-			# Create new CustomExtendedOperationsRoot instance with updated settings
-			self.powerview.custom_paged_search = CustomExtendedOperationsRoot(self.powerview.ldap_session, obfuscate=obfuscate, no_cache=no_cache, no_vuln_check=no_vuln_check)
+
+			self.powerview.custom_paged_search = CustomExtendedOperationsRoot(self.powerview.ldap_session, no_cache=no_cache, no_vuln_check=no_vuln_check)
 			self.powerview.ldap_session.extend.standard = self.powerview.custom_paged_search.standard
-			
+
 			return jsonify({'status': 'OK'})
+		except ObfuscationError as e:
+			return jsonify({'error': f'Invalid obfuscation settings: {e}'}), 400
 		except Exception as e:
 			logging.error(f"Error setting settings: {str(e)}")
 			return jsonify({'error': str(e)}), 400
+
+	def _obfuscation_from_request(self, value):
+		if not value:
+			return None
+		if isinstance(value, str):
+			return ObfuscationSettings(**{**DEFAULT_CHAINS, 'filter': value})
+		return self.powerview.conn.obfuscation or ObfuscationSettings.defaults()
 
 	def handle_connection_info(self):
 		return jsonify({

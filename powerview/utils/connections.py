@@ -56,6 +56,7 @@ import socket
 from ldap3.operation import bind
 from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
 import powerview.lib.adws as adws
+from powerview.utils.obfuscation import ObfuscationSettings, apply_to_session
 
 _gethostname_lock = threading.Lock()
 _original_gethostname = socket.gethostname
@@ -376,6 +377,10 @@ class ConnectionPool:
 			entry.close()
 		self._record_connection_attempt(domain, success=True)
 		return selected
+
+	def entries(self):
+		with self._pool_lock:
+			return list(self._pool.values())
 
 	def add_connection(self, connection, domain, *, owns_connection=True):
 		domain = domain.lower()
@@ -705,6 +710,8 @@ class SMBConnectionPool(ConnectionPool):
 		return stats
 
 class CONNECTION:
+	obfuscation = None
+
 	@property
 	def ldap_session(self):
 		lock = session_lock(self)
@@ -721,7 +728,25 @@ class CONNECTION:
 			if previous is not None and '_powerview_query_cache' in vars(previous):
 				value._powerview_query_cache = previous._powerview_query_cache
 			share_session_lock(self, value)
+			apply_to_session(value, self.obfuscation)
 		self._ldap_session = value
+
+	def _new_ldap3_connection(self, *args, auto_bind=ldap3.AUTO_BIND_DEFAULT, **kwargs):
+		connection = ldap3.Connection(*args, auto_bind=ldap3.AUTO_BIND_DEFAULT, **kwargs)
+		apply_to_session(connection, self.obfuscation)
+		connection.auto_bind = {False: ldap3.AUTO_BIND_DEFAULT, True: ldap3.AUTO_BIND_NO_TLS}.get(auto_bind, auto_bind)
+		if connection.auto_bind not in (ldap3.AUTO_BIND_NONE, ldap3.AUTO_BIND_DEFAULT):
+			connection._do_auto_bind()
+		return connection
+
+	def set_obfuscation(self, settings):
+		self.obfuscation = settings
+		session = getattr(self, '_ldap_session', None)
+		if session is not None:
+			apply_to_session(session, settings)
+		for entry in self._connection_pool.entries():
+			if entry.connection is not self:
+				entry.connection.set_obfuscation(settings)
 
 	@staticmethod
 	def _get_formatter():
@@ -930,6 +955,7 @@ class CONNECTION:
 			self.use_ldaps = True
 
 		self.args = args
+		self.obfuscation = ObfuscationSettings.from_args(args)
 		self.ldap_session = None
 		self.ldap_server = None
 
@@ -1002,6 +1028,7 @@ class CONNECTION:
 			if hasattr(self, 'TGS') and self.TGS is not None:
 				new_conn.TGS = self.TGS
 			new_conn.use_kerberos = self.use_kerberos
+			new_conn.obfuscation = self.obfuscation
 			
 			new_conn.update_temp_ldap_address(domain)
 			
@@ -1051,7 +1078,7 @@ class CONNECTION:
 
 	def get_alt_server_info(self, read_server_info=False):
 		_server = ldap3.Server(self.args.ldap_address, get_info=ldap3.ALL, connect_timeout=getattr(self.args, "ldap_timeout", 30))
-		_connection = ldap3.Connection(_server, receive_timeout=getattr(self.args, "ldap_timeout", 30))
+		_connection = self._new_ldap3_connection(_server, receive_timeout=getattr(self.args, "ldap_timeout", 30))
 		_connection.open(read_server_info=read_server_info)
 		_connection.search(search_base='',
 									search_filter='(objectClass=*)',
@@ -1703,7 +1730,7 @@ class CONNECTION:
 
 		logging.debug(f"Connecting as ANONYMOUS to {ldap_server_kwargs['host']}, Port: {ldap_server_kwargs.get('port')}, SSL: {ldap_server_kwargs.get('use_ssl')}")
 		self.ldap_server = ldap3.Server(**ldap_server_kwargs)
-		self.ldap_session = ldap3.Connection(self.ldap_server, receive_timeout=getattr(self.args, "ldap_timeout", 30))
+		self.ldap_session = self._new_ldap3_connection(self.ldap_server, receive_timeout=getattr(self.args, "ldap_timeout", 30))
 
 		if not self.ldap_session.bind():
 			logging.info(f"Error binding to {self.proto}")
@@ -1904,7 +1931,7 @@ class CONNECTION:
 		for k, v in ldap_connection_kwargs.items():
 			logging.debug(f'  {k}: {v}')
 		try:
-			ldap_connection = ldap3.Connection(**ldap_connection_kwargs)
+			ldap_connection = self._new_ldap3_connection(**ldap_connection_kwargs)
 		except ldap3.core.exceptions.LDAPInvalidValueError as e:
 			raise ConnectionSetupError(str(e))
 
@@ -2134,7 +2161,7 @@ class CONNECTION:
 			logging.debug('Connecting to LDAP with parameters:')
 			for k, v in ldap_connection_kwargs.items():
 				logging.debug(f'  {k}: {v}')
-			ldap_session = ldap3.Connection(**ldap_connection_kwargs)
+			ldap_session = self._new_ldap3_connection(**ldap_connection_kwargs)
 			if ldap_session.closed:
 				ldap_session.open()
 		except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
@@ -2260,7 +2287,7 @@ class CONNECTION:
 					logging.debug(f'  {k}: **********')
 				else:
 					logging.debug(f'  {k}: {v}')
-			ldap_session = ldap3.Connection(ldap_server, **ldap_connection_kwargs)
+			ldap_session = self._new_ldap3_connection(ldap_server, **ldap_connection_kwargs)
 			if auth_method == ldap3.NTLM:
 				bind = self._ntlm_bind(ldap_session, domain, username, password, lmhash, nthash, security)
 			else:

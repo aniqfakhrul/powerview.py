@@ -29,7 +29,7 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
     init_proto = _safe(lambda: powerview.conn.get_proto(), "LDAP")
     server_dns = _safe(lambda: powerview.get_server_dns(), "<server>")
     nameserver = _safe(lambda: powerview.conn.get_nameserver(), None)
-    obfuscate = getattr(args, 'obfuscate', False) if args else False
+    obfuscate = _safe(lambda: powerview.conn.obfuscation is not None, False)
 
     is_admin = False
     if args and not getattr(args, 'no_admin_check', False):

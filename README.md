@@ -200,45 +200,77 @@ powerview 10.10.10.10 --relay [--relay-host] [--relay-port] [--use-ldap | --use-
 
 ### Obfuscation
 
-PowerView uses [ldapx-py](https://github.com/j0hnZ3RA/ldapx-py) to obfuscate LDAP queries and related parameters, varying observable patterns while preserving query intent.
+PowerView ships an in-tree port of [ldapx](https://github.com/Macmod/ldapx) (`powerview/lib/ldapx`, pinned to upstream `7d6339a`, v1.3.5) and applies it to the LDAP requests themselves, at the same layer the ldapx proxy works on. Every search PowerView sends, including the RootDSE and schema reads, carries the same middlewares, chain codes, option keys and defaults as upstream, so running `--obfuscate` is equivalent to running PowerView behind `ldapx` with the same chains.
 
-* Enable via CLI (default chain)
+* Enable with the default chains
 ```
 powerview range.net/lowpriv:Password123@192.168.86.192 --obfuscate
 ```
 
-* Enable via CLI (custom chain codes)
+* Choose the filter chain, and optionally the other chains
 ```
-powerview range.net/lowpriv:Password123@192.168.86.192 --obfuscate CZXANDR
+powerview range.net/lowpriv:Password123@192.168.86.192 --obfuscate CZXANDR --obfuscate-basedn WCX --obfuscate-attrlist CRD
 ```
 
-* Enable via Web
-> [!TIP]
-> Toggle `Obfuscate` in Settings. This applies to subsequent queries for the active session.
+* Tune middleware options (upstream `-o KEY=VALUE` keys) and opt in to write operations
+```
+powerview range.net/lowpriv:Password123@192.168.86.192 --obfuscate --obfuscate-option FiltCaseProb=0.9 --obfuscate-option FiltObjCategoryRootDN=DC=range,DC=net --obfuscate-attrentries CR --obfuscate-ops search,modify,add
+```
 
-**What gets obfuscated**
-- Filter: transforms attribute names, operators and values before sending
-- DN: mutates the search base distinguishedName
-- Attributes: mutates the requested attribute list
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--obfuscate [CHAIN]` | `CZNDR` | Enables obfuscation; the optional value is the filter chain |
+| `--obfuscate-basedn CHAIN` | `CX` | BaseDN chain (also applied to modify, delete, modifyDN and compare targets) |
+| `--obfuscate-attrlist CHAIN` | `CR` | Requested attributes chain |
+| `--obfuscate-attrentries CHAIN` | none | Attribute names of add and modify operations |
+| `--obfuscate-option KEY=VALUE` | upstream defaults | Middleware option, repeatable |
+| `--obfuscate-ops OPS` | `search` | Any of `search,modify,add,delete,modifydn,compare` |
 
-**Default chains** (when using `--obfuscate` with no value)
+The defaults above apply when `--obfuscate` is given. Passing only a specific chain flag (for example `--obfuscate-basedn W`) enables just that chain, as upstream does. Chains and options are validated at startup with upstream's rules, so an unknown code or an invalid combination is an error rather than being silently ignored.
 
-| Target | Chain | Techniques |
-|--------|-------|-----------|
-| Filter | `CZNDR` | Case, Zeros, aNR, De Morgan, Reorder |
-| BaseDN | `CX` | Case, heX encoding |
-| Attributes | `CR` | Case, Reorder |
+**Chain codes**
 
-Run `ldapx codes --all` to see all available obfuscation codes.
+| Target | Codes |
+|--------|-------|
+| Filter | `O` OIDAttribute, `C` Case, `X` HexValue, `S` Spacing, `T` ReplaceTautologies, `t` TimestampGarbage, `B` AddBool, `D` DblNegBool, `M` DeMorganBool, `R` ReorderBool, `b` ExactBitwiseBreakout, `d` BitwiseDecomposition, `I` EqInclusion, `E` EqExclusion, `G` Garbage, `A` EqApproxMatch, `x` EqExtensible, `Z` PrependZeros, `s` SubstringSplit, `N` NamesToANR, `n` ANRGarbageSubstring, `P` DNAttributesNoise, `L` TransitiveEval, `F` ObjectCategoryForm, `U` IgnorableUnicode, `W` AltSpace, `K` SortKeyFold |
+| BaseDN | `O` OIDAttribute, `C` Case, `X` HexValue, `S` Spacing, `Q` DoubleQuotes, `U` GUIDFormat, `I` SIDFormat, `W` WKGUIDFormat, `N` IgnorableUnicode, `A` AltSpace, `K` SortKeyFold |
+| AttrList | `O` OIDAttribute, `C` Case, `D` Duplicate, `G` GarbageNonExisting, `g` GarbageExisting, `W` ReplaceWithWildcard, `w` AddWildcard, `p` AddPlus, `E` ReplaceWithEmpty, `R` ReorderList, `r` Range |
+| AttrEntries | `O` OIDAttribute, `C` Case, `R` ReorderList |
+
+Each middleware, its options and its caveats are documented in the [ldapx README](https://github.com/Macmod/ldapx#middlewares). `F` needs `FiltObjCategoryRootDN`, and the BaseDN `U`/`I` forms need `BDNGuid`/`BDNSid`.
 
 > [!NOTE]
-> Results are functionally equivalent in most cases, but approximation/wildcard expansions can broaden matches. Some codes (G, O, S) may not be compatible with ldap3 - use with caution.
+> Some codes intentionally change what the server matches or returns: `N` and `L` return a superset, `s` can broaden a match, and `w`, `W`, `p`, `E` and `g` return more attributes. Upstream's `C` also lowercases the `Z` of GeneralizedTime values, which makes AD match nothing; avoid it on `whenCreated`/`whenChanged` filters or lower `FiltCaseProb`.
 
 > [!WARNING]
 > Excessive obfuscation may be rejected by strict servers or intermediary tooling. Use only when needed.
 
-* ldapx-py: LDAP query obfuscation library — https://github.com/j0hnZ3RA/ldapx-py
-* ldapx: Flexible LDAP proxy used for reference — https://github.com/Macmod/ldapx
+**Differences from upstream**
+- Values that are not valid UTF-8 (binary GUIDs, SIDs) are kept byte for byte; upstream replaces those bytes with U+FFFD in the middlewares that rebuild values per character (`C`, `s`, `I`, `E`, `U`, `W`, `K`), and `X` escapes the original byte.
+- Add and modify attributes without values are left untouched instead of being dropped, and an empty RDN value no longer crashes the BaseDN `X` middleware.
+- Paged-search tracking keeps the last 1024 searches per connection instead of an unbounded map.
+- Operations ldap3 re-sends while chasing a referral carry the same obfuscation; behind the proxy they would reach the referred server directly. The referral connection's own bind and server-info reads happen before it can be hooked.
+- With `--use-adws`, only searches are obfuscated, at the filter string level.
+
+Paged searches are tracked like upstream: every page must repeat the same request, so code calling ldap3 directly should pass an immutable attribute selection (ldap3 appends `+` to a list on each page when `get_operational_attributes=True`). PowerView's own paged search already does this.
+
+**Verifying parity with upstream**
+
+`tests/test_ldapx_parity.py` replays 2,800+ seeded cases recorded from upstream with a port of Go's `math/rand` source and requires bit-identical output; `T` and attrlist `g` depend on Go map iteration order and are covered statistically. The tooling in `tools/ldapx` regenerates everything from the pinned module:
+
+```
+cd tools/ldapx
+go run ./cmd/gentables -repo ../..                                        # tables, casing, revision
+go build -o /tmp/pv-ldapx-oracle ./cmd/oracle
+/tmp/pv-ldapx-oracle -fixtures fixtures/parity.json -revision "$(go list -m -f '{{.Version}}' github.com/Macmod/ldapx)"
+cd ../.. && uv run python tools/ldapx/parity.py --oracle /tmp/pv-ldapx-oracle # exact + statistical benchmark
+GOBIN=/tmp go install github.com/Macmod/ldapx@<pinned version>              # upstream proxy for live A/B
+uv run python tools/ldapx/live_ab.py --proxy /tmp/ldapx --dc <ip> --identity 'domain/user:pass' --password 'pass' --base 'DC=...' --domain-sid S-1-5-21-...
+```
+
+To move to a newer upstream revision, `go get github.com/Macmod/ldapx@<rev>` in `tools/ldapx`, rerun the steps above and port any middleware changes until the parity tests pass.
+
+* ldapx: Flexible LDAP proxy — https://github.com/Macmod/ldapx
 * Research: MaLDAPtive: Obfuscation and De-Obfuscation (DEF CON 32 talk) — https://www.youtube.com/watch?v=mKRS5Iyy7Qo
 * Authors: Sabajete Elezaj — https://x.com/sabi_elezi, Daniel Bohannon — https://x.com/danielhbohannon
 

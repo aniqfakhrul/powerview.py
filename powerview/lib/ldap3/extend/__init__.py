@@ -3,7 +3,6 @@ from ldap3.extend.standard.PagedSearch import paged_search_generator, paged_sear
 from powerview.lib.adws.extend.standard.PagedSearch import adws_paged_search_generator, adws_paged_search_accumulator
 from ldap3.extend import StandardExtendedOperations, ExtendedOperationsRoot
 from ldap3 import SUBTREE, DEREF_ALWAYS
-import ldapx
 
 import logging
 from datetime import datetime, timedelta, timezone
@@ -17,10 +16,6 @@ from powerview.utils.session import session_locked
 from powerview.modules.vulnerabilities import VulnerabilityDetector
 from powerview.utils.helpers import strip_entry
 from powerview.utils.hints import patch_ldap3_exceptions
-
-DEFAULT_FILTER_CHAIN = "CZNDR"
-DEFAULT_BASEDN_CHAIN = "CX"
-DEFAULT_ATTRLIST_CHAIN = "CR"
 
 # Patch ldap3's LDAPOperationResult to include error hints
 patch_ldap3_exceptions()
@@ -48,10 +43,9 @@ def install_cache_invalidation(connection):
 
 
 class CustomStandardExtendedOperations(StandardExtendedOperations):
-	def __init__(self, connection, server=None, obfuscate=False, no_cache=False, no_vuln_check=False, use_adws=False, raw=False):
+	def __init__(self, connection, server=None, no_cache=False, no_vuln_check=False, use_adws=False, raw=False):
 		super().__init__(connection)
 		self.server = server
-		self.obfuscate = obfuscate
 		self.no_cache = no_cache
 		self.no_vuln_check = no_vuln_check
 		self.use_adws = use_adws
@@ -137,36 +131,18 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 					
 					return cached_results
 			
-			modified_filter = search_filter
-			modified_dn = search_base
-			modified_attributes = attributes
-
-			if self.obfuscate:
-				filter_chain = self.obfuscate if isinstance(self.obfuscate, str) else DEFAULT_FILTER_CHAIN
-				basedn_chain = DEFAULT_BASEDN_CHAIN
-				attrlist_chain = DEFAULT_ATTRLIST_CHAIN
-
-				modified_filter = ldapx.obfuscate_filter(search_filter, filter_chain)
-				logging.debug("[CustomStandardExtendedOperations] Modified Filter: {}".format(modified_filter))
-
-				modified_dn = ldapx.obfuscate_basedn(search_base, basedn_chain)
-				logging.debug("[CustomStandardExtendedOperations] Modified DN: {}".format(modified_dn))
-
-				if attributes:
-					modified_attributes = ldapx.obfuscate_attrlist(attributes, attrlist_chain)
-					logging.debug("[CustomStandardExtendedOperations] Modified Attributes: {}".format(modified_attributes))
-
+			requested_attributes = tuple(attributes) if isinstance(attributes, list) else attributes
 			read_at = datetime.now(timezone.utc)
 			if generator:
 				if self.use_adws:
-					results = list(adws_paged_search_generator(self._connection, modified_dn, modified_filter, search_scope, modified_attributes, size_limit, time_limit, types_only, get_operational_attributes, controls, paged_size, paged_criticality))
+					results = list(adws_paged_search_generator(self._connection, search_base, search_filter, search_scope, requested_attributes, size_limit, time_limit, types_only, get_operational_attributes, controls, paged_size, paged_criticality))
 				else:
 					results = list(paged_search_generator(self._connection,
-												modified_dn,
-												modified_filter,
+												search_base,
+												search_filter,
 												search_scope,
 												dereference_aliases,
-												modified_attributes,
+												requested_attributes,
 												size_limit,
 												time_limit,
 												types_only,
@@ -178,10 +154,10 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				if self.use_adws:
 					results = list(adws_paged_search_accumulator(
 						self._connection,
-						modified_dn,
-						modified_filter,
+						search_base,
+						search_filter,
 						search_scope,
-						modified_attributes,
+						requested_attributes,
 						size_limit,
 						time_limit,
 						types_only,
@@ -193,11 +169,11 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				else:
 					results = list(paged_search_accumulator(
 						self._connection,
-						modified_dn,
-						modified_filter,
+						search_base,
+						search_filter,
 						search_scope,
 						dereference_aliases,
-						modified_attributes,
+						requested_attributes,
 						size_limit,
 						time_limit,
 						types_only,
@@ -237,6 +213,6 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 				self.server.custom_formatter = original_formatter
 
 class CustomExtendedOperationsRoot(ExtendedOperationsRoot):
-	def __init__(self, connection, server=None, obfuscate=False, no_cache=False, no_vuln_check=False, use_adws=False, raw=False):
+	def __init__(self, connection, server=None, no_cache=False, no_vuln_check=False, use_adws=False, raw=False):
 		super().__init__(connection)
-		self.standard = CustomStandardExtendedOperations(self._connection, server, obfuscate, no_cache, no_vuln_check, use_adws, raw)
+		self.standard = CustomStandardExtendedOperations(self._connection, server, no_cache, no_vuln_check, use_adws, raw)

@@ -5,6 +5,7 @@ import logging
 from impacket import version
 from powerview.utils.colors import bcolors, Gradient
 from powerview.utils.helpers import escape_filter_chars_except_asterisk, parse_hashes, parse_username, parse_identity, parse_identity_list
+from powerview.utils.obfuscation import ObfuscationError, ObfuscationSettings, operations_argument, option_argument
 from powerview._version import BANNER,__version__
 
 _plugin_registry = None
@@ -44,7 +45,6 @@ def arg_parse():
 	parser.add_argument('-q','--query', dest='query', action='store', help='PowerView query to be executed one-time')
 	parser.add_argument('--ldap-timeout', type=positive_timeout, default=30, help='LDAP connect and receive timeout in seconds (default: 30)')
 	parser.add_argument('--no-admin-check', dest='no_admin_check', default=False, action='store_true', help='Skip admin check when first logging in')
-	parser.add_argument('--obfuscate', dest='obfuscate', nargs='?', const=True, default=False, help='Obfuscate LDAP queries. Optionally specify ldapx chain codes (e.g. --obfuscate CZXANDR)')
 	parser.add_argument('--no-cache', dest='no_cache', default=False, action='store_true', help='Disable caching of LDAP queries')
 	parser.add_argument('--no-vuln-check', dest='no_vuln_check', default=False, action='store_true', help='Disable vulnerability detection')
 	parser.add_argument('--raw', dest='raw', default=False, action='store_true', help='Return raw LDAP entries without formatting')
@@ -97,6 +97,14 @@ def arg_parse():
 	mcp.add_argument('--mcp-name', dest='mcp_name', action='store', default='PowerView', help='Specify MCP server name (Default: PowerView MCP)')
 	mcp.add_argument('--mcp-path', dest='mcp_path', action='store', default='/mcp', help='Specify MCP server path (Default: /mcp)')
 	
+	obfuscation = parser.add_argument_group('obfuscation (ldapx)')
+	obfuscation.add_argument('--obfuscate', dest='obfuscate', nargs='?', const=True, default=False, metavar='FILTER_CHAIN', help='Obfuscate LDAP operations with ldapx middlewares. Optionally set the filter chain (Default: CZNDR, BaseDN: CX, AttrList: CR)')
+	obfuscation.add_argument('--obfuscate-basedn', dest='obfuscate_basedn', metavar='CHAIN', help='ldapx BaseDN middleware chain (e.g. WCX)')
+	obfuscation.add_argument('--obfuscate-attrlist', dest='obfuscate_attrlist', metavar='CHAIN', help='ldapx attribute list middleware chain (e.g. CRD)')
+	obfuscation.add_argument('--obfuscate-attrentries', dest='obfuscate_attrentries', metavar='CHAIN', help='ldapx attribute entries middleware chain for add/modify (e.g. CR)')
+	obfuscation.add_argument('--obfuscate-option', dest='obfuscate_option', action='append', metavar='KEY=VALUE', type=option_argument, help='ldapx middleware option, repeatable (e.g. FiltCaseProb=0.9)')
+	obfuscation.add_argument('--obfuscate-ops', dest='obfuscate_ops', metavar='OPS', type=operations_argument, help='Comma-separated operations to obfuscate: search,modify,add,delete,modifydn,compare (Default: search)')
+
 	pool = parser.add_argument_group('connection pool')
 	pool.add_argument('--max-connections', dest='max_connections', action='store', type=int, default=10, help='Maximum number of pooled domain connections (Default: 10)')
 	pool.add_argument('--pool-cleanup-interval', dest='pool_cleanup_interval', action='store', type=int, default=0, help='Connection pool cleanup interval in seconds (Default: Disabled)')
@@ -115,6 +123,11 @@ def arg_parse():
 	args.lmhash = parsed_identity['lmhash']
 	args.nthash = parsed_identity['nthash']
 	args.ldap_address = parsed_identity['ldap_address']
+
+	try:
+		ObfuscationSettings.from_args(args)
+	except ObfuscationError as error:
+		parser.error(f"invalid obfuscation settings: {error}")
 
 	# check for mutually exclusive
 	if args.use_kerberos and (args.relay):

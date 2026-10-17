@@ -19,7 +19,6 @@ class PagedSearchCacheTests(unittest.TestCase):
 		operations._connection = MagicMock()
 		operations.cache_namespace = 'test-session'
 		operations.server = SimpleNamespace(host='dc.example.test')
-		operations.obfuscate = False
 		operations.no_cache = global_no_cache
 		operations.no_vuln_check = True
 		operations.use_adws = False
