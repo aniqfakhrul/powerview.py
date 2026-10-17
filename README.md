@@ -254,22 +254,6 @@ Each middleware, its options and its caveats are documented in the [ldapx README
 
 Paged searches are tracked like upstream: every page must repeat the same request, so code calling ldap3 directly should pass an immutable attribute selection (ldap3 appends `+` to a list on each page when `get_operational_attributes=True`). PowerView's own paged search already does this.
 
-**Verifying parity with upstream**
-
-`tests/test_ldapx_parity.py` replays 2,800+ seeded cases recorded from upstream with a port of Go's `math/rand` source and requires bit-identical output; `T` and attrlist `g` depend on Go map iteration order and are covered statistically. The tooling in `tools/ldapx` regenerates everything from the pinned module:
-
-```
-cd tools/ldapx
-go run ./cmd/gentables -repo ../..                                        # tables, casing, revision
-go build -o /tmp/pv-ldapx-oracle ./cmd/oracle
-/tmp/pv-ldapx-oracle -fixtures fixtures/parity.json -revision "$(go list -m -f '{{.Version}}' github.com/Macmod/ldapx)"
-cd ../.. && uv run python tools/ldapx/parity.py --oracle /tmp/pv-ldapx-oracle # exact + statistical benchmark
-GOBIN=/tmp go install github.com/Macmod/ldapx@<pinned version>              # upstream proxy for live A/B
-uv run python tools/ldapx/live_ab.py --proxy /tmp/ldapx --dc <ip> --identity 'domain/user:pass' --password 'pass' --base 'DC=...' --domain-sid S-1-5-21-...
-```
-
-To move to a newer upstream revision, `go get github.com/Macmod/ldapx@<rev>` in `tools/ldapx`, rerun the steps above and port any middleware changes until the parity tests pass.
-
 * ldapx: Flexible LDAP proxy — https://github.com/Macmod/ldapx
 * Research: MaLDAPtive: Obfuscation and De-Obfuscation (DEF CON 32 talk) — https://www.youtube.com/watch?v=mKRS5Iyy7Qo
 * Authors: Sabajete Elezaj — https://x.com/sabi_elezi, Daniel Bohannon — https://x.com/danielhbohannon
