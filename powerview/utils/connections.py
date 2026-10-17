@@ -2232,6 +2232,7 @@ class CONNECTION:
 		}
 		try:
 			adws_connection = adws.Connection(adws_server, **adws_connection_kwargs)
+			apply_obfuscation(adws_connection, self.obfuscation)
 			# Pass cached TGT to avoid re-requesting from KDC
 			if use_kerberos and self.TGT:
 				adws_connection._cached_tgt = self.TGT
