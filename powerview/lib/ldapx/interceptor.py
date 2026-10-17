@@ -149,7 +149,11 @@ class Interceptor:
 	def _range_stripping(self, decode):
 		def decode_response(message):
 			response = decode(message)
-			if self.obfuscator.strips_ranges and response.get("type") == "searchResEntry":
+			if (
+				self.obfuscator.strips_ranges
+				and response.get("type") == "searchResEntry"
+				and not hasattr(self._strategy, "_auto_range_searching")
+			):
 				for key in ("raw_attributes", "attributes"):
 					if response.get(key):
 						response[key] = _strip_completed_ranges(response[key])
