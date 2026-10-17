@@ -97,7 +97,7 @@ def arg_parse():
 	mcp.add_argument('--mcp-name', dest='mcp_name', action='store', default='PowerView', help='Specify MCP server name (Default: PowerView MCP)')
 	mcp.add_argument('--mcp-path', dest='mcp_path', action='store', default='/mcp', help='Specify MCP server path (Default: /mcp)')
 	
-	obfuscation = parser.add_argument_group('obfuscation (ldapx)')
+	obfuscation = parser.add_argument_group('obfuscation')
 	obfuscation.add_argument('--obfuscate', dest='obfuscate', nargs='?', const=True, default=False, metavar='FILTER_CHAIN', help='Obfuscate LDAP operations with ldapx middlewares. Optionally set the filter chain (Default: CZNDR, BaseDN: CX, AttrList: CR)')
 	obfuscation.add_argument('--obfuscate-basedn', dest='obfuscate_basedn', metavar='CHAIN', help='ldapx BaseDN middleware chain (e.g. WCX)')
 	obfuscation.add_argument('--obfuscate-attrlist', dest='obfuscate_attrlist', metavar='CHAIN', help='ldapx attribute list middleware chain (e.g. CRD)')
