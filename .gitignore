@@ -16,6 +16,7 @@ uv.lock
 win-libs
 ghidraScripts
 /tests/
+/powerview/web/front-end/tests/
 docs
 # Detection research and packet-capture evidence (PowerView vs. legitimate LDAP
 # auth). Already covered by the "docs" blanket above — stated explicitly so
