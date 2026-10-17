@@ -1,4 +1,4 @@
-# Extracted from github.com/Macmod/ldapx@v1.3.6-0.20260917200708-7d6339a5cc66 (parser/consts.go).
+# Extracted from github.com/Macmod/ldapx at commit 7d6339a (parser/consts.go).
 
 from enum import IntEnum
 

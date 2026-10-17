@@ -1,9 +1,16 @@
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from typing import Generic, TypeVar
 
 from powerview.lib.ldapx.middlewares import attrentries, attrlist, basedn
+from powerview.lib.ldapx.middlewares.attrentries import AttrEntriesMiddleware
+from powerview.lib.ldapx.middlewares.attrlist import AttrListMiddleware
+from powerview.lib.ldapx.middlewares.basedn import BaseDNMiddleware
 from powerview.lib.ldapx.middlewares.filter import obfuscation as filters
+from powerview.lib.ldapx.middlewares.filter.helpers import FilterMiddleware
 from powerview.lib.ldapx.options import Options
+from powerview.lib.ldapx.parser.attributes import AttrEntries
+from powerview.lib.ldapx.parser.filter import Filter
 
 FILTER_CODES = {
 	"O": "OIDAttribute",
@@ -69,6 +76,7 @@ ATTRENTRIES_CODES = {
 	"R": "ReorderList",
 }
 
+# Upstream's mixed-case "msds-additionalsamaccountName" never matches a lowercased name; kept for parity.
 ANR_SET = (
 	"name", "displayname", "samaccountname",
 	"givenname", "legacyexchangedn", "sn", "proxyaddresses",
@@ -79,22 +87,30 @@ ANR_SET = (
 )
 
 EXCLUSIVE_BASEDN_CODES = {"U": "GUIDFormat", "I": "SIDFormat"}
-WKGUID_PREDECESSORS = frozenset("C")
+WKGUID_PREDECESSORS = frozenset({"C"})
 REQUIRED_BASEDN_OPTIONS = {"U": "BDNGuid", "I": "BDNSid"}
+
+T = TypeVar("T")
+Steps = tuple[tuple[str, Callable[[T], T]], ...]
 
 
 class ChainError(ValueError):
 	pass
 
 
-def _filter_factories(o: Options) -> dict[str, Callable]:
+# Upstream accepts the *OIDAttributeIncludePrefix options but always adds the oID. prefix.
+def _filter_factories(o: Options) -> dict[str, Callable[[], FilterMiddleware]]:
 	return {
-		"OIDAttribute": lambda: filters.oid_attribute(o.get_int("FiltOIDAttributeMaxSpaces"), o.get_int("FiltOIDAttributeMaxZeros"), o.get_bool("FiltOIDAttributeIncludePrefix")),
+		"OIDAttribute": lambda: filters.oid_attribute(o.get_int("FiltOIDAttributeMaxSpaces"), o.get_int("FiltOIDAttributeMaxZeros")),
 		"Case": lambda: filters.rand_case(o.get_float("FiltCaseProb")),
 		"HexValue": lambda: filters.rand_hex_value(o.get_float("FiltHexValueProb")),
 		"Spacing": lambda: filters.rand_spacing(o.get_int("FiltSpacingMaxSpaces")),
 		"ReplaceTautologies": filters.replace_tautologies,
-		"TimestampGarbage": lambda: filters.rand_timestamp_suffix(o.get_int("FiltTimestampGarbageMaxChars"), o.get_str("FiltGarbageCharset"), o.get_bool("FiltTimestampGarbageUseComma")),
+		"TimestampGarbage": lambda: filters.rand_timestamp_suffix(
+			o.get_int("FiltTimestampGarbageMaxChars"),
+			o.get_str("FiltGarbageCharset"),
+			o.get_bool("FiltTimestampGarbageUseComma"),
+		),
 		"AddBool": lambda: filters.rand_add_bool(o.get_int("FiltAddBoolMaxDepth"), o.get_float("FiltAddBoolProb")),
 		"DblNegBool": lambda: filters.rand_dbl_neg_bool(o.get_int("FiltDblNegBoolMaxDepth"), o.get_float("FiltDblNegBoolProb")),
 		"DeMorganBool": filters.de_morgan_bool,
@@ -103,7 +119,11 @@ def _filter_factories(o: Options) -> dict[str, Callable]:
 		"BitwiseDecomposition": lambda: filters.bitwise_decompose(o.get_int("FiltBitwiseDecompositionMaxBits")),
 		"EqInclusion": filters.equality_by_inclusion,
 		"EqExclusion": filters.equality_by_exclusion,
-		"Garbage": lambda: filters.rand_garbage(o.get_int("FiltGarbageMaxElems"), o.get_int("FiltGarbageMaxSize"), o.get_str("FiltGarbageCharset")),
+		"Garbage": lambda: filters.rand_garbage(
+			o.get_int("FiltGarbageMaxElems"),
+			o.get_int("FiltGarbageMaxSize"),
+			o.get_str("FiltGarbageCharset"),
+		),
 		"EqApproxMatch": filters.equality_to_approx_match,
 		"EqExtensible": lambda: filters.equality_to_extensible(o.get_bool("FiltEqExtensibleAppendDN")),
 		"PrependZeros": lambda: filters.rand_prepend_zeros(o.get_int("FiltPrependZerosMaxElems")),
@@ -119,9 +139,9 @@ def _filter_factories(o: Options) -> dict[str, Callable]:
 	}
 
 
-def _basedn_factories(o: Options) -> dict[str, Callable]:
+def _basedn_factories(o: Options) -> dict[str, Callable[[], BaseDNMiddleware]]:
 	return {
-		"OIDAttribute": lambda: basedn.oid_attribute(o.get_int("BDNOIDAttributeMaxSpaces"), o.get_int("BDNOIDAttributeMaxZeros"), o.get_bool("BDNOIDAttributeIncludePrefix")),
+		"OIDAttribute": lambda: basedn.oid_attribute(o.get_int("BDNOIDAttributeMaxSpaces"), o.get_int("BDNOIDAttributeMaxZeros")),
 		"Case": lambda: basedn.rand_case(o.get_float("BDNCaseProb")),
 		"HexValue": lambda: basedn.rand_hex_value(o.get_float("BDNHexValueProb")),
 		"Spacing": lambda: basedn.rand_spacing(o.get_int("BDNSpacingMaxElems")),
@@ -135,12 +155,16 @@ def _basedn_factories(o: Options) -> dict[str, Callable]:
 	}
 
 
-def _attrlist_factories(o: Options) -> dict[str, Callable]:
+def _attrlist_factories(o: Options) -> dict[str, Callable[[], AttrListMiddleware]]:
 	return {
-		"OIDAttribute": lambda: attrlist.oid_attribute(o.get_int("AttrsOIDAttributeMaxSpaces"), o.get_int("AttrsOIDAttributeMaxZeros"), o.get_bool("AttrsOIDAttributeIncludePrefix")),
+		"OIDAttribute": lambda: attrlist.oid_attribute(o.get_int("AttrsOIDAttributeMaxSpaces"), o.get_int("AttrsOIDAttributeMaxZeros")),
 		"Case": lambda: attrlist.rand_case(o.get_float("AttrsCaseProb")),
 		"Duplicate": lambda: attrlist.duplicate(o.get_float("AttrsDuplicateProb")),
-		"GarbageNonExisting": lambda: attrlist.garbage_non_existing(o.get_int("AttrsGarbageNonExistingMaxElems"), o.get_int("AttrsGarbageNonExistingMaxSize"), o.get_str("AttrsGarbageCharset")),
+		"GarbageNonExisting": lambda: attrlist.garbage_non_existing(
+			o.get_int("AttrsGarbageNonExistingMaxElems"),
+			o.get_int("AttrsGarbageNonExistingMaxSize"),
+			o.get_str("AttrsGarbageCharset"),
+		),
 		"GarbageExisting": lambda: attrlist.garbage_existing(o.get_int("AttrsGarbageExistingMaxElems")),
 		"ReplaceWithWildcard": attrlist.replace_with_wildcard,
 		"AddWildcard": attrlist.add_wildcard,
@@ -151,31 +175,31 @@ def _attrlist_factories(o: Options) -> dict[str, Callable]:
 	}
 
 
-def _attrentries_factories(o: Options) -> dict[str, Callable]:
+def _attrentries_factories(o: Options) -> dict[str, Callable[[], AttrEntriesMiddleware]]:
 	return {
-		"OIDAttribute": lambda: attrentries.oid_attribute(o.get_int("AttrEntriesOIDAttributeMaxSpaces"), o.get_int("AttrEntriesOIDAttributeMaxZeros"), o.get_bool("AttrEntriesOIDAttributeIncludePrefix")),
+		"OIDAttribute": lambda: attrentries.oid_attribute(o.get_int("AttrEntriesOIDAttributeMaxSpaces"), o.get_int("AttrEntriesOIDAttributeMaxZeros")),
 		"Case": lambda: attrentries.rand_case(o.get_float("AttrEntriesCaseProb")),
 		"ReorderList": attrentries.reorder_list,
 	}
 
 
 @dataclass(frozen=True)
-class Chain:
+class Chain(Generic[T]):
 	code: str
-	steps: tuple[tuple[str, Callable], ...]
+	steps: Steps[T]
 
 	@property
 	def names(self) -> tuple[str, ...]:
 		return tuple(name for name, _ in self.steps)
 
-	def execute(self, value):
+	def execute(self, value: T) -> T:
 		for _, middleware in self.steps:
 			value = middleware(value)
 		return value
 
 
 @dataclass(frozen=True)
-class BaseDNChain(Chain):
+class BaseDNChain(Chain[str]):
 	def execute(self, value: str, allow_reference_forms: bool = True) -> str:
 		for name, middleware in self.steps:
 			if not allow_reference_forms and name in basedn.REFERENCE_ONLY_FORMS:
@@ -184,7 +208,7 @@ class BaseDNChain(Chain):
 		return value
 
 
-def _quoted(codes) -> str:
+def _quoted(codes: Iterable[str]) -> str:
 	return ", ".join('"%s"' % code for code in sorted(codes))
 
 
@@ -219,11 +243,11 @@ def validate_filter_chain(chain: str, options: Options) -> None:
 		raise ChainError('middleware "F" (ObjectCategoryForm) requires the FiltObjCategoryRootDN option to be set')
 
 
-def _build(chain: str, codes: dict[str, str], factories: dict[str, Callable]) -> tuple[tuple[str, Callable], ...]:
+def _build(chain: str, codes: dict[str, str], factories: dict[str, Callable[[], Callable[[T], T]]]) -> Steps[T]:
 	return tuple((codes[code], factories[codes[code]]()) for code in chain)
 
 
-def build_filter_chain(chain: str, options: Options) -> Chain:
+def build_filter_chain(chain: str, options: Options) -> Chain[Filter]:
 	validate_filter_chain(chain, options)
 	return Chain(chain, _build(chain, FILTER_CODES, _filter_factories(options)))
 
@@ -233,11 +257,11 @@ def build_basedn_chain(chain: str, options: Options) -> BaseDNChain:
 	return BaseDNChain(chain, _build(chain, BASEDN_CODES, _basedn_factories(options)))
 
 
-def build_attrlist_chain(chain: str, options: Options) -> Chain:
+def build_attrlist_chain(chain: str, options: Options) -> Chain[list[str]]:
 	validate_codes(chain, ATTRLIST_CODES)
 	return Chain(chain, _build(chain, ATTRLIST_CODES, _attrlist_factories(options)))
 
 
-def build_attrentries_chain(chain: str, options: Options) -> Chain:
+def build_attrentries_chain(chain: str, options: Options) -> Chain[AttrEntries]:
 	validate_codes(chain, ATTRENTRIES_CODES)
 	return Chain(chain, _build(chain, ATTRENTRIES_CODES, _attrentries_factories(options)))

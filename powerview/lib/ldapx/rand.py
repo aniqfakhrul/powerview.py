@@ -34,6 +34,7 @@ _source: Source = SystemSource()
 
 
 def use(source: Source) -> Source:
+	"""Replace the process-wide random source and return the previous one, which the caller must restore."""
 	global _source
 	previous, _source = _source, source
 	return previous

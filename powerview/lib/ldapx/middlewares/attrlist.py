@@ -4,8 +4,8 @@ from powerview.lib.ldapx import rand
 from powerview.lib.ldapx.gostd import equal_fold, to_lower
 from powerview.lib.ldapx.middlewares.helpers.strings import (
 	generate_garbage_string,
+	obfuscate_oid_name,
 	randomly_change_case_string,
-	randomly_prepend_zeros_oid,
 )
 from powerview.lib.ldapx.parser._schema import (
 	ATTR_FORMATS,
@@ -13,7 +13,6 @@ from powerview.lib.ldapx.parser._schema import (
 	RFC_OPERATIONAL_ATTRS,
 	ROOTDSE_OPERATIONAL_ATTRS,
 )
-from powerview.lib.ldapx.parser.attributes import is_oid
 
 AttrListMiddleware = Callable[[list[str]], list[str]]
 
@@ -31,20 +30,8 @@ def rand_case(prob: float) -> AttrListMiddleware:
 	return lambda attrs: [randomly_change_case_string(attr, prob) for attr in attrs]
 
 
-def oid_attribute(max_spaces: int, max_zeros: int, include_prefix: bool) -> AttrListMiddleware:
-	def obfuscate(attribute: str) -> str:
-		name = OIDS_MAP.get(to_lower(attribute), attribute)
-		if is_oid(name):
-			if max_spaces > 0:
-				name += " " * (1 + rand.intn(max_spaces))
-			if max_zeros > 0:
-				name = randomly_prepend_zeros_oid(name, max_zeros)
-			# Upstream always applies the prefix and ignores include_prefix.
-			if not to_lower(name).startswith("oid."):
-				name = "oID." + name
-		return name
-
-	return lambda attrs: [obfuscate(attr) for attr in attrs]
+def oid_attribute(max_spaces: int, max_zeros: int) -> AttrListMiddleware:
+	return lambda attrs: [obfuscate_oid_name(attr, max_spaces, max_zeros) for attr in attrs]
 
 
 def duplicate(prob: float) -> AttrListMiddleware:
@@ -106,7 +93,7 @@ def replace_with_wildcard() -> AttrListMiddleware:
 def replace_with_empty() -> AttrListMiddleware:
 	def middleware(attrs: list[str]) -> list[str]:
 		kept = [attr for attr in attrs if attr == "+" or _is_operational(attr)]
-		return ["*"] + kept if kept else []
+		return (["*"] + kept) if kept else []
 
 	return middleware
 

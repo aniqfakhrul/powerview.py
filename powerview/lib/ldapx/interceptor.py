@@ -3,8 +3,10 @@ import logging
 import threading
 import weakref
 from collections import OrderedDict
-from collections.abc import Iterable
+from collections.abc import Iterable, MutableMapping
+from typing import TypeVar
 
+from ldap3 import Connection
 from ldap3.protocol.rfc2696 import RealSearchControlValue
 from ldap3.protocol.rfc4511 import (
 	LDAPDN,
@@ -26,10 +28,10 @@ from pyasn1.codec.ber import decoder, encoder
 from pyasn1.error import PyAsn1Error
 
 from powerview.lib.ldapx.gostd import to_bytes
-from powerview.lib.ldapx.middlewares.attrentries import Attribute
 from powerview.lib.ldapx.middlewares.attrlist import strip_completed_range_option
 from powerview.lib.ldapx.obfuscator import Obfuscator
 from powerview.lib.ldapx.parser.asn1 import filter_from_asn1, filter_to_asn1, text
+from powerview.lib.ldapx.parser.attributes import Attribute
 from powerview.lib.ldapx.parser.filter import FilterEqualityMatch, filter_to_query
 
 OPERATIONS = ("search", "modify", "add", "delete", "modifydn", "compare")
@@ -48,9 +50,24 @@ _MESSAGE_OPERATIONS = {
 _RESPONSE_DECODERS = ("decode_response", "decode_response_fast")
 _STRATEGY_ATTRIBUTE = "_powerview_ldapx"
 
+T = TypeVar("T")
+
+
+def normalize_operations(operations: Iterable[str]) -> frozenset[str]:
+	normalized = frozenset(operations)
+	unknown = sorted(normalized.difference(OPERATIONS))
+	if unknown:
+		raise ValueError("unknown operation(s) %s, expected a subset of: %s" % (", ".join(unknown), ", ".join(OPERATIONS)))
+	return normalized
+
 
 def _printable(value: str) -> str:
 	return to_bytes(value).decode("utf-8", "backslashreplace")
+
+
+def _debug_search(label: str, base: str, query: str, attributes: list[str]) -> None:
+	if logging.getLogger().isEnabledFor(logging.DEBUG):
+		logging.debug("[ldapx] %s Search base='%s' filter=%s attributes=%s", label, _printable(base), _printable(query), [_printable(a) for a in attributes])
 
 
 def _paged_cookie(controls) -> bytes:
@@ -89,7 +106,7 @@ class Interceptor:
 		self._tracked = OrderedDict()
 		self._referrals = weakref.WeakSet()
 		self.obfuscator = obfuscator
-		self.operations = frozenset(operations)
+		self.operations = normalize_operations(operations)
 		self._originals = {"sending": strategy.sending, "create_referral_connection": strategy.create_referral_connection}
 		self._originals.update({name: getattr(strategy, name) for name in _RESPONSE_DECODERS if hasattr(strategy, name)})
 		strategy.sending = self._sending
@@ -99,9 +116,10 @@ class Interceptor:
 				setattr(strategy, name, self._range_stripping(self._originals[name]))
 
 	def configure(self, obfuscator: Obfuscator, operations: Iterable[str] = DEFAULT_OPERATIONS) -> None:
+		operations = normalize_operations(operations)
 		with self._lock:
 			self.obfuscator = obfuscator
-			self.operations = frozenset(operations)
+			self.operations = operations
 			self._tracked.clear()
 		for referral in list(self._referrals):
 			attach(referral, obfuscator, operations)
@@ -154,7 +172,7 @@ class Interceptor:
 			search_filter = filter_from_asn1(request["filter"])
 			attributes = [text(attribute) for attribute in request["attributes"]]
 			query = filter_to_query(search_filter)
-			logging.debug("[ldapx] Intercepted Search base='%s' filter=%s attributes=%s", _printable(base), _printable(query), [_printable(a) for a in attributes])
+			_debug_search("Intercepted", base, query, attributes)
 
 			new_filter = self.obfuscator.filter(search_filter)
 			new_attributes = self.obfuscator.attrlist(attributes)
@@ -168,8 +186,8 @@ class Interceptor:
 				replacements["filter"] = filter_to_asn1(new_filter)
 			if new_attributes != attributes:
 				replacements["attributes"] = _attribute_selection(new_attributes)
-			request = _with(request, **replacements)
-			logging.debug("[ldapx] Changed Search base='%s' filter=%s attributes=%s", _printable(new_base), _printable(new_query), [_printable(a) for a in new_attributes])
+			request = _replace_components(request, **replacements)
+			_debug_search("Changed", new_base, new_query, new_attributes)
 
 			self._tracked[key] = request
 			self._tracked.move_to_end(key)
@@ -183,7 +201,7 @@ class Interceptor:
 		for index, change in enumerate(request["changes"]):
 			changes.setComponentByPosition(index, self._modify_change(change), verifyConstraints=False)
 		logging.debug("[ldapx] Changed Modify target='%s'", _printable(target))
-		return _with(request, object=LDAPDN(to_bytes(target)), changes=changes)
+		return _replace_components(request, object=LDAPDN(to_bytes(target)), changes=changes)
 
 	def _modify_change(self, change):
 		modification = change["modification"]
@@ -194,7 +212,7 @@ class Interceptor:
 		entries = self.obfuscator.attrentries([Attribute(name, values)])
 		if len(entries) != 1 or entries[0].name == name:
 			return change
-		return _with(change, modification=_with(modification, type=AttributeDescription(to_bytes(entries[0].name))))
+		return _replace_components(change, modification=_replace_components(modification, type=AttributeDescription(to_bytes(entries[0].name))))
 
 	def _add(self, request, controls):
 		entry = self.obfuscator.basedn_safe(text(request["entry"]))
@@ -205,7 +223,7 @@ class Interceptor:
 		if [(e.name, e.values) for e in changed] != [(e.name, e.values) for e in valued]:
 			replacements["attributes"] = _attribute_list(changed + [attribute for attribute in entries if not attribute.values])
 		logging.debug("[ldapx] Changed Add entry='%s' attributes=%s", _printable(entry), [_printable(e.name) for e in changed])
-		return _with(request, **replacements)
+		return _replace_components(request, **replacements)
 
 	def _delete(self, request, controls):
 		target = self.obfuscator.basedn(text(request))
@@ -223,7 +241,7 @@ class Interceptor:
 		if superior_value is not None:
 			replacements["newSuperior"] = NewSuperior(to_bytes(superior))
 		logging.debug("[ldapx] Changed ModifyDN entry='%s'", _printable(entry))
-		return _with(request, **replacements)
+		return _replace_components(request, **replacements)
 
 	def _compare(self, request, controls):
 		replacements = {"entry": LDAPDN(to_bytes(self.obfuscator.basedn(text(request["entry"]))))}
@@ -236,10 +254,12 @@ class Interceptor:
 			replacements["ava"] = assertion
 		else:
 			logging.debug("[ldapx] Filter chain rewrote the assertion into a compound filter, which a Compare cannot carry - assertion left unchanged")
-		return _with(request, **replacements)
+		return _replace_components(request, **replacements)
 
 
-def _with(component, **replacements):
+# pyasn1 clone() cannot copy ldap3's recursive Not filters, so requests are rebuilt sharing their untouched
+# components instead of being mutated: ldap3 keeps and may resend the original request.
+def _replace_components(component: T, **replacements) -> T:
 	copied = type(component)()
 	for named_type in component.componentType.namedTypes:
 		value = replacements.get(named_type.name)
@@ -250,14 +270,17 @@ def _with(component, **replacements):
 	return copied
 
 
-def _strip_completed_ranges(attributes):
+def _as_list(values) -> list:
+	return list(values) if isinstance(values, (list, tuple)) else [values]
+
+
+def _strip_completed_ranges(attributes: MutableMapping) -> MutableMapping:
 	stripped = type(attributes)()
 	for name, values in attributes.items():
 		name = strip_completed_range_option(name)
-		existing = stripped.get(name)
-		if isinstance(existing, list) and isinstance(values, list):
-			stripped[name] = existing + values
-		elif existing is None:
+		if name in stripped:
+			stripped[name] = _as_list(stripped[name]) + _as_list(values)
+		else:
 			stripped[name] = values
 	return stripped
 
@@ -293,7 +316,7 @@ def _attribute_list(entries: list[Attribute]) -> AttributeList:
 	return attribute_list
 
 
-def attach(connection, obfuscator: Obfuscator | None, operations: Iterable[str] = DEFAULT_OPERATIONS) -> None:
+def attach(connection: Connection, obfuscator: Obfuscator | None, operations: Iterable[str] = DEFAULT_OPERATIONS) -> None:
 	if obfuscator is None:
 		detach(connection)
 		return
@@ -305,7 +328,7 @@ def attach(connection, obfuscator: Obfuscator | None, operations: Iterable[str] 
 		interceptor.configure(obfuscator, operations)
 
 
-def detach(connection) -> None:
+def detach(connection: Connection) -> None:
 	strategy = getattr(connection, "strategy", None)
 	interceptor = getattr(strategy, _STRATEGY_ATTRIBUTE, None)
 	if interceptor is not None:
@@ -313,5 +336,5 @@ def detach(connection) -> None:
 		delattr(strategy, _STRATEGY_ATTRIBUTE)
 
 
-def interceptor_of(connection) -> Interceptor | None:
+def interceptor_of(connection: Connection) -> Interceptor | None:
 	return getattr(getattr(connection, "strategy", None), _STRATEGY_ATTRIBUTE, None)

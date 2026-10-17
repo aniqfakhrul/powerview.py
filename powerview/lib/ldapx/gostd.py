@@ -1,3 +1,5 @@
+"""Go standard library semantics (strconv, strings, unicode) that upstream ldapx relies on."""
+
 import math
 import re
 

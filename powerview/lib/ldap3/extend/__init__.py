@@ -215,4 +215,11 @@ class CustomStandardExtendedOperations(StandardExtendedOperations):
 class CustomExtendedOperationsRoot(ExtendedOperationsRoot):
 	def __init__(self, connection, server=None, no_cache=False, no_vuln_check=False, use_adws=False, raw=False):
 		super().__init__(connection)
-		self.standard = CustomStandardExtendedOperations(self._connection, server, no_cache, no_vuln_check, use_adws, raw)
+		self.standard = CustomStandardExtendedOperations(
+			self._connection,
+			server=server,
+			no_cache=no_cache,
+			no_vuln_check=no_vuln_check,
+			use_adws=use_adws,
+			raw=raw,
+		)

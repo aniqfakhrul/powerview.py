@@ -1,5 +1,6 @@
 from powerview.lib.ldapx import rand
 from powerview.lib.ldapx.gostd import from_bytes, to_bytes, to_lower, to_upper
+from powerview.lib.ldapx.parser.attributes import is_oid, map_to_oid
 
 CASE_FOLD_BREAKERS = frozenset("\u0261\u0266\u026a\u026c\u0282\u0287\u029d\u029e\u1d8e")
 
@@ -40,3 +41,16 @@ def randomly_prepend_zeros_oid(oid: str, max_zeros: int) -> str:
 		if to_lower(part) != "oid":
 			parts[index] = "0" * (1 + rand.intn(max_zeros)) + part
 	return ".".join(parts)
+
+
+def obfuscate_oid_name(attribute: str, max_spaces: int, max_zeros: int) -> str:
+	name = map_to_oid(attribute) or attribute
+	if not is_oid(name):
+		return name
+	if max_spaces > 0:
+		name += " " * (1 + rand.intn(max_spaces))
+	if max_zeros > 0:
+		name = randomly_prepend_zeros_oid(name, max_zeros)
+	if not to_lower(name).startswith("oid."):
+		name = "oID." + name
+	return name

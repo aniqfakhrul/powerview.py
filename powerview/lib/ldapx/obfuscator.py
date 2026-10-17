@@ -6,8 +6,8 @@ from powerview.lib.ldapx.chains import (
 	build_basedn_chain,
 	build_filter_chain,
 )
-from powerview.lib.ldapx.middlewares.attrentries import AttrEntries
 from powerview.lib.ldapx.options import Options
+from powerview.lib.ldapx.parser.attributes import AttrEntries
 from powerview.lib.ldapx.parser.filter import (
 	Filter,
 	filter_to_ldap_string,
@@ -31,19 +31,11 @@ class Obfuscator:
 		self._attrentries = build_attrentries_chain(attrentries_chain, self.options)
 
 	@property
-	def chains(self) -> dict[str, str]:
-		return {
-			"filter": self._filter.code,
-			"basedn": self._basedn.code,
-			"attrlist": self._attrlist.code,
-			"attrentries": self._attrentries.code,
-		}
-
-	@property
 	def strips_ranges(self) -> bool:
 		return "Range" in self._attrlist.names
 
 	def filter(self, f: Filter) -> Filter:
+		"""Obfuscate a filter; like upstream, leaves of the given tree may be modified in place."""
 		return self._filter.execute(f)
 
 	def basedn(self, dn: str) -> str:

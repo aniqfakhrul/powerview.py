@@ -337,7 +337,7 @@ class Connection(object):
             wire_base, wire_filter, wire_attributes = search_base, search_filter, attributes
             if self.obfuscator is not None:
                 wire_base, wire_filter, wire_attributes = self.obfuscator.search_strings(search_base, search_filter, attributes)
-                logging.debug(f"[ldapx] ADWS search base='{wire_base}' filter={wire_filter} attributes={wire_attributes}")
+                logging.debug("[ldapx] ADWS search base='%s' filter=%s attributes=%s", wire_base, wire_filter, wire_attributes)
             request = search_operation(self.host, wire_base, wire_filter, search_scope, wire_attributes, controls=controls)
             response = self.send_and_recv(request)
             enum_resp = search_enumerate_response_to_dict(response)

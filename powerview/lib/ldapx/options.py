@@ -111,12 +111,6 @@ class Options:
 			validate_option(key, value)
 			self._values[key] = value
 
-	def __contains__(self, key: str) -> bool:
-		return key in self._values
-
-	def overrides(self) -> dict[str, str]:
-		return dict(self._values)
-
 	def get_str(self, key: str) -> str:
 		return self._values.get(key, DEFAULT_OPTIONS[key])
 

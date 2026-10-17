@@ -1,9 +1,20 @@
 import re
+from dataclasses import dataclass, field
+from typing import Any
 
 from powerview.lib.ldapx.gostd import to_lower
 from powerview.lib.ldapx.parser._schema import ATTR_FORMATS, OIDS_MAP, TokenFormat
 
 _OID = re.compile(r"(?i:oid\.)?[0-9]+(?:\.[0-9]+)* *")
+
+
+@dataclass(slots=True)
+class Attribute:
+	name: str
+	values: list[Any] = field(default_factory=list)
+
+
+AttrEntries = list[Attribute]
 
 
 def is_oid(value: str) -> bool:

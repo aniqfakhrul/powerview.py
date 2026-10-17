@@ -56,7 +56,10 @@ import socket
 from ldap3.operation import bind
 from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
 import powerview.lib.adws as adws
-from powerview.utils.obfuscation import ObfuscationSettings, apply_to_session
+from ldap3 import Connection as LDAP3Connection
+from powerview.lib.adws.core.connection import Connection as ADWSConnection
+from powerview.lib.ldapx import attach as attach_obfuscation, detach as detach_obfuscation
+from powerview.utils.obfuscation import ObfuscationSettings
 
 _gethostname_lock = threading.Lock()
 _original_gethostname = socket.gethostname
@@ -378,7 +381,7 @@ class ConnectionPool:
 		self._record_connection_attempt(domain, success=True)
 		return selected
 
-	def entries(self):
+	def entries(self) -> list[ConnectionPoolEntry]:
 		with self._pool_lock:
 			return list(self._pool.values())
 
@@ -709,6 +712,17 @@ class SMBConnectionPool(ConnectionPool):
 
 		return stats
 
+def apply_obfuscation(session, settings: ObfuscationSettings | None) -> None:
+	if isinstance(session, LDAP3Connection):
+		if settings is None:
+			detach_obfuscation(session)
+		else:
+			attach_obfuscation(session, settings.obfuscator, settings.operations)
+	elif isinstance(session, ADWSConnection):
+		searches = settings is not None and "search" in settings.operations
+		session.obfuscator = settings.obfuscator if searches else None
+
+
 class CONNECTION:
 	obfuscation = None
 
@@ -728,25 +742,30 @@ class CONNECTION:
 			if previous is not None and '_powerview_query_cache' in vars(previous):
 				value._powerview_query_cache = previous._powerview_query_cache
 			share_session_lock(self, value)
-			apply_to_session(value, self.obfuscation)
+			apply_obfuscation(value, self.obfuscation)
 		self._ldap_session = value
 
-	def _new_ldap3_connection(self, *args, auto_bind=ldap3.AUTO_BIND_DEFAULT, **kwargs):
-		connection = ldap3.Connection(*args, auto_bind=ldap3.AUTO_BIND_DEFAULT, **kwargs)
-		apply_to_session(connection, self.obfuscation)
-		connection.auto_bind = {False: ldap3.AUTO_BIND_DEFAULT, True: ldap3.AUTO_BIND_NO_TLS}.get(auto_bind, auto_bind)
-		if connection.auto_bind not in (ldap3.AUTO_BIND_NONE, ldap3.AUTO_BIND_DEFAULT):
+	def _new_ldap3_connection(self, *args, auto_bind: str = ldap3.AUTO_BIND_NONE, **kwargs) -> ldap3.Connection:
+		connection = ldap3.Connection(*args, **kwargs)
+		apply_obfuscation(connection, self.obfuscation)
+		# Bind only once the interceptor is attached, so the bind-time RootDSE and schema reads are obfuscated too.
+		if auto_bind != ldap3.AUTO_BIND_NONE:
+			connection.auto_bind = auto_bind
 			connection._do_auto_bind()
 		return connection
 
-	def set_obfuscation(self, settings):
-		self.obfuscation = settings
-		session = getattr(self, '_ldap_session', None)
-		if session is not None:
-			apply_to_session(session, settings)
-		for entry in self._connection_pool.entries():
-			if entry.connection is not self:
-				entry.connection.set_obfuscation(settings)
+	def set_obfuscation(self, settings: ObfuscationSettings | None) -> None:
+		pending, seen = [self], set()
+		while pending:
+			connection = pending.pop()
+			if id(connection) in seen:
+				continue
+			seen.add(id(connection))
+			connection.obfuscation = settings
+			session = getattr(connection, '_ldap_session', None)
+			if session is not None:
+				apply_obfuscation(session, settings)
+			pending.extend(entry.connection for entry in connection._connection_pool.entries())
 
 	@staticmethod
 	def _get_formatter():

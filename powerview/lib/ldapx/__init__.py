@@ -12,6 +12,7 @@ from powerview.lib.ldapx.interceptor import (
 	attach,
 	detach,
 	interceptor_of,
+	normalize_operations,
 )
 from powerview.lib.ldapx.obfuscator import Obfuscator
 from powerview.lib.ldapx.options import (
@@ -37,5 +38,6 @@ __all__ = [
 	"attach",
 	"detach",
 	"interceptor_of",
+	"normalize_operations",
 	"parse_option",
 ]

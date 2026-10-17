@@ -288,7 +288,14 @@ class APIServer:
 			self.powerview.args.no_cache = no_cache
 			self.powerview.args.no_vuln_check = no_vuln_check
 
-			self.powerview.custom_paged_search = CustomExtendedOperationsRoot(self.powerview.ldap_session, no_cache=no_cache, no_vuln_check=no_vuln_check)
+			self.powerview.custom_paged_search = CustomExtendedOperationsRoot(
+				self.powerview.ldap_session,
+				server=self.powerview.ldap_server,
+				no_cache=no_cache,
+				no_vuln_check=no_vuln_check,
+				use_adws=self.powerview.args.use_adws,
+				raw=self.powerview.args.raw,
+			)
 			self.powerview.ldap_session.extend.standard = self.powerview.custom_paged_search.standard
 
 			return jsonify({'status': 'OK'})
@@ -299,11 +306,13 @@ class APIServer:
 			return jsonify({'error': str(e)}), 400
 
 	def _obfuscation_from_request(self, value):
-		if not value:
+		if value is None or value is False or value == '':
 			return None
+		if value is True:
+			return self.powerview.conn.obfuscation or ObfuscationSettings.defaults()
 		if isinstance(value, str):
-			return ObfuscationSettings(**{**DEFAULT_CHAINS, 'filter': value})
-		return self.powerview.conn.obfuscation or ObfuscationSettings.defaults()
+			return ObfuscationSettings(**dict(DEFAULT_CHAINS, filter=value))
+		raise ObfuscationError("obfuscate must be a boolean or a filter chain")
 
 	def handle_connection_info(self):
 		return jsonify({

@@ -1,15 +1,15 @@
 from collections.abc import Callable
 
 from powerview.lib.ldapx import rand
-from powerview.lib.ldapx.gostd import equal_fold, from_bytes, to_bytes, to_lower
+from powerview.lib.ldapx.gostd import equal_fold, from_bytes, to_bytes
 from powerview.lib.ldapx.middlewares.helpers._tables import (
 	ALT_SPACE_RUNES,
 	VISIBLE_ALT_SPACE_RUNES,
 )
 from powerview.lib.ldapx.middlewares.helpers.strings import (
+	obfuscate_oid_name,
 	randomly_change_case_string,
 	randomly_hex_encode_string,
-	randomly_prepend_zeros_oid,
 )
 from powerview.lib.ldapx.middlewares.helpers.unicode import (
 	FoldSubstituter,
@@ -18,12 +18,10 @@ from powerview.lib.ldapx.middlewares.helpers.unicode import (
 	substitute_spaces,
 	transform_dn_values,
 )
-from powerview.lib.ldapx.parser._schema import OIDS_MAP
-from powerview.lib.ldapx.parser.attributes import is_oid
 
 BaseDNMiddleware = Callable[[str], str]
 
-REFERENCE_ONLY_FORMS = frozenset(("SIDFormat", "GUIDFormat", "WKGUIDFormat"))
+REFERENCE_ONLY_FORMS = frozenset({"SIDFormat", "GUIDFormat", "WKGUIDFormat"})
 
 WELL_KNOWN_CONTAINERS = {
 	"CN=Users,": "a9d1ca15768811d1aded00c04fd8d5cd",
@@ -52,23 +50,13 @@ def rand_case(prob: float) -> BaseDNMiddleware:
 	return lambda dn: randomly_change_case_string(dn, prob)
 
 
-def oid_attribute(max_spaces: int, max_zeros: int, include_prefix: bool) -> BaseDNMiddleware:
+def oid_attribute(max_spaces: int, max_zeros: int) -> BaseDNMiddleware:
 	def middleware(dn: str) -> str:
 		parts = dn.split(",")
 		for index, part in enumerate(parts):
 			kv = part.split("=", 1)
-			if len(kv) != 2:
-				continue
-			name = OIDS_MAP.get(to_lower(kv[0]), kv[0])
-			if is_oid(name):
-				if max_spaces > 0:
-					name += " " * (1 + rand.intn(max_spaces))
-				if max_zeros > 0:
-					name = randomly_prepend_zeros_oid(name, max_zeros)
-				# Upstream always applies the prefix and ignores include_prefix.
-				if not to_lower(name).startswith("oid."):
-					name = "oID." + name
-			parts[index] = name + "=" + kv[1]
+			if len(kv) == 2:
+				parts[index] = obfuscate_oid_name(kv[0], max_spaces, max_zeros) + "=" + kv[1]
 		return ",".join(parts)
 
 	return middleware

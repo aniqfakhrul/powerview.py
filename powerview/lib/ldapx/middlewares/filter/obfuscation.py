@@ -35,8 +35,8 @@ from powerview.lib.ldapx.middlewares.helpers._tables import (
 )
 from powerview.lib.ldapx.middlewares.helpers.strings import (
 	generate_garbage_string,
+	obfuscate_oid_name,
 	randomly_change_case_string,
-	randomly_prepend_zeros_oid,
 )
 from powerview.lib.ldapx.middlewares.helpers.unicode import (
 	FoldSubstituter,
@@ -51,7 +51,7 @@ from powerview.lib.ldapx.parser._schema import (
 	NUMBER_FORMATS,
 	TokenFormat,
 )
-from powerview.lib.ldapx.parser.attributes import is_oid, map_to_oid, token_format
+from powerview.lib.ldapx.parser.attributes import token_format
 from powerview.lib.ldapx.parser.filter import (
 	ASSERTIONS,
 	Filter,
@@ -81,22 +81,10 @@ GREEDY_ATTR_PRESENCES = (
 _ATTRIBUTE_LEAVES = ASSERTIONS + (FilterSubstring, FilterPresent, FilterExtensibleMatch)
 
 
-def oid_attribute(max_spaces: int, max_zeros: int, include_prefix: bool) -> FilterMiddleware:
-	def obfuscate(attribute: str) -> str:
-		name = map_to_oid(attribute) or attribute
-		if is_oid(name):
-			if max_spaces > 0:
-				name += " " * (1 + rand.intn(max_spaces))
-			if max_zeros > 0:
-				name = randomly_prepend_zeros_oid(name, max_zeros)
-			# Upstream always applies the prefix and ignores include_prefix.
-			if not to_lower(name).startswith("oid."):
-				name = "oID." + name
-		return name
-
+def oid_attribute(max_spaces: int, max_zeros: int) -> FilterMiddleware:
 	def middleware(f: Filter) -> Filter:
 		if isinstance(f, _ATTRIBUTE_LEAVES):
-			f.attribute_desc = obfuscate(f.attribute_desc)
+			f.attribute_desc = obfuscate_oid_name(f.attribute_desc, max_spaces, max_zeros)
 		return f
 
 	return leaf_applier(middleware)
@@ -203,6 +191,7 @@ def _neighbours(f: FilterEqualityMatch) -> tuple[str, str] | None:
 	if kind in NUMBER_FORMATS:
 		value = atoi(f.assertion_value)
 		if value is None:
+			# Upstream still builds the range with empty bounds when the value is not an integer.
 			return "", ""
 		return str(wrap_int64(value - 1)), str(wrap_int64(value + 1))
 	if kind == TokenFormat.STRING_UNICODE:
@@ -409,6 +398,7 @@ def rand_case(prob: float) -> FilterMiddleware:
 				final = randomly_change_case_string(part.final, prob) if part.final else part.final
 				f.substrings[index] = SubstringFilter(initial, any_, final)
 		elif isinstance(f, FilterPresent):
+			# Upstream case-randomizes a dummy "S-" value here, which consumes random draws.
 			f.attribute_desc, _ = obfuscate(f.attribute_desc, "S-")
 		elif isinstance(f, FilterExtensibleMatch):
 			f.attribute_desc, f.match_value = obfuscate(f.attribute_desc, f.match_value)

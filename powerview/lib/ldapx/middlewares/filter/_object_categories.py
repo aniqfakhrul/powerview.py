@@ -1,4 +1,4 @@
-# Extracted from github.com/Macmod/ldapx@v1.3.6-0.20260917200708-7d6339a5cc66 (middlewares/filter/obfuscation.go).
+# Extracted from github.com/Macmod/ldapx at commit 7d6339a (middlewares/filter/obfuscation.go).
 
 OBJECT_CATEGORY_CLASSES = {
 	"account": "account",
