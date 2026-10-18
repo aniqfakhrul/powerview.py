@@ -55,7 +55,7 @@ powerview range.net/lowpriv:Password123@192.168.86.192 [--use-simple-auth] [--no
 >
 > SIMPLE, certificate (`--pfx`), anonymous and ADWS sessions use neither. `--no-channel-binding` and `--no-sign-and-seal` opt out.
 >
-> Kerberos sealing over LDAP/GC needs a GSSAPI library with credential store support (MIT krb5). Without one, such as on macOS, powerview falls back to an impacket-based Kerberos bind that cannot seal. Use LDAPS against DCs that require signing.
+> Kerberos over LDAP/GC uses native GSSAPI where available and falls back to a SPNEGO bind with signing and sealing for AES128, AES256 and RC4. The fallback validates the server's mutual-authentication reply and protects LDAP traffic independently of the installed GSSAPI backend. LDAPS/GC-SSL use TLS protection and channel binding instead.
 * Init with schannel. `--pfx` flag accept pfx formatted certificate file.
 > [!NOTE]  
 > powerview will try to load certificate without password on the first attempt. If it fails, it'll prompt for password. So, no password parameter needed

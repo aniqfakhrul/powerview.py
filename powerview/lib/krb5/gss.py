@@ -6,17 +6,19 @@ from hmac import compare_digest
 from Cryptodome.Cipher import ARC4
 from Cryptodome.Hash import HMAC, MD5
 from pyasn1.codec.der import decoder
+from ldap3.core.exceptions import LDAPSignatureVerificationFailedError
 
 from impacket.krb5 import constants
 from impacket.krb5.asn1 import AP_REP, EncAPRepPart, KRB_ERROR
 from impacket.krb5.crypto import Key, InvalidChecksum, _enctype_table
 from impacket.krb5.gssapi import KRB_OID, KG_USAGE_ACCEPTOR_SEAL, KG_USAGE_INITIATOR_SEAL
+from impacket.krb5.types import KerberosTime
 
 KRB5_AP_REP = b'\x02\x00'
 KRB5_ERROR = b'\x03\x00'
 AP_REP_KEY_USAGE = 12
 
-class GSSError(Exception):
+class GSSError(LDAPSignatureVerificationFailedError):
 	pass
 
 @dataclass(frozen=True)
@@ -40,9 +42,13 @@ def unframe_token(token):
 	size, offset = token[1], 2
 	if size & 0x80:
 		count = size & 0x7f
+		if not count or len(token) < 2 + count or token[2] == 0:
+			raise GSSError('Malformed Kerberos GSS-API token length')
 		size, offset = int.from_bytes(token[2:2 + count], 'big'), 2 + count
+		if size < 0x80:
+			raise GSSError('Noncanonical Kerberos GSS-API token length')
 	body = token[offset:offset + size]
-	if len(body) != size or not body.startswith(KRB_OID):
+	if offset + size != len(token) or not body.startswith(KRB_OID):
 		raise GSSError('Malformed Kerberos GSS-API token')
 	return body[len(KRB_OID):]
 
@@ -115,7 +121,7 @@ class CfxContext(SecurityContext):
 		if flags & ~self.ACCEPTOR_SUBKEY != self.SENT_BY_ACCEPTOR | self.SEALED:
 			raise GSSError(f'Unexpected Kerberos wrap token flags 0x{flags:02x}')
 		try:
-			plain = self._cipher.decrypt(self._key, KG_USAGE_ACCEPTOR_SEAL, _unrotate(token[self.HEADER.size:], rotation + extra_count))
+			plain = self._cipher.decrypt(self._key, KG_USAGE_ACCEPTOR_SEAL, _unrotate(token[self.HEADER.size:], rotation))
 		except InvalidChecksum as e:
 			raise GSSError('Integrity check failed for a Kerberos wrap token') from e
 		trailer = len(plain) - self.HEADER.size
@@ -181,7 +187,7 @@ def security_context(key, send_sequence=0, receive_sequence=0, acceptor_subkey=F
 		raise GSSError(f'Unsupported Kerberos encryption type {key.enctype} for message protection')
 	return context(key, send_sequence, receive_sequence, acceptor_subkey)
 
-def accept_ap_rep(token, cipher, session_key, send_sequence=0):
+def accept_ap_rep(token, cipher, session_key, authenticator_time, send_sequence=0):
 	inner = unframe_token(token)
 	token_id, payload = inner[:2], inner[2:]
 	if token_id == KRB5_ERROR:
@@ -197,6 +203,9 @@ def accept_ap_rep(token, cipher, session_key, send_sequence=0):
 	except InvalidChecksum as e:
 		raise GSSError('Kerberos AP-REP failed its integrity check') from e
 	enc_part = decoder.decode(plain, asn1Spec=EncAPRepPart())[0]
+	if (str(enc_part['ctime']) != KerberosTime.to_asn1(authenticator_time)
+			or int(enc_part['cusec']) != authenticator_time.microsecond):
+		raise GSSError('Kerberos AP-REP does not match the initiating authenticator')
 
 	subkey = enc_part['subkey']
 	key = Key(int(subkey['keytype']), subkey['keyvalue'].asOctets()) if subkey.isValue else session_key

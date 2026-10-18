@@ -514,7 +514,7 @@ def getKerberosType3(cipher, sessionKey, auth_data):
 
 def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT = None, TGS = None, targetName='',
                      kdcHost = None, useCache = True, dce_style = True, targetService = 'host', mutual_auth = True,
-                     tgt_cache = None, channel_binding_value = None):
+                     tgt_cache = None, channel_binding_value = None, authenticator_time = None):
 
     # Convert to binary form, just in case we're receiving strings
     if isinstance(lmhash, str):
@@ -662,7 +662,7 @@ def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT 
     authenticator['authenticator-vno'] = 5
     authenticator['crealm'] = domain
     seq_set(authenticator, 'cname', userName.components_to_asn1)
-    now = datetime.datetime.utcnow()
+    now = authenticator_time if authenticator_time is not None else datetime.datetime.now(datetime.timezone.utc)
 
     authenticator['cusec'] = now.microsecond
     authenticator['ctime'] = KerberosTime.to_asn1(now)

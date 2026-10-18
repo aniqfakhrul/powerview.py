@@ -43,6 +43,7 @@ import random
 import ssl
 import threading
 from collections import OrderedDict
+from datetime import datetime, timezone
 import time
 import ldap3
 import logging
@@ -59,6 +60,7 @@ import powerview.lib.adws as adws
 from ldap3 import Connection as LDAP3Connection
 from powerview.lib.adws.core.connection import Connection as ADWSConnection
 from powerview.lib.krb5.gss import GSSError, accept_ap_rep
+from powerview.lib.ldap3.sasl import SaslSocket, install_ldap_protection
 from powerview.lib.ldapx import attach as attach_obfuscation, detach as detach_obfuscation
 from powerview.utils.obfuscation import ObfuscationSettings
 
@@ -846,7 +848,8 @@ class CONNECTION:
 		return {}
 
 	def _set_session_security_state(self, session=None, channel_binding=False):
-		self.sign_and_seal_active = getattr(session, 'session_security', None) == getattr(ldap3, 'ENCRYPT', object())
+		self.sign_and_seal_active = (isinstance(getattr(session, 'socket', None), SaslSocket)
+			or getattr(session, 'session_security', None) == getattr(ldap3, 'ENCRYPT', object()))
 		self.channel_binding_active = bool(channel_binding)
 
 	def _signing_required_error(self, auth_method):
@@ -1440,8 +1443,10 @@ class CONNECTION:
 					logging.info(f"LDAP reconnection attempt {retry_count+1}/{max_retries} after {backoff_time:.2f} seconds")
 					time.sleep(backoff_time)
 
-				if retry_count == 0 and not fresh and getattr(self.ldap_session, 'authentication', None) != ldap3.NTLM:
-					# First attempt: try lightweight rebind. Not for NTLM: ldap3 would rebind with its Sicily bind
+				if (retry_count == 0 and not fresh
+						and getattr(self.ldap_session, 'authentication', None) != ldap3.NTLM
+						and getattr(self.ldap_session, 'sasl_mechanism', None) != ldap3.KERBEROS):
+					# NTLM and Kerberos sessions need a fresh transport; ldap3's rebind would redo the bind natively.
 					self.ldap_session.rebind()
 				else:
 					logging.debug("Creating fresh LDAP connection")
@@ -2097,6 +2102,7 @@ class CONNECTION:
 			channel_binding_value = tls_channel_binding_token(peer_certificate)
 			logging.debug("Adding TLS channel binding token to the Kerberos authenticator")
 
+		authenticator_time = datetime.now(timezone.utc)
 		cipher, session_key, blob = getKerberosType1(
 			user, password, domain, lmhash, nthash,
 			aesKey=aesKey,
@@ -2109,6 +2115,7 @@ class CONNECTION:
 			targetService='ldap',
 			mutual_auth=seal,
 			channel_binding_value=channel_binding_value,
+			authenticator_time=authenticator_time,
 		)
 
 		request = ldap3.operation.bind.bind_operation(
@@ -2124,12 +2131,12 @@ class CONNECTION:
 		if response[0]['result'] != 0:
 			raise Exception(response)
 
-		connection.bound = True
 		if seal:
-			connection.krb_ctx = accept_ap_rep(SPNEGO_NegTokenResp(response[0]['saslCreds'])['ResponseToken'], cipher, session_key)
-			connection.krb_wrap_size_limit = LDAP_SASL_BUFFER_SIZE
+			context = accept_ap_rep(SPNEGO_NegTokenResp(response[0]['saslCreds'])['ResponseToken'], cipher, session_key, authenticator_time)
+			install_ldap_protection(connection, context, LDAP_SASL_BUFFER_SIZE)
 		else:
 			connection.session_security = None
+		connection.bound = True
 		connection.refresh_server_info()
 
 		return channel_binding_value is not None

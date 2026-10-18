@@ -2,6 +2,7 @@
 import logging
 import socket
 import struct
+from datetime import datetime, timezone
 from hmac import compare_digest
 
 import impacket.examples.logger
@@ -309,6 +310,7 @@ class NNS:
 
 		# Step 1: Build SPNEGO NegTokenInit with AP-REQ (no DCE_STYLE = 2-leg)
 		tgt_cache = {}
+		authenticator_time = datetime.now(timezone.utc)
 		cipher, sessionKey, blob = getKerberosType1(
 			self._username,
 			self._password or '',
@@ -322,6 +324,7 @@ class NNS:
 			useCache=self._no_pass if self._TGT is None else False,
 			dce_style=False,
 			tgt_cache=tgt_cache,
+			authenticator_time=authenticator_time,
 		)
 		# Cache TGT for reuse on reconnections
 		if tgt_cache:
@@ -344,7 +347,7 @@ class NNS:
 
 		# Step 4: Build the message protection context from the AP-REP
 		negTokenResp = impacket.spnego.SPNEGO_NegTokenResp(server_resp["payload"])
-		krb_ctx = accept_ap_rep(negTokenResp["ResponseToken"], cipher, sessionKey)
+		krb_ctx = accept_ap_rep(negTokenResp["ResponseToken"], cipher, sessionKey, authenticator_time)
 
 		# Step 5: If server sent IN_PROGRESS, receive the DONE message
 		if server_resp["message_id"] == MessageID.IN_PROGRESS:
