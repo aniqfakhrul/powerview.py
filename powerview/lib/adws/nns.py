@@ -10,8 +10,9 @@ import impacket.spnego
 import impacket.structure
 from Cryptodome.Cipher import ARC4
 from impacket.hresult_errors import ERROR_MESSAGES
-from impacket.krb5.gssapi import GSSAPI
 from ldap3.core.exceptions import LDAPSignatureVerificationFailedError
+
+from powerview.lib.krb5.gss import accept_ap_rep
 
 from .encoder.records.utils import Net7BitInteger
 from .transport import receive_exactly
@@ -164,8 +165,7 @@ class NNS:
 		self._TGT = TGT  # Pre-cached TGT to avoid re-requesting from KDC
 		self._cached_tgt = None  # Populated after auth for caller to cache
 		self._auth_type: str = ""  # set to 'ntlm' or 'kerberos' after auth
-		self._gss = None           # GSSAPI wrapper (Kerberos only)
-		self._krb_session_key = None  # impacket Key object (Kerberos only)
+		self._krb_ctx = None
 
 	def _fix_hashes(self, hash: str | bytes) -> bytes | str:
 		"""fixes up hash if present into bytes and
@@ -227,62 +227,6 @@ class NNS:
 			raise ConnectionError('ADWS envelope exceeded its declared size')
 		return bytes(pkt)
 
-	def _strip_gss_header(self, data: bytes) -> bytes:
-		"""Strip MechIndepToken GSS-API header (Application tag + length + OID).
-
-		Returns the raw mechanism token (Token ID + WRAP + data).
-		"""
-		if data[0] != 0x60:
-			return data  # No GSS wrapping, return as-is
-		offset = 1
-		if data[offset] < 128:
-			offset += 1  # short form DER length
-		else:
-			offset += 1 + (data[offset] - 128)  # long form DER length
-		# Skip OID: 06 <len> <value bytes>
-		oid_len = data[offset + 1]
-		offset += 2 + oid_len
-		return data[offset:]
-
-	def _krb_rc4_unwrap(self, data: bytes) -> bytes:
-		"""Correctly unwrap RC4 GSS WRAP token.
-
-		Works around impacket MechIndepToken.from_bytes() parsing bug
-		that misaligns the WRAP structure for short-form DER lengths.
-		"""
-		from Cryptodome.Cipher import ARC4 as ARC4_cipher
-		from Cryptodome.Hash import HMAC, MD5
-
-		# Strip GSS header to get raw mechanism token
-		inner = self._strip_gss_header(data)
-
-		# Parse WRAP structure (32 bytes):
-		# TOK_ID(2) + SGN_ALG(2) + SEAL_ALG(2) + Filler(2) +
-		# SND_SEQ(8) + SGN_CKSUM(8) + Confounder(8)
-		snd_seq_enc = inner[8:16]
-		sgn_cksum = inner[16:24]
-		confounder_enc = inner[24:32]
-		encrypted_payload = inner[32:]
-
-		session_key = self._krb_session_key.contents
-
-		# Derive Klocal (XOR key with 0xF0)
-		klocal = bytes(b ^ 0xF0 for b in session_key)
-
-		# Derive Kseq and decrypt SND_SEQ
-		kseq = HMAC.new(session_key, struct.pack('<L', 0), MD5).digest()
-		kseq = HMAC.new(kseq, sgn_cksum, MD5).digest()
-		snd_seq = ARC4_cipher.new(kseq).encrypt(snd_seq_enc)
-
-		# Derive Kcrypt using decrypted sequence number
-		kcrypt = HMAC.new(klocal, struct.pack('<L', 0), MD5).digest()
-		kcrypt = HMAC.new(kcrypt, snd_seq[:4], MD5).digest()
-
-		# Decrypt confounder + data, skip 8-byte confounder, strip 1-byte padding
-		rc4 = ARC4_cipher.new(kcrypt)
-		plaintext = rc4.decrypt(confounder_enc + encrypted_payload)
-		return plaintext[8:-1]
-
 	def _recv(self, _: int = 0) -> bytes:
 		"""Recive an NNS packet and return the entire
 		decrypted contents.
@@ -296,16 +240,7 @@ class NNS:
 		payload = receive_exactly(self._sock, size)
 
 		if self._auth_type == 'kerberos':
-			from impacket.krb5.gssapi import GSSAPI_RC4
-			if isinstance(self._gss, GSSAPI_RC4):
-				# RC4: payload is MechIndepToken-wrapped (GSS header + WRAP + data)
-				return self._krb_rc4_unwrap(payload)
-			else:
-				# AES: payload is raw [16-byte WRAP header][ciphertext]
-				clearText, _ = self._gss.GSS_Unwrap_LDAP(
-					self._krb_session_key, payload, self._sequence, direction='init'
-				)
-				return clearText
+			return self._krb_ctx.unwrap(payload).message
 
 		# NTLM: payload is [16-byte signature][ciphertext]
 		signature = payload[0:16]
@@ -327,14 +262,9 @@ class NNS:
 		"""
 
 		if self._auth_type == 'kerberos':
-			# Kerberos GSS_Wrap: returns (cipherText, token_header)
-			cipherText, token_header = self._gss.GSS_Wrap_LDAP(
-				self._krb_session_key, data, self._sequence
-			)
 			pkt = NNS_data()
-			pkt["payload"] = token_header + cipherText
+			pkt["payload"] = self._krb_ctx.wrap(data).message
 			self._sock.sendall(pkt.getData())
-			self._sequence += 1
 			return
 
 		# NTLM SEAL path
@@ -374,9 +304,6 @@ class NNS:
 	def auth_kerberos(self) -> None:
 		"""Authenticate using Kerberos via SPNEGO (2-leg, no DCE_STYLE)."""
 		from powerview.lib.krb5.kerberosv5 import getKerberosType1
-		from impacket.krb5.asn1 import AP_REP, EncAPRepPart
-		from impacket.krb5.crypto import _enctype_table, Key
-		from pyasn1.codec.der import decoder
 
 		logging.debug("[NNS] Starting Kerberos authentication")
 
@@ -415,29 +342,9 @@ class NNS:
 		if server_resp["message_id"] == MessageID.ERROR:
 			raise SystemExit("[-] Kerberos Auth Failed: server rejected token")
 
-		# Step 4: Extract subkey from AP-REP (no third message needed)
+		# Step 4: Build the message protection context from the AP-REP
 		negTokenResp = impacket.spnego.SPNEGO_NegTokenResp(server_resp["payload"])
-		response_token = negTokenResp["ResponseToken"]
-
-		# Without DCE_STYLE, ResponseToken has KRB5 GSS header prefix.
-		# Try raw decode first, then strip prefix if needed.
-		try:
-			ap_rep = decoder.decode(response_token, asn1Spec=AP_REP())[0]
-		except Exception:
-			# Strip KRB5 GSS-API header to find raw AP-REP
-			idx = response_token.find(b'\x6f')
-			if idx < 0:
-				raise ConnectionError("Failed to parse AP-REP from server response")
-			ap_rep = decoder.decode(response_token[idx:], asn1Spec=AP_REP())[0]
-
-		cipherText = ap_rep['enc-part']['cipher']
-
-		# Key Usage 12: AP-REP encrypted part (contains subkey)
-		plainText = cipher.decrypt(sessionKey, 12, cipherText)
-		encAPRepPart = decoder.decode(plainText, asn1Spec=EncAPRepPart())[0]
-
-		cipher2 = _enctype_table[int(encAPRepPart['subkey']['keytype'])]()
-		sessionKey2 = Key(cipher2.enctype, encAPRepPart['subkey']['keyvalue'].asOctets())
+		krb_ctx = accept_ap_rep(negTokenResp["ResponseToken"], cipher, sessionKey)
 
 		# Step 5: If server sent IN_PROGRESS, receive the DONE message
 		if server_resp["message_id"] == MessageID.IN_PROGRESS:
@@ -445,11 +352,8 @@ class NNS:
 			if server_done["message_id"] == MessageID.ERROR:
 				raise SystemExit("[-] Kerberos Auth Failed: server rejected auth")
 
-		# Step 6: Set up Kerberos GSS-API context for message protection
-		self._gss = GSSAPI(cipher2)
-		self._krb_session_key = sessionKey2
+		self._krb_ctx = krb_ctx
 		self._auth_type = 'kerberos'
-		self._sequence = 0
 
 		logging.debug("[NNS] Kerberos authentication successful")
 

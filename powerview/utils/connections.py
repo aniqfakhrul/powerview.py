@@ -58,6 +58,7 @@ from ldap3.core.results import RESULT_SUCCESS, RESULT_STRONGER_AUTH_REQUIRED
 import powerview.lib.adws as adws
 from ldap3 import Connection as LDAP3Connection
 from powerview.lib.adws.core.connection import Connection as ADWSConnection
+from powerview.lib.krb5.gss import GSSError, accept_ap_rep
 from powerview.lib.ldapx import attach as attach_obfuscation, detach as detach_obfuscation
 from powerview.utils.obfuscation import ObfuscationSettings
 
@@ -96,6 +97,7 @@ def tls_channel_binding_token(peer_certificate):
 
 WINDOWS_NTLM_VERSION = (10, 0, 26100)
 WINDOWS_NTLM_NEGOTIATE_FLAGS = 0xe20882b7
+LDAP_SASL_BUFFER_SIZE = 0x400000
 
 class SpnegoNtlmSeal:
 	def __init__(self, flags, session_key):
@@ -1958,8 +1960,8 @@ class CONNECTION:
 		channel_binding_disabled = channel_binding is False or (channel_binding is None and not getattr(self, 'channel_binding', True))
 		if use_ssl and channel_binding_disabled:
 			# ldap3 always binds GSSAPI to the TLS channel, so use the SPNEGO bind to honour --no-channel-binding
-			logging.debug("Channel binding disabled, using impacket style kerberos login")
-			channel_bound = self._impacket_kerberos_fallback(*fallback_args)
+			logging.debug("Channel binding disabled, using the SPNEGO Kerberos bind")
+			channel_bound = self._kerberos_spnego_fallback(*fallback_args)
 			self._set_session_security_state(ldap_connection, channel_binding=channel_bound)
 			return ldap_server, ldap_connection
 		try:
@@ -1976,32 +1978,26 @@ class CONNECTION:
 			if is_proxychains():
 				logging.warning("This might caused by gssapi is not supported via proxychains. Try to use https://github.com/hmgle/graftcp instead.")
 			
-			logging.warning("Falling back to impacket style kerberos login")
-			channel_bound = self._impacket_kerberos_fallback(*fallback_args)
+			logging.warning("Falling back to the SPNEGO Kerberos bind")
+			channel_bound = self._kerberos_spnego_fallback(*fallback_args)
 		except Exception as e:
 			if self.stack_trace:
 				raise e
-			logging.warning(f"Unknown error: {e}. Falling back to impacket style kerberos login")
-			channel_bound = self._impacket_kerberos_fallback(*fallback_args)
+			logging.warning(f"Unknown error: {e}. Falling back to the SPNEGO Kerberos bind")
+			channel_bound = self._kerberos_spnego_fallback(*fallback_args)
 
 		self._set_session_security_state(ldap_connection, channel_binding=channel_bound)
 		return ldap_server, ldap_connection
 
-	def _impacket_kerberos_fallback(self, connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost, use_ssl, channel_binding=None):
+	def _kerberos_spnego_fallback(self, connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost, use_ssl, channel_binding=None):
 		send_channel_binding = self._wants_channel_binding(use_ssl, channel_binding)
-		login = lambda cb: self.impacket_ldap3_kerberos_login(connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost=kdcHost, useCache=self.no_pass, channel_binding=cb)
+		login = lambda cb: self._kerberos_spnego_bind(connection, target, username, password, domain, lmhash, nthash, aesKey, kdcHost=kdcHost, useCache=self.no_pass, channel_binding=cb)
 		try:
-			channel_bound = login(send_channel_binding)
-			if self._wants_sign_and_seal(use_ssl):
-				logging.warning("The impacket Kerberos fallback cannot sign and seal. This LDAP session is not encrypted")
-			return channel_bound
+			return login(send_channel_binding)
 		except ldap3.core.exceptions.LDAPStrongerAuthRequiredResult:
-			if not self._wants_sign_and_seal(use_ssl):
-				message = self._signing_required_error(ldap3.SASL)
-			else:
-				message = ("LDAP signing is enforced, but the impacket Kerberos fallback cannot sign and seal. "
-						 "Use LDAPS, or a GSSAPI library with credential store support (MIT krb5)")
-			raise ConnectionSetupError(message)
+			raise ConnectionSetupError(self._signing_required_error(ldap3.SASL))
+		except GSSError as e:
+			raise ConnectionSetupError(f"Kerberos sign and seal setup failed: {e}")
 		except ldap3.core.exceptions.LDAPInvalidCredentialsResult as e:
 			if CHANNEL_BINDING_ERROR not in str(e):
 				raise
@@ -2079,18 +2075,12 @@ class CONNECTION:
 		session.refresh_server_info()
 		return True
 
-	def impacket_ldap3_kerberos_login(self, connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True, channel_binding=False):
-		"""
-		Login to the target system explicitly using Kerberos via SPNEGO.
-
-		Uses the shared getKerberosType1() from powerview.lib.krb5.kerberosv5
-		which handles ccache, TGT/TGS acquisition, RC4 fallback, and aesKey
-		conversion. The resulting SPNEGO blob is sent via LDAP SASL bind.
-		"""
+	def _kerberos_spnego_bind(self, connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, useCache=True, channel_binding=False):
 		from powerview.lib.krb5.kerberosv5 import getKerberosType1
 
 		if self.TGT or self.TGS:
 			useCache = False
+		seal = connection.session_security == ldap3.ENCRYPT
 
 		# Ensure a clean connection for the SPNEGO bind (prior SASL attempt may
 		# have left the socket in a bad state, e.g. after gssapi fallback)
@@ -2107,7 +2097,7 @@ class CONNECTION:
 			channel_binding_value = tls_channel_binding_token(peer_certificate)
 			logging.debug("Adding TLS channel binding token to the Kerberos authenticator")
 
-		_, _, blob = getKerberosType1(
+		cipher, session_key, blob = getKerberosType1(
 			user, password, domain, lmhash, nthash,
 			aesKey=aesKey,
 			TGT=self.TGT,
@@ -2117,7 +2107,7 @@ class CONNECTION:
 			useCache=useCache,
 			dce_style=False,
 			targetService='ldap',
-			mutual_auth=False,
+			mutual_auth=seal,
 			channel_binding_value=channel_binding_value,
 		)
 
@@ -2135,7 +2125,11 @@ class CONNECTION:
 			raise Exception(response)
 
 		connection.bound = True
-		connection.session_security = None # just to skip the session security check
+		if seal:
+			connection.krb_ctx = accept_ap_rep(SPNEGO_NegTokenResp(response[0]['saslCreds'])['ResponseToken'], cipher, session_key)
+			connection.krb_wrap_size_limit = LDAP_SASL_BUFFER_SIZE
+		else:
+			connection.session_security = None
 		connection.refresh_server_info()
 
 		return channel_binding_value is not None
