@@ -16,3 +16,4 @@ flask-basicauth
 pycryptodome
 fastmcp
 gssapi; sys_platform != 'win32'
+ldapx
