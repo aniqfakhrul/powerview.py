@@ -22,7 +22,8 @@ classifiers = [
 dependencies = [
     "dnspython",
     "future",
-    "gnureadline",
+    "gnureadline; sys_platform != 'win32'",
+    "pyreadline3; sys_platform == 'win32'",
     "validators",
     "dsinternals",
     "chardet>=3.0.2,<6",
@@ -36,7 +37,7 @@ dependencies = [
     "flask-basicauth",
     "pycryptodome",
     "fastmcp",
-    "gssapi",
+    "gssapi; sys_platform != 'win32'",
     "ldapx"
 ]
 
