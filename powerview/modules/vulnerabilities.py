@@ -29,32 +29,14 @@ class VulnerabilityDetector:
         try:
             with open(vulns_file, 'r') as f:
                 rules = json.load(f)
-            
-            default_rules = self._get_default_rules()
-            if rules != default_rules:
-                logging.warning(f"[VulnerabilityDetector] Outdated vulnerability rules found in {vulns_file}. Updating with defaults.")
-                try:
-                    with open(vulns_file, 'w') as f:
-                        json.dump(default_rules, f, indent=4)
-                    logging.debug(f"[VulnerabilityDetector] Successfully updated vulnerability rules at {vulns_file}")
-                    return default_rules
-                except Exception as e:
-                    logging.error(f"[VulnerabilityDetector] Error writing updated rules to {vulns_file}: {e}")
-                    return rules
-            else:
-                logging.debug(f"[VulnerabilityDetector] Loaded up-to-date vulnerability rules from {vulns_file}")
-                return rules
-
-        except Exception as e:
+            if not isinstance(rules, dict) or any(not isinstance(rule, dict) for rule in rules.values()):
+                raise ValueError("Vulnerability rules must be an object mapping names to rule objects")
+            logging.debug(f"[VulnerabilityDetector] Loaded vulnerability rules from {vulns_file}")
+            return rules
+        except (OSError, ValueError) as e:
             logging.error(f"[VulnerabilityDetector] Error loading vulnerability rules: {e}")
-            default_rules = self._get_default_rules()
-            try:
-                with open(vulns_file, 'w') as f:
-                    json.dump(default_rules, f, indent=4)
-                logging.debug(f"[VulnerabilityDetector] Created default vulnerability rules at {vulns_file} after load error.")
-            except Exception as write_e:
-                 logging.error(f"[VulnerabilityDetector] Error writing default rules after load error to {vulns_file}: {write_e}")
-            return default_rules
+            # A damaged or unreadable user file must remain available for repair.
+            return self._get_default_rules()
     
     def _get_default_rules(self):
         return {
@@ -907,6 +889,7 @@ class VulnerabilityDetector:
     
     def detect_vulnerabilities(self, entry):
         vulnerabilities = []
+        entry = {key.casefold(): value for key, value in entry.items()}
         
         severity_colors = {
             "low": bcolors.OKGREEN,
@@ -919,9 +902,8 @@ class VulnerabilityDetector:
             if not self._check_vulnerability_rules(entry, rule_data):
                 continue
             
-            if "exclusions" in rule_data and rule_data["exclusions"]:
-                if self._check_vulnerability_exclusions(entry, rule_data):
-                    continue
+            if self._check_vulnerability_exclusions(entry, rule_data):
+                continue
                 
             sev = str(rule_data["severity"]).lower()
             color = severity_colors.get(sev, bcolors.WHITE)
@@ -956,15 +938,15 @@ class VulnerabilityDetector:
         
         results = []
         for rule in rules:
-            rule_attribute = rule["attribute"]
-            if rule_attribute not in entry:
+            rule_attribute = rule["attribute"].casefold()
+            if rule_attribute not in entry and rule['condition'] != 'not_exists':
                 if rule_operator == "AND":
                     return False
                 results.append(False)
                 continue
             
             rule_matched = self._check_condition(
-                entry[rule_attribute], 
+                entry.get(rule_attribute),
                 rule["condition"],
                 rule.get("value")
             )
@@ -999,17 +981,19 @@ class VulnerabilityDetector:
         
         results = []
         for exclusion in exclusions:
-            exclusion_attribute = exclusion["attribute"]
+            exclusion_attribute = exclusion["attribute"].casefold()
             
-            if exclusion_attribute not in entry:
+            if exclusion_attribute not in entry and exclusion['condition'] != 'not_exists':
                 results.append(False)
                 continue
             
             exclusion_matched = self._check_condition(
-                entry[exclusion_attribute],
+                entry.get(exclusion_attribute),
                 exclusion["condition"],
                 exclusion.get("value")
             )
+            if exclusion.get('negate', False):
+                exclusion_matched = not exclusion_matched
             
             results.append(exclusion_matched)
             
@@ -1121,22 +1105,21 @@ class VulnerabilityDetector:
                 return attribute_value.lower().endswith(condition_value.lower())
             return str(attribute_value).endswith(condition_value)
             
-        elif condition == "older_than" and condition_value is not None:
+        elif condition in ("older_than", "newer_than") and condition_value is not None:
             try:
+                if isinstance(attribute_value, str):
+                    # LDAP's display formatter adds a relative-age suffix.
+                    text = attribute_value.split(' (', 1)[0]
+                    try:
+                        attribute_value = datetime.fromisoformat(text.replace('Z', '+00:00'))
+                    except ValueError:
+                        attribute_value = datetime.strptime(text, '%d/%m/%Y %H:%M:%S')
                 if isinstance(attribute_value, datetime):
-                    age_days = (datetime.now() - attribute_value).days
-                    return age_days > condition_value
+                    age_days = (datetime.now(attribute_value.tzinfo) - attribute_value).days
+                    days = int(condition_value)
+                    return age_days > days if condition == 'older_than' else age_days < days
                 return False
-            except:
-                return False
-                
-        elif condition == "newer_than" and condition_value is not None:
-            try:
-                if isinstance(attribute_value, datetime):
-                    age_days = (datetime.now() - attribute_value).days
-                    return age_days < condition_value
-                return False
-            except:
+            except (TypeError, ValueError, OverflowError):
                 return False
                 
         elif condition == "greater_than" and condition_value is not None:
@@ -1218,4 +1201,4 @@ class VulnerabilityDetector:
             except (ValueError, TypeError):
                 return False
                 
-        return False 
+        return False

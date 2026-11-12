@@ -95,7 +95,7 @@ class SecurityDescriptorParser:
         self.owner = format_sid(self.sd["OwnerSid"].getData())
 
         # Dictionary to store access control entries by SID
-        self.aces: Dict[str, Dict[str, Any]] = {}
+        self.aces: dict[str, dict] = {}
 
         # Parse the ACEs
         self._parse_aces()

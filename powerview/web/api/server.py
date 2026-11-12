@@ -20,7 +20,7 @@ from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.utils.obfuscation import ObfuscationError, ObfuscationSettings, obfuscation_arguments
 from powerview.modules.smbclient import SMBClient
 from powerview.lib.tsts import TSHandler
-from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip, is_valid_sid
+from powerview.utils.helpers import is_ipaddress, is_valid_fqdn, host2ip, is_valid_sid, sanitize_component
 from powerview.utils.schema import SchemaCatalog
 from powerview.utils.session import session_lock
 import re
@@ -56,11 +56,16 @@ class APIServer:
 		self.smb_session_params = {}
 		self.schema_attributes = {}
 		
-		components = [self.powerview.flatName.lower(), self.powerview.args.username.lower(), self.powerview.args.ldap_address.lower()]
-		folder_name = '-'.join(filter(None, components)) or "default-log"
-		file_name = "%s.log" % datetime.now().strftime("%Y-%m-%d")
+		domain = getattr(self.powerview.args, 'domain', None) or self.powerview.flatName
+		folder_name = sanitize_component(domain.split('.')[0].lower()) or 'default-log'
+		username = sanitize_component(self.powerview.args.username.lower())
+		file_name = f'{date.today()}-{username}.log' if username else f'{date.today()}.log'
 		self.log_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, file_name)
 		self.history_file_path = os.path.join(os.path.expanduser('~/.powerview/logs/'), folder_name, '.powerview_history')
+		log_handler = getattr(self.powerview, 'log_handler', None)
+		if log_handler is not None:
+			self.log_file_path = os.path.join(log_handler.logs_folder, log_handler.file_name)
+			self.history_file_path = log_handler.history_file
 
 		self.app.before_request(self._acquire_session)
 		self.app.teardown_request(self._release_session)
@@ -209,7 +214,7 @@ class APIServer:
 		return jsonify({'status': 'OK' if success else 'KO'}), 200 if success else 400
 	
 	def handle_settings(self):
-		settings = dict(vars(self.powerview.args))
+		settings = {name: getattr(self.powerview.args, name, False) for name in ('no_cache', 'no_vuln_check', 'raw')}
 		settings.update(obfuscation_arguments(self.powerview.conn.obfuscation))
 		return jsonify(settings)
 
@@ -392,18 +397,15 @@ class APIServer:
 			limit = int(request.args.get('limit', 10))
 
 			max_limit = 100
-			if limit > max_limit:
-				raise ValueError(f"Limit of {limit} exceeds the maximum allowed value of {max_limit}")
+			if page < 1 or not 1 <= limit <= max_limit:
+				raise ValueError(f"Page must be positive and limit must be between 1 and {max_limit}")
 
 			with open(self.log_file_path, 'r') as log_file:
 				all_logs = log_file.readlines()
 
 			total_logs = len(all_logs)
-			start = total_logs - (page * limit)
-			end = start + limit
-
-			if start < 0:
-				start = 0
+			end = max(0, total_logs - ((page - 1) * limit))
+			start = max(0, end - limit)
 
 			paginated_logs = all_logs[start:end][::-1]  # Reverse the order to get the most recent logs first
 
@@ -423,6 +425,8 @@ class APIServer:
 					})
 
 			return jsonify({'logs': formatted_logs, 'total': total_logs, 'page': page, 'limit': limit})
+		except ValueError as e:
+			return jsonify({'error': str(e)}), 400
 		except Exception as e:
 			return jsonify({'error': str(e)}), 500
 
@@ -432,12 +436,18 @@ class APIServer:
 		if not method:
 			return jsonify({'error': f'Method {full_method_name} not found'}), 404
 
-		params = request.args.to_dict() if request.method == 'GET' else request.json or {}
+		params = request.args.to_dict() if request.method == 'GET' else request.get_json()
+		if params is None:
+			params = {}
+		if not isinstance(params, dict):
+			return jsonify({'error': 'Arguments must be a JSON object'}), 400
 
 		if 'properties' in params and isinstance(params['properties'], str):
 			params['properties'] = [p.strip() for p in params['properties'].split(',')]
 
 		if 'args' in params:
+			if not isinstance(params['args'], dict):
+				return jsonify({'error': 'args must be a JSON object'}), 400
 			params['args'] = Namespace(**params['args'])
 		
 		try:

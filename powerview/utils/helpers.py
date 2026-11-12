@@ -654,20 +654,25 @@ def parse_identity(args):
 	domain, username, password, address = parse_target(args.target)
 
 	if password == '' and username != '' and args.hashes is None and args.no_pass is False and args.auth_aes_key is None:
-		if args.pfx is not None:
-			pasword = None
-		else:
+		if args.pfx is None:
 			from getpass import getpass
 			password = getpass("Password:")
 
 	if args.auth_aes_key is not None:
-		args.k = True
+		args.use_kerberos = True
 
 	if args.hashes is not None:
-		if ":" not in args.hashes[0] and len(args.hashes) == 32:
-			args.hashes = ":"+args.hashes
-		hashes = ("aad3b435b51404eeaad3b435b51404ee:".upper() + args.hashes.split(":")[1]).upper()
-		lmhash, nthash = hashes.split(':')
+		parts = args.hashes.split(':')
+		if len(parts) == 1:
+			lmhash, nthash = '', parts[0]
+		elif len(parts) == 2:
+			lmhash, nthash = parts
+		else:
+			raise ValueError('Hashes must be an NT hash or an LM:NT pair')
+		if not re.fullmatch(r'[0-9a-fA-F]{32}', nthash) or (lmhash and not re.fullmatch(r'[0-9a-fA-F]{32}', lmhash)):
+			raise ValueError('NT and nonempty LM hashes must contain 32 hexadecimal characters')
+		lmhash = (lmhash or 'aad3b435b51404eeaad3b435b51404ee').upper()
+		nthash = nthash.upper()
 	else:
 		lmhash = ''
 		nthash = ''
@@ -840,8 +845,8 @@ def cryptPassword(session_key, password):
 	try:
 		from Cryptodome.Cipher import ARC4
 	except Exception:
-		LOG.error("Warning: You don't have any crypto installed. You need pycryptodomex")
-		LOG.error("See https://pypi.org/project/pycryptodomex/")
+		logging.error("Password encryption requires pycryptodomex")
+		raise
 
 	sam_user_pass = samr.SAMPR_USER_PASSWORD()
 	encoded_pass = password.encode('utf-16le')

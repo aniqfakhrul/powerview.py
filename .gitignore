@@ -15,8 +15,8 @@ CLAUDE.md
 uv.lock
 win-libs
 ghidraScripts
-/tests/
-/powerview/web/front-end/tests/
+.pytest_cache/
+.ruff_cache/
 docs
 # Detection research and packet-capture evidence (PowerView vs. legitimate LDAP
 # auth). Already covered by the "docs" blanket above — stated explicitly so

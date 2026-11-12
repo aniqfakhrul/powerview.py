@@ -20,14 +20,15 @@ class MultiByteInt31(object):
             return bytes([self.value])
 
         result = []
+        value = self.value
         for _ in range(5):
-            byte = self.value & MAXMBI
-            self.value >>= 7
-            if self.value != 0:
+            byte = value & MAXMBI
+            value >>= 7
+            if value != 0:
                 byte |= MAXMBI + 1
             result.append(byte)
 
-            if self.value == 0:
+            if value == 0:
                 break
 
         return bytes(result)
@@ -66,8 +67,11 @@ class Utf8String(object):
 
     @classmethod
     def parse(cls, fp) -> Self:
-        lngth = struct.unpack("<B", fp.read(1))[0]
-        return cls(fp.read(lngth).decode("utf8", errors="ignore"))
+        length = MultiByteInt31.parse(fp).value
+        data = fp.read(length)
+        if len(data) != length:
+            raise EOFError("Truncated UTF-8 string")
+        return cls(data.decode("utf8"))
 
 
 class Decimal(object):

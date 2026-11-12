@@ -66,7 +66,7 @@ def main():
     try:
         conn = CONNECTION(args)
         init_ldap_address = args.ldap_address
-        powerview = PowerView(conn, args)
+        powerview = PowerView(conn, args, log_handler=log_handler)
         if powerview.ldap_session and powerview.ldap_session.bound:
             powerview.add_domain_connection(powerview.conn.get_domain())
 
@@ -125,6 +125,9 @@ def main():
                             continue
 
                     pv_args = powerview_arg_parse(cmd)
+                    if pv_args is None:
+                        exit_one_shot_on_error()
+                        continue
 
                     if pv_args:
                         if pv_args.module.casefold() == 'exit':
@@ -179,6 +182,7 @@ def main():
 
                         try:
                             entries = None
+                            succeed = None
 
                             _before_hooks = pv.plugin_registry.get_before_hooks(pv_args.module) if pv.plugin_registry else []
                             if _before_hooks:
@@ -273,7 +277,7 @@ def main():
                             elif pv_args.module.casefold() == 'convertfrom-sid':
                                 pv.convertfrom_sid(objectsid=pv_args.objectsid.strip(), output=True, no_cache=pv_args.no_cache)
                             elif pv_args.module.casefold() == 'clear-cache':
-                                pv.clear_cache()
+                                succeed = pv.clear_cache()
                                 using_cache = False
                             elif pv_args.module.casefold() == 'login-as':
                                 powerview.login_as(args=pv_args)
@@ -597,6 +601,9 @@ def main():
                                             import traceback
                                             logging.debug(traceback.format_exc())
 
+                            if succeed is False:
+                                exit_one_shot_on_error()
+
                             # Normalise the plugin {"headers","rows"} shape into ordinary
                             # entries so -Count/-Where/-Select/-Json all operate on rows
                             # rather than on the two dict keys. The original rows are kept
@@ -677,19 +684,25 @@ def main():
                             conn.set_targetDomain(None)
                         except ldap3.core.exceptions.LDAPInvalidFilterError as e:
                             logging.error(str(e))
+                            exit_one_shot_on_error()
                         except ldap3.core.exceptions.LDAPAttributeError as e:
                             logging.error(str(e))
+                            exit_one_shot_on_error()
                         except ADWSError as e:
                             logging.error(f"[ADWS] {str(e)}")
+                            exit_one_shot_on_error()
                         except ldap3.core.exceptions.LDAPSocketSendError as e:
                             logging.error(str(e))
                             conn.reset_connection()
+                            exit_one_shot_on_error()
                         except ldap3.core.exceptions.LDAPSocketReceiveError as e:
                             logging.error(str(e))
                             conn.reset_connection()
+                            exit_one_shot_on_error()
             except KeyboardInterrupt as error:
                 print(file=sys.stderr)
                 recover_interrupted_session(error)
+                exit_one_shot_on_error()
             except EOFError:
                 if args.mcp and hasattr(powerview, 'mcp_server') and powerview.mcp_server.get_status():
                     powerview.mcp_server.stop()
@@ -701,19 +714,23 @@ def main():
                 logging.info(f"LDAP Socket Error: {str(e)}")
                 conn.reset_connection()
                 log_handler.save_history()
+                exit_one_shot_on_error()
             except ldap3.core.exceptions.LDAPSessionTerminatedByServerError:
                 logging.warning("Server connection terminated. Trying to reconnect")
                 conn.reset_connection()
                 log_handler.save_history()
+                exit_one_shot_on_error()
             except ldap3.core.exceptions.LDAPInvalidDnError as e:
                 logging.error(f"LDAPInvalidDnError: {str(e)}")
                 log_handler.save_history()
+                exit_one_shot_on_error()
             except Exception as e:
                 if args.stack_trace:
                     log_handler.save_history()
                     raise
                 else:
                     logging.error(str(e))
+                    exit_one_shot_on_error()
 
             finally:
                 command_sessions.close()
@@ -723,14 +740,17 @@ def main():
 
     except ldap3.core.exceptions.LDAPSocketOpenError as e:
         logging.error(str(e))
+        sys.exit(1)
     except ldap3.core.exceptions.LDAPBindError as e:
         logging.error(str(e))
+        sys.exit(1)
     except Exception as e:
         if args.stack_trace:
             log_handler.save_history()
             raise
         else:
             logging.error(str(e))
+            sys.exit(1)
     finally:
         # Release worker threads and network resources before interpreter
         # finalization. This covers every exit path, including `exit`, EOF,

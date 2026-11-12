@@ -10,6 +10,7 @@ from .controls import serialize_controls
 from .response import parse_soap_response
 
 from ldap3 import SEQUENCE_TYPES
+from ldap3.utils.dn import parse_dn
 from uuid import uuid4
 from base64 import b64encode
 from xml.sax.saxutils import escape as xml_escape
@@ -30,11 +31,22 @@ def _serialize_value(value):
 
 
 def get_rdn(dn: str):
-    return dn.split(',')[0]
+    parts = parse_dn(dn, escape=True, strip=True)
+    rdn = ''
+    for attribute, value, separator in parts:
+        rdn += f'{attribute}={value}'
+        if separator != '+':
+            break
+        rdn += separator
+    return rdn
 
 
 def get_parent_dn(dn: str):
-    return ','.join(dn.split(',')[1:])
+    parts = parse_dn(dn, escape=True, strip=True)
+    for index, (_, _, separator) in enumerate(parts):
+        if separator != '+':
+            return ''.join(f'{attribute}={value}{sep}' for attribute, value, sep in parts[index + 1:])
+    return ''
 
 
 # ── Request builder ──────────────────────────────────────────────────

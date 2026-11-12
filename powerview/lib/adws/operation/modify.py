@@ -6,7 +6,7 @@ Mirrors ldap3.operation.modify structure:
 """
 
 from ldap3 import SEQUENCE_TYPES, MODIFY_ADD, MODIFY_DELETE, MODIFY_REPLACE, MODIFY_INCREMENT
-from ldap3.protocol.rfc4511 import AttributeDescription, PartialAttribute, Vals, Change, Operation, Changes
+from ldap3.protocol.rfc4511 import Operation
 from ldap3.protocol.convert import prepare_for_sending, validate_attribute_value
 
 from ..templates import LDAP_PUT_FSTRING
@@ -59,41 +59,24 @@ def modify_operation(fqdn, dn, changes, auto_encode, schema=None,
     # operation is 0 (add), 1 (delete), 2 (replace), 3 (increment)
     # increment as per RFC4525
     mRequest: str = ""
-    change_list = Changes()
-    pos = 0
     for attribute in changes:
         for change_operation in changes[attribute]:
-            partial_attribute = PartialAttribute()
-            partial_attribute['type'] = AttributeDescription(attribute)
-            partial_attribute['vals'] = Vals()
-            if isinstance(change_operation[1], SEQUENCE_TYPES):
-                for index, value in enumerate(change_operation[1]):
-                    partial_attribute['vals'].setComponentByPosition(index, prepare_for_sending(validate_attribute_value(schema, attribute, value, auto_encode, validator, check_names=check_names)))
-            else:
-                partial_attribute['vals'].setComponentByPosition(0, prepare_for_sending(validate_attribute_value(schema, attribute, change_operation[1], auto_encode, validator, check_names=check_names)))
-            change = Change()
-            change['operation'] = Operation(change_table[change_operation[0]])
-            change['modification'] = partial_attribute
-
-            change_list[pos] = change
-            pos += 1
-
-        for idx in range(len(change_list)):
-                change = change_list[idx]
-                operation = change['operation']
-                attribute = str(change['modification']['type'])
-                vals = change['modification']['vals']
-
-                mRequest += f"""<da:ModifyRequest Dialect="http://schemas.microsoft.com/2008/1/ActiveDirectory/Dialect/XPath-Level-1">
+            operation = Operation(change_table[change_operation[0]])
+            values = change_operation[1]
+            if not isinstance(values, SEQUENCE_TYPES):
+                values = [values]
+            serialized = []
+            for value in values:
+                prepared = prepare_for_sending(validate_attribute_value(schema, attribute, value, auto_encode, validator, check_names=check_names))
+                # Preserve binary input without decoding certificates or security descriptors as text.
+                serialized.append(_serialize_value(prepared if isinstance(value, (bytes, bytearray)) else prepared.decode('utf-8')))
+            mRequest += f"""<da:ModifyRequest Dialect="http://schemas.microsoft.com/2008/1/ActiveDirectory/Dialect/XPath-Level-1">
             <da:Change Operation="{operation}">
                 <da:AttributeType>addata:{attribute}</da:AttributeType>
                 <da:AttributeValue>"""
 
-                for v in vals:
-                    mRequest += f"""
-                    {_serialize_value(v)}"""
-
-                mRequest += f"""
+            mRequest += '\n'.join(serialized)
+            mRequest += f"""
                 </da:AttributeValue>
             </da:Change>
         </da:ModifyRequest>

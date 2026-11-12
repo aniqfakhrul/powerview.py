@@ -1,17 +1,14 @@
 dnspython
-future
 gnureadline
 validators
 dsinternals
 chardet>=3.0.2,<6
 tabulate
-argparse
-requests_ntlm
+requests
 python-dateutil
 ldap3 @ git+https://github.com/cannatag/ldap3.git
 impacket @ git+https://github.com/fortra/impacket.git
 flask
 flask-basicauth
-pycryptodome
-fastmcp
+pycryptodomex
 gssapi

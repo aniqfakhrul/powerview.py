@@ -1,6 +1,9 @@
 graft powerview/web
+graft tests
+prune powerview/web/front-end/tests
 prune powerview/web/.git
 prune powerview/web/*/__pycache__
 prune powerview/web/*/*/__pycache__
 include powerview/lib/ldapx/LICENSE
 include powerview/lib/ldapx/LICENSE-GO
+global-exclude *.py[cod]

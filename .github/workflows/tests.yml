@@ -1,0 +1,36 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.12', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v6
+      - name: Install Kerberos build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libkrb5-dev
+      - run: uv sync --group dev --extra mcp
+      - run: uv run --no-sync ruff check --select E9,F821,F822,F823,B016 powerview
+      - run: uv run --no-sync pytest -q
+      - run: uv build
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test powerview/web/front-end/tests/*.test.mjs

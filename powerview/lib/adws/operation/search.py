@@ -18,6 +18,7 @@ from ldap3 import ALL_ATTRIBUTES, NO_ATTRIBUTES, ALL_OPERATIONAL_ATTRIBUTES, BAS
 from uuid import uuid4
 import base64
 import logging
+from xml.sax.saxutils import escape as xml_escape
 
 # ldap3 scope constants → ADWS scope strings (MS-ADDM 2.3.2)
 _SCOPE_MAP = {
@@ -84,9 +85,9 @@ def search_operation(fqdn, search_base, search_filter, search_scope,
     query_vars = {
         "uuid": str(uuid4()),
         "fqdn": fqdn,
-        "query": search_filter,
+        "query": xml_escape(search_filter),
         "selection": selection_xml,
-        "search_base": search_base,
+        "search_base": xml_escape(search_base),
         "search_scope": _SCOPE_MAP.get(search_scope, search_scope),
         "controls": serialize_controls(controls),
     }

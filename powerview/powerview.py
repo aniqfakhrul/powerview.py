@@ -31,7 +31,7 @@ from powerview.modules.ldapattack import (
 )
 from powerview.lib.adws.error import ADWSError
 from powerview.utils.colors import bcolors
-from powerview.utils.schema import SchemaAttributeResolver, SchemaFeatureVariant
+from powerview.utils.schema import SchemaAttributeResolver, SchemaFeatureVariant, SchemaCatalog
 from powerview.utils.constants import (
 	WELL_KNOWN_SIDS,
 	resolve_WellKnownSID,
@@ -107,9 +107,10 @@ class PowerView:
 	def ldap_session(self, session):
 		self._ldap_session = session
 
-	def __init__(self, conn, args, target_server=None, target_domain=None):
+	def __init__(self, conn, args, target_server=None, target_domain=None, log_handler=None):
 		self.conn = conn
 		self.args = args
+		self.log_handler = log_handler
 		
 		if target_domain:
 			self.domain = target_domain
@@ -145,7 +146,7 @@ class PowerView:
 		self.plugin_registry = None
 
 		# API server
-		if hasattr(self.args, 'web') and self.args.web and self.ldap_session:
+		if not target_domain and getattr(self.args, 'web', False) and self.ldap_session:
 			try:
 				from powerview.web.api.server import APIServer
 				self.api_server = APIServer(self, host=self.args.web_host, port=self.args.web_port)
@@ -154,7 +155,7 @@ class PowerView:
 				logging.warning("Web interface dependencies not installed. Web interface will not be available.")
 
 		# MCP server
-		if hasattr(self.args, 'mcp') and self.args.mcp and self.ldap_session:
+		if not target_domain and getattr(self.args, 'mcp', False) and self.ldap_session:
 			try:
 				from powerview.mcp import MCPServer
 				
@@ -301,7 +302,7 @@ class PowerView:
 				logging.debug(traceback.format_exc())
 			return False
 
-	def get_object_across_domains(self, identity=None, properties=[], target_domain=None):
+	def get_object_across_domains(self, identity=None, properties=None, target_domain=None):
 		objects = []
 		for domain in self.get_domaintrust(
 			identity=target_domain,
@@ -315,8 +316,7 @@ class PowerView:
 					temp_powerview = PowerView(domain_conn, self.args, target_domain=trust_name)
 					objects.extend(temp_powerview.get_domainobject(
 						identity=identity,
-						properties=['name', 'objectSid', 'distinguishedName', 'objectCategory'],
-						server=trust_name
+						properties=properties or ['name', 'objectSid', 'distinguishedName', 'objectCategory'],
 					))
 				except Exception as e:
 					logging.error(f"Failed to query domain {trust_name}: {str(e)}")
@@ -539,6 +539,8 @@ class PowerView:
 			method_signature = inspect.signature(method)
 			method_params = method_signature.parameters
 			method_args = {k: v for k, v in vars(args).items() if k in method_params}
+			if 'args' in method_params:
+				method_args['args'] = args
 			result = method(**method_args)
 
 		return result
@@ -3144,6 +3146,10 @@ class PowerView:
 		return processed_entries
 
 	def get_domainsccm(self, args=None, properties=[], identity=None, searchbase=None, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
+		catalog = SchemaCatalog.from_server(getattr(self, 'ldap_server', None))
+		if catalog.available and not catalog.has_class('mSSMSManagementPoint'):
+			logging.info('[Get-DomainSCCM] The directory schema does not contain SCCM management points')
+			return []
 		def_prop = [
 			"cn",
 			"distinguishedname",
@@ -3195,44 +3201,34 @@ class PowerView:
 			raw=raw
 		)
 
-		if args.check_datalib:
+		if getattr(args, 'check_datalib', False):
 			if not entries:
 				logging.info("[Get-DomainSCCM] No server found in domain. Skipping...")
 				return entries
 
-			target = entries['attributes']['dnsHostName']
-			logging.debug("[Get-DomainSCCM] Verifying SCCM HTTP endpoint")
-
-			sccm = SCCM(target)
-			sccm.check_datalib_endpoint()
-			
-			if not sccm.http_enabled():
-				logging.info("[Get-DomainSCCM] Failed to check with hostname, resolving dnsHostName attribute to IP and retrying...")
-				target = host2ip(entries['attributes']['dnsHostName'], self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
-				sccm.check_datalib_endpoint()
-
-			entries = modify_entry(
-				entries,
-				new_attributes = {
-					"DatalibEndpoint": sccm.http_enabled(),
-					"DatalibEndpointAllowAnonymous": sccm.http_anonymous_enabled()
-				}
-			)
+			for entry in entries:
+				attributes = entry.get('attributes', {})
+				target = next((value for key, value in attributes.items() if key.casefold() == 'dnshostname'), None)
+				if isinstance(target, list):
+					target = target[0] if target else None
+				if not target:
+					continue
+				probe = SCCM(target)
+				probe.check_datalib_endpoint()
+				if not probe.http_enabled():
+					address = host2ip(target, self.nameserver, 3, True, use_system_ns=self.use_system_nameserver)
+					if address and address != target:
+						probe = SCCM(address)
+						probe.check_datalib_endpoint()
+				attributes.update({
+					'DatalibEndpoint': probe.http_enabled(),
+					'DatalibEndpointAllowAnonymous': probe.http_anonymous_enabled(),
+				})
 
 		return entries
 
 	def get_domainsccmdatalib(self):
-		entries = []
-		if not sccm.http_enabled():
-			logging.warning("[Get-DomainSCCM] Datalib endpoint not accessible. Skipping...")
-			return entries
-
-		# parse datalib
-		logging.debug("[Get-DomainSCCMDatalib] Parsing SCCM Datalib HTTP endpoint")
-
-		urls = sccm.parse_datalib(self.username, self.password)
-
-		return entries
+		raise NotImplementedError('SCCM Datalib content enumeration is not implemented. Use Get-DomainSCCM -CheckDatalib to check endpoint availability.')
 
 	def get_domainca(self, args=None, identity=None, properties=None, check_all=False, search_scope=ldap3.SUBTREE, no_cache=False, no_vuln_check=False, raw=False):
 		def_prop = [

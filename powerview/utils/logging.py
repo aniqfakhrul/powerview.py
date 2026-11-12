@@ -38,7 +38,7 @@ class CustomFormatter(logging.Formatter):
 class HistoryConsole:
     def __init__(self, histfile="~/.powerview/.powerview_history"):
         self.histfile = os.path.expanduser(histfile)
-        self.init_history(histfile)
+        self.init_history()
 
     def init_history(self, histfile=None):
         if not histfile:

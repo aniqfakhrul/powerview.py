@@ -19,7 +19,7 @@
         pkgs = nixpkgs.legacyPackages.${system};
         powerview = pkgs.python3Packages.buildPythonApplication rec {
           pname = "powerview";
-          version = "2026.2.2";
+          version = "2026.2.1";
           format = "pyproject";
 
           src = pkgs.fetchFromGitHub {
@@ -58,7 +58,7 @@
               The main goal is to achieve an interactive session without having to repeatedly authenticate to LDAP.
             '';
             homepage = "https://github.com/aniqfakhrul/powerview.py";
-            license = licenses.gpl3Only;
+            license = licenses.mit;
             mainProgram = "powerview";
           };
         };

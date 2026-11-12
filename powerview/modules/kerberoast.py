@@ -115,7 +115,7 @@ class GetUserSPNs:
             s.login('', '')
         except Exception:
             if s.getServerName() == '':
-                raise 'Error while anonymous logging into %s'
+                raise RuntimeError(f'Error while anonymously logging into {s.getRemoteHost()}')
         else:
             try:
                 s.logoff()
@@ -309,10 +309,6 @@ class GetUserSPNs:
 
         else:
             logging.error("No entries found!")
-
-    def request_users_file_TGSs(self):
-
-        self.request_multiple_TGSs(usernames)
 
     def request_multiple_TGSs(self, usernames):
         # Get a TGT for the current user

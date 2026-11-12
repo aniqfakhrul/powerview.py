@@ -537,6 +537,8 @@ def getKerberosType1(username, password, domain, lmhash, nthash, aesKey='', TGT 
         if useCache is True:
             try:
                 ccache = CCache.loadFile(os.getenv('KRB5CCNAME'))
+                if ccache is None:
+                    raise FileNotFoundError('No Kerberos cache is configured')
             except Exception:
                 # No cache present
                 pass

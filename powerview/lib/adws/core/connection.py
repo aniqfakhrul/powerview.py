@@ -39,9 +39,10 @@ from copy import deepcopy
 from functools import reduce
 
 class Connection(object):
-    def __init__(self, server, user, password, domain, lmhash, nthash, raise_exceptions=False, authentication=NTLM, check_names=True, auto_encode=True, client_strategy=SYNC, aesKey='', kdcHost=None, use_kerberos=False, no_pass=False, receive_timeout=30):
+    def __init__(self, server, user, password, domain, lmhash, nthash, raise_exceptions=False, authentication=NTLM, check_names=True, auto_encode=True, client_strategy=SYNC, aesKey='', kdcHost=None, use_kerberos=False, no_pass=False, receive_timeout=30, connect_address=None):
         self.server = server
         self.host = server.host
+        self.connect_address = connect_address or server.host
         self.port = server.port
         self.resource = server.resource
         self.user = user
@@ -712,7 +713,7 @@ class Connection(object):
                 'Enumeration', AccountManagement',  'TopologyManagement'>
         """
         try:
-            server_address: tuple[str, int] = (self.host, self.port)
+            server_address: tuple[str, int] = (self.connect_address, self.port)
             resource = resource if resource is not None else self.resource
             logging.debug(f"[ADWS] Connecting to {self.host}:{self.port} for {resource}")
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

@@ -11,7 +11,7 @@ from .datatypes import MultiByteInt31, Utf8String
 
 
 class record:
-    records: dict[int, Type[Self]] = dict()
+    records: dict[int, type[Self]] = dict()
 
     @classmethod
     def add_records(cls, records):
@@ -178,6 +178,8 @@ class ArrayRecord(record):
         element = cls.records[element_type].parse(fp)
         element_end = fp.read(1)
         while element_end != b"\x01":
+            if not element_end:
+                raise EOFError("Truncated array element")
             element_end = fp.read(1)
         recordtype = struct.unpack("<B", fp.read(1))[0]
         count = MultiByteInt31.parse(fp).value

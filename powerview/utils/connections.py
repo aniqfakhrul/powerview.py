@@ -191,12 +191,15 @@ class ConnectionPool:
 	- Background maintenance (disabled by default, enabled when intervals are set)
 	"""
 	
+	_pool_type = 'LDAP'
+
 	def __init__(self, max_connections=10, cleanup_interval=0, keepalive_interval=0):
+		if max_connections < 1 or cleanup_interval < 0 or keepalive_interval < 0:
+			raise ValueError('Pool size must be positive and maintenance intervals must be nonnegative')
 		self.max_connections = max_connections
 		self.cleanup_interval = cleanup_interval
 		self.keepalive_interval = keepalive_interval
 		self._shutdown_in_progress = False
-		self._pool_type = 'LDAP'
 
 		self._pool = OrderedDict()
 		self._pool_lock = threading.RLock()
@@ -550,9 +553,10 @@ class SMBConnectionPool(ConnectionPool):
 	- Connection rotation for stealth operations
 	"""
 	
+	_pool_type = 'SMB'
+
 	def __init__(self, max_connections=20, cleanup_interval=400, keepalive_interval=300):
 		super().__init__(max_connections, cleanup_interval, keepalive_interval)
-		self._pool_type = 'SMB'
 	
 	def _perform_keepalive(self):
 		"""Send keep-alive to all active SMB connections to maintain them"""
@@ -879,8 +883,8 @@ class CONNECTION:
 		# Child connections (cross-domain) don't need SMB pool maintenance threads
 		self._smb_pool = SMBConnectionPool(
 			max_connections=20,
-			cleanup_interval=0 if _is_child else 400,
-			keepalive_interval=0 if _is_child else 300
+			cleanup_interval=0 if _is_child or getattr(args, 'query', None) else 400,
+			keepalive_interval=0 if _is_child or getattr(args, 'query', None) else getattr(args, 'keepalive_interval', 0)
 		)
 
 		self._current_domain = None
@@ -1545,6 +1549,8 @@ class CONNECTION:
 		if getattr(self, "_closing", False):
 			raise ConnectionError("Connection is closing")
 		self._cached_whoami = None
+		if self.use_adws and self.use_simple_auth:
+			raise ConnectionSetupError('SIMPLE authentication is not supported over ADWS. Use LDAP/LDAPS or NTLM/Kerberos')
 		if _retry_depth > 3:
 			raise ConnectionSetupError("Maximum LDAP session retry depth exceeded")
 		if self.targetDomain and self.targetDomain != self.domain and self.kdcHost:
@@ -1560,12 +1566,12 @@ class CONNECTION:
 					target = self.get_alt_server_info().get("dnsHostName")[0]
 					if not target:
 						target = get_machine_name(ldap_address)
-					self.kdcHost = target
+					self.kdcHost = self.kdcHost or target
 				elif self.ldap_address is not None and is_ipaddress(self.ldap_address):
 					target = self.get_alt_server_info().get("dnsHostName")[0]
 					if not target:
 						target = get_machine_name(self.ldap_address)
-					self.kdcHost = target
+					self.kdcHost = self.kdcHost or target
 				else:
 					target = self.ldap_address
 				if not self.domain and target is not None and is_valid_fqdn(target):
@@ -1730,8 +1736,8 @@ class CONNECTION:
 	def init_adws_session(self):
 		target = self.ldap_address
 		# Kerberos needs FQDN for SPN construction; use resolved hostname when target is IP
-		if self.use_kerberos and is_ipaddress(target) and self.kdcHost and is_valid_fqdn(self.kdcHost):
-			target = self.kdcHost
+		if self.use_kerberos and is_ipaddress(target):
+			target = self.get_alt_server_info().get('dnsHostName', [target])[0]
 		self.ldap_server, self.ldap_session = self.init_adws_connection(
 			target, self.domain, self.username, self.password, self.lmhash, self.nthash,
 			aesKey=self.auth_aes_key or '', kdcHost=self.kdcHost,
@@ -1804,6 +1810,18 @@ class CONNECTION:
 
 		return new_creds
 
+	def _kerberos_transport_address(self, target):
+		address = getattr(self, 'ldap_address', None)
+		if address and is_ipaddress(address):
+			return address
+		dc_ip = getattr(self, 'dc_ip', None)
+		if address and target.casefold() == address.casefold() and dc_ip and is_ipaddress(dc_ip):
+			return dc_ip
+		nameserver = getattr(self, 'nameserver', None)
+		if nameserver:
+			return host2ip(target, nameserver=nameserver, use_system_ns=getattr(self, 'use_system_ns', False), no_prompt=True) or target
+		return target
+
 	def init_ldap_kerberos(self, target, tls=None, domain=None, username=None, password=None, lmhash=None, nthash=None, aesKey=None, kdcHost=None, sign_and_seal=None, channel_binding=None, _retry_depth=0):
 		if _retry_depth > 3:
 			raise ConnectionSetupError("Maximum Kerberos LDAP retry depth exceeded")
@@ -1813,7 +1831,7 @@ class CONNECTION:
 		from impacket.krb5 import constants
 		ldap_server_kwargs = {
 			"connect_timeout": getattr(self.args, "ldap_timeout", 30),
-			"host": target,
+			"host": self._kerberos_transport_address(target),
 			"get_info": ldap3.ALL,
 			"use_ssl": True if self.use_gc_ldaps or self.use_ldaps else False,
 			"tls": tls,
@@ -1948,6 +1966,7 @@ class CONNECTION:
 			"raise_exceptions": True,
 			"authentication": ldap3.SASL,
 			"sasl_mechanism": ldap3.KERBEROS,
+			"sasl_credentials": (target,),
 			"cred_store": cred_store
 		}
 		use_ssl = bool(ldap_server.ssl)
@@ -2230,6 +2249,7 @@ class CONNECTION:
 			"use_kerberos": use_kerberos,
 			"no_pass": no_pass,
 			"receive_timeout": getattr(self.args, "ldap_timeout", 30),
+			"connect_address": self._kerberos_transport_address(target) if use_kerberos else target,
 		}
 		try:
 			adws_connection = adws.Connection(adws_server, **adws_connection_kwargs)

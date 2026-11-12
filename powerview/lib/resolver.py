@@ -216,7 +216,7 @@ class LDAP:
 
 	@staticmethod
 	def human_readable_time_diff(past_date):
-		now = datetime.datetime.now()
+		now = datetime.datetime.now(past_date.tzinfo)
 		diff = relativedelta(now, past_date)
 
 		if diff.years > 0:

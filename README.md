@@ -5,7 +5,7 @@
 
 <p align="center">
 
-<img src="https://img.shields.io/badge/version-2026.2.2-blue" alt="version 2026.2.2"/>
+<img src="https://img.shields.io/badge/version-2026.2.1-blue" alt="version 2026.2.1"/>
 
 <a href="https://x.com/aniqfakhrul">
     <img src="https://img.shields.io/twitter/follow/aniqfakhrul?style=social"
@@ -24,6 +24,17 @@ PowerView.py is an alternative for the awesome original [PowerView.ps1](https://
 
 ## Installation
 https://github.com/aniqfakhrul/powerview.py/wiki/Installation-Guide
+
+### Development checks
+
+```bash
+uv sync --group dev --extra mcp
+uv run --no-sync pytest -q
+node --test powerview/web/front-end/tests/*.test.mjs
+```
+
+The Python and frontend suites run without a live directory. The MCP extra is
+needed for MCP-specific checks; those checks are skipped when it is absent.
 
 ## Basic Usage
 > [!NOTE]
@@ -531,7 +542,7 @@ You can specify multiple values for a condition using:
 ### MCP
 
 > [!note]
-> This is not bundled in the base project installation. You may run `pip3 install .[mcp] or pip3 install powerview[mcp]` to include MCP functionalities.
+> This is not bundled in the base project installation. Run `pip3 install '.[mcp]'` or `pip3 install 'powerview[mcp]'` to include MCP functionalities.
 
 This enables the Model Context Protocol server, allowing AI agents to interact with PowerView functionality through a standardized interface via Streamable HTTP transport. See the [MCP documentation](powerview/mcp/README.md) for more details.
 

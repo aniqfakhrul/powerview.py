@@ -20,7 +20,7 @@ class PowerViewParser(argparse.ArgumentParser):
 	def error(self, message):
 		if getattr(self, "exit_on_error", True):
 			print(message, file=sys.stderr)
-			sys.exit(0)
+			sys.exit(2)
 		raise argparse.ArgumentError(None, message)
 
 class PowerViewConsoleParser(PowerViewParser):
@@ -61,7 +61,7 @@ def arg_parse():
 	group.add_argument('--use-ldaps', dest='use_ldaps', action='store_true', help='[Optional] Use LDAPS instead of LDAP')
 	group.add_argument('--use-gc', dest='use_gc', action='store_true', help='[Optional] Use GlobalCatalog (GC) protocol')
 	group.add_argument('--use-gc-ldaps', dest='use_gc_ldaps', action='store_true', help='[Optional] Use GlobalCatalog (GC) protocol for LDAPS')
-	group.add_argument('--use-adws', dest='use_adws', action='store_true', help='Use ADWS protocol (port 9389, NTLM auth only)')
+	group.add_argument('--use-adws', dest='use_adws', action='store_true', help='Use ADWS protocol (port 9389, NTLM or Kerberos authentication)')
 
 	auth = parser.add_argument_group('authentication')
 	auth.add_argument('-H','--hashes', action="store", metavar = "LMHASH:NTHASH", help='NTLM hashes, format is LMHASH:NTHASH')
@@ -69,7 +69,7 @@ def arg_parse():
 	
 	auth_type_group = auth.add_mutually_exclusive_group()
 	auth_type_group.add_argument("--use-simple-auth", dest="use_simple_auth", action="store_true", default=False, help='Authenticate with SIMPLE authentication')
-	auth_type_group.add_argument("--pfx", dest="pfx", action="store", help='Supply .pfx formatted certificate. Use --cert and --key if no pfx')
+	auth_type_group.add_argument("--pfx", dest="pfx", action="store", help='Supply a .pfx formatted certificate for Schannel authentication')
 
 	auth.add_argument("--no-channel-binding", dest="channel_binding", action="store_false", default=True, help='Disable TLS channel binding for NTLM/Kerberos binds over LDAPS/GC-SSL (enabled by default)')
 	auth.add_argument("--no-sign-and-seal", dest="sign_and_seal", action="store_false", default=True, help='Disable signing and sealing for NTLM/Kerberos binds over LDAP/GC (enabled by default)')
@@ -116,7 +116,10 @@ def arg_parse():
 
 	args = parser.parse_args()
 
-	parsed_identity = parse_identity(args)
+	try:
+		parsed_identity = parse_identity(args)
+	except ValueError as error:
+		parser.error(str(error))
 	args.domain = parsed_identity['domain']
 	args.username = parsed_identity['username']
 	args.password = parsed_identity['password']
@@ -131,8 +134,7 @@ def arg_parse():
 
 	# check for mutually exclusive
 	if args.use_kerberos and (args.relay):
-		logging.error("Kerberos option cannot be used in relay mode. Exiting...")
-		sys.exit(0)
+		parser.error('Kerberos cannot be used in relay mode')
 
 	return args
 
