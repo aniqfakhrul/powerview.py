@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
+from urllib.parse import quote_from_bytes
 
 from flask import Flask, redirect, render_template, request, url_for
 
@@ -62,12 +63,20 @@ def render_page(page):
 def render_home(page):
     """Serve the Dashboard at / while sending pre-Dashboard Explorer deep links on."""
     if "dn" in request.args:
-        return redirect(url_for("explorer", **request.args))
+        return redirect_with_query("explorer")
     return render_page(page)
 
 
 def redirect_to_dashboard():
-    return redirect(url_for("dashboard", **request.args))
+    return redirect_with_query("dashboard")
+
+
+def redirect_with_query(endpoint):
+    location = url_for(endpoint)
+    if request.query_string:
+        query = quote_from_bytes(request.query_string, safe="!$&'()*+,-./:;=?@_%~")
+        location += "?" + query
+    return redirect(location)
 
 
 def register_frontend(add_route):

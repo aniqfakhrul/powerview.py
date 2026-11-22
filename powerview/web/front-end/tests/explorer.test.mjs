@@ -87,7 +87,12 @@ test('failed requests ask the shell to recheck the connection', async () => {
     await assert.rejects(createAPI('http://localhost/api/')('get/domainobject'), /socket closed/);
     globalThis.fetch = async () => { throw new TypeError('network'); };
     await assert.rejects(createAPI('http://localhost/api/')('get/domainobject'), /Cannot reach/);
-    assert.deepEqual(events, ['powerview:request-failed', 'powerview:request-failed']);
+    globalThis.fetch = async () => new Response('Unauthorized', { status: 401 });
+    await assert.rejects(createAPI('http://localhost/api/')('get/domainobject'), { name: 'APIError', status: 401 });
+    const aborted = new DOMException('Read cancelled', 'AbortError');
+    globalThis.fetch = async () => ({ json: async () => { throw aborted; } });
+    await assert.rejects(createAPI('http://localhost/api/')('get/domainobject'), (error) => error === aborted);
+    assert.deepEqual(events, Array(3).fill('powerview:request-failed'));
   } finally {
     globalThis.fetch = original.fetch;
     globalThis.dispatchEvent = original.dispatch;

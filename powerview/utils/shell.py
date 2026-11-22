@@ -59,7 +59,7 @@ def get_prompt(powerview, current_target_domain=None, using_cache=False, args=No
 
     web_indicator = ""
     if web_running:
-        web_indicator = f" {_rl(bcolors.OKBLUE)}[WEB:{args.web_host}:{args.web_port}]{_rl(bcolors.ENDC)}"
+        web_indicator = f" {_rl(bcolors.OKBLUE)}[WEB:{powerview.api_server.host}:{powerview.api_server.port}]{_rl(bcolors.ENDC)}"
 
     security_indicators = ""
     if channel_binding_active:

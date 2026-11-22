@@ -90,7 +90,9 @@ const endpoints = { users: 'domainuser', computers: 'domaincomputer', groups: 'd
           assert.equal(await page.locator(`#${id}`).getAttribute('aria-busy'), 'true', id);
         }
         assert.equal(await page.locator('#dashboard-inventory [data-count] .loading-bar').count(), 6);
-        assert.equal(await page.locator('.dashboard__signal-count .loading-bar').count(), 10);
+        const counts = page.locator('.dashboard__signal-count');
+        assert.ok(await counts.count() > 0);
+        assert.equal(await counts.evaluateAll((nodes) => nodes.every((node) => node.querySelector('.loading-bar'))), true);
         assert.doesNotMatch(await page.locator('.dashboard__scroll').innerText(), /Reading|Waiting for|Loading…/);
         releaseDomain();
         await page.locator('#dashboard-policy', { hasText: 'Domain policy unavailable' }).waitFor();

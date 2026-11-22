@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 from flask import jsonify, request, Response, stream_with_context, g
 import logging
-from contextlib import redirect_stdout, redirect_stderr
-import io
+import ntpath
 import os
 import sys
+from tempfile import TemporaryDirectory
 import threading
 from datetime import date,datetime
 import shlex
@@ -15,6 +15,7 @@ from powerview.web.api.dashboard import SECTIONS as DASHBOARD_SECTIONS, dashboar
 from powerview.utils.parsers import powerview_arg_parse
 from powerview.utils.constants import UAC_DICT
 import types
+from werkzeug.serving import WSGIRequestHandler, make_server
 from powerview.web.frontend import create_web_app, register_frontend
 from powerview.lib.ldap3.extend import CustomExtendedOperationsRoot
 from powerview.utils.obfuscation import ObfuscationError, ObfuscationSettings, obfuscation_arguments
@@ -34,21 +35,21 @@ class APIServer:
 		self.app = create_web_app(__name__)
 		
 		self.basic_auth = None
-		self.web_auth_user = powerview.args.web_auth['web_auth_user'] if powerview.args.web_auth else None
-		self.web_auth_password = powerview.args.web_auth['web_auth_password'] if powerview.args.web_auth else None
-		if self.web_auth_user and self.web_auth_password:
+		web_auth = powerview.args.web_auth
+		if web_auth is not None:
+			username = web_auth.get('web_auth_user')
+			password = web_auth.get('web_auth_password')
+			if not username or not password:
+				raise ValueError("Web authentication requires a nonempty username and password")
 			try:
 				from flask_basicauth import BasicAuth
-				self.app.config['BASIC_AUTH_USERNAME'] = self.web_auth_user
-				self.app.config['BASIC_AUTH_PASSWORD'] = self.web_auth_password
+				self.app.config['BASIC_AUTH_USERNAME'] = username
+				self.app.config['BASIC_AUTH_PASSWORD'] = password
 				self.basic_auth = BasicAuth(self.app)
 			except ImportError:
 				logging.error("flask_basicauth is not installed. Please install it using 'pip install flask-basicauth'")
 				sys.exit(1)
 		
-		cli = sys.modules['flask.cli']
-		cli.show_server_banner = lambda *x: None
-
 		self.powerview = powerview
 		self.host = host
 		self.port = port
@@ -67,12 +68,23 @@ class APIServer:
 			self.log_file_path = os.path.join(log_handler.logs_folder, log_handler.file_name)
 			self.history_file_path = log_handler.history_file
 
+		self.app.before_request(self._check_api_origin)
 		self.app.before_request(self._acquire_session)
 		self.app.teardown_request(self._release_session)
 		self._register_routes()
 
+	def _check_api_origin(self):
+		if not request.path.startswith('/api/') or request.method in {'GET', 'HEAD', 'OPTIONS'}:
+			return
+		site = request.headers.get('Sec-Fetch-Site')
+		origin = request.headers.get('Origin')
+		if site == 'same-origin':
+			return
+		if site in {'cross-site', 'same-site'} or (origin is not None and origin != request.host_url.rstrip('/')):
+			return jsonify({'error': 'Browser requests must originate from this PowerView instance'}), 403
+
 	def _acquire_session(self):
-		if not request.path.startswith('/api/') or request.endpoint in {'health', 'history', 'logs', 'constants'}:
+		if not request.path.startswith('/api/') or request.endpoint in {None, 'health', 'history', 'logs', 'constants'}:
 			return
 		lock = session_lock(self.powerview)
 		lock.acquire()
@@ -111,11 +123,11 @@ class APIServer:
 		add_route_with_auth('/api/connectioninfo', 'connectioninfo', self.handle_connection_info, methods=['GET'])
 		add_route_with_auth('/api/logs', 'logs', self.generate_log_stream, methods=['GET'])
 		add_route_with_auth('/api/history', 'history', self.render_history, methods=['GET'])
-		add_route_with_auth('/api/ldap/rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['GET'])
-		add_route_with_auth('/api/ldap/close', 'ldap_close', self.handle_ldap_close, methods=['GET'])
+		add_route_with_auth('/api/ldap/rebind', 'ldap_rebind', self.handle_ldap_rebind, methods=['POST'])
+		add_route_with_auth('/api/ldap/close', 'ldap_close', self.handle_ldap_close, methods=['POST'])
 		add_route_with_auth('/api/execute', 'execute_command', self.execute_command, methods=['POST'])
 		add_route_with_auth('/api/constants', 'constants', self.handle_constants, methods=['GET'])
-		add_route_with_auth('/api/clear-cache', 'clear_cache', self.handle_clear_cache, methods=['GET'])
+		add_route_with_auth('/api/clear-cache', 'clear_cache', self.handle_clear_cache, methods=['POST'])
 		add_route_with_auth('/api/settings', 'settings', self.handle_settings, methods=['GET'])
 		add_route_with_auth('/api/plugins', 'plugins_list', self.handle_plugins_list, methods=['GET'])
 		add_route_with_auth('/api/plugins/<plugin_name>/enable', 'plugin_enable', self.handle_plugin_enable, methods=['POST'])
@@ -267,7 +279,9 @@ class APIServer:
 		method_name = ACCOUNT_ACTIONS.get(action)
 		if not method_name:
 			return jsonify({'error': f'Unsupported account action: {action}'}), 404
-		body = request.get_json(silent=True) or {}
+		body = request.get_json(silent=True)
+		if not isinstance(body, dict):
+			return jsonify({'error': 'Arguments must be a JSON object'}), 400
 		identity = body.get('identity')
 		searchbase = body.get('searchbase')
 		if not isinstance(identity, str) or not identity.strip():
@@ -464,45 +478,34 @@ class APIServer:
 			return jsonify({'error': str(e)}), 400
 
 	def start(self):
-		debug_enabled = bool(getattr(self.powerview.args, 'debug', False))
-		request_handler = None
+		class QuietRequestHandler(WSGIRequestHandler):
+			def log_request(self, *args, **kwargs):
+				pass
+
 		try:
-			from werkzeug.serving import WSGIRequestHandler
-			class _SilentRequestHandler(WSGIRequestHandler):
-				def log_request(self, *args, **kwargs):
-					return
-			request_handler = _SilentRequestHandler
-		except Exception:
-			request_handler = None
-		log = logging.getLogger('werkzeug')
-		log.setLevel(logging.CRITICAL)
-		log.propagate = False
-		try:
-			self.app.logger.disabled = True
-		except Exception:
-			pass
+			server = make_server(self.host, self.port, self.app, threaded=True, request_handler=QuietRequestHandler)
+		except (OSError, SystemExit) as error:
+			# Werkzeug can raise SystemExit on bind failure. The directory CLI can still run.
+			logging.error("Could not start the PowerView web server on %s:%s (%s)", self.host, self.port, error)
+			return
 
-		run_kwargs = {'host': self.host, 'port': self.port, 'debug': False}
-		if request_handler is not None:
-			run_kwargs['request_handler'] = request_handler
+		def serve():
+			try:
+				server.serve_forever()
+			finally:
+				self.set_status(False)
+				server.server_close()
 
-		if debug_enabled:
-			self.api_server_thread = threading.Thread(
-				target=self.app.run,
-				kwargs=run_kwargs,
-				daemon=True
-			)
-		else:
-			with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-				self.api_server_thread = threading.Thread(
-					target=self.app.run,
-					kwargs=run_kwargs,
-					daemon=True
-				)
-
+		self.api_server_thread = threading.Thread(target=serve, daemon=True)
+		self.port = server.port
 		self.set_status(True)
-		logging.info(f"Powerview web listening on {self.host}:{self.port}")
-		self.api_server_thread.start()
+		try:
+			self.api_server_thread.start()
+		except RuntimeError:
+			self.set_status(False)
+			server.server_close()
+			raise
+		logging.info("PowerView web listening on %s:%s", self.host, self.port)
 
 	def handle_smb_connect(self):
 		try:
@@ -819,13 +822,17 @@ class APIServer:
 
 	def handle_smb_put(self):
 		try:
-			computer = request.form.get('computer').lower()
+			computer = request.form.get('computer', '').lower()
 			share = request.form.get('share')
 			file = request.files.get('file')
 			current_path = request.form.get('path', '')
 			
 			if not computer or not share:
 				return jsonify({'error': 'Computer name/IP and share name are required'}), 400
+
+			filename = file.filename if file is not None else None
+			if not filename or ntpath.basename(filename) != filename or filename in {'.', '..'}:
+				return jsonify({'error': 'Provide a file with a plain filename'}), 400
 
 			try:
 				client = self.powerview.conn.init_smb_session(computer)
@@ -834,29 +841,12 @@ class APIServer:
 
 			smb_client = SMBClient(client)
 			
-			# Save file temporarily
-			temp_path = os.path.join('/tmp', file.filename)
-			file.save(temp_path)
-			
-			try:
-				# Construct the remote path correctly
-				# current_path might be like "/FolderA" or "" for root
-				# file.filename is the original filename
-				clean_dest_dir = current_path.strip('/').replace('/', '\\')
-				remote_target_path = os.path.join(clean_dest_dir, file.filename).replace('/', '\\')
-				
-				logging.debug(f"[SMB PUT] Uploading {temp_path} to share '{share}', path: '{remote_target_path}'")
-				
-				# Reverting to the 3-argument call based on [Errno 2] indicating the path was likely accessed
-				# without the correct share context.
-				# Assumed signature: put(self, share_name, remote_path_in_share, local_path)
+			remote_target_path = ntpath.join(current_path.strip('/').replace('/', '\\'), filename)
+			with TemporaryDirectory() as staging_dir:
+				temp_path = os.path.join(staging_dir, 'upload')
+				file.save(temp_path)
 				smb_client.put(share, remote_target_path, temp_path)
-				
-				return jsonify({'message': 'File uploaded successfully'})
-			finally:
-				# Clean up temporary file
-				if os.path.exists(temp_path):
-					os.remove(temp_path)
+			return jsonify({'message': 'File uploaded successfully'})
 
 		except Exception as e:
 			logging.error(f"[SMB PUT] Error: {str(e)}")

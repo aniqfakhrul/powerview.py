@@ -78,13 +78,20 @@ export function booleanColumn(key, name, hint) {
   };
 }
 
-const disabled = (record) => accountDisabled(attribute(record, 'userAccountControl'));
+function accountStatus(record) {
+  const control = attribute(record, 'userAccountControl');
+  if (!values(control).some((value) => String(value ?? '').trim())) return 'Unknown';
+  return accountDisabled(control) ? 'Disabled' : 'Enabled';
+}
 
 export const statusColumn = {
   key: 'status', label: 'Status', hint: 'From userAccountControl', icon: 'field-class', width: 110, attributes: ['userAccountControl'],
-  render: (record) => element('span', disabled(record) ? 'state state--disabled' : 'state', disabled(record) ? 'Disabled' : 'Enabled'),
-  text: (record) => (disabled(record) ? 'Disabled' : 'Enabled'),
-  sort: (record) => Number(disabled(record)),
+  render: (record) => {
+    const status = accountStatus(record);
+    return pill(status, { Enabled: 'success', Disabled: 'disabled', Unknown: 'neutral' }[status]);
+  },
+  text: accountStatus,
+  sort: (record) => ({ Enabled: 0, Disabled: 1, Unknown: null })[accountStatus(record)],
   filter: { type: 'values', choices: ['Enabled', 'Disabled'] },
 };
 
@@ -149,8 +156,10 @@ export function createColumnSet({ storageKey, objectClass, name, catalog, defaul
     load() {
       try {
         const saved = JSON.parse(localStorage.getItem(storageKey));
-        const keys = Array.isArray(saved) ? saved.filter((key) => typeof key === 'string' && columnFor(key)) : [];
-        if (keys.length) return keys;
+        if (Array.isArray(saved)) {
+          const keys = saved.filter((key) => typeof key === 'string' && columnFor(key));
+          if (!saved.length || keys.length) return keys;
+        }
       } catch { /* per-viewer convenience only */ }
       return [...defaults];
     },

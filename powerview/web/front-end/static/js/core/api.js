@@ -33,7 +33,9 @@ export function createAPI(baseURL) {
     let data;
     try {
       data = await response.json();
-    } catch {
+    } catch (error) {
+      if (error.name === 'AbortError') throw error;
+      reportFailure();
       throw new APIError(mutation
         ? 'The server returned an unreadable result. Check the directory before repeating the change.'
         : 'The server did not return JSON. Check your session and retry.', response.status);

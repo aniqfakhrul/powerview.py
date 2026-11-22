@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const base = process.env.EXPLORER_URL || 'http://127.0.0.1:5011';
 const root = 'DC=example,DC=test';
 const users = Array.from({ length: 3 }, (_, index) => ({ dn: `CN=User ${index},${root}`, attributes: {
-  name: `User ${index}`, sAMAccountName: `user${index}`, userAccountControl: 512,
+  name: `User ${index}`, sAMAccountName: `user${index}`, userAccountControl: index === 2 ? undefined : 512,
   description: index === 1 ? 'A deliberately long description that needs a much wider column than the default one' : 'Fixture',
 } }));
 const record = (dn) => ({ dn, attributes: {
@@ -57,6 +57,11 @@ async function drag(page, key, distance) {
       await page.locator('#grid-body tr[data-dn]').first().waitFor();
       await page.locator('th[data-key="status"]').hover();
       assert.equal(await visibleTriggers(page), 1);
+      assert.equal(await page.locator('#grid-body .state').last().textContent(), 'Unknown');
+      await page.evaluate(() => localStorage.setItem('powerview.users.columns', '[]'));
+      await page.reload();
+      await page.locator('#grid-body tr[data-dn]').first().waitFor();
+      assert.deepEqual(Object.keys(await widths(page)), ['name']);
       await page.close();
     }
 

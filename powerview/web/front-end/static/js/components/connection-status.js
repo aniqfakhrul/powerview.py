@@ -70,6 +70,7 @@ export function startConnectionStatus(host) {
 
   function checkSoon() {
     if (Date.now() - lastCheck >= MIN_CHECK_GAP) check();
+    else schedule();
   }
 
   document.addEventListener('visibilitychange', () => {

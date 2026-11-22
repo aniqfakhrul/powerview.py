@@ -161,13 +161,9 @@ class Helper:
 		return value.lower() if value else value
 
 	def parse_web_auth(web_auth):
-		web_auth_user = None
-		web_auth_password = None
-		if web_auth:
-			try:
-				web_auth_user, web_auth_password = web_auth.split(':')
-			except Exception:
-				raise ValueError("Invalid web auth string")
+		web_auth_user, _, web_auth_password = web_auth.partition(':')
+		if not web_auth_user or not web_auth_password:
+			raise argparse.ArgumentTypeError("Web authentication requires a nonempty username and password")
 		return {'web_auth_user': web_auth_user, 'web_auth_password': web_auth_password}
 
 def powerview_arg_parse(cmd):
