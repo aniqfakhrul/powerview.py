@@ -132,8 +132,10 @@ this is not a universal guarantee, particularly after saving and reopening a fil
 The button is disabled while loading and
 when no rows are shown. The export is built in the browser and issues no
 directory request. Filenames include the connected domain from `/api/connectioninfo`,
-for example `powerview-wonka.lab-users-2026-10-13T20-39-23-000Z.csv`;
-unavailable connection metadata uses `unknown-domain`. Logic lives in `components/grid/csv-export.js`;
+for example `powerview-wonka.lab-users-2026-10-13T20-39-23-000Z.csv`. The page requests it on load
+without a deadline, because it queues behind the page's own directory read on the session lock;
+an export waits up to 3 seconds for a pending request, and unavailable connection metadata uses
+`unknown-domain`. Logic lives in `components/grid/csv-export.js`;
 `tests/csv-export.test.mjs` and `tests/grid-export.browser.cjs` cover it.
 
 ## Motion and loading

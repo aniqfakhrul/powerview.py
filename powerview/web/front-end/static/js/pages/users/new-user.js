@@ -17,6 +17,7 @@ export function createNewUser({ directory, defaultContainer, onCreated }) {
 
   document.querySelector('#user-cancel').addEventListener('click', () => { if (!busy) dialog.close(); });
   dialog.addEventListener('cancel', (event) => { if (busy) event.preventDefault(); });
+  dialog.addEventListener('close', () => { password.value = ''; });
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();

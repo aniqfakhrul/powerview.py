@@ -16,7 +16,9 @@ export function splitDN(dn) {
 }
 
 export const parentDN = (dn) => splitDN(dn).slice(1).join(',');
-export const isDN = (text) => /^(?:CN|OU|DC)=[^,]+(?:,(?:CN|OU|DC|O|L)=[^,]+)*$/i.test(text);
+// RDN values may contain escaped characters such as \, in "CN=Doe\, Jane".
+const DN = /^(?:CN|OU|DC)=(?:\\.|[^,\\])+(?:,(?:CN|OU|DC|O|L)=(?:\\.|[^,\\])+)*$/i;
+export const isDN = (text) => DN.test(text);
 export const sameDN = (left, right) => left.toLowerCase() === right.toLowerCase();
 
 export function dnLabel(dn) {

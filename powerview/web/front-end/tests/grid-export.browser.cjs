@@ -100,6 +100,40 @@ async function download(page) {
     assert.match(acl.text.split('\r\n')[0], /"ObjectDN"$/);
     assert.ok(acl.text.includes('"ReadControl; WriteDACL"'));
     assert.deepEqual(errors, []);
-    console.log('PASS: CSV export on shared grids: disabled while loading and when empty, exports filtered rows with visible columns and DN, BOM and CRLF, quoting, formula neutralisation, no duplicate DN column, DN chip values, More actions menu keyboard behaviour, Pathfinder ObjectDN and JSON menu item, toast and file names.');
+
+    // connectioninfo queues behind the page's own directory load on the server's session lock,
+    // so it can arrive late; a late domain still names the file, and a missing one cannot stall it.
+    let hold = true;
+    let unblock;
+    const blocked = new Promise((resolve) => { unblock = resolve; });
+    const slow = await browser.newContext({ acceptDownloads: true });
+    await slow.route('**/api/**', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith('/connectioninfo')) {
+        await (hold ? blocked : new Promise((resolve) => { setTimeout(resolve, 5500); }));
+        return route.fulfill({ json: { status: 'OK', domain: 'example.test' } }).catch(() => {});
+      }
+      if (path.endsWith('/get/domaininfo')) return route.fulfill({ json: { root_dn: rootDN } });
+      if (path.endsWith('/server/info')) return route.fulfill({ json: { raw: { namingContexts: [rootDN] } } });
+      if (path.endsWith('/get/domainuser')) return route.fulfill({ json: users });
+      return route.fulfill({ json: { status: 'OK', available: false, attributes: [] } });
+    });
+    const late = await slow.newPage();
+    await late.addInitScript(() => { window.requestFailures = 0; addEventListener('powerview:request-failed', () => { window.requestFailures += 1; }); });
+    await late.goto(`${base}/users`);
+    await late.locator('#grid-body tr[data-dn]').nth(2).waitFor();
+    const started = Date.now();
+    assert.match((await download(late)).name, /^powerview-unknown-domain-users-/);
+    assert.ok(Date.now() - started < 10000);
+    hold = false;
+    unblock();
+    await late.locator('#connection-status[data-state="ok"]').waitFor();
+    assert.match((await download(late)).name, /^powerview-example\.test-users-/);
+    await late.reload();
+    await late.locator('#connection-status[data-state="ok"]').waitFor();
+    assert.match((await download(late)).name, /^powerview-example\.test-users-/);
+    assert.equal(await late.evaluate(() => window.requestFailures), 0);
+    await slow.close();
+    console.log('PASS: CSV export on shared grids: disabled while loading and when empty, exports filtered rows with visible columns and DN, BOM and CRLF, quoting, formula neutralisation, no duplicate DN column, DN chip values, More actions menu keyboard behaviour, Pathfinder ObjectDN and JSON menu item, toast and file names, late or missing connection metadata.');
   } finally { await browser.close(); }
 })().catch((error) => { console.error(error); process.exitCode = 1; });

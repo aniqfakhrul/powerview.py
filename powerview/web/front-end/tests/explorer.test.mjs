@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAPI } from '../static/js/core/api.js';
 import { accountKind, createDirectory, objectType, TYPE_ICONS } from '../static/js/core/directory.js';
-import { splitDN, parentDN, dnLabel, namingContext } from '../static/js/core/dn.js';
+import { splitDN, parentDN, dnLabel, namingContext, isDN } from '../static/js/core/dn.js';
 import { createRequestLane } from '../static/js/core/request-lane.js';
 import { accountDisabled, readableTime, toTime } from '../static/js/core/ldap-values.js';
 import { validateFilter } from '../static/js/components/grid/search-menu.js';
@@ -14,6 +14,13 @@ test('DN parsing preserves escaped separators and decodes UTF-8 hex escapes', ()
   assert.equal(dnLabel(dn), 'Doe, Jane');
   assert.equal(dnLabel(String.raw`CN=Jos\C3\A9,DC=test`), 'José');
   assert.equal(namingContext('CN=Schema,CN=Configuration,DC=test', ['DC=test', 'CN=Configuration,DC=test']), 'CN=Configuration,DC=test');
+});
+
+test('DN detection accepts escaped separators in RDN values', () => {
+  assert.equal(isDN(String.raw`CN=Doe\, Jane,OU=Sales\, EMEA,DC=example,DC=test`), true);
+  assert.equal(isDN(String.raw`CN=Jos\C3\A9,DC=test`), true);
+  assert.equal(isDN('CN=Jane Doe,OU=People,DC=example,DC=test'), true);
+  for (const text of ['Jane Doe', 'CN=', 'CN=Doe\\', 'CN=a,,DC=test', 'X=1,DC=test']) assert.equal(isDN(text), false, text);
 });
 
 test('computers are classified before users', () => {

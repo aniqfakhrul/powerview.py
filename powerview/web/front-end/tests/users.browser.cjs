@@ -153,6 +153,11 @@ let users = Array.from({ length: 450 }, (_, index) => user(index));
   await page.waitForFunction(() => document.querySelectorAll('#grid-body tr[data-dn]').length === 1);
   assert.equal(await page.locator('#grid-filter').inputValue(), 'Second Person');
   await page.locator('.toast--success', { hasText: 'Created Second Person' }).waitFor();
+  assert.equal(await dialog.getByLabel('Password').inputValue(), '');
+  await page.getByRole('button', { name: 'New user', exact: true }).click();
+  await dialog.getByLabel('Password').fill('Abandoned123!');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await page.waitForFunction(() => !document.querySelector('#user-dialog').open && document.querySelector('#user-password').value === '');
 
   await rows.first().click();
   const panel = page.locator('#object-panel');

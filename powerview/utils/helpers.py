@@ -15,7 +15,9 @@ import json
 import logging
 from dns import resolver
 import struct
+from ldap3.core.exceptions import LDAPInvalidDnError
 from ldap3.utils.conv import escape_filter_chars
+from ldap3.utils.dn import parse_dn
 from typing import Tuple
 import re
 import configparser
@@ -103,6 +105,18 @@ def escape_filter_chars_except_asterisk(filter_str):
 	escaped_chars = ''.join(c if c == '*' else escape_filter_chars(c) for c in filter_str)
 	return escaped_chars
 
+def _split_identity_list(value):
+	if is_dn(value):
+		return [value]
+	if ',' in value and '=' in value:
+		try:
+			# Keep an AD DN with escaped commas together, preserving its original spelling.
+			if parse_dn(value)[-1][0].lower() == 'dc':
+				return [value]
+		except LDAPInvalidDnError:
+			pass
+	return [part.strip() for part in value.split(',') if part.strip()]
+
 def expand_identity_values(value):
 	if value is None:
 		return []
@@ -124,14 +138,9 @@ def expand_identity_values(value):
 			line = line.strip()
 			if not line or line.startswith("#") or line.startswith(";"):
 				continue
-			if is_dn(line):
-				values.append(line)
-			else:
-				values.extend([part.strip() for part in line.split(",") if part.strip()])
+			values.extend(_split_identity_list(line))
 		return values
-	if is_dn(value):
-		return [value]
-	return [part.strip() for part in value.split(",") if part.strip()]
+	return _split_identity_list(value)
 
 def parse_identity_list(value):
 	values = expand_identity_values(value)

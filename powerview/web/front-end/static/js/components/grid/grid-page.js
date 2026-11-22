@@ -27,7 +27,9 @@ function linkedSearch() {
 
 export function createGridPage({ root, endpoint, noun, columnSet, search: searchConfig = {}, fetch: fetchEntries, deletable = true, describeRemoval, isProtected = () => false, afterDelete, summary, panelActions, autoLoad = true, initialMessage, emptyMessage, details, onLoadState, exportName = root.id }) {
   const directory = createDirectory(new URL(root.dataset.apiRoot, window.location.origin));
-  const exportDomain = directory.connection(AbortSignal.timeout(5000)).then((info) => info?.domain).catch(() => null);
+  // No deadline here: this read queues behind the page's own directory load on the shared
+  // session lock, so a fixed timeout mislabelled exports from slow directories.
+  const exportDomain = directory.connection().then((info) => info?.domain).catch(() => null);
   const scroller = document.querySelector('#grid-scroll');
   const head = document.querySelector('#grid-head');
   const body = document.querySelector('#grid-body');
@@ -353,7 +355,8 @@ export function createGridPage({ root, endpoint, noun, columnSet, search: search
     if (!shown && visible.some((entry) => entry.dn)) fields.push({ label: header, value: (entry) => entry.dn });
     const csv = toCsv(fields, visible);
     const count = visible.length;
-    downloadCsv(exportName, csv, await exportDomain);
+    const domain = await Promise.race([exportDomain, new Promise((resolve) => { setTimeout(resolve, 3000, null); })]);
+    downloadCsv(exportName, csv, domain);
     notify.success(`Exported ${count} ${count === 1 ? noun.singular : noun.plural} to CSV`);
   }
 
