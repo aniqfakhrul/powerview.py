@@ -16,7 +16,7 @@ import logging
 from dns import resolver
 import struct
 from ldap3.core.exceptions import LDAPInvalidDnError
-from ldap3.utils.conv import escape_filter_chars
+from ldap3.utils.conv import escape_filter_chars, unescape_filter_chars
 from ldap3.utils.dn import parse_dn
 from typing import Tuple
 import re
@@ -106,15 +106,9 @@ def escape_filter_chars_except_asterisk(filter_str):
 	return escaped_chars
 
 def _split_identity_list(value):
+	# Keep a DN whole, in its original spelling, even when an RDN value has an escaped comma.
 	if is_dn(value):
 		return [value]
-	if ',' in value and '=' in value:
-		try:
-			# Keep an AD DN with escaped commas together, preserving its original spelling.
-			if parse_dn(value)[-1][0].lower() == 'dc':
-				return [value]
-		except LDAPInvalidDnError:
-			pass
 	return [part.strip() for part in value.split(',') if part.strip()]
 
 def expand_identity_values(value):
@@ -511,9 +505,18 @@ def is_ipaddress(address):
 	except ValueError:
 		return False
 
+def _is_ad_dn(value):
+	try:
+		return parse_dn(value)[-1][0].lower() == 'dc'
+	except (LDAPInvalidDnError, IndexError):
+		return False
+
 def is_dn(dn):
-	dn_pattern = re.compile(r'^((CN=([^,]*)),)?((((?:CN|OU)=[^,]+,?)+),)?((DC=[^,]+,?)+)$')
-	return bool(dn_pattern.match(dn))
+	"""Whether dn is an AD distinguished name, written raw or already escaped for a search filter."""
+	if not isinstance(dn, str) or '=' not in dn:
+		return False
+	# -Identity values are filter-escaped when parsed, which turns "\," into "\5c,".
+	return _is_ad_dn(dn) or ('\\' in dn and _is_ad_dn(unescape_filter_chars(dn).decode()))
 
 def is_sid(value: str) -> bool:
     sid_pattern = re.compile(r"^S-\d+(-\d+){1,}$")

@@ -60,9 +60,12 @@ import powerview.lib.adws as adws
 from ldap3 import Connection as LDAP3Connection
 from powerview.lib.adws.core.connection import Connection as ADWSConnection
 from powerview.lib.krb5.gss import GSSError, accept_ap_rep
+from powerview.lib.ldap3.filters import restore_filter_escape_decoding
 from powerview.lib.ldap3.sasl import SaslSocket, install_ldap_protection
 from powerview.lib.ldapx import attach as attach_obfuscation, detach as detach_obfuscation
 from powerview.utils.obfuscation import ObfuscationSettings
+
+restore_filter_escape_decoding()
 
 _gethostname_lock = threading.Lock()
 _original_gethostname = socket.gethostname
